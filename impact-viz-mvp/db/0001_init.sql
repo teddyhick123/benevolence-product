@@ -87,7 +87,21 @@ create table if not exists events(
   created_at timestamptz default now()
 );
 
--- Staging tables for human-in-the-loop approvals
+-- Staging schema and table for human-in-the-loop approvals
 create schema if not exists staging;
-create table if not exists staging.metric_facts like public.metric_facts including all;
-alter table staging.metric_facts add column staged_by text, add column note text;
+
+create table if not exists staging.metric_facts (
+  id uuid primary key default gen_random_uuid(),
+  investee_id uuid references public.investees(id) on delete set null,
+  holding_id uuid references public.holdings(id) on delete set null,
+  metric_code text references public.metrics(code),
+  period_start date,
+  period_end date,
+  value numeric,
+  source text,
+  verification_level text,
+  data_quality_score numeric,
+  last_updated timestamptz default now(),
+  staged_by text,
+  note text
+);

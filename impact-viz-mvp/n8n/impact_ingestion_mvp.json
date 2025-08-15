@@ -1,0 +1,182 @@
+{
+  "name": "Impact Report Ingestion MVP",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "impact/ingest",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "Webhook_Trigger",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        200,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "const body = items[0].json;\nif(!body.fileId){ throw new Error('fileId missing'); }\nreturn [{ json: { fileId: body.fileId, localPath: `/tmp/${body.fileId}` } }];"
+      },
+      "id": "Prepare_File",
+      "name": "Prepare File",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        420,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Simulate parse: in prod, detect mime and parse PDF/DOCX/XLSX\nreturn [{ json: { text: 'Quarterly impact report sample text', tables: [], meta: $json } }];"
+      },
+      "id": "Parse_Doc",
+      "name": "Parse Document",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        640,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "chat",
+        "text": "Extract KPIs (metric, value, unit, period_start, period_end), sector, themes, and risk notes from this report text. Return strict JSON array under key `facts` with fields: metric_code, value, unit, period_start, period_end, source, verification_level, data_quality_score.",
+        "additionalFields": {
+          "systemMessage": "You are a data extraction model for impact investing. Use metric codes: WACI, FEMISS, RE_MWH, JOBS_FTE, WOM_LEAD_PCT, REV_IMPACT_PCT, HH_REACHED."
+        }
+      },
+      "id": "OpenAI_Extract",
+      "name": "OpenAI Extract",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 4,
+      "position": [
+        860,
+        300
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "OPENAI_API_CREDENTIALS_PLACEHOLDER"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "const out = [];\nconst payload = items[0].json;\nconst facts = (payload.facts || []);\nfor (const f of facts) {\n  out.push({ json: {\n    investee_id: null,\n    holding_id: null,\n    metric_code: f.metric_code,\n    period_start: f.period_start,\n    period_end: f.period_end,\n    value: Number(f.value),\n    source: f.source || 'LLM Extract',\n    verification_level: f.verification_level || 'Issuer Reported',\n    data_quality_score: Number(f.data_quality_score || 0.6)\n  }});\n}\nreturn out;"
+      },
+      "id": "Normalize",
+      "name": "Normalize Facts",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        1080,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "insert into staging.metric_facts (metric_code, period_start, period_end, value, source, verification_level, data_quality_score, staged_by, note)\nvalues (:metric_code, :period_start, :period_end, :value, :source, :verification_level, :data_quality_score, 'n8n', 'auto');"
+      },
+      "id": "Insert_Staging",
+      "name": "Insert Staging Facts",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 1,
+      "position": [
+        1300,
+        300
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "POSTGRES_CREDENTIALS_PLACEHOLDER"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "text": "Staged facts inserted. Awaiting analyst approval in admin UI."
+      },
+      "id": "Respond",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        1520,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Prepare File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare File": {
+      "main": [
+        [
+          {
+            "node": "Parse Document",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Document": {
+      "main": [
+        [
+          {
+            "node": "OpenAI Extract",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Extract": {
+      "main": [
+        [
+          {
+            "node": "Normalize Facts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Facts": {
+      "main": [
+        [
+          {
+            "node": "Insert Staging Facts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert Staging Facts": {
+      "main": [
+        [
+          {
+            "node": "Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

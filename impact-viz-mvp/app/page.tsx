@@ -1,44 +1,32 @@
-import KpiCard from '@/components/KpiCard';
-import HoldingsTable from '@/components/HoldingsTable';
-import ImpactMap from '@/components/ImpactMap';
-
-export default async function Home() {
-  // Stubbed data; replace with calls to /api/portfolio/[id]/overview etc.
-  const kpis = [
-    { title: 'Impact Coverage', value: '78%', delta: 3.1, badge: 'Verified' },
-    { title: 'WACI', value: 92, delta: -5.5, badge: 'Issuer Reported' },
-    { title: 'Financed Emissions', value: '48,200 tCO₂e', delta: -1200 },
-    { title: 'Jobs Supported', value: 1340, delta: 25 }
-  ];
-
-  const holdings = [
-    { name: 'GreenGrid Solar Fund I', nav: 6200000, asset_class: 'Private Equity', last_updated: '2025-06-30', status: 'OK' },
-    { name: 'BlueWave Water Corp', nav: 1800000, asset_class: 'Public Equity', last_updated: '2025-06-30', status: 'Watch' },
-    { name: 'Global Green Bonds ETF', nav: 2000000, asset_class: 'Fixed Income', last_updated: '2025-06-30', status: 'OK' }
-  ];
-
-  const points = [
-    { lon: -122.33, lat: 47.60, weight: 10, label: 'US - NW' },
-    { lon: -73.94, lat: 40.67, weight: 8, label: 'US - NE' },
-    { lon: -3.70, lat: 40.41, weight: 5, label: 'Europe' }
-  ];
-
+export default function Home() {
   return (
-    <div className="space-y-6">
-      <h1 className="text-3xl font-semibold">Portfolio Overview</h1>
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        {kpis.map((k, i) => <KpiCard key={i} {...k as any} />)}
+    <div className="mx-auto max-w-4xl px-6 py-16 text-center">
+      {/* Brand mark */}
+      <div className="inline-flex items-center justify-center gap-2 mb-3">
+        <span className="font-playfair text-3xl leading-none text-azure">B.</span>
+        <span className="sr-only">Benevolence</span>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div>
-          <h2 className="text-xl font-semibold mb-2">Holdings</h2>
-          <HoldingsTable rows={holdings as any} />
-        </div>
-        <div>
-          <h2 className="text-xl font-semibold mb-2">Impact Map</h2>
-          <ImpactMap points={points as any} />
-        </div>
+      <h1 className="font-playfair text-5xl font-bold tracking-tight text-ink">
+        Benevolence
+      </h1>
+      <p className="mt-4 text-neutral-700">
+        Impact investing analytics—clear, current, and actionable.
+      </p>
+
+      <div className="mt-8 flex items-center justify-center gap-3">
+        <a
+          href="/login"
+          className="px-6 py-3 rounded-2xl bg-azure text-white shadow-soft hover:opacity-90 transition"
+        >
+          Sign in
+        </a>
+        <a
+          href="/dashboard"
+          className="px-6 py-3 rounded-2xl border border-black/10 hover:bg-white shadow-sm hover:shadow transition"
+        >
+          View dashboard
+        </a>
       </div>
     </div>
   );

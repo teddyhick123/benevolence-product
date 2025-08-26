@@ -1,15 +1,15 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { supabaseServer } from '@/lib/supabaseServer';
+import { NextResponse } from 'next/server';
+import { supabasePublic } from '@/lib/supabasePublic';
 
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
-  const supabase = supabaseServer();
-  // TODO: compute KPIs from metric_facts; for now return stub
-  return NextResponse.json({
-    portfolioId: params.id,
-    kpis: [
-      { title: 'Impact Coverage', value: 0.78, delta: 0.031 },
-      { title: 'WACI', value: 92, delta: -5.5 }
-    ],
-    as_of: new Date().toISOString().slice(0,10)
-  });
+export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> }) {
+  const { id: portfolioId } = await ctx.params; // await per Next.js async params
+  const sb = supabasePublic();
+
+  const { data, error } = await sb
+    .from('v_portfolio_latest')
+    .select('*')
+    .eq('portfolio_id', portfolioId);
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ data });
 }

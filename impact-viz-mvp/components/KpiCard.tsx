@@ -1,20 +1,112 @@
+'use client';
 import React from 'react';
 
-type Props = { title: string; value: string | number; delta?: number; lastUpdated?: string; badge?: string };
-export default function KpiCard({ title, value, delta, lastUpdated, badge }: Props) {
+type Format = 'raw' | 'number' | 'currency' | 'percent';
+
+type Props = {
+  title: string;
+  value: string | number | null | undefined;
+  delta?: number | null;           // positive/negative change (e.g., +3.1)
+  lastUpdated?: string | null;
+  badge?: string | null;
+  format?: Format;                  // how to render the value
+  currency?: string;                // when format === 'currency' (default USD)
+  loading?: boolean;                // show skeleton while loading
+  footnote?: string;                // optional small line under delta
+};
+
+function fmtValue(
+  value: Props['value'],
+  format: Format = 'raw',
+  currency: string = 'USD'
+): string {
+  if (value == null || (typeof value === 'number' && !isFinite(value))) return '—';
+
+  const n = typeof value === 'number' ? value : Number(value as any);
+  if (format === 'raw') return String(value);
+
+  if (format === 'number') {
+    // friendly K/M/B format
+    const abs = Math.abs(n);
+    if (abs >= 1_000_000_000) return (n / 1_000_000_000).toFixed(1) + 'B';
+    if (abs >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
+    if (abs >= 1_000) return (n / 1_000).toFixed(1) + 'K';
+    return new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 }).format(n);
+  }
+
+  if (format === 'currency') {
+    return new Intl.NumberFormat(undefined, {
+      style: 'currency',
+      currency,
+      maximumFractionDigits: Math.abs(n) < 1000 ? 2 : 0
+    }).format(n);
+  }
+
+  if (format === 'percent') {
+    return new Intl.NumberFormat(undefined, { style: 'percent', maximumFractionDigits: 2 }).format(n);
+  }
+
+  return String(value);
+}
+
+export default function KpiCard({
+  title,
+  value,
+  delta,
+  lastUpdated,
+  badge,
+  format = 'raw',
+  currency = 'USD',
+  loading = false,
+  footnote
+}: Props) {
+  const display = fmtValue(value, format, currency);
+  const hasDelta = typeof delta === 'number' && isFinite(delta as number);
+
   return (
-    <div className="border rounded-xl p-4 shadow-sm flex flex-col gap-1">
-      <div className="text-sm text-gray-600 flex justify-between">
-        <span>{title}</span>
-        {badge && <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100">{badge}</span>}
+    <div className="rounded-2xl bg-white border border-black/5 shadow-soft p-5 flex flex-col gap-2">
+      {/* Header */}
+      <div className="text-sm text-neutral-600 flex items-center justify-between">
+        <span className="truncate">{title}</span>
+        {badge && (
+          <span className="text-xs px-2 py-0.5 rounded-full bg-azure/10 text-azure border border-azure/20">
+            {badge}
+          </span>
+        )}
       </div>
-      <div className="text-2xl font-semibold">{value}</div>
-      {typeof delta === 'number' && (
-        <div className={`text-sm ${delta >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-          {delta >= 0 ? '▲' : '▼'} {Math.abs(delta).toFixed(2)} since last period
+
+      {/* Value / Skeleton */}
+      {loading ? (
+        <div className="h-8 w-24 rounded bg-neutral-200 animate-pulse" />
+      ) : (
+        <div className="text-3xl font-semibold tracking-tight">{display}</div>
+      )}
+
+      {/* Delta */}
+      {hasDelta && !loading && (
+        <div
+          className={`text-sm inline-flex items-center gap-1 ${
+            (delta as number) >= 0 ? 'text-green-600' : 'text-red-600'
+          }`}
+          aria-label={(delta as number) >= 0 ? 'Trend up' : 'Trend down'}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            {(delta as number) >= 0 ? (
+              <path d="M13 5l7 7-1.5 1.5L14 9.5V20h-2V9.5l-4.5 4L6 12l7-7z" />
+            ) : (
+              <path d="M11 19l-7-7 1.5-1.5L10 14.5V4h2v10.5l4.5-4L18 12l-7 7z" />
+            )}
+          </svg>
+          <span className="tabular-nums">{Math.abs(delta as number).toFixed(2)}</span>
+          <span className="text-neutral-500">since last period</span>
         </div>
       )}
-      {lastUpdated && <div className="text-xs text-gray-400">Updated {lastUpdated}</div>}
+
+      {/* Footnote / last updated */}
+      {footnote && !loading && <div className="text-xs text-neutral-500">{footnote}</div>}
+      {lastUpdated && !loading && (
+        <div className="text-xs text-neutral-400">Updated {lastUpdated}</div>
+      )}
     </div>
   );
 }

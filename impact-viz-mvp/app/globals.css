@@ -1,6 +1,35 @@
 /* app/globals.css */
 @import "tailwindcss";
 
-html, body { height: 100%; }
-body { background: #f8fafc; }
+/* Tailwind v4 design tokens */
+@theme {
+  /* Colors */
+  --color-creme: #fffff9;
+  --color-azure: #5186a6;
+  --color-ink:   #0f172a;
+
+  /* Shadows */
+  --shadow-soft: 0 4px 16px rgba(0,0,0,0.05);
+
+  /* Font family (maps to next/font variable) */
+  --font-playfair: var(--font-playfair);
+}
+
+/* Base theme tokens and resets */
+@layer base {
+  html, body, #__next { height: 100%; }
+
+  body {
+    @apply bg-creme text-ink antialiased;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  ::selection { @apply bg-azure/20; }
+}
+
+/* Optional card utility */
+@layer components {
+  .card { @apply rounded-2xl bg-white border border-black/5 shadow-soft; }
+}
 

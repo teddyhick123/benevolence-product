@@ -1,107 +1,83 @@
--- Enable extensions as needed
-create extension if not exists "uuid-ossp";
-
--- Portfolio backbone
-create table if not exists portfolios(
+-- Raw uploads (metadata)
+create table if not exists public.uploads (
   id uuid primary key default gen_random_uuid(),
-  name text not null,
-  owner_family text,
-  base_currency text default 'USD',
-  created_at timestamptz default now()
+  file_name text not null,
+  file_ext text,
+  bytes bigint,
+  uploaded_by uuid,
+  status text not null default 'queued', -- queued|processing|done|error
+  job_id uuid,                           -- n8n job correlation
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
 );
 
-create table if not exists investees(
-  id uuid primary key default gen_random_uuid(),
-  display_name text not null,
-  sector text,
-  impact_theme text,
-  country text,
-  region text,
-  listed_private text,
-  created_at timestamptz default now()
-);
-
-create table if not exists holdings(
-  id uuid primary key default gen_random_uuid(),
-  portfolio_id uuid references portfolios(id) on delete cascade,
-  investee_id uuid references investees(id) on delete cascade,
-  instrument_type text,
-  asset_class text,
-  nav numeric,
+-- Staging rows parsed from reports (one row per holding or metric)
+create table if not exists public.staging_metric_facts (
+  id bigint generated always as identity primary key,
+  upload_id uuid references public.uploads(id) on delete cascade,
   as_of_date date,
-  custodian text,
-  valuation_method text,
-  created_at timestamptz default now()
+  portfolio_code text,
+  holding_id text,
+  holding_name text,
+  sector text,
+  country text,
+  metric_name text,    -- e.g. "CO2e_tons", "Jobs", "MW"
+  metric_value numeric,
+  currency text,
+  raw jsonb
 );
 
-create table if not exists metrics(
-  code text primary key,
-  name text not null,
-  unit text,
-  directionality text check (directionality in ('higher_is_better','lower_is_better')),
-  aggregation_function text
-);
-
-create table if not exists metric_facts(
+-- Canonical holdings (for dashboard)
+create table if not exists public.holdings (
   id uuid primary key default gen_random_uuid(),
-  investee_id uuid references investees(id) on delete set null,
-  holding_id uuid references holdings(id) on delete set null,
-  metric_code text references metrics(code),
-  period_start date,
-  period_end date,
-  value numeric,
-  source text,
-  verification_level text,
-  data_quality_score numeric,
-  last_updated timestamptz default now()
+  portfolio_code text not null,
+  holding_id text not null,
+  holding_name text not null,
+  sector text,
+  country text,
+  created_at timestamptz default now(),
+  unique (portfolio_code, holding_id)
 );
 
-create table if not exists targets(
-  id uuid primary key default gen_random_uuid(),
-  scope text check (scope in ('Portfolio','Investee')),
-  portfolio_id uuid references portfolios(id) on delete cascade,
-  investee_id uuid references investees(id) on delete cascade,
-  metric_code text references metrics(code),
-  target_value numeric,
-  target_date date,
-  baseline_value numeric,
-  baseline_date date,
-  owner text,
-  created_at timestamptz default now()
+-- Facts table (star schema)
+create table if not exists public.holding_facts (
+  id bigint generated always as identity primary key,
+  holding_uuid uuid references public.holdings(id) on delete cascade,
+  as_of_date date not null,
+  metric_name text not null,
+  metric_value numeric not null,
+  currency text,
+  upload_id uuid references public.uploads(id) on delete set null
 );
 
-create table if not exists sdg_mapping(
-  metric_code text references metrics(code),
-  sdg text,
-  sdg_target text,
-  weight numeric default 1.0
-);
+-- Helpful view (used by /api/portfolio/.../overview)
+create or replace view public.v_portfolio_latest as
+select h.portfolio_code,
+       h.holding_name,
+       h.sector,
+       h.country,
+       f.metric_name,
+       f.metric_value,
+       f.as_of_date
+from public.holdings h
+join lateral (
+  select metric_name, metric_value, as_of_date
+  from public.holding_facts f
+  where f.holding_uuid = h.id
+  order by as_of_date desc
+  limit 1
+) f on true;
 
-create table if not exists events(
-  id uuid primary key default gen_random_uuid(),
-  investee_id uuid references investees(id) on delete cascade,
-  event_date date,
-  severity text,
-  headline text,
-  source_link text,
-  created_at timestamptz default now()
-);
+-- RLS
+alter table public.uploads enable row level security;
+alter table public.staging_metric_facts enable row level security;
+alter table public.holdings enable row level security;
+alter table public.holding_facts enable row level security;
 
--- Staging schema and table for human-in-the-loop approvals
-create schema if not exists staging;
+create policy "read all for dashboards" on public.v_portfolio_latest
+for select using (true);
 
-create table if not exists staging.metric_facts (
-  id uuid primary key default gen_random_uuid(),
-  investee_id uuid references public.investees(id) on delete set null,
-  holding_id uuid references public.holdings(id) on delete set null,
-  metric_code text references public.metrics(code),
-  period_start date,
-  period_end date,
-  value numeric,
-  source text,
-  verification_level text,
-  data_quality_score numeric,
-  last_updated timestamptz default now(),
-  staged_by text,
-  note text
-);
+create policy "uploads readable" on public.uploads for select using (true);
+create policy "facts readable" on public.holding_facts for select using (true);
+create policy "holdings readable" on public.holdings for select using (true);
+create policy "staging readable" on public.staging_metric_facts for select using (true);

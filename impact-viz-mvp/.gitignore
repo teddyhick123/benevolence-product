@@ -1,0 +1,44 @@
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Next.js build output
+.next/
+out/
+
+# Vercel build output
+.vercel/
+
+# TypeScript
+*.tsbuildinfo
+
+# Logs
+logs
+*.log
+*.log.*
+
+# Environment variables
+.env
+.env.*    # all env variants: .env.local, .env.development, etc.
+
+# Supabase
+supabase/.temp/
+supabase/migrations/.history/
+
+# n8n
+.n8n/
+.n8n_data/
+
+# macOS / Linux / Windows OS junk
+.DS_Store
+Thumbs.db
+
+# Editor caches
+.vscode/
+.idea/

@@ -33,3 +33,9 @@
   .card { @apply rounded-2xl bg-white border border-black/5 shadow-soft; }
 }
 
+@layer utilities {
+  @media (prefers-reduced-motion: reduce) {
+    .rm\:transition-none { transition: none !important; }
+    .rm\:transform-none  { transform: none !important; }
+  }
+}

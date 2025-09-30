@@ -19,6 +19,9 @@ export default function Header() {
     return () => subscription.unsubscribe();
   }, []);
 
+  const defaultPid = process.env.NEXT_PUBLIC_PORTFOLIO_ID_DEFAULT || '';
+  const dashboardHref = defaultPid ? `/dashboard?portfolio_id=${encodeURIComponent(defaultPid)}` : '/dashboard';
+
   async function handleSignOut() {
     await supabase.auth.signOut();
     window.location.href = "/";
@@ -26,17 +29,17 @@ export default function Header() {
 
   return (
     <header className="w-full sticky top-0 z-40 bg-creme/90 backdrop-blur-md border-b border-black/5">
-      <div className="mx-auto max-w-6xl px-4 md:px-6 py-3 flex items-center justify-between">
+      <div className="w-full px-4 md:px-6 lg:px-8 py-3 flex items-center justify-between">
         {/* Left: brand (B.) */}
-        <Link href={user ? "/dashboard" : "/"} className="inline-flex items-center gap-2 group">
-          <span className="font-playfair text-2xl leading-none text-azure group-hover:opacity-90">B.</span>
+        <Link href="/" className="inline-flex items-center gap-2 group transition-transform duration-200 hover:-translate-y-0.5 will-change-transform rm:transition-none rm:transform-none">
+          <span className="font-serif text-2xl leading-none text-azure group-hover:opacity-90">B.</span>
         </Link>
 
         {/* Right: auth-aware nav */}
         {!user ? (
           <Link
             href="/login"
-            className="font-playfair text-sm px-4 py-2 rounded-md bg-azure text-white shadow hover:opacity-90 transition"
+            className="font-sans text-sm px-4 py-2 rounded-md bg-azure text-white shadow-soft hover:opacity-90 transition-transform duration-200 hover:-translate-y-0.5 will-change-transform rm:transition-none rm:transform-none"
           >
             Sign in
           </Link>
@@ -44,19 +47,19 @@ export default function Header() {
           <nav className="flex items-center gap-3">
             <Link
               href="/profile"
-              className="font-playfair text-sm px-3 py-1.5 rounded-md border border-black/10 hover:bg-white shadow-sm hover:shadow transition"
+              className="font-sans text-sm px-3 py-1.5 rounded-md border border-black/10 hover:bg-white shadow-sm hover:shadow transition-transform duration-200 hover:-translate-y-0.5 will-change-transform rm:transition-none rm:transform-none"
             >
               Profile
             </Link>
             <Link
-              href="/dashboard"
-              className="font-playfair text-sm px-3 py-1.5 rounded-md border border-black/10 hover:bg-white shadow-sm hover:shadow transition"
+              href={dashboardHref}
+              className="font-sans text-sm px-3 py-1.5 rounded-md border border-black/10 hover:bg-white shadow-sm hover:shadow transition-transform duration-200 hover:-translate-y-0.5 will-change-transform rm:transition-none rm:transform-none"
             >
               Dashboard
             </Link>
             <button
               onClick={handleSignOut}
-              className="font-playfair text-sm px-3 py-1.5 rounded-md border border-black/10 hover:bg-white shadow-sm hover:shadow transition"
+              className="font-sans text-sm px-3 py-1.5 rounded-md border border-black/10 hover:bg-white shadow-sm hover:shadow transition-transform duration-200 hover:-translate-y-0.5 will-change-transform rm:transition-none rm:transform-none"
             >
               Sign out
             </button>

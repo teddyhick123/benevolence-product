@@ -20,8 +20,8 @@ export default async function Welcome() {
           // Route handlers & server components can mutate cookies in Next 14
           c.set({ name, value, ...options });
         },
-        remove(name: string, options: any) {
-          c.set({ name, value: '', ...options });
+        remove(name: string) {
+          c.delete(name);
         },
       },
     }

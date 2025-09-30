@@ -15,8 +15,8 @@ export async function GET() {
         set(name: string, value: string, options: any) {
           c.set({ name, value, ...options });
         },
-        remove(name: string, options: any) {
-          c.set({ name, value: '', ...options });
+        remove(name: string) {
+          c.delete(name);
         },
       },
     }
@@ -24,7 +24,7 @@ export async function GET() {
 
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
-    return NextResponse.json({ user: null, portfolios: [] });
+    return NextResponse.json({ user: null, portfolios: [] }, { headers: { 'Cache-Control': 'no-store' } });
   }
 
   // Fetch memberships -> portfolios
@@ -45,7 +45,7 @@ export async function GET() {
       user: { id: user.id, email: user.email },
       portfolios: [],
       error: error.message,
-    });
+    }, { headers: { 'Cache-Control': 'no-store' } });
   }
 
   const portfolios = (memberships ?? [])
@@ -56,9 +56,15 @@ export async function GET() {
       role: m?.role,
     }))
     .filter((p: any) => p.id);
+  const recommended_portfolio_id = portfolios[0]?.id ?? null;
 
   return NextResponse.json({
     user: { id: user.id, email: user.email },
     portfolios,
-  });
+    // backward-compatible field expected by some pages
+    portfolio_id: recommended_portfolio_id,
+    // keep the explicit field as well for newer callers
+    recommended_portfolio_id,
+    error: null,
+  }, { headers: { 'Cache-Control': 'no-store' } });
 }

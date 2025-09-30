@@ -32,7 +32,18 @@ export async function POST(req: NextRequest) {
     if (!file) return NextResponse.json({ error: 'No file' }, { status: 400 });
 
     const portfolio_id = (form.get('portfolio_id') as string) || null;
+    const holding_id = (form.get('holding_id') as string) || null;
+    const ai_mode = ((form.get('ai_mode') as string) ?? 'true') === 'true';
+    const selected_metrics_raw = (form.get('selected_metrics') as string) || '';
+    const selected_metrics = selected_metrics_raw
+      .split(',')
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
+
     const autoApprove = ((form.get('autoApprove') as string) ?? 'true') === 'true';
+
+    if (!portfolio_id) return NextResponse.json({ error: 'portfolio_id required' }, { status: 400 });
+    if (!holding_id) return NextResponse.json({ error: 'holding_id required' }, { status: 400 });
 
     const fileName = file.name;
     const ext = fileName.split('.').pop() || '';
@@ -50,23 +61,31 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: upErr ?? 'Failed to create upload' }, { status: 500 });
     }
 
-    // --- 3) (optional) archive raw file in private bucket "reports" ---
+    // --- 3) archive raw file in private bucket "reports" ---
     let storagePath: string | null = null;
+    let storageDebug: Record<string, any> | undefined;
     try {
       const arrayBuf = await file.arrayBuffer();
-      storagePath = `reports/${upload.id}/${fileName}`; // REST-friendly path
+      const objectKey = `${upload.id}/${fileName}`; // object key within the 'reports' bucket
+      const contentType = file.type || 'application/octet-stream';
+
       const { error: putErr } = await sb.storage
-        .from('reports') // make sure this bucket exists and is private
-        .upload(`${upload.id}/${fileName}`, new Uint8Array(arrayBuf), {
-          contentType: file.type || 'application/octet-stream',
+        .from('reports') // bucket must exist
+        .upload(objectKey, arrayBuf, {
+          contentType,
           upsert: true,
         });
+
       if (putErr) {
+        storageDebug = { stage: 'upload', message: putErr.message, name: putErr.name };
         console.warn('Storage upload failed:', putErr.message);
-        storagePath = null; // not fatal
+      } else {
+        storagePath = `reports/${objectKey}`; // full path used later by n8n to sign
       }
     } catch (e) {
-      console.warn('Storage upload threw:', (e as Error).message);
+      const msg = (e as Error).message;
+      storageDebug = { stage: 'exception', message: msg };
+      console.warn('Storage upload threw:', msg);
       storagePath = null;
     }
 
@@ -77,6 +96,10 @@ export async function POST(req: NextRequest) {
       supabaseUrl: NEXT_PUBLIC_SUPABASE_URL,
       serviceRole: SUPABASE_SERVICE_ROLE,
       portfolio_id,
+      holding_id,
+      ai_mode,
+      selected_metrics,
+      kpi_mode: ai_mode ? 'auto' : 'restricted',
       autoApprove,
       storagePath, // e.g. "reports/<uploadId>/<fileName>" or null
     };
@@ -102,7 +125,16 @@ export async function POST(req: NextRequest) {
     // --- 5) optimistic status flip ---
     await sb.from('uploads').update({ status: 'processing' }).eq('id', upload.id);
 
-    return NextResponse.json({ uploadId: upload.id, portfolio_id, autoApprove, storagePath }, { status: 200 });
+    return NextResponse.json({
+      uploadId: upload.id,
+      portfolio_id,
+      holding_id,
+      ai_mode,
+      selected_metrics,
+      autoApprove,
+      storagePath,
+      ...(storageDebug ? { storageDebug } : {})
+    }, { status: 200 });
   } catch (err) {
     console.error(err);
     return NextResponse.json({ error: 'Unexpected error' }, { status: 500 });

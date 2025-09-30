@@ -3,10 +3,15 @@ import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { createServerClient } from '@supabase/ssr';
 
-export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }) {
-  const { id: portfolioId } = await ctx.params;
-  const url = new URL(req.url);
-  const metric = url.searchParams.get('metric') || 'WACI';
+export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> }) {
+  const { id: portfolio_id } = await ctx.params;
+  const url = new URL(_req.url);
+  const kpiId = (url.searchParams.get('kpiId') || '').trim();
+  const metricParam = (url.searchParams.get('metric') || '').trim();
+  const metric = metricParam ? metricParam.toUpperCase() : '';
+  if (!kpiId && !metric) {
+    return NextResponse.json({ series: [] }, { headers: { 'Cache-Control': 'no-store' } });
+  }
 
   const c = await cookies();
   const supabase = createServerClient(
@@ -16,40 +21,29 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
       cookies: {
         get: (n) => c.get(n)?.value,
         set: (n, v, o) => c.set({ name: n, value: v, ...o }),
-        remove: (n, o) => c.set({ name, value: '', ...o }),
+        remove: (n) => c.delete(n),
       },
     }
   );
 
-  // Get holdings in portfolio
-  const { data: holdings, error: hErr } = await supabase
-    .from('holdings')
-    .select('id')
-    .eq('portfolio_id', portfolioId);
-  if (hErr) return NextResponse.json({ error: hErr.message }, { status: 500 });
-
-  const holdingIds = (holdings ?? []).map((h: any) => h.id);
-  if (!holdingIds.length) return NextResponse.json({ series: [] });
-
-  // Fetch facts for metric, sort by period_end
-  const { data: facts, error: fErr } = await supabase
-    .from('metric_facts')
-    .select('holding_id, metric_code, value, period_end')
-    .in('holding_id', holdingIds)
-    .eq('metric_code', metric)
+  // Fetch KPI series from view
+  let query = supabase
+    .from('v_portfolio_kpi_series')
+    .select('period_end, value, unit')
+    .eq('portfolio_id', portfolio_id)
     .order('period_end', { ascending: true });
-
-  if (fErr) return NextResponse.json({ error: fErr.message }, { status: 500 });
-
-  // Aggregate by date
-  const byDate = new Map<string, number>();
-  for (const row of facts ?? []) {
-    const d = row.period_end || '1970-01-01';
-    const v = Number(row.value ?? 0);
-    byDate.set(d, (byDate.get(d) ?? 0) + (isFinite(v) ? v : 0));
+  if (kpiId) {
+    query = query.eq('kpi_def_id', kpiId);
+  } else {
+    query = query.eq('metric_code', metric);
   }
-  const series = Array.from(byDate.entries()).map(([date, value]) => ({ date, value }));
-  series.sort((a, b) => a.date.localeCompare(b.date));
-
-  return NextResponse.json({ series });
+  const { data: rows, error: qErr } = await query;
+  if (qErr) {
+    return NextResponse.json({ error: qErr.message }, { status: 500, headers: { 'Cache-Control': 'no-store' } });
+  }
+  const series = (rows ?? []).map((row: any) => ({
+    date: row.period_end,
+    value: row.value,
+  }));
+  return NextResponse.json({ series }, { headers: { 'Cache-Control': 'no-store' } });
 }

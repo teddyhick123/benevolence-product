@@ -4,7 +4,7 @@ import { cookies } from 'next/headers';
 import { createServerClient } from '@supabase/ssr';
 
 export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> }) {
-  const { id: portfolioId } = await ctx.params;
+  const { id: portfolio_id } = await ctx.params;
 
   if (!process.env.OPENAI_API_KEY) {
     return NextResponse.json({ summary: 'AI summary disabled: OPENAI_API_KEY not set.' });
@@ -18,27 +18,27 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
       cookies: {
         get: (n) => c.get(n)?.value,
         set: (n, v, o) => c.set({ name: n, value: v, ...o }),
-        remove: (n, o) => c.set({ name, value: '', ...o }),
+        remove: (n, o) => c.set({ name: n, value: '', ...o }),
       },
     }
   );
 
-  // Pull latest KPI definitions (names/targets) and compute latest KPI values from v_portfolio_latest
+  // Pull latest KPI definitions (names/targets) and compute latest KPI values from v_portfolio_kpi_latest
   const [{ data: kpis }, { data: latest }] = await Promise.all([
     supabase
       .from('kpi_definitions')
       .select('metric_code, display_name, target_value, target_date')
-      .eq('portfolio_id', portfolioId)
+      .eq('portfolio_id', portfolio_id)
       .order('order_index', { ascending: true }),
     supabase
-      .from('v_portfolio_latest')
-      .select('metric_name, metric_value, as_of_date')
-      .eq('portfolio_id', portfolioId)
+      .from('v_portfolio_kpi_latest')
+      .select('display_name, metric_code, value, unit, period_end')
+      .eq('portfolio_id', portfolio_id)
   ]);
 
   // Build a concise prompt
   const lines: string[] = [];
-  lines.push(`Portfolio ID: ${portfolioId}`);
+  lines.push(`Portfolio ID: ${portfolio_id}`);
   if (kpis && kpis.length) {
     lines.push('Targets:');
     for (const k of kpis) {
@@ -49,7 +49,8 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
   if (latest && latest.length) {
     lines.push('Latest KPI readings:');
     for (const r of latest) {
-      lines.push(`- ${r.metric_name}: ${r.metric_value ?? '—'} (as of ${r.as_of_date ?? '—'})`);
+      const name = r.display_name || r.metric_code;
+      lines.push(`- ${name}: ${r.value ?? '—'}${r.unit ? ' ' + r.unit : ''} (as of ${r.period_end ?? '—'})`);
     }
   }
 

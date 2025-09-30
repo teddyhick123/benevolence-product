@@ -12,7 +12,8 @@ module.exports = {
         ink: "#0f172a"
       },
       fontFamily: {
-        playfair: ['var(--font-playfair)', 'serif'],
+        sans: ['var(--font-sans)', 'ui-sans-serif', 'system-ui', 'Segoe UI', 'Roboto', 'Helvetica', 'Arial', 'Apple Color Emoji', 'Segoe UI Emoji'],
+        serif: ['var(--font-serif)', 'ui-serif', 'Georgia', 'Cambria', 'Times New Roman', 'Times', 'serif'],
       },
       boxShadow: {
         soft: "0 4px 16px rgba(0,0,0,0.05)",

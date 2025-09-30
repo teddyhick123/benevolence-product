@@ -8,7 +8,7 @@ export default function NewPortfolioPage() {
   const router = useRouter();
   const [name, setName] = useState('');
   const [baseCurrency, setBaseCurrency] = useState('USD');
-  const [ownerUserId, setOwnerUserId] = useState(''); // optional: seed first owner
+  const [ownerEmail, setOwnerEmail] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -23,7 +23,7 @@ export default function NewPortfolioPage() {
         body: JSON.stringify({
           name,
           base_currency: baseCurrency || 'USD',
-          owner_user_id: ownerUserId || undefined,
+          owner_email: ownerEmail || undefined,
         }),
       });
       const j = await res.json().catch(() => ({}));
@@ -72,15 +72,16 @@ export default function NewPortfolioPage() {
           </label>
 
           <label className="text-sm">
-            <div className="text-neutral-600 mb-1">Owner user_id (optional)</div>
+            <div className="text-neutral-600 mb-1">Owner email (optional)</div>
             <input
-              value={ownerUserId}
-              onChange={(e) => setOwnerUserId(e.target.value)}
-              placeholder="auth.users.id (UUID)"
+              type="email"
+              value={ownerEmail}
+              onChange={(e) => setOwnerEmail(e.target.value)}
+              placeholder="owner@example.com"
               className="border rounded-2xl px-3 py-2 w-full"
             />
             <div className="text-xs text-neutral-500 mt-1">
-              If provided, this user will be added as <b>owner</b>.
+              If provided, we will look up this user and add them as <b>owner</b>.
             </div>
           </label>
         </div>

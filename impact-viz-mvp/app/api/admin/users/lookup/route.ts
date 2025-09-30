@@ -26,7 +26,7 @@ export async function GET(req: Request) {
       cookies: {
         get: (n) => c.get(n)?.value,
         set: (n, v, o) => c.set({ name: n, value: v, ...o }),
-        remove: (n, o) => c.set({ name, value: '', ...o }),
+        remove: (n, o) => c.delete(n),
       },
     }
   );
@@ -35,16 +35,19 @@ export async function GET(req: Request) {
   if (adminErr || !isAdmin) return noStore({ error: 'not authorized' }, 403);
 
   // Use service role to search auth.users (server-side only)
-  const admin = createSB(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE!, {
-    auth: { persistSession: false },
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE;
+  if (!serviceKey) return noStore({ error: 'missing service role key' }, 500);
+  const admin = createSB(process.env.NEXT_PUBLIC_SUPABASE_URL!, serviceKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
   });
 
-  const { data, error } = await admin.auth.admin.getUserByEmail(email);
-
+  const { data, error } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
   if (error) return noStore({ error: error.message }, 500);
-  if (!data?.user) return noStore({ data: null });
 
-  const u = data.user;
+  const user = data?.users?.find((u) => (u.email || '').toLowerCase() === email) || null;
+  if (!user) return noStore({ data: null });
+
+  const u = user;
   return noStore({
     data: {
       id: u.id,

@@ -23,8 +23,7 @@ export default function AISummaryCard({ portfolioId }: { portfolioId: string }) 
   }, [portfolioId]);
 
   return (
-    <div className="card p-4">
-      <div className="text-sm text-neutral-600 mb-2">AI Portfolio Summary</div>
+    <div className="card p-4 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg will-change-transform rm:transition-none rm:transform-none">
       {loading ? (
         <div className="space-y-2">
           <div className="h-4 w-3/4 bg-neutral-200 rounded animate-pulse" />

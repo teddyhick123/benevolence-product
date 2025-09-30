@@ -13,6 +13,12 @@ type Props = {
   currency?: string;                // when format === 'currency' (default USD)
   loading?: boolean;                // show skeleton while loading
   footnote?: string;                // optional small line under delta
+  /** allow inline editing when user has rights */
+  canEdit?: boolean;
+  /** handler for edit click (opens modal/sheet in parent) */
+  onEdit?: () => void;
+  /** optional custom label for the edit button */
+  editLabel?: string;
 };
 
 function fmtValue(
@@ -58,13 +64,29 @@ export default function KpiCard({
   format = 'raw',
   currency = 'USD',
   loading = false,
-  footnote
+  footnote,
+  canEdit = false,
+  onEdit,
+  editLabel = 'Edit'
 }: Props) {
   const display = fmtValue(value, format, currency);
   const hasDelta = typeof delta === 'number' && isFinite(delta as number);
 
   return (
-    <div className="rounded-2xl bg-white border border-black/5 shadow-soft p-5 flex flex-col gap-2">
+    <div className="relative group rounded-2xl bg-white border border-black/5 shadow-soft p-5 flex flex-col gap-2 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg will-change-transform rm:transition-none rm:transform-none">
+      {(canEdit && typeof onEdit === 'function') && (
+        <button
+          type="button"
+          onClick={onEdit}
+          className="absolute top-2 right-2 inline-flex items-center gap-1.5 rounded-2xl border border-black/10 bg-white/90 text-neutral-900 shadow-sm hover:shadow px-2.5 py-1 text-xs opacity-0 group-hover:opacity-100 focus:opacity-100 transition-transform duration-200 hover:-translate-y-0.5 will-change-transform rm:transition-none rm:transform-none"
+          aria-label={editLabel}
+          title={editLabel}
+        >
+          <PencilIcon className="h-3.5 w-3.5" />
+          <span className="hidden sm:inline">{editLabel}</span>
+        </button>
+      )}
+
       {/* Header */}
       <div className="text-sm text-neutral-600 flex items-center justify-between">
         <span className="truncate">{title}</span>
@@ -108,5 +130,13 @@ export default function KpiCard({
         <div className="text-xs text-neutral-400">Updated {lastUpdated}</div>
       )}
     </div>
+  );
+}
+
+function PencilIcon({ className }: { className?: string }) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className={className} aria-hidden="true">
+      <path d="M4 13.5V16h2.5l7.36-7.36-2.5-2.5L4 13.5zm9.85-8.35l1.99 1.99a.5.5 0 010 .7l-1.14 1.14-2.69-2.69 1.14-1.14a.5.5 0 01.7 0z" />
+    </svg>
   );
 }

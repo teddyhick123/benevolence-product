@@ -129,12 +129,12 @@ export default function LoginPage() {
           <p>You are already signed in as <span className="font-medium">{existingUserEmail}</span>.</p>
           <div className="mt-2 flex gap-2">
             <button
-              className="px-3 py-1.5 rounded bg-gray-900 text-white hover:opacity-90 disabled:opacity-50"
+              className="px-3 py-1.5 rounded bg-gray-900 text-white shadow-soft hover:opacity-90 disabled:opacity-50 transition-transform duration-200 hover:-translate-y-0.5 will-change-transform rm:transition-none rm:transform-none"
               onClick={async () => { setBusy(true); try { await syncServerCookies(); const dest = await postAuthDestination(redirect); router.replace(dest); } finally { setBusy(false); } }}
               disabled={busy}
             >Continue</button>
             <button
-              className="px-3 py-1.5 rounded border hover:bg-gray-50 disabled:opacity-50"
+              className="px-3 py-1.5 rounded border border-black/10 hover:bg-white shadow-sm hover:shadow disabled:opacity-50 transition-transform duration-200 hover:-translate-y-0.5 will-change-transform rm:transition-none rm:transform-none"
               onClick={onSignOutLocal}
               disabled={busy}
             >Sign out here</button>
@@ -144,11 +144,11 @@ export default function LoginPage() {
 
       <div className="flex gap-2">
         <button
-          className={`px-3 py-1.5 rounded ${mode==='signin' ? 'bg-gray-900 text-white' : 'border'}`}
+          className={`px-3 py-1.5 rounded transition-transform duration-200 hover:-translate-y-0.5 will-change-transform rm:transition-none rm:transform-none ${mode==='signin' ? 'bg-gray-900 text-white shadow-soft' : 'border border-black/10 shadow-sm hover:shadow'}`}
           onClick={() => setMode('signin')}
         >Sign in</button>
         <button
-          className={`px-3 py-1.5 rounded ${mode==='signup' ? 'bg-gray-900 text-white' : 'border'}`}
+          className={`px-3 py-1.5 rounded transition-transform duration-200 hover:-translate-y-0.5 will-change-transform rm:transition-none rm:transform-none ${mode==='signup' ? 'bg-gray-900 text-white shadow-soft' : 'border border-black/10 shadow-sm hover:shadow'}`}
           onClick={() => setMode('signup')}
         >Create account</button>
       </div>
@@ -156,36 +156,36 @@ export default function LoginPage() {
       {sessionChecked && (mode === 'signin' ? (
         <form onSubmit={onSignIn} className="space-y-3">
           <input
-            type="email" placeholder="you@company.com" className="w-full border rounded px-3 py-2"
+            type="email" placeholder="you@company.com" className="w-full border border-black/10 rounded-2xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-azure/30"
             value={email} onChange={e=>setEmail(e.target.value)} required autoComplete="username email"
           />
           <input
-            type="password" placeholder="Password" className="w-full border rounded px-3 py-2"
+            type="password" placeholder="Password" className="w-full border border-black/10 rounded-2xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-azure/30"
             value={password} onChange={e=>setPassword(e.target.value)} required autoComplete="current-password"
           />
           {error && <p className="text-red-600 text-sm">{error}</p>}
           {info && <p className="text-green-700 text-sm">{info}</p>}
-          <button disabled={busy} className="px-4 py-2 rounded bg-gray-900 text-white hover:opacity-90 disabled:opacity-50">
+          <button disabled={busy} className="px-4 py-2 rounded bg-gray-900 text-white shadow-soft hover:opacity-90 disabled:opacity-50 transition-transform duration-200 hover:-translate-y-0.5 will-change-transform rm:transition-none rm:transform-none">
             {busy ? 'Signing in…' : 'Sign in'}
           </button>
         </form>
       ) : (
         <form onSubmit={onSignUp} className="space-y-3">
           <input
-            type="email" placeholder="you@company.com" className="w-full border rounded px-3 py-2"
+            type="email" placeholder="you@company.com" className="w-full border border-black/10 rounded-2xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-azure/30"
             value={email} onChange={e=>setEmail(e.target.value)} required autoComplete="username email"
           />
           <input
-            type="password" placeholder="Password (min 6 chars)" className="w-full border rounded px-3 py-2"
+            type="password" placeholder="Password (min 6 chars)" className="w-full border border-black/10 rounded-2xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-azure/30"
             value={password} onChange={e=>setPassword(e.target.value)} required autoComplete="new-password"
           />
           <input
-            type="password" placeholder="Confirm password" className="w-full border rounded px-3 py-2"
+            type="password" placeholder="Confirm password" className="w-full border border-black/10 rounded-2xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-azure/30"
             value={password2} onChange={e=>setPassword2(e.target.value)} required autoComplete="new-password"
           />
           {error && <p className="text-red-600 text-sm">{error}</p>}
           {info && <p className="text-green-700 text-sm">{info}</p>}
-          <button disabled={busy} className="px-4 py-2 rounded bg-gray-900 text-white hover:opacity-90 disabled:opacity-50">
+          <button disabled={busy} className="px-4 py-2 rounded bg-gray-900 text-white shadow-soft hover:opacity-90 disabled:opacity-50 transition-transform duration-200 hover:-translate-y-0.5 will-change-transform rm:transition-none rm:transform-none">
             {busy ? 'Creating…' : 'Create account'}
           </button>
         </form>

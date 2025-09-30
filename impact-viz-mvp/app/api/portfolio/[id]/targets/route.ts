@@ -21,14 +21,14 @@ function computeProgress(
 }
 
 export async function GET(_: Request, ctx: { params: Promise<{ id: string }> }) {
-  const { id: portfolioId } = await ctx.params; // <-- await params
-  const sb = supabasePublic();                  // <-- instantiate per request
+  const { id: portfolio_id } = await ctx.params; // <-- await params
+  const sb = await supabasePublic();                  // <-- instantiate per request
 
   // 1) Fetch targets for this portfolio
   const { data: targets, error: tErr } = await sb
     .from('targets')
     .select('*')
-    .eq('portfolio_id', portfolioId)
+    .eq('portfolio_id', portfolio_id)
     .order('target_date', { ascending: true });
 
   if (tErr) return NextResponse.json({ error: tErr.message }, { status: 500 });
@@ -50,7 +50,7 @@ export async function GET(_: Request, ctx: { params: Promise<{ id: string }> }) 
   const { data: holdingIds, error: hErr } = await sb
     .from('holdings')
     .select('id')
-    .eq('portfolio_id', portfolioId);
+    .eq('portfolio_id', portfolio_id);
   if (hErr) return NextResponse.json({ error: hErr.message }, { status: 500 });
 
   const holdingIdList = (holdingIds ?? []).map((h: any) => h.id);

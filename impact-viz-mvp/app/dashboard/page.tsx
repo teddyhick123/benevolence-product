@@ -1,116 +1,135 @@
-import KpiCard from '@/components/KpiCard';
-import HoldingsTable from '@/components/HoldingsTable';
-import ImpactMap from '@/components/ImpactMap';
-import VisualCarousel from '@/components/vis/VisualCarousel';
+import { cookies } from 'next/headers';
+import { createServerClient } from '@supabase/ssr';
+import KpiSection from '@/components/KpiSection';
+import HoldingsSection from '@/components/HoldingsSection';
+import WidgetsSection from '@/components/vis/WidgetsSection';
+import SummarySection from '@/components/SummarySection';
+import MapSection from '@/components/MapSection';
+import Reveal from '@/components/Reveal';
 import { headers } from 'next/headers';
-import AISummaryCard from '@/components/AISummaryCard';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-type OverviewResponse = {
-  latest: Array<{ portfolio_id: string; holding_name: string | null; sector: string | null; country: string | null; metric_name: string | null; metric_value: number | null; as_of_date: string | null; }>;
-  kpis: Record<string, number>;
+type OverviewRow = {
+  portfolio_id: string;
+  metric_code?: string | null;    // new shape
+  value?: number | null;          // new shape
+  unit?: string | null;           // new shape (nullable)
+  period_start?: string | null;   // new shape
+  period_end?: string | null;     // new shape
+  created_at?: string | null;     // new shape
+  holding_name?: string | null;
+  sector?: string | null;
+  country?: string | null;
+  metric_name?: string | null;
+  metric_value?: number | null;
+  as_of_date?: string | null;
 };
-type HoldingsResponse = { data: Array<any>; count: number | null; nextOffset: number | null; };
-type MapResponse = { points: Array<{ lon: number | null; lat: number | null; weight: number; country?: string; label?: string }>; };
+
+type KpiSum = { metric_code: string; total_value: number | null; latest_period: string | null };
 
 async function getBaseUrl() {
-  const h = await headers(); // <-- await
+  const h = await headers(); // <-- await removed
   const proto = h.get('x-forwarded-proto') ?? 'http';
   const host = h.get('host') ?? 'localhost:3000';
   return `${proto}://${host}`;
 }
-function fmtNumber(n: number | null | undefined): string {
-  if (n == null || !isFinite(Number(n))) return '—';
-  const v = Number(n);
-  if (Math.abs(v) >= 1_000_000_000) return (v / 1_000_000_000).toFixed(1) + 'B';
-  if (Math.abs(v) >= 1_000_000) return (v / 1_000_000).toFixed(1) + 'M';
-  if (Math.abs(v) >= 1_000) return (v / 1_000).toFixed(1) + 'K';
-  return v.toString();
+
+async function getSupabase() {
+  const cookieStore = await cookies();
+  return createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    { cookies: { get: (n: string) => cookieStore.get(n)?.value } }
+  );
 }
 
-export default async function Dashboard(searchParamsPromise: Promise<{ [key: string]: string | string[] | undefined }>) {
-  const sp = await searchParamsPromise;
+export default async function Dashboard({ searchParams }: { searchParams?: Promise<Record<string, string | string[] | undefined>> }) {
+  const sp = (await searchParams ?? {}) as Record<string, any>;
+  const pidSnake = typeof sp?.portfolio_id === 'string' ? sp.portfolio_id : Array.isArray(sp?.portfolio_id) ? sp?.portfolio_id[0] : undefined;
+  const pidCamel = typeof sp?.portfolioId === 'string' ? sp?.portfolioId : Array.isArray(sp?.portfolioId) ? sp?.portfolioId[0] : undefined;
   const base = await getBaseUrl();
-  const urlPortfolio =
-    (typeof sp?.portfolio_id === 'string' && sp?.portfolio_id) ||
-    (Array.isArray(sp?.portfolio_id) ? sp?.portfolio_id[0] : undefined);
+  const reqHeaders = await headers();
+  const cookieHeader = reqHeaders.get('cookie') ?? '';
+  const urlPortfolio = pidSnake || pidCamel;
 
-  let me: { portfolio_id?: string | null } | null = null;
+  let me: { recommended_portfolio_id?: string | null } | null = null;
   try {
-    const meRes = await fetch(`${base}/api/me`, { cache: 'no-store' });
+    const meRes = await fetch(`${base}/api/me`, { cache: 'no-store', headers: { cookie: cookieHeader } });
     if (meRes.ok) me = await meRes.json();
   } catch {}
-  const envPid = process.env.NEXT_PUBLIC_PORTFOLIO_ID_DEFAULT || '';
-  const portfolioId = urlPortfolio || me?.portfolio_id || envPid;
+  // Avoid env fallback here so we never silently use the default portfolio
+  const portfolioId = urlPortfolio || me?.recommended_portfolio_id || '';
 
   if (!portfolioId) {
     return <div className="p-6">No portfolio selected.</div>;
   }
 
-  const settingsRes = await fetch(`${base}/api/portfolio/${portfolioId}/settings`, { cache: 'no-store' }).catch(() => undefined);
-  const settingsJson: { show_map?: boolean; widgets?: string[] } = settingsRes && settingsRes.ok ? await settingsRes.json() : { show_map: true, widgets: ['kpi_waci','sector_emissions'] };
+  let portfolioName = '';
+  try {
+    const metaRes = await fetch(`${base}/api/portfolio/${portfolioId}/meta`, { cache: 'no-store', headers: { cookie: cookieHeader } });
+    if (metaRes?.ok) {
+      const meta = await metaRes.json().catch(() => ({} as any));
+      portfolioName = (meta?.name as string) || '';
+    }
+  } catch {}
+
+  const roleRes = await fetch(`${base}/api/portfolio/${portfolioId}/role`, { cache: 'no-store', headers: { cookie: cookieHeader } }).catch(() => undefined);
+  const roleJson: { role?: string; can_edit?: boolean } = roleRes && roleRes.ok ? await roleRes.json() : { role: 'viewer', can_edit: false };
+  const canEdit = !!roleJson?.can_edit;
+
+  const settingsRes = await fetch(`${base}/api/portfolio/${portfolioId}/settings`, { cache: 'no-store', headers: { cookie: cookieHeader } }).catch(() => undefined);
+  const settingsJson: { show_map?: boolean; widgets?: string[] } = settingsRes && settingsRes.ok ? await settingsRes.json() : { show_map: true, widgets: [] };
   const showMap = settingsJson.show_map !== false;
-  const widgetIds = Array.isArray(settingsJson.widgets) && settingsJson.widgets!.length ? settingsJson.widgets! : ['kpi_waci','sector_emissions'];
 
-  const [overviewRes, holdingsRes, mapRes] = await Promise.all([
-    fetch(`${base}/api/portfolio/${portfolioId}/overview`, { cache: 'no-store' }).catch(() => undefined),
-    fetch(`${base}/api/portfolio/${portfolioId}/holdings?limit=50`, { cache: 'no-store' }).catch(() => undefined),
-    fetch(`${base}/api/portfolio/${portfolioId}/map`, { cache: 'no-store' }).catch(() => undefined),
-  ]);
-
-  const overview: OverviewResponse | null = overviewRes && overviewRes.ok ? await overviewRes.json() : { latest: [], kpis: {} };
-  const holdingsJson: HoldingsResponse | null = holdingsRes && holdingsRes.ok ? await holdingsRes.json() : { data: [], count: 0, nextOffset: null };
-  const mapJson: MapResponse | null = mapRes && mapRes.ok ? await mapRes.json() : { points: [] };
-
-  const kpiEntries = Object.entries(overview?.kpis || {});
-  const kpis = (kpiEntries.length ? kpiEntries : [['WACI', 0], ['FEMISS', 0], ['RE_MWH', 0]]).map(([metric, value]) => ({
-    title: metric, value: fmtNumber(Number(value)), badge: 'Latest'
-  }));
-
-  const holdings = holdingsJson?.data ?? [];
-  const points = (mapJson?.points ?? []).map((p) => ({ lon: p.lon, lat: p.lat, weight: p.weight, label: p.country || p.label || '' }));
-
-  const carouselItems = widgetIds.map((id) => ({
-    id,
-    label:
-      id === 'kpi_waci' ? 'WACI trend' :
-      id === 'kpi_femiss' ? 'FEMISS trend' :
-      id === 'sector_emissions' ? 'Emissions by sector' : id
-  }));
+  // Fetch portfolio-level KPI sums (sum of latest per holding)
+  let kpiSums: KpiSum[] = [];
+  try {
+    const supabase = await getSupabase();
+    const { data } = await supabase.rpc('get_portfolio_latest_kpis_sum', { p_portfolio_id: portfolioId });
+    kpiSums = Array.isArray(data) ? data as KpiSum[] : [];
+  } catch {}
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-semibold">Portfolio Dashboard</h1>
+    <div className="space-y-8 isolate w-full">
+      <div className="flex items-center justify-between w-full">
+        <div>
+          <div className="text-sm text-neutral-500">{portfolioName || `Portfolio: ${portfolioId}`}</div>
+          <h1 className="text-3xl font-serif">Portfolio Dashboard</h1>
+        </div>
         <a
-          href="/admin/upload"
-          className="px-4 py-2 rounded-2xl bg-azure text-white shadow-soft hover:opacity-90 transition"
+          href={"/admin/upload?portfolio_id=" + portfolioId}
+          className="px-4 py-2 rounded-md bg-azure text-white shadow-soft hover:opacity-90 transition-transform duration-200 hover:-translate-y-0.5 will-change-transform rm:transition-none rm:transform-none"
         >
           Upload
         </a>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        {kpis.map((k, i) => <KpiCard key={i} {...(k as any)} />)}
-      </div>
 
-      {/* Holdings + carousel */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <HoldingsTable rows={holdings as any} />
-        <VisualCarousel items={carouselItems as any} portfolioId={portfolioId} />
-      </div>
+      <Reveal>
+        {/* Provide portfolio KPI sums as an optimization/hint; KpiSection can fall back to its own fetch if not used */}
+        <KpiSection {...({ portfolioId, canEdit, initialSums: kpiSums, mode: 'portfolio-sum' } as any)} />
+      </Reveal>
 
-      {/* AI summary */}
-      <div className="grid grid-cols-1 gap-6">
-        <AISummaryCard portfolioId={portfolioId} />
-      </div>
-
-      {/* Impact map (toggle from admin settings) */}
-      {showMap && (
-        <div className="grid grid-cols-1 gap-6">
-          <ImpactMap points={points as any} />
+      <Reveal delay={75}>
+        <div className="grid grid-cols-12 gap-6 xl:gap-8 2xl:gap-10 w-full">
+          <div className="col-span-12 lg:col-span-6 xl:col-span-7 min-w-0 isolate">
+            <HoldingsSection portfolioId={portfolioId} canEdit={canEdit} />
+          </div>
+          <div className="col-span-12 lg:col-span-6 xl:col-span-5 min-w-0 isolate">
+            <WidgetsSection portfolioId={portfolioId} canEdit={canEdit} />
+          </div>
         </div>
+      </Reveal>
+
+      <Reveal delay={150}>
+        <SummarySection portfolioId={portfolioId} />
+      </Reveal>
+
+      {showMap && (
+        <Reveal delay={225}>
+          <MapSection portfolioId={portfolioId} />
+        </Reveal>
       )}
     </div>
   );

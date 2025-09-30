@@ -26,13 +26,49 @@ export async function DELETE(_req: Request, ctx: { params: Promise<{ id: string;
       cookies: {
         get: (n: string) => c.get(n)?.value,
         set: (n: string, v: string, o: any) => c.set({ name: n, value: v, ...o }),
-        remove: (n: string, o: any) => c.set({ name, value: '', ...o }),
+        remove: (n: string, o: any) => c.set({ name: n, value: '', ...o }),
       },
     }
   );
 
-const { data: isAdmin, error: adminErr } = await supabase.rpc('is_admin');
-  if (adminErr || !isAdmin) return NextResponse.json({ error: 'not authorized' }, { status: 403 });
+  const { data: isAdmin, error: adminErr } = await supabase.rpc('is_admin');
+  if (adminErr) return NextResponse.json({ error: adminErr.message }, { status: 500 });
+
+  let callerRole: 'viewer'|'editor'|'owner'|'admin' = 'viewer';
+  if (isAdmin) {
+    callerRole = 'admin';
+  } else {
+    const { data: roleRow, error: roleErr } = await supabase.rpc('role_for_portfolio', { p_portfolio_id: portfolioId });
+    if (roleErr) return NextResponse.json({ error: roleErr.message }, { status: 500 });
+    callerRole = (roleRow as any) ?? 'viewer';
+  }
+
+  // Prevent removing the last owner
+  const { data: targetMember, error: targetErr } = await supabase
+    .from('portfolio_members')
+    .select('role')
+    .eq('portfolio_id', portfolioId)
+    .eq('user_id', userId)
+    .maybeSingle();
+  if (targetErr) return NextResponse.json({ error: targetErr.message }, { status: 500 });
+
+  // Owners can only remove non-owners
+  if (callerRole !== 'admin') {
+    if (callerRole !== 'owner') {
+      return NextResponse.json({ error: 'not authorized' }, { status: 403 });
+    }
+    if (targetMember?.role === 'owner') {
+      return NextResponse.json({ error: 'owners cannot remove other owners' }, { status: 403 });
+    }
+  }
+
+  if (targetMember?.role === 'owner') {
+    const { data: ownerCount, error: ownerCountErr } = await supabase.rpc('owner_count_for_portfolio', { p_portfolio_id: portfolioId });
+    if (ownerCountErr) return NextResponse.json({ error: ownerCountErr.message }, { status: 500 });
+    if ((ownerCount as number) <= 1) {
+      return NextResponse.json({ error: 'Cannot remove the last owner from this portfolio.' }, { status: 400 });
+    }
+  }
 
   const { error } = await supabase
     .from('portfolio_members')
@@ -59,6 +95,9 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string; u
   const role = String((parsed as any)?.role || '').trim();
   if (!role) return NextResponse.json({ error: 'role is required' }, { status: 400 });
 
+  const allowed = new Set(['viewer','editor','owner']);
+  if (!allowed.has(role)) return NextResponse.json({ error: 'invalid role' }, { status: 400 });
+
   const c = await cookies();
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -67,13 +106,54 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string; u
       cookies: {
         get: (n: string) => c.get(n)?.value,
         set: (n: string, v: string, o: any) => c.set({ name: n, value: v, ...o }),
-        remove: (n: string, o: any) => c.set({ name, value: '', ...o }),
+        remove: (n: string, o: any) => c.set({ name: n, value: '', ...o }),
       },
     }
   );
 
   const { data: isAdmin, error: adminErr } = await supabase.rpc('is_admin');
-  if (adminErr || !isAdmin) return NextResponse.json({ error: 'not authorized' }, { status: 403 });
+  if (adminErr) return NextResponse.json({ error: adminErr.message }, { status: 500 });
+
+  let callerRole: 'viewer'|'editor'|'owner'|'admin' = 'viewer';
+  if (isAdmin) {
+    callerRole = 'admin';
+  } else {
+    const { data: roleRow, error: roleErr } = await supabase.rpc('role_for_portfolio', { p_portfolio_id: portfolioId });
+    if (roleErr) return NextResponse.json({ error: roleErr.message }, { status: 500 });
+    callerRole = (roleRow as any) ?? 'viewer';
+  }
+
+  // Owners can only set viewer<->editor. Admin can set any.
+  if (callerRole !== 'admin') {
+    if (callerRole !== 'owner') {
+      return NextResponse.json({ error: 'not authorized' }, { status: 403 });
+    }
+    if (role === 'owner') {
+      return NextResponse.json({ error: 'owners cannot assign owner role' }, { status: 403 });
+    }
+  }
+
+  const { data: currentMember, error: currErr } = await supabase
+    .from('portfolio_members')
+    .select('role')
+    .eq('portfolio_id', portfolioId)
+    .eq('user_id', userId)
+    .maybeSingle();
+  if (currErr) return NextResponse.json({ error: currErr.message }, { status: 500 });
+
+  // Non-admin owners cannot change roles of owners
+  if (callerRole === 'owner' && currentMember?.role === 'owner') {
+    return NextResponse.json({ error: 'owners cannot change roles of other owners' }, { status: 403 });
+  }
+
+  // Prevent demoting the last owner
+  if (currentMember?.role === 'owner' && role !== 'owner') {
+    const { data: ownerCount, error: ownerCountErr } = await supabase.rpc('owner_count_for_portfolio', { p_portfolio_id: portfolioId });
+    if (ownerCountErr) return NextResponse.json({ error: ownerCountErr.message }, { status: 500 });
+    if ((ownerCount as number) <= 1) {
+      return NextResponse.json({ error: 'Cannot demote the last owner.' }, { status: 400 });
+    }
+  }
 
   const { error } = await supabase
     .from('portfolio_members')

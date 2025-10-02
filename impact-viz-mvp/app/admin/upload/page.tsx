@@ -13,8 +13,13 @@ export default function UploadPage() {
   const [portfolioId, setPortfolioId] = useState<string | null>(null);
   const [portfolioName, setPortfolioName] = useState<string | null>(null);
   const [holdingName, setHoldingName] = useState<string | null>(null);
-  const [status, setStatus] = useState<'idle'|'uploading'|'done'|'error'>('idle');
+  const [status, setStatus] = useState<'idle'|'uploading'|'processing'|'done'|'error'>('idle');
   const [msg, setMsg] = useState<string>('');
+  const [uploadId, setUploadId] = useState<string | null>(null);
+  const [factsCount, setFactsCount] = useState<number>(0);
+  const [progress, setProgress] = useState<number>(0);
+  const [stagedFacts, setStagedFacts] = useState<any[]>([]);
+  const [showReview, setShowReview] = useState(false);
 
   const [showKpiList, setShowKpiList] = useState(false);
   const [kpis, setKpis] = useState<KpiDef[]>([]);
@@ -115,6 +120,87 @@ export default function UploadPage() {
     }
   }
 
+  async function loadStagedFacts(uploadId: string) {
+    try {
+      const res = await fetch(`/api/admin/upload/${uploadId}/staged-facts`);
+      if (res.ok) {
+        const data = await res.json();
+        setStagedFacts(data.facts || []);
+      }
+    } catch (err) {
+      console.error('Failed to load staged facts:', err);
+    }
+  }
+
+  async function approveFact(factId: string) {
+    try {
+      const res = await fetch(`/api/admin/staged-facts/${factId}/approve`, { method: 'POST' });
+      if (res.ok) {
+        // Remove from staged list
+        setStagedFacts(prev => prev.filter(f => f.id !== factId));
+      }
+    } catch (err) {
+      console.error('Failed to approve fact:', err);
+    }
+  }
+
+  async function rejectFact(factId: string) {
+    try {
+      const res = await fetch(`/api/admin/staged-facts/${factId}`, { method: 'DELETE' });
+      if (res.ok) {
+        // Remove from staged list
+        setStagedFacts(prev => prev.filter(f => f.id !== factId));
+      }
+    } catch (err) {
+      console.error('Failed to reject fact:', err);
+    }
+  }
+
+  async function approveAll() {
+    for (const fact of stagedFacts) {
+      await approveFact(fact.id);
+    }
+  }
+
+  // Poll for upload status
+  useEffect(() => {
+    if (!uploadId || status === 'done' || status === 'error') return;
+
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/admin/upload/${uploadId}/status`);
+        if (res.ok) {
+          const data = await res.json();
+
+          if (data.status === 'done') {
+            setStatus('done');
+            setProgress(100);
+            setFactsCount(data.factsExtracted || 0);
+            setMsg(`Processing complete! Extracted ${data.factsExtracted || 0} facts.`);
+            // Load staged facts for review
+            if (aiMode && data.factsExtracted > 0) {
+              loadStagedFacts(uploadId);
+            }
+          } else if (data.status === 'error') {
+            setStatus('error');
+            setProgress(0);
+            setMsg('Processing failed. Please try again.');
+          } else if (data.status === 'processing') {
+            setStatus('processing');
+            // Simulate progress: start at 20%, gradually increase
+            setProgress(prev => Math.min(90, prev + 5));
+            setMsg('Extracting data from document...');
+            setFactsCount(data.factsExtracted || 0);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to check status:', err);
+      }
+    }, 2000); // Poll every 2 seconds
+
+    return () => clearInterval(interval);
+  }, [uploadId, status]);
+
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!file) return;
@@ -122,7 +208,9 @@ export default function UploadPage() {
     if (!selectedHoldingId) { setMsg('Please choose a holding to upload for.'); return; }
 
     setStatus('uploading');
-    setMsg('');
+    setMsg('Uploading file...');
+    setFactsCount(0);
+    setProgress(10);
 
     try {
       const fd = new FormData();
@@ -140,15 +228,19 @@ export default function UploadPage() {
       const data = await res.json();
 
       if (!res.ok) throw new Error(data?.error || 'Upload failed');
-      setStatus('done');
-      setMsg(`Upload complete! Job id: ${data.uploadId}`);
+
+      setUploadId(data.uploadId);
+      setStatus('processing');
+      setProgress(20);
+      setMsg('Processing document...');
     } catch (err: any) {
       setStatus('error');
+      setProgress(0);
       setMsg(err?.message || 'Upload failed');
     }
   }
 
-  const disabled = !file || status === 'uploading' || !portfolioId || !selectedHoldingId;
+  const disabled = !file || status === 'uploading' || status === 'processing' || !portfolioId || !selectedHoldingId;
 
   return (
     <div className="max-w-xl mx-auto p-6 space-y-4">
@@ -310,19 +402,108 @@ export default function UploadPage() {
           disabled={disabled}
           className="px-5 py-2.5 rounded-md bg-azure text-white shadow-soft hover:opacity-90 disabled:opacity-50 transition"
         >
-          {status === 'uploading' ? 'Uploading…' : 'Start Upload'}
+          {status === 'uploading' ? 'Uploading…' : status === 'processing' ? 'Processing…' : 'Start Upload'}
         </button>
       </form>
 
-      {status !== 'idle' && (
+      {/* Progress indicator */}
+      {(status === 'uploading' || status === 'processing') && (
+        <div className="p-4 rounded-2xl bg-azure/5 border border-azure/20 space-y-3">
+          <div className="flex items-center gap-3">
+            <div className="w-5 h-5 border-2 border-azure border-t-transparent rounded-full animate-spin" />
+            <div className="flex-1">
+              <div className="text-sm font-medium text-neutral-800">{msg}</div>
+              {factsCount > 0 && (
+                <div className="text-xs text-neutral-600 mt-1">
+                  {factsCount} facts extracted so far...
+                </div>
+              )}
+            </div>
+            <div className="text-sm font-medium text-azure">{progress}%</div>
+          </div>
+
+          {/* Progress bar */}
+          <div className="relative h-2 bg-neutral-200 rounded-full overflow-hidden">
+            <div
+              className="absolute inset-y-0 left-0 bg-azure rounded-full transition-all duration-500 ease-out"
+              style={{ width: `${progress}%` }}
+            >
+              <div className="absolute inset-0 bg-white/20 animate-pulse" />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {status !== 'idle' && status !== 'processing' && (
         <div className={`text-sm mt-2 ${status === 'error' ? 'text-red-600' : 'text-green-700'}`}>
           {msg}
         </div>
       )}
 
       {status === 'done' && (
-        <div className="p-3 rounded-2xl bg-green-50 border border-green-200">
-          ✅ Ingestion started. <a className="underline" href="/dashboard">Go to dashboard</a>
+        <div className="space-y-4">
+          <div className="p-3 rounded-2xl bg-green-50 border border-green-200">
+            ✅ Processing complete! {factsCount > 0 && `Extracted ${factsCount} facts.`}
+            {stagedFacts.length > 0 && (
+              <button
+                onClick={() => setShowReview(!showReview)}
+                className="ml-3 text-sm underline font-medium"
+              >
+                {showReview ? 'Hide' : 'Review & Approve'}
+              </button>
+            )}
+            <a className="ml-3 underline" href={portfolioId ? `/dashboard?portfolio_id=${portfolioId}` : '/dashboard'}>Go to dashboard</a>
+          </div>
+
+          {/* Staged Facts Review */}
+          {showReview && stagedFacts.length > 0 && (
+            <div className="card p-4">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold">Review Extracted Facts</h3>
+                <button
+                  onClick={approveAll}
+                  className="px-3 py-1.5 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 transition"
+                >
+                  Approve All ({stagedFacts.length})
+                </button>
+              </div>
+
+              <div className="space-y-2 max-h-96 overflow-y-auto">
+                {stagedFacts.map((fact) => (
+                  <div key={fact.id} className="p-3 rounded-lg border border-neutral-200 bg-white hover:border-azure/40 transition">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="font-mono text-sm font-medium text-azure">{fact.metric_code}</span>
+                          <span className="text-lg font-semibold text-neutral-900">{fact.value}</span>
+                          {fact.unit && <span className="text-sm text-neutral-500">{fact.unit}</span>}
+                        </div>
+                        <div className="text-xs text-neutral-600 space-x-3">
+                          {fact.period_end && <span>Period: {fact.period_end}</span>}
+                          {fact.source && <span>Source: {fact.source}</span>}
+                          {fact.verification_level && <span>Verification: {fact.verification_level}</span>}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => approveFact(fact.id)}
+                          className="px-3 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700 transition"
+                        >
+                          ✓ Approve
+                        </button>
+                        <button
+                          onClick={() => rejectFact(fact.id)}
+                          className="px-3 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700 transition"
+                        >
+                          ✕ Reject
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

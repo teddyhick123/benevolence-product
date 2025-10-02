@@ -142,17 +142,6 @@ export default function LoginPage() {
         </div>
       )}
 
-      <div className="flex gap-2">
-        <button
-          className={`px-3 py-1.5 rounded transition-transform duration-200 hover:-translate-y-0.5 will-change-transform rm:transition-none rm:transform-none ${mode==='signin' ? 'bg-gray-900 text-white shadow-soft' : 'border border-black/10 shadow-sm hover:shadow'}`}
-          onClick={() => setMode('signin')}
-        >Sign in</button>
-        <button
-          className={`px-3 py-1.5 rounded transition-transform duration-200 hover:-translate-y-0.5 will-change-transform rm:transition-none rm:transform-none ${mode==='signup' ? 'bg-gray-900 text-white shadow-soft' : 'border border-black/10 shadow-sm hover:shadow'}`}
-          onClick={() => setMode('signup')}
-        >Create account</button>
-      </div>
-
       {sessionChecked && (mode === 'signin' ? (
         <form onSubmit={onSignIn} className="space-y-3">
           <input
@@ -168,6 +157,12 @@ export default function LoginPage() {
           <button disabled={busy} className="px-4 py-2 rounded bg-gray-900 text-white shadow-soft hover:opacity-90 disabled:opacity-50 transition-transform duration-200 hover:-translate-y-0.5 will-change-transform rm:transition-none rm:transform-none">
             {busy ? 'Signing in…' : 'Sign in'}
           </button>
+          <p className="text-sm text-neutral-600">
+            Don't have an account?{' '}
+            <button type="button" onClick={() => setMode('signup')} className="text-azure hover:underline font-medium">
+              Create one
+            </button>
+          </p>
         </form>
       ) : (
         <form onSubmit={onSignUp} className="space-y-3">
@@ -188,6 +183,12 @@ export default function LoginPage() {
           <button disabled={busy} className="px-4 py-2 rounded bg-gray-900 text-white shadow-soft hover:opacity-90 disabled:opacity-50 transition-transform duration-200 hover:-translate-y-0.5 will-change-transform rm:transition-none rm:transform-none">
             {busy ? 'Creating…' : 'Create account'}
           </button>
+          <p className="text-sm text-neutral-600">
+            Already have an account?{' '}
+            <button type="button" onClick={() => setMode('signin')} className="text-azure hover:underline font-medium">
+              Sign in
+            </button>
+          </p>
         </form>
       ))}
     </div>

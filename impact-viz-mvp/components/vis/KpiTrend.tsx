@@ -14,7 +14,7 @@ export default function KpiTrend({ portfolioId, title, config, metric: legacyMet
   const containerRef = useRef<HTMLDivElement | null>(null);
   const svgWrapRef = useRef<HTMLDivElement | null>(null);
   const [w, setW] = useState(700);
-  const [h, setH] = useState(220);
+  const [h, setH] = useState(200);
   const gradId = useMemo(() => `kpiTrendGrad-${Math.random().toString(36).slice(2, 9)}`, []);
   const fmt = useMemo(() => new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 }), []);
   // unique clipPath id per instance to avoid collisions across multiple widgets

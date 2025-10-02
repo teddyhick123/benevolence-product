@@ -1,0 +1,93 @@
+import { NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
+import { createServerClient } from '@supabase/ssr';
+import { revalidatePath } from 'next/cache';
+
+async function getSupabase() {
+  const cookieStore = await cookies();
+  return createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        get: (name: string) => cookieStore.get(name)?.value,
+      },
+    }
+  );
+}
+
+export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
+  const { id: holdingId } = await ctx.params;
+  const formData = await req.formData();
+  const file = formData.get('photo') as File;
+
+  if (!file) {
+    return NextResponse.json({ error: 'No file provided' }, { status: 400 });
+  }
+
+  // Validate file type
+  if (!file.type.startsWith('image/')) {
+    return NextResponse.json({ error: 'File must be an image' }, { status: 400 });
+  }
+
+  // Validate file size (max 5MB)
+  if (file.size > 5 * 1024 * 1024) {
+    return NextResponse.json({ error: 'File size must be less than 5MB' }, { status: 400 });
+  }
+
+  const supabase = await getSupabase();
+
+  try {
+    // Generate unique filename
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${holdingId}-${Date.now()}.${fileExt}`;
+    const filePath = `contact-photos/${fileName}`;
+
+    // Convert File to ArrayBuffer then to Buffer
+    const arrayBuffer = await file.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+
+    // Upload to Supabase Storage
+    const { data: uploadData, error: uploadError } = await supabase.storage
+      .from('holdings')
+      .upload(filePath, buffer, {
+        contentType: file.type,
+        upsert: false,
+      });
+
+    if (uploadError) {
+      console.error('Upload error:', uploadError);
+      return NextResponse.json({ error: uploadError.message }, { status: 500 });
+    }
+
+    // Get public URL
+    const { data: urlData } = supabase.storage
+      .from('holdings')
+      .getPublicUrl(filePath);
+
+    const photoUrl = urlData.publicUrl;
+    console.log('Generated photo URL:', photoUrl);
+
+    // Update holding with photo URL
+    const { error: updateError, data: updateData } = await supabase
+      .from('holdings')
+      .update({ primary_contact_photo: photoUrl })
+      .eq('id', holdingId)
+      .select();
+
+    if (updateError) {
+      console.error('Update error:', updateError);
+      return NextResponse.json({ error: updateError.message }, { status: 500 });
+    }
+
+    console.log('Updated holding:', updateData);
+
+    revalidatePath(`/dashboard/holdings/${holdingId}`);
+    revalidatePath(`/dashboard`);
+
+    return NextResponse.json({ photoUrl, updated: updateData });
+  } catch (error) {
+    console.error('Error uploading file:', error);
+    return NextResponse.json({ error: 'Failed to upload file' }, { status: 500 });
+  }
+}

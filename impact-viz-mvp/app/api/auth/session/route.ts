@@ -26,7 +26,13 @@ export async function POST(req: Request) {
   );
 
   const { error } = await supabase.auth.setSession({ access_token, refresh_token });
-  if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 401, headers: { 'Cache-Control': 'no-store' } });
+  if (error) {
+    // Suppress "Already Used" errors as they're expected when tokens are refreshed
+    if (error.message?.includes('Already Used')) {
+      return NextResponse.json({ ok: true, warning: 'Token already refreshed' }, { headers: { 'Cache-Control': 'no-store' } });
+    }
+    return NextResponse.json({ ok: false, error: error.message }, { status: 401, headers: { 'Cache-Control': 'no-store' } });
+  }
 
   return NextResponse.json({ ok: true }, { headers: { 'Cache-Control': 'no-store' } });
 }

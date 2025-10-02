@@ -3,6 +3,12 @@ import { notFound } from 'next/navigation';
 import { createServerClient } from '@supabase/ssr';
 import React from 'react';
 import { revalidatePath } from 'next/cache';
+import HoldingHeader from '@/components/HoldingHeader';
+import ContactPhotoUpload from '@/components/ContactPhotoUpload';
+import EditableDescription from '@/components/EditableDescription';
+import EditableContactNotes from '@/components/EditableContactNotes';
+import HoldingWidgetsSection from '@/components/vis/HoldingWidgetsSection';
+import NewsSection from '@/components/NewsSection';
 
 type HoldingRow = {
   id: string;
@@ -12,6 +18,9 @@ type HoldingRow = {
   description?: string | null;
   primary_contact_name?: string | null;
   primary_contact_email?: string | null;
+  primary_contact_phone?: string | null;
+  primary_contact_photo?: string | null;
+  primary_contact_notes?: string | null;
   location_city?: string | null;
   location_state?: string | null;
   location_country?: string | null;
@@ -30,6 +39,8 @@ type FactRow = {
   metric_code: string;
   value?: number | string | null;
   updated_at: string; // ISO date
+  period_start?: string | null; // ISO date
+  period_end?: string | null; // ISO date
   source?: string | null;
 };
 
@@ -52,6 +63,24 @@ async function getSupabase() {
     {
       cookies: {
         get: (name: string) => cookieStore.get(name)?.value,
+        set: (name: string, value: string, options: any) => {
+          try {
+            cookieStore.set(name, value, options);
+          } catch (error) {
+            // The `set` method was called from a Server Component.
+            // This can be ignored if you have middleware refreshing
+            // user sessions.
+          }
+        },
+        remove: (name: string, options: any) => {
+          try {
+            cookieStore.set(name, '', options);
+          } catch (error) {
+            // The `delete` method was called from a Server Component.
+            // This can be ignored if you have middleware refreshing
+            // user sessions.
+          }
+        },
       },
     }
   );
@@ -62,7 +91,7 @@ async function fetchHolding(holdingId: string): Promise<{ holding: HoldingRow | 
   const supabase = await getSupabase();
   const { data, error } = await supabase
     .from('holdings')
-    .select('id, portfolio_id, name, asset_class, description, primary_contact_name, primary_contact_email, location_city, location_state, location_country, theory_of_action, cost_per_outcome, cost_per_outcome_unit, funds_allocated, status, sector, as_of')
+    .select('id, portfolio_id, name, asset_class, description, primary_contact_name, primary_contact_email, primary_contact_phone, primary_contact_photo, primary_contact_notes, location_city, location_state, location_country, theory_of_action, cost_per_outcome, cost_per_outcome_unit, funds_allocated, status, sector, as_of')
     .eq('id', holdingId)
     .single();
 
@@ -73,9 +102,9 @@ async function fetchFacts(holdingId: string): Promise<FactRow[]> {
   const supabase = await getSupabase();
   const { data, error } = await supabase
     .from('metric_facts')
-    .select('id, holding_id, metric_code, value, updated_at, source')
+    .select('id, holding_id, metric_code, value, updated_at, period_start, period_end, source')
     .eq('holding_id', holdingId)
-    .order('updated_at', { ascending: false })
+    .order('period_end', { ascending: false, nullsFirst: false })
     .limit(1000);
   if (error || !data) return [];
   return data as FactRow[];
@@ -91,6 +120,41 @@ async function fetchContributions(portfolioId: string, holdingId: string): Promi
     .order('contributed_at', { ascending: false });
   if (error || !data) return [];
   return data as ContributionRow[];
+}
+
+async function fetchMetricNames(portfolioId: string): Promise<Map<string, string>> {
+  const supabase = await getSupabase();
+  const metricMap = new Map<string, string>();
+
+  // First try to get portfolio-specific display names from kpi_definitions
+  const { data: kpiDefs } = await supabase
+    .from('kpi_definitions')
+    .select('metric_code, display_name')
+    .eq('portfolio_id', portfolioId);
+
+  if (kpiDefs) {
+    for (const def of kpiDefs) {
+      if (def.display_name) {
+        metricMap.set(def.metric_code, def.display_name);
+      }
+    }
+  }
+
+  // Then get global metric names from metrics table
+  const { data: metrics } = await supabase
+    .from('metrics')
+    .select('code, name');
+
+  if (metrics) {
+    for (const metric of metrics) {
+      // Only add if not already set by kpi_definitions (portfolio-specific takes precedence)
+      if (!metricMap.has(metric.code) && metric.name) {
+        metricMap.set(metric.code, metric.name);
+      }
+    }
+  }
+
+  return metricMap;
 }
 
 
@@ -122,44 +186,260 @@ function numOrNull(v: FormDataEntryValue | null) {
   return Number.isFinite(n) ? n : null;
 }
 
+// Helper to get form value, converting empty strings to null
+function getValue(formData: FormData, key: string) {
+  const val = formData.get(key);
+  if (val === null || val === undefined) return undefined; // Don't include in update
+  const str = String(val).trim();
+  return str === '' ? null : str;
+}
+
 export async function updateHoldingBasics(formData: FormData) {
   'use server';
   const supabase = await getSupabase();
   const holdingId = String(formData.get('holding_id'));
-  const updates: any = {
-    name: formData.get('name') || null,
-    asset_class: formData.get('asset_class') || null,
-    sector: formData.get('sector') || null,
-    primary_contact_name: formData.get('primary_contact_name') || null,
-    primary_contact_email: formData.get('primary_contact_email') || null,
-    location_city: formData.get('location_city') || null,
-    location_state: formData.get('location_state') || null,
-    location_country: formData.get('location_country') || null,
-    status: formData.get('status') || null,
-    as_of: formData.get('as_of') || null,
-    funds_allocated: numOrNull(formData.get('funds_allocated')),
-    theory_of_action: formData.get('theory_of_action') || null,
-    cost_per_outcome: numOrNull(formData.get('cost_per_outcome')),
-    cost_per_outcome_unit: formData.get('cost_per_outcome_unit') || null,
-  };
-  const { error } = await supabase.from('holdings').update(updates).eq('id', holdingId);
-  if (error) console.error('updateHoldingBasics error', error);
+
+  const updates: any = {};
+
+  // Only include fields that are present in the form
+  const name = getValue(formData, 'name');
+  if (name !== undefined) updates.name = name;
+
+  const asset_class = getValue(formData, 'asset_class');
+  if (asset_class !== undefined) updates.asset_class = asset_class;
+
+  const sector = getValue(formData, 'sector');
+  if (sector !== undefined) updates.sector = sector;
+
+  const description = getValue(formData, 'description');
+  if (description !== undefined) updates.description = description;
+
+  const status = getValue(formData, 'status');
+  if (status !== undefined) updates.status = status;
+
+  const as_of = getValue(formData, 'as_of');
+  if (as_of !== undefined) updates.as_of = as_of;
+
+  const theory_of_action = getValue(formData, 'theory_of_action');
+  if (theory_of_action !== undefined) updates.theory_of_action = theory_of_action;
+
+  const funds_allocated = formData.has('funds_allocated') ? numOrNull(formData.get('funds_allocated')) : undefined;
+  if (funds_allocated !== undefined) updates.funds_allocated = funds_allocated;
+
+  console.log('Updating holding basics:', holdingId, 'with values:', updates);
+
+  const { error, data } = await supabase.from('holdings').update(updates).eq('id', holdingId).select();
+
+  if (error) {
+    console.error('updateHoldingBasics error:', error);
+    throw new Error(`Failed to update holding: ${error.message}`);
+  }
+
+  console.log('Update successful:', data);
   revalidatePath(`/dashboard/holdings/${holdingId}`);
+  revalidatePath(`/dashboard`);
+}
+
+export async function updateHoldingContact(formData: FormData) {
+  'use server';
+  const supabase = await getSupabase();
+  const holdingId = String(formData.get('holding_id'));
+
+  const updates: any = {};
+
+  const primary_contact_name = getValue(formData, 'primary_contact_name');
+  if (primary_contact_name !== undefined) updates.primary_contact_name = primary_contact_name;
+
+  const primary_contact_email = getValue(formData, 'primary_contact_email');
+  if (primary_contact_email !== undefined) updates.primary_contact_email = primary_contact_email;
+
+  const primary_contact_phone = getValue(formData, 'primary_contact_phone');
+  if (primary_contact_phone !== undefined) updates.primary_contact_phone = primary_contact_phone;
+
+  const primary_contact_photo = getValue(formData, 'primary_contact_photo');
+  if (primary_contact_photo !== undefined) updates.primary_contact_photo = primary_contact_photo;
+
+  const primary_contact_notes = getValue(formData, 'primary_contact_notes');
+  if (primary_contact_notes !== undefined) updates.primary_contact_notes = primary_contact_notes;
+
+  console.log('Updating contact:', holdingId, 'with values:', updates);
+
+  const { error, data } = await supabase.from('holdings').update(updates).eq('id', holdingId).select();
+
+  if (error) {
+    console.error('updateHoldingContact error:', error);
+    throw new Error(`Failed to update contact: ${error.message}`);
+  }
+
+  console.log('Contact update successful:', data);
+  revalidatePath(`/dashboard/holdings/${holdingId}`);
+  revalidatePath(`/dashboard`);
+}
+
+export async function updateHoldingLocation(formData: FormData) {
+  'use server';
+  const supabase = await getSupabase();
+  const holdingId = String(formData.get('holding_id'));
+
+  const updates: any = {};
+
+  const location_city = getValue(formData, 'location_city');
+  if (location_city !== undefined) updates.location_city = location_city;
+
+  const location_state = getValue(formData, 'location_state');
+  if (location_state !== undefined) updates.location_state = location_state;
+
+  const location_country = getValue(formData, 'location_country');
+  if (location_country !== undefined) updates.location_country = location_country;
+
+  console.log('Updating location:', holdingId, 'with values:', updates);
+
+  const { error, data } = await supabase.from('holdings').update(updates).eq('id', holdingId).select();
+
+  if (error) {
+    console.error('updateHoldingLocation error:', error);
+    throw new Error(`Failed to update location: ${error.message}`);
+  }
+
+  console.log('Location update successful:', data);
+  revalidatePath(`/dashboard/holdings/${holdingId}`);
+  revalidatePath(`/dashboard`);
+}
+
+export async function updateHoldingFunds(formData: FormData) {
+  'use server';
+  const supabase = await getSupabase();
+  const holdingId = String(formData.get('holding_id'));
+
+  const funds_allocated = numOrNull(formData.get('funds_allocated'));
+
+  const updates: any = { funds_allocated };
+
+  console.log('Updating funds:', holdingId, 'with values:', updates);
+
+  const { error, data } = await supabase.from('holdings').update(updates).eq('id', holdingId).select();
+
+  if (error) {
+    console.error('updateHoldingFunds error:', error);
+    throw new Error(`Failed to update funds: ${error.message}`);
+  }
+
+  console.log('Funds update successful:', data);
+  revalidatePath(`/dashboard/holdings/${holdingId}`);
+  revalidatePath(`/dashboard`);
+}
+
+export async function updateDescription(holdingId: string, description: string) {
+  'use server';
+  const supabase = await getSupabase();
+
+  const { error } = await supabase
+    .from('holdings')
+    .update({ description })
+    .eq('id', holdingId);
+
+  if (error) {
+    console.error('updateDescription error:', error);
+    throw new Error(`Failed to update description: ${error.message}`);
+  }
+
+  revalidatePath(`/dashboard/holdings/${holdingId}`);
+}
+
+export async function updateTheoryOfAction(holdingId: string, theory_of_action: string) {
+  'use server';
+  const supabase = await getSupabase();
+
+  const { error } = await supabase
+    .from('holdings')
+    .update({ theory_of_action })
+    .eq('id', holdingId);
+
+  if (error) {
+    console.error('updateTheoryOfAction error:', error);
+    throw new Error(`Failed to update theory of action: ${error.message}`);
+  }
+
+  revalidatePath(`/dashboard/holdings/${holdingId}`);
+}
+
+export async function updateContactNotes(holdingId: string, primary_contact_notes: string) {
+  'use server';
+  const supabase = await getSupabase();
+
+  const { error } = await supabase
+    .from('holdings')
+    .update({ primary_contact_notes })
+    .eq('id', holdingId);
+
+  if (error) {
+    console.error('updateContactNotes error:', error);
+    throw new Error(`Failed to update contact notes: ${error.message}`);
+  }
+
+  revalidatePath(`/dashboard/holdings/${holdingId}`);
+}
+
+export async function updateHoldingCostPerOutcome(formData: FormData) {
+  'use server';
+  const supabase = await getSupabase();
+  const holdingId = String(formData.get('holding_id'));
+
+  const updates: any = {
+    cost_per_outcome: numOrNull(formData.get('cost_per_outcome')),
+    cost_per_outcome_unit: getValue(formData, 'cost_per_outcome_unit'),
+  };
+
+  console.log('Updating cost per outcome:', holdingId, 'with values:', updates);
+
+  const { error, data } = await supabase.from('holdings').update(updates).eq('id', holdingId).select();
+
+  if (error) {
+    console.error('updateHoldingCostPerOutcome error:', error);
+    throw new Error(`Failed to update cost per outcome: ${error.message}`);
+  }
+
+  console.log('Cost per outcome update successful:', data);
+  revalidatePath(`/dashboard/holdings/${holdingId}`);
+  revalidatePath(`/dashboard`);
 }
 
 export async function addFact(formData: FormData) {
   'use server';
   const supabase = await getSupabase();
   const holdingId = String(formData.get('holding_id'));
+
+  const metricCode = String(formData.get('metric_code') || '').trim().toUpperCase();
+  const valueRaw = formData.get('value');
+  const value = valueRaw ? Number(valueRaw) : null;
+  const source = formData.get('source') ? String(formData.get('source')).trim() : null;
+
+  if (!metricCode) {
+    throw new Error('Metric code is required');
+  }
+  if (value === null || !Number.isFinite(value)) {
+    throw new Error('Valid numeric value is required');
+  }
+
   const row = {
     holding_id: holdingId,
-    metric_code: String(formData.get('metric_code') || ''),
-    value: formData.get('value') ?? null,
-    source: (formData.get('source') || null) as string | null,
+    metric_code: metricCode,
+    value: value,
+    source: source || null,
   };
-  const { error } = await supabase.from('metric_facts').insert(row);
-  if (error) console.error('addFact error', error);
+
+  console.log('Adding fact:', row);
+
+  const { error, data } = await supabase.from('metric_facts').insert(row).select();
+
+  if (error) {
+    console.error('addFact error:', error);
+    throw new Error(`Failed to add fact: ${error.message}`);
+  }
+
+  console.log('Fact added successfully:', data);
   revalidatePath(`/dashboard/holdings/${holdingId}`);
+  revalidatePath(`/dashboard`);
 }
 
 export async function addContribution(formData: FormData) {
@@ -167,17 +447,41 @@ export async function addContribution(formData: FormData) {
   const supabase = await getSupabase();
   const holdingId = String(formData.get('holding_id'));
   const portfolioId = String(formData.get('portfolio_id'));
+
+  const amount = numOrNull(formData.get('amount'));
+  if (amount === null || !Number.isFinite(amount)) {
+    throw new Error('Valid amount is required');
+  }
+
+  const contributedAt = formData.get('contributed_at');
+  if (!contributedAt) {
+    throw new Error('Contribution date is required');
+  }
+
+  const memo = formData.get('memo') ? String(formData.get('memo')).trim() : null;
+  const source = formData.get('source') ? String(formData.get('source')).trim() : null;
+
   const row = {
     portfolio_id: portfolioId,
     holding_id: holdingId,
-    amount: numOrNull(formData.get('amount')),
-    contributed_at: formData.get('contributed_at') || new Date().toISOString(),
-    memo: (formData.get('memo') || null) as string | null,
-    source: (formData.get('source') || null) as string | null,
+    amount: amount,
+    contributed_at: String(contributedAt),
+    memo: memo || null,
+    source: source || null,
   };
-  const { error } = await supabase.from('holding_contributions').insert(row as any);
-  if (error) console.error('addContribution error', error);
+
+  console.log('Adding contribution:', row);
+
+  const { error, data } = await supabase.from('holding_contributions').insert(row).select();
+
+  if (error) {
+    console.error('addContribution error:', error);
+    throw new Error(`Failed to add contribution: ${error.message}`);
+  }
+
+  console.log('Contribution added successfully:', data);
   revalidatePath(`/dashboard/holdings/${holdingId}`);
+  revalidatePath(`/dashboard`);
 }
 // --- End Server Actions ---
 
@@ -213,14 +517,17 @@ export default async function HoldingMiniDashboard({
 
   const portfolioId = String(holding.portfolio_id);
 
-  const [facts, contributions] = await Promise.all([
+  const [facts, contributions, metricNames] = await Promise.all([
     fetchFacts(holdingId),
     fetchContributions(portfolioId, holdingId),
+    fetchMetricNames(portfolioId),
   ]);
 
   const latestMetrics = latestByMetric(facts);
 
-  const funds = Number(holding.funds_allocated ?? 0) || 0;
+  // Calculate total funds from contributions
+  const totalContributions = contributions.reduce((sum, c) => sum + (Number(c.amount) || 0), 0);
+  const funds = totalContributions > 0 ? totalContributions : (Number(holding.funds_allocated ?? 0) || 0);
 
   // Prepare KPI cards with efficiency
   const kpiCards = latestMetrics.map((m) => {
@@ -230,6 +537,7 @@ export default async function HoldingMiniDashboard({
     const outcomesPerThousand = funds > 0 && typeof mVal === 'number' && isFinite(mVal) ? (mVal / (funds / 1000)) : null;
     return {
       key: m.metric_code,
+      displayName: metricNames.get(m.metric_code) || m.metric_code,
       value: mVal,
       updated_at: m.updated_at,
       costPerOutcome,
@@ -240,6 +548,9 @@ export default async function HoldingMiniDashboard({
   const contact = {
     name: holding.primary_contact_name ?? null,
     email: holding.primary_contact_email ?? null,
+    phone: holding.primary_contact_phone ?? null,
+    photo: holding.primary_contact_photo ?? null,
+    notes: holding.primary_contact_notes ?? null,
   };
 
   const locationParts = [holding.location_city, holding.location_state, holding.location_country].filter(Boolean);
@@ -250,150 +561,320 @@ export default async function HoldingMiniDashboard({
       ? `${holding.cost_per_outcome}${holding.cost_per_outcome_unit ? ' ' + holding.cost_per_outcome_unit : ''}`
       : null;
 
+  // Check if basic information is complete
+  const hasBasicInfo = !!(
+    holding.name &&
+    holding.asset_class &&
+    holding.sector &&
+    holding.status
+  );
+
   return (
     <div className="space-y-8">
       {/* Header */}
-      <header className="flex flex-col gap-1">
-        <p className="text-xs text-neutral-500">Holding</p>
-        <h1 className="text-2xl font-semibold text-neutral-900">{holding.name}</h1>
-        <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-neutral-700">
-          {holding.asset_class ? <span>Class: <span className="font-medium">{holding.asset_class}</span></span> : null}
-          {holding.sector ? <span>Sector: <span className="font-medium">{holding.sector}</span></span> : null}
-          {location ? <span>Location: <span className="font-medium">{location}</span></span> : null}
-          {holding.status ? <span>Status: <span className="font-medium">{holding.status}</span></span> : null}
-          {holding.as_of ? <span>As of: <span className="font-medium">{humanDate(holding.as_of)}</span></span> : null}
-        </div>
-      </header>
+      <HoldingHeader
+        holdingId={holding.id}
+        name={holding.name}
+        assetClass={holding.asset_class}
+        sector={holding.sector}
+        location={location}
+        status={holding.status}
+        asOf={holding.as_of}
+        funds={funds}
+        contributionCount={totalContributions > 0 ? contributions.length : undefined}
+        isManualFunds={totalContributions === 0 && holding.funds_allocated != null}
+      />
 
-      <details className="mt-3 rounded-xl border border-neutral-200 bg-white/60 p-4 open:shadow-sm">
-        <summary className="cursor-pointer text-sm font-medium text-neutral-700">Edit basics</summary>
-        <form action={updateHoldingBasics} className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+      {!hasBasicInfo && (
+        <details className="mt-3 rounded-xl border border-neutral-200 bg-white shadow-sm p-5 open:shadow-md transition-shadow">
+        <summary className="cursor-pointer text-sm font-semibold text-neutral-800 hover:text-neutral-900">Edit Basic Information</summary>
+        <form action={updateHoldingBasics} className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
           <input type="hidden" name="holding_id" value={holding.id} />
-          <label className="text-xs text-neutral-600">Name
-            <input name="name" defaultValue={holding.name} className="mt-1 w-full rounded-md border border-neutral-300 px-2 py-1 text-sm" />
+
+          <label className="block">
+            <span className="text-xs font-medium text-neutral-700">Name *</span>
+            <input
+              name="name"
+              defaultValue={holding.name}
+              required
+              className="mt-1.5 w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              placeholder="Holding name"
+            />
           </label>
-          <label className="text-xs text-neutral-600">Asset class
-            <input name="asset_class" defaultValue={holding.asset_class ?? ''} className="mt-1 w-full rounded-md border border-neutral-300 px-2 py-1 text-sm" />
+
+          <label className="block">
+            <span className="text-xs font-medium text-neutral-700">Asset Class</span>
+            <input
+              name="asset_class"
+              defaultValue={holding.asset_class ?? ''}
+              className="mt-1.5 w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              placeholder="e.g., Equity, Debt"
+            />
           </label>
-          <label className="text-xs text-neutral-600">Sector
-            <input name="sector" defaultValue={holding.sector ?? ''} className="mt-1 w-full rounded-md border border-neutral-300 px-2 py-1 text-sm" />
+
+          <label className="block">
+            <span className="text-xs font-medium text-neutral-700">Sector</span>
+            <input
+              name="sector"
+              defaultValue={holding.sector ?? ''}
+              className="mt-1.5 w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              placeholder="e.g., Clean Energy, Healthcare"
+            />
           </label>
-          <label className="text-xs text-neutral-600">Funds allocated (USD)
-            <input name="funds_allocated" defaultValue={holding.funds_allocated ?? ''} inputMode="decimal" className="mt-1 w-full rounded-md border border-neutral-300 px-2 py-1 text-sm" />
+
+          <label className="block">
+            <span className="text-xs font-medium text-neutral-700">Funds Allocated (USD)</span>
+            <input
+              name="funds_allocated"
+              defaultValue={holding.funds_allocated ?? ''}
+              type="number"
+              step="0.01"
+              className="mt-1.5 w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              placeholder="0.00"
+            />
           </label>
-          <label className="text-xs text-neutral-600">Status
-            <input name="status" defaultValue={holding.status ?? ''} className="mt-1 w-full rounded-md border border-neutral-300 px-2 py-1 text-sm" />
+
+          <label className="block">
+            <span className="text-xs font-medium text-neutral-700">Status</span>
+            <input
+              name="status"
+              defaultValue={holding.status ?? ''}
+              className="mt-1.5 w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              placeholder="e.g., Active, Exited"
+            />
           </label>
-          <label className="text-xs text-neutral-600">As of
-            <input type="date" name="as_of" defaultValue={holding.as_of ?? ''} className="mt-1 w-full rounded-md border border-neutral-300 px-2 py-1 text-sm" />
+
+          <label className="block">
+            <span className="text-xs font-medium text-neutral-700">As of Date</span>
+            <input
+              type="date"
+              name="as_of"
+              defaultValue={holding.as_of ?? ''}
+              className="mt-1.5 w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+            />
           </label>
-          <label className="col-span-full text-xs text-neutral-600">Theory of action
-            <textarea name="theory_of_action" defaultValue={holding.theory_of_action ?? ''} rows={3} className="mt-1 w-full rounded-md border border-neutral-300 px-2 py-1 text-sm" />
+
+          <label className="col-span-full block">
+            <span className="text-xs font-medium text-neutral-700">Description</span>
+            <textarea
+              name="description"
+              defaultValue={holding.description ?? ''}
+              rows={3}
+              className="mt-1.5 w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-y"
+              placeholder="Brief description of the holding..."
+            />
           </label>
-          <div className="col-span-full flex justify-end">
-            <button className="rounded-md bg-neutral-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-neutral-800">Save</button>
+
+          <label className="col-span-full block">
+            <span className="text-xs font-medium text-neutral-700">Theory of Action</span>
+            <textarea
+              name="theory_of_action"
+              defaultValue={holding.theory_of_action ?? ''}
+              rows={4}
+              className="mt-1.5 w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-y"
+              placeholder="Describe the theory of change and expected impact..."
+            />
+          </label>
+
+          <div className="col-span-full flex justify-end pt-2">
+            <button type="submit" className="rounded-lg bg-neutral-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-neutral-800 transition-colors shadow-sm">
+              Save Changes
+            </button>
           </div>
         </form>
       </details>
+      )}
 
-      <details className="rounded-xl border border-neutral-200 bg-white/60 p-4 open:shadow-sm">
-        <summary className="cursor-pointer text-sm font-medium text-neutral-700">Edit location & status</summary>
-        <form action={updateHoldingBasics} className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
+      {!hasBasicInfo && (
+        <details className="rounded-xl border border-neutral-200 bg-white shadow-sm p-5 open:shadow-md transition-shadow">
+        <summary className="cursor-pointer text-sm font-semibold text-neutral-800 hover:text-neutral-900">Edit Location</summary>
+        <form action={updateHoldingLocation} className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-3">
           <input type="hidden" name="holding_id" value={holding.id} />
-          <label className="text-xs text-neutral-600">City
-            <input name="location_city" defaultValue={holding.location_city ?? ''} className="mt-1 w-full rounded-md border border-neutral-300 px-2 py-1 text-sm" />
+
+          <label className="block">
+            <span className="text-xs font-medium text-neutral-700">City</span>
+            <input
+              name="location_city"
+              defaultValue={holding.location_city ?? ''}
+              className="mt-1.5 w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              placeholder="San Francisco"
+            />
           </label>
-          <label className="text-xs text-neutral-600">State / Region
-            <input name="location_state" defaultValue={holding.location_state ?? ''} className="mt-1 w-full rounded-md border border-neutral-300 px-2 py-1 text-sm" />
+
+          <label className="block">
+            <span className="text-xs font-medium text-neutral-700">State / Region</span>
+            <input
+              name="location_state"
+              defaultValue={holding.location_state ?? ''}
+              className="mt-1.5 w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              placeholder="California"
+            />
           </label>
-          <label className="text-xs text-neutral-600">Country
-            <input name="location_country" defaultValue={holding.location_country ?? ''} className="mt-1 w-full rounded-md border border-neutral-300 px-2 py-1 text-sm" />
+
+          <label className="block">
+            <span className="text-xs font-medium text-neutral-700">Country</span>
+            <input
+              name="location_country"
+              defaultValue={holding.location_country ?? ''}
+              className="mt-1.5 w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              placeholder="United States"
+            />
           </label>
-          <div className="col-span-full flex justify-end">
-            <button className="rounded-md bg-neutral-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-neutral-800">Save</button>
+
+          <div className="col-span-full flex justify-end pt-2">
+            <button type="submit" className="rounded-lg bg-neutral-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-neutral-800 transition-colors shadow-sm">
+              Save Changes
+            </button>
           </div>
         </form>
       </details>
+      )}
 
-      {/* Contact + Key details */}
-      <section className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        <div className="rounded-2xl border border-black/10 bg-white p-4 shadow-sm">
-          <h3 className="text-sm font-medium text-neutral-700">Primary Contact</h3>
-          <div className="mt-2 text-sm text-neutral-800">
-            {contact.name ? <p className="font-medium">{contact.name}</p> : <p className="text-neutral-500">—</p>}
-            {contact.email ? (
-              <p className="mt-0.5">
-                <a className="text-indigo-600 underline" href={`mailto:${contact.email}`}>{contact.email}</a>
+      {/* Primary Contact + Analytics Carousel */}
+      <section className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {/* Primary Contact Card - Narrower */}
+        <div className="rounded-2xl border border-black/10 bg-white p-5 shadow-sm">
+          <h3 className="text-sm font-medium text-neutral-700 mb-4">Primary Contact</h3>
+
+          <div className="flex gap-4 items-start">
+            {/* Profile Photo */}
+            <ContactPhotoUpload
+              holdingId={holding.id}
+              currentPhoto={contact.photo}
+              contactName={contact.name}
+            />
+
+            {/* Contact Info */}
+            <div className="flex-1 min-w-0">
+              {contact.name ? (
+                <p className="font-semibold text-lg text-neutral-900 truncate">{contact.name}</p>
+              ) : (
+                <p className="text-neutral-500 text-sm">No name</p>
+              )}
+
+              {contact.email && (
+                <p className="mt-2 flex items-center gap-2 text-sm text-neutral-700">
+                  <svg className="w-4 h-4 text-neutral-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                  </svg>
+                  <a className="text-indigo-600 hover:text-indigo-700 hover:underline truncate" href={`mailto:${contact.email}`}>
+                    {contact.email}
+                  </a>
+                </p>
+              )}
+
+              {contact.phone && (
+                <p className="mt-1.5 flex items-center gap-2 text-sm text-neutral-700">
+                  <svg className="w-4 h-4 text-neutral-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                  </svg>
+                  <a className="text-indigo-600 hover:text-indigo-700 hover:underline" href={`tel:${contact.phone}`}>
+                    {contact.phone}
+                  </a>
+                </p>
+              )}
+
+              {!contact.email && !contact.phone && (
+                <p className="text-neutral-500 text-sm mt-1">No contact information</p>
+              )}
+            </div>
+          </div>
+
+          {/* Contact Notes */}
+          <div className="mt-4 pt-4 border-t border-neutral-200">
+            <h4 className="text-xs font-medium text-neutral-500 uppercase tracking-wide mb-2">Notes</h4>
+            <EditableContactNotes
+              holdingId={holding.id}
+              notes={contact.notes ?? ''}
+              updateAction={updateContactNotes}
+            />
+          </div>
+
+          <details className="mt-5 pt-4 border-t border-neutral-200">
+            <summary className="cursor-pointer text-sm font-medium text-neutral-700 hover:text-neutral-900">Edit Contact</summary>
+            <form action={updateHoldingContact} className="mt-4 space-y-3">
+              <input type="hidden" name="holding_id" value={holding.id} />
+
+              <label className="block">
+                <span className="text-xs font-medium text-neutral-700">Name</span>
+                <input
+                  name="primary_contact_name"
+                  defaultValue={contact.name ?? ''}
+                  className="mt-1.5 w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  placeholder="John Doe"
+                />
+              </label>
+
+              <label className="block">
+                <span className="text-xs font-medium text-neutral-700">Email</span>
+                <input
+                  name="primary_contact_email"
+                  defaultValue={contact.email ?? ''}
+                  type="email"
+                  className="mt-1.5 w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  placeholder="john@example.com"
+                />
+              </label>
+
+              <label className="block">
+                <span className="text-xs font-medium text-neutral-700">Phone</span>
+                <input
+                  name="primary_contact_phone"
+                  defaultValue={contact.phone ?? ''}
+                  type="tel"
+                  className="mt-1.5 w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  placeholder="+1 (555) 123-4567"
+                />
+              </label>
+
+              <p className="text-xs text-neutral-500">
+                Tip: Click the profile photo above to upload an image.
               </p>
-            ) : null}
-          </div>
-          <details className="mt-3">
-            <summary className="cursor-pointer text-xs text-neutral-600">Edit contact</summary>
-            <form action={updateHoldingBasics} className="mt-2 grid grid-cols-1 gap-2">
-              <input type="hidden" name="holding_id" value={holding.id} />
-              <label className="text-xs text-neutral-600">Name
-                <input name="primary_contact_name" defaultValue={contact.name ?? ''} className="mt-1 w-full rounded-md border border-neutral-300 px-2 py-1 text-sm" />
-              </label>
-              <label className="text-xs text-neutral-600">Email
-                <input name="primary_contact_email" defaultValue={contact.email ?? ''} type="email" className="mt-1 w-full rounded-md border border-neutral-300 px-2 py-1 text-sm" />
-              </label>
-              <div className="flex justify-end">
-                <button className="rounded-md bg-neutral-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-neutral-800">Save</button>
+
+              <div className="flex justify-end pt-2">
+                <button type="submit" className="rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800 transition-colors">
+                  Save Changes
+                </button>
               </div>
             </form>
           </details>
-        </div>
 
-        <div className="rounded-2xl border border-black/10 bg-white p-4 shadow-sm">
-          <h3 className="text-sm font-medium text-neutral-700">Funds Allocated</h3>
-          <p className="mt-2 text-2xl font-semibold text-neutral-900">
-            {isFinite(funds) ? new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(funds) : '—'}
-          </p>
-          <p className="mt-1 text-xs text-neutral-500">Used to compute cost per outcome & efficiency below.</p>
-          <details className="mt-3">
-            <summary className="cursor-pointer text-xs text-neutral-600">Edit funds</summary>
-            <form action={updateHoldingBasics} className="mt-2 grid grid-cols-1 gap-2">
-              <input type="hidden" name="holding_id" value={holding.id} />
-              <input name="funds_allocated" defaultValue={holding.funds_allocated ?? ''} inputMode="decimal" className="w-full rounded-md border border-neutral-300 px-2 py-1 text-sm" />
-              <div className="flex justify-end">
-                <button className="rounded-md bg-neutral-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-neutral-800">Save</button>
-              </div>
-            </form>
-          </details>
-        </div>
-
-        <div className="rounded-2xl border border-black/10 bg-white p-4 shadow-sm">
-          <h3 className="text-sm font-medium text-neutral-700">Legacy Cost per Outcome</h3>
-          <p className="mt-2 text-2xl font-semibold text-neutral-900">{legacyCostPerOutcome ?? '—'}</p>
-          <p className="mt-1 text-xs text-neutral-500">Displayed if manually set on the holding. Auto-calculated KPIs shown below.</p>
-          <details className="mt-3">
-            <summary className="cursor-pointer text-xs text-neutral-600">Edit legacy cost</summary>
-            <form action={updateHoldingBasics} className="mt-2 grid grid-cols-1 gap-2">
-              <input type="hidden" name="holding_id" value={holding.id} />
-              <label className="text-xs text-neutral-600">Cost per outcome
-                <input name="cost_per_outcome" defaultValue={holding.cost_per_outcome ?? ''} inputMode="decimal" className="mt-1 w-full rounded-md border border-neutral-300 px-2 py-1 text-sm" />
-              </label>
-              <label className="text-xs text-neutral-600">Unit
-                <input name="cost_per_outcome_unit" defaultValue={holding.cost_per_outcome_unit ?? ''} className="mt-1 w-full rounded-md border border-neutral-300 px-2 py-1 text-sm" />
-              </label>
-              <div className="flex justify-end">
-                <button className="rounded-md bg-neutral-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-neutral-800">Save</button>
-              </div>
-            </form>
-          </details>
-        </div>
-      </section>
-
-      {/* Theory of Action */}
-      <section className="rounded-2xl border border-black/10 bg-white p-5 shadow-sm">
-        <h3 className="text-sm font-medium text-neutral-700">Theory of Action</h3>
-        <div className="mt-2 prose prose-sm max-w-none text-neutral-800">
-          {holding.theory_of_action ? (
-            <p>{holding.theory_of_action}</p>
-          ) : (
-            <p className="text-neutral-500">No theory of action recorded yet.</p>
+          {totalContributions === 0 && (
+            <details className="mt-4 pt-4 border-t border-neutral-200">
+              <summary className="cursor-pointer text-sm font-medium text-neutral-700 hover:text-neutral-900">Set Manual Funds</summary>
+              <form action={updateHoldingFunds} className="mt-4 space-y-3">
+                <input type="hidden" name="holding_id" value={holding.id} />
+                <label className="block">
+                  <span className="text-xs font-medium text-neutral-700">Amount (USD)</span>
+                  <input
+                    name="funds_allocated"
+                    defaultValue={holding.funds_allocated ?? ''}
+                    type="number"
+                    step="0.01"
+                    className="mt-1.5 w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    placeholder="0.00"
+                  />
+                </label>
+                <p className="text-xs text-neutral-400">Note: Once contributions are added, they will override this manual value.</p>
+                <div className="flex justify-end pt-2">
+                  <button type="submit" className="rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800 transition-colors">
+                    Save Changes
+                  </button>
+                </div>
+              </form>
+            </details>
           )}
         </div>
+
+        {/* Analytics Carousel - Takes up 2 columns */}
+        <div className="lg:col-span-2">
+          <HoldingWidgetsSection
+            holdingId={holding.id}
+            portfolioId={portfolioId}
+            canEdit={true}
+          />
+        </div>
+
       </section>
 
       {/* KPI Cards (latest per metric) */}
@@ -407,7 +888,7 @@ export default async function HoldingMiniDashboard({
           <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {kpiCards.map((m) => (
               <div key={m.key} className="rounded-xl border border-black/10 bg-white p-4 shadow-sm">
-                <p className="text-xs text-neutral-500">{m.key}</p>
+                <p className="text-xs text-neutral-500">{m.displayName}</p>
                 <p className="mt-1 text-2xl font-semibold text-neutral-900">
                   {Number.isFinite(m.value) ? m.value : '—'}
                 </p>
@@ -436,117 +917,236 @@ export default async function HoldingMiniDashboard({
         )}
       </section>
 
-      {/* Facts Table (chronological) */}
-      <section>
-        <h3 className="text-sm font-medium text-neutral-700">All Facts</h3>
-        <div className="mt-2 overflow-hidden rounded-2xl border border-black/10 bg-white">
-          <form action={addFact} className="p-3 flex flex-wrap items-end gap-2 border-b border-neutral-200 bg-neutral-50/60">
-            <input type="hidden" name="holding_id" value={holding.id} />
-            <label className="text-xs text-neutral-600">Metric
-              <input name="metric_code" className="mt-1 w-36 rounded-md border border-neutral-300 px-2 py-1 text-sm" placeholder="e.g. JOBS" required />
-            </label>
-            <label className="text-xs text-neutral-600">Value
-              <input name="value" className="mt-1 w-32 rounded-md border border-neutral-300 px-2 py-1 text-sm" placeholder="e.g. 12" />
-            </label>
-            <label className="text-xs text-neutral-600">Source URL
-              <input name="source" className="mt-1 w-64 rounded-md border border-neutral-300 px-2 py-1 text-sm" placeholder="https://…" />
-            </label>
-            <button className="ml-auto rounded-md bg-neutral-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-neutral-800">Add fact</button>
-          </form>
-          <table className="min-w-full divide-y divide-neutral-200">
-            <thead className="bg-neutral-50">
-              <tr>
-                <th className="px-3 py-2 text-left text-xs font-semibold text-neutral-700">Observed</th>
-                <th className="px-3 py-2 text-left text-xs font-semibold text-neutral-700">Metric</th>
-                <th className="px-3 py-2 text-left text-xs font-semibold text-neutral-700">Value</th>
-                <th className="px-3 py-2 text-left text-xs font-semibold text-neutral-700">Source</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-neutral-100 bg-white">
-              {facts.length === 0 ? (
-                <tr>
-                  <td className="px-3 py-3 text-sm text-neutral-600" colSpan={4}>No facts recorded yet.</td>
-                </tr>
-              ) : (
-                facts.map((f) => (
-                  <tr key={f.id} className="hover:bg-neutral-50">
-                    <td className="px-3 py-2 text-sm text-neutral-800">{humanDate(f.updated_at)}</td>
-                    <td className="px-3 py-2 text-sm text-neutral-800">{f.metric_code}</td>
-                    <td className="px-3 py-2 text-sm text-neutral-800">{f.value ?? '—'}</td>
-                    <td className="px-3 py-2 text-sm">
-                      {f.source ? <a className="text-indigo-600 underline" href={f.source} target="_blank" rel="noreferrer">Source</a> : <span className="text-neutral-500">—</span>}
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </section>
+      {/* Description, Theory of Action, and Legacy Cost */}
+      <div className="grid grid-cols-1 gap-4">
+        {/* Description */}
+        {holding.description && (
+          <section className="rounded-2xl border border-black/10 bg-white p-5 shadow-sm">
+            <h3 className="text-sm font-medium text-neutral-700">Description</h3>
+            <EditableDescription
+              holdingId={holding.id}
+              description={holding.description}
+              updateAction={updateDescription}
+            />
+          </section>
+        )}
+
+        {/* Theory of Action */}
+        {holding.theory_of_action && (
+          <section className="rounded-2xl border border-black/10 bg-white p-5 shadow-sm">
+            <h3 className="text-sm font-medium text-neutral-700">Theory of Action</h3>
+            <EditableDescription
+              holdingId={holding.id}
+              description={holding.theory_of_action}
+              updateAction={updateTheoryOfAction}
+            />
+          </section>
+        )}
+
+        {/* Legacy Cost per Outcome */}
+        {legacyCostPerOutcome && (
+          <section className="rounded-2xl border border-black/10 bg-white p-5 shadow-sm">
+            <h3 className="text-xs font-medium text-neutral-500 uppercase tracking-wide">Legacy Cost/Outcome</h3>
+            <p className="mt-2 text-2xl font-semibold text-neutral-900">{legacyCostPerOutcome}</p>
+            <p className="mt-1 text-xs text-neutral-400">Manual entry (deprecated)</p>
+          </section>
+        )}
+
+        {/* Recent News */}
+        <NewsSection holdingId={holding.id} />
+      </div>
 
       {/* History of Contributions */}
       <section>
-        <h3 className="text-sm font-medium text-neutral-700">History of Contributions</h3>
-        <div className="mt-2 overflow-hidden rounded-2xl border border-black/10 bg-white">
-          <form action={addContribution} className="p-3 flex flex-wrap items-end gap-2 border-b border-neutral-200 bg-neutral-50/60">
-            <input type="hidden" name="portfolio_id" value={portfolioId} />
-            <input type="hidden" name="holding_id" value={holding.id} />
-            <label className="text-xs text-neutral-600">Amount (USD)
-              <input name="amount" inputMode="decimal" className="mt-1 w-40 rounded-md border border-neutral-300 px-2 py-1 text-sm" placeholder="e.g. 50000" />
-            </label>
-            <label className="text-xs text-neutral-600">Date
-              <input type="date" name="contributed_at" className="mt-1 w-40 rounded-md border border-neutral-300 px-2 py-1 text-sm" />
-            </label>
-            <label className="text-xs text-neutral-600">Memo
-              <input name="memo" className="mt-1 w-56 rounded-md border border-neutral-300 px-2 py-1 text-sm" placeholder="optional" />
-            </label>
-            <label className="text-xs text-neutral-600">Source URL
-              <input name="source" className="mt-1 w-64 rounded-md border border-neutral-300 px-2 py-1 text-sm" placeholder="https://…" />
-            </label>
-            <button className="ml-auto rounded-md bg-neutral-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-neutral-800">Add</button>
-          </form>
-          <table className="min-w-full divide-y divide-neutral-200">
-            <thead className="bg-neutral-50">
-              <tr>
-                <th className="px-3 py-2 text-left text-xs font-semibold text-neutral-700">Date</th>
-                <th className="px-3 py-2 text-left text-xs font-semibold text-neutral-700">Amount</th>
-                <th className="px-3 py-2 text-left text-xs font-semibold text-neutral-700">Memo</th>
-                <th className="px-3 py-2 text-left text-xs font-semibold text-neutral-700">Source</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-neutral-100 bg-white">
-              {contributions.length === 0 ? (
+        <h3 className="text-sm font-medium text-neutral-700 mb-3">History of Contributions</h3>
+        <div className="overflow-hidden rounded-2xl border border-black/10 bg-white shadow-sm">
+          <div className="p-5 border-b border-neutral-200 bg-neutral-50/60">
+            <h4 className="text-sm font-medium text-neutral-800 mb-4">Add New Contribution</h4>
+            <form action={addContribution} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+              <input type="hidden" name="portfolio_id" value={portfolioId} />
+              <input type="hidden" name="holding_id" value={holding.id} />
+              <label className="block">
+                <span className="text-xs font-medium text-neutral-700">Amount (USD) *</span>
+                <input
+                  name="amount"
+                  type="number"
+                  step="0.01"
+                  className="mt-1.5 w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  placeholder="50000"
+                  required
+                />
+              </label>
+              <label className="block">
+                <span className="text-xs font-medium text-neutral-700">Date *</span>
+                <input
+                  type="date"
+                  name="contributed_at"
+                  className="mt-1.5 w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  required
+                />
+              </label>
+              <label className="block">
+                <span className="text-xs font-medium text-neutral-700">Memo</span>
+                <input
+                  name="memo"
+                  className="mt-1.5 w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  placeholder="Series A investment"
+                />
+              </label>
+              <label className="block">
+                <span className="text-xs font-medium text-neutral-700">Source URL</span>
+                <input
+                  name="source"
+                  type="url"
+                  className="mt-1.5 w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  placeholder="https://..."
+                />
+              </label>
+              <div className="flex items-end">
+                <button type="submit" className="w-full rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800 transition-colors">
+                  Add Contribution
+                </button>
+              </div>
+            </form>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-neutral-200">
+              <thead className="bg-neutral-50">
                 <tr>
-                  <td className="px-3 py-3 text-sm text-neutral-600" colSpan={4}>No contributions recorded yet.</td>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-neutral-700">Date</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-neutral-700">Amount</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-neutral-700">Memo</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-neutral-700">Source</th>
                 </tr>
-              ) : (
-                contributions.map((c) => (
-                  <tr key={c.id} className="hover:bg-neutral-50">
-                    <td className="px-3 py-2 text-sm text-neutral-800">{humanDate(c.contributed_at)}</td>
-                    <td className="px-3 py-2 text-sm text-neutral-800">
-                      {new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(c.amount)}
-                    </td>
-                    <td className="px-3 py-2 text-sm text-neutral-800">{c.memo ?? '—'}</td>
-                    <td className="px-3 py-2 text-sm">
-                      {c.source ? <a className="text-indigo-600 underline" href={c.source} target="_blank" rel="noreferrer">Link</a> : <span className="text-neutral-500">—</span>}
+              </thead>
+              <tbody className="divide-y divide-neutral-100 bg-white">
+                {contributions.length === 0 ? (
+                  <tr>
+                    <td className="px-4 py-8 text-sm text-neutral-500 text-center" colSpan={4}>
+                      No contributions recorded yet. Add your first contribution above.
                     </td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+                ) : (
+                  contributions.map((c) => (
+                    <tr key={c.id} className="hover:bg-neutral-50 transition-colors">
+                      <td className="px-4 py-3 text-sm text-neutral-800">{humanDate(c.contributed_at)}</td>
+                      <td className="px-4 py-3 text-sm font-medium text-neutral-900">
+                        {new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(c.amount)}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-neutral-800">{c.memo ?? '—'}</td>
+                      <td className="px-4 py-3 text-sm">
+                        {c.source ? (
+                          <a
+                            className="text-indigo-600 hover:text-indigo-700 hover:underline"
+                            href={c.source}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            View Source
+                          </a>
+                        ) : (
+                          <span className="text-neutral-400">—</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       </section>
 
-      {/* Widgets Area */}
-      <section className="rounded-2xl border border-black/10 bg-white p-4 shadow-sm">
-        <h3 className="text-sm font-medium text-neutral-700">Widgets</h3>
-        <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          <div className="rounded-xl border border-dashed border-black/10 p-6 text-sm text-neutral-600">Add a chart or widget here…</div>
-          <div className="rounded-xl border border-dashed border-black/10 p-6 text-sm text-neutral-600">Add a breakdown or timeseries…</div>
-          <div className="rounded-xl border border-dashed border-black/10 p-6 text-sm text-neutral-600">Map / geo overlay…</div>
+      {/* Facts Table (chronological) */}
+      <section>
+        <h3 className="text-sm font-medium text-neutral-700 mb-3">All Facts</h3>
+        <div className="overflow-hidden rounded-2xl border border-black/10 bg-white shadow-sm">
+          <div className="p-5 border-b border-neutral-200 bg-neutral-50/60">
+            <h4 className="text-sm font-medium text-neutral-800 mb-4">Add New Fact</h4>
+            <form action={addFact} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              <input type="hidden" name="holding_id" value={holding.id} />
+              <label className="block">
+                <span className="text-xs font-medium text-neutral-700">Metric Code *</span>
+                <input
+                  name="metric_code"
+                  className="mt-1.5 w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  placeholder="e.g. JOBS"
+                  required
+                />
+              </label>
+              <label className="block">
+                <span className="text-xs font-medium text-neutral-700">Value *</span>
+                <input
+                  name="value"
+                  type="number"
+                  step="any"
+                  className="mt-1.5 w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  placeholder="e.g. 12"
+                  required
+                />
+              </label>
+              <label className="block sm:col-span-2 lg:col-span-1">
+                <span className="text-xs font-medium text-neutral-700">Source URL</span>
+                <input
+                  name="source"
+                  type="url"
+                  className="mt-1.5 w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  placeholder="https://..."
+                />
+              </label>
+              <div className="flex items-end">
+                <button type="submit" className="w-full rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800 transition-colors">
+                  Add Fact
+                </button>
+              </div>
+            </form>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-neutral-200">
+              <thead className="bg-neutral-50">
+                <tr>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-neutral-700">Observed</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-neutral-700">Metric</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-neutral-700">Value</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-neutral-700">Source</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-neutral-100 bg-white">
+                {facts.length === 0 ? (
+                  <tr>
+                    <td className="px-4 py-8 text-sm text-neutral-500 text-center" colSpan={4}>
+                      No facts recorded yet. Add your first fact above.
+                    </td>
+                  </tr>
+                ) : (
+                  facts.map((f) => (
+                    <tr key={f.id} className="hover:bg-neutral-50 transition-colors">
+                      <td className="px-4 py-3 text-sm text-neutral-800">{humanDate(f.period_end || f.period_start || f.updated_at)}</td>
+                      <td className="px-4 py-3 text-sm font-medium text-neutral-900">{f.metric_code}</td>
+                      <td className="px-4 py-3 text-sm text-neutral-800">{f.value ?? '—'}</td>
+                      <td className="px-4 py-3 text-sm">
+                        {f.source ? (
+                          <a
+                            className="text-indigo-600 hover:text-indigo-700 hover:underline"
+                            href={f.source}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            View Source
+                          </a>
+                        ) : (
+                          <span className="text-neutral-400">—</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       </section>
+
     </div>
   );
 }

@@ -9,7 +9,8 @@ const fetcher = (url: string) => fetch(url, { cache: 'no-store' }).then(r => r.j
 
 export type WidgetRow = {
   id: string;
-  portfolio_id: string;
+  portfolio_id?: string;
+  holding_id?: string;
   type: string;        // e.g., 'kpi_trend' | 'emissions_bar'
   title: string | null;
   config: any | null;  // arbitrary JSON config consumed by the renderer
@@ -18,6 +19,7 @@ export type WidgetRow = {
 
 export type EditWidgetsModalProps = {
   portfolioId: string;
+  holdingId?: string; // If provided, creates holding-specific widgets
   open: boolean;
   onClose: () => void;
   onChanged?: () => void; // signal parent to refetch carousel items
@@ -141,7 +143,7 @@ const WIDGET_TYPES: { value: string; label: string; hint: string; example: objec
   }
 ];
 
-export default function EditWidgetsModal({ portfolioId, open, onClose, onChanged }: EditWidgetsModalProps) {
+export default function EditWidgetsModal({ portfolioId, holdingId, open, onClose, onChanged }: EditWidgetsModalProps) {
   const [mounted, setMounted] = React.useState(false);
 
   React.useEffect(() => {
@@ -160,8 +162,13 @@ export default function EditWidgetsModal({ portfolioId, open, onClose, onChanged
     }
   }, [open, mounted]);
 
+  // Determine API endpoint based on whether we're editing holding or portfolio widgets
+  const apiEndpoint = holdingId
+    ? `/api/holdings/${encodeURIComponent(holdingId)}/widgets`
+    : `/api/portfolio/${encodeURIComponent(portfolioId)}/widgets`;
+
   const { data, error, isLoading, mutate } = useSWR<{ data: WidgetRow[] }>(
-    open ? `/api/portfolio/${encodeURIComponent(portfolioId)}/widgets` : null,
+    open ? apiEndpoint : null,
     fetcher
   );
 
@@ -251,13 +258,16 @@ export default function EditWidgetsModal({ portfolioId, open, onClose, onChanged
     try {
       const body = { type: draftType, title: draftTitle || null, config: parsed } as any;
       if (editing) {
-        const res = await fetch(`/api/portfolio/${encodeURIComponent(portfolioId)}/widgets/${encodeURIComponent(editing.id)}`, {
+        const updateEndpoint = holdingId
+          ? `/api/holdings/${encodeURIComponent(holdingId)}/widgets/${encodeURIComponent(editing.id)}`
+          : `/api/portfolio/${encodeURIComponent(portfolioId)}/widgets/${encodeURIComponent(editing.id)}`;
+        const res = await fetch(updateEndpoint, {
           method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
         });
         const j = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(j?.error || 'Update failed');
       } else {
-        const res = await fetch(`/api/portfolio/${encodeURIComponent(portfolioId)}/widgets`, {
+        const res = await fetch(apiEndpoint, {
           method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
         });
         const j = await res.json().catch(() => ({}));

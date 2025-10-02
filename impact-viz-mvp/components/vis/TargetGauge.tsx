@@ -26,7 +26,7 @@ export default function TargetGauge({ portfolioId, title, config }: Props) {
   const svgRef = useRef<SVGSVGElement | null>(null);
   const svgWrapRef = useRef<HTMLDivElement | null>(null);
   const [w, setW] = useState(420);
-  const [h, setH] = useState(260);
+  const [h, setH] = useState(200);
 
   const gradId = useMemo(() => `tg-grad-${Math.random().toString(36).slice(2, 9)}` , []);
   const glowId = useMemo(() => `tg-glow-${Math.random().toString(36).slice(2, 9)}` , []);

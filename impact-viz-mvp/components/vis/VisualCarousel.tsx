@@ -306,7 +306,8 @@ export default function VisualCarousel({ items, portfolioId, initialId, autoPlay
 
   return (
     <div
-      className="card p-4 space-y-3 min-w-0 w-full h-full select-none"
+      className="card p-4 space-y-3 min-w-0 w-full select-none overflow-hidden"
+      style={{ minHeight: '400px' }}
       role="region"
       aria-label="Portfolio visualizations carousel"
       onMouseEnter={() => setPaused(true)}
@@ -343,7 +344,7 @@ export default function VisualCarousel({ items, portfolioId, initialId, autoPlay
       {/* Slides */}
       <CarouselSlides index={index}>
         {items.map((it, i) => (
-          <div key={it.id} className="w-full h-full flex items-stretch min-w-0">
+          <div key={it.id} className="w-full flex items-center justify-center min-w-0">
             {/* Only mount neighbors for perf */}
             {Math.abs(i - index) <= 1 || Math.abs(i - index) >= items.length - 1 ? (() => {
               // Prefer new registry-based rendering when type is provided
@@ -408,7 +409,7 @@ function CarouselSlides({ index, children }: { index: number; children: React.Re
   }, []);
 
   return (
-    <div ref={containerRef} className="relative overflow-hidden px-0 h-full" aria-live="polite">
+    <div ref={containerRef} className="relative overflow-hidden px-0" aria-live="polite">
       <div
         className="flex transition-transform duration-500 ease-out"
         style={{
@@ -419,7 +420,7 @@ function CarouselSlides({ index, children }: { index: number; children: React.Re
       >
         {React.Children.map(children, (child, i) => (
           <div
-            className={`shrink-0 h-full transition-opacity duration-500 ${i === index ? 'opacity-100' : 'opacity-75'}`}
+            className={`shrink-0 transition-opacity duration-500 ${i === index ? 'opacity-100' : 'opacity-75'}`}
             style={{ flex: `0 0 ${width || 1}px`, width: width || 1 }}
             aria-hidden={i !== index}
           >

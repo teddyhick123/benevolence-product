@@ -17,12 +17,17 @@
     "d3-scale": "^4.0.2",
     "d3-scale-chromatic": "^3.1.0",
     "d3-shape": "^3.2.0",
+    "mammoth": "^1.11.0",
     "next": "^15.5.0",
+    "openai": "^6.0.1",
+    "pdf2json": "^3.2.2",
     "react": "18.2.0",
     "react-dom": "18.2.0",
+    "supabase": "^2.47.2",
     "swr": "^2.3.6",
     "topojson-client": "^3.1.0",
     "world-atlas": "^2.0.2",
+    "xlsx": "^0.18.5",
     "zod": "3.23.8"
   },
   "devDependencies": {

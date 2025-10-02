@@ -1,40 +1,117 @@
 import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
+import ProfileHeader from "@/components/profile/ProfileHeader";
+import AccountSettings from "@/components/profile/AccountSettings";
+import PortfolioAccess from "@/components/profile/PortfolioAccess";
+import Preferences from "@/components/profile/Preferences";
+import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 
-export default async function ProfilePage() {
-  const cookieStore = cookies();
-  const supabase = createServerClient(
+async function getSupabase() {
+  const cookieStore = await cookies();
+  return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { cookies: { get: (n: string) => cookieStore.get(n)?.value } }
+    {
+      cookies: {
+        get: (name: string) => cookieStore.get(name)?.value,
+        set: (name: string, value: string, options: any) => {
+          try {
+            cookieStore.set(name, value, options);
+          } catch (error) {
+            // Ignore
+          }
+        },
+        remove: (name: string, options: any) => {
+          try {
+            cookieStore.set(name, '', options);
+          } catch (error) {
+            // Ignore
+          }
+        },
+      },
+    }
   );
+}
+
+export default async function ProfilePage() {
+  const supabase = await getSupabase();
 
   const { data: { user } } = await supabase.auth.getUser();
 
+  if (!user) {
+    redirect('/login');
+  }
+
+  // Fetch user's portfolios and roles
+  const { data: portfolios } = await supabase
+    .from('portfolio_members')
+    .select(`
+      role,
+      added_at,
+      portfolio:portfolios(id, name, description)
+    `)
+    .eq('user_id', user.id)
+    .order('added_at', { ascending: false });
+
+  // Check if user is admin
+  const { data: adminData } = await supabase
+    .from('admins')
+    .select('user_id')
+    .eq('user_id', user.id)
+    .single();
+
+  const isAdmin = !!adminData;
+
+  // Fetch user metadata (we'll store display name, etc. in user metadata)
+  const displayName = user.user_metadata?.display_name || user.email?.split('@')[0] || 'User';
+  const avatarUrl = user.user_metadata?.avatar_url || null;
+  const bio = user.user_metadata?.bio || null;
+  const organization = user.user_metadata?.organization || null;
+
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
-      <h1 className="text-2xl font-semibold">Profile</h1>
-      {!user ? (
-        <p className="text-sm text-neutral-600">You’re not signed in.</p>
-      ) : (
-        <div className="rounded-2xl bg-white shadow-soft border border-black/5 p-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <div className="text-xs uppercase tracking-wide text-neutral-500">Email</div>
-              <div className="mt-1">{user.email}</div>
-            </div>
-            <div>
-              <div className="text-xs uppercase tracking-wide text-neutral-500">User ID</div>
-              <div className="mt-1 font-mono text-xs break-all">{user.id}</div>
-            </div>
-          </div>
-          <p className="mt-6 text-sm text-neutral-600">
-            (Planned) Manage your display name, default portfolio, and notification preferences here.
-          </p>
-        </div>
-      )}
+    <div className="mx-auto max-w-5xl space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <h1 className="text-3xl font-serif">Profile</h1>
+        {isAdmin && (
+          <a
+            href="/admin/console"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-neutral-900 text-white text-sm font-medium hover:bg-neutral-800 transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+            </svg>
+            Admin Console
+          </a>
+        )}
+      </div>
+
+      {/* Profile Header */}
+      <ProfileHeader
+        userId={user.id}
+        email={user.email!}
+        displayName={displayName}
+        avatarUrl={avatarUrl}
+        bio={bio}
+        organization={organization}
+      />
+
+      {/* Grid Layout for Sections */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Account Settings */}
+        <AccountSettings userId={user.id} email={user.email!} />
+
+        {/* Preferences */}
+        <Preferences userId={user.id} />
+      </div>
+
+      {/* Portfolio Access (Full Width) */}
+      <PortfolioAccess
+        portfolios={portfolios || []}
+        isAdmin={isAdmin}
+      />
     </div>
   );
 }

@@ -15,8 +15,20 @@ export type ExtractedFact = {
   data_quality_score?: number | null;
 };
 
+export type ExtractedLocation = {
+  name: string;
+  city?: string | null;
+  state?: string | null;
+  country?: string | null;
+  lon?: number | null;
+  lat?: number | null;
+  tags?: string[];
+  status?: string | null;
+};
+
 export type ExtractionResult = {
   facts: ExtractedFact[];
+  locations?: ExtractedLocation[];
   summary?: string;
 };
 
@@ -65,9 +77,12 @@ Be conservative and only extract facts that are clearly stated in the document.`
 
   // AI mode: discover any relevant metrics
   return `You are a deterministic data extraction model for impact investing.
-Your task is to extract ANY relevant KPI facts from financial and impact reports.
+Your task is to extract ANY relevant KPI facts AND location information from financial and impact reports.
 
-Return ONLY valid JSON with a single key 'facts', which is an array of objects.
+Return ONLY valid JSON with these keys:
+1. 'facts' - array of KPI fact objects
+2. 'locations' - array of location objects (optional, only if location info is found)
+
 Each fact object must have these fields:
 - metric_code: string (use UPPERCASE_SNAKE_CASE, e.g. "CARBON_EMISSIONS", "JOBS_CREATED", "WATER_USAGE")
 - value: number
@@ -82,6 +97,16 @@ Each fact object must have these fields:
 - verification_level: string (optional, defaults to "Issuer Reported")
 - data_quality_score: number 0-1 (optional, defaults to 0.6)
 
+Each location object must have these fields:
+- name: string (location name, e.g., "Headquarters", "Project Site", "Manufacturing Facility")
+- city: string (optional)
+- state: string (optional)
+- country: string (optional)
+- lon: number (longitude, optional, only if you can determine coordinates)
+- lat: number (latitude, optional, only if you can determine coordinates)
+- tags: string array (optional, e.g., ["headquarters", "manufacturing"])
+- status: string (optional, e.g., "Active", "Operational")
+
 Common metric codes to use when appropriate: ${COMMON_METRIC_CODES.join(', ')}
 
 If you find a metric not in the common list, create a descriptive metric_code in UPPERCASE_SNAKE_CASE.
@@ -93,10 +118,15 @@ Examples:
 - "BIODIVERSITY_SCORE" for biodiversity metrics
 - "SOCIAL_IMPACT_SCORE" for social metrics
 
-If you cannot extract a fact with confidence, omit it. Never guess or hallucinate data.
+For locations:
+- Extract any mentions of cities, addresses, operational locations, project sites, etc.
+- DO NOT try to guess coordinates unless they are explicitly stated
+- If you find a city/country, include it even without coordinates (geocoding can happen later)
+
+If you cannot extract a fact or location with confidence, omit it. Never guess or hallucinate data.
 If a field is uncertain, use null.
 
-Be conservative and only extract facts that are clearly stated in the document.`;
+Be conservative and only extract information that is clearly stated in the document.`;
 }
 
 /**
@@ -190,8 +220,34 @@ export async function extractFactsFromText(
         data_quality_score: fact.data_quality_score != null ? Number(fact.data_quality_score) : 0.6,
       }));
 
+    // Validate and filter locations
+    const validLocations: ExtractedLocation[] = (result.locations || [])
+      .filter((loc: any) => {
+        // Must have name
+        if (!loc.name) return false;
+        // If coordinates provided, both must be valid numbers
+        if (loc.lon != null || loc.lat != null) {
+          const lon = Number(loc.lon);
+          const lat = Number(loc.lat);
+          if (!Number.isFinite(lon) || !Number.isFinite(lat)) return false;
+          if (lon < -180 || lon > 180 || lat < -90 || lat > 90) return false;
+        }
+        return true;
+      })
+      .map((loc: any) => ({
+        name: String(loc.name),
+        city: loc.city || null,
+        state: loc.state || null,
+        country: loc.country || null,
+        lon: loc.lon != null ? Number(loc.lon) : null,
+        lat: loc.lat != null ? Number(loc.lat) : null,
+        tags: Array.isArray(loc.tags) ? loc.tags.map(String) : [],
+        status: loc.status || null,
+      }));
+
     return {
       facts: validFacts,
+      locations: validLocations.length > 0 ? validLocations : undefined,
       summary: result.summary || undefined,
     };
   } catch (error) {

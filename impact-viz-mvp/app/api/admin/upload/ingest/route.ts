@@ -153,13 +153,68 @@ export async function POST(req: NextRequest) {
 
     console.log('Successfully inserted staging rows:', stagingData?.length);
 
-    // 8. If auto-approve, also insert into metric_facts
+    // 8. Upsert holding locations if extracted
+    let locationsUpserted = 0;
+    if (extraction.locations && extraction.locations.length > 0 && upload.holding_id) {
+      const locationRows = extraction.locations
+        .filter(loc => loc.lon != null && loc.lat != null) // Only insert locations with coordinates
+        .map(loc => ({
+          portfolio_id: upload.portfolio_id,
+          holding_id: upload.holding_id,
+          name: loc.name,
+          tags: loc.tags || [],
+          status: loc.status || 'Active',
+          as_of: now.slice(0, 10),
+          amount_usd: null,
+          lon: loc.lon!,
+          lat: loc.lat!,
+          created_at: now,
+          updated_at: now,
+        }));
+
+      if (locationRows.length > 0) {
+        // First, check for existing locations with same portfolio_id, holding_id, and name
+        // If they exist, update them; otherwise insert new ones
+        for (const locRow of locationRows) {
+          const { data: existing } = await sb
+            .from('holding_locations')
+            .select('id')
+            .eq('portfolio_id', locRow.portfolio_id)
+            .eq('holding_id', locRow.holding_id)
+            .eq('name', locRow.name)
+            .maybeSingle();
+
+          if (existing) {
+            // Update existing location
+            await sb
+              .from('holding_locations')
+              .update({
+                tags: locRow.tags,
+                status: locRow.status,
+                as_of: locRow.as_of,
+                lon: locRow.lon,
+                lat: locRow.lat,
+                updated_at: locRow.updated_at,
+              })
+              .eq('id', existing.id);
+            locationsUpserted++;
+          } else {
+            // Insert new location
+            await sb.from('holding_locations').insert(locRow);
+            locationsUpserted++;
+          }
+        }
+        console.log('Successfully upserted locations:', locationsUpserted);
+      }
+    }
+
+    // 9. If auto-approve, also insert into metric_facts
     // Note: The old schema uses staging_metric_facts, but based on n8n workflow
     // it seems to expect metric_facts table for approved data
     // For now, we'll just insert into staging and let admin approve manually
     // unless we detect the auto-approve flag
 
-    // 9. Update upload status to done
+    // 10. Update upload status to done
     await sb.from('uploads').update({
       status: 'done',
       updated_at: now,
@@ -169,6 +224,8 @@ export async function POST(req: NextRequest) {
       success: true,
       uploadId,
       factsExtracted: extraction.facts.length,
+      locationsExtracted: extraction.locations?.length || 0,
+      locationsUpserted,
       metrics: uniqueMetricCodes,
       documentMetadata: parsed.metadata,
     });

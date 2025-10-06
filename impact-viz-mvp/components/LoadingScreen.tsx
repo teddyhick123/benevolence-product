@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { usePathname, useSearchParams } from 'next/navigation';
+import TrefoilLoader from './TrefoilLoader';
 
 export default function LoadingScreen() {
   const [isLoading, setIsLoading] = useState(true);
@@ -61,10 +62,9 @@ export default function LoadingScreen() {
       }`}
     >
       <div className="text-center space-y-4">
-        {/* Spinner */}
-        <div className="inline-block relative w-16 h-16">
-          <div className="absolute border-4 border-azure/20 rounded-full w-16 h-16"></div>
-          <div className="absolute border-4 border-azure border-t-transparent rounded-full w-16 h-16 animate-spin"></div>
+        {/* Trefoil Knot Loader */}
+        <div className="flex justify-center">
+          <TrefoilLoader className="w-16 h-16 text-azure" />
         </div>
 
         {/* Loading text */}

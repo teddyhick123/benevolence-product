@@ -7,6 +7,7 @@ import SummarySection from '@/components/SummarySection';
 import MapSection from '@/components/MapSection';
 import Reveal from '@/components/Reveal';
 import { headers } from 'next/headers';
+import AIAssistantButton from '@/components/AIAssistantButton';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -131,6 +132,9 @@ export default async function Dashboard({ searchParams }: { searchParams?: Promi
           <MapSection portfolioId={portfolioId} />
         </Reveal>
       )}
+
+      {/* AI Assistant */}
+      <AIAssistantButton portfolioId={portfolioId} />
     </div>
   );
 }

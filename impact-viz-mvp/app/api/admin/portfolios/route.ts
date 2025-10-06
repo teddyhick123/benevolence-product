@@ -1,7 +1,6 @@
 // app/api/admin/portfolios/route.ts
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
-import { createServerClient } from '@supabase/ssr';
+import { createSupabaseServerClient } from '@/lib/supabase-server';
 
 export async function POST(req: Request) {
   const body = await req.json().catch(() => ({}));
@@ -14,18 +13,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'name is required' }, { status: 400 });
   }
 
-  const c = await cookies();
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        get: (n: string) => c.get(n)?.value,
-        set: (n: string, v: string, o: any) => c.set({ name: n, value: v, ...o }),
-        remove: (n: string, o: any) => c.set({ name: n, value: '', ...o }),
-      },
-    }
-  );
+  const supabase = await createSupabaseServerClient();
 
   // Must be admin
   const { data: isAdmin, error: adminErr } = await supabase.rpc('is_admin');
@@ -87,18 +75,7 @@ export async function POST(req: Request) {
 
 // (Optional) GET: list portfolios with member count (admin only)
 export async function GET() {
-  const c = await cookies();
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        get: (n: string) => c.get(n)?.value,
-        set: (n: string, v: string, o: any) => c.set({ name: n, value: v, ...o }),
-        remove: (n: string, o: any) => c.set({ name: n, value: '', ...o }),
-      },
-    }
-  );
+  const supabase = await createSupabaseServerClient();
 
   const { data: isAdmin, error: adminErr } = await supabase.rpc('is_admin');
   if (adminErr || !isAdmin) return NextResponse.json({ error: 'not authorized' }, { status: 403 });

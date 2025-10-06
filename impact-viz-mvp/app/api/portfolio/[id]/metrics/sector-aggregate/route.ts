@@ -2,8 +2,7 @@
 
 // app/api/portfolio/[id]/metrics/sector-aggregate/route.ts
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
-import { createServerClient } from '@supabase/ssr';
+import { createSupabaseServerClient } from '@/lib/supabase-server';
 
 function cacheHeaders() {
   return { 'Cache-Control': 'no-store' } as const;
@@ -18,18 +17,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
     return NextResponse.json({ error: 'metric query param is required', rows: [] }, { status: 400, headers: cacheHeaders() });
   }
 
-  const c = await cookies();
-  const sb = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        get: (n: string) => c.get(n)?.value,
-        set: (n: string, v: string, o: any) => c.set({ name: n, value: v, ...o }),
-        remove: (n: string, o: any) => c.set({ name: n, value: '', ...o }),
-      },
-    }
-  );
+  const sb = await createSupabaseServerClient();
 
   // Pull a recent slice of facts for this metric, scoped to holdings in the portfolio.
   // We'll aggregate by sector in Node to avoid requiring a DB view for now.

@@ -1,6 +1,5 @@
 // app/admin/portfolios/[id]/kpis/page.tsx
-import { cookies } from 'next/headers';
-import { createServerClient } from '@supabase/ssr';
+import { createSupabaseServerClient } from '@/lib/supabase-server';
 import Link from 'next/link';
 
 export const dynamic = 'force-dynamic';
@@ -22,18 +21,7 @@ type Metric = {
 };
 
 async function loadData(portfolioId: string) {
-  const c = await cookies();
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        get: (n: string) => c.get(n)?.value,
-        set: (n: string, v: string, o: any) => c.set({ name: n, value: v, ...o }),
-        remove: (n: string, o: any) => c.set({ name: n, value: '', ...o }),
-      },
-    }
-  );
+  const supabase = await createSupabaseServerClient();
 
   // Admin gate
   const { data: isAdmin, error: adminErr } = await supabase.rpc('is_admin');

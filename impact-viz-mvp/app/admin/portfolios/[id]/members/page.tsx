@@ -1,6 +1,5 @@
 // app/admin/portfolios/[id]/members/page.tsx
-import { cookies } from 'next/headers';
-import { createServerClient } from '@supabase/ssr';
+import { createSupabaseServerClient } from '@/lib/supabase-server';
 import AdminRoleSelect from '@/components/admin/AdminRoleSelect'
 import EmailLookupAdd from '@/components/admin/EmailLookupAdd';
 
@@ -15,18 +14,7 @@ type MemberRow = {
 };
 
 async function loadMembers(portfolioId: string) {
-  const c = await cookies();
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        get: (n) => c.get(n)?.value,
-        set: (n, v, o) => c.set({ name: n, value: v, ...o }),
-        remove: (n, o) => c.set({ name: n, value: '', ...o }),
-      },
-    }
-  );
+  const supabase = await createSupabaseServerClient();
 
   // Ensure admin
   const { data: isAdmin } = await supabase.rpc('is_admin');

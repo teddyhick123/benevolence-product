@@ -1,12 +1,13 @@
 import { NextResponse } from 'next/server';
 import { supabasePublic } from '@/lib/supabasePublic';
 
-export async function GET(_: Request, { params }: { params: { jobId: string } }) {
+export async function GET(_: Request, ctx: { params: Promise<{ jobId: string }> }) {
+  const { jobId } = await ctx.params;
   const sb = supabasePublic();
   const { data, error } = await sb
     .from('uploads')
     .select('status, updated_at')
-    .eq('id', params.jobId)
+    .eq('id', jobId)
     .single();
 
   if (error) {

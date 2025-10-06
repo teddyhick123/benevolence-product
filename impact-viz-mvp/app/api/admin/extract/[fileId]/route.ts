@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-export async function POST(req: NextRequest, { params }: { params: { fileId: string } }) {
+export async function POST(req: NextRequest, ctx: { params: Promise<{ fileId: string }> }) {
+  const { fileId } = await ctx.params;
   const body = await req.json().catch(() => ({}));
   const payload = {
-    fileId: params.fileId,
+    fileId,
     // include signedUrl if you returned one from upload:
     signedUrl: body.signedUrl,
   };

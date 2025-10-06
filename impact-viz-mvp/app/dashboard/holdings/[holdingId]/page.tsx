@@ -194,7 +194,7 @@ function getValue(formData: FormData, key: string) {
   return str === '' ? null : str;
 }
 
-export async function updateHoldingBasics(formData: FormData) {
+async function updateHoldingBasics(formData: FormData) {
   'use server';
   const supabase = await getSupabase();
   const holdingId = String(formData.get('holding_id'));
@@ -240,7 +240,7 @@ export async function updateHoldingBasics(formData: FormData) {
   revalidatePath(`/dashboard`);
 }
 
-export async function updateHoldingContact(formData: FormData) {
+async function updateHoldingContact(formData: FormData) {
   'use server';
   const supabase = await getSupabase();
   const holdingId = String(formData.get('holding_id'));
@@ -276,7 +276,7 @@ export async function updateHoldingContact(formData: FormData) {
   revalidatePath(`/dashboard`);
 }
 
-export async function updateHoldingLocation(formData: FormData) {
+async function updateHoldingLocation(formData: FormData) {
   'use server';
   const supabase = await getSupabase();
   const holdingId = String(formData.get('holding_id'));
@@ -306,7 +306,7 @@ export async function updateHoldingLocation(formData: FormData) {
   revalidatePath(`/dashboard`);
 }
 
-export async function updateHoldingFunds(formData: FormData) {
+async function updateHoldingFunds(formData: FormData) {
   'use server';
   const supabase = await getSupabase();
   const holdingId = String(formData.get('holding_id'));
@@ -329,7 +329,7 @@ export async function updateHoldingFunds(formData: FormData) {
   revalidatePath(`/dashboard`);
 }
 
-export async function updateDescription(holdingId: string, description: string) {
+async function updateDescription(holdingId: string, description: string) {
   'use server';
   const supabase = await getSupabase();
 
@@ -346,7 +346,7 @@ export async function updateDescription(holdingId: string, description: string) 
   revalidatePath(`/dashboard/holdings/${holdingId}`);
 }
 
-export async function updateTheoryOfAction(holdingId: string, theory_of_action: string) {
+async function updateTheoryOfAction(holdingId: string, theory_of_action: string) {
   'use server';
   const supabase = await getSupabase();
 
@@ -363,7 +363,7 @@ export async function updateTheoryOfAction(holdingId: string, theory_of_action: 
   revalidatePath(`/dashboard/holdings/${holdingId}`);
 }
 
-export async function updateContactNotes(holdingId: string, primary_contact_notes: string) {
+async function updateContactNotes(holdingId: string, primary_contact_notes: string) {
   'use server';
   const supabase = await getSupabase();
 
@@ -380,7 +380,7 @@ export async function updateContactNotes(holdingId: string, primary_contact_note
   revalidatePath(`/dashboard/holdings/${holdingId}`);
 }
 
-export async function updateHoldingCostPerOutcome(formData: FormData) {
+async function updateHoldingCostPerOutcome(formData: FormData) {
   'use server';
   const supabase = await getSupabase();
   const holdingId = String(formData.get('holding_id'));
@@ -404,7 +404,7 @@ export async function updateHoldingCostPerOutcome(formData: FormData) {
   revalidatePath(`/dashboard`);
 }
 
-export async function addFact(formData: FormData) {
+async function addFact(formData: FormData) {
   'use server';
   const supabase = await getSupabase();
   const holdingId = String(formData.get('holding_id'));
@@ -442,7 +442,7 @@ export async function addFact(formData: FormData) {
   revalidatePath(`/dashboard`);
 }
 
-export async function addContribution(formData: FormData) {
+async function addContribution(formData: FormData) {
   'use server';
   const supabase = await getSupabase();
   const holdingId = String(formData.get('holding_id'));

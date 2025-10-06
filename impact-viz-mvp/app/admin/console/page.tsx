@@ -13,9 +13,15 @@ export default async function AdminConsole() {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        get: (n: string) => c.get(n)?.value,
-        set: (n: string, v: string, o: any) => c.set({ name: n, value: v, ...o }),
-        remove: (n: string) => c.delete(n),
+        get(name: string) {
+          return c.get(name)?.value;
+        },
+        set(name: string, value: string, options: any) {
+          c.set({ name, value, ...options });
+        },
+        remove(name: string, options: any) {
+          c.set({ name, value: '', ...options });
+        },
       },
     }
   );

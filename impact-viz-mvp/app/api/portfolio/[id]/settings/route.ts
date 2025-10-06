@@ -8,8 +8,8 @@ import { createServerClient } from '@supabase/ssr';
 /** Returns settings for a portfolio: { show_map: boolean, widgets: string[] }
  * Defaults: show_map=true, widgets=['kpi_waci','sector_emissions']
  */
-export async function GET(_req: Request, { params }: { params: { id: string } }) {
-  const { id: portfolio_id } = await params;
+export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> }) {
+  const { id: portfolio_id } = await ctx.params;
 
   // SSR-bound Supabase client (reads auth cookies)
   const c = await cookies();

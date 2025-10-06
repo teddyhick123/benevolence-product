@@ -1,7 +1,7 @@
 
 
 'use client';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, use } from 'react';
 import Link from 'next/link';
 
 const ALL_WIDGETS: { id: string; label: string }[] = [
@@ -12,8 +12,8 @@ const ALL_WIDGETS: { id: string; label: string }[] = [
 
 type Settings = { show_map: boolean; widgets: string[] };
 
-export default function PortfolioSettingsPage({ params }: { params: { id: string } }) {
-  const portfolioId = params.id;
+export default function PortfolioSettingsPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id: portfolioId } = use(params);
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);

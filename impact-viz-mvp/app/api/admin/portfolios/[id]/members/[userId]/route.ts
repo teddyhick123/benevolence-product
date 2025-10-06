@@ -1,7 +1,6 @@
 // app/api/admin/portfolios/[id]/members/[userId]/route.ts
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
-import { createServerClient } from '@supabase/ssr';
+import { createSupabaseServerClient } from '@/lib/supabase-server';
 
 export async function POST(req: Request, ctx: { params: Promise<{ id: string; userId: string }> }) {
   // Support form method override (_method=DELETE) for simple forms
@@ -18,18 +17,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string; us
 export async function DELETE(_req: Request, ctx: { params: Promise<{ id: string; userId: string }> }) {
   const { id: portfolioId, userId } = await ctx.params;
 
-  const c = await cookies();
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        get: (n: string) => c.get(n)?.value,
-        set: (n: string, v: string, o: any) => c.set({ name: n, value: v, ...o }),
-        remove: (n: string, o: any) => c.set({ name: n, value: '', ...o }),
-      },
-    }
-  );
+  const supabase = await createSupabaseServerClient();
 
   const { data: isAdmin, error: adminErr } = await supabase.rpc('is_admin');
   if (adminErr) return NextResponse.json({ error: adminErr.message }, { status: 500 });
@@ -98,18 +86,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string; u
   const allowed = new Set(['viewer','editor','owner']);
   if (!allowed.has(role)) return NextResponse.json({ error: 'invalid role' }, { status: 400 });
 
-  const c = await cookies();
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        get: (n: string) => c.get(n)?.value,
-        set: (n: string, v: string, o: any) => c.set({ name: n, value: v, ...o }),
-        remove: (n: string, o: any) => c.set({ name: n, value: '', ...o }),
-      },
-    }
-  );
+  const supabase = await createSupabaseServerClient();
 
   const { data: isAdmin, error: adminErr } = await supabase.rpc('is_admin');
   if (adminErr) return NextResponse.json({ error: adminErr.message }, { status: 500 });

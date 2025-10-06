@@ -1,26 +1,12 @@
 // app/api/portfolio/[id]/holdings/[holdingId]/route.ts
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
-import { createServerClient } from '@supabase/ssr';
+import { createSupabaseServerClient } from '@/lib/supabase-server';
 
 function cacheHeaders() {
   return { 'Cache-Control': 'no-store' } as const;
 }
 
-async function createSb() {
-  const c = await cookies();
-  return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        get: (n: string) => c.get(n)?.value,
-        set: (n: string, v: string, o: any) => c.set({ name: n, value: v, ...o }),
-        remove: (n: string, o: any) => c.set({ name: n, value: '', ...o }),
-      },
-    }
-  );
-}
+const createSb = createSupabaseServerClient;
 
 export async function PATCH(req: Request, ctx: { params: Promise<{ id: string; holdingId: string }> }) {
   const { id: portfolio_id, holdingId } = await ctx.params;

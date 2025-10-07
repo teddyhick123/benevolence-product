@@ -1,9 +1,7 @@
 'use client';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { createClient } from '@supabase/supabase-js';
-
-export const dynamic = 'force-dynamic';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -19,7 +17,7 @@ async function postAuthDestination(fallback: string) {
   } catch {}
   return fallback; // usually '/welcome'
 }
-export default function LoginPage() {
+function LoginPageContent() {
   const sp = useSearchParams();
   const router = useRouter();
   const redirect = useMemo(() => sp.get('redirect') || '/welcome', [sp]);
@@ -194,5 +192,13 @@ export default function LoginPage() {
         </form>
       ))}
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center">Loading...</div>}>
+      <LoginPageContent />
+    </Suspense>
   );
 }

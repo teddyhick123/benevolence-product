@@ -2,15 +2,13 @@
 import { useEffect, useState, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 
-export const dynamic = 'force-dynamic';
-
 type MeResponse = { user: any | null; portfolio_id: string | null };
 
 type KpiDef = { metric_code: string; display_name: string | null; target_value: number | null; target_date: string | null; order_index: number | null };
 
 type HoldingLite = { id: string; name: string | null };
 
-export default function UploadPage() {
+function UploadPageContent() {
   const [file, setFile] = useState<File | null>(null);
   const [portfolioId, setPortfolioId] = useState<string | null>(null);
   const [portfolioName, setPortfolioName] = useState<string | null>(null);
@@ -509,5 +507,13 @@ export default function UploadPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function UploadPage() {
+  return (
+    <Suspense fallback={<div className="p-6">Loading...</div>}>
+      <UploadPageContent />
+    </Suspense>
   );
 }

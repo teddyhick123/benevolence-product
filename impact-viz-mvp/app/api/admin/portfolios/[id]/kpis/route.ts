@@ -4,7 +4,7 @@ import { supabasePublic } from '@/lib/supabasePublic';
 // Members (via RLS) can read kpi_definitions for their portfolios
 export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id: portfolioId } = await ctx.params;
-  const sb = supabasePublic();
+  const sb = await supabasePublic();
 
   const { data, error } = await sb
     .from('kpi_definitions')

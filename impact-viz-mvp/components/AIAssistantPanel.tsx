@@ -122,6 +122,10 @@ Just ask me anything, and I'll help you out! If you don't like a change I make, 
 
       const data = await res.json();
 
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to send message');
+      }
+
       if (data.message) {
         const assistantMessage: Message = {
           role: 'assistant',
@@ -141,11 +145,12 @@ Just ask me anything, and I'll help you out! If you don't like a change I make, 
       }
     } catch (err) {
       console.error('Send message error:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
       setMessages((prev) => [
         ...prev,
         {
           role: 'assistant',
-          content: 'Sorry, I encountered an error. Please try again.',
+          content: `Sorry, I encountered an error: ${errorMessage}. Please try again.`,
           timestamp: new Date().toISOString(),
         },
       ]);

@@ -2,8 +2,7 @@
 
 // app/api/admin/portfolios/[id]/settings/route.ts
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
-import { createServerClient } from '@supabase/ssr';
+import { createSupabaseServerClient } from '@/lib/supabase-server';
 
 /** Admin-only: upsert settings { show_map?: boolean, widgets?: string[] } */
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
@@ -26,18 +25,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   const show_map = typeof parsed?.show_map === 'boolean' ? parsed.show_map : undefined;
   const widgets  = Array.isArray(parsed?.widgets) ? parsed.widgets as string[] : undefined;
 
-  const c = await cookies();
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        get: (n: string) => c.get(n)?.value,
-        set: (n: string, v: string, o: any) => c.set({ name: n, value: v, ...o }),
-        remove: (n: string, o: any) => c.set({ name: n, value: '', ...o }),
-      },
-    }
-  );
+  const supabase = await createSupabaseServerClient();
 
   // Admin check
   const { data: isAdmin, error: adminErr } = await supabase.rpc('is_admin');

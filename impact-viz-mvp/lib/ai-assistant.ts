@@ -235,6 +235,7 @@ export class AIPortfolioAssistant {
 
       for (let i = 0; i < toolCalls.length; i++) {
         const toolCall = toolCalls[i];
+        if (toolCall.type !== 'function') continue;
         const functionName = toolCall.function.name;
         const functionArgs = JSON.parse(toolCall.function.arguments);
 

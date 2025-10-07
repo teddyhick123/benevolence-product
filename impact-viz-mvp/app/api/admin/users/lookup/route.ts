@@ -1,7 +1,6 @@
 // app/api/admin/users/lookup/route.ts
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
-import { createServerClient } from '@supabase/ssr';
+import { createSupabaseServerClient } from '@/lib/supabase-server';
 import { createClient as createSB } from '@supabase/supabase-js';
 
 function noStore(json: any, status = 200) {
@@ -18,18 +17,7 @@ export async function GET(req: Request) {
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return noStore({ error: 'invalid email' }, 422);
 
   // Check admin via SSR cookie-bound client
-  const c = await cookies();
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        get: (n) => c.get(n)?.value,
-        set: (n, v, o) => c.set({ name: n, value: v, ...o }),
-        remove: (n, o) => c.delete(n),
-      },
-    }
-  );
+  const supabase = await createSupabaseServerClient();
 
   const { data: isAdmin, error: adminErr } = await supabase.rpc('is_admin');
   if (adminErr || !isAdmin) return noStore({ error: 'not authorized' }, 403);

@@ -21,22 +21,17 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'not authorized' }, { status: 403 });
   }
 
-  // If owner_email is provided (and no owner_user_id), look up the user via Supabase Admin API
+  // If owner_email is provided (and no owner_user_id), look up the user via profiles table
   if (!owner_user_id && owner_email) {
     try {
-      const { createClient } = await import('@supabase/supabase-js');
-      const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-      const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-      if (!url || !serviceKey) {
-        console.warn('Missing SUPABASE service credentials; skipping owner email lookup');
-      } else {
-        const admin = createClient(url, serviceKey);
-        const { data, error } = await admin.auth.admin.listUsers({ page: 1, perPage: 1, email: owner_email });
-        if (error) {
-          console.warn('Owner email lookup failed:', error.message);
-        } else {
-          owner_user_id = data?.users?.[0]?.id || '';
-        }
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('user_id')
+        .eq('email', owner_email)
+        .maybeSingle();
+
+      if (profile?.user_id) {
+        owner_user_id = profile.user_id;
       }
     } catch (e) {
       console.warn('Owner email lookup exception:', e);

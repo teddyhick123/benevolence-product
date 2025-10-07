@@ -3,7 +3,7 @@ import { supabasePublic } from '@/lib/supabasePublic';
 
 export async function GET(_: Request, ctx: { params: Promise<{ jobId: string }> }) {
   const { jobId } = await ctx.params;
-  const sb = supabasePublic();
+  const sb = await supabasePublic();
   const { data, error } = await sb
     .from('uploads')
     .select('status, updated_at')

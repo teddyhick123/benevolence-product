@@ -286,7 +286,7 @@ export class AIActionExecutor {
       .order('position', { ascending: false })
       .limit(1);
 
-    const maxPosition = widgets?.[0]?.position ?? -1;
+    const maxPosition: number = (widgets?.[0]?.position as number) ?? -1;
 
     // Create widget
     const { data: widget, error } = await this.supabase

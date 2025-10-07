@@ -1,5 +1,4 @@
-import { cookies } from 'next/headers';
-import { createServerClient } from '@supabase/ssr';
+import { createSupabaseServerClient } from '@/lib/supabase-server';
 import KpiSection from '@/components/KpiSection';
 import HoldingsSection from '@/components/HoldingsSection';
 import WidgetsSection from '@/components/vis/WidgetsSection';
@@ -37,14 +36,7 @@ async function getBaseUrl() {
   return `${proto}://${host}`;
 }
 
-async function getSupabase() {
-  const cookieStore = await cookies();
-  return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { cookies: { get: (n: string) => cookieStore.get(n)?.value } }
-  );
-}
+const getSupabase = createSupabaseServerClient;
 
 export default async function Dashboard({ searchParams }: { searchParams?: Promise<Record<string, string | string[] | undefined>> }) {
   const sp = (await searchParams ?? {}) as Record<string, any>;

@@ -1,7 +1,6 @@
 // app/api/portfolio/[id]/summary/route.ts
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
-import { createServerClient } from '@supabase/ssr';
+import { createSupabaseServerClient } from '@/lib/supabase-server';
 
 export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id: portfolio_id } = await ctx.params;
@@ -10,18 +9,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
     return NextResponse.json({ summary: 'AI summary disabled: OPENAI_API_KEY not set.' });
   }
 
-  const c = await cookies();
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        get: (n) => c.get(n)?.value,
-        set: (n, v, o) => c.set({ name: n, value: v, ...o }),
-        remove: (n, o) => c.set({ name: n, value: '', ...o }),
-      },
-    }
-  );
+  const supabase = await createSupabaseServerClient();
 
   // Pull latest KPI definitions (names/targets) and compute latest KPI values from v_portfolio_kpi_latest
   const [{ data: kpis }, { data: latest }] = await Promise.all([

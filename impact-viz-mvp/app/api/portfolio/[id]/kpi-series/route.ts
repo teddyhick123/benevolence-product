@@ -1,7 +1,6 @@
 // app/api/portfolio/[id]/kpi-series/route.ts
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
-import { createServerClient } from '@supabase/ssr';
+import { createSupabaseServerClient } from '@/lib/supabase-server';
 
 export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id: portfolio_id } = await ctx.params;
@@ -13,18 +12,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
     return NextResponse.json({ series: [] }, { headers: { 'Cache-Control': 'no-store' } });
   }
 
-  const c = await cookies();
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        get: (n) => c.get(n)?.value,
-        set: (n, v, o) => c.set({ name: n, value: v, ...o }),
-        remove: (n) => c.delete(n),
-      },
-    }
-  );
+  const supabase = await createSupabaseServerClient();
 
   // Fetch KPI series from view
   let query = supabase

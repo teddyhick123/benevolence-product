@@ -1,6 +1,8 @@
 // lib/data/portfolio.ts
+import { createSupabaseServerClient } from '@/lib/supabase-server';
+
 export async function getDefaultPortfolioId(): Promise<string | null> {
-  const supabase = serverClient();
+  const supabase = await createSupabaseServerClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
 

@@ -519,7 +519,7 @@ export class AIActionExecutor {
 
     const results = [];
     for (const action of actions || []) {
-      const result = await this.undoAction(action.id);
+      const result = await this.undoAction(action.id as string);
       results.push(result);
     }
 

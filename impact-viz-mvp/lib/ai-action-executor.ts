@@ -27,7 +27,7 @@ export class AIActionExecutor {
       status?: string;
       description?: string;
     }
-  ): Promise<{ action: AIAction; result: any }> {
+  ): Promise<{ action: AIAction; output: any }> {
     // Create the holding
     const { data: holding, error } = await this.supabase
       .from('holdings')
@@ -70,7 +70,7 @@ export class AIActionExecutor {
 
     return {
       action: action as AIAction,
-      result: holding,
+      output: holding,
     };
   }
 
@@ -88,7 +88,7 @@ export class AIActionExecutor {
       holding_id: string;
       changes: Record<string, any>;
     }
-  ): Promise<{ action: AIAction; result: any }> {
+  ): Promise<{ action: AIAction; output: any }> {
     // Get current state for undo
     const { data: before } = await this.supabase
       .from('holdings')
@@ -132,7 +132,7 @@ export class AIActionExecutor {
 
     return {
       action: action as AIAction,
-      result: after,
+      output: after,
     };
   }
 
@@ -150,7 +150,7 @@ export class AIActionExecutor {
       holding_id: string;
       reason?: string;
     }
-  ): Promise<{ action: AIAction; result: any }> {
+  ): Promise<{ action: AIAction; output: any }> {
     // Get current state for undo
     const { data: before } = await this.supabase
       .from('holdings')
@@ -191,7 +191,7 @@ export class AIActionExecutor {
 
     return {
       action: action as AIAction,
-      result: { deleted: true },
+      output: { deleted: true },
     };
   }
 
@@ -213,7 +213,7 @@ export class AIActionExecutor {
       period_start?: string;
       period_end?: string;
     }
-  ): Promise<{ action: AIAction; result: any }> {
+  ): Promise<{ action: AIAction; output: any }> {
     // Insert metric fact
     const { data: fact, error } = await this.supabase
       .from('metric_facts')
@@ -257,7 +257,7 @@ export class AIActionExecutor {
 
     return {
       action: action as AIAction,
-      result: fact,
+      output: fact,
     };
   }
 
@@ -277,7 +277,7 @@ export class AIActionExecutor {
       title: string;
       config?: any;
     }
-  ): Promise<{ action: AIAction; result: any }> {
+  ): Promise<{ action: AIAction; output: any }> {
     // Get max position for ordering
     const { data: widgets } = await this.supabase
       .from('holding_widgets')
@@ -328,7 +328,7 @@ export class AIActionExecutor {
 
     return {
       action: action as AIAction,
-      result: widget,
+      output: widget,
     };
   }
 
@@ -351,7 +351,7 @@ export class AIActionExecutor {
       lat?: number;
       tags?: string[];
     }
-  ): Promise<{ action: AIAction; result: any }> {
+  ): Promise<{ action: AIAction; output: any }> {
     // Only insert if we have coordinates
     if (args.lon == null || args.lat == null) {
       throw new Error('Coordinates (lon, lat) are required for location');
@@ -400,7 +400,7 @@ export class AIActionExecutor {
 
     return {
       action: action as AIAction,
-      result: location,
+      output: location,
     };
   }
 

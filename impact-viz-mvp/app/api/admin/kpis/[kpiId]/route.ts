@@ -1,7 +1,6 @@
 // app/api/admin/kpis/[kpiId]/route.ts
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
-import { createServerClient } from '@supabase/ssr';
+import { createSupabaseServerClient } from '@/lib/supabase-server';
 
 function toNumber(value: any): number | null {
   if (value === null || value === undefined || value === '') return null;
@@ -10,16 +9,7 @@ function toNumber(value: any): number | null {
 }
 
 async function requireAdmin() {
-  const c = await cookies();
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { cookies: {
-        get: (n) => c.get(n)?.value,
-        set: (n, v, o) => c.set({ name: n, value: v, ...o }),
-        remove: (n, o) => c.set({ name: n, value: '', ...o }),
-      }}
-  );
+  const supabase = await createSupabaseServerClient();
   const { data: isAdmin, error } = await supabase.rpc('is_admin');
   if (error || !isAdmin) return { supabase: null as any, error: 'not authorized' };
   return { supabase, error: null };

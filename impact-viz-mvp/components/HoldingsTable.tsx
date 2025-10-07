@@ -303,16 +303,12 @@ export default function HoldingsTable({ rows, canEdit = false, onEditRow, portfo
         <EditHoldingsModal
           open={modalOpen}
           onClose={() => setModalOpen(false)}
-          onSaved={() => {
-            setModalOpen(false);
-            router.refresh();
-          }}
-          onDeleted={() => {
+          onChanged={() => {
             setModalOpen(false);
             router.refresh();
           }}
           portfolioId={portfolioId}
-          holding={selectedRaw}
+          initial={selectedRaw}
         />
       ) : null}
     </div>

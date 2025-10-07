@@ -63,15 +63,24 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Verify user has access to portfolio
+    // Verify user has access to portfolio (check membership or admin status)
     const { data: membership } = await supabase
       .from('portfolio_members')
       .select('role')
       .eq('portfolio_id', portfolioId)
       .eq('user_id', user.id)
-      .single();
+      .maybeSingle();
 
-    if (!membership) {
+    // Also check if user is admin
+    const { data: adminData } = await supabase
+      .from('admins')
+      .select('user_id')
+      .eq('user_id', user.id)
+      .maybeSingle();
+
+    const isAdmin = !!adminData;
+
+    if (!membership && !isAdmin) {
       return NextResponse.json(
         { error: 'Access denied to this portfolio' },
         { status: 403 }

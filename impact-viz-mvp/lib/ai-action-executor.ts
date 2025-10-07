@@ -427,7 +427,7 @@ export class AIActionExecutor {
         await this.supabase
           .from(opData.table)
           .delete()
-          .eq('id', action.entity_id);
+          .eq('id', action.entity_id as string);
         break;
 
       case 'update':
@@ -435,7 +435,7 @@ export class AIActionExecutor {
         await this.supabase
           .from(opData.table)
           .update(opData.before)
-          .eq('id', action.entity_id);
+          .eq('id', action.entity_id as string);
         break;
 
       case 'delete':
@@ -485,7 +485,7 @@ export class AIActionExecutor {
         await this.supabase
           .from(opData.table)
           .update(opData.after)
-          .eq('id', action.entity_id);
+          .eq('id', action.entity_id as string);
         break;
 
       case 'delete':
@@ -493,7 +493,7 @@ export class AIActionExecutor {
         await this.supabase
           .from(opData.table)
           .delete()
-          .eq('id', action.entity_id);
+          .eq('id', action.entity_id as string);
         break;
     }
 

@@ -24,7 +24,7 @@ export default async function ProfilePage() {
     .select(`
       role,
       added_at,
-      portfolio:portfolios(id, name, description)
+      portfolio:portfolios!inner(id, name, description)
     `)
     .eq('user_id', user.id)
     .order('added_at', { ascending: false });

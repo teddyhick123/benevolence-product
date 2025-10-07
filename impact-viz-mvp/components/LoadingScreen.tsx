@@ -1,10 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { usePathname, useSearchParams } from 'next/navigation';
 import TrefoilLoader from './TrefoilLoader';
 
-export default function LoadingScreen() {
+function LoadingScreenContent() {
   const [isLoading, setIsLoading] = useState(true);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const pathname = usePathname();
@@ -71,5 +71,13 @@ export default function LoadingScreen() {
         <p className="text-lg font-semibold text-neutral-900">Loading</p>
       </div>
     </div>
+  );
+}
+
+export default function LoadingScreen() {
+  return (
+    <Suspense fallback={null}>
+      <LoadingScreenContent />
+    </Suspense>
   );
 }

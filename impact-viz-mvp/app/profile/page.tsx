@@ -19,15 +19,22 @@ export default async function ProfilePage() {
   }
 
   // Fetch user's portfolios and roles
-  const { data: portfolios } = await supabase
+  const { data: rawPortfolios } = await supabase
     .from('portfolio_members')
     .select(`
       role,
       added_at,
-      portfolio:portfolios!inner(id, name, description)
+      portfolios(id, name, description)
     `)
     .eq('user_id', user.id)
     .order('added_at', { ascending: false });
+
+  // Transform the data to match expected type
+  const portfolios = rawPortfolios?.map((p: any) => ({
+    role: p.role,
+    added_at: p.added_at,
+    portfolio: Array.isArray(p.portfolios) ? p.portfolios[0] : p.portfolios,
+  })) || [];
 
   // Check if user is admin
   const { data: adminData } = await supabase

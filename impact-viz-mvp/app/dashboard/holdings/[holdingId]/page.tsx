@@ -1,6 +1,5 @@
-import { cookies } from 'next/headers';
 import { notFound } from 'next/navigation';
-import { createServerClient } from '@supabase/ssr';
+import { createSupabaseServerClient } from '@/lib/supabase-server';
 import React from 'react';
 import { revalidatePath } from 'next/cache';
 import HoldingHeader from '@/components/HoldingHeader';
@@ -55,37 +54,7 @@ type ContributionRow = {
 };
 
 // Build a Supabase server client with SSR cookies
-async function getSupabase() {
-  const cookieStore = await cookies();
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        get: (name: string) => cookieStore.get(name)?.value,
-        set: (name: string, value: string, options: any) => {
-          try {
-            cookieStore.set(name, value, options);
-          } catch (error) {
-            // The `set` method was called from a Server Component.
-            // This can be ignored if you have middleware refreshing
-            // user sessions.
-          }
-        },
-        remove: (name: string, options: any) => {
-          try {
-            cookieStore.set(name, '', options);
-          } catch (error) {
-            // The `delete` method was called from a Server Component.
-            // This can be ignored if you have middleware refreshing
-            // user sessions.
-          }
-        },
-      },
-    }
-  );
-  return supabase;
-}
+const getSupabase = createSupabaseServerClient;
 
 async function fetchHolding(holdingId: string): Promise<{ holding: HoldingRow | null; error: any | null }> {
   const supabase = await getSupabase();

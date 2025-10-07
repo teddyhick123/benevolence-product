@@ -1,5 +1,4 @@
-import { cookies } from "next/headers";
-import { createServerClient } from "@supabase/ssr";
+import { createSupabaseServerClient } from "@/lib/supabase-server";
 import ProfileHeader from "@/components/profile/ProfileHeader";
 import AccountSettings from "@/components/profile/AccountSettings";
 import PortfolioAccess from "@/components/profile/PortfolioAccess";
@@ -8,32 +7,7 @@ import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 
-async function getSupabase() {
-  const cookieStore = await cookies();
-  return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        get: (name: string) => cookieStore.get(name)?.value,
-        set: (name: string, value: string, options: any) => {
-          try {
-            cookieStore.set(name, value, options);
-          } catch (error) {
-            // Ignore
-          }
-        },
-        remove: (name: string, options: any) => {
-          try {
-            cookieStore.set(name, '', options);
-          } catch (error) {
-            // Ignore
-          }
-        },
-      },
-    }
-  );
-}
+const getSupabase = createSupabaseServerClient;
 
 export default async function ProfilePage() {
   const supabase = await getSupabase();

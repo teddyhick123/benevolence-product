@@ -57,7 +57,7 @@ export async function POST(req: NextRequest) {
     }
 
     const sb = supabaseService();
-    const executor = new AIActionExecutor(sb);
+    const executor = new AIActionExecutor(sb as any);
 
     // Undo action or batch
     const result = batchId

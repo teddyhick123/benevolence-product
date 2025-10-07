@@ -57,7 +57,7 @@ export async function POST(req: NextRequest) {
     }
 
     const sb = supabaseService();
-    const executor = new AIActionExecutor(sb);
+    const executor = new AIActionExecutor(sb as any);
 
     // Redo action
     const result = await executor.redoAction(actionId);

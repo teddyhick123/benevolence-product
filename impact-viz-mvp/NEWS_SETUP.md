@@ -101,16 +101,16 @@ SELECT cron.schedule(
   $$
   SELECT
     net.http_post(
-      url:='https://YOUR_PROJECT_REF.supabase.co/functions/v1/fetch-news',
-      headers:='{"Content-Type": "application/json", "Authorization": "Bearer YOUR_ANON_KEY"}'::jsonb
+      url:='https://avqsnmsdrdtervserwar.supabase.co/functions/v1/fetch-news',
+      headers:='{"Content-Type": "application/json", "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF2cXNubXNkcmR0ZXJ2c2Vyd2FyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTUyODY1NDYsImV4cCI6MjA3MDg2MjU0Nn0.z1lPteNp-iO3SMUX0tIK_yIjVrcVxFNmWo9zckOyqzM"}'::jsonb
     ) as request_id;
   $$
 );
 ```
 
 **Replace:**
-- `YOUR_PROJECT_REF` with your Supabase project reference (found in project settings)
-- `YOUR_ANON_KEY` with your anon/public key (found in project settings > API)
+- `avqsnmsdrdtervserwar` with your Supabase project reference (found in project settings)
+- `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF2cXNubXNkcmR0ZXJ2c2Vyd2FyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTUyODY1NDYsImV4cCI6MjA3MDg2MjU0Nn0.z1lPteNp-iO3SMUX0tIK_yIjVrcVxFNmWo9zckOyqzM` with your anon/public key (found in project settings > API)
 
 #### Verify the scheduled job
 

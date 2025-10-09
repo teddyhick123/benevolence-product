@@ -361,7 +361,7 @@ export default function EditWidgetsModal({ portfolioId, holdingId, open, onClose
     setDragOverWidget(null);
   }
 
-  async function handleDrop(e: React.DragEvent, targetId: string) {
+  async function handleWidgetDrop(e: React.DragEvent, targetId: string) {
     e.preventDefault();
     setDragOverWidget(null);
 
@@ -538,7 +538,7 @@ export default function EditWidgetsModal({ portfolioId, holdingId, open, onClose
                       onDragStart={(e) => handleDragStart(e, w.id)}
                       onDragOver={(e) => handleDragOver(e, w.id)}
                       onDragLeave={handleDragLeave}
-                      onDrop={(e) => handleDrop(e, w.id)}
+                      onDrop={(e) => handleWidgetDrop(e, w.id)}
                       className={clsx(
                         'group relative rounded-2xl border bg-white p-4 shadow-sm transition-all duration-200',
                         draggedWidget === w.id && 'opacity-40 scale-95',

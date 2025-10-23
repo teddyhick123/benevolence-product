@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useSearchParams, usePathname } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 
@@ -9,7 +9,7 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
-export default function Header() {
+function HeaderContent() {
   const [user, setUser] = useState<any>(null);
   const searchParams = useSearchParams();
   const pathname = usePathname();
@@ -79,5 +79,21 @@ export default function Header() {
         )}
       </div>
     </header>
+  );
+}
+
+export default function Header() {
+  return (
+    <Suspense fallback={
+      <header className="w-full sticky top-0 z-40 bg-creme/90 backdrop-blur-md border-b border-black/5">
+        <div className="w-full px-4 md:px-6 lg:px-8 py-3 flex items-center justify-between">
+          <Link href="/" className="inline-flex items-center gap-2 group transition-transform duration-200 hover:-translate-y-0.5 will-change-transform rm:transition-none rm:transform-none">
+            <span className="font-serif text-2xl leading-none text-azure group-hover:opacity-90">B.</span>
+          </Link>
+        </div>
+      </header>
+    }>
+      <HeaderContent />
+    </Suspense>
   );
 }

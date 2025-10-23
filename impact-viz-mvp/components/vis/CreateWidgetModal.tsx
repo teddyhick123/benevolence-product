@@ -10,6 +10,7 @@ export type CreateWidgetModalProps = {
   open: boolean;
   onClose: () => void;
   onCreated?: () => void;
+  editing?: { id: string; type: string; title: string | null; config: any } | null;
 };
 
 type WidgetType = {
@@ -29,9 +30,9 @@ const WIDGET_TYPES: WidgetType[] = [
     category: 'metrics'
   },
   {
-    id: 'target_gauge',
-    name: 'Progress Gauge',
-    description: 'Show progress toward a target goal',
+    id: 'radial_progress',
+    name: 'Radial Progress',
+    description: 'Beautiful circular progress indicator with sunset colors',
     icon: '🎯',
     category: 'metrics'
   },
@@ -65,7 +66,7 @@ const WIDGET_TYPES: WidgetType[] = [
   }
 ];
 
-export default function CreateWidgetModal({ portfolioId, holdingId, open, onClose, onCreated }: CreateWidgetModalProps) {
+export default function CreateWidgetModal({ portfolioId, holdingId, open, onClose, onCreated, editing }: CreateWidgetModalProps) {
   const [mounted, setMounted] = React.useState(false);
   const [step, setStep] = React.useState<'select' | 'configure'>('select');
   const [selectedType, setSelectedType] = React.useState<string | null>(null);
@@ -85,10 +86,17 @@ export default function CreateWidgetModal({ portfolioId, holdingId, open, onClos
 
   React.useEffect(() => {
     if (open) {
-      setStep('select');
-      setSelectedType(null);
+      if (editing) {
+        // If editing, skip to configure step
+        setSelectedType(editing.type);
+        setStep('configure');
+      } else {
+        // If creating, start at select step
+        setStep('select');
+        setSelectedType(null);
+      }
     }
-  }, [open]);
+  }, [open, editing]);
 
   const handleSelectType = (typeId: string) => {
     setSelectedType(typeId);
@@ -114,10 +122,10 @@ export default function CreateWidgetModal({ portfolioId, holdingId, open, onClos
         <div className="flex items-center justify-between px-6 py-4 border-b border-neutral-200">
           <div>
             <h2 className="text-xl font-semibold text-neutral-900">
-              {step === 'select' ? 'Add Visualization' : 'Configure Widget'}
+              {editing ? 'Edit Widget' : step === 'select' ? 'Add Visualization' : 'Configure Widget'}
             </h2>
             <p className="text-sm text-neutral-600 mt-0.5">
-              {step === 'select' ? 'Choose a widget type to get started' : WIDGET_TYPES.find(t => t.id === selectedType)?.name}
+              {editing ? WIDGET_TYPES.find(t => t.id === editing.type)?.name : step === 'select' ? 'Choose a widget type to get started' : WIDGET_TYPES.find(t => t.id === selectedType)?.name}
             </p>
           </div>
           <button
@@ -140,6 +148,7 @@ export default function CreateWidgetModal({ portfolioId, holdingId, open, onClos
               type={selectedType}
               portfolioId={portfolioId}
               holdingId={holdingId}
+              editing={editing}
               onBack={handleBack}
               onSave={() => {
                 onCreated?.();
@@ -202,12 +211,14 @@ function ConfigureWidget({
   type,
   portfolioId,
   holdingId,
+  editing,
   onBack,
   onSave
 }: {
   type: string;
   portfolioId: string;
   holdingId?: string;
+  editing?: { id: string; type: string; title: string | null; config: any } | null;
   onBack: () => void;
   onSave: () => void;
 }) {
@@ -223,20 +234,39 @@ function ConfigureWidget({
     setError(null);
 
     try {
-      const response = await fetch(apiEndpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type, title, config })
-      });
+      if (editing) {
+        // Update existing widget
+        const updateEndpoint = holdingId
+          ? `/api/holdings/${encodeURIComponent(holdingId)}/widgets/${encodeURIComponent(editing.id)}`
+          : `/api/portfolio/${encodeURIComponent(portfolioId)}/widgets/${encodeURIComponent(editing.id)}`;
 
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({}));
-        throw new Error(data.error || 'Failed to create widget');
+        const response = await fetch(updateEndpoint, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type, title, config })
+        });
+
+        if (!response.ok) {
+          const data = await response.json().catch(() => ({}));
+          throw new Error(data.error || 'Failed to update widget');
+        }
+      } else {
+        // Create new widget
+        const response = await fetch(apiEndpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type, title, config })
+        });
+
+        if (!response.ok) {
+          const data = await response.json().catch(() => ({}));
+          throw new Error(data.error || 'Failed to create widget');
+        }
       }
 
       onSave();
     } catch (err: any) {
-      setError(err.message || 'Failed to create widget');
+      setError(err.message || 'Failed to save widget');
     } finally {
       setIsLoading(false);
     }
@@ -244,18 +274,20 @@ function ConfigureWidget({
 
   return (
     <div className="p-6">
-      <div className="mb-6">
-        <button
-          onClick={onBack}
-          disabled={isLoading}
-          className="inline-flex items-center gap-2 text-sm text-neutral-600 hover:text-neutral-900 disabled:opacity-50"
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-          </svg>
-          Back to widget types
-        </button>
-      </div>
+      {!editing && (
+        <div className="mb-6">
+          <button
+            onClick={onBack}
+            disabled={isLoading}
+            className="inline-flex items-center gap-2 text-sm text-neutral-600 hover:text-neutral-900 disabled:opacity-50"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+            Back to widget types
+          </button>
+        </div>
+      )}
 
       {error && (
         <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
@@ -271,6 +303,8 @@ function ConfigureWidget({
       ) : (
         <WidgetConfigForm
           type={type}
+          portfolioId={portfolioId}
+          editing={editing}
           onSave={handleSaveConfig}
           onCancel={onBack}
         />
@@ -281,21 +315,26 @@ function ConfigureWidget({
 
 function WidgetConfigForm({
   type,
+  portfolioId,
+  editing,
   onSave,
   onCancel
 }: {
   type: string;
+  portfolioId: string;
+  editing?: { id: string; type: string; title: string | null; config: any } | null;
   onSave: (config: { title: string; config: any }) => void;
   onCancel: () => void;
 }) {
   // Import config components dynamically
   const KpiTrendConfig = React.lazy(() => import('./widget-configs/KpiTrendConfig'));
-  const TargetGaugeConfig = React.lazy(() => import('./widget-configs/TargetGaugeConfig'));
+  const RadialProgressConfig = React.lazy(() => import('./widget-configs/RadialProgressConfig'));
   const PeopleGridConfig = React.lazy(() => import('./widget-configs/PeopleGridConfig'));
   const HoldingsPieConfig = React.lazy(() => import('./widget-configs/HoldingsPieConfig'));
 
   const renderConfig = () => {
-    const props = { onSave, onCancel };
+    const initialConfig = editing ? { title: editing.title, config: editing.config } : undefined;
+    const props = { onSave, onCancel, portfolioId, initialConfig };
 
     switch (type) {
       case 'kpi_trend':
@@ -304,10 +343,10 @@ function WidgetConfigForm({
             <KpiTrendConfig {...props} />
           </React.Suspense>
         );
-      case 'target_gauge':
+      case 'radial_progress':
         return (
           <React.Suspense fallback={<div>Loading...</div>}>
-            <TargetGaugeConfig {...props} />
+            <RadialProgressConfig {...props} />
           </React.Suspense>
         );
       case 'people_grid_auto':
@@ -322,18 +361,24 @@ function WidgetConfigForm({
             <HoldingsPieConfig {...props} />
           </React.Suspense>
         );
+      case 'radial_progress_rings':
       case 'emissions_bar':
       case 'd3_json':
+      case 'holdings_pie':
+      case 'people_grid':
         return (
           <div className="bg-neutral-50 border border-neutral-200 rounded-2xl p-8 text-center">
             <p className="text-neutral-600 mb-4">
               Advanced configuration for <strong>{type}</strong> coming soon.
             </p>
+            <p className="text-sm text-neutral-500 mb-4">
+              For now, you can edit this widget using the JSON editor in the main widgets panel.
+            </p>
             <button
               onClick={onCancel}
               className="px-6 py-2 bg-neutral-200 text-neutral-700 rounded-lg hover:bg-neutral-300 transition-colors"
             >
-              Go Back
+              {editing ? 'Close' : 'Go Back'}
             </button>
           </div>
         );

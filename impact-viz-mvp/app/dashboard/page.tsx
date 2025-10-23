@@ -91,12 +91,23 @@ export default async function Dashboard({ searchParams }: { searchParams?: Promi
           <div className="text-sm text-neutral-500">{portfolioName || `Portfolio: ${portfolioId}`}</div>
           <h1 className="text-3xl font-serif">Portfolio Dashboard</h1>
         </div>
-        <a
-          href={"/admin/upload?portfolio_id=" + portfolioId}
-          className="px-4 py-2 rounded-md bg-azure text-white shadow-soft hover:opacity-90 transition-transform duration-200 hover:-translate-y-0.5 will-change-transform rm:transition-none rm:transform-none"
-        >
-          Upload
-        </a>
+        <div className="flex items-center gap-3">
+          <a
+            href={"/dashboard/letter?portfolio_id=" + portfolioId}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-md border border-azure text-azure hover:bg-azure/5 transition-all duration-200"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            View Letter
+          </a>
+          <a
+            href={"/admin/upload?portfolio_id=" + portfolioId}
+            className="px-4 py-2 rounded-md bg-gradient-to-r from-azure via-azure/90 to-azure/70 text-white shadow-soft hover:opacity-90 transition-transform duration-200 hover:-translate-y-0.5 will-change-transform rm:transition-none rm:transform-none"
+          >
+            Upload
+          </a>
+        </div>
       </div>
 
       <Reveal>

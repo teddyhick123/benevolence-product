@@ -45,7 +45,7 @@ export default async function MembersPage(ctx: { params: Promise<{ id: string }>
         <h1 className="text-2xl font-semibold">Members</h1>
         <a
           href={`/dashboard?portfolio_id=${encodeURIComponent(portfolioId)}`}
-          className="px-4 py-2 rounded-2xl bg-azure text-white shadow-soft hover:opacity-90 transition"
+          className="px-4 py-2 rounded-2xl bg-gradient-to-r from-azure via-azure/90 to-azure/70 text-white shadow-soft hover:opacity-90 transition"
         >
           View Dashboard
         </a>
@@ -88,7 +88,7 @@ export default async function MembersPage(ctx: { params: Promise<{ id: string }>
             <option value="owner">owner</option>
           </select>
           <button
-            className="px-4 py-2 rounded-2xl bg-azure text-white shadow-soft hover:opacity-90 transition"
+            className="px-4 py-2 rounded-2xl bg-gradient-to-r from-azure via-azure/90 to-azure/70 text-white shadow-soft hover:opacity-90 transition"
             type="submit"
           >
             Add member

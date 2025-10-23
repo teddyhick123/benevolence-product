@@ -94,7 +94,7 @@ export default async function KpisPage(ctx: { params: Promise<{ id: string }> })
           </Link>
           <Link
             href={`/dashboard?portfolio_id=${encodeURIComponent(portfolioId)}`}
-            className="px-4 py-2 rounded-2xl bg-azure text-white shadow-soft hover:opacity-90 transition"
+            className="px-4 py-2 rounded-2xl bg-gradient-to-r from-azure via-azure/90 to-azure/70 text-white shadow-soft hover:opacity-90 transition"
           >
             Dashboard
           </Link>
@@ -145,7 +145,7 @@ export default async function KpisPage(ctx: { params: Promise<{ id: string }> })
           <div className="md:col-span-5 flex items-center gap-2">
             <button
               type="submit"
-              className="px-4 py-2 rounded-2xl bg-azure text-white shadow-soft hover:opacity-90 transition"
+              className="px-4 py-2 rounded-2xl bg-gradient-to-r from-azure via-azure/90 to-azure/70 text-white shadow-soft hover:opacity-90 transition"
             >
               Create KPI
             </button>
@@ -214,7 +214,7 @@ export default async function KpisPage(ctx: { params: Promise<{ id: string }> })
                           />
                         </div>
                         <div className="flex items-center gap-2 mt-2">
-                          <button className="px-3 py-1.5 rounded-2xl bg-azure text-white shadow-soft hover:opacity-90 transition">
+                          <button className="px-3 py-1.5 rounded-2xl bg-gradient-to-r from-azure via-azure/90 to-azure/70 text-white shadow-soft hover:opacity-90 transition">
                             Save
                           </button>
                           <form

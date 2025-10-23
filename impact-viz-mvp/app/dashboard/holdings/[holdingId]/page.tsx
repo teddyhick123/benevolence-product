@@ -20,6 +20,7 @@ type HoldingRow = {
   primary_contact_phone?: string | null;
   primary_contact_photo?: string | null;
   primary_contact_notes?: string | null;
+  website?: string | null;
   location_city?: string | null;
   location_state?: string | null;
   location_country?: string | null;
@@ -60,7 +61,7 @@ async function fetchHolding(holdingId: string): Promise<{ holding: HoldingRow | 
   const supabase = await getSupabase();
   const { data, error } = await supabase
     .from('holdings')
-    .select('id, portfolio_id, name, asset_class, description, primary_contact_name, primary_contact_email, primary_contact_phone, primary_contact_photo, primary_contact_notes, location_city, location_state, location_country, theory_of_action, cost_per_outcome, cost_per_outcome_unit, funds_allocated, status, sector, as_of')
+    .select('id, portfolio_id, name, asset_class, description, primary_contact_name, primary_contact_email, primary_contact_phone, primary_contact_photo, primary_contact_notes, website, location_city, location_state, location_country, theory_of_action, cost_per_outcome, cost_per_outcome_unit, funds_allocated, status, sector, as_of')
     .eq('id', holdingId)
     .single();
 
@@ -230,6 +231,9 @@ async function updateHoldingContact(formData: FormData) {
 
   const primary_contact_notes = getValue(formData, 'primary_contact_notes');
   if (primary_contact_notes !== undefined) updates.primary_contact_notes = primary_contact_notes;
+
+  const website = getValue(formData, 'website');
+  if (website !== undefined) updates.website = website;
 
   console.log('Updating contact:', holdingId, 'with values:', updates);
 
@@ -518,6 +522,7 @@ export default async function HoldingMiniDashboard({
     name: holding.primary_contact_name ?? null,
     email: holding.primary_contact_email ?? null,
     phone: holding.primary_contact_phone ?? null,
+    website: holding.website ?? null,
     photo: holding.primary_contact_photo ?? null,
     notes: holding.primary_contact_notes ?? null,
   };
@@ -721,8 +726,19 @@ export default async function HoldingMiniDashboard({
                 <p className="text-neutral-500 text-sm">No name</p>
               )}
 
-              {contact.email && (
+              {contact.website && (
                 <p className="mt-2 flex items-center gap-2 text-sm text-neutral-700">
+                  <svg className="w-4 h-4 text-neutral-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
+                  </svg>
+                  <a className="text-indigo-600 hover:text-indigo-700 hover:underline truncate" href={contact.website} target="_blank" rel="noopener noreferrer">
+                    {contact.website.replace(/^https?:\/\//, '').replace(/\/$/, '')}
+                  </a>
+                </p>
+              )}
+
+              {contact.email && (
+                <p className="mt-1.5 flex items-center gap-2 text-sm text-neutral-700">
                   <svg className="w-4 h-4 text-neutral-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                   </svg>
@@ -743,7 +759,7 @@ export default async function HoldingMiniDashboard({
                 </p>
               )}
 
-              {!contact.email && !contact.phone && (
+              {!contact.website && !contact.email && !contact.phone && (
                 <p className="text-neutral-500 text-sm mt-1">No contact information</p>
               )}
             </div>
@@ -793,6 +809,17 @@ export default async function HoldingMiniDashboard({
                   type="tel"
                   className="mt-1.5 w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                   placeholder="+1 (555) 123-4567"
+                />
+              </label>
+
+              <label className="block">
+                <span className="text-xs font-medium text-neutral-700">Website</span>
+                <input
+                  name="website"
+                  defaultValue={contact.website ?? ''}
+                  type="url"
+                  className="mt-1.5 w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  placeholder="https://example.org"
                 />
               </label>
 

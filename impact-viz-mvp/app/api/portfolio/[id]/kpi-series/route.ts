@@ -17,7 +17,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
   // Fetch KPI series from view
   let query = supabase
     .from('v_portfolio_kpi_series')
-    .select('period_end, value, unit')
+    .select('period_end, value, unit, metric_code, kpi_def_id')
     .eq('portfolio_id', portfolio_id)
     .order('period_end', { ascending: true });
   if (kpiId) {
@@ -33,5 +33,33 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
     date: row.period_end,
     value: row.value,
   }));
-  return NextResponse.json({ series }, { headers: { 'Cache-Control': 'no-store' } });
+
+  // Get display name from kpi_definitions
+  let displayName = metric;
+  if (rows && rows.length > 0) {
+    const firstRow = rows[0];
+    if (firstRow.kpi_def_id) {
+      const { data: kpiDef } = await supabase
+        .from('kpi_definitions')
+        .select('display_name')
+        .eq('id', firstRow.kpi_def_id)
+        .single();
+      if (kpiDef?.display_name) {
+        displayName = kpiDef.display_name;
+      }
+    } else {
+      // Try looking up by metric_code and portfolio_id
+      const { data: kpiDef } = await supabase
+        .from('kpi_definitions')
+        .select('display_name')
+        .eq('metric_code', metric)
+        .eq('portfolio_id', portfolio_id)
+        .single();
+      if (kpiDef?.display_name) {
+        displayName = kpiDef.display_name;
+      }
+    }
+  }
+
+  return NextResponse.json({ series, display_name: displayName }, { headers: { 'Cache-Control': 'no-store' } });
 }

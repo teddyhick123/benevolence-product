@@ -82,7 +82,7 @@ export default function PortfolioSettingsPage({ params }: { params: Promise<{ id
           </Link>
           <Link
             href={`/dashboard?portfolio_id=${encodeURIComponent(portfolioId)}`}
-            className="text-sm px-3 py-2 rounded-2xl bg-azure text-white shadow-soft hover:opacity-90 transition"
+            className="text-sm px-3 py-2 rounded-2xl bg-gradient-to-r from-azure via-azure/90 to-azure/70 text-white shadow-soft hover:opacity-90 transition"
           >
             Dashboard
           </Link>
@@ -144,7 +144,7 @@ export default function PortfolioSettingsPage({ params }: { params: Promise<{ id
           <button
             type="submit"
             disabled={saving || loading}
-            className="px-4 py-2 rounded-2xl bg-azure text-white shadow-soft hover:opacity-90 transition disabled:opacity-50"
+            className="px-4 py-2 rounded-2xl bg-gradient-to-r from-azure via-azure/90 to-azure/70 text-white shadow-soft hover:opacity-90 transition disabled:opacity-50"
           >
             {saving ? 'Saving…' : 'Save settings'}
           </button>

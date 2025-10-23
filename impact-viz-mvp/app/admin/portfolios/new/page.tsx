@@ -90,7 +90,7 @@ export default function NewPortfolioPage() {
           <button
             type="submit"
             disabled={busy}
-            className="px-4 py-2 rounded-2xl bg-azure text-white shadow-soft hover:opacity-90 transition disabled:opacity-50"
+            className="px-4 py-2 rounded-2xl bg-gradient-to-r from-azure via-azure/90 to-azure/70 text-white shadow-soft hover:opacity-90 transition disabled:opacity-50"
           >
             {busy ? 'Creating…' : 'Create portfolio'}
           </button>

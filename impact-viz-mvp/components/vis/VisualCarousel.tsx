@@ -3,7 +3,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import dynamic from 'next/dynamic';
 import KpiTrend from '@/components/vis/KpiTrend';
 import SectorEmissionsBar from '@/components/vis/SectorEmissionsBar';
-import TargetGauge from '@/components/vis/TargetGauge';
+import RadialProgress from '@/components/vis/RadialProgress';
 
 // Lazy-load heavy D3 widget and disable SSR for it
 const D3JsonWidget = dynamic(() => import('@/components/vis/D3JsonWidget'), { ssr: false });
@@ -215,7 +215,7 @@ const REGISTRY: Record<string, any> = {
   d3_json: D3JsonWidget,
   holdings_pie: HoldingsPieRenderer,
   holdings_pie_auto: HoldingsPieAutoRenderer,
-  target_gauge: TargetGauge,
+  radial_progress: RadialProgress,
   people_grid: PeopleGridRenderer,
   people_grid_auto: PeopleGridAutoRenderer,
 };
@@ -225,7 +225,7 @@ export type CarouselItem = {
   id: string;
   label: string;
   // New widget model (optional). If present, takes precedence over legacy id mapping.
-  type?: 'kpi_trend' | 'emissions_bar' | 'd3_json' | 'holdings_pie' | 'holdings_pie_auto' | 'target_gauge' | 'people_grid' | 'people_grid_auto' | string;
+  type?: 'kpi_trend' | 'emissions_bar' | 'd3_json' | 'holdings_pie' | 'holdings_pie_auto' | 'radial_progress' | 'people_grid' | 'people_grid_auto' | string;
   title?: string | null;
   config?: any;
 };

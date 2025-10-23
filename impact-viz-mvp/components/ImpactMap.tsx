@@ -26,13 +26,16 @@ const CARD_BG = '#ffffff';          // card background
 const POINT = '#e85d04';            // orange points
 const STROKE = '#ffffff';
 
-export default function ImpactMap({ points, onPointClick, height = 600 }: Props) {
+export default function ImpactMap({ points, onPointClick, height }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const svgRef = useRef<SVGSVGElement | null>(null);
 
-  // responsive width, fixed height (can override via prop)
+  // responsive width and height
   const [width, setWidth] = useState<number>(700);
-  const h = height;
+  const [containerHeight, setContainerHeight] = useState<number>(600);
+
+  // Use responsive height on mobile, fixed height on desktop
+  const h = height ?? containerHeight;
 
   // normalize + filter
   const cleanPoints = useMemo(() => {
@@ -63,11 +66,25 @@ export default function ImpactMap({ points, onPointClick, height = 600 }: Props)
       for (const entry of entries) {
         const w = Math.max(320, Math.floor(entry.contentRect.width));
         setWidth(w);
+
+        // Responsive height: shorter on mobile, taller on desktop
+        if (!height) {
+          if (w < 640) {
+            // Mobile: use aspect ratio of 4:3
+            setContainerHeight(Math.floor(w * 0.75));
+          } else if (w < 1024) {
+            // Tablet: use aspect ratio of 3:2
+            setContainerHeight(Math.floor(w * 0.67));
+          } else {
+            // Desktop: fixed height
+            setContainerHeight(600);
+          }
+        }
       }
     });
     ro.observe(containerRef.current);
     return () => ro.disconnect();
-  }, []);
+  }, [height]);
 
   useEffect(() => {
     async function loadTopo() {
@@ -209,8 +226,11 @@ export default function ImpactMap({ points, onPointClick, height = 600 }: Props)
       {/* Built-in fallback popover (only shows if parent doesn't replace it) */}
       {selected && (
         <div
-          className="absolute z-10 max-w-sm rounded-xl border border-black/10 bg-white shadow-lg p-3 text-sm"
-          style={{ left: Math.max(12, Math.min(selected.x + 12, (width - 12))), top: Math.max(12, Math.min(selected.y + 12, (h - 12))) }}
+          className="absolute z-10 w-[calc(100%-24px)] sm:max-w-sm rounded-xl border border-black/10 bg-white shadow-lg p-3 text-sm"
+          style={{
+            left: width < 640 ? '12px' : Math.max(12, Math.min(selected.x + 12, width - 240)),
+            top: width < 640 ? Math.max(12, selected.y - 120) : Math.max(12, Math.min(selected.y + 12, h - 12))
+          }}
         >
           <div className="font-semibold text-neutral-900">{selected.p.name}</div>
           <div className="text-xs text-neutral-600">

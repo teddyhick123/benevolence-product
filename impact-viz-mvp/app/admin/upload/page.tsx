@@ -400,7 +400,7 @@ function UploadPageContent() {
         </div>
         <button
           disabled={disabled}
-          className="px-5 py-2.5 rounded-md bg-azure text-white shadow-soft hover:opacity-90 disabled:opacity-50 transition"
+          className="px-5 py-2.5 rounded-md bg-gradient-to-r from-azure via-azure/90 to-azure/70 text-white shadow-soft hover:opacity-90 disabled:opacity-50 transition"
         >
           {status === 'uploading' ? 'Uploading…' : status === 'processing' ? 'Processing…' : 'Start Upload'}
         </button>

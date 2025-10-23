@@ -4,6 +4,7 @@ import * as React from 'react';
 import useSWR from 'swr';
 import clsx from 'clsx';
 import { createPortal } from 'react-dom';
+import CreateWidgetModal from './CreateWidgetModal';
 
 const fetcher = (url: string) => fetch(url, { cache: 'no-store' }).then(r => r.json());
 
@@ -140,6 +141,40 @@ const WIDGET_TYPES: { value: string; label: string; hint: string; example: objec
       valueFieldFallback: 'nav'
       // endpoint: '/api/portfolio/<id>/holdings' // optional override
     }
+  },
+  {
+    value: 'radial_progress_rings',
+    label: 'Radial Progress Rings',
+    hint: 'Show multiple impact metrics as beautiful concentric progress rings - perfect for SDG goals or multi-dimensional impact tracking.',
+    example: {
+      size: 400,
+      ringWidth: 32,
+      spacing: 12,
+      animated: true,
+      rings: [
+        {
+          label: 'Clean Energy Generated',
+          metric_code: 'RENEWABLE_MWH',
+          target: 50000,
+          unit: 'MWh',
+          color: '#10b981'
+        },
+        {
+          label: 'People Served',
+          metric_code: 'CLIENTS_SERVED',
+          target: 100000,
+          unit: 'people',
+          color: '#3b82f6'
+        },
+        {
+          label: 'CO₂ Avoided',
+          metric_code: 'CO2_AVOIDED',
+          target: 25000,
+          unit: 'tons',
+          color: '#8b5cf6'
+        }
+      ]
+    }
   }
 ];
 
@@ -184,6 +219,9 @@ export default function EditWidgetsModal({ portfolioId, holdingId, open, onClose
   const [draggedWidget, setDraggedWidget] = React.useState<string | null>(null);
   const [dragOverWidget, setDragOverWidget] = React.useState<string | null>(null);
   const [showPreview, setShowPreview] = React.useState(false);
+  const [configMode, setConfigMode] = React.useState<'visual' | 'json'>('visual');
+  const [availableMetrics, setAvailableMetrics] = React.useState<Array<{ metric_code: string; display_name: string }>>([]);
+  const [showCreateModal, setShowCreateModal] = React.useState(false);
   const fileInputRef = React.useRef<HTMLInputElement | null>(null);
 
   React.useEffect(() => {
@@ -194,20 +232,16 @@ export default function EditWidgetsModal({ portfolioId, holdingId, open, onClose
     setDraftType('kpi_trend');
     setDraftTitle('');
     setDraftConfig('{}');
-  }, [open]);
+  }, [open, portfolioId]);
 
   function startCreate() {
     setEditing(null);
-    setDraftType('kpi_trend');
-    setDraftTitle('');
-    setDraftConfig(JSON.stringify(WIDGET_TYPES[0].example, null, 2));
+    setShowCreateModal(true);
   }
 
   function startEdit(w: WidgetRow) {
     setEditing(w);
-    setDraftType(w.type);
-    setDraftTitle(w.title || '');
-    setDraftConfig(JSON.stringify(w.config ?? {}, null, 2));
+    setShowCreateModal(true);
   }
 
   function chooseType(v: string) {
@@ -239,6 +273,31 @@ export default function EditWidgetsModal({ portfolioId, holdingId, open, onClose
     reader.onload = () => loadJsonTextToDraft(String(reader.result || ''));
     reader.onerror = () => setErr('Failed to read file');
     reader.readAsText(f);
+  }
+
+  // Helper to safely update config field
+  function updateConfigField(field: string, value: any) {
+    try {
+      const j = JSON.parse(draftConfig || '{}');
+      if (value === '' || value === undefined) {
+        delete j[field];
+      } else {
+        j[field] = value;
+      }
+      setDraftConfig(JSON.stringify(j, null, 2));
+    } catch {
+      setDraftConfig(JSON.stringify({ [field]: value }, null, 2));
+    }
+  }
+
+  // Helper to safely get config field
+  function getConfigField(field: string, defaultValue: any = '') {
+    try {
+      const j = JSON.parse(draftConfig || '{}');
+      return j[field] ?? defaultValue;
+    } catch {
+      return defaultValue;
+    }
   }
 
   function handleDrop(e: React.DragEvent<HTMLDivElement>) {
@@ -313,35 +372,71 @@ export default function EditWidgetsModal({ portfolioId, holdingId, open, onClose
     if (idx < 0) return;
     const target = widgets[idx + delta];
     if (!target) return;
-    setBusy(true); setErr(null);
-    try {
-      const a = widgets[idx];
-      const b = target;
 
-      // Determine the correct base URL based on whether we're editing holding or portfolio widgets
+    const a = widgets[idx];
+    const b = target;
+
+    // Optimistically update UI immediately
+    const optimisticData = widgets.map(w => {
+      if (w.id === a.id) return { ...w, position: b.position };
+      if (w.id === b.id) return { ...w, position: a.position };
+      return w;
+    });
+
+    mutate({ data: optimisticData }, false);
+    setErr(null);
+
+    try {
       const baseUrl = holdingId
         ? `/api/holdings/${encodeURIComponent(holdingId)}/widgets`
         : `/api/portfolio/${encodeURIComponent(portfolioId)}/widgets`;
 
-      // Swap positions
-      await Promise.all([
-        fetch(`${baseUrl}/${encodeURIComponent(a.id)}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ position: b.position })
-        }),
-        fetch(`${baseUrl}/${encodeURIComponent(b.id)}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ position: a.position })
-        }),
-      ]);
+      // Use a temporary position to avoid unique constraint violation
+      const tempPosition = 999999;
+
+      // Step 1: Move first widget to temp position
+      const res1 = await fetch(`${baseUrl}/${encodeURIComponent(a.id)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ position: tempPosition })
+      });
+
+      if (!res1.ok) {
+        const error1 = await res1.json().catch(() => ({}));
+        throw new Error(error1?.error || 'Failed to reorder');
+      }
+
+      // Step 2: Move second widget to first's position
+      const res2 = await fetch(`${baseUrl}/${encodeURIComponent(b.id)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ position: a.position })
+      });
+
+      if (!res2.ok) {
+        const error2 = await res2.json().catch(() => ({}));
+        throw new Error(error2?.error || 'Failed to reorder');
+      }
+
+      // Step 3: Move first widget to second's position
+      const res3 = await fetch(`${baseUrl}/${encodeURIComponent(a.id)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ position: b.position })
+      });
+
+      if (!res3.ok) {
+        const error3 = await res3.json().catch(() => ({}));
+        throw new Error(error3?.error || 'Failed to reorder');
+      }
+
+      // Revalidate to get fresh data from server
       await mutate();
       onChanged?.();
     } catch (e:any) {
       setErr(e?.message || 'Reorder failed');
-    } finally {
-      setBusy(false);
+      // Revert on error
+      await mutate();
     }
   }
 
@@ -378,35 +473,71 @@ export default function EditWidgetsModal({ portfolioId, holdingId, open, onClose
       return;
     }
 
-    setBusy(true);
+    const from = widgets[fromIdx];
+    const to = widgets[toIdx];
+
+    // Optimistically update UI immediately
+    const optimisticData = widgets.map(w => {
+      if (w.id === from.id) return { ...w, position: to.position };
+      if (w.id === to.id) return { ...w, position: from.position };
+      return w;
+    });
+
+    mutate({ data: optimisticData }, false);
     setErr(null);
+    setDraggedWidget(null);
 
     try {
       const baseUrl = holdingId
         ? `/api/holdings/${encodeURIComponent(holdingId)}/widgets`
         : `/api/portfolio/${encodeURIComponent(portfolioId)}/widgets`;
 
-      // Swap positions
-      await Promise.all([
-        fetch(`${baseUrl}/${encodeURIComponent(widgets[fromIdx].id)}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ position: widgets[toIdx].position })
-        }),
-        fetch(`${baseUrl}/${encodeURIComponent(widgets[toIdx].id)}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ position: widgets[fromIdx].position })
-        }),
-      ]);
+      // Use a temporary position to avoid unique constraint violation
+      const tempPosition = 999999;
 
+      // Step 1: Move dragged widget to temp position
+      const res1 = await fetch(`${baseUrl}/${encodeURIComponent(from.id)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ position: tempPosition })
+      });
+
+      if (!res1.ok) {
+        const error1 = await res1.json().catch(() => ({}));
+        throw new Error(error1?.error || 'Failed to reorder');
+      }
+
+      // Step 2: Move target widget to dragged widget's position
+      const res2 = await fetch(`${baseUrl}/${encodeURIComponent(to.id)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ position: from.position })
+      });
+
+      if (!res2.ok) {
+        const error2 = await res2.json().catch(() => ({}));
+        throw new Error(error2?.error || 'Failed to reorder');
+      }
+
+      // Step 3: Move dragged widget to target's position
+      const res3 = await fetch(`${baseUrl}/${encodeURIComponent(from.id)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ position: to.position })
+      });
+
+      if (!res3.ok) {
+        const error3 = await res3.json().catch(() => ({}));
+        throw new Error(error3?.error || 'Failed to reorder');
+      }
+
+      // Revalidate to get fresh data from server
       await mutate();
       onChanged?.();
     } catch (e: any) {
       setErr(e?.message || 'Reorder failed');
-    } finally {
-      setBusy(false);
-      setDraggedWidget(null);
+      // Revert on error
+      await mutate();
     }
   }
 
@@ -429,7 +560,7 @@ export default function EditWidgetsModal({ portfolioId, holdingId, open, onClose
         <div className="flex items-start justify-between gap-4 px-6 py-5 border-b border-neutral-200/80 bg-white/80 backdrop-blur-sm rounded-t-3xl">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-3">
-              <div className="p-2.5 rounded-xl bg-gradient-to-br from-azure to-blue-600 shadow-lg">
+              <div className="p-2.5 rounded-xl bg-gradient-to-br from-azure via-azure/90 to-azure/70 shadow-lg">
                 <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z" />
                 </svg>
@@ -499,7 +630,7 @@ export default function EditWidgetsModal({ portfolioId, holdingId, open, onClose
                 <button
                   type="button"
                   onClick={startCreate}
-                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-azure to-blue-600 text-white text-sm font-medium shadow-lg shadow-azure/25 hover:shadow-xl hover:shadow-azure/30 hover:scale-105 transition-all duration-200"
+                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-azure via-azure/90 to-azure/70 text-white text-sm font-medium shadow-lg shadow-azure/25 hover:shadow-xl hover:shadow-azure/30 hover:scale-105 transition-all duration-200"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -617,469 +748,27 @@ export default function EditWidgetsModal({ portfolioId, holdingId, open, onClose
                   ))}
                 </ul>
               )}
-
-              {/* Editor Section */}
-              <div className="border-t border-neutral-200 pt-6 mt-6">
-                <div className="mb-4">
-                  <h4 className="text-base font-bold text-neutral-900 flex items-center gap-2">
-                    {editing ? (
-                      <>
-                        <svg className="w-5 h-5 text-azure" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                        </svg>
-                        Edit Widget
-                      </>
-                    ) : (
-                      <>
-                        <svg className="w-5 h-5 text-azure" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                        </svg>
-                        Create New Widget
-                      </>
-                    )}
-                  </h4>
-                  <p className="text-xs text-neutral-500 mt-1">
-                    {editing ? 'Update the widget configuration below' : 'Configure your new widget using the options below'}
-                  </p>
-                </div>
-
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                  <div className="lg:col-span-2">
-                    <label className="block">
-                      <span className="text-sm font-medium text-neutral-700 mb-2 block">Widget Type</span>
-                      <select
-                        value={draftType}
-                        onChange={(e) => chooseType(e.target.value)}
-                        className="w-full rounded-xl border border-neutral-300 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-azure/50 focus:border-azure transition-all"
-                      >
-                        {WIDGET_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-                      </select>
-                      <p className="text-xs text-neutral-500 mt-1.5 leading-relaxed">
-                        {draftType === 'd3_json'
-                          ? '📊 Provide a D3-friendly JSON spec. Use Upload JSON, drag-and-drop, or paste below.'
-                          : `ℹ️ ${WIDGET_TYPES.find(t => t.value === draftType)?.hint}`
-                        }
-                      </p>
-                    </label>
-
-                    {/* Quick Presets */}
-                    <div className="mt-3">
-                      <span className="text-xs font-medium text-neutral-600 mb-2 block">Quick Start Templates:</span>
-                      <div className="flex flex-wrap gap-2">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setDraftType('kpi_trend');
-                            setDraftTitle('Renewable Energy Generated');
-                            setDraftConfig(JSON.stringify({
-                              metric_code: 'RENEWABLE_MWH',
-                              period: { window: '12m' },
-                              style: { smooth: true }
-                            }, null, 2));
-                          }}
-                          className="px-3 py-1.5 rounded-lg border border-neutral-300 hover:border-azure hover:bg-azure/5 text-xs font-medium text-neutral-700 hover:text-azure transition-all"
-                        >
-                          ⚡ Energy Trend
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setDraftType('target_gauge');
-                            setDraftTitle('Clients Served Progress');
-                            setDraftConfig(JSON.stringify({
-                              metric_code: 'CLIENTS_SERVED',
-                              target: 15000,
-                              unit: 'clients',
-                              bands: [
-                                { upto: 0.4, color: '#fee2e2' },
-                                { upto: 0.75, color: '#fef3c7' },
-                                { upto: 1.0, color: '#dcfce7' }
-                              ]
-                            }, null, 2));
-                          }}
-                          className="px-3 py-1.5 rounded-lg border border-neutral-300 hover:border-azure hover:bg-azure/5 text-xs font-medium text-neutral-700 hover:text-azure transition-all"
-                        >
-                          🎯 Client Target
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setDraftType('emissions_bar');
-                            setDraftTitle('Carbon Emissions by Scope');
-                            setDraftConfig(JSON.stringify({
-                              series: [
-                                { label: 'Scope 1', metric_code: 'SCOPE1_CO2E' },
-                                { label: 'Scope 2', metric_code: 'SCOPE2_CO2E' },
-                                { label: 'Scope 3', metric_code: 'SCOPE3_CO2E' }
-                              ],
-                              normalize: false
-                            }, null, 2));
-                          }}
-                          className="px-3 py-1.5 rounded-lg border border-neutral-300 hover:border-azure hover:bg-azure/5 text-xs font-medium text-neutral-700 hover:text-azure transition-all"
-                        >
-                          📊 Emissions Bar
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setDraftType('holdings_pie_auto');
-                            setDraftTitle('Portfolio Allocation');
-                            setDraftConfig(JSON.stringify({
-                              size: 320,
-                              innerRadius: 48,
-                              showLegend: true,
-                              legendMaxHeight: 240
-                            }, null, 2));
-                          }}
-                          className="px-3 py-1.5 rounded-lg border border-neutral-300 hover:border-azure hover:bg-azure/5 text-xs font-medium text-neutral-700 hover:text-azure transition-all"
-                        >
-                          🥧 Holdings Pie
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-
-                  <label className="block">
-                    <span className="text-sm font-medium text-neutral-700 mb-2 block">Widget Title</span>
-                    <input
-                      value={draftTitle}
-                      onChange={(e) => setDraftTitle(e.target.value)}
-                      placeholder="e.g., Renewable Energy Trend"
-                      className="w-full rounded-xl border border-neutral-300 px-4 py-2.5 text-sm placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-azure/50 focus:border-azure transition-all"
-                    />
-                    <p className="text-xs text-neutral-500 mt-1.5">Optional - Give your widget a descriptive name</p>
-                  </label>
-
-                  {/* Visual Form Builder for Common Types */}
-                  {(draftType === 'kpi_trend' || draftType === 'target_gauge') && (
-                    <div className="lg:col-span-2 rounded-xl bg-gradient-to-br from-azure/5 to-blue-50 border border-azure/20 p-4">
-                      <div className="flex items-center gap-2 mb-3">
-                        <svg className="w-4 h-4 text-azure" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 4a2 2 0 114 0v1a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-1a2 2 0 100 4h1a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-1a2 2 0 10-4 0v1a1 1 0 01-1 1H7a1 1 0 01-1-1v-3a1 1 0 00-1-1H4a2 2 0 110-4h1a1 1 0 001-1V7a1 1 0 011-1h3a1 1 0 001-1V4z" />
-                        </svg>
-                        <h5 className="text-sm font-semibold text-neutral-900">Quick Configure</h5>
-                        <span className="text-xs text-neutral-500">(or use JSON below)</span>
-                      </div>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <label className="block">
-                          <span className="text-xs font-medium text-neutral-700 mb-1.5 block">Metric Code</span>
-                          <input
-                            value={(() => {
-                              try {
-                                const j = JSON.parse(draftConfig || '{}');
-                                return j.metric_code ?? '';
-                              } catch {
-                                return '';
-                              }
-                            })()}
-                            onChange={(e) => {
-                              try {
-                                const j = JSON.parse(draftConfig || '{}');
-                                j.metric_code = e.target.value;
-                                setDraftConfig(JSON.stringify(j, null, 2));
-                              } catch {
-                                setDraftConfig(JSON.stringify({ metric_code: e.target.value }, null, 2));
-                              }
-                            }}
-                            placeholder="e.g., RENEWABLE_MWH"
-                            className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-azure/50 focus:border-azure transition-all"
-                          />
-                        </label>
-
-                        {draftType === 'target_gauge' && (
-                          <>
-                            <label className="block">
-                              <span className="text-xs font-medium text-neutral-700 mb-1.5 block">Target Value</span>
-                              <input
-                                type="number"
-                                value={(() => {
-                                  try {
-                                    const j = JSON.parse(draftConfig || '{}');
-                                    return j.target ?? '';
-                                  } catch {
-                                    return '';
-                                  }
-                                })()}
-                                onChange={(e) => {
-                                  try {
-                                    const j = JSON.parse(draftConfig || '{}');
-                                    j.target = e.target.value === '' ? undefined : Number(e.target.value);
-                                    setDraftConfig(JSON.stringify(j, null, 2));
-                                  } catch {
-                                    setDraftConfig(JSON.stringify({ target: Number(e.target.value) }, null, 2));
-                                  }
-                                }}
-                                placeholder="e.g., 15000"
-                                className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-azure/50 focus:border-azure transition-all"
-                              />
-                            </label>
-
-                            <label className="block">
-                              <span className="text-xs font-medium text-neutral-700 mb-1.5 block">Unit (Optional)</span>
-                              <input
-                                value={(() => {
-                                  try {
-                                    const j = JSON.parse(draftConfig || '{}');
-                                    return j.unit ?? '';
-                                  } catch {
-                                    return '';
-                                  }
-                                })()}
-                                onChange={(e) => {
-                                  try {
-                                    const j = JSON.parse(draftConfig || '{}');
-                                    j.unit = e.target.value;
-                                    setDraftConfig(JSON.stringify(j, null, 2));
-                                  } catch {}
-                                }}
-                                placeholder="e.g., MWh, clients, kg CO2"
-                                className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-azure/50 focus:border-azure transition-all"
-                              />
-                            </label>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                  <label className="lg:col-span-2 text-sm">
-                    <div className="mb-1 text-neutral-700 flex items-center justify-between">
-                      <span>Config (JSON)</span>
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => fileInputRef.current?.click()}
-                          className="inline-flex items-center gap-1.5 rounded-2xl border border-black/10 bg-white text-neutral-900 shadow-sm hover:shadow px-3 py-1.5 text-xs"
-                          disabled={busy}
-                        >Upload JSON</button>
-                        <input
-                          ref={fileInputRef}
-                          type="file"
-                          accept="application/json,.json"
-                          className="hidden"
-                          onChange={(e) => handleJsonFile(e.target.files)}
-                        />
-                      </div>
-                    </div>
-
-                    <div className="space-y-2">
-                      <div
-                        onDragEnter={(e)=>{e.preventDefault(); setIsDragging(true);}}
-                        onDragOver={(e)=>{e.preventDefault();}}
-                        onDragLeave={(e)=>{e.preventDefault(); setIsDragging(false);}}
-                        onDrop={handleDrop}
-                        className={clsx(
-                          'rounded-xl border px-4 py-3',
-                          isDragging ? 'border-azure ring-2 ring-azure/30 bg-azure/5' : 'border-neutral-300'
-                        )}
-                      >
-                        <textarea
-                          value={draftConfig}
-                          onChange={(e)=>setDraftConfig(e.target.value)}
-                          rows={showPreview ? 6 : 8}
-                          className="w-full resize-y outline-none bg-transparent font-mono text-xs leading-relaxed"
-                          placeholder="Paste D3 JSON here or use Upload JSON"
-                        />
-                      </div>
-
-                      {/* Preview Toggle */}
-                      <div className="flex items-center justify-between">
-                        <div className="text-xs text-neutral-500">
-                          Tip: Drop a <code className="px-1 py-0.5 bg-neutral-100 rounded">.json</code> file here or paste JSON
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => setShowPreview(!showPreview)}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-neutral-300 hover:bg-neutral-50 text-xs font-medium text-neutral-700 transition-all"
-                        >
-                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                          </svg>
-                          {showPreview ? 'Hide' : 'Show'} Preview
-                        </button>
-                      </div>
-
-                      {/* Config Preview */}
-                      {showPreview && (
-                        <div className="rounded-xl bg-neutral-50 border border-neutral-200 p-4">
-                          <div className="flex items-center gap-2 mb-2">
-                            <svg className="w-4 h-4 text-azure" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                            </svg>
-                            <h6 className="text-xs font-semibold text-neutral-700">Configuration Preview</h6>
-                          </div>
-                          <pre className="text-xs font-mono text-neutral-600 whitespace-pre-wrap break-words max-h-48 overflow-y-auto">
-                            {(() => {
-                              try {
-                                const parsed = JSON.parse(draftConfig || '{}');
-                                return JSON.stringify(parsed, null, 2);
-                              } catch {
-                                return '⚠️ Invalid JSON - Please check your syntax';
-                              }
-                            })()}
-                          </pre>
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="text-xs text-neutral-500 mt-1">
-                      {(draftType === 'people_grid' || draftType === 'people_grid_auto') && (
-                        <div className="text-[11px] text-neutral-500 mt-1">Note: Paste only the <em>config</em> JSON (e.g., {`{ "total": 12430 }`} or {`{ "metric_code": "CLIENTS_SERVED" }`}). Do not include fields like <code>id</code>, <code>label</code>, or <code>type</code>.</div>
-                      )}
-                      {draftType === 'target_gauge' && (
-                        <div className="text-[11px] text-neutral-500 mt-2 leading-relaxed">
-                          <div className="font-medium text-neutral-700 mb-0.5">Target Gauge config keys:</div>
-                          <code className="whitespace-pre-wrap block bg-neutral-50 border border-black/10 rounded-md px-2 py-1">{
-                            `{\n  metric_code?: string,  // fetch latest KPI value\n  value?: number,        // direct value (if no metric_code)\n  target: number,        // REQUIRED\n  min?: number,          // default 0\n  max?: number,          // default = target\n  unit?: string,         // label (e.g., clients, tCO2)\n  bands?: [{ upto: number; color: string }] // arc bands (0..1 of max)\n}`
-                          }</code>
-                        </div>
-                      )}
-                    </div>
-                      {draftType === 'people_grid_auto' && (
-                        <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
-                          <label className="flex flex-col gap-1">
-                            <span className="text-neutral-700">metric_code</span>
-                            <input
-                              className="rounded-2xl border border-black/10 px-2 py-1"
-                              value={(() => { try { const j = JSON.parse(draftConfig||'{}'); return j.metric_code ?? ''; } catch { return ''; } })()}
-                              onChange={(e)=>{
-                                try { const j = JSON.parse(draftConfig||'{}'); j.metric_code = e.target.value; setDraftConfig(JSON.stringify(j, null, 2)); } catch { /* ignore */ }
-                              }}
-                              placeholder="CLIENTS_SERVED"
-                            />
-                          </label>
-                          <label className="flex flex-col gap-1">
-                            <span className="text-neutral-700">mode</span>
-                            <select
-                              className="rounded-2xl border border-black/10 px-2 py-1"
-                              value={(() => { try { const j = JSON.parse(draftConfig||'{}'); return j.mode ?? 'sum'; } catch { return 'sum'; } })()}
-                              onChange={(e)=>{
-                                try { const j = JSON.parse(draftConfig||'{}'); j.mode = e.target.value; setDraftConfig(JSON.stringify(j, null, 2)); } catch { /* ignore */ }
-                              }}
-                            >
-                              <option value="sum">sum</option>
-                              <option value="latest">latest</option>
-                            </select>
-                          </label>
-                          <label className="flex flex-col gap-1">
-                            <span className="text-neutral-700">window</span>
-                            <input
-                              className="rounded-2xl border border-black/10 px-2 py-1"
-                              value={(() => { try { const j = JSON.parse(draftConfig||'{}'); return j.window ?? '12m'; } catch { return '12m'; } })()}
-                              onChange={(e)=>{
-                                try { const j = JSON.parse(draftConfig||'{}'); j.window = e.target.value; setDraftConfig(JSON.stringify(j, null, 2)); } catch { /* ignore */ }
-                              }}
-                              placeholder="12m"
-                            />
-                          </label>
-                          <label className="flex flex-col gap-1">
-                            <span className="text-neutral-700">perUnit</span>
-                            <input
-                              type="number"
-                              className="rounded-2xl border border-black/10 px-2 py-1"
-                              value={(() => { try { const j = JSON.parse(draftConfig||'{}'); return j.perUnit ?? 10; } catch { return 10; } })()}
-                              onChange={(e)=>{
-                                try { const j = JSON.parse(draftConfig||'{}'); j.perUnit = Number(e.target.value||0); setDraftConfig(JSON.stringify(j, null, 2)); } catch { /* ignore */ }
-                              }}
-                              min={1}
-                            />
-                          </label>
-                          <label className="flex flex-col gap-1">
-                            <span className="text-neutral-700">iconSize</span>
-                            <input
-                              type="number"
-                              className="rounded-2xl border border-black/10 px-2 py-1"
-                              value={(() => { try { const j = JSON.parse(draftConfig||'{}'); return j.iconSize ?? 16; } catch { return 16; } })()}
-                              onChange={(e)=>{
-                                try { const j = JSON.parse(draftConfig||'{}'); j.iconSize = Number(e.target.value||0); setDraftConfig(JSON.stringify(j, null, 2)); } catch { /* ignore */ }
-                              }}
-                              min={8}
-                            />
-                          </label>
-                          <label className="flex flex-col gap-1">
-                            <span className="text-neutral-700">target</span>
-                            <input
-                              type="number"
-                              className="rounded-2xl border border-black/10 px-2 py-1"
-                              value={(() => { try { const j = JSON.parse(draftConfig||'{}'); return j.target ?? ''; } catch { return ''; } })()}
-                              onChange={(e)=>{
-                                try { const j = JSON.parse(draftConfig||'{}'); j.target = e.target.value === '' ? undefined : Number(e.target.value); setDraftConfig(JSON.stringify(j, null, 2)); } catch { /* ignore */ }
-                              }}
-                              placeholder="20000"
-                            />
-                          </label>
-                          <div className="sm:col-span-3 text-[11px] text-neutral-500 mt-1">
-                            This form edits the <strong>config</strong> for the widget. Do not paste a full carousel item here.
-                          </div>
-                        </div>
-                      )}
-                  </label>
-                </div>
-
-                {err && (
-                  <div className="rounded-xl bg-red-50 border border-red-200 p-4 mt-4">
-                    <div className="flex items-start gap-3">
-                      <svg className="w-5 h-5 text-red-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                      <div>
-                        <h5 className="text-sm font-semibold text-red-900">Error</h5>
-                        <p className="text-sm text-red-700 mt-0.5">{err}</p>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                <div className="flex items-center justify-end gap-3 mt-6 pt-4 border-t border-neutral-200">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEditing(null);
-                      setDraftTitle('');
-                      setDraftConfig('{}');
-                      setErr(null);
-                    }}
-                    className="px-4 py-2.5 rounded-xl border border-neutral-300 hover:bg-neutral-50 text-sm font-medium text-neutral-700 transition-all"
-                    disabled={busy}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    onClick={saveDraft}
-                    className={clsx(
-                      'inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold',
-                      'bg-gradient-to-r from-azure to-blue-600 text-white',
-                      'shadow-lg shadow-azure/25 hover:shadow-xl hover:shadow-azure/30',
-                      'hover:scale-105 transition-all duration-200',
-                      'disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:scale-100'
-                    )}
-                    disabled={busy}
-                  >
-                    {busy ? (
-                      <>
-                        <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                        Saving...
-                      </>
-                    ) : (
-                      <>
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                        </svg>
-                        {editing ? 'Save Changes' : 'Create Widget'}
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
             </div>
           )}
         </div>
+
+        {/* Create/Edit Widget Modal */}
+        <CreateWidgetModal
+          open={showCreateModal}
+          onClose={() => {
+            setShowCreateModal(false);
+            setEditing(null);
+          }}
+          onCreated={async () => {
+            await mutate();
+            onChanged?.();
+            setShowCreateModal(false);
+            setEditing(null);
+          }}
+          portfolioId={portfolioId}
+          holdingId={holdingId}
+          editing={editing}
+        />
       </div>
     </div>,
     document.body

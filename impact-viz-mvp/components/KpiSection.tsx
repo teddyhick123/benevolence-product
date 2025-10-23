@@ -103,7 +103,7 @@ export default function KpiSection({ portfolioId, canEdit = false, initialSums, 
     <section className="space-y-4">
       <SectionHeader
         title="KPIs"
-        subtitle={usePortfolioSums ? 'Portfolio totals (sum of latest KPIs across holdings)' : 'Key performance indicators compiled across all holdings'}
+        subtitle={usePortfolioSums ? 'Lifetime portfolio totals' : 'Key performance indicators compiled across all holdings'}
         canEdit={canEdit}
         onEdit={onAdd}
         editLabel="Add KPI"

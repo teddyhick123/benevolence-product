@@ -79,7 +79,7 @@ export default async function AdminConsole() {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Admin Console</h1>
         <div className="flex items-center gap-2">
-          <Link href="/admin/portfolios/new" className="px-4 py-2 rounded-md bg-azure text-white shadow-soft hover:opacity-90 transition-transform duration-200 hover:-translate-y-0.5 will-change-transform rm:transition-none rm:transform-none">
+          <Link href="/admin/portfolios/new" className="px-4 py-2 rounded-md bg-gradient-to-r from-azure via-azure/90 to-azure/70 text-white shadow-soft hover:opacity-90 transition-transform duration-200 hover:-translate-y-0.5 will-change-transform rm:transition-none rm:transform-none">
             New Portfolio
           </Link>
         </div>
@@ -110,7 +110,7 @@ export default async function AdminConsole() {
                 <div className="flex flex-wrap gap-2 mt-2 justify-between">
                   <Link
                     href={`/dashboard?portfolio_id=${encodeURIComponent(p.id)}`}
-                    className="flex-1 text-center text-sm px-3 py-2 rounded-md bg-azure text-white shadow-soft hover:opacity-90 transition-transform duration-200 hover:-translate-y-0.5 will-change-transform rm:transition-none rm:transform-none"
+                    className="flex-1 text-center text-sm px-3 py-2 rounded-md bg-gradient-to-r from-azure via-azure/90 to-azure/70 text-white shadow-soft hover:opacity-90 transition-transform duration-200 hover:-translate-y-0.5 will-change-transform rm:transition-none rm:transform-none"
                   >
                     Dashboard
                   </Link>

@@ -6,13 +6,34 @@ export type KpiTrendConfigProps = {
   initialConfig?: any;
   onSave: (config: { title: string; config: any }) => void;
   onCancel: () => void;
+  portfolioId?: string;
 };
 
-export default function KpiTrendConfig({ initialConfig, onSave, onCancel }: KpiTrendConfigProps) {
+export default function KpiTrendConfig({ initialConfig, onSave, onCancel, portfolioId }: KpiTrendConfigProps) {
   const [title, setTitle] = React.useState(initialConfig?.title || '');
   const [metricCode, setMetricCode] = React.useState(initialConfig?.config?.metric_code || '');
   const [window, setWindow] = React.useState(initialConfig?.config?.period?.window || '12m');
   const [smooth, setSmooth] = React.useState(initialConfig?.config?.style?.smooth ?? true);
+  const [availableMetrics, setAvailableMetrics] = React.useState<Array<{ metric_code: string; display_name: string }>>([]);
+
+  // Fetch available metrics
+  React.useEffect(() => {
+    if (!portfolioId) return;
+    (async () => {
+      try {
+        const res = await fetch(`/api/portfolio/${encodeURIComponent(portfolioId)}/kpis`, { cache: 'no-store' });
+        const json = await res.json();
+        if (json.data) {
+          setAvailableMetrics(json.data.map((kpi: any) => ({
+            metric_code: kpi.metric_code,
+            display_name: kpi.display_name || kpi.metric_code
+          })));
+        }
+      } catch (e) {
+        console.error('Failed to fetch metrics:', e);
+      }
+    })();
+  }, [portfolioId]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -47,14 +68,30 @@ export default function KpiTrendConfig({ initialConfig, onSave, onCancel }: KpiT
           <label className="block text-sm font-medium text-neutral-700 mb-2">
             Metric Code <span className="text-red-500">*</span>
           </label>
-          <input
-            type="text"
-            value={metricCode}
-            onChange={(e) => setMetricCode(e.target.value.toUpperCase())}
-            placeholder="e.g., RENEWABLE_MWH"
-            required
-            className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-          />
+          {availableMetrics.length > 0 ? (
+            <select
+              value={metricCode}
+              onChange={(e) => setMetricCode(e.target.value)}
+              required
+              className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+            >
+              <option value="">Select a metric...</option>
+              {availableMetrics.map(m => (
+                <option key={m.metric_code} value={m.metric_code}>
+                  {m.display_name} ({m.metric_code})
+                </option>
+              ))}
+            </select>
+          ) : (
+            <input
+              type="text"
+              value={metricCode}
+              onChange={(e) => setMetricCode(e.target.value.toUpperCase())}
+              placeholder="e.g., RENEWABLE_MWH"
+              required
+              className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+            />
+          )}
           <p className="mt-1 text-xs text-neutral-500">The metric code to track over time</p>
         </div>
 
@@ -99,7 +136,7 @@ export default function KpiTrendConfig({ initialConfig, onSave, onCancel }: KpiT
         </button>
         <button
           type="submit"
-          className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium"
+          className="px-6 py-2 bg-gradient-to-r from-azure via-azure/90 to-azure/70 text-white rounded-lg hover:opacity-90 transition-opacity font-medium shadow-soft"
         >
           Create Widget
         </button>

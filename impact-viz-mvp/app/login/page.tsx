@@ -129,7 +129,7 @@ function LoginPageContent() {
           <p>You are already signed in as <span className="font-medium">{existingUserEmail}</span>.</p>
           <div className="mt-2 flex gap-2">
             <button
-              className="px-3 py-1.5 rounded bg-gray-900 text-white shadow-soft hover:opacity-90 disabled:opacity-50 transition-transform duration-200 hover:-translate-y-0.5 will-change-transform rm:transition-none rm:transform-none"
+              className="px-3 py-1.5 rounded bg-gradient-to-r from-azure via-azure/90 to-azure/70 text-white shadow-soft hover:opacity-90 disabled:opacity-50 transition-opacity"
               onClick={async () => { setBusy(true); try { await syncServerCookies(); const dest = await postAuthDestination(redirect); router.replace(dest); } finally { setBusy(false); } }}
               disabled={busy}
             >Continue</button>
@@ -154,7 +154,7 @@ function LoginPageContent() {
           />
           {error && <p className="text-red-600 text-sm">{error}</p>}
           {info && <p className="text-green-700 text-sm">{info}</p>}
-          <button disabled={busy} className="px-4 py-2 rounded bg-gray-900 text-white shadow-soft hover:opacity-90 disabled:opacity-50 transition-transform duration-200 hover:-translate-y-0.5 will-change-transform rm:transition-none rm:transform-none">
+          <button disabled={busy} className="px-4 py-2 rounded bg-gradient-to-r from-azure via-azure/90 to-azure/70 text-white shadow-soft hover:opacity-90 disabled:opacity-50 transition-opacity">
             {busy ? 'Signing in…' : 'Sign in'}
           </button>
           <p className="text-sm text-neutral-600">
@@ -180,7 +180,7 @@ function LoginPageContent() {
           />
           {error && <p className="text-red-600 text-sm">{error}</p>}
           {info && <p className="text-green-700 text-sm">{info}</p>}
-          <button disabled={busy} className="px-4 py-2 rounded bg-gray-900 text-white shadow-soft hover:opacity-90 disabled:opacity-50 transition-transform duration-200 hover:-translate-y-0.5 will-change-transform rm:transition-none rm:transform-none">
+          <button disabled={busy} className="px-4 py-2 rounded bg-gradient-to-r from-azure via-azure/90 to-azure/70 text-white shadow-soft hover:opacity-90 disabled:opacity-50 transition-opacity">
             {busy ? 'Creating…' : 'Create account'}
           </button>
           <p className="text-sm text-neutral-600">

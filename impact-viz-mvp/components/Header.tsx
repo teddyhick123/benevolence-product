@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { useSearchParams, usePathname } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 
 const supabase = createClient(
@@ -10,6 +11,8 @@ const supabase = createClient(
 
 export default function Header() {
   const [user, setUser] = useState<any>(null);
+  const searchParams = useSearchParams();
+  const pathname = usePathname();
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setUser(data.user ?? null));
@@ -19,8 +22,11 @@ export default function Header() {
     return () => subscription.unsubscribe();
   }, []);
 
-  const defaultPid = process.env.NEXT_PUBLIC_PORTFOLIO_ID_DEFAULT || '';
-  const dashboardHref = defaultPid ? `/dashboard?portfolio_id=${encodeURIComponent(defaultPid)}` : '/dashboard';
+  // Get current portfolio ID from URL or fall back to default
+  const currentPortfolioId = searchParams.get('portfolio_id') || process.env.NEXT_PUBLIC_PORTFOLIO_ID_DEFAULT || '';
+
+  const dashboardHref = currentPortfolioId ? `/dashboard?portfolio_id=${encodeURIComponent(currentPortfolioId)}` : '/dashboard';
+  const recommendationsHref = currentPortfolioId ? `/recommendations?portfolio_id=${encodeURIComponent(currentPortfolioId)}` : '/recommendations';
 
   async function handleSignOut() {
     await supabase.auth.signOut();
@@ -46,16 +52,22 @@ export default function Header() {
         ) : (
           <nav className="flex items-center gap-3">
             <Link
-              href="/profile"
-              className="font-sans text-sm px-3 py-1.5 rounded-md border border-black/10 hover:bg-white shadow-sm hover:shadow transition-transform duration-200 hover:-translate-y-0.5 will-change-transform rm:transition-none rm:transform-none"
-            >
-              Profile
-            </Link>
-            <Link
               href={dashboardHref}
               className="font-sans text-sm px-3 py-1.5 rounded-md border border-black/10 hover:bg-white shadow-sm hover:shadow transition-transform duration-200 hover:-translate-y-0.5 will-change-transform rm:transition-none rm:transform-none"
             >
               Dashboard
+            </Link>
+            <Link
+              href={recommendationsHref}
+              className="font-sans text-sm px-3 py-1.5 rounded-md border border-black/10 hover:bg-white shadow-sm hover:shadow transition-transform duration-200 hover:-translate-y-0.5 will-change-transform rm:transition-none rm:transform-none"
+            >
+              Recommendations
+            </Link>
+            <Link
+              href="/profile"
+              className="font-sans text-sm px-3 py-1.5 rounded-md border border-black/10 hover:bg-white shadow-sm hover:shadow transition-transform duration-200 hover:-translate-y-0.5 will-change-transform rm:transition-none rm:transform-none"
+            >
+              Profile
             </Link>
             <button
               onClick={handleSignOut}

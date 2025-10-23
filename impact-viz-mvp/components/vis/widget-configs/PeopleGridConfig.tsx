@@ -145,7 +145,7 @@ export default function PeopleGridConfig({ initialConfig, onSave, onCancel }: Pe
         </button>
         <button
           type="submit"
-          className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium"
+          className="px-6 py-2 bg-gradient-to-r from-azure via-azure/90 to-azure/70 text-white rounded-lg hover:opacity-90 transition-opacity font-medium shadow-soft"
         >
           Create Widget
         </button>

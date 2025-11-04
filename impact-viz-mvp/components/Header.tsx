@@ -12,6 +12,7 @@ const supabase = createClient(
 function HeaderContent() {
   const [user, setUser] = useState<any>(null);
   const [portfolioId, setPortfolioId] = useState<string | null>(null);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const searchParams = useSearchParams();
   const pathname = usePathname();
 
@@ -53,12 +54,18 @@ function HeaderContent() {
 
   async function handleSignOut() {
     await supabase.auth.signOut();
+    setMobileMenuOpen(false);
     window.location.href = "/";
   }
 
+  // Close mobile menu when route changes
+  useEffect(() => {
+    setMobileMenuOpen(false);
+  }, [pathname]);
+
   return (
     <header className="w-full sticky top-0 z-40 bg-creme/90 backdrop-blur-md border-b border-black/5">
-      <div className="w-full px-4 md:px-6 lg:px-8 py-3 flex items-center justify-between">
+      <div className="w-full px-4 md:px-6 lg:px-8 py-2 md:py-3 flex items-center justify-between">
         {/* Left: brand (B.) */}
         <Link href="/" className="inline-flex items-center gap-2 group transition-transform duration-200 hover:-translate-y-0.5 will-change-transform rm:transition-none rm:transform-none">
           <span className="font-serif text-2xl leading-none text-azure group-hover:opacity-90">B.</span>
@@ -73,34 +80,89 @@ function HeaderContent() {
             Sign in
           </Link>
         ) : (
-          <nav className="flex items-center gap-3">
+          <>
+            {/* Desktop Navigation (hidden on mobile) */}
+            <nav className="hidden md:flex items-center gap-3">
+              <Link
+                href={dashboardHref}
+                className="font-sans text-sm px-4 py-2 rounded-md border border-black/10 hover:bg-white shadow-sm hover:shadow transition-transform duration-200 hover:-translate-y-0.5 will-change-transform rm:transition-none rm:transform-none"
+              >
+                Dashboard
+              </Link>
+              <Link
+                href={recommendationsHref}
+                className="font-sans text-sm px-4 py-2 rounded-md border border-black/10 hover:bg-white shadow-sm hover:shadow transition-transform duration-200 hover:-translate-y-0.5 will-change-transform rm:transition-none rm:transform-none"
+              >
+                Recommendations
+              </Link>
+              <Link
+                href="/profile"
+                className="font-sans text-sm px-4 py-2 rounded-md border border-black/10 hover:bg-white shadow-sm hover:shadow transition-transform duration-200 hover:-translate-y-0.5 will-change-transform rm:transition-none rm:transform-none"
+              >
+                Profile
+              </Link>
+              <button
+                onClick={handleSignOut}
+                className="font-sans text-sm px-4 py-2 rounded-md border border-black/10 hover:bg-white shadow-sm hover:shadow transition-transform duration-200 hover:-translate-y-0.5 will-change-transform rm:transition-none rm:transform-none"
+              >
+                Sign out
+              </button>
+            </nav>
+
+            {/* Mobile Hamburger Button */}
+            <button
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="md:hidden p-2 rounded-md hover:bg-black/5 transition-colors"
+              aria-label="Toggle menu"
+              aria-expanded={mobileMenuOpen}
+            >
+              {mobileMenuOpen ? (
+                // X icon when menu is open
+                <svg className="w-6 h-6 text-azure" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              ) : (
+                // Hamburger icon when menu is closed
+                <svg className="w-6 h-6 text-azure" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+              )}
+            </button>
+          </>
+        )}
+      </div>
+
+      {/* Mobile Menu Drawer */}
+      {user && mobileMenuOpen && (
+        <div className="md:hidden border-t border-black/5 bg-creme/95 backdrop-blur-md">
+          <nav className="px-4 py-3 space-y-2">
             <Link
               href={dashboardHref}
-              className="font-sans text-sm px-3 py-1.5 rounded-md border border-black/10 hover:bg-white shadow-sm hover:shadow transition-transform duration-200 hover:-translate-y-0.5 will-change-transform rm:transition-none rm:transform-none"
+              className="block w-full text-left font-sans text-sm px-4 py-3 rounded-md border border-black/10 hover:bg-white shadow-sm hover:shadow transition-colors"
             >
               Dashboard
             </Link>
             <Link
               href={recommendationsHref}
-              className="font-sans text-sm px-3 py-1.5 rounded-md border border-black/10 hover:bg-white shadow-sm hover:shadow transition-transform duration-200 hover:-translate-y-0.5 will-change-transform rm:transition-none rm:transform-none"
+              className="block w-full text-left font-sans text-sm px-4 py-3 rounded-md border border-black/10 hover:bg-white shadow-sm hover:shadow transition-colors"
             >
               Recommendations
             </Link>
             <Link
               href="/profile"
-              className="font-sans text-sm px-3 py-1.5 rounded-md border border-black/10 hover:bg-white shadow-sm hover:shadow transition-transform duration-200 hover:-translate-y-0.5 will-change-transform rm:transition-none rm:transform-none"
+              className="block w-full text-left font-sans text-sm px-4 py-3 rounded-md border border-black/10 hover:bg-white shadow-sm hover:shadow transition-colors"
             >
               Profile
             </Link>
             <button
               onClick={handleSignOut}
-              className="font-sans text-sm px-3 py-1.5 rounded-md border border-black/10 hover:bg-white shadow-sm hover:shadow transition-transform duration-200 hover:-translate-y-0.5 will-change-transform rm:transition-none rm:transform-none"
+              className="block w-full text-left font-sans text-sm px-4 py-3 rounded-md border border-black/10 hover:bg-white shadow-sm hover:shadow transition-colors"
             >
               Sign out
             </button>
           </nav>
-        )}
-      </div>
+        </div>
+      )}
     </header>
   );
 }

@@ -13,10 +13,18 @@ export async function GET() {
           return c.get(name)?.value;
         },
         set(name: string, value: string, options: any) {
-          c.set({ name, value, ...options });
+          try {
+            c.set({ name, value, ...options });
+          } catch (error) {
+            // Safe to ignore in read-only contexts
+          }
         },
         remove(name: string) {
-          c.delete(name);
+          try {
+            c.delete(name);
+          } catch (error) {
+            // Safe to ignore in read-only contexts
+          }
         },
       },
     }

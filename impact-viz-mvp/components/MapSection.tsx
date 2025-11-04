@@ -64,12 +64,6 @@ export default function MapSection({ portfolioId }: { portfolioId: string }) {
                 if (!p.holdingId) return;
                 // Navigate to the holdings details page at app/dashboard/holdings/[holdingId]/page.tsx
                 router.push(`/dashboard/holdings/${encodeURIComponent(p.holdingId)}`);
-                console.log('Map point clicked:', {
-                  id: p.id,
-                  holdingId: p.holdingId,
-                  name: p.name,
-                  coords: p.coords,
-                });
               }}
             />
           </div>

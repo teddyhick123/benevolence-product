@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import { cookies } from 'next/headers';
 import { createServerClient } from '@supabase/ssr';
+import { aiAuthRequired } from '@/lib/rate-limit-response';
 
 export const runtime = 'nodejs';
 export const maxDuration = 30;
@@ -9,6 +10,7 @@ export const maxDuration = 30;
 /**
  * POST /api/ai/transcribe
  * Transcribe audio to text using OpenAI Whisper
+ * REQUIRES AUTHENTICATION - No anonymous AI access allowed
  */
 export async function POST(req: NextRequest) {
   try {
@@ -39,8 +41,10 @@ export async function POST(req: NextRequest) {
     );
 
     const { data: { user } } = await supabase.auth.getUser();
+
+    // Block anonymous access to AI features
     if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return aiAuthRequired();
     }
 
     // Parse multipart form data
@@ -68,7 +72,6 @@ export async function POST(req: NextRequest) {
     });
 
   } catch (error: any) {
-    console.error('Transcription error:', error);
     return NextResponse.json(
       {
         error: error.message || 'Transcription failed',

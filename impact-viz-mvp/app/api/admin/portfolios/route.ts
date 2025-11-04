@@ -34,7 +34,7 @@ export async function POST(req: Request) {
         owner_user_id = profile.user_id;
       }
     } catch (e) {
-      console.warn('Owner email lookup exception:', e);
+      // Owner email lookup failed, will proceed without owner assignment
     }
   }
 

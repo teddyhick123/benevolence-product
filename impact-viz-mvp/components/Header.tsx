@@ -11,6 +11,7 @@ const supabase = createClient(
 
 function HeaderContent() {
   const [user, setUser] = useState<any>(null);
+  const [portfolioId, setPortfolioId] = useState<string | null>(null);
   const searchParams = useSearchParams();
   const pathname = usePathname();
 
@@ -22,8 +23,30 @@ function HeaderContent() {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Get current portfolio ID from URL or fall back to default
-  const currentPortfolioId = searchParams.get('portfolio_id') || process.env.NEXT_PUBLIC_PORTFOLIO_ID_DEFAULT || '';
+  // Fetch user's portfolio ID from API
+  useEffect(() => {
+    async function fetchPortfolio() {
+      try {
+        const res = await fetch('/api/me', { cache: 'no-store' });
+        if (res.ok) {
+          const data = await res.json();
+          if (data?.portfolio_id) {
+            setPortfolioId(data.portfolio_id);
+          }
+        }
+      } catch (error) {
+        // Failed to fetch portfolio
+      }
+    }
+
+    if (user) {
+      fetchPortfolio();
+    }
+  }, [user]);
+
+  // Get current portfolio ID: URL param > fetched from user > default
+  const urlPortfolioId = searchParams.get('portfolio_id');
+  const currentPortfolioId = urlPortfolioId || portfolioId || process.env.NEXT_PUBLIC_PORTFOLIO_ID_DEFAULT || '';
 
   const dashboardHref = currentPortfolioId ? `/dashboard?portfolio_id=${encodeURIComponent(currentPortfolioId)}` : '/dashboard';
   const recommendationsHref = currentPortfolioId ? `/recommendations?portfolio_id=${encodeURIComponent(currentPortfolioId)}` : '/recommendations';

@@ -35,13 +35,11 @@ export async function GET(
       .order('created_at', { ascending: true });
 
     if (error) {
-      console.error('Error fetching staged facts:', error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
     return NextResponse.json({ facts: facts || [] });
   } catch (error: any) {
-    console.error('Staged facts fetch error:', error);
     return NextResponse.json({
       error: error.message || 'Failed to fetch staged facts',
     }, { status: 500 });

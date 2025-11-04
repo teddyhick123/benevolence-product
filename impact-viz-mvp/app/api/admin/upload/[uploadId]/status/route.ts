@@ -56,7 +56,6 @@ export async function GET(
       factsExtracted: factsCount || 0,
     });
   } catch (error: any) {
-    console.error('Status check error:', error);
     return NextResponse.json({
       error: error.message || 'Failed to check status',
     }, { status: 500 });

@@ -139,19 +139,14 @@ export async function POST(req: NextRequest) {
       },
     }));
 
-    console.log('Inserting staging rows:', JSON.stringify(stagingRows, null, 2));
-
     const { data: stagingData, error: stagingErr } = await sb
       .from('staging_metric_facts')
       .insert(stagingRows)
       .select();
 
     if (stagingErr) {
-      console.error('Staging insert error:', stagingErr);
       throw new Error(`Failed to insert staging facts: ${stagingErr.message} (code: ${stagingErr.code}, details: ${JSON.stringify(stagingErr.details)})`);
     }
-
-    console.log('Successfully inserted staging rows:', stagingData?.length);
 
     // 8. Upsert holding locations if extracted
     let locationsUpserted = 0;
@@ -204,7 +199,6 @@ export async function POST(req: NextRequest) {
             locationsUpserted++;
           }
         }
-        console.log('Successfully upserted locations:', locationsUpserted);
       }
     }
 
@@ -231,8 +225,6 @@ export async function POST(req: NextRequest) {
     });
 
   } catch (error: any) {
-    console.error('Ingestion error:', error);
-
     // Update upload status to error
     const { uploadId } = await req.json().catch(() => ({}));
     if (uploadId) {

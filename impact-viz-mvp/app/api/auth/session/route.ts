@@ -1,8 +1,18 @@
 // app/api/auth/session/route.ts
 import { NextResponse } from 'next/server';
 import { createSupabaseServerClient } from '@/lib/supabase-server';
+import { authLimiter, getIP } from '@/lib/rate-limit';
+import { rateLimitExceeded } from '@/lib/rate-limit-response';
 
 export async function POST(req: Request) {
+  // Rate limit by IP to prevent brute force attacks
+  const ip = getIP(req);
+  const { success, reset, remaining, limit } = await authLimiter.limit(ip);
+
+  if (!success) {
+    return rateLimitExceeded(reset, remaining, limit);
+  }
+
   const body = await req.json().catch(() => ({}));
   const access_token  = body?.access_token  ?? body?.accessToken;
   const refresh_token = body?.refresh_token ?? body?.refreshToken;

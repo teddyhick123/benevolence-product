@@ -2,6 +2,7 @@
 import { NextResponse } from 'next/server';
 import { createSupabaseServerClient } from '@/lib/supabase-server';
 import OpenAI from 'openai';
+import { aiAuthRequired } from '@/lib/rate-limit-response';
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -11,11 +12,21 @@ function cacheHeaders() {
   return { 'Cache-Control': 'no-store' } as const;
 }
 
+/**
+ * POST /api/portfolio/[id]/letter/generate
+ * Generate AI letter for portfolio
+ * REQUIRES AUTHENTICATION - No anonymous AI access allowed
+ */
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id: portfolio_id } = await ctx.params;
   const sb = await createSupabaseServerClient();
 
   try {
+    // Verify user is authenticated
+    const { data: { user } } = await sb.auth.getUser();
+    if (!user) {
+      return aiAuthRequired();
+    }
     // 1. Fetch portfolio data from the letter endpoint logic
     const { data: portfolio, error: portfolioError } = await sb
       .from('portfolios')
@@ -103,30 +114,29 @@ ${totalHoldings > 10 ? `... and ${totalHoldings - 10} more holdings` : ''}
       messages: [
         {
           role: 'system',
-          content: `You are an eloquent impact investment letter writer who crafts compelling narratives from portfolio data.
+          content: `You are a portfolio manager who crafts compelling letters on the state of impact investments and charitable contributions from portfolio data.
 
 WRITING STYLE:
+- Balance clear communication of information with a compelling style
+- Avoid the overuse of antithesis and other AI-giveaway phrases. You can use them, but do not overdo it
 - Write in flowing, beautifully crafted paragraphs (no bullet points, no section headers with asterisks or markdown formatting)
 - Start with a powerful opening that highlights the most compelling impact metric
-- Use an impact-first, personal, and warm tone that celebrates the human stories behind the numbers
 - Weave data naturally into narrative sentences rather than listing it
 - NO placeholder fields like [Your Name] or [Date] - the page handles those
 - NO markdown formatting (**, ##, etc.) - just clean prose paragraphs
-- Write as if you are the portfolio manager speaking directly to the stakeholder
+- Write as if you are the portfolio manager speaking directly to the stakeholder, but do not refer to yourself in the first person
 
 STRUCTURE (without headers):
-1. Opening: Lead with the most powerful impact statistic and what it means for real people
+1. Opening: Lead with the most powerful impact statistic
 2. Portfolio narrative: Describe the holdings and their work in prose form, naturally integrating allocation amounts and sector information
 3. Impact story: Weave together the KPI metrics to tell a cohesive story of change and progress, mentioning specific numbers but in narrative form
-4. Forward momentum: Discuss what this impact enables and the path ahead
-5. Closing: Express gratitude and invite continued partnership
+4. Forward momentum: Discuss what this impact enables and the path ahead, concluding with an expression of gratitude for their generous intent.
 
 INTEGRATION OF VISUALIZATIONS:
 - Reference that "the dashboard shows" or "as illustrated in the portfolio overview" when mentioning data trends
 - Mention that specific metrics "can be explored in detail on the holdings pages"
 - Suggest that stakeholders "review the visualization tools to track progress over time"
-
-Remember: Write beautiful, inspiring prose that makes stakeholders feel the impact of their investment. No formatting markers, no placeholders.`,
+`,
         },
         {
           role: 'user',
@@ -157,7 +167,6 @@ Remember: Write beautiful, inspiring prose that makes stakeholders feel the impa
     }, { headers: cacheHeaders() });
 
   } catch (error: any) {
-    console.error('Letter generation error:', error);
     return NextResponse.json(
       { error: error.message || 'Failed to generate letter' },
       { status: 500, headers: cacheHeaders() }

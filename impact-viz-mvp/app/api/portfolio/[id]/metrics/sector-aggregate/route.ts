@@ -35,7 +35,6 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
     .limit(2000); // safety cap
 
   if (error) {
-    console.error('sector-aggregate error:', error);
     return NextResponse.json({ error: error.message, rows: [] }, { status: 500, headers: cacheHeaders() });
   }
 

@@ -79,7 +79,7 @@ Just ask me anything, and I'll help you out! If you don't like a change I make, 
         setMessages(data.messages || []);
       }
     } catch (err) {
-      console.error('Failed to load history:', err);
+      // Failed to load conversation history
     }
   };
 
@@ -89,7 +89,7 @@ Just ask me anything, and I'll help you out! If you don't like a change I make, 
       const data = await res.json();
       setRecentActions(data.actions || []);
     } catch (err) {
-      console.error('Failed to load actions:', err);
+      // Failed to load actions
     }
   };
 
@@ -144,7 +144,6 @@ Just ask me anything, and I'll help you out! If you don't like a change I make, 
         loadActions();
       }
     } catch (err) {
-      console.error('Send message error:', err);
       const errorMessage = err instanceof Error ? err.message : 'Unknown error';
       setMessages((prev) => [
         ...prev,
@@ -179,7 +178,7 @@ Just ask me anything, and I'll help you out! If you don't like a change I make, 
         ]);
       }
     } catch (err) {
-      console.error('Undo error:', err);
+      // Undo action failed
     }
   };
 
@@ -203,7 +202,7 @@ Just ask me anything, and I'll help you out! If you don't like a change I make, 
         ]);
       }
     } catch (err) {
-      console.error('Redo error:', err);
+      // Redo action failed
     }
   };
 
@@ -227,11 +226,9 @@ Just ask me anything, and I'll help you out! If you don't like a change I make, 
 
         if (data.text) {
           setInput(data.text);
-        } else {
-          console.error('No transcription returned');
         }
       } catch (err) {
-        console.error('Transcription error:', err);
+        // Transcription failed
       } finally {
         setIsTranscribing(false);
       }

@@ -333,6 +333,76 @@ export class AIActionExecutor {
   }
 
   /**
+   * Create a portfolio-level widget
+   */
+  async createPortfolioWidget(
+    portfolioId: string,
+    userId: string,
+    sessionId: string,
+    batchId: string,
+    sequenceOrder: number,
+    userPrompt: string,
+    args: {
+      type: string;
+      title: string;
+      config?: any;
+    }
+  ): Promise<{ action: AIAction; output: any }> {
+    // Get max position for ordering
+    const { data: widgets } = await this.supabase
+      .from('widgets')
+      .select('position')
+      .eq('portfolio_id', portfolioId)
+      .order('position', { ascending: false })
+      .limit(1);
+
+    const maxPosition: number = (widgets?.[0]?.position as number) ?? -1;
+
+    // Create widget
+    const { data: widget, error } = await this.supabase
+      .from('widgets')
+      .insert({
+        portfolio_id: portfolioId,
+        type: args.type,
+        title: args.title,
+        config: args.config || {},
+        position: maxPosition + 1,
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    // Log the action
+    const { data: action } = await this.supabase
+      .from('ai_actions')
+      .insert({
+        session_id: sessionId,
+        portfolio_id: portfolioId,
+        user_id: userId,
+        action_type: 'create',
+        entity_type: 'widget',
+        entity_id: widget.id,
+        operation_data: {
+          table: 'widgets',
+          after: widget,
+        },
+        ai_reasoning: `Created ${args.type} widget: "${args.title}"`,
+        user_prompt: userPrompt,
+        status: 'applied',
+        batch_id: batchId,
+        sequence_order: sequenceOrder,
+      })
+      .select()
+      .single();
+
+    return {
+      action: action as AIAction,
+      output: widget,
+    };
+  }
+
+  /**
    * Add a location
    */
   async addLocation(

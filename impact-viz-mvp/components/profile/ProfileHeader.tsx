@@ -52,7 +52,6 @@ export default function ProfileHeader({
       setIsEditing(false);
       router.refresh();
     } catch (error) {
-      console.error('Error updating profile:', error);
       alert('Failed to update profile. Please try again.');
     } finally {
       setIsSaving(false);

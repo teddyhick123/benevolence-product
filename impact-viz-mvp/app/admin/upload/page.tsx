@@ -128,7 +128,7 @@ function UploadPageContent() {
         setStagedFacts(data.facts || []);
       }
     } catch (err) {
-      console.error('Failed to load staged facts:', err);
+      // Failed to load staged facts
     }
   }
 
@@ -140,7 +140,7 @@ function UploadPageContent() {
         setStagedFacts(prev => prev.filter(f => f.id !== factId));
       }
     } catch (err) {
-      console.error('Failed to approve fact:', err);
+      // Failed to approve fact
     }
   }
 
@@ -152,7 +152,7 @@ function UploadPageContent() {
         setStagedFacts(prev => prev.filter(f => f.id !== factId));
       }
     } catch (err) {
-      console.error('Failed to reject fact:', err);
+      // Failed to reject fact
     }
   }
 
@@ -194,7 +194,7 @@ function UploadPageContent() {
           }
         }
       } catch (err) {
-        console.error('Failed to check status:', err);
+        // Failed to check upload status
       }
     }, 2000); // Poll every 2 seconds
 

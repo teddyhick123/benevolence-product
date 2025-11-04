@@ -55,11 +55,9 @@ export default function ContactPhotoUpload({ holdingId, currentPhoto, contactNam
       }
 
       const result = await response.json();
-      console.log('Upload successful, photo URL:', result.photoUrl);
 
       router.refresh();
     } catch (err) {
-      console.error('Upload error:', err);
       setError(err instanceof Error ? err.message : 'Failed to upload photo');
     } finally {
       setIsUploading(false);
@@ -97,7 +95,6 @@ export default function ContactPhotoUpload({ holdingId, currentPhoto, contactNam
             alt={contactName || 'Contact'}
             className="w-20 h-20 rounded-full object-cover border-2 border-neutral-200 group-hover:border-indigo-500 transition-colors"
             onError={(e) => {
-              console.error('Failed to load image:', currentPhoto);
               e.currentTarget.style.display = 'none';
             }}
           />

@@ -24,7 +24,6 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
 
     return NextResponse.json({ data: data || [] }, { headers: cacheHeaders() });
   } catch (error: any) {
-    console.error('Failed to fetch recommendations:', error);
     return NextResponse.json(
       { error: error.message || 'Failed to fetch recommendations' },
       { status: 500, headers: cacheHeaders() }
@@ -103,7 +102,6 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
 
     return NextResponse.json({ data }, { headers: cacheHeaders() });
   } catch (error: any) {
-    console.error('Failed to create recommendation:', error);
     return NextResponse.json(
       { error: error.message || 'Failed to create recommendation' },
       { status: 500, headers: cacheHeaders() }

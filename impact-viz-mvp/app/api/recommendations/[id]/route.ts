@@ -79,7 +79,6 @@ export async function PUT(req: Request, ctx: { params: Promise<{ id: string }> }
 
     return NextResponse.json({ data }, { headers: cacheHeaders() });
   } catch (error: any) {
-    console.error('Failed to update recommendation:', error);
     return NextResponse.json(
       { error: error.message || 'Failed to update recommendation' },
       { status: 500, headers: cacheHeaders() }
@@ -148,7 +147,6 @@ export async function DELETE(req: Request, ctx: { params: Promise<{ id: string }
 
     return NextResponse.json({ data }, { headers: cacheHeaders() });
   } catch (error: any) {
-    console.error('Failed to archive recommendation:', error);
     return NextResponse.json(
       { error: error.message || 'Failed to archive recommendation' },
       { status: 500, headers: cacheHeaders() }

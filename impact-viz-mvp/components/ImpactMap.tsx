@@ -111,7 +111,7 @@ export default function ImpactMap({ points, onPointClick, height }: Props) {
         }
         setTopoLoaded(true);
       } catch (err) {
-        console.warn('TopoJSON load failed', err);
+        // TopoJSON load failed, map will render without borders
         setTopoLoaded(true);
       }
     }

@@ -44,7 +44,6 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
       });
 
     if (uploadError) {
-      console.error('Upload error:', uploadError);
       return NextResponse.json({ error: uploadError.message }, { status: 500 });
     }
 
@@ -54,7 +53,6 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
       .getPublicUrl(filePath);
 
     const photoUrl = urlData.publicUrl;
-    console.log('Generated photo URL:', photoUrl);
 
     // Update holding with photo URL
     const { error: updateError, data: updateData } = await supabase
@@ -64,18 +62,14 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
       .select();
 
     if (updateError) {
-      console.error('Update error:', updateError);
       return NextResponse.json({ error: updateError.message }, { status: 500 });
     }
-
-    console.log('Updated holding:', updateData);
 
     revalidatePath(`/dashboard/holdings/${holdingId}`);
     revalidatePath(`/dashboard`);
 
     return NextResponse.json({ photoUrl, updated: updateData });
   } catch (error) {
-    console.error('Error uploading file:', error);
     return NextResponse.json({ error: 'Failed to upload file' }, { status: 500 });
   }
 }

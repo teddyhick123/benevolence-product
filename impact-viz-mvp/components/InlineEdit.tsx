@@ -29,7 +29,6 @@ export default function InlineEdit({ value, onSave, className = '', as = 'span',
       try {
         await onSave(editValue.trim());
       } catch (error) {
-        console.error('Failed to save:', error);
         alert('Failed to save changes');
         setEditValue(value);
       } finally {

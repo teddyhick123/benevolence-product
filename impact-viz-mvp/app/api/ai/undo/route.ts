@@ -70,7 +70,6 @@ export async function POST(req: NextRequest) {
     });
 
   } catch (error: any) {
-    console.error('Undo error:', error);
     return NextResponse.json(
       { error: error.message || 'Undo failed' },
       { status: 500 }
@@ -132,7 +131,6 @@ export async function GET(req: NextRequest) {
     });
 
   } catch (error: any) {
-    console.error('Get undo history error:', error);
     return NextResponse.json(
       { error: error.message || 'Failed to get undo history' },
       { status: 500 }

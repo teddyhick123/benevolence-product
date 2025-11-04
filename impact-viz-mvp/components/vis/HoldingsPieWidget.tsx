@@ -118,8 +118,8 @@ export default function HoldingsPieWidget({
         <div className="w-[220px] max-w-[280px] md:flex-none">
           <div className="text-sm font-medium text-neutral-800 mb-2">Holdings Allocation</div>
           <div className="space-y-1 overflow-auto pr-2" style={{ maxHeight: '100%' }}>
-            {cleaned.map((d) => (
-              <div key={d.label} className="flex items-center justify-between gap-3 text-sm">
+            {cleaned.map((d, idx) => (
+              <div key={`${d.label}-${d.value}-${idx}`} className="flex items-center justify-between gap-3 text-sm">
                 <div className="flex items-center gap-2 min-w-0">
                   <span
                     className="inline-block h-3 w-3 rounded-sm border border-black/10"

@@ -83,14 +83,12 @@ export async function POST(req: NextRequest) {
 
       if (putErr) {
         storageDebug = { stage: 'upload', message: putErr.message, name: putErr.name };
-        console.warn('Storage upload failed:', putErr.message);
       } else {
         storagePath = `reports/${objectKey}`; // full path used later by n8n to sign
       }
     } catch (e) {
       const msg = (e as Error).message;
       storageDebug = { stage: 'exception', message: msg };
-      console.warn('Storage upload threw:', msg);
       storagePath = null;
     }
 
@@ -112,7 +110,6 @@ export async function POST(req: NextRequest) {
         autoApprove,
       }),
     }).catch((err) => {
-      console.error('Failed to trigger ingestion:', err);
       // The upload will remain in 'queued' status and can be retried
     });
 
@@ -127,7 +124,6 @@ export async function POST(req: NextRequest) {
       ...(storageDebug ? { storageDebug } : {})
     }, { status: 200 });
   } catch (err) {
-    console.error(err);
     return NextResponse.json({ error: 'Unexpected error' }, { status: 500 });
   }
 }

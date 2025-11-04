@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { AIPortfolioAssistant } from '@/lib/ai-assistant';
 import { cookies } from 'next/headers';
 import { createServerClient } from '@supabase/ssr';
+import { aiAuthRequired } from '@/lib/rate-limit-response';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -18,6 +19,7 @@ function supabaseService() {
 /**
  * POST /api/ai/chat
  * Main AI chat endpoint
+ * REQUIRES AUTHENTICATION - No anonymous AI access allowed
  */
 export async function POST(req: NextRequest) {
   try {
@@ -48,8 +50,10 @@ export async function POST(req: NextRequest) {
     );
 
     const { data: { user } } = await supabase.auth.getUser();
+
+    // Block anonymous access to AI features
     if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return aiAuthRequired();
     }
 
     // Parse request body
@@ -131,12 +135,54 @@ export async function POST(req: NextRequest) {
       conversationHistory: conversationHistory || [],
     });
 
-    // Save assistant response to session
-    messages.push({
+    // Check if any widgets were created/displayed and fetch their full data
+    // Note: Database returns snake_case field names
+    const widgetActions = result.actions.filter(
+      (a: any) => a.entity_type === 'widget' && (a.action_type === 'create' || a.action_type === 'preview')
+    );
+
+    let widgets = [];
+    if (widgetActions.length > 0) {
+      // Separate preview widgets from saved widgets
+      const previewActions = widgetActions.filter((a: any) => a.action_type === 'preview');
+      const savedActions = widgetActions.filter((a: any) => a.action_type === 'create');
+
+      // For preview widgets, extract from operation_data
+      const previewWidgets = previewActions.map((a: any) => ({
+        ...a.operation_data?.after,
+        is_preview: true,
+      }));
+
+      // For saved widgets, fetch from database
+      let savedWidgets = [];
+      if (savedActions.length > 0) {
+        const widgetIds = savedActions.map((a: any) => a.entity_id);
+        const [portfolioWidgets, holdingWidgets] = await Promise.all([
+          sb.from('widgets').select('*').in('id', widgetIds),
+          sb.from('holding_widgets').select('*').in('id', widgetIds),
+        ]);
+
+        savedWidgets = [
+          ...(portfolioWidgets.data || []),
+          ...(holdingWidgets.data || []),
+        ];
+      }
+
+      widgets = [...previewWidgets, ...savedWidgets];
+    }
+
+    // Save assistant response to session (with widget references if any)
+    const assistantMessage: any = {
       role: 'assistant',
       content: result.message,
       timestamp: new Date().toISOString(),
-    });
+    };
+
+    if (widgets.length > 0) {
+      assistantMessage.widgets = widgets;
+    }
+
+    messages.push(assistantMessage);
 
     await sb
       .from('ai_sessions')
@@ -149,11 +195,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       message: result.message,
       actions: result.actions,
+      widgets,
       sessionId,
     });
 
   } catch (error: any) {
-    console.error('AI chat error:', error);
     return NextResponse.json(
       {
         error: error.message || 'AI chat failed',
@@ -219,7 +265,6 @@ export async function GET(req: NextRequest) {
     });
 
   } catch (error: any) {
-    console.error('Get chat history error:', error);
     return NextResponse.json(
       { error: error.message || 'Failed to get chat history' },
       { status: 500 }

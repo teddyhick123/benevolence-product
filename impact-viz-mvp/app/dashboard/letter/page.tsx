@@ -2,6 +2,7 @@
 
 import { useEffect, useState, Suspense, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
+import InlineWidget from '@/components/InlineWidget';
 
 type PortfolioData = {
   id: string;
@@ -40,10 +41,20 @@ type LetterData = {
   }>;
 };
 
+type WidgetData = {
+  id: string;
+  portfolio_id?: string;
+  holding_id?: string;
+  type: string;
+  title: string | null;
+  config: any | null;
+};
+
 type Message = {
   role: 'user' | 'assistant';
   content: string;
   timestamp: string;
+  widgets?: WidgetData[];
 };
 
 function LetterPageContent() {
@@ -96,13 +107,11 @@ function LetterPageContent() {
               name: letterData.portfolio.name,
               description: letterData.portfolio.description,
             });
-          } else {
-            console.error('Failed to generate letter:', letterData.error);
           }
           setGeneratingLetter(false);
         }
       } catch (error) {
-        console.error('Failed to load portfolio:', error);
+        // Failed to load portfolio data
       } finally {
         setLoading(false);
       }
@@ -153,11 +162,11 @@ function LetterPageContent() {
           role: 'assistant',
           content: data.message,
           timestamp: new Date().toISOString(),
+          widgets: data.widgets || [],
         };
         setMessages((prev) => [...prev, assistantMessage]);
       }
     } catch (err) {
-      console.error('Send message error:', err);
       const errorMessage = err instanceof Error ? err.message : 'Unknown error';
       setMessages((prev) => [
         ...prev,
@@ -298,22 +307,36 @@ function LetterPageContent() {
             <h3 className="text-xl font-serif font-bold text-neutral-900 mb-6">Conversation</h3>
             <div className="space-y-6">
               {messages.map((msg, idx) => (
-                <div
-                  key={idx}
-                  className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                >
+                <div key={idx}>
                   <div
-                    className={`max-w-[85%] rounded-2xl px-6 py-4 ${
-                      msg.role === 'user'
-                        ? 'bg-azure text-white'
-                        : 'bg-neutral-100 text-neutral-900'
-                    }`}
+                    className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
                   >
-                    <p className="text-base whitespace-pre-wrap leading-relaxed">{msg.content}</p>
-                    <p className={`text-xs mt-2 ${msg.role === 'user' ? 'text-white/70' : 'text-neutral-500'}`}>
-                      {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    </p>
+                    <div
+                      className={`max-w-[85%] rounded-2xl px-6 py-4 ${
+                        msg.role === 'user'
+                          ? 'bg-azure text-white'
+                          : 'bg-neutral-100 text-neutral-900'
+                      }`}
+                    >
+                      <p className="text-base whitespace-pre-wrap leading-relaxed">{msg.content}</p>
+                      <p className={`text-xs mt-2 ${msg.role === 'user' ? 'text-white/70' : 'text-neutral-500'}`}>
+                        {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </p>
+                    </div>
                   </div>
+
+                  {/* Render inline widgets if present */}
+                  {msg.widgets && msg.widgets.length > 0 && portfolio && (
+                    <div className="mt-4 ml-0 max-w-[85%]">
+                      {msg.widgets.map((widget) => (
+                        <InlineWidget
+                          key={widget.id}
+                          widget={widget}
+                          portfolioId={portfolio.id}
+                        />
+                      ))}
+                    </div>
+                  )}
                 </div>
               ))}
 
@@ -343,7 +366,7 @@ function LetterPageContent() {
               type="text"
               value={chatMessage}
               onChange={(e) => setChatMessage(e.target.value)}
-              placeholder="Ask me anything about your portfolio..."
+              placeholder="Ask questions, request visualizations, or dive deeper into any metric..."
               className="flex-1 px-4 py-3 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-azure/50 focus:border-azure text-base bg-creme"
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
@@ -365,7 +388,7 @@ function LetterPageContent() {
             </button>
           </div>
           <div className="mt-2 text-xs text-neutral-500 text-center">
-            The letter above is the start of our conversation. Ask questions, request visualizations, or dive deeper into any metric.
+            Ask for charts, graphs, or custom visualizations - they'll appear inline. Try: "Show me a trend of renewable energy" or "Create a pie chart of holdings"
           </div>
         </div>
       </div>

@@ -30,7 +30,7 @@ export default function KpiTrendConfig({ initialConfig, onSave, onCancel, portfo
           })));
         }
       } catch (e) {
-        console.error('Failed to fetch metrics:', e);
+        // Failed to fetch metrics, form will use manual input
       }
     })();
   }, [portfolioId]);

@@ -55,7 +55,6 @@ export async function POST(
       });
 
     if (insertError) {
-      console.error('Error inserting into metric_facts:', insertError);
       return NextResponse.json({ error: insertError.message }, { status: 500 });
     }
 
@@ -69,13 +68,11 @@ export async function POST(
       .eq('id', factId);
 
     if (updateError) {
-      console.error('Error updating staged fact:', updateError);
       return NextResponse.json({ error: updateError.message }, { status: 500 });
     }
 
     return NextResponse.json({ success: true });
   } catch (error: any) {
-    console.error('Approve fact error:', error);
     return NextResponse.json({
       error: error.message || 'Failed to approve fact',
     }, { status: 500 });

@@ -60,7 +60,6 @@ export async function GET(req: Request) {
       { headers: cacheHeaders() }
     );
   } catch (error: any) {
-    console.error('Charity search error:', error);
     return NextResponse.json(
       { error: error.message || 'Failed to search charities' },
       { status: 500, headers: cacheHeaders() }

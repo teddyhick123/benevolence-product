@@ -83,7 +83,7 @@ export default function RadialProgress({ portfolioId, holdingId, title, config }
               };
             }
           } catch (e) {
-            console.error(`Failed to fetch ${ring.metric_code}:`, e);
+            // Failed to fetch metric data, will use default value of 0
           }
         });
 

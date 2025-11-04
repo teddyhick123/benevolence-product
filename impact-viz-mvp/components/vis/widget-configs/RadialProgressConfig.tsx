@@ -57,7 +57,7 @@ export default function RadialProgressConfig({ initialConfig, onSave, onCancel, 
           })));
         }
       } catch (e) {
-        console.error('Failed to fetch metrics:', e);
+        // Failed to fetch metrics, form will use manual input
       }
     })();
   }, [portfolioId]);

@@ -64,8 +64,7 @@ function LoginPageContent() {
     });
 
     if (!res.ok) {
-      // Optional console to aid debugging in dev
-      try { console.warn('Failed to sync server cookies', await res.json()); } catch {}
+      // Failed to sync server cookies, authentication may not persist
     }
   }
 

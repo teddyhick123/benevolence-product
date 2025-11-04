@@ -68,7 +68,6 @@ export async function POST(req: NextRequest) {
     });
 
   } catch (error: any) {
-    console.error('Redo error:', error);
     return NextResponse.json(
       { error: error.message || 'Redo failed' },
       { status: 500 }

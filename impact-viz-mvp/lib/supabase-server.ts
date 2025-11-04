@@ -13,10 +13,20 @@ export async function createSupabaseServerClient() {
           return cookieStore.get(name)?.value;
         },
         set(name: string, value: string, options: any) {
-          cookieStore.set({ name, value, ...options });
+          try {
+            cookieStore.set({ name, value, ...options });
+          } catch (error) {
+            // Cookie setting fails in read-only contexts (e.g., Server Components)
+            // This is expected and safe to ignore when just reading auth state
+          }
         },
         remove(name: string, options: any) {
-          cookieStore.set({ name, value: '', ...options });
+          try {
+            cookieStore.set({ name, value: '', ...options });
+          } catch (error) {
+            // Cookie removal fails in read-only contexts (e.g., Server Components)
+            // This is expected and safe to ignore when just reading auth state
+          }
         },
       },
     }

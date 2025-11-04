@@ -87,7 +87,6 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
     }, { headers: cacheHeaders() });
 
   } catch (error: any) {
-    console.error('Letter API error:', error);
     return NextResponse.json(
       { error: error.message || 'Failed to fetch portfolio data' },
       { status: 500, headers: cacheHeaders() }

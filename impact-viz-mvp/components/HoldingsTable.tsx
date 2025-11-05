@@ -183,9 +183,86 @@ export default function HoldingsTable({ rows, canEdit = false, onEditRow, portfo
   }
 
   return (
-    <div className="rounded-2xl bg-white border border-black/5 shadow-soft overflow-hidden transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg will-change-transform rm:transition-none rm:transform-none">
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
+    <>
+      {/* Mobile Card View */}
+      <div className="md:hidden space-y-3">
+        {data.map((r, i) => {
+          const holdingId = (r as any)?.holdingId ?? null;
+          const href = holdingId ? `/dashboard/holdings/${encodeURIComponent(String(holdingId))}` : null;
+          const isClickable = Boolean(href);
+
+          return (
+            <div
+              key={i}
+              className={`rounded-2xl bg-white border border-black/5 shadow-soft p-4 transition-all ${
+                isClickable ? 'cursor-pointer hover:shadow-lg hover:-translate-y-0.5' : ''
+              }`}
+              onClick={() => {
+                if (href) router.push(href);
+              }}
+              role={isClickable ? 'button' : undefined}
+              tabIndex={isClickable ? 0 : -1}
+            >
+              {/* Name and Funds at top */}
+              <div className="flex items-start justify-between gap-3 mb-3">
+                <h3 className="font-medium text-neutral-900 flex-1">{r.name}</h3>
+                <span className="font-semibold text-azure whitespace-nowrap">{fmtMoney(r.funds)}</span>
+              </div>
+
+              {/* Details grid */}
+              <div className="grid grid-cols-2 gap-2 text-sm">
+                <div>
+                  <div className="text-neutral-500 text-xs">Asset Class</div>
+                  <div className="text-neutral-900">{r.assetClass}</div>
+                </div>
+                <div>
+                  <div className="text-neutral-500 text-xs">Status</div>
+                  <div className="text-neutral-900">{r.status}</div>
+                </div>
+                <div>
+                  <div className="text-neutral-500 text-xs">As of</div>
+                  <div className="text-neutral-900">{r.asOfLabel}</div>
+                </div>
+                {(r.sector || r.country) && (
+                  <div>
+                    <div className="text-neutral-500 text-xs">Tags</div>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {r.sector && <Pill>{r.sector}</Pill>}
+                      {r.country && <Pill>{r.country}</Pill>}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Edit button for mobile */}
+              {canEdit && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onEditRow?.(r.raw, i);
+                  }}
+                  className="mt-3 w-full px-3 py-2 text-sm rounded-md border border-black/10 hover:bg-neutral-50 transition-colors"
+                >
+                  Edit
+                </button>
+              )}
+            </div>
+          );
+        })}
+
+        {/* Total on mobile */}
+        <div className="rounded-2xl bg-white border border-black/5 shadow-soft p-4">
+          <div className="flex items-center justify-between font-semibold">
+            <span className="text-neutral-900">Total</span>
+            <span className="text-azure">{fmtMoney(totalFunds)}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Desktop Table View */}
+      <div className="hidden md:block rounded-2xl bg-white border border-black/5 shadow-soft overflow-hidden transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg will-change-transform rm:transition-none rm:transform-none">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
           <thead className="bg-white">
             <tr className="border-b border-black/5">
               <th
@@ -312,5 +389,6 @@ export default function HoldingsTable({ rows, canEdit = false, onEditRow, portfo
         />
       ) : null}
     </div>
+  </>
   );
 }

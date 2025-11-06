@@ -144,11 +144,11 @@ function LoginPageContent() {
       {sessionChecked && (mode === 'signin' ? (
         <form onSubmit={onSignIn} className="space-y-3">
           <input
-            type="email" placeholder="you@company.com" className="w-full border border-black/10 rounded-2xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-azure/30"
+            type="email" placeholder="you@company.com" className="w-full border border-black/10 rounded-2xl px-3 py-3 focus:outline-none focus:ring-2 focus:ring-azure/30"
             value={email} onChange={e=>setEmail(e.target.value)} required autoComplete="username email"
           />
           <input
-            type="password" placeholder="Password" className="w-full border border-black/10 rounded-2xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-azure/30"
+            type="password" placeholder="Password" className="w-full border border-black/10 rounded-2xl px-3 py-3 focus:outline-none focus:ring-2 focus:ring-azure/30"
             value={password} onChange={e=>setPassword(e.target.value)} required autoComplete="current-password"
           />
           {error && <p className="text-red-600 text-sm">{error}</p>}
@@ -166,15 +166,15 @@ function LoginPageContent() {
       ) : (
         <form onSubmit={onSignUp} className="space-y-3">
           <input
-            type="email" placeholder="you@company.com" className="w-full border border-black/10 rounded-2xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-azure/30"
+            type="email" placeholder="you@company.com" className="w-full border border-black/10 rounded-2xl px-3 py-3 focus:outline-none focus:ring-2 focus:ring-azure/30"
             value={email} onChange={e=>setEmail(e.target.value)} required autoComplete="username email"
           />
           <input
-            type="password" placeholder="Password (min 6 chars)" className="w-full border border-black/10 rounded-2xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-azure/30"
+            type="password" placeholder="Password (min 6 chars)" className="w-full border border-black/10 rounded-2xl px-3 py-3 focus:outline-none focus:ring-2 focus:ring-azure/30"
             value={password} onChange={e=>setPassword(e.target.value)} required autoComplete="new-password"
           />
           <input
-            type="password" placeholder="Confirm password" className="w-full border border-black/10 rounded-2xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-azure/30"
+            type="password" placeholder="Confirm password" className="w-full border border-black/10 rounded-2xl px-3 py-3 focus:outline-none focus:ring-2 focus:ring-azure/30"
             value={password2} onChange={e=>setPassword2(e.target.value)} required autoComplete="new-password"
           />
           {error && <p className="text-red-600 text-sm">{error}</p>}

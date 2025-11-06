@@ -371,8 +371,26 @@ export default function VisualCarousel({ items, portfolioId, initialId, autoPlay
         ))}
       </CarouselSlides>
 
-      {/* Pills */}
-      <div className="flex flex-wrap gap-1 pt-1">
+      {/* Mobile Dot Indicators - Simple, large touch targets */}
+      <div className="flex sm:hidden justify-center gap-2 pt-1">
+        {items.map((it, i) => (
+          <button
+            key={`dot-${it.id}`}
+            type="button"
+            onClick={() => go(i)}
+            aria-label={`Go to ${it.title ?? it.label}`}
+            aria-current={i === index ? 'true' : 'false'}
+            className="p-1.5"
+          >
+            <div className={`w-2 h-2 rounded-full transition-all ${
+              i === index ? 'bg-azure scale-125' : 'bg-neutral-300'
+            }`} />
+          </button>
+        ))}
+      </div>
+
+      {/* Desktop Pills - More detailed labels */}
+      <div className="hidden sm:flex flex-wrap gap-1 pt-1">
         {items.map((it, i) => (
           <button
             key={it.id}

@@ -141,7 +141,7 @@ export async function POST(req: NextRequest) {
       (a: any) => a.entity_type === 'widget' && (a.action_type === 'create' || a.action_type === 'preview')
     );
 
-    let widgets = [];
+    let widgets: any[] = [];
     if (widgetActions.length > 0) {
       // Separate preview widgets from saved widgets
       const previewActions = widgetActions.filter((a: any) => a.action_type === 'preview');
@@ -154,7 +154,7 @@ export async function POST(req: NextRequest) {
       }));
 
       // For saved widgets, fetch from database
-      let savedWidgets = [];
+      let savedWidgets: any[] = [];
       if (savedActions.length > 0) {
         const widgetIds = savedActions.map((a: any) => a.entity_id);
         const [portfolioWidgets, holdingWidgets] = await Promise.all([

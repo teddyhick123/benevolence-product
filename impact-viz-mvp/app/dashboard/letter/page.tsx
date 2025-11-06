@@ -266,7 +266,7 @@ function LetterPageContent() {
             <>
               <div className="my-12 pt-8 border-t border-neutral-200">
                 <h3 className="text-lg font-serif font-bold text-neutral-900 mb-4">Portfolio Overview</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-xl">
                   <div className="p-4 bg-azure/5 rounded-lg">
                     <div className="text-sm text-neutral-600">Total Holdings</div>
                     <div className="text-2xl font-bold text-neutral-900">{letterData.summary.total_holdings}</div>
@@ -275,12 +275,6 @@ function LetterPageContent() {
                     <div className="text-sm text-neutral-600">Funds Allocated</div>
                     <div className="text-2xl font-bold text-neutral-900">
                       ${(letterData.summary.total_funds_allocated / 1000000).toFixed(1)}M
-                    </div>
-                  </div>
-                  <div className="p-4 bg-azure/5 rounded-lg">
-                    <div className="text-sm text-neutral-600">Portfolio NAV</div>
-                    <div className="text-2xl font-bold text-neutral-900">
-                      ${(letterData.summary.total_nav / 1000000).toFixed(1)}M
                     </div>
                   </div>
                 </div>
@@ -358,37 +352,39 @@ function LetterPageContent() {
         )}
       </main>
 
-      {/* Bottom Chat Bar */}
-      <div className="fixed bottom-0 left-0 right-0 bg-creme border-t border-neutral-300 shadow-lg z-50 print:hidden">
-        <div className="max-w-4xl mx-auto px-6 py-4">
-          <div className="flex gap-3">
-            <input
-              type="text"
-              value={chatMessage}
-              onChange={(e) => setChatMessage(e.target.value)}
-              placeholder="Ask questions, request visualizations, or dive deeper into any metric..."
-              className="flex-1 px-4 py-3 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-azure/50 focus:border-azure text-base bg-creme"
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault();
-                  sendMessage();
-                }
-              }}
-              disabled={isLoadingResponse}
-            />
+      {/* Bottom Chat Bar - Seamlessly Integrated */}
+      <div className="fixed bottom-0 left-0 right-0 bg-gradient-to-t from-creme via-creme/95 to-creme/80 backdrop-blur-sm border-t border-neutral-200/50 z-50 print:hidden">
+        <div className="max-w-3xl mx-auto px-6 py-5">
+          <div className="flex gap-3 items-end">
+            <div className="flex-1">
+              <input
+                type="text"
+                value={chatMessage}
+                onChange={(e) => setChatMessage(e.target.value)}
+                placeholder="Ask a question about your portfolio..."
+                className="w-full px-5 py-3 border border-neutral-200/80 rounded-2xl focus:outline-none focus:ring-2 focus:ring-azure/30 focus:border-azure/50 text-base bg-white/80 backdrop-blur-sm placeholder:text-neutral-400 transition-all shadow-sm hover:shadow"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    sendMessage();
+                  }
+                }}
+                disabled={isLoadingResponse}
+              />
+              <p className="mt-2 text-xs text-neutral-500 pl-1">
+                Request visualizations, explore metrics, or ask follow-up questions
+              </p>
+            </div>
             <button
-              className="px-6 py-3 bg-gradient-to-r from-azure via-azure/90 to-azure/70 text-white rounded-lg hover:opacity-90 disabled:opacity-50 transition-opacity font-medium inline-flex items-center gap-2"
+              className="px-5 py-3 bg-gradient-to-r from-azure via-azure/90 to-azure/70 text-white rounded-2xl hover:opacity-90 disabled:opacity-50 transition-all font-medium inline-flex items-center gap-2 shadow-soft hover:shadow-md disabled:hover:shadow-soft"
               onClick={sendMessage}
               disabled={!chatMessage.trim() || isLoadingResponse}
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
               </svg>
-              Send
+              <span className="hidden sm:inline">Send</span>
             </button>
-          </div>
-          <div className="mt-2 text-xs text-neutral-500 text-center">
-            Ask for charts, graphs, or custom visualizations - they'll appear inline. Try: "Show me a trend of renewable energy" or "Create a pie chart of holdings"
           </div>
         </div>
       </div>

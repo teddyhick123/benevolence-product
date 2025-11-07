@@ -2,8 +2,9 @@
 
 import * as React from 'react';
 import useSWR from 'swr';
+import SectionHeader from '@/components/SectionHeader';
 import VisualCarousel from '@/components/vis/VisualCarousel';
-import CreateWidgetModal from '@/components/vis/CreateWidgetModal';
+import EditWidgetsModal from '@/components/vis/EditWidgetsModal';
 
 const fetcher = (url: string) => fetch(url, { cache: 'no-store' }).then(r => r.json());
 
@@ -38,67 +39,47 @@ export default function HoldingWidgetsSection({
   const [open, setOpen] = React.useState(false);
   const onChanged = () => mutate();
 
-  if (isLoading) {
-    return (
-      <div className="rounded-xl border border-dashed border-neutral-300 bg-neutral-50 p-8 text-center text-sm text-neutral-500">
-        <p className="font-medium mb-1">Loading widgets...</p>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="rounded-xl border border-red-200 bg-red-50 p-8 text-center text-sm text-red-700">
-        <p className="font-medium mb-1">Error loading widgets</p>
-        <p className="text-xs">{error?.message || 'Unknown error'}</p>
-      </div>
-    );
-  }
-
-  if (items.length === 0) {
-    return (
-      <>
-        <div className="rounded-xl border border-dashed border-neutral-300 bg-neutral-50 p-8 text-center text-sm text-neutral-500">
-          <p className="font-medium mb-1">No visualizations</p>
-          <p className="text-xs mb-3">Add charts and graphs specific to this holding</p>
-          {canEdit && (
-            <button
-              type="button"
-              onClick={() => setOpen(true)}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-300 bg-white text-neutral-900 hover:bg-neutral-50 px-3 py-1.5 text-sm font-medium transition-colors"
-            >
-              Add Widget
-            </button>
-          )}
-        </div>
-        <CreateWidgetModal
-          portfolioId={portfolioId}
-          holdingId={holdingId}
-          open={open}
-          onClose={() => setOpen(false)}
-          onCreated={onChanged}
-        />
-      </>
-    );
-  }
-
   return (
-    <>
-      <div className="w-full h-full">
-        <VisualCarousel
-          items={items as any}
-          portfolioId={portfolioId}
-          canEdit={canEdit}
-          onEdit={() => setOpen(true)}
-        />
-      </div>
-      <CreateWidgetModal
+    <section className="w-full min-w-0 space-y-4">
+      <SectionHeader
+        title="Visualizations"
+        subtitle="Custom charts and graphs for this holding"
+        canEdit={canEdit}
+        onEdit={() => setOpen(true)}
+        editLabel="Edit widgets"
+      />
+
+      {isLoading ? (
+        <div className="rounded-2xl bg-white border border-black/5 shadow-soft p-6 text-sm text-neutral-500">Loading widgets…</div>
+      ) : error ? (
+        <div className="rounded-2xl bg-white border border-red-200 text-red-700 p-6 text-sm">{(error as any)?.message || 'Failed to load widgets'}</div>
+      ) : items.length === 0 ? (
+        <div className="rounded-2xl bg-white border border-black/5 shadow-soft p-6 text-sm text-neutral-600">
+          No widgets configured for this holding.
+          {canEdit ? (
+            <div className="mt-3">
+              <button type="button" onClick={() => setOpen(true)} className="inline-flex items-center gap-1.5 rounded-2xl border border-black/10 bg-white text-neutral-900 shadow-sm hover:shadow px-3 py-1.5">Add widget</button>
+            </div>
+          ) : null}
+        </div>
+      ) : (
+        <div className="w-full h-full">
+          <VisualCarousel
+            items={items as any}
+            portfolioId={portfolioId}
+            canEdit={canEdit}
+            onEdit={() => setOpen(true)}
+          />
+        </div>
+      )}
+
+      <EditWidgetsModal
         portfolioId={portfolioId}
         holdingId={holdingId}
         open={open}
         onClose={() => setOpen(false)}
-        onCreated={onChanged}
+        onChanged={onChanged}
       />
-    </>
+    </section>
   );
 }

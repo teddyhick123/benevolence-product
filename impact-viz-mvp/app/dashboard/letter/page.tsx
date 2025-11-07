@@ -261,38 +261,56 @@ function LetterPageContent() {
             </div>
           )}
 
-          {/* Add summary cards below letter for context */}
+          {/* Portfolio Overview Cards */}
           {letterData && (
             <>
-              <div className="my-12 pt-8 border-t border-neutral-200">
-                <h3 className="text-lg font-serif font-bold text-neutral-900 mb-4">Portfolio Overview</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-xl">
-                  <div className="p-4 bg-azure/5 rounded-lg">
-                    <div className="text-sm text-neutral-600">Total Holdings</div>
-                    <div className="text-2xl font-bold text-neutral-900">{letterData.summary.total_holdings}</div>
+              <div className="my-12 pt-8 border-t border-neutral-200/50">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 max-w-2xl">
+                  {/* Total Holdings Card */}
+                  <div className="group relative overflow-hidden rounded-2xl border border-neutral-200/50 bg-white/50 backdrop-blur-sm p-6 transition-all hover:shadow-lg hover:-translate-y-0.5">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <div className="text-sm font-medium text-neutral-500 mb-1">Total Holdings</div>
+                        <div className="text-3xl font-serif font-bold text-neutral-900">{letterData.summary.total_holdings}</div>
+                      </div>
+                      <div className="p-3 rounded-xl bg-azure/10">
+                        <svg className="w-5 h-5 text-azure" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                        </svg>
+                      </div>
+                    </div>
                   </div>
-                  <div className="p-4 bg-azure/5 rounded-lg">
-                    <div className="text-sm text-neutral-600">Funds Allocated</div>
-                    <div className="text-2xl font-bold text-neutral-900">
-                      ${(letterData.summary.total_funds_allocated / 1000000).toFixed(1)}M
+
+                  {/* Funds Allocated Card */}
+                  <div className="group relative overflow-hidden rounded-2xl border border-neutral-200/50 bg-white/50 backdrop-blur-sm p-6 transition-all hover:shadow-lg hover:-translate-y-0.5">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <div className="text-sm font-medium text-neutral-500 mb-1">Funds Allocated</div>
+                        <div className="text-3xl font-serif font-bold text-neutral-900">
+                          ${(letterData.summary.total_funds_allocated / 1000000).toFixed(1)}M
+                        </div>
+                      </div>
+                      <div className="p-3 rounded-xl bg-azure/10">
+                        <svg className="w-5 h-5 text-azure" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
 
-              <div className="mt-8 pt-6 border-t border-neutral-200">
-                <div className="text-sm text-neutral-500 text-center">
+              {/* Consolidated footer section */}
+              <div className="mt-10 pt-6 border-t border-neutral-200/50 text-center space-y-2">
+                <p className="text-sm text-neutral-500">
                   Generated {new Date(letterData.summary.generated_at).toLocaleDateString()}
-                </div>
+                </p>
+                <p className="text-sm text-neutral-600">
+                  Ask questions below to explore details, request visualizations, or dive deeper into any metric.
+                </p>
               </div>
             </>
           )}
-        </div>
-
-        {/* Footnote */}
-        <div className="mt-8 text-center text-sm text-neutral-600">
-          <p>This letter is generated using real-time data from your portfolio.</p>
-          <p className="mt-1">Ask questions below to explore any aspect in detail.</p>
         </div>
 
         {/* Conversation Messages */}
@@ -321,13 +339,28 @@ function LetterPageContent() {
 
                   {/* Render inline widgets if present */}
                   {msg.widgets && msg.widgets.length > 0 && portfolio && (
-                    <div className="mt-4 ml-0 max-w-[85%]">
+                    <div className="mt-6 space-y-4">
                       {msg.widgets.map((widget) => (
-                        <InlineWidget
+                        <div
                           key={widget.id}
-                          widget={widget}
-                          portfolioId={portfolio.id}
-                        />
+                          className="rounded-2xl border border-neutral-200/80 bg-white/50 backdrop-blur-sm p-6 shadow-sm"
+                        >
+                          {/* Optional widget header */}
+                          {widget.title && (
+                            <div className="mb-4 pb-3 border-b border-neutral-200/50">
+                              <h4 className="text-sm font-semibold text-neutral-700 flex items-center gap-2">
+                                <svg className="w-4 h-4 text-azure" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                                </svg>
+                                {widget.title}
+                              </h4>
+                            </div>
+                          )}
+                          <InlineWidget
+                            widget={widget}
+                            portfolioId={portfolio.id}
+                          />
+                        </div>
                       ))}
                     </div>
                   )}
@@ -356,25 +389,20 @@ function LetterPageContent() {
       <div className="fixed bottom-0 left-0 right-0 bg-gradient-to-t from-creme via-creme/95 to-creme/80 backdrop-blur-sm border-t border-neutral-200/50 z-50 print:hidden">
         <div className="max-w-3xl mx-auto px-6 py-5">
           <div className="flex gap-3 items-end">
-            <div className="flex-1">
-              <input
-                type="text"
-                value={chatMessage}
-                onChange={(e) => setChatMessage(e.target.value)}
-                placeholder="Ask a question about your portfolio..."
-                className="w-full px-5 py-3 border border-neutral-200/80 rounded-2xl focus:outline-none focus:ring-2 focus:ring-azure/30 focus:border-azure/50 text-base bg-white/80 backdrop-blur-sm placeholder:text-neutral-400 transition-all shadow-sm hover:shadow"
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    sendMessage();
-                  }
-                }}
-                disabled={isLoadingResponse}
-              />
-              <p className="mt-2 text-xs text-neutral-500 pl-1">
-                Request visualizations, explore metrics, or ask follow-up questions
-              </p>
-            </div>
+            <input
+              type="text"
+              value={chatMessage}
+              onChange={(e) => setChatMessage(e.target.value)}
+              placeholder="Ask a question about your portfolio..."
+              className="flex-1 px-5 py-3 border border-neutral-200/80 rounded-2xl focus:outline-none focus:ring-2 focus:ring-azure/30 focus:border-azure/50 text-base bg-white/80 backdrop-blur-sm placeholder:text-neutral-400 transition-all shadow-sm hover:shadow"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  sendMessage();
+                }
+              }}
+              disabled={isLoadingResponse}
+            />
             <button
               className="px-5 py-3 bg-gradient-to-r from-azure via-azure/90 to-azure/70 text-white rounded-2xl hover:opacity-90 disabled:opacity-50 transition-all font-medium inline-flex items-center gap-2 shadow-soft hover:shadow-md disabled:hover:shadow-soft"
               onClick={sendMessage}

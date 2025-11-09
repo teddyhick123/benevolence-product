@@ -175,6 +175,19 @@ const WIDGET_TYPES: { value: string; label: string; hint: string; example: objec
         }
       ]
     }
+  },
+  {
+    value: 'small_multiples',
+    label: 'Small Multiples (Metric Comparison)',
+    hint: 'Compare the same metric across all holdings using sparkline charts in a grid layout.',
+    example: {
+      metric_code: 'RENEWABLE_MWH',
+      window: '12m',
+      columns: 3,
+      chartHeight: 100,
+      showBenchmark: false,
+      minHoldings: 2
+    }
   }
 ];
 

@@ -4,6 +4,7 @@ import dynamic from 'next/dynamic';
 import KpiTrend from '@/components/vis/KpiTrend';
 import SectorEmissionsBar from '@/components/vis/SectorEmissionsBar';
 import RadialProgress from '@/components/vis/RadialProgress';
+import SmallMultiples from '@/components/vis/SmallMultiples';
 
 // Lazy-load heavy D3 widget and disable SSR for it
 const D3JsonWidget = dynamic(() => import('@/components/vis/D3JsonWidget'), { ssr: false });
@@ -218,6 +219,7 @@ const REGISTRY: Record<string, any> = {
   radial_progress: RadialProgress,
   people_grid: PeopleGridRenderer,
   people_grid_auto: PeopleGridAutoRenderer,
+  small_multiples: SmallMultiples,
 };
 
 export type CarouselItem = {
@@ -225,7 +227,7 @@ export type CarouselItem = {
   id: string;
   label: string;
   // New widget model (optional). If present, takes precedence over legacy id mapping.
-  type?: 'kpi_trend' | 'emissions_bar' | 'd3_json' | 'holdings_pie' | 'holdings_pie_auto' | 'radial_progress' | 'people_grid' | 'people_grid_auto' | string;
+  type?: 'kpi_trend' | 'emissions_bar' | 'd3_json' | 'holdings_pie' | 'holdings_pie_auto' | 'radial_progress' | 'people_grid' | 'people_grid_auto' | 'small_multiples' | string;
   title?: string | null;
   config?: any;
 };

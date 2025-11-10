@@ -188,6 +188,23 @@ const WIDGET_TYPES: { value: string; label: string; hint: string; example: objec
       showBenchmark: false,
       minHoldings: 2
     }
+  },
+  {
+    value: 'performance_heat_map',
+    label: 'Performance Heat Map',
+    hint: 'Visualize metric performance across holdings and time periods (or multiple metrics) using a color-coded heat map.',
+    example: {
+      mode: 'temporal',
+      metric_code: 'RENEWABLE_MWH',
+      window: '12m',
+      colorScheme: 'sequential',
+      minColor: '#fef3c7',
+      maxColor: '#059669',
+      cellWidth: 80,
+      cellHeight: 40,
+      showValues: true,
+      minHoldings: 2
+    }
   }
 ];
 

@@ -205,6 +205,19 @@ const WIDGET_TYPES: { value: string; label: string; hint: string; example: objec
       showValues: true,
       minHoldings: 2
     }
+  },
+  {
+    value: 'holdings_comparison_table',
+    label: 'Holdings Comparison Table',
+    hint: 'Compare multiple metrics across holdings in a sortable table with best-value highlighting.',
+    example: {
+      metrics: ['RENEWABLE_MWH', 'CO2_AVOIDED', 'CLIENTS_SERVED'],
+      sortBy: 'name',
+      sortDirection: 'asc',
+      highlightBest: true,
+      showSector: true,
+      minHoldings: 2
+    }
   }
 ];
 

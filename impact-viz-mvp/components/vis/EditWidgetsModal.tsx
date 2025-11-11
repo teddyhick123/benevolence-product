@@ -242,6 +242,23 @@ const WIDGET_TYPES: { value: string; label: string; hint: string; example: objec
       decreaseColor: '#dc2626',
       totalColor: '#3b82f6'
     }
+  },
+  {
+    value: 'impact_bubble_chart',
+    label: 'Impact Bubble Chart',
+    hint: 'Multi-dimensional comparison where X-axis, Y-axis, and bubble size each represent different metrics.',
+    example: {
+      xMetric: 'RENEWABLE_MWH',
+      yMetric: 'CO2_AVOIDED',
+      sizeMetric: 'CLIENTS_SERVED',
+      colorMode: 'sector',
+      showLabels: false,
+      minBubbleSize: 10,
+      maxBubbleSize: 50,
+      xLabel: 'Renewable Energy (MWh)',
+      yLabel: 'CO₂ Avoided (tons)',
+      minHoldings: 2
+    }
   }
 ];
 

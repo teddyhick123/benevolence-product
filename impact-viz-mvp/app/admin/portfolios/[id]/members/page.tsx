@@ -2,6 +2,7 @@
 import { createSupabaseServerClient } from '@/lib/supabase-server';
 import AdminRoleSelect from '@/components/admin/AdminRoleSelect'
 import EmailLookupAdd from '@/components/admin/EmailLookupAdd';
+import RemoveMemberButton from '@/components/admin/RemoveMemberButton';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -27,7 +28,7 @@ async function loadMembers(portfolioId: string) {
       user_id,
       role,
       added_at,
-      profiles:profiles(display_name)
+      profiles!portfolio_members_profiles_fkey(display_name)
     `)
     .eq('portfolio_id', portfolioId)
     .order('role', { ascending: true });
@@ -127,18 +128,7 @@ export default async function MembersPage(ctx: { params: Promise<{ id: string }>
                   </td>
                   <td className="px-3 py-2">{m.added_at ? new Date(m.added_at).toLocaleString() : '—'}</td>
                   <td className="px-3 py-2 text-right">
-                    <form
-                      action={`/api/admin/portfolios/${encodeURIComponent(portfolioId)}/members/${encodeURIComponent(m.user_id)}`}
-                      method="post"
-                      onSubmit={(e) => {
-                        if (!confirm('Remove this member?')) e.preventDefault();
-                      }}
-                    >
-                      <input type="hidden" name="_method" value="DELETE" />
-                      <button className="px-3 py-1.5 rounded-2xl border border-black/10 hover:bg-white shadow-sm hover:shadow transition">
-                        Remove
-                      </button>
-                    </form>
+                    <RemoveMemberButton portfolioId={portfolioId} userId={m.user_id} />
                   </td>
                 </tr>
               ))}

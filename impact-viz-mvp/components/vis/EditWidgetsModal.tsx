@@ -218,6 +218,17 @@ const WIDGET_TYPES: { value: string; label: string; hint: string; example: objec
       showSector: true,
       minHoldings: 2
     }
+  },
+  {
+    value: 'impact_timeline',
+    label: 'Impact Timeline',
+    hint: 'Visualize milestones, achievements, funding events, and metric achievements over time.',
+    example: {
+      eventTypes: ['milestone', 'achievement', 'funding', 'metric'],
+      orientation: 'vertical',
+      showValues: true,
+      groupByHolding: false
+    }
   }
 ];
 

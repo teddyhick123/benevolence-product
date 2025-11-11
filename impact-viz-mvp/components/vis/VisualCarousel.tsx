@@ -8,6 +8,7 @@ import SmallMultiples from '@/components/vis/SmallMultiples';
 import PerformanceHeatMap from '@/components/vis/PerformanceHeatMap';
 import HoldingsComparisonTable from '@/components/vis/HoldingsComparisonTable';
 import ImpactTimeline from '@/components/vis/ImpactTimeline';
+import WaterfallChart from '@/components/vis/WaterfallChart';
 
 // Lazy-load heavy D3 widget and disable SSR for it
 const D3JsonWidget = dynamic(() => import('@/components/vis/D3JsonWidget'), { ssr: false });
@@ -226,6 +227,7 @@ const REGISTRY: Record<string, any> = {
   performance_heat_map: PerformanceHeatMap,
   holdings_comparison_table: HoldingsComparisonTable,
   impact_timeline: ImpactTimeline,
+  waterfall_chart: WaterfallChart,
 };
 
 export type CarouselItem = {
@@ -233,7 +235,7 @@ export type CarouselItem = {
   id: string;
   label: string;
   // New widget model (optional). If present, takes precedence over legacy id mapping.
-  type?: 'kpi_trend' | 'emissions_bar' | 'd3_json' | 'holdings_pie' | 'holdings_pie_auto' | 'radial_progress' | 'people_grid' | 'people_grid_auto' | 'small_multiples' | 'performance_heat_map' | 'holdings_comparison_table' | 'impact_timeline' | string;
+  type?: 'kpi_trend' | 'emissions_bar' | 'd3_json' | 'holdings_pie' | 'holdings_pie_auto' | 'radial_progress' | 'people_grid' | 'people_grid_auto' | 'small_multiples' | 'performance_heat_map' | 'holdings_comparison_table' | 'impact_timeline' | 'waterfall_chart' | string;
   title?: string | null;
   config?: any;
 };

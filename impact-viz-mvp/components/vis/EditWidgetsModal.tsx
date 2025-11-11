@@ -229,6 +229,19 @@ const WIDGET_TYPES: { value: string; label: string; hint: string; example: objec
       showValues: true,
       groupByHolding: false
     }
+  },
+  {
+    value: 'waterfall_chart',
+    label: 'Waterfall Chart',
+    hint: 'Show how funds flow or impact accumulates across holdings using a waterfall chart.',
+    example: {
+      mode: 'funding',
+      showValues: true,
+      showConnectors: true,
+      increaseColor: '#059669',
+      decreaseColor: '#dc2626',
+      totalColor: '#3b82f6'
+    }
   }
 ];
 

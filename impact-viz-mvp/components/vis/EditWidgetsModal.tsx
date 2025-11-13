@@ -12,311 +12,62 @@ export type WidgetRow = {
   id: string;
   portfolio_id?: string;
   holding_id?: string;
-  type: string;        // e.g., 'kpi_trend' | 'emissions_bar'
+  type: string;
   title: string | null;
-  config: any | null;  // arbitrary JSON config consumed by the renderer
-  position: number;    // ordering in the carousel/section
+  config: any | null;
+  position: number;
 };
 
 export type EditWidgetsModalProps = {
   portfolioId: string;
-  holdingId?: string; // If provided, creates holding-specific widgets
+  holdingId?: string;
   open: boolean;
   onClose: () => void;
-  onChanged?: () => void; // signal parent to refetch carousel items
+  onChanged?: () => void;
 };
-
-const WIDGET_TYPES: { value: string; label: string; hint: string; example: object }[] = [
-  {
-    value: 'kpi_trend',
-    label: 'KPI Trend',
-    hint: 'Plot a KPI over time for this portfolio',
-    example: {
-      metric_code: 'RENEWABLE_MWH',
-      period: { window: '12m' },
-      style: { smooth: true }
-    }
-  },
-  {
-    value: 'emissions_bar',
-    label: 'Emissions Bar',
-    hint: 'Compare financed emissions by scope/category',
-    example: {
-      series: [
-        { label: 'Scope 1', metric_code: 'SCOPE1_CO2E' },
-        { label: 'Scope 2', metric_code: 'SCOPE2_CO2E' },
-        { label: 'Scope 3', metric_code: 'SCOPE3_CO2E' }
-      ],
-      normalize: false
-    }
-  },
-  {
-    value: 'target_gauge',
-    label: 'Target vs Actual Gauge',
-    hint: 'Show progress toward a goal using the latest KPI (metric_code) or a manual value.',
-    example: {
-      metric_code: 'CLIENTS_SERVED',
-      target: 15000,
-      unit: 'clients',
-      // Optional advanced options:
-      // value: 9800,        // use direct value instead of fetching series
-      // min: 0,             // default 0
-      // max: 15000,         // default = target
-      bands: [              // colored arc bands as fractions of max
-        { upto: 0.4, color: '#fee2e2' },
-        { upto: 0.75, color: '#fef3c7' },
-        { upto: 1.0, color: '#dcfce7' }
-      ]
-    }
-  }
-  ,
-  {
-    value: 'people_grid',
-    label: 'People Grid (people helped)',
-    hint: 'Show total people helped as a grid of icons; last icon can be partially filled.',
-    example: {
-      total: 12430,
-      perUnit: 10,
-      iconSize: 16,
-      target: 20000
-      // color: 'var(--azure)' // optional override
-    }
-  }
-  ,
-  {
-    value: 'people_grid_auto',
-    label: 'People Grid (live)',
-    hint: 'Automatically fetch a KPI and render people helped as a grid of icons. Paste/edit only the CONFIG here (not a full carousel item).',
-    example: {
-      metric_code: 'CLIENTS_SERVED',
-      mode: 'sum',
-      window: '12m',
-      perUnit: 10,
-      iconSize: 16,
-      target: 20000
-    }
-  }
-  ,
-  {
-    value: 'd3_json',
-    label: 'D3 JSON',
-    hint: 'Upload or paste a D3-friendly JSON spec (we store it as-is in widget.config).',
-    example: {
-      d3: {
-        kind: 'bar',
-        data: [ { label: 'A', value: 10 }, { label: 'B', value: 7 } ],
-        encoding: { x: 'label', y: 'value' }
-      }
-    }
-  }
-  ,
-  {
-    value: 'holdings_pie',
-    label: 'Holdings Pie (manual)',
-    hint: 'Render a donut/pie from provided {label,value}[] data in config.',
-    example: {
-      data: [
-        { label: 'Acme Solar SPV', value: 2500000 },
-        { label: 'Green Transit Fund', value: 1200000 },
-        { label: 'Impact Credit A', value: 750000 }
-      ],
-      size: 320,
-      innerRadius: 48,
-      showLegend: true,
-      legendMaxHeight: 240
-    }
-  }
-  ,
-  {
-    value: 'holdings_pie_auto',
-    label: 'Holdings Pie (live)',
-    hint: 'Fetch holdings for this portfolio and aggregate by name; override fields via config.',
-    example: {
-      size: 320,
-      innerRadius: 48,
-      showLegend: true,
-      legendMaxHeight: 240,
-      nameField: 'name',
-      valueFieldPrimary: 'funds_allocated',
-      valueFieldFallback: 'nav'
-      // endpoint: '/api/portfolio/<id>/holdings' // optional override
-    }
-  },
-  {
-    value: 'radial_progress_rings',
-    label: 'Radial Progress Rings',
-    hint: 'Show multiple impact metrics as beautiful concentric progress rings - perfect for SDG goals or multi-dimensional impact tracking.',
-    example: {
-      size: 400,
-      ringWidth: 32,
-      spacing: 12,
-      animated: true,
-      rings: [
-        {
-          label: 'Clean Energy Generated',
-          metric_code: 'RENEWABLE_MWH',
-          target: 50000,
-          unit: 'MWh',
-          color: '#10b981'
-        },
-        {
-          label: 'People Served',
-          metric_code: 'CLIENTS_SERVED',
-          target: 100000,
-          unit: 'people',
-          color: '#3b82f6'
-        },
-        {
-          label: 'CO₂ Avoided',
-          metric_code: 'CO2_AVOIDED',
-          target: 25000,
-          unit: 'tons',
-          color: '#8b5cf6'
-        }
-      ]
-    }
-  },
-  {
-    value: 'small_multiples',
-    label: 'Small Multiples (Metric Comparison)',
-    hint: 'Compare the same metric across all holdings using sparkline charts in a grid layout.',
-    example: {
-      metric_code: 'RENEWABLE_MWH',
-      window: '12m',
-      columns: 3,
-      chartHeight: 100,
-      showBenchmark: false,
-      minHoldings: 2
-    }
-  },
-  {
-    value: 'performance_heat_map',
-    label: 'Performance Heat Map',
-    hint: 'Visualize metric performance across holdings and time periods (or multiple metrics) using a color-coded heat map.',
-    example: {
-      mode: 'temporal',
-      metric_code: 'RENEWABLE_MWH',
-      window: '12m',
-      colorScheme: 'sequential',
-      minColor: '#fef3c7',
-      maxColor: '#059669',
-      cellWidth: 80,
-      cellHeight: 40,
-      showValues: true,
-      minHoldings: 2
-    }
-  },
-  {
-    value: 'holdings_comparison_table',
-    label: 'Holdings Comparison Table',
-    hint: 'Compare multiple metrics across holdings in a sortable table with best-value highlighting.',
-    example: {
-      metrics: ['RENEWABLE_MWH', 'CO2_AVOIDED', 'CLIENTS_SERVED'],
-      sortBy: 'name',
-      sortDirection: 'asc',
-      highlightBest: true,
-      showSector: true,
-      minHoldings: 2
-    }
-  },
-  {
-    value: 'impact_timeline',
-    label: 'Impact Timeline',
-    hint: 'Visualize milestones, achievements, funding events, and metric achievements over time.',
-    example: {
-      eventTypes: ['milestone', 'achievement', 'funding', 'metric'],
-      orientation: 'vertical',
-      showValues: true,
-      groupByHolding: false
-    }
-  },
-  {
-    value: 'waterfall_chart',
-    label: 'Waterfall Chart',
-    hint: 'Show how funds flow or impact accumulates across holdings using a waterfall chart.',
-    example: {
-      mode: 'funding',
-      showValues: true,
-      showConnectors: true,
-      increaseColor: '#059669',
-      decreaseColor: '#dc2626',
-      totalColor: '#3b82f6'
-    }
-  },
-  {
-    value: 'impact_bubble_chart',
-    label: 'Impact Bubble Chart',
-    hint: 'Multi-dimensional comparison where X-axis, Y-axis, and bubble size each represent different metrics.',
-    example: {
-      xMetric: 'RENEWABLE_MWH',
-      yMetric: 'CO2_AVOIDED',
-      sizeMetric: 'CLIENTS_SERVED',
-      colorMode: 'sector',
-      showLabels: false,
-      minBubbleSize: 10,
-      maxBubbleSize: 50,
-      xLabel: 'Renewable Energy (MWh)',
-      yLabel: 'CO₂ Avoided (tons)',
-      minHoldings: 2
-    }
-  }
-];
 
 export default function EditWidgetsModal({ portfolioId, holdingId, open, onClose, onChanged }: EditWidgetsModalProps) {
   const [mounted, setMounted] = React.useState(false);
+  const [busy, setBusy] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+  const [editing, setEditing] = React.useState<WidgetRow | null>(null);
+  const [draggedWidget, setDraggedWidget] = React.useState<string | null>(null);
+  const [dragOverWidget, setDragOverWidget] = React.useState<string | null>(null);
+  const [showCreateModal, setShowCreateModal] = React.useState(false);
 
   React.useEffect(() => {
     setMounted(true);
   }, []);
 
-  // lock body scroll while modal is open
+  // Lock body scroll while modal is open
   React.useEffect(() => {
-    if (!mounted) return;
-    if (open) {
-      const prev = document.body.style.overflow;
-      document.body.style.overflow = 'hidden';
-      return () => {
-        document.body.style.overflow = prev;
-      };
-    }
+    if (!mounted || !open) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prev;
+    };
   }, [open, mounted]);
 
-  // Determine API endpoint based on whether we're editing holding or portfolio widgets
+  // Reset state when modal opens
+  React.useEffect(() => {
+    if (!open) return;
+    setError(null);
+    setBusy(false);
+    setEditing(null);
+  }, [open, portfolioId]);
+
+  // Determine API endpoint
   const apiEndpoint = holdingId
     ? `/api/holdings/${encodeURIComponent(holdingId)}/widgets`
     : `/api/portfolio/${encodeURIComponent(portfolioId)}/widgets`;
 
-  const { data, error, isLoading, mutate } = useSWR<{ data: WidgetRow[] }>(
+  const { data, error: fetchError, isLoading, mutate } = useSWR<{ data: WidgetRow[] }>(
     open ? apiEndpoint : null,
     fetcher
   );
 
-  const widgets = React.useMemo(() => (data?.data ?? []).slice().sort((a,b) => a.position - b.position), [data]);
-
-  const [busy, setBusy] = React.useState(false);
-  const [err, setErr] = React.useState<string | null>(null);
-  const [editing, setEditing] = React.useState<WidgetRow | null>(null);
-  const [draftType, setDraftType] = React.useState<string>('kpi_trend');
-  const [draftTitle, setDraftTitle] = React.useState<string>('');
-  const [draftConfig, setDraftConfig] = React.useState<string>('{}');
-  const [isDragging, setIsDragging] = React.useState(false);
-  const [draggedWidget, setDraggedWidget] = React.useState<string | null>(null);
-  const [dragOverWidget, setDragOverWidget] = React.useState<string | null>(null);
-  const [showPreview, setShowPreview] = React.useState(false);
-  const [configMode, setConfigMode] = React.useState<'visual' | 'json'>('visual');
-  const [availableMetrics, setAvailableMetrics] = React.useState<Array<{ metric_code: string; display_name: string }>>([]);
-  const [showCreateModal, setShowCreateModal] = React.useState(false);
-  const fileInputRef = React.useRef<HTMLInputElement | null>(null);
-
-  React.useEffect(() => {
-    if (!open) return;
-    setErr(null);
-    setBusy(false);
-    setEditing(null);
-    setDraftType('kpi_trend');
-    setDraftTitle('');
-    setDraftConfig('{}');
-  }, [open, portfolioId]);
+  const widgets = React.useMemo(() => (data?.data ?? []).slice().sort((a, b) => a.position - b.position), [data]);
 
   function startCreate() {
     setEditing(null);
@@ -328,126 +79,77 @@ export default function EditWidgetsModal({ portfolioId, holdingId, open, onClose
     setShowCreateModal(true);
   }
 
-  function chooseType(v: string) {
-    setDraftType(v);
-    const preset = WIDGET_TYPES.find(t => t.value === v)?.example ?? {};
-    setDraftConfig(JSON.stringify(preset, null, 2));
-  }
-
-  function loadJsonTextToDraft(text: string) {
-    try {
-      const parsed = JSON.parse(text);
-      setDraftType('d3_json');
-      // try to pick a helpful title if present
-      const t = (parsed.title || parsed.name || parsed.chartTitle);
-      if (typeof t === 'string' && t.trim()) setDraftTitle(t.trim());
-      setDraftConfig(JSON.stringify(parsed, null, 2));
-      setErr(null);
-    } catch (e:any) {
-      setErr('Uploaded file is not valid JSON');
-    }
-  }
-
-  function handleJsonFile(files: FileList | null) {
-    if (!files || files.length === 0) return;
-    const f = files[0];
-    if (!f.name.toLowerCase().endsWith('.json')) { setErr('Please choose a .json file'); return; }
-    if (f.size > 1024 * 1024 * 2) { setErr('JSON file is too large (max 2 MB)'); return; }
-    const reader = new FileReader();
-    reader.onload = () => loadJsonTextToDraft(String(reader.result || ''));
-    reader.onerror = () => setErr('Failed to read file');
-    reader.readAsText(f);
-  }
-
-  // Helper to safely update config field
-  function updateConfigField(field: string, value: any) {
-    try {
-      const j = JSON.parse(draftConfig || '{}');
-      if (value === '' || value === undefined) {
-        delete j[field];
-      } else {
-        j[field] = value;
-      }
-      setDraftConfig(JSON.stringify(j, null, 2));
-    } catch {
-      setDraftConfig(JSON.stringify({ [field]: value }, null, 2));
-    }
-  }
-
-  // Helper to safely get config field
-  function getConfigField(field: string, defaultValue: any = '') {
-    try {
-      const j = JSON.parse(draftConfig || '{}');
-      return j[field] ?? defaultValue;
-    } catch {
-      return defaultValue;
-    }
-  }
-
-  function handleDrop(e: React.DragEvent<HTMLDivElement>) {
-    e.preventDefault(); e.stopPropagation(); setIsDragging(false);
-    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      handleJsonFile(e.dataTransfer.files);
-      e.dataTransfer.clearData();
-      return;
-    }
-    const text = e.dataTransfer.getData('text/plain');
-    if (text) loadJsonTextToDraft(text);
-  }
-
-  async function saveDraft() {
-    setBusy(true); setErr(null);
-    let parsed: any = null;
-    try { parsed = draftConfig ? JSON.parse(draftConfig) : {}; }
-    catch (e:any) { setBusy(false); setErr('Config is not valid JSON'); return; }
-
-    try {
-      const body = { type: draftType, title: draftTitle || null, config: parsed } as any;
-      if (editing) {
-        const updateEndpoint = holdingId
-          ? `/api/holdings/${encodeURIComponent(holdingId)}/widgets/${encodeURIComponent(editing.id)}`
-          : `/api/portfolio/${encodeURIComponent(portfolioId)}/widgets/${encodeURIComponent(editing.id)}`;
-        const res = await fetch(updateEndpoint, {
-          method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
-        });
-        const j = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(j?.error || 'Update failed');
-      } else {
-        const res = await fetch(apiEndpoint, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
-        });
-        const j = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(j?.error || 'Create failed');
-      }
-      await mutate();
-      onChanged?.();
-      setEditing(null);
-      setDraftTitle('');
-      setDraftConfig('{}');
-    } catch (e:any) {
-      setErr(e?.message || 'Save failed');
-    } finally {
-      setBusy(false);
-    }
-  }
-
   async function removeWidget(id: string) {
     if (!confirm('Delete this widget? This cannot be undone.')) return;
-    setBusy(true); setErr(null);
+    setBusy(true);
+    setError(null);
     try {
       const deleteUrl = holdingId
         ? `/api/holdings/${encodeURIComponent(holdingId)}/widgets/${encodeURIComponent(id)}`
         : `/api/portfolio/${encodeURIComponent(portfolioId)}/widgets/${encodeURIComponent(id)}`;
 
       const res = await fetch(deleteUrl, { method: 'DELETE' });
-      const j = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(j?.error || 'Delete failed');
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        throw new Error(json?.error || 'Delete failed');
+      }
       await mutate();
       onChanged?.();
-    } catch (e:any) {
-      setErr(e?.message || 'Delete failed');
+    } catch (e: any) {
+      setError(e?.message || 'Failed to delete widget');
     } finally {
       setBusy(false);
+    }
+  }
+
+  /**
+   * Reorder two widgets by swapping their positions.
+   * Uses a 3-step process to avoid unique constraint violations:
+   * 1. Move widget A to temporary position
+   * 2. Move widget B to A's original position
+   * 3. Move widget A to B's original position
+   */
+  async function reorderWidgets(widgetA: WidgetRow, widgetB: WidgetRow) {
+    const baseUrl = holdingId
+      ? `/api/holdings/${encodeURIComponent(holdingId)}/widgets`
+      : `/api/portfolio/${encodeURIComponent(portfolioId)}/widgets`;
+
+    const tempPosition = 999999;
+
+    // Step 1: Move widget A to temp position
+    const res1 = await fetch(`${baseUrl}/${encodeURIComponent(widgetA.id)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ position: tempPosition })
+    });
+
+    if (!res1.ok) {
+      const error1 = await res1.json().catch(() => ({}));
+      throw new Error(error1?.error || 'Failed to reorder widgets');
+    }
+
+    // Step 2: Move widget B to A's original position
+    const res2 = await fetch(`${baseUrl}/${encodeURIComponent(widgetB.id)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ position: widgetA.position })
+    });
+
+    if (!res2.ok) {
+      const error2 = await res2.json().catch(() => ({}));
+      throw new Error(error2?.error || 'Failed to reorder widgets');
+    }
+
+    // Step 3: Move widget A to B's original position
+    const res3 = await fetch(`${baseUrl}/${encodeURIComponent(widgetA.id)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ position: widgetB.position })
+    });
+
+    if (!res3.ok) {
+      const error3 = await res3.json().catch(() => ({}));
+      throw new Error(error3?.error || 'Failed to reorder widgets');
     }
   }
 
@@ -457,70 +159,26 @@ export default function EditWidgetsModal({ portfolioId, holdingId, open, onClose
     const target = widgets[idx + delta];
     if (!target) return;
 
-    const a = widgets[idx];
-    const b = target;
+    const widgetA = widgets[idx];
+    const widgetB = target;
 
-    // Optimistically update UI immediately
+    // Optimistically update UI
     const optimisticData = widgets.map(w => {
-      if (w.id === a.id) return { ...w, position: b.position };
-      if (w.id === b.id) return { ...w, position: a.position };
+      if (w.id === widgetA.id) return { ...w, position: widgetB.position };
+      if (w.id === widgetB.id) return { ...w, position: widgetA.position };
       return w;
     });
 
     mutate({ data: optimisticData }, false);
-    setErr(null);
+    setError(null);
 
     try {
-      const baseUrl = holdingId
-        ? `/api/holdings/${encodeURIComponent(holdingId)}/widgets`
-        : `/api/portfolio/${encodeURIComponent(portfolioId)}/widgets`;
-
-      // Use a temporary position to avoid unique constraint violation
-      const tempPosition = 999999;
-
-      // Step 1: Move first widget to temp position
-      const res1 = await fetch(`${baseUrl}/${encodeURIComponent(a.id)}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ position: tempPosition })
-      });
-
-      if (!res1.ok) {
-        const error1 = await res1.json().catch(() => ({}));
-        throw new Error(error1?.error || 'Failed to reorder');
-      }
-
-      // Step 2: Move second widget to first's position
-      const res2 = await fetch(`${baseUrl}/${encodeURIComponent(b.id)}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ position: a.position })
-      });
-
-      if (!res2.ok) {
-        const error2 = await res2.json().catch(() => ({}));
-        throw new Error(error2?.error || 'Failed to reorder');
-      }
-
-      // Step 3: Move first widget to second's position
-      const res3 = await fetch(`${baseUrl}/${encodeURIComponent(a.id)}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ position: b.position })
-      });
-
-      if (!res3.ok) {
-        const error3 = await res3.json().catch(() => ({}));
-        throw new Error(error3?.error || 'Failed to reorder');
-      }
-
-      // Revalidate to get fresh data from server
+      await reorderWidgets(widgetA, widgetB);
       await mutate();
       onChanged?.();
-    } catch (e:any) {
-      setErr(e?.message || 'Reorder failed');
-      // Revert on error
-      await mutate();
+    } catch (e: any) {
+      setError(e?.message || 'Failed to reorder widgets');
+      await mutate(); // Revert on error
     }
   }
 
@@ -557,71 +215,27 @@ export default function EditWidgetsModal({ portfolioId, holdingId, open, onClose
       return;
     }
 
-    const from = widgets[fromIdx];
-    const to = widgets[toIdx];
+    const widgetA = widgets[fromIdx];
+    const widgetB = widgets[toIdx];
 
-    // Optimistically update UI immediately
+    // Optimistically update UI
     const optimisticData = widgets.map(w => {
-      if (w.id === from.id) return { ...w, position: to.position };
-      if (w.id === to.id) return { ...w, position: from.position };
+      if (w.id === widgetA.id) return { ...w, position: widgetB.position };
+      if (w.id === widgetB.id) return { ...w, position: widgetA.position };
       return w;
     });
 
     mutate({ data: optimisticData }, false);
-    setErr(null);
+    setError(null);
     setDraggedWidget(null);
 
     try {
-      const baseUrl = holdingId
-        ? `/api/holdings/${encodeURIComponent(holdingId)}/widgets`
-        : `/api/portfolio/${encodeURIComponent(portfolioId)}/widgets`;
-
-      // Use a temporary position to avoid unique constraint violation
-      const tempPosition = 999999;
-
-      // Step 1: Move dragged widget to temp position
-      const res1 = await fetch(`${baseUrl}/${encodeURIComponent(from.id)}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ position: tempPosition })
-      });
-
-      if (!res1.ok) {
-        const error1 = await res1.json().catch(() => ({}));
-        throw new Error(error1?.error || 'Failed to reorder');
-      }
-
-      // Step 2: Move target widget to dragged widget's position
-      const res2 = await fetch(`${baseUrl}/${encodeURIComponent(to.id)}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ position: from.position })
-      });
-
-      if (!res2.ok) {
-        const error2 = await res2.json().catch(() => ({}));
-        throw new Error(error2?.error || 'Failed to reorder');
-      }
-
-      // Step 3: Move dragged widget to target's position
-      const res3 = await fetch(`${baseUrl}/${encodeURIComponent(from.id)}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ position: to.position })
-      });
-
-      if (!res3.ok) {
-        const error3 = await res3.json().catch(() => ({}));
-        throw new Error(error3?.error || 'Failed to reorder');
-      }
-
-      // Revalidate to get fresh data from server
+      await reorderWidgets(widgetA, widgetB);
       await mutate();
       onChanged?.();
     } catch (e: any) {
-      setErr(e?.message || 'Reorder failed');
-      // Revert on error
-      await mutate();
+      setError(e?.message || 'Failed to reorder widgets');
+      await mutate(); // Revert on error
     }
   }
 
@@ -674,6 +288,29 @@ export default function EditWidgetsModal({ portfolioId, holdingId, open, onClose
 
         {/* Scrollable Content */}
         <div className="flex-1 overflow-y-auto px-6 py-5">
+          {/* Error Banner */}
+          {error && (
+            <div className="mb-4 rounded-2xl bg-red-50 border border-red-200 p-4 animate-in slide-in-from-top-2">
+              <div className="flex items-start gap-3">
+                <svg className="w-5 h-5 text-red-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <div className="flex-1">
+                  <h4 className="text-sm font-semibold text-red-900">Error</h4>
+                  <p className="text-sm text-red-700 mt-1">{error}</p>
+                </div>
+                <button
+                  onClick={() => setError(null)}
+                  className="text-red-400 hover:text-red-600 transition-colors"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          )}
+
           {isLoading ? (
             <div className="flex items-center justify-center py-12">
               <div className="text-center">
@@ -686,7 +323,7 @@ export default function EditWidgetsModal({ portfolioId, holdingId, open, onClose
                 <p className="text-sm text-neutral-600">Loading widgets...</p>
               </div>
             </div>
-          ) : error ? (
+          ) : fetchError ? (
             <div className="rounded-2xl bg-red-50 border border-red-200 p-4">
               <div className="flex items-start gap-3">
                 <svg className="w-5 h-5 text-red-600 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -694,7 +331,7 @@ export default function EditWidgetsModal({ portfolioId, holdingId, open, onClose
                 </svg>
                 <div>
                   <h4 className="text-sm font-semibold text-red-900">Error loading widgets</h4>
-                  <p className="text-sm text-red-700 mt-1">{error?.message || 'Failed to load'}</p>
+                  <p className="text-sm text-red-700 mt-1">{fetchError?.message || 'Failed to load'}</p>
                 </div>
               </div>
             </div>
@@ -709,12 +346,13 @@ export default function EditWidgetsModal({ portfolioId, holdingId, open, onClose
                       {widgets.length}
                     </span>
                   </h4>
-                  <p className="text-xs text-neutral-500 mt-0.5">Manage and reorder your dashboard visualizations</p>
+                  <p className="text-xs text-neutral-500 mt-0.5">Drag to reorder, or use the arrows</p>
                 </div>
                 <button
                   type="button"
                   onClick={startCreate}
-                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-azure via-azure/90 to-azure/70 text-white text-sm font-medium shadow-lg shadow-azure/25 hover:shadow-xl hover:shadow-azure/30 hover:scale-105 transition-all duration-200"
+                  disabled={busy}
+                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-azure via-azure/90 to-azure/70 text-white text-sm font-medium shadow-lg shadow-azure/25 hover:shadow-xl hover:shadow-azure/30 hover:scale-105 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -764,20 +402,19 @@ export default function EditWidgetsModal({ portfolioId, holdingId, open, onClose
                       )}
                     >
                       <div className="flex items-start justify-between gap-4">
-                        {/* Drag Handle */}
-                        <div className="flex items-center gap-3">
+                        {/* Drag Handle & Widget Info */}
+                        <div className="flex items-center gap-3 flex-1 min-w-0">
                           <div className="p-1.5 rounded-lg hover:bg-neutral-100 cursor-grab active:cursor-grabbing">
                             <svg className="w-4 h-4 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
                             </svg>
                           </div>
-                          {/* Widget Info */}
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 mb-1">
                               <h5 className="text-sm font-semibold text-neutral-900 truncate">
                                 {w.title || '(Untitled Widget)'}
                               </h5>
-                              <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-neutral-100 text-neutral-600">
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-neutral-100 text-neutral-600 flex-shrink-0">
                                 {w.type}
                               </span>
                             </div>
@@ -786,7 +423,7 @@ export default function EditWidgetsModal({ portfolioId, holdingId, open, onClose
                         </div>
 
                         {/* Action Buttons */}
-                        <div className="flex items-center gap-1.5">
+                        <div className="flex items-center gap-1.5 flex-shrink-0">
                           <button
                             type="button"
                             onClick={() => move(w.id, -1)}
@@ -812,14 +449,16 @@ export default function EditWidgetsModal({ portfolioId, holdingId, open, onClose
                           <button
                             type="button"
                             onClick={() => startEdit(w)}
-                            className="px-3 py-2 rounded-lg border border-neutral-200 hover:bg-azure/5 hover:border-azure/30 hover:text-azure text-sm font-medium text-neutral-700 transition-all duration-150"
+                            disabled={busy}
+                            className="px-3 py-2 rounded-lg border border-neutral-200 hover:bg-azure/5 hover:border-azure/30 hover:text-azure text-sm font-medium text-neutral-700 transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
                           >
                             Edit
                           </button>
                           <button
                             type="button"
                             onClick={() => removeWidget(w.id)}
-                            className="p-2 rounded-lg border border-red-200 hover:bg-red-50 hover:border-red-300 text-red-600 transition-all duration-150"
+                            disabled={busy}
+                            className="p-2 rounded-lg border border-red-200 hover:bg-red-50 hover:border-red-300 text-red-600 transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
                             title="Delete"
                           >
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

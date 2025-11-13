@@ -18,50 +18,150 @@ type WidgetType = {
   name: string;
   description: string;
   icon: React.ReactNode;
-  category: 'metrics' | 'charts' | 'custom';
+  category: 'metrics' | 'performance' | 'impact' | 'charts' | 'custom';
 };
 
 const WIDGET_TYPES: WidgetType[] = [
+  // Metrics & KPIs
   {
     id: 'kpi_trend',
     name: 'KPI Trend Line',
     description: 'Track a metric over time with a line chart',
-    icon: '📈',
+    icon: (
+      <svg className="w-8 h-8 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z" />
+      </svg>
+    ),
     category: 'metrics'
   },
   {
     id: 'radial_progress',
     name: 'Radial Progress',
-    description: 'Beautiful circular progress indicator with sunset colors',
-    icon: '🎯',
+    description: 'Beautiful circular progress indicator',
+    icon: (
+      <svg className="w-8 h-8 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+      </svg>
+    ),
     category: 'metrics'
   },
   {
     id: 'people_grid_auto',
     name: 'People Helped',
     description: 'Visualize impact with people icons',
-    icon: '👥',
+    icon: (
+      <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+      </svg>
+    ),
     category: 'metrics'
   },
+
+  // Performance & Comparison
+  {
+    id: 'small_multiples',
+    name: 'Small Multiples',
+    description: 'Compare one metric across all holdings with sparklines',
+    icon: (
+      <svg className="w-8 h-8 text-violet-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 5a1 1 0 011-1h4a1 1 0 011 1v7a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM14 5a1 1 0 011-1h4a1 1 0 011 1v7a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM4 16a1 1 0 011-1h4a1 1 0 011 1v3a1 1 0 01-1 1H5a1 1 0 01-1-1v-3zM14 16a1 1 0 011-1h4a1 1 0 011 1v3a1 1 0 01-1 1h-4a1 1 0 01-1-1v-3z" />
+      </svg>
+    ),
+    category: 'performance'
+  },
+  {
+    id: 'performance_heat_map',
+    name: 'Performance Heat Map',
+    description: 'Color-coded grid showing metrics over time or by holding',
+    icon: (
+      <svg className="w-8 h-8 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 5h16M4 9h16M4 13h16M4 17h16" />
+      </svg>
+    ),
+    category: 'performance'
+  },
+  {
+    id: 'holdings_comparison_table',
+    name: 'Comparison Table',
+    description: 'Sortable table comparing multiple metrics across holdings',
+    icon: (
+      <svg className="w-8 h-8 text-cyan-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2" />
+      </svg>
+    ),
+    category: 'performance'
+  },
+
+  // Impact & Timeline
+  {
+    id: 'impact_timeline',
+    name: 'Impact Timeline',
+    description: 'Visualize milestones and achievements over time',
+    icon: (
+      <svg className="w-8 h-8 text-pink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+      </svg>
+    ),
+    category: 'impact'
+  },
+  {
+    id: 'waterfall_chart',
+    name: 'Waterfall Chart',
+    description: 'Show how funds flow or impact accumulates',
+    icon: (
+      <svg className="w-8 h-8 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
+      </svg>
+    ),
+    category: 'impact'
+  },
+  {
+    id: 'impact_bubble_chart',
+    name: 'Bubble Chart',
+    description: 'Multi-dimensional view with size, color, and position',
+    icon: (
+      <svg className="w-8 h-8 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 12a5 5 0 1110 0 5 5 0 01-10 0zm12-5a3 3 0 11-6 0 3 3 0 016 0z" />
+      </svg>
+    ),
+    category: 'impact'
+  },
+
+  // Charts & Breakdowns
   {
     id: 'holdings_pie_auto',
     name: 'Holdings Breakdown',
     description: 'Pie chart of portfolio allocation',
-    icon: '🥧',
+    icon: (
+      <svg className="w-8 h-8 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z" />
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z" />
+      </svg>
+    ),
     category: 'charts'
   },
   {
     id: 'emissions_bar',
     name: 'Emissions Comparison',
     description: 'Compare emissions across scopes',
-    icon: '📊',
+    icon: (
+      <svg className="w-8 h-8 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+      </svg>
+    ),
     category: 'charts'
   },
+
+  // Custom
   {
     id: 'd3_json',
     name: 'Custom Visualization',
     description: 'Upload your own D3 chart',
-    icon: '⚡',
+    icon: (
+      <svg className="w-8 h-8 text-neutral-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+      </svg>
+    ),
     category: 'custom'
   }
 ];
@@ -166,6 +266,8 @@ export default function CreateWidgetModal({ portfolioId, holdingId, open, onClos
 function SelectWidgetType({ onSelect }: { onSelect: (typeId: string) => void }) {
   const categories = [
     { id: 'metrics', label: 'Metrics & KPIs', description: 'Track performance and goals' },
+    { id: 'performance', label: 'Performance & Comparison', description: 'Compare metrics across holdings' },
+    { id: 'impact', label: 'Impact & Timeline', description: 'Visualize milestones and achievements' },
     { id: 'charts', label: 'Charts & Breakdowns', description: 'Visualize data distributions' },
     { id: 'custom', label: 'Custom', description: 'Advanced visualizations' }
   ];
@@ -189,7 +291,7 @@ function SelectWidgetType({ onSelect }: { onSelect: (typeId: string) => void }) 
                   onClick={() => onSelect(widget.id)}
                   className="group relative flex flex-col items-start p-5 rounded-2xl border-2 border-neutral-200 bg-white hover:border-indigo-500 hover:shadow-lg transition-all text-left"
                 >
-                  <div className="text-4xl mb-3">{widget.icon}</div>
+                  <div className="mb-3">{widget.icon}</div>
                   <h4 className="text-base font-semibold text-neutral-900 mb-1">{widget.name}</h4>
                   <p className="text-sm text-neutral-600 leading-relaxed">{widget.description}</p>
                   <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -331,6 +433,12 @@ function WidgetConfigForm({
   const RadialProgressConfig = React.lazy(() => import('./widget-configs/RadialProgressConfig'));
   const PeopleGridConfig = React.lazy(() => import('./widget-configs/PeopleGridConfig'));
   const HoldingsPieConfig = React.lazy(() => import('./widget-configs/HoldingsPieConfig'));
+  const SmallMultiplesConfig = React.lazy(() => import('./widget-configs/SmallMultiplesConfig'));
+  const PerformanceHeatMapConfig = React.lazy(() => import('./widget-configs/PerformanceHeatMapConfig'));
+  const HoldingsComparisonTableConfig = React.lazy(() => import('./widget-configs/HoldingsComparisonTableConfig'));
+  const ImpactTimelineConfig = React.lazy(() => import('./widget-configs/ImpactTimelineConfig'));
+  const WaterfallChartConfig = React.lazy(() => import('./widget-configs/WaterfallChartConfig'));
+  const ImpactBubbleChartConfig = React.lazy(() => import('./widget-configs/ImpactBubbleChartConfig'));
 
   const renderConfig = () => {
     const initialConfig = editing ? { title: editing.title, config: editing.config } : undefined;
@@ -359,6 +467,42 @@ function WidgetConfigForm({
         return (
           <React.Suspense fallback={<div>Loading...</div>}>
             <HoldingsPieConfig {...props} />
+          </React.Suspense>
+        );
+      case 'small_multiples':
+        return (
+          <React.Suspense fallback={<div>Loading...</div>}>
+            <SmallMultiplesConfig {...props} />
+          </React.Suspense>
+        );
+      case 'performance_heat_map':
+        return (
+          <React.Suspense fallback={<div>Loading...</div>}>
+            <PerformanceHeatMapConfig {...props} />
+          </React.Suspense>
+        );
+      case 'holdings_comparison_table':
+        return (
+          <React.Suspense fallback={<div>Loading...</div>}>
+            <HoldingsComparisonTableConfig {...props} />
+          </React.Suspense>
+        );
+      case 'impact_timeline':
+        return (
+          <React.Suspense fallback={<div>Loading...</div>}>
+            <ImpactTimelineConfig {...props} />
+          </React.Suspense>
+        );
+      case 'waterfall_chart':
+        return (
+          <React.Suspense fallback={<div>Loading...</div>}>
+            <WaterfallChartConfig {...props} />
+          </React.Suspense>
+        );
+      case 'impact_bubble_chart':
+        return (
+          <React.Suspense fallback={<div>Loading...</div>}>
+            <ImpactBubbleChartConfig {...props} />
           </React.Suspense>
         );
       case 'radial_progress_rings':

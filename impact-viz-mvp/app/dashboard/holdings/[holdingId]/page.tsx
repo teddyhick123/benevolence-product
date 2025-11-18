@@ -8,6 +8,7 @@ import EditableDescription from '@/components/EditableDescription';
 import EditableContactNotes from '@/components/EditableContactNotes';
 import HoldingWidgetsSection from '@/components/vis/HoldingWidgetsSection';
 import NewsSection from '@/components/NewsSection';
+import FactRow from '@/components/FactRow';
 
 type HoldingRow = {
   id: string;
@@ -385,6 +386,7 @@ async function addFact(formData: FormData) {
   const metricCode = String(formData.get('metric_code') || '').trim().toUpperCase();
   const valueRaw = formData.get('value');
   const value = valueRaw ? Number(valueRaw) : null;
+  const periodEnd = formData.get('period_end') ? String(formData.get('period_end')).trim() : null;
   const source = formData.get('source') ? String(formData.get('source')).trim() : null;
 
   if (!metricCode) {
@@ -394,10 +396,14 @@ async function addFact(formData: FormData) {
     throw new Error('Valid numeric value is required');
   }
 
+  // Set period_end to today if not specified (required for time-based queries)
+  const finalPeriodEnd = periodEnd || new Date().toISOString().split('T')[0];
+
   const row = {
     holding_id: holdingId,
     metric_code: metricCode,
     value: value,
+    period_end: finalPeriodEnd,
     source: source || null,
   };
 
@@ -453,6 +459,73 @@ async function addContribution(formData: FormData) {
   }
 
   console.log('Contribution added successfully:', data);
+  revalidatePath(`/dashboard/holdings/${holdingId}`);
+  revalidatePath(`/dashboard`);
+}
+
+async function updateFact(formData: FormData) {
+  'use server';
+  const supabase = await getSupabase();
+  const factId = String(formData.get('fact_id'));
+  const holdingId = String(formData.get('holding_id'));
+
+  const metricCode = String(formData.get('metric_code') || '').trim().toUpperCase();
+  const valueRaw = formData.get('value');
+  const value = valueRaw ? Number(valueRaw) : null;
+  const periodEnd = formData.get('period_end') ? String(formData.get('period_end')).trim() : null;
+  const source = formData.get('source') ? String(formData.get('source')).trim() : null;
+
+  if (!metricCode) {
+    throw new Error('Metric code is required');
+  }
+  if (value === null || !Number.isFinite(value)) {
+    throw new Error('Valid numeric value is required');
+  }
+
+  const updates = {
+    metric_code: metricCode,
+    value: value,
+    period_end: periodEnd,
+    source: source || null,
+  };
+
+  console.log('Updating fact:', factId, 'with values:', updates);
+
+  const { error, data } = await supabase
+    .from('metric_facts')
+    .update(updates)
+    .eq('id', factId)
+    .select();
+
+  if (error) {
+    console.error('updateFact error:', error);
+    throw new Error(`Failed to update fact: ${error.message}`);
+  }
+
+  console.log('Fact updated successfully:', data);
+  revalidatePath(`/dashboard/holdings/${holdingId}`);
+  revalidatePath(`/dashboard`);
+}
+
+async function deleteFact(formData: FormData) {
+  'use server';
+  const supabase = await getSupabase();
+  const factId = String(formData.get('fact_id'));
+  const holdingId = String(formData.get('holding_id'));
+
+  console.log('Deleting fact:', factId);
+
+  const { error } = await supabase
+    .from('metric_facts')
+    .delete()
+    .eq('id', factId);
+
+  if (error) {
+    console.error('deleteFact error:', error);
+    throw new Error(`Failed to delete fact: ${error.message}`);
+  }
+
+  console.log('Fact deleted successfully');
   revalidatePath(`/dashboard/holdings/${holdingId}`);
   revalidatePath(`/dashboard`);
 }
@@ -1059,8 +1132,17 @@ export default async function HoldingMiniDashboard({
         <div className="overflow-hidden rounded-2xl border border-black/10 bg-white shadow-sm">
           <div className="p-5 border-b border-neutral-200 bg-neutral-50/60">
             <h4 className="text-sm font-medium text-neutral-800 mb-4">Add New Fact</h4>
-            <form action={addFact} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            <form action={addFact} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
               <input type="hidden" name="holding_id" value={holding.id} />
+              <label className="block">
+                <span className="text-xs font-medium text-neutral-700">Period End</span>
+                <input
+                  type="date"
+                  name="period_end"
+                  defaultValue={new Date().toISOString().split('T')[0]}
+                  className="mt-1.5 w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                />
+              </label>
               <label className="block">
                 <span className="text-xs font-medium text-neutral-700">Metric Code *</span>
                 <input
@@ -1081,7 +1163,7 @@ export default async function HoldingMiniDashboard({
                   required
                 />
               </label>
-              <label className="block sm:col-span-2 lg:col-span-1">
+              <label className="block">
                 <span className="text-xs font-medium text-neutral-700">Source URL</span>
                 <input
                   name="source"
@@ -1105,36 +1187,25 @@ export default async function HoldingMiniDashboard({
                   <th className="px-4 py-3 text-left text-xs font-semibold text-neutral-700">Metric</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-neutral-700">Value</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-neutral-700">Source</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-neutral-700">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-neutral-100 bg-white">
                 {facts.length === 0 ? (
                   <tr>
-                    <td className="px-4 py-8 text-sm text-neutral-500 text-center" colSpan={4}>
+                    <td className="px-4 py-8 text-sm text-neutral-500 text-center" colSpan={5}>
                       No facts recorded yet. Add your first fact above.
                     </td>
                   </tr>
                 ) : (
                   facts.map((f) => (
-                    <tr key={f.id} className="hover:bg-neutral-50 transition-colors">
-                      <td className="px-4 py-3 text-sm text-neutral-800">{humanDate(f.period_end || f.period_start || f.updated_at)}</td>
-                      <td className="px-4 py-3 text-sm font-medium text-neutral-900">{f.metric_code}</td>
-                      <td className="px-4 py-3 text-sm text-neutral-800">{f.value ?? '—'}</td>
-                      <td className="px-4 py-3 text-sm">
-                        {f.source ? (
-                          <a
-                            className="text-indigo-600 hover:text-indigo-700 hover:underline"
-                            href={f.source}
-                            target="_blank"
-                            rel="noreferrer"
-                          >
-                            View Source
-                          </a>
-                        ) : (
-                          <span className="text-neutral-400">—</span>
-                        )}
-                      </td>
-                    </tr>
+                    <FactRow
+                      key={f.id}
+                      fact={f}
+                      holdingId={holding.id}
+                      updateAction={updateFact}
+                      deleteAction={deleteFact}
+                    />
                   ))
                 )}
               </tbody>

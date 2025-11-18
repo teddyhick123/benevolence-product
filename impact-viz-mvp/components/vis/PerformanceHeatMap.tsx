@@ -35,13 +35,20 @@ export default function PerformanceHeatMap({ portfolioId, title, config }: Props
 
   const mode = config?.mode || 'temporal';
   const metricCode = config?.metric_code || '';
-  const metrics = config?.metrics || [];
-  const window = config?.window || '12m';
+  const window = config?.window || 'all';
   const minHoldings = config?.minHoldings || 2;
+
+  // Stabilize metrics array to prevent infinite loop
+  const metricsString = useMemo(() => {
+    const metrics = config?.metrics || [];
+    return metrics.join(',');
+  }, [config?.metrics]);
 
   useEffect(() => {
     let mounted = true;
     (async () => {
+      const metrics = metricsString.split(',').filter(Boolean);
+
       if (mode === 'temporal' && !metricCode) {
         setError('No metric specified for temporal mode');
         setLoading(false);
@@ -65,7 +72,7 @@ export default function PerformanceHeatMap({ portfolioId, title, config }: Props
         if (mode === 'temporal') {
           params.set('metric', metricCode);
         } else {
-          params.set('metrics', metrics.join(','));
+          params.set('metrics', metricsString);
         }
 
         const res = await fetch(
@@ -97,7 +104,7 @@ export default function PerformanceHeatMap({ portfolioId, title, config }: Props
     return () => {
       mounted = false;
     };
-  }, [portfolioId, metricCode, metrics, window, mode]);
+  }, [portfolioId, metricCode, metricsString, window, mode]);
 
   // Group data for rendering
   const { holdings, columns, matrix } = useMemo(() => {
@@ -175,7 +182,7 @@ export default function PerformanceHeatMap({ portfolioId, title, config }: Props
       <div className="text-xs text-neutral-500 text-center">
         {mode === 'temporal'
           ? `Showing ${metricCode} over time`
-          : `Showing multiple metrics: ${metrics.join(', ')}`}
+          : `Showing multiple metrics: ${metricsString}`}
       </div>
     </div>
   );

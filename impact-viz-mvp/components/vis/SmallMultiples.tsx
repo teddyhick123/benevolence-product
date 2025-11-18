@@ -34,7 +34,7 @@ export default function SmallMultiples({ portfolioId, title, config }: Props) {
   const [error, setError] = useState<string | null>(null);
 
   const metricCode = config?.metric_code || '';
-  const window = config?.window || '12m';
+  const window = config?.window || 'all';
   const columns = config?.columns || 3;
   const chartHeight = config?.chartHeight || 100;
   const showBenchmark = config?.showBenchmark ?? false;

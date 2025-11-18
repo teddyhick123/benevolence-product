@@ -12,7 +12,7 @@ export type SmallMultiplesConfigProps = {
 export default function SmallMultiplesConfig({ initialConfig, onSave, onCancel, portfolioId }: SmallMultiplesConfigProps) {
   const [title, setTitle] = React.useState(initialConfig?.title || '');
   const [metricCode, setMetricCode] = React.useState(initialConfig?.config?.metric_code || '');
-  const [window, setWindow] = React.useState(initialConfig?.config?.window || '12m');
+  const [window, setWindow] = React.useState(initialConfig?.config?.window || 'all');
   const [columns, setColumns] = React.useState(initialConfig?.config?.columns || 3);
   const [chartHeight, setChartHeight] = React.useState(initialConfig?.config?.chartHeight || 80);
   const [showBenchmark, setShowBenchmark] = React.useState(initialConfig?.config?.showBenchmark ?? false);

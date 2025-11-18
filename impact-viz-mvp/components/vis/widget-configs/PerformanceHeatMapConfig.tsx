@@ -14,7 +14,7 @@ export default function PerformanceHeatMapConfig({ initialConfig, onSave, onCanc
   const [mode, setMode] = React.useState<'temporal' | 'metrics'>(initialConfig?.config?.mode || 'temporal');
   const [metricCode, setMetricCode] = React.useState(initialConfig?.config?.metric_code || '');
   const [selectedMetrics, setSelectedMetrics] = React.useState<string[]>(initialConfig?.config?.metrics || []);
-  const [window, setWindow] = React.useState(initialConfig?.config?.window || '12m');
+  const [window, setWindow] = React.useState(initialConfig?.config?.window || 'all');
   const [colorScheme, setColorScheme] = React.useState<'sequential' | 'diverging'>(initialConfig?.config?.colorScheme || 'sequential');
   const [minColor, setMinColor] = React.useState(initialConfig?.config?.minColor || '#dbeafe');
   const [maxColor, setMaxColor] = React.useState(initialConfig?.config?.maxColor || '#1e40af');

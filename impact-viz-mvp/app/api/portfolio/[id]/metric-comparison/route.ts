@@ -30,6 +30,9 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
     case '12m':
       startDate = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
       break;
+    case '24m':
+      startDate = new Date(now.getFullYear() - 2, now.getMonth(), now.getDate());
+      break;
     case 'all':
       startDate = new Date(1970, 0, 1); // Far back date
       break;

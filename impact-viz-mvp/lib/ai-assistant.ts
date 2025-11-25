@@ -23,6 +23,109 @@ export type AIAction = {
   sequenceOrder?: number;
 };
 
+// Tool execution result types
+type ToolResult = {
+  action: AIAction | null;
+  output: any; // Output varies by tool
+};
+
+// Input validation helpers
+class ValidationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ValidationError';
+  }
+}
+
+const InputValidator = {
+  validateUUID(value: string, fieldName: string): void {
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(value)) {
+      throw new ValidationError(`${fieldName} must be a valid UUID`);
+    }
+  },
+
+  validateNumber(value: any, fieldName: string, options?: { min?: number; max?: number }): void {
+    if (value === undefined || value === null) return; // Allow optional
+    const num = Number(value);
+    if (isNaN(num)) {
+      throw new ValidationError(`${fieldName} must be a valid number`);
+    }
+    if (options?.min !== undefined && num < options.min) {
+      throw new ValidationError(`${fieldName} must be at least ${options.min}`);
+    }
+    if (options?.max !== undefined && num > options.max) {
+      throw new ValidationError(`${fieldName} must be at most ${options.max}`);
+    }
+  },
+
+  validateString(value: any, fieldName: string, options?: { maxLength?: number; pattern?: RegExp }): void {
+    if (value === undefined || value === null) return; // Allow optional
+    if (typeof value !== 'string') {
+      throw new ValidationError(`${fieldName} must be a string`);
+    }
+    if (options?.maxLength && value.length > options.maxLength) {
+      throw new ValidationError(`${fieldName} must be at most ${options.maxLength} characters`);
+    }
+    if (options?.pattern && !options.pattern.test(value)) {
+      throw new ValidationError(`${fieldName} has invalid format`);
+    }
+  },
+
+  validateEnum<T>(value: any, fieldName: string, allowedValues: readonly T[]): void {
+    if (value === undefined || value === null) return; // Allow optional
+    if (!allowedValues.includes(value as T)) {
+      throw new ValidationError(`${fieldName} must be one of: ${allowedValues.join(', ')}`);
+    }
+  },
+
+  validateDateString(value: any, fieldName: string): void {
+    if (value === undefined || value === null) return; // Allow optional
+    const date = new Date(value);
+    if (isNaN(date.getTime())) {
+      throw new ValidationError(`${fieldName} must be a valid date string (YYYY-MM-DD)`);
+    }
+  },
+
+  validateArray(value: any, fieldName: string, options?: { maxLength?: number }): void {
+    if (value === undefined || value === null) return; // Allow optional
+    if (!Array.isArray(value)) {
+      throw new ValidationError(`${fieldName} must be an array`);
+    }
+    if (options?.maxLength && value.length > options.maxLength) {
+      throw new ValidationError(`${fieldName} must contain at most ${options.maxLength} items`);
+    }
+  },
+};
+
+// Time window helper
+type TimeWindow = '3m' | '6m' | '12m' | '24m' | 'all';
+const TimeWindowHelper = {
+  getStartDate(window: TimeWindow): string {
+    const windowDays: Record<TimeWindow, number> = {
+      '3m': 90,
+      '6m': 180,
+      '12m': 365,
+      '24m': 730,
+      'all': 3650,
+    };
+    const days = windowDays[window] || 365;
+    return new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+  },
+};
+
+// Color palette constants
+const CHART_COLORS = [
+  '#3b82f6', // blue
+  '#10b981', // green
+  '#f59e0b', // amber
+  '#ef4444', // red
+  '#8b5cf6', // purple
+  '#ec4899', // pink
+  '#14b8a6', // teal
+  '#f97316', // orange
+];
+
 // Tool definitions for OpenAI function calling
 const PORTFOLIO_TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
   {
@@ -481,6 +584,22 @@ export class AIPortfolioAssistant {
   }
 
   /**
+   * Verify user has access to portfolio
+   */
+  private async verifyPortfolioAccess(portfolioId: string, userId: string): Promise<void> {
+    const { data, error } = await this.supabase
+      .from('portfolio_members')
+      .select('role')
+      .eq('portfolio_id', portfolioId)
+      .eq('user_id', userId)
+      .single();
+
+    if (error || !data) {
+      throw new Error('Access denied: You do not have permission to access this portfolio');
+    }
+  }
+
+  /**
    * Execute a tool/function call
    */
   private async executeTool(
@@ -492,7 +611,10 @@ export class AIPortfolioAssistant {
     batchId: string,
     sequenceOrder: number,
     userPrompt: string
-  ): Promise<{ action: AIAction; output: any }> {
+  ): Promise<ToolResult> {
+    // Verify user has access to this portfolio
+    await this.verifyPortfolioAccess(portfolioId, userId);
+
     const executor = new AIActionExecutor(this.supabase);
 
     switch (functionName) {
@@ -571,12 +693,25 @@ export class AIPortfolioAssistant {
 
         // This is read-only, no action logged
         return {
-          action: null as any,
+          action: null,
           output: { holdings: data || [] },
         };
       }
 
       case 'search_holdings': {
+        // Validate inputs
+        InputValidator.validateString(args.sector, 'sector', { maxLength: 200 });
+        InputValidator.validateString(args.country, 'country', { maxLength: 100 });
+        InputValidator.validateEnum(args.status, 'status', ['Active', 'Exited', 'Pipeline'] as const);
+        InputValidator.validateNumber(args.min_allocation, 'min_allocation', { min: 0, max: 1e12 });
+        InputValidator.validateNumber(args.max_allocation, 'max_allocation', { min: 0, max: 1e12 });
+        InputValidator.validateString(args.name_contains, 'name_contains', { maxLength: 200 });
+
+        // Validate min <= max if both provided
+        if (args.min_allocation !== undefined && args.max_allocation !== undefined && args.min_allocation > args.max_allocation) {
+          throw new ValidationError('min_allocation cannot be greater than max_allocation');
+        }
+
         let query = this.supabase
           .from('holdings')
           .select('id, name, sector, country, status, funds_allocated, nav, description')
@@ -604,7 +739,7 @@ export class AIPortfolioAssistant {
         const { data } = await query.order('funds_allocated', { ascending: false });
 
         return {
-          action: null as any,
+          action: null,
           output: {
             holdings: data || [],
             count: data?.length || 0,
@@ -614,16 +749,18 @@ export class AIPortfolioAssistant {
       }
 
       case 'get_metric_trend': {
-        const window = args.window || '12m';
-        const windowDays: Record<string, number> = {
-          '3m': 90,
-          '6m': 180,
-          '12m': 365,
-          '24m': 730,
-          'all': 3650,
-        };
-        const days = windowDays[window] || 365;
-        const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+        // Validate inputs
+        InputValidator.validateString(args.metric_code, 'metric_code', { maxLength: 100, pattern: /^[A-Z0-9_]+$/ });
+        if (!args.metric_code) {
+          throw new ValidationError('metric_code is required');
+        }
+        if (args.holding_id) {
+          InputValidator.validateUUID(args.holding_id, 'holding_id');
+        }
+        InputValidator.validateEnum(args.window, 'window', ['3m', '6m', '12m', '24m', 'all'] as const);
+
+        const window: TimeWindow = (args.window as TimeWindow) || '12m';
+        const startDate = TimeWindowHelper.getStartDate(window);
 
         let query = this.supabase
           .from('metric_facts')
@@ -655,7 +792,7 @@ export class AIPortfolioAssistant {
           .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
         return {
-          action: null as any,
+          action: null,
           output: {
             metric_code: args.metric_code,
             window,
@@ -667,6 +804,20 @@ export class AIPortfolioAssistant {
       }
 
       case 'compare_holdings': {
+        // Validate inputs
+        InputValidator.validateString(args.metric_code, 'metric_code', { maxLength: 100, pattern: /^[A-Z0-9_]+$/ });
+        if (!args.metric_code) {
+          throw new ValidationError('metric_code is required');
+        }
+        InputValidator.validateArray(args.holding_ids, 'holding_ids', { maxLength: 100 });
+        if (args.holding_ids) {
+          args.holding_ids.forEach((id: string, idx: number) => {
+            InputValidator.validateUUID(id, `holding_ids[${idx}]`);
+          });
+        }
+        InputValidator.validateEnum(args.sort_order, 'sort_order', ['asc', 'desc'] as const);
+        InputValidator.validateNumber(args.limit, 'limit', { min: 1, max: 100 });
+
         // Get latest metric value for each holding
         const { data: holdings } = await this.supabase
           .from('holdings')
@@ -709,7 +860,7 @@ export class AIPortfolioAssistant {
           .slice(0, args.limit || 10);
 
         return {
-          action: null as any,
+          action: null,
           output: {
             metric_code: args.metric_code,
             comparison,
@@ -796,7 +947,7 @@ export class AIPortfolioAssistant {
         }
 
         return {
-          action: null as any,
+          action: null,
           output: summary,
         };
       }
@@ -810,7 +961,7 @@ export class AIPortfolioAssistant {
 
         // This is read-only, no action logged
         return {
-          action: null as any,
+          action: null,
           output: { holding: data },
         };
       }
@@ -826,7 +977,7 @@ export class AIPortfolioAssistant {
 
         // This is read-only, no action logged
         return {
-          action: null as any,
+          action: null,
           output: { widgets: data || [], count: data?.length || 0 },
         };
       }
@@ -921,6 +1072,22 @@ export class AIPortfolioAssistant {
       }
 
       case 'get_chart_data': {
+        // Validate inputs
+        const validDataTypes = ['holdings_by_sector', 'holdings_by_country', 'metric_trend', 'metric_comparison', 'allocation_breakdown', 'status_breakdown'] as const;
+        InputValidator.validateEnum(args.data_type, 'data_type', validDataTypes);
+        if (!args.data_type) {
+          throw new ValidationError('data_type is required');
+        }
+        if (args.metric_code) {
+          InputValidator.validateString(args.metric_code, 'metric_code', { maxLength: 100, pattern: /^[A-Z0-9_]+$/ });
+        }
+        // Require metric_code for metric-based data types
+        if (['metric_trend', 'metric_comparison'].includes(args.data_type) && !args.metric_code) {
+          throw new ValidationError(`metric_code is required for data_type '${args.data_type}'`);
+        }
+        InputValidator.validateEnum(args.window, 'window', ['3m', '6m', '12m', '24m', 'all'] as const);
+        InputValidator.validateNumber(args.limit, 'limit', { min: 1, max: 100 });
+
         const limit = args.limit || 10;
         const window = args.window || '12m';
 
@@ -943,14 +1110,14 @@ export class AIPortfolioAssistant {
               .slice(0, limit);
 
             return {
-              action: null as any,
+              action: null,
               output: {
                 data: chartData,
                 suggested_chart: chartData.length <= 6 ? 'pie' : 'bar',
                 x_field: 'sector',
                 y_field: 'funds',
                 title_suggestion: 'Holdings by Sector',
-                colors: ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4'],
+                colors: CHART_COLORS,
               },
             };
           }
@@ -973,14 +1140,14 @@ export class AIPortfolioAssistant {
               .slice(0, limit);
 
             return {
-              action: null as any,
+              action: null,
               output: {
                 data: chartData,
                 suggested_chart: chartData.length <= 6 ? 'pie' : 'bar',
                 x_field: 'country',
                 y_field: 'funds',
                 title_suggestion: 'Holdings by Country',
-                colors: ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4'],
+                colors: CHART_COLORS,
               },
             };
           }
@@ -990,11 +1157,7 @@ export class AIPortfolioAssistant {
               throw new Error('metric_code is required for metric_trend');
             }
 
-            const windowDays: Record<string, number> = {
-              '3m': 90, '6m': 180, '12m': 365, '24m': 730, 'all': 3650,
-            };
-            const days = windowDays[window] || 365;
-            const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+            const startDate = TimeWindowHelper.getStartDate(window as TimeWindow);
 
             const { data: facts } = await this.supabase
               .from('metric_facts')
@@ -1016,7 +1179,7 @@ export class AIPortfolioAssistant {
               .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
             return {
-              action: null as any,
+              action: null,
               output: {
                 data: chartData,
                 suggested_chart: 'line',
@@ -1024,7 +1187,7 @@ export class AIPortfolioAssistant {
                 y_field: 'value',
                 x_type: 'time',
                 title_suggestion: `${args.metric_code} Trend`,
-                colors: ['#3b82f6'],
+                colors: [CHART_COLORS[0]],
               },
             };
           }
@@ -1065,7 +1228,7 @@ export class AIPortfolioAssistant {
               .slice(0, limit);
 
             return {
-              action: null as any,
+              action: null,
               output: {
                 data: chartData,
                 suggested_chart: 'bar',
@@ -1091,14 +1254,14 @@ export class AIPortfolioAssistant {
             }));
 
             return {
-              action: null as any,
+              action: null,
               output: {
                 data: chartData,
                 suggested_chart: 'donut',
                 x_field: 'name',
                 y_field: 'funds',
                 title_suggestion: 'Portfolio Allocation',
-                colors: ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16', '#f43f5e'],
+                colors: CHART_COLORS,
               },
             };
           }
@@ -1119,7 +1282,7 @@ export class AIPortfolioAssistant {
               .map(([status, count]) => ({ status, count }));
 
             return {
-              action: null as any,
+              action: null,
               output: {
                 data: chartData,
                 suggested_chart: 'pie',
@@ -1296,14 +1459,34 @@ export class AIPortfolioAssistant {
       percentComplete: number | null;
     }> = [];
 
-    // Group facts by metric to get latest values
-    const latestByMetric: Record<string, { value: number; unit: string | null }> = {};
+    // Group facts by metric and period, then get latest period's aggregated value
+    const latestByMetric: Record<string, { value: number; unit: string | null; period: string | null }> = {};
+
+    // First, group by metric_code and period_end to aggregate within periods
+    const byMetricAndPeriod: Record<string, Record<string, { value: number; unit: string | null }>> = {};
     factsData.forEach((fact: any) => {
       const metricCode: string = fact.metric_code;
-      if (!latestByMetric[metricCode]) {
-        latestByMetric[metricCode] = { value: 0, unit: fact.unit };
+      const period: string = fact.period_end || 'unknown';
+
+      if (!byMetricAndPeriod[metricCode]) {
+        byMetricAndPeriod[metricCode] = {};
       }
-      latestByMetric[metricCode].value += fact.value || 0;
+      if (!byMetricAndPeriod[metricCode][period]) {
+        byMetricAndPeriod[metricCode][period] = { value: 0, unit: fact.unit };
+      }
+      byMetricAndPeriod[metricCode][period].value += fact.value || 0;
+    });
+
+    // Now get the latest period for each metric (facts are already ordered by period_end desc)
+    Object.keys(byMetricAndPeriod).forEach((metricCode) => {
+      const periods = Object.keys(byMetricAndPeriod[metricCode]).sort().reverse();
+      const latestPeriod = periods[0];
+      const latestData = byMetricAndPeriod[metricCode][latestPeriod];
+      latestByMetric[metricCode] = {
+        value: latestData.value,
+        unit: latestData.unit,
+        period: latestPeriod !== 'unknown' ? latestPeriod : null,
+      };
     });
 
     // Combine with KPI definitions

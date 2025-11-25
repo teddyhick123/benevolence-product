@@ -7,6 +7,7 @@ import MapSection from '@/components/MapSection';
 import Reveal from '@/components/Reveal';
 import { headers } from 'next/headers';
 import AIAssistantButton from '@/components/AIAssistantButton';
+import TaxOverviewCard from '@/components/tax/TaxOverviewCard';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -139,7 +140,8 @@ export default async function Dashboard({ searchParams }: { searchParams?: Promi
           <div className="col-span-12 lg:col-span-6 xl:col-span-7 min-w-0 isolate">
             <HoldingsSection portfolioId={portfolioId} canEdit={canEdit} />
           </div>
-          <div className="col-span-12 lg:col-span-6 xl:col-span-5 min-w-0 isolate">
+          <div className="col-span-12 lg:col-span-6 xl:col-span-5 min-w-0 isolate space-y-6">
+            <TaxOverviewCard portfolioId={portfolioId} />
             <WidgetsSection portfolioId={portfolioId} canEdit={canEdit} />
           </div>
         </div>

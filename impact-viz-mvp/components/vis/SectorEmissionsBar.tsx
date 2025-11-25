@@ -2,6 +2,7 @@
 'use client';
 import * as d3 from 'd3';
 import { useEffect, useRef, useState } from 'react';
+import { useWidgetDimensions } from '@/hooks/useWidgetDimensions';
 
 type Row = { sector: string; value: number };
 
@@ -13,6 +14,7 @@ export default function SectorEmissionsBar({ portfolioId, title, config }: { por
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
   const ref = useRef<SVGSVGElement | null>(null);
+  const [containerRef, dimensions] = useWidgetDimensions(700, 300);
 
   useEffect(() => {
     let mounted = true;
@@ -49,8 +51,9 @@ export default function SectorEmissionsBar({ portfolioId, title, config }: { por
     const svg = d3.select(ref.current);
     if (!svg.node()) return;
     svg.selectAll('*').remove();
-    const w = 700, h = Math.max(240, rows.length * 28);
-    svg.attr('viewBox', `0 0 ${w} ${h}`);
+    const w = dimensions.width;
+    const h = Math.max(200, dimensions.height - 40); // Reserve space for title
+    svg.attr('viewBox', `0 0 ${w} ${h}`).attr('preserveAspectRatio', 'xMidYMid meet');
 
     if (!rows.length) return;
 
@@ -90,15 +93,17 @@ export default function SectorEmissionsBar({ portfolioId, title, config }: { por
       .attr('y', d => (y(d.sector)! + y.bandwidth() / 2) + 4)
       .attr('font-size', 11)
       .text(d => normalize ? `${d.value.toFixed(1)}%` : d.value.toLocaleString());
-  }, [rows, normalize, barColor]);
+  }, [rows, normalize, barColor, dimensions]);
 
   return (
-    <div className="card p-4">
-      <div className="text-sm text-neutral-600 mb-2">{title || `Emissions by sector (latest ${metricCode || 'metric'})`}</div>
+    <div ref={containerRef} className="card p-4 w-full h-full flex flex-col overflow-hidden">
+      <div className="text-sm text-neutral-600 mb-2 shrink-0">{title || `Emissions by sector (latest ${metricCode || 'metric'})`}</div>
       {loading ? (
-        <div className="h-[220px] bg-neutral-100 rounded animate-pulse" />
+        <div className="flex-1 bg-neutral-100 rounded animate-pulse min-h-0" />
       ) : (
-        <svg ref={ref} className="w-full" />
+        <div className="flex-1 min-h-0 overflow-hidden">
+          <svg ref={ref} className="w-full h-full" />
+        </div>
       )}
     </div>
   );

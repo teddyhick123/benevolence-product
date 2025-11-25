@@ -76,5 +76,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
     }
   }
 
-  return NextResponse.json(base);
+  return NextResponse.json(base, {
+    headers: { 'Cache-Control': 'public, s-maxage=3600, stale-while-revalidate=300' }
+  });
 }

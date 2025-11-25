@@ -24,15 +24,17 @@ function HoldingsPieRenderer({ title, config }: { title?: string | null; config?
   const showLegend = config?.showLegend ?? true;
   const legendMaxHeight = Number(config?.legendMaxHeight ?? 240);
   return (
-    <div className="space-y-2">
-      {title ? <div className="text-sm font-medium text-neutral-800">{title}</div> : null}
-      <HoldingsPieWidget
-        data={data}
-        size={size}
-        innerRadius={innerRadius}
-        showLegend={showLegend}
-        legendMaxHeight={legendMaxHeight}
-      />
+    <div className="w-full h-full flex flex-col overflow-hidden">
+      {title ? <div className="text-sm font-medium text-neutral-800 shrink-0 mb-2">{title}</div> : null}
+      <div className="flex-1 min-h-0">
+        <HoldingsPieWidget
+          data={data}
+          size={size}
+          innerRadius={innerRadius}
+          showLegend={showLegend}
+          legendMaxHeight={legendMaxHeight}
+        />
+      </div>
     </div>
   );
 }
@@ -44,7 +46,9 @@ function PeopleGridRenderer({ title, config }: { title?: string | null; config?:
   const color = config?.color; // optional, defaults inside widget
   const target = config?.target != null ? Number(config.target) : undefined;
   return (
-    <PeopleGridWidget total={total} perUnit={perUnit} iconSize={iconSize} color={color} target={target} title={title ?? 'People Helped'} />
+    <div className="w-full h-full">
+      <PeopleGridWidget total={total} perUnit={perUnit} iconSize={iconSize} color={color} target={target} title={title ?? 'People Helped'} />
+    </div>
   );
 }
 
@@ -318,8 +322,7 @@ export default function VisualCarousel({ items, portfolioId, initialId, autoPlay
 
   return (
     <div
-      className="card p-4 space-y-3 min-w-0 w-full select-none overflow-hidden"
-      style={{ minHeight: '400px' }}
+      className="card p-4 space-y-3 min-w-0 w-full select-none overflow-hidden h-[500px] flex flex-col"
       role="region"
       aria-label="Portfolio visualizations carousel"
       onMouseEnter={() => setPaused(true)}
@@ -356,7 +359,7 @@ export default function VisualCarousel({ items, portfolioId, initialId, autoPlay
       {/* Slides */}
       <CarouselSlides index={index}>
         {items.map((it, i) => (
-          <div key={it.id} className="w-full flex items-center justify-center min-w-0">
+          <div key={it.id} className="w-full h-full flex items-center justify-center min-w-0">
             {/* Only mount neighbors for perf */}
             {Math.abs(i - index) <= 1 || Math.abs(i - index) >= items.length - 1 ? (() => {
               // Prefer new registry-based rendering when type is provided
@@ -439,9 +442,9 @@ function CarouselSlides({ index, children }: { index: number; children: React.Re
   }, []);
 
   return (
-    <div ref={containerRef} className="relative overflow-hidden px-0" aria-live="polite">
+    <div ref={containerRef} className="relative overflow-hidden px-0 flex-1 min-h-0" aria-live="polite">
       <div
-        className="flex transition-transform duration-500 ease-out"
+        className="flex transition-transform duration-500 ease-out h-full"
         style={{
           transform: `translate3d(-${index * (width || 1)}px, 0, 0)`,
           width: `${React.Children.count(children) * (width || 1)}px`,
@@ -450,7 +453,7 @@ function CarouselSlides({ index, children }: { index: number; children: React.Re
       >
         {React.Children.map(children, (child, i) => (
           <div
-            className={`shrink-0 transition-opacity duration-500 ${i === index ? 'opacity-100' : 'opacity-75'}`}
+            className={`shrink-0 transition-opacity duration-500 h-full ${i === index ? 'opacity-100' : 'opacity-75'}`}
             style={{ flex: `0 0 ${width || 1}px`, width: width || 1 }}
             aria-hidden={i !== index}
           >

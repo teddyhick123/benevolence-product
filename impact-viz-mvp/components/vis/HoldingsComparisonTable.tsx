@@ -224,13 +224,13 @@ export default function HoldingsComparisonTable({ portfolioId, title, config }: 
   });
 
   return (
-    <div className="w-full space-y-4">
+    <div className="w-full h-full flex flex-col overflow-hidden">
       {title && (
-        <h3 className="text-lg font-semibold text-neutral-900">{title}</h3>
+        <h3 className="text-lg font-semibold text-neutral-900 shrink-0 mb-4">{title}</h3>
       )}
 
       {/* Desktop Table View */}
-      <div className="hidden md:block w-full overflow-x-auto">
+      <div className="hidden md:block w-full flex-1 min-h-0 overflow-auto">
         <table className="w-full text-sm border-collapse">
           <thead>
             <tr className="border-b-2 border-neutral-200">
@@ -315,7 +315,7 @@ export default function HoldingsComparisonTable({ portfolioId, title, config }: 
       </div>
 
       {/* Mobile Card View */}
-      <div className="md:hidden space-y-3">
+      <div className="md:hidden flex-1 min-h-0 overflow-auto space-y-3">
         {sortedData.map(row => (
           <div
             key={row.holdingId}
@@ -356,7 +356,7 @@ export default function HoldingsComparisonTable({ portfolioId, title, config }: 
         ))}
       </div>
 
-      <div className="text-xs text-neutral-500 text-center">
+      <div className="text-xs text-neutral-500 text-center shrink-0 mt-4">
         {highlightBest && (
           <span className="inline-block px-2 py-1 rounded bg-green-50 text-green-700 mr-2">
             Best values highlighted

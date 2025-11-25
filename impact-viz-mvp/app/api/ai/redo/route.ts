@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { AIActionExecutor } from '@/lib/ai-action-executor';
 import { cookies } from 'next/headers';
 import { createServerClient } from '@supabase/ssr';
+import { aiRedoSchema } from '@/lib/schemas/ai';
 
 export const runtime = 'nodejs';
 
@@ -45,16 +46,26 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Parse request
-    const body = await req.json();
-    const { actionId } = body;
+    // Parse and validate request
+    let body;
+    try {
+      body = await req.json();
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+    }
 
-    if (!actionId) {
+    const validation = aiRedoSchema.safeParse(body);
+    if (!validation.success) {
       return NextResponse.json(
-        { error: 'actionId required' },
+        {
+          error: 'Validation failed',
+          details: validation.error.format(),
+        },
         { status: 400 }
       );
     }
+
+    const { actionId } = validation.data;
 
     const sb = supabaseService();
     const executor = new AIActionExecutor(sb as any);

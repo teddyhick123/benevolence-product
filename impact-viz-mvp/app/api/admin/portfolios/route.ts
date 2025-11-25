@@ -1,17 +1,30 @@
 // app/api/admin/portfolios/route.ts
 import { NextResponse } from 'next/server';
 import { createSupabaseServerClient } from '@/lib/supabase-server';
+import { createAdminPortfolioSchema } from '@/lib/schemas/admin';
 
 export async function POST(req: Request) {
-  const body = await req.json().catch(() => ({}));
-  const name = (body?.name || '').trim();
-  const base_currency = (body?.base_currency || 'USD').trim().toUpperCase();
-  let owner_user_id = (body?.owner_user_id || '').trim();
-  const owner_email = (body?.owner_email || '').trim().toLowerCase();
-
-  if (!name) {
-    return NextResponse.json({ error: 'name is required' }, { status: 400 });
+  // Parse and validate request body
+  let body;
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
   }
+
+  const validation = createAdminPortfolioSchema.safeParse(body);
+  if (!validation.success) {
+    return NextResponse.json(
+      {
+        error: 'Validation failed',
+        details: validation.error.format(),
+      },
+      { status: 400 }
+    );
+  }
+
+  const { name, base_currency, owner_user_id: initialOwnerId, owner_email } = validation.data;
+  let owner_user_id = initialOwnerId;
 
   const supabase = await createSupabaseServerClient();
 

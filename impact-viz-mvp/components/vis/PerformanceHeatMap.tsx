@@ -161,25 +161,27 @@ export default function PerformanceHeatMap({ portfolioId, title, config }: Props
   }
 
   return (
-    <div className="w-full space-y-4">
+    <div className="w-full h-full flex flex-col overflow-hidden">
       {title && (
-        <h3 className="text-lg font-semibold text-neutral-900">{title}</h3>
+        <h3 className="text-lg font-semibold text-neutral-900 shrink-0 mb-4">{title}</h3>
       )}
 
-      <HeatMapChart
-        holdings={holdings}
-        columns={columns}
-        matrix={matrix}
-        cellWidth={config?.cellWidth || 80}
-        cellHeight={config?.cellHeight || 40}
-        colorScheme={config?.colorScheme || 'sequential'}
-        minColor={config?.minColor || '#fef3c7'}
-        maxColor={config?.maxColor || '#059669'}
-        midColor={config?.midColor}
-        showValues={config?.showValues ?? false}
-      />
+      <div className="flex-1 min-h-0 overflow-auto">
+        <HeatMapChart
+          holdings={holdings}
+          columns={columns}
+          matrix={matrix}
+          cellWidth={config?.cellWidth || 80}
+          cellHeight={config?.cellHeight || 40}
+          colorScheme={config?.colorScheme || 'sequential'}
+          minColor={config?.minColor || '#fef3c7'}
+          maxColor={config?.maxColor || '#059669'}
+          midColor={config?.midColor}
+          showValues={config?.showValues ?? false}
+        />
+      </div>
 
-      <div className="text-xs text-neutral-500 text-center">
+      <div className="text-xs text-neutral-500 text-center shrink-0 mt-4">
         {mode === 'temporal'
           ? `Showing ${metricCode} over time`
           : `Showing multiple metrics: ${metricsString}`}

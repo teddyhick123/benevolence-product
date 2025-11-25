@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { parseDocument } from '@/lib/document-parser';
 import { extractFactsFromText, getUniqueMetricCodes } from '@/lib/openai-extractor';
+import { uploadIngestSchema } from '@/lib/schemas/admin';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300; // 5 minutes for long-running extractions
@@ -22,13 +23,26 @@ export async function POST(req: NextRequest) {
   const sb = supabaseService();
 
   try {
-    // Parse request body
-    const body = await req.json();
-    const { uploadId } = body;
-
-    if (!uploadId) {
-      return NextResponse.json({ error: 'uploadId required' }, { status: 400 });
+    // Parse and validate request body
+    let body;
+    try {
+      body = await req.json();
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
     }
+
+    const validation = uploadIngestSchema.safeParse(body);
+    if (!validation.success) {
+      return NextResponse.json(
+        {
+          error: 'Validation failed',
+          details: validation.error.format(),
+        },
+        { status: 400 }
+      );
+    }
+
+    const { uploadId, autoApprove } = validation.data;
 
     // 1. Fetch upload record
     const { data: upload, error: uploadErr } = await sb

@@ -2,9 +2,15 @@
 
 import * as React from 'react';
 import useSWR from 'swr';
+import dynamic from 'next/dynamic';
 import SectionHeader from '@/components/SectionHeader';
 import VisualCarousel from '@/components/vis/VisualCarousel';
-import EditWidgetsModal from '@/components/vis/EditWidgetsModal';
+
+// Lazy load modal to reduce initial bundle size
+const EditWidgetsModal = dynamic(() => import('@/components/vis/EditWidgetsModal'), {
+  loading: () => null,
+  ssr: false,
+});
 
 const fetcher = (url: string) => fetch(url, { cache: 'no-store' }).then(r => r.json());
 

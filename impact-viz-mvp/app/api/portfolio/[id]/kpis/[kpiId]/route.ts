@@ -1,6 +1,7 @@
 // app/api/portfolio/[id]/kpis/[kpiId]/route.ts
 import { NextResponse } from 'next/server';
 import { createSupabaseServerClient } from '@/lib/supabase-server';
+import { updateKpiSchema } from '@/lib/schemas/portfolio';
 
 function cacheHeaders() {
   return { 'Cache-Control': 'no-store' } as const;
@@ -29,28 +30,39 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string; k
   if (canEditErr) return NextResponse.json({ error: canEditErr.message }, { status: 500, headers: cacheHeaders() });
   if (!canEdit) return NextResponse.json({ error: 'not authorized' }, { status: 403, headers: cacheHeaders() });
 
-  let body: any = {};
-  try { body = await req.json(); } catch (_) {}
+  // Parse and validate request body
+  let body: any;
+  try {
+    body = await req.json();
+    // Handle legacy 'label' field
+    if (body.label && !body.display_name) {
+      body.display_name = body.label;
+    }
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400, headers: cacheHeaders() });
+  }
 
+  const validation = updateKpiSchema.safeParse(body);
+  if (!validation.success) {
+    return NextResponse.json(
+      {
+        error: 'Validation failed',
+        details: validation.error.format(),
+      },
+      { status: 400, headers: cacheHeaders() }
+    );
+  }
+
+  const validated = validation.data;
+
+  // Build patch object from validated data
   const patch: Record<string, any> = {};
-  if (typeof body?.label === 'string') patch.display_name = body.label.trim() || null;
-  if (typeof body?.metric_code === 'string') patch.metric_code = body.metric_code.trim() || null;
-  if (body?.target_value !== undefined) {
-    if (body.target_value === '' || body.target_value === null) patch.target_value = null;
-    else {
-      const n = Number(body.target_value);
-      patch.target_value = Number.isFinite(n) ? n : null;
-    }
-  }
-  if (body?.target_date !== undefined) patch.target_date = toDate(body.target_date);
-  if (body?.order_index !== undefined) {
-    if (body.order_index === '' || body.order_index === null) patch.order_index = null;
-    else {
-      const n = Number(body.order_index);
-      patch.order_index = Number.isInteger(n) ? n : null;
-    }
-  }
-  if (typeof body?.calculation === 'string') patch.calculation = body.calculation.trim() || null;
+  if (validated.display_name !== undefined) patch.display_name = validated.display_name;
+  if (validated.metric_code !== undefined) patch.metric_code = validated.metric_code;
+  if (validated.target_value !== undefined) patch.target_value = validated.target_value;
+  if (validated.target_date !== undefined) patch.target_date = validated.target_date;
+  if (validated.order_index !== undefined) patch.order_index = validated.order_index;
+  if (validated.calculation !== undefined) patch.calculation = validated.calculation;
 
   if (Object.keys(patch).length === 0) {
     return NextResponse.json({ error: 'no valid fields to update' }, { status: 400, headers: cacheHeaders() });

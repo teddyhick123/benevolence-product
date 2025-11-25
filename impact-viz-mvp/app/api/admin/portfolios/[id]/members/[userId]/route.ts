@@ -1,6 +1,7 @@
 // app/api/admin/portfolios/[id]/members/[userId]/route.ts
 import { NextResponse } from 'next/server';
 import { createSupabaseServerClient } from '@/lib/supabase-server';
+import { updateMemberRoleSchema } from '@/lib/schemas/admin';
 
 export async function POST(req: Request, ctx: { params: Promise<{ id: string; userId: string }> }) {
   // Support form method override (_method=DELETE) for simple forms
@@ -77,14 +78,22 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string; u
     if (fd && typeof fd.get === 'function') {
       return { role: String(fd.get('role') || '') };
     }
-    return null;
+    return {};
   });
 
-  const role = String((parsed as any)?.role || '').trim();
-  if (!role) return NextResponse.json({ error: 'role is required' }, { status: 400 });
+  // Validate with Zod
+  const validation = updateMemberRoleSchema.safeParse(parsed);
+  if (!validation.success) {
+    return NextResponse.json(
+      {
+        error: 'Validation failed',
+        details: validation.error.format(),
+      },
+      { status: 400 }
+    );
+  }
 
-  const allowed = new Set(['viewer','editor','owner']);
-  if (!allowed.has(role)) return NextResponse.json({ error: 'invalid role' }, { status: 400 });
+  const { role } = validation.data;
 
   const supabase = await createSupabaseServerClient();
 

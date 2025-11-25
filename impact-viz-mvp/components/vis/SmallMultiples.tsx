@@ -2,6 +2,7 @@
 import { useEffect, useState, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import * as d3 from 'd3';
+import { useWidgetDimensions } from '@/hooks/useWidgetDimensions';
 
 interface HoldingMetricData {
   holdingId: string;
@@ -122,13 +123,13 @@ export default function SmallMultiples({ portfolioId, title, config }: Props) {
   }
 
   return (
-    <div className="w-full space-y-4">
+    <div className="w-full h-full flex flex-col overflow-hidden">
       {title && (
-        <h3 className="text-lg font-semibold text-neutral-900">{title}</h3>
+        <h3 className="text-lg font-semibold text-neutral-900 shrink-0 mb-4">{title}</h3>
       )}
 
       <div
-        className="grid gap-4"
+        className="grid gap-4 flex-1 min-h-0 overflow-auto"
         style={{
           gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
         }}
@@ -145,7 +146,7 @@ export default function SmallMultiples({ portfolioId, title, config }: Props) {
         ))}
       </div>
 
-      <div className="text-xs text-neutral-500 text-center">
+      <div className="text-xs text-neutral-500 text-center shrink-0 mt-4">
         Click any chart to view holding details
       </div>
     </div>
@@ -162,7 +163,19 @@ interface SmallChartProps {
 
 function SmallChart({ holding, height, showBenchmark, benchmarkValue, onClick }: SmallChartProps) {
   const svgRef = useRef<SVGSVGElement>(null);
-  const width = 200; // fixed width for consistency
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [width, setWidth] = useState(200);
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const ro = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setWidth(Math.round(entry.contentRect.width) || 200);
+      }
+    });
+    ro.observe(containerRef.current);
+    return () => ro.disconnect();
+  }, []);
 
   const parsed = useMemo(() => {
     return holding.data
@@ -288,13 +301,15 @@ function SmallChart({ holding, height, showBenchmark, benchmarkValue, onClick }:
       </div>
 
       {/* Chart */}
-      <svg
-        ref={svgRef}
-        width={width}
-        height={height}
-        className="w-full"
-        preserveAspectRatio="none"
-      />
+      <div ref={containerRef} className="w-full">
+        <svg
+          ref={svgRef}
+          width={width}
+          height={height}
+          className="w-full"
+          preserveAspectRatio="none"
+        />
+      </div>
 
       {/* Latest value */}
       <div className="mt-2 text-center">

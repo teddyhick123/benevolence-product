@@ -1,6 +1,7 @@
 // app/api/portfolio/[id]/holdings/[holdingId]/route.ts
 import { NextResponse } from 'next/server';
 import { createSupabaseServerClient } from '@/lib/supabase-server';
+import { updateHoldingSchema } from '@/lib/schemas/portfolio';
 
 function cacheHeaders() {
   return { 'Cache-Control': 'no-store' } as const;
@@ -17,37 +18,46 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string; h
   if (canEditErr) return NextResponse.json({ error: canEditErr.message }, { status: 500, headers: cacheHeaders() });
   if (!canEdit) return NextResponse.json({ error: 'not authorized' }, { status: 403, headers: cacheHeaders() });
 
-  let body: any = {};
-  try { body = await req.json(); } catch (_) {}
+  // Parse and validate request body
+  let body: any;
+  try {
+    body = await req.json();
+    // Handle legacy field names before validation
+    if (body.nav !== undefined && body.funds_allocated === undefined) {
+      body.funds_allocated = body.nav;
+    }
+    if (body.as_of_date !== undefined && body.as_of === undefined) {
+      body.as_of = body.as_of_date;
+    }
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400, headers: cacheHeaders() });
+  }
 
-  // Normalize inputs (canonical snake_case columns)
+  const validation = updateHoldingSchema.safeParse(body);
+  if (!validation.success) {
+    return NextResponse.json(
+      {
+        error: 'Validation failed',
+        details: validation.error.format(),
+      },
+      { status: 400, headers: cacheHeaders() }
+    );
+  }
+
+  const validated = validation.data;
+
+  // Build patch object from validated data (only include provided fields)
   const patch: Record<string, any> = {};
-  if (typeof body?.name === 'string') patch.name = body.name.trim() || null;
-  if (typeof body?.status === 'string') patch.status = body.status.trim() || null;
-  if (typeof body?.asset_class === 'string') patch.asset_class = body.asset_class.trim() || null;
-  if (typeof body?.custodian === 'string') patch.custodian = body.custodian.trim() || null;
-  if (typeof body?.valuation_method === 'string') patch.valuation_method = body.valuation_method.trim() || null;
-  if (typeof body?.sector === 'string') patch.sector = body.sector.trim() || null;
-  if (typeof body?.country === 'string') patch.country = body.country.trim() || null;
-  if (body?.investee_id !== undefined) patch.investee_id = body.investee_id === '' ? null : body.investee_id;
-
-  // funds_allocated: accept either funds_allocated or legacy nav
-  if (body?.funds_allocated !== undefined) {
-    const n = Number(body.funds_allocated);
-    patch.funds_allocated = body.funds_allocated === '' ? null : (Number.isFinite(n) ? n : null);
-  } else if (body?.nav !== undefined) {
-    const n = Number(body.nav);
-    patch.funds_allocated = body.nav === '' ? null : (Number.isFinite(n) ? n : null);
-  }
-
-  // as_of: accept YYYY-MM-DD or legacy as_of_date; store as date (YYYY-MM-DD)
-  if (typeof body?.as_of === 'string' && body.as_of.trim()) {
-    const d = new Date(body.as_of);
-    patch.as_of = isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10);
-  } else if (typeof body?.as_of_date === 'string' && body.as_of_date.trim()) {
-    const d = new Date(body.as_of_date);
-    patch.as_of = isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10);
-  }
+  if (validated.name !== undefined) patch.name = validated.name;
+  if (validated.status !== undefined) patch.status = validated.status;
+  if (validated.asset_class !== undefined) patch.asset_class = validated.asset_class;
+  if (validated.custodian !== undefined) patch.custodian = validated.custodian;
+  if (validated.valuation_method !== undefined) patch.valuation_method = validated.valuation_method;
+  if (validated.sector !== undefined) patch.sector = validated.sector;
+  if (validated.country !== undefined) patch.country = validated.country;
+  if (validated.investee_id !== undefined) patch.investee_id = validated.investee_id;
+  if (validated.funds_allocated !== undefined) patch.funds_allocated = validated.funds_allocated;
+  if (validated.as_of !== undefined) patch.as_of = validated.as_of;
 
   if (Object.keys(patch).length === 0) {
     return NextResponse.json({ error: 'no valid fields to update' }, { status: 400, headers: cacheHeaders() });

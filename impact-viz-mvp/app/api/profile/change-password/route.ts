@@ -1,6 +1,7 @@
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { NextRequest, NextResponse } from 'next/server';
+import { changePasswordSchema } from '@/lib/schemas/profile';
 
 export async function POST(request: NextRequest) {
   try {
@@ -32,22 +33,26 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const body = await request.json();
-    const { currentPassword, newPassword } = body;
+    // Parse and validate request body
+    let body;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+    }
 
-    if (!currentPassword || !newPassword) {
+    const validation = changePasswordSchema.safeParse(body);
+    if (!validation.success) {
       return NextResponse.json(
-        { error: 'Current password and new password are required' },
+        {
+          error: 'Validation failed',
+          details: validation.error.format(),
+        },
         { status: 400 }
       );
     }
 
-    if (newPassword.length < 6) {
-      return NextResponse.json(
-        { error: 'Password must be at least 6 characters' },
-        { status: 400 }
-      );
-    }
+    const { currentPassword, newPassword } = validation.data;
 
     // Verify current password by attempting to sign in
     const { error: signInError } = await supabase.auth.signInWithPassword({

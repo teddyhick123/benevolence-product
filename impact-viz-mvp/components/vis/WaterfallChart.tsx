@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState, useMemo, useRef } from 'react';
 import * as d3 from 'd3';
+import { useWidgetDimensions } from '@/hooks/useWidgetDimensions';
 
 interface WaterfallItem {
   label: string;
@@ -108,21 +109,23 @@ export default function WaterfallChart({ portfolioId, title, config }: Props) {
   }
 
   return (
-    <div className="w-full space-y-4">
+    <div className="w-full h-full flex flex-col overflow-hidden">
       {title && (
-        <h3 className="text-lg font-semibold text-neutral-900">{title}</h3>
+        <h3 className="text-lg font-semibold text-neutral-900 shrink-0 mb-4">{title}</h3>
       )}
 
-      <WaterfallD3Chart
-        data={data}
-        showValues={config?.showValues ?? true}
-        showConnectors={config?.showConnectors ?? true}
-        increaseColor={config?.increaseColor || '#059669'}
-        decreaseColor={config?.decreaseColor || '#dc2626'}
-        totalColor={config?.totalColor || '#3b82f6'}
-      />
+      <div className="flex-1 min-h-0">
+        <WaterfallD3Chart
+          data={data}
+          showValues={config?.showValues ?? true}
+          showConnectors={config?.showConnectors ?? true}
+          increaseColor={config?.increaseColor || '#059669'}
+          decreaseColor={config?.decreaseColor || '#dc2626'}
+          totalColor={config?.totalColor || '#3b82f6'}
+        />
+      </div>
 
-      <div className="flex items-center justify-center gap-4 text-xs text-neutral-600">
+      <div className="flex items-center justify-center gap-4 text-xs text-neutral-600 shrink-0 mt-4">
         <div className="flex items-center gap-1">
           <div className="w-4 h-4 rounded" style={{ backgroundColor: config?.increaseColor || '#059669' }}></div>
           <span>Increase</span>
@@ -158,19 +161,17 @@ function WaterfallD3Chart({
   totalColor
 }: WaterfallD3ChartProps) {
   const svgRef = useRef<SVGSVGElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
+  const [containerRef, dimensions] = useWidgetDimensions(600, 350);
 
   useEffect(() => {
-    if (!svgRef.current || !containerRef.current || data.length === 0) return;
+    if (!svgRef.current || data.length === 0) return;
 
-    const container = containerRef.current;
     const svg = d3.select(svgRef.current);
     svg.selectAll('*').remove();
 
-    const containerWidth = container.clientWidth;
     const margin = { top: 20, right: 40, bottom: 80, left: 60 };
-    const width = Math.max(containerWidth - margin.left - margin.right, 400);
-    const height = 400;
+    const width = Math.max(dimensions.width - margin.left - margin.right, 300);
+    const height = Math.max(dimensions.height - margin.top - margin.bottom, 200);
 
     svg
       .attr('width', width + margin.left + margin.right)
@@ -338,11 +339,11 @@ function WaterfallD3Chart({
       }
     });
 
-  }, [data, showValues, showConnectors, increaseColor, decreaseColor, totalColor]);
+  }, [data, showValues, showConnectors, increaseColor, decreaseColor, totalColor, dimensions]);
 
   return (
-    <div ref={containerRef} className="w-full overflow-x-auto">
-      <svg ref={svgRef} />
+    <div ref={containerRef} className="w-full h-full">
+      <svg ref={svgRef} className="w-full h-full" />
     </div>
   );
 }

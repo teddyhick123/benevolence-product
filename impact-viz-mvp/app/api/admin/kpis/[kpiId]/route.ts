@@ -1,6 +1,7 @@
 // app/api/admin/kpis/[kpiId]/route.ts
 import { NextResponse } from 'next/server';
 import { createSupabaseServerClient } from '@/lib/supabase-server';
+import { adminUpdateKpiSchema } from '@/lib/schemas/admin';
 
 function toNumber(value: any): number | null {
   if (value === null || value === undefined || value === '') return null;
@@ -31,18 +32,33 @@ export async function POST(req: Request, ctx: { params: Promise<{ kpiId: string 
 export async function PUT(req: Request, ctx: { params: Promise<{ kpiId: string }> }) {
   const { kpiId } = await ctx.params;
   const parsed = await req.formData().catch(async () => {
-    try { return await req.json(); } catch { return null; }
+    try { return await req.json(); } catch { return {}; }
   });
 
   const get = (k: string) =>
     typeof (parsed as any)?.get === 'function' ? (parsed as FormData).get(k) : (parsed as any)?.[k];
 
-  const fields: any = {};
-  if (get('metric_code') != null) fields.metric_code = String(get('metric_code') || '').trim();
-  if (get('display_name') != null) fields.display_name = String(get('display_name') || '') || null;
-  if (get('target_value') != null) fields.target_value = toNumber(get('target_value'));
-  if (get('target_date') != null) fields.target_date = (get('target_date') ? String(get('target_date')) : null);
-  if (get('order_index') != null) fields.order_index = toNumber(get('order_index')) ?? 0;
+  // Build object for validation
+  const body: any = {};
+  if (get('metric_code') != null) body.metric_code = String(get('metric_code') || '').trim();
+  if (get('display_name') != null) body.display_name = String(get('display_name') || '');
+  if (get('target_value') != null) body.target_value = toNumber(get('target_value'));
+  if (get('target_date') != null) body.target_date = get('target_date') ? String(get('target_date')) : null;
+  if (get('order_index') != null) body.order_index = toNumber(get('order_index'));
+
+  // Validate with Zod
+  const validation = adminUpdateKpiSchema.safeParse(body);
+  if (!validation.success) {
+    return NextResponse.json(
+      {
+        error: 'Validation failed',
+        details: validation.error.format(),
+      },
+      { status: 400 }
+    );
+  }
+
+  const fields = validation.data;
 
   const { supabase, error: adminErr } = await requireAdmin();
   if (adminErr) return NextResponse.json({ error: adminErr }, { status: 403 });

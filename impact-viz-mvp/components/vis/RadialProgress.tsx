@@ -1,6 +1,7 @@
 'use client';
 import * as d3 from 'd3';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useWidgetDimensions } from '@/hooks/useWidgetDimensions';
 
 type SeriesPoint = { date: string; value: number };
 
@@ -34,6 +35,7 @@ export default function RadialProgress({ portfolioId, holdingId, title, config }
   const [ringData, setRingData] = useState<Record<string, { value: number; display_name: string }>>({});
   const [loading, setLoading] = useState(true);
   const svgRef = useRef<SVGSVGElement | null>(null);
+  const [containerRef, dimensions] = useWidgetDimensions(280, 280);
 
   const gradId = useMemo(() => `rp-grad-${Math.random().toString(36).slice(2, 9)}`, []);
   const glowId = useMemo(() => `rp-glow-${Math.random().toString(36).slice(2, 9)}`, []);
@@ -110,15 +112,16 @@ export default function RadialProgress({ portfolioId, holdingId, title, config }
     const svg = d3.select(svgNode);
     svg.selectAll('*').remove();
 
-    const SIZE = 280;
+    // Use the smaller of width/height to maintain aspect ratio
+    const SIZE = Math.min(dimensions.width, dimensions.height, 320);
     const maxRings = Math.min(rings.length, 3);
     const ringWidth = maxRings === 1 ? 28 : maxRings === 2 ? 24 : 20;
     const spacing = 8;
     const outerRadius = (SIZE / 2) - ringWidth - 10;
 
     svg
-      .attr('width', SIZE)
-      .attr('height', SIZE)
+      .attr('width', '100%')
+      .attr('height', '100%')
       .attr('viewBox', `0 0 ${SIZE} ${SIZE}`)
       .attr('preserveAspectRatio', 'xMidYMid meet')
       .style('display', 'block');
@@ -247,7 +250,7 @@ export default function RadialProgress({ portfolioId, holdingId, title, config }
         .text('KPIs');
     }
 
-  }, [rings, ringData, gradId, glowId]);
+  }, [rings, ringData, gradId, glowId, dimensions]);
 
   return (
     <div className="rounded-2xl border border-black/5 bg-white p-4 shadow-soft w-full h-full flex flex-col">
@@ -260,10 +263,8 @@ export default function RadialProgress({ portfolioId, holdingId, title, config }
         </div>
       ) : (
         <>
-          <div className="flex-1 flex items-center justify-center min-h-0">
-            <div style={{ width: '280px', height: '280px' }}>
-              <svg ref={svgRef} />
-            </div>
+          <div ref={containerRef} className="flex-1 flex items-center justify-center min-h-0">
+            <svg ref={svgRef} />
           </div>
 
           {rings.length > 1 && (

@@ -1,6 +1,7 @@
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { NextRequest, NextResponse } from 'next/server';
+import { updateProfileSchema } from '@/lib/schemas/profile';
 
 export async function POST(request: NextRequest) {
   try {
@@ -32,8 +33,26 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const body = await request.json();
-    const { display_name, bio, organization } = body;
+    // Parse and validate request body
+    let body;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+    }
+
+    const validation = updateProfileSchema.safeParse(body);
+    if (!validation.success) {
+      return NextResponse.json(
+        {
+          error: 'Validation failed',
+          details: validation.error.format(),
+        },
+        { status: 400 }
+      );
+    }
+
+    const { display_name, bio, organization } = validation.data;
 
     // Update user metadata
     const { error: updateError } = await supabase.auth.updateUser({

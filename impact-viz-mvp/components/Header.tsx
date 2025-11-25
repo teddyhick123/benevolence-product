@@ -51,6 +51,7 @@ function HeaderContent() {
 
   const dashboardHref = currentPortfolioId ? `/dashboard?portfolio_id=${encodeURIComponent(currentPortfolioId)}` : '/dashboard';
   const recommendationsHref = currentPortfolioId ? `/recommendations?portfolio_id=${encodeURIComponent(currentPortfolioId)}` : '/recommendations';
+  const taxHref = '/dashboard/tax';
 
   async function handleSignOut() {
     await supabase.auth.signOut();
@@ -94,6 +95,12 @@ function HeaderContent() {
                 className="font-sans text-sm px-4 py-2 rounded-md border border-black/10 hover:bg-white shadow-sm hover:shadow transition-transform duration-200 hover:-translate-y-0.5 will-change-transform rm:transition-none rm:transform-none"
               >
                 Recommendations
+              </Link>
+              <Link
+                href={taxHref}
+                className="font-sans text-sm px-4 py-2 rounded-md border border-black/10 hover:bg-white shadow-sm hover:shadow transition-transform duration-200 hover:-translate-y-0.5 will-change-transform rm:transition-none rm:transform-none"
+              >
+                Tax
               </Link>
               <Link
                 href="/profile"
@@ -147,6 +154,12 @@ function HeaderContent() {
               className="block w-full text-left font-sans text-sm px-4 py-3 rounded-md border border-black/10 hover:bg-white shadow-sm hover:shadow transition-colors"
             >
               Recommendations
+            </Link>
+            <Link
+              href={taxHref}
+              className="block w-full text-left font-sans text-sm px-4 py-3 rounded-md border border-black/10 hover:bg-white shadow-sm hover:shadow transition-colors"
+            >
+              Tax
             </Link>
             <Link
               href="/profile"

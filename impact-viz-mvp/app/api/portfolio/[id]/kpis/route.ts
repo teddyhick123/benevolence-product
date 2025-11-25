@@ -1,6 +1,8 @@
 // app/api/portfolio/[id]/kpis/route.ts
 import { NextResponse } from 'next/server';
 import { createSupabaseServerClient } from '@/lib/supabase-server';
+import { createKpiSchema } from '@/lib/schemas/portfolio';
+import { validateRequest } from '@/lib/validation';
 
 function cacheHeaders() {
   return { 'Cache-Control': 'no-store' } as const;
@@ -67,31 +69,39 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   if (canEditErr) return NextResponse.json({ error: canEditErr.message }, { status: 500, headers: cacheHeaders() });
   if (!canEdit) return NextResponse.json({ error: 'not authorized' }, { status: 403, headers: cacheHeaders() });
 
-  let body: any = {};
-  try { body = await req.json(); } catch (_) {}
-
-  const label = typeof body?.label === 'string' ? body.label.trim() : '';
-  if (!label) return NextResponse.json({ error: 'label is required' }, { status: 400, headers: cacheHeaders() });
-
-  const metric_code = typeof body?.metric_code === 'string' && body.metric_code.trim() ? body.metric_code.trim() : null;
-  const target_value = typeof body?.target_value === 'number' ? body.target_value : null;
-  function toDate(v: any): string | null {
-    if (typeof v !== 'string' || !v.trim()) return null;
-    const d = new Date(v);
-    return isNaN(d.getTime()) ? null : d.toISOString();
+  // Parse and validate request body
+  let body: any;
+  try {
+    body = await req.json();
+    // Handle legacy 'label' field - transform to 'display_name'
+    if (body.label && !body.display_name) {
+      body.display_name = body.label;
+    }
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400, headers: cacheHeaders() });
   }
-  const target_date = toDate(body?.target_date);
-  const order_index = typeof body?.order_index === 'number' ? body.order_index : null;
-  const calculation = typeof body?.calculation === 'string' && body.calculation.trim() ? body.calculation.trim() : null;
+
+  const validation = createKpiSchema.safeParse(body);
+  if (!validation.success) {
+    return NextResponse.json(
+      {
+        error: 'Validation failed',
+        details: validation.error.format(),
+      },
+      { status: 400, headers: cacheHeaders() }
+    );
+  }
+
+  const validated = validation.data;
 
   const insertRow: any = {
     portfolio_id,
-    display_name: label,
-    metric_code,
-    target_value,
-    target_date,
-    order_index,
-    calculation,
+    display_name: validated.display_name,
+    metric_code: validated.metric_code ?? null,
+    target_value: validated.target_value ?? null,
+    target_date: validated.target_date ?? null,
+    order_index: validated.order_index ?? null,
+    calculation: validated.calculation ?? null,
   };
 
   const { data: inserted, error: insErr } = await sb

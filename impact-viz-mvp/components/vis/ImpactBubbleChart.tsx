@@ -2,6 +2,7 @@
 import { useEffect, useState, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import * as d3 from 'd3';
+import { useWidgetDimensions } from '@/hooks/useWidgetDimensions';
 
 interface BubbleData {
   holdingId: string;
@@ -131,23 +132,25 @@ export default function ImpactBubbleChart({ portfolioId, title, config }: Props)
   }
 
   return (
-    <div className="w-full space-y-4">
+    <div className="w-full h-full flex flex-col overflow-hidden">
       {title && (
-        <h3 className="text-lg font-semibold text-neutral-900">{title}</h3>
+        <h3 className="text-lg font-semibold text-neutral-900 shrink-0 mb-4">{title}</h3>
       )}
 
-      <BubbleChartD3
-        data={data}
-        colorMode={colorMode}
-        showLabels={config?.showLabels ?? false}
-        minBubbleSize={config?.minBubbleSize || 10}
-        maxBubbleSize={config?.maxBubbleSize || 50}
-        xLabel={config?.xLabel || xMetric}
-        yLabel={config?.yLabel || yMetric}
-        onBubbleClick={(bubble) => router.push(`/dashboard/holdings/${bubble.holdingId}`)}
-      />
+      <div className="flex-1 min-h-0">
+        <BubbleChartD3
+          data={data}
+          colorMode={colorMode}
+          showLabels={config?.showLabels ?? false}
+          minBubbleSize={config?.minBubbleSize || 10}
+          maxBubbleSize={config?.maxBubbleSize || 50}
+          xLabel={config?.xLabel || xMetric}
+          yLabel={config?.yLabel || yMetric}
+          onBubbleClick={(bubble) => router.push(`/dashboard/holdings/${bubble.holdingId}`)}
+        />
+      </div>
 
-      <div className="text-xs text-neutral-500 text-center">
+      <div className="text-xs text-neutral-500 text-center shrink-0 mt-4">
         Bubble size represents {sizeMetric}. Click any bubble to view holding details.
       </div>
     </div>
@@ -176,20 +179,18 @@ function BubbleChartD3({
   onBubbleClick
 }: BubbleChartD3Props) {
   const svgRef = useRef<SVGSVGElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
+  const [containerRef, dimensions] = useWidgetDimensions(600, 400);
   const tooltipRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!svgRef.current || !containerRef.current || data.length === 0) return;
+    if (!svgRef.current || data.length === 0) return;
 
-    const container = containerRef.current;
     const svg = d3.select(svgRef.current);
     svg.selectAll('*').remove();
 
-    const containerWidth = container.clientWidth;
     const margin = { top: 20, right: 40, bottom: 60, left: 70 };
-    const width = Math.max(containerWidth - margin.left - margin.right, 400);
-    const height = 500;
+    const width = Math.max(dimensions.width - margin.left - margin.right, 300);
+    const height = Math.max(dimensions.height - margin.top - margin.bottom, 250);
 
     svg
       .attr('width', width + margin.left + margin.right)
@@ -397,11 +398,11 @@ function BubbleChartD3({
         });
     }
 
-  }, [data, colorMode, showLabels, minBubbleSize, maxBubbleSize, xLabel, yLabel, onBubbleClick]);
+  }, [data, colorMode, showLabels, minBubbleSize, maxBubbleSize, xLabel, yLabel, onBubbleClick, dimensions]);
 
   return (
-    <div ref={containerRef} className="w-full relative">
-      <svg ref={svgRef} />
+    <div ref={containerRef} className="w-full h-full relative">
+      <svg ref={svgRef} className="w-full h-full" />
       <div
         ref={tooltipRef}
         className="absolute pointer-events-none opacity-0 bg-white rounded-lg shadow-lg border border-neutral-200 p-3 text-sm transition-opacity"

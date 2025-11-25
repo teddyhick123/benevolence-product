@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import { supabasePublic } from '@/lib/supabasePublic';
+import { createHoldingSchema } from '@/lib/schemas/portfolio';
+import { validateRequest } from '@/lib/validation';
 
 export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id: portfolio_id } = await ctx.params;
@@ -38,7 +40,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
     data: data ?? [],
     count: count ?? 0,
     nextOffset: (count ?? 0) > offset + limit ? offset + limit : null,
-  }, { headers: { 'Cache-Control': 'no-store' } });
+  }, { headers: { 'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=60' } });
 }
 
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
@@ -55,52 +57,37 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     return NextResponse.json({ error: 'not authorized' }, { status: 403, headers: { 'Cache-Control': 'no-store' } });
   }
 
-  let body: any = {};
-  try {
-    body = await req.json();
-  } catch (_) {
-    // ignore, keep body as {}
+  // Validate request body
+  const validation = await validateRequest(req, createHoldingSchema);
+  if (!validation.success) {
+    return validation.response;
   }
 
-  const name = typeof body?.name === 'string' ? body.name.trim() : null;
-  const status = typeof body?.status === 'string' ? body.status.trim() : null;
-  const asset_class = typeof body?.asset_class === 'string' ? body.asset_class.trim() : null;
-  const custodian = typeof body?.custodian === 'string' ? body.custodian.trim() : null;
-  const valuation_method = typeof body?.valuation_method === 'string' ? body.valuation_method.trim() : null;
-  const sector = typeof body?.sector === 'string' ? body.sector.trim() : null;
-  const country = typeof body?.country === 'string' ? body.country.trim() : null;
-  const investee_id = body?.investee_id ?? null;
+  const validated = validation.data;
 
-  // funds_allocated: accept either funds_allocated or legacy nav
-  let funds_allocated: number | null = null;
-  if (body?.funds_allocated !== undefined && body?.funds_allocated !== null && body?.funds_allocated !== '') {
-    const n = Number(body.funds_allocated);
-    funds_allocated = Number.isFinite(n) ? n : null;
-  } else if (body?.nav !== undefined) {
-    const n = Number(body.nav);
-    funds_allocated = Number.isFinite(n) ? n : null;
-  }
+  // Handle legacy nav field by preferring funds_allocated
+  const funds_allocated = validated.funds_allocated ?? validated.nav ?? null;
 
-  // as_of: accept YYYY-MM-DD or any parseable date (also accept legacy as_of_date)
+  // Handle date parsing for as_of field (accepts as_of or legacy as_of_date)
   let as_of: string | null = null;
-  const rawAsOf = (typeof body?.as_of === 'string' && body.as_of.trim()) ? body.as_of
-                 : (typeof body?.as_of_date === 'string' && body.as_of_date.trim()) ? body.as_of_date
-                 : null;
+  const rawAsOf = validated.as_of ?? validated.as_of_date ?? null;
   if (rawAsOf) {
     const d = new Date(rawAsOf);
-    if (!isNaN(d.getTime())) as_of = d.toISOString().slice(0, 10); // date column expects YYYY-MM-DD
+    if (!isNaN(d.getTime())) {
+      as_of = d.toISOString().slice(0, 10); // date column expects YYYY-MM-DD
+    }
   }
 
   const insertRow: any = {
     portfolio_id,
-    name,
-    status,
-    asset_class,
-    custodian,
-    valuation_method,
-    sector,
-    country,
-    investee_id,
+    name: validated.name,
+    status: validated.status ?? null,
+    asset_class: validated.asset_class ?? null,
+    custodian: validated.custodian ?? null,
+    valuation_method: validated.valuation_method ?? null,
+    sector: validated.sector ?? null,
+    country: validated.country ?? null,
+    investee_id: validated.investee_id ?? null,
     funds_allocated,
     as_of,
   };

@@ -3,27 +3,39 @@
 // app/api/admin/portfolios/[id]/settings/route.ts
 import { NextResponse } from 'next/server';
 import { createSupabaseServerClient } from '@/lib/supabase-server';
+import { portfolioSettingsSchema } from '@/lib/schemas/admin';
 
 /** Admin-only: upsert settings { show_map?: boolean, widgets?: string[] } */
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id: portfolioId } = await ctx.params;
 
-  // Accept JSON or form data
+  // Accept JSON or form data (validate JSON, fallback to FormData)
   const parsed = await req.json().catch(async () => {
     const fd = await req.formData().catch(() => null);
     if (fd && typeof fd.get === 'function') {
       const showMapRaw = fd.get('show_map');
-      const widgetsRaw = fd.get('widgets'); // expecting comma-separated list if provided
+      const widgetsRaw = fd.get('widgets');
       return {
         show_map: typeof showMapRaw === 'string' ? showMapRaw === 'true' : (showMapRaw as any),
         widgets: typeof widgetsRaw === 'string' ? (widgetsRaw as string).split(',').map(s => s.trim()).filter(Boolean) : undefined,
       };
     }
-    return {} as any;
+    return {};
   });
 
-  const show_map = typeof parsed?.show_map === 'boolean' ? parsed.show_map : undefined;
-  const widgets  = Array.isArray(parsed?.widgets) ? parsed.widgets as string[] : undefined;
+  // Validate parsed data with Zod
+  const validation = portfolioSettingsSchema.safeParse(parsed);
+  if (!validation.success) {
+    return NextResponse.json(
+      {
+        error: 'Validation failed',
+        details: validation.error.format(),
+      },
+      { status: 400, headers: { 'Cache-Control': 'no-store' } }
+    );
+  }
+
+  const { show_map, widgets } = validation.data;
 
   const supabase = await createSupabaseServerClient();
 

@@ -111,25 +111,27 @@ export default function ImpactTimeline({ portfolioId, title, config }: Props) {
   }
 
   return (
-    <div className="w-full space-y-4">
+    <div className="w-full h-full flex flex-col overflow-hidden">
       {title && (
-        <h3 className="text-lg font-semibold text-neutral-900">{title}</h3>
+        <h3 className="text-lg font-semibold text-neutral-900 shrink-0 mb-4">{title}</h3>
       )}
 
-      {orientation === 'horizontal' ? (
-        <HorizontalTimeline
-          events={data}
-          showValues={config?.showValues ?? true}
-          onEventClick={setSelectedEvent}
-        />
-      ) : (
-        <VerticalTimeline
-          events={data}
-          showValues={config?.showValues ?? true}
-          onEventClick={setSelectedEvent}
-          groupByHolding={config?.groupByHolding ?? false}
-        />
-      )}
+      <div className="flex-1 min-h-0 overflow-auto">
+        {orientation === 'horizontal' ? (
+          <HorizontalTimeline
+            events={data}
+            showValues={config?.showValues ?? true}
+            onEventClick={setSelectedEvent}
+          />
+        ) : (
+          <VerticalTimeline
+            events={data}
+            showValues={config?.showValues ?? true}
+            onEventClick={setSelectedEvent}
+            groupByHolding={config?.groupByHolding ?? false}
+          />
+        )}
+      </div>
 
       {/* Event Detail Modal */}
       {selectedEvent && (

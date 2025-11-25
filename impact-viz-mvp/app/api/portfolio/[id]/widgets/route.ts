@@ -3,9 +3,14 @@
 // app/api/portfolio/[id]/widgets/route.ts
 import { NextResponse } from 'next/server';
 import { createSupabaseServerClient } from '@/lib/supabase-server';
+import { createWidgetSchema } from '@/lib/schemas/portfolio';
+import { validateRequest } from '@/lib/validation';
 
-function cacheHeaders() {
-  return { 'Cache-Control': 'no-store' } as const;
+function cacheHeaders(isGet = false) {
+  // GET requests can be cached for 5 minutes, mutations should not be cached
+  return isGet
+    ? { 'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=60' } as const
+    : { 'Cache-Control': 'no-store' } as const;
 }
 
 const createSb = createSupabaseServerClient;
@@ -32,7 +37,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
     data: data ?? [],
     count: count ?? 0,
     nextOffset: (count ?? 0) > offset + limit ? offset + limit : null,
-  }, { headers: cacheHeaders() });
+  }, { headers: cacheHeaders(true) });
 }
 
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
@@ -44,23 +49,13 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   if (canEditErr) return NextResponse.json({ error: canEditErr.message }, { status: 500, headers: cacheHeaders() });
   if (!canEdit) return NextResponse.json({ error: 'not authorized' }, { status: 403, headers: cacheHeaders() });
 
-  let body: any = {};
-  try { body = await req.json(); } catch (_) {}
-
-  const type = typeof body?.type === 'string' ? body.type.trim() : '';
-  if (!type) return NextResponse.json({ error: 'type is required' }, { status: 400, headers: cacheHeaders() });
-  const title = typeof body?.title === 'string' && body.title.trim() ? body.title.trim() : null;
-
-  // parse config (JSON) safely
-  let config: any = null;
-  if (body?.config !== undefined) {
-    try {
-      // If already an object, use as-is; else try to JSON.parse strings
-      config = typeof body.config === 'string' ? JSON.parse(body.config) : body.config;
-    } catch {
-      return NextResponse.json({ error: 'config must be valid JSON' }, { status: 400, headers: cacheHeaders() });
-    }
+  // Validate request body
+  const validation = await validateRequest(req, createWidgetSchema);
+  if (!validation.success) {
+    return validation.response;
   }
+
+  const { type, title, config } = validation.data;
 
   // Determine next position (max(position) + 1)
   let nextPos = 1;
@@ -76,7 +71,13 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     }
   }
 
-  const insertRow: any = { portfolio_id, type, title, config, position: nextPos };
+  const insertRow: any = {
+    portfolio_id,
+    type,
+    title: title ?? null,
+    config: config ?? null,
+    position: nextPos
+  };
 
   const { data: inserted, error: insErr } = await sb
     .from('widgets')

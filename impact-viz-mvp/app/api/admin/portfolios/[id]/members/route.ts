@@ -2,6 +2,7 @@
 import { NextResponse } from 'next/server';
 import { createSupabaseServerClient } from '@/lib/supabase-server';
 import { createClient } from '@supabase/supabase-js';
+import { addPortfolioMemberSchema } from '@/lib/schemas/admin';
 
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id: portfolioId } = await ctx.params;
@@ -15,20 +16,22 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
         role: String(fd.get('role') || 'viewer'),
       };
     }
-    return null;
+    return {};
   });
 
-  const userId = String((parsed as any)?.user_id || '').trim();
-  const role = String((parsed as any)?.role || 'viewer').trim();
-
-  if (!userId) {
-    return NextResponse.json({ error: 'user_id is required' }, { status: 400 });
+  // Validate with Zod
+  const validation = addPortfolioMemberSchema.safeParse(parsed);
+  if (!validation.success) {
+    return NextResponse.json(
+      {
+        error: 'Validation failed',
+        details: validation.error.format(),
+      },
+      { status: 400 }
+    );
   }
 
-  const allowed = new Set(['viewer', 'editor', 'owner']);
-  if (!allowed.has(role)) {
-    return NextResponse.json({ error: 'invalid role' }, { status: 400 });
-  }
+  const { user_id: userId, role } = validation.data;
 
   const supabase = await createSupabaseServerClient();
 

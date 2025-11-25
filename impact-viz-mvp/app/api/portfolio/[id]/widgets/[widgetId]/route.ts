@@ -3,6 +3,7 @@
 // app/api/portfolio/[id]/widgets/[widgetId]/route.ts
 import { NextResponse } from 'next/server';
 import { createSupabaseServerClient } from '@/lib/supabase-server';
+import { updateWidgetSchema } from '@/lib/schemas/portfolio';
 
 function cacheHeaders() {
   return { 'Cache-Control': 'no-store' } as const;
@@ -19,25 +20,33 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string; w
   if (canEditErr) return NextResponse.json({ error: canEditErr.message }, { status: 500, headers: cacheHeaders() });
   if (!canEdit) return NextResponse.json({ error: 'not authorized' }, { status: 403, headers: cacheHeaders() });
 
-  let body: any = {};
-  try { body = await req.json(); } catch (_) {}
+  // Parse and validate request body
+  let body: any;
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400, headers: cacheHeaders() });
+  }
 
+  const validation = updateWidgetSchema.safeParse(body);
+  if (!validation.success) {
+    return NextResponse.json(
+      {
+        error: 'Validation failed',
+        details: validation.error.format(),
+      },
+      { status: 400, headers: cacheHeaders() }
+    );
+  }
+
+  const validated = validation.data;
+
+  // Build patch object from validated data
   const patch: Record<string, any> = {};
-  if (typeof body?.type === 'string') patch.type = body.type.trim() || null;
-  if (typeof body?.title === 'string') patch.title = body.title.trim() || null;
-
-  if (body?.config !== undefined) {
-    try {
-      patch.config = typeof body.config === 'string' ? JSON.parse(body.config) : body.config;
-    } catch {
-      return NextResponse.json({ error: 'config must be valid JSON' }, { status: 400, headers: cacheHeaders() });
-    }
-  }
-
-  if (body?.position !== undefined) {
-    const n = Number(body.position);
-    if (Number.isFinite(n)) patch.position = n;
-  }
+  if (validated.type !== undefined) patch.type = validated.type;
+  if (validated.title !== undefined) patch.title = validated.title;
+  if (validated.config !== undefined) patch.config = validated.config;
+  if (validated.position !== undefined) patch.position = validated.position;
 
   if (Object.keys(patch).length === 0) {
     return NextResponse.json({ error: 'no valid fields to update' }, { status: 400, headers: cacheHeaders() });

@@ -4,6 +4,7 @@ import { AIPortfolioAssistant } from '@/lib/ai-assistant';
 import { cookies } from 'next/headers';
 import { createServerClient } from '@supabase/ssr';
 import { aiAuthRequired } from '@/lib/rate-limit-response';
+import { aiChatRequestSchema } from '@/lib/schemas/ai';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -56,16 +57,29 @@ export async function POST(req: NextRequest) {
       return aiAuthRequired();
     }
 
-    // Parse request body
-    const body = await req.json();
-    const { portfolioId, message, conversationHistory } = body;
-
-    if (!portfolioId || !message) {
+    // Parse and validate request body
+    let body;
+    try {
+      body = await req.json();
+    } catch {
       return NextResponse.json(
-        { error: 'portfolioId and message are required' },
+        { error: 'Invalid JSON body' },
         { status: 400 }
       );
     }
+
+    const validation = aiChatRequestSchema.safeParse(body);
+    if (!validation.success) {
+      return NextResponse.json(
+        {
+          error: 'Validation failed',
+          details: validation.error.format(),
+        },
+        { status: 400 }
+      );
+    }
+
+    const { portfolioId, message, conversationHistory } = validation.data;
 
     // Verify user has access to portfolio (check membership or admin status)
     const { data: membership } = await supabase

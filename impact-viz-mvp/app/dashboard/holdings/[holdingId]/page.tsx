@@ -29,6 +29,7 @@ type HoldingRow = {
   cost_per_outcome?: number | null;            // legacy/manual optional
   cost_per_outcome_unit?: string | null;       // legacy/manual optional
   funds_allocated?: number | null;             // <-- used for cost/efficiency
+  total_org_funding?: number | null;           // <-- total org budget for proportional attribution
   status?: string | null;
   sector?: string | null;
   as_of?: string | null;
@@ -62,7 +63,7 @@ async function fetchHolding(holdingId: string): Promise<{ holding: HoldingRow | 
   const supabase = await getSupabase();
   const { data, error } = await supabase
     .from('holdings')
-    .select('id, portfolio_id, name, asset_class, description, primary_contact_name, primary_contact_email, primary_contact_phone, primary_contact_photo, primary_contact_notes, website, location_city, location_state, location_country, theory_of_action, cost_per_outcome, cost_per_outcome_unit, funds_allocated, status, sector, as_of')
+    .select('id, portfolio_id, name, asset_class, description, primary_contact_name, primary_contact_email, primary_contact_phone, primary_contact_photo, primary_contact_notes, website, location_city, location_state, location_country, theory_of_action, cost_per_outcome, cost_per_outcome_unit, funds_allocated, total_org_funding, status, sector, as_of')
     .eq('id', holdingId)
     .single();
 
@@ -299,6 +300,29 @@ async function updateHoldingFunds(formData: FormData) {
   }
 
   console.log('Funds update successful:', data);
+  revalidatePath(`/dashboard/holdings/${holdingId}`);
+  revalidatePath(`/dashboard`);
+}
+
+async function updateHoldingOrgFunding(formData: FormData) {
+  'use server';
+  const supabase = await getSupabase();
+  const holdingId = String(formData.get('holding_id'));
+
+  const total_org_funding = numOrNull(formData.get('total_org_funding'));
+
+  const updates: any = { total_org_funding };
+
+  console.log('Updating org funding:', holdingId, 'with values:', updates);
+
+  const { error, data } = await supabase.from('holdings').update(updates).eq('id', holdingId).select();
+
+  if (error) {
+    console.error('updateHoldingOrgFunding error:', error);
+    throw new Error(`Failed to update org funding: ${error.message}`);
+  }
+
+  console.log('Org funding update successful:', data);
   revalidatePath(`/dashboard/holdings/${holdingId}`);
   revalidatePath(`/dashboard`);
 }
@@ -575,12 +599,37 @@ export default async function HoldingMiniDashboard({
   const totalContributions = contributions.reduce((sum, c) => sum + (Number(c.amount) || 0), 0);
   const funds = totalContributions > 0 ? totalContributions : (Number(holding.funds_allocated ?? 0) || 0);
 
+  // Get total org funding for proportional attribution
+  const totalOrgFunding = Number(holding.total_org_funding ?? 0) || 0;
+
   // Prepare KPI cards with efficiency
   const kpiCards = latestMetrics.map((m) => {
     const mVal = typeof m.value === 'number' ? m.value : Number.NaN;
-    // cost per outcome (funds / outcomes), efficiency (outcomes per $1k)
-    const costPerOutcome = funds > 0 && typeof mVal === 'number' && isFinite(mVal) && mVal > 0 ? (funds / mVal) : null;
-    const outcomesPerThousand = funds > 0 && typeof mVal === 'number' && isFinite(mVal) ? (mVal / (funds / 1000)) : null;
+
+    // Cost per outcome with proportional attribution:
+    // If total_org_funding is set: attributed_outcomes = total_outcomes * (your_funds / total_org_funding)
+    // Your cost per outcome = your_funds / attributed_outcomes = total_org_funding / total_outcomes
+    // If total_org_funding is NOT set: fall back to naive calculation (your_funds / total_outcomes)
+    let costPerOutcome: number | null = null;
+    let attributedOutcomes: number | null = null;
+
+    if (typeof mVal === 'number' && isFinite(mVal) && mVal > 0) {
+      if (totalOrgFunding > 0 && funds > 0) {
+        // Proportional attribution: your share of outcomes based on funding ratio
+        attributedOutcomes = mVal * (funds / totalOrgFunding);
+        costPerOutcome = funds / attributedOutcomes; // = totalOrgFunding / mVal
+      } else if (funds > 0) {
+        // Fallback: naive calculation (no org funding data)
+        costPerOutcome = funds / mVal;
+        attributedOutcomes = mVal; // Assumes all outcomes are yours (not recommended)
+      }
+    }
+
+    // Outcomes per $1k of YOUR funding (using attributed outcomes)
+    const outcomesPerThousand = funds > 0 && attributedOutcomes != null && isFinite(attributedOutcomes)
+      ? (attributedOutcomes / (funds / 1000))
+      : null;
+
     return {
       key: m.metric_code,
       displayName: metricNames.get(m.metric_code) || m.metric_code,
@@ -588,6 +637,8 @@ export default async function HoldingMiniDashboard({
       updated_at: m.updated_at,
       costPerOutcome,
       outcomesPerThousand,
+      attributedOutcomes,
+      hasProportionalAttribution: totalOrgFunding > 0,
     };
   });
 
@@ -933,6 +984,40 @@ export default async function HoldingMiniDashboard({
               </form>
             </details>
           )}
+
+          <details className="mt-4 pt-4 border-t border-neutral-200">
+            <summary className="cursor-pointer text-sm font-medium text-neutral-700 hover:text-neutral-900">
+              Set Total Org Funding
+              {totalOrgFunding > 0 && (
+                <span className="ml-2 text-xs text-neutral-500">
+                  (${totalOrgFunding.toLocaleString()})
+                </span>
+              )}
+            </summary>
+            <form action={updateHoldingOrgFunding} className="mt-4 space-y-3">
+              <input type="hidden" name="holding_id" value={holding.id} />
+              <label className="block">
+                <span className="text-xs font-medium text-neutral-700">Total Annual Budget (USD)</span>
+                <input
+                  name="total_org_funding"
+                  defaultValue={holding.total_org_funding ?? ''}
+                  type="number"
+                  step="0.01"
+                  className="mt-1.5 w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  placeholder="e.g., 10000000"
+                />
+              </label>
+              <p className="text-xs text-neutral-400">
+                Enter the organization&apos;s total annual funding/budget. This enables proportional impact attribution:
+                your attributed outcomes = total outcomes × (your funding / org&apos;s total funding).
+              </p>
+              <div className="flex justify-end pt-2">
+                <button type="submit" className="rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800 transition-colors">
+                  Save Changes
+                </button>
+              </div>
+            </form>
+          </details>
         </div>
 
         {/* Analytics Carousel - Takes up 2 columns */}
@@ -959,8 +1044,14 @@ export default async function HoldingMiniDashboard({
               <div key={m.key} className="rounded-xl border border-black/10 bg-white p-4 shadow-sm">
                 <p className="text-xs text-neutral-500">{m.displayName}</p>
                 <p className="mt-1 text-2xl font-semibold text-neutral-900">
-                  {Number.isFinite(m.value) ? m.value : '—'}
+                  {Number.isFinite(m.value) ? m.value.toLocaleString() : '—'}
+                  <span className="text-sm font-normal text-neutral-500 ml-1">total</span>
                 </p>
+                {m.hasProportionalAttribution && m.attributedOutcomes != null && (
+                  <p className="text-sm text-azure font-medium">
+                    {m.attributedOutcomes.toLocaleString(undefined, { maximumFractionDigits: 1 })} attributed to you
+                  </p>
+                )}
                 <p className="mt-1 text-[11px] text-neutral-500">Latest: {humanDate(m.updated_at)}</p>
                 <div className="mt-2 grid grid-cols-2 gap-2 text-[11px]">
                   <div className="rounded-lg border border-neutral-200 p-2">
@@ -970,9 +1061,12 @@ export default async function HoldingMiniDashboard({
                         ? new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(m.costPerOutcome)
                         : '—'}
                     </p>
+                    {!m.hasProportionalAttribution && m.costPerOutcome != null && (
+                      <p className="text-[9px] text-amber-600 mt-0.5">* Not scaled</p>
+                    )}
                   </div>
-                  <div className="rounded-lg border border-neutral-200 p-2 col-span-2">
-                    <p className="text-neutral-500">Outcomes per $1k</p>
+                  <div className="rounded-lg border border-neutral-200 p-2">
+                    <p className="text-neutral-500">Your Outcomes / $1k</p>
                     <p className="font-medium">
                       {m.outcomesPerThousand != null && isFinite(m.outcomesPerThousand)
                         ? new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 }).format(m.outcomesPerThousand)

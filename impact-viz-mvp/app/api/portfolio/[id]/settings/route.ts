@@ -34,11 +34,13 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
       .eq('portfolio_id', portfolio_id)
       .single();
 
+    const cacheHeaders = { 'Cache-Control': 'public, s-maxage=3600, stale-while-revalidate=300' };
+
     // If table missing or no row, fall back to defaults
     if (error) {
       // PGRST116 = 0 rows; 42P01 = relation does not exist
       if (error.code === 'PGRST116' || error.code === '42P01') {
-        return NextResponse.json(DEFAULTS, { headers: { 'Cache-Control': 'no-store' } });
+        return NextResponse.json(DEFAULTS, { headers: cacheHeaders });
       }
       // Any other error: still return defaults but include hint
       return NextResponse.json({ ...DEFAULTS, _hint: 'settings_error', _detail: error.message }, { headers: { 'Cache-Control': 'no-store' } });
@@ -49,7 +51,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
       ? (data.widgets as string[])
       : DEFAULTS.widgets;
 
-    return NextResponse.json({ show_map, widgets }, { headers: { 'Cache-Control': 'no-store' } });
+    return NextResponse.json({ show_map, widgets }, { headers: cacheHeaders });
   } catch (e: any) {
     // Network/other failure: return defaults
     return NextResponse.json({ ...DEFAULTS, _hint: 'settings_exception', _detail: e?.message || '' }, { headers: { 'Cache-Control': 'no-store' } });

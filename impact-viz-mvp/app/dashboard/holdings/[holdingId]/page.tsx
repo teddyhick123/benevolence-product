@@ -14,7 +14,7 @@ type HoldingRow = {
   id: string;
   portfolio_id: string;
   name: string;
-  asset_class?: string | null;
+  asset_type?: string | null;
   description?: string | null;
   primary_contact_name?: string | null;
   primary_contact_email?: string | null;
@@ -63,7 +63,7 @@ async function fetchHolding(holdingId: string): Promise<{ holding: HoldingRow | 
   const supabase = await getSupabase();
   const { data, error } = await supabase
     .from('holdings')
-    .select('id, portfolio_id, name, asset_class, description, primary_contact_name, primary_contact_email, primary_contact_phone, primary_contact_photo, primary_contact_notes, website, location_city, location_state, location_country, theory_of_action, cost_per_outcome, cost_per_outcome_unit, funds_allocated, total_org_funding, status, sector, as_of')
+    .select('id, portfolio_id, name, asset_type, description, primary_contact_name, primary_contact_email, primary_contact_phone, primary_contact_photo, primary_contact_notes, website, location_city, location_state, location_country, theory_of_action, cost_per_outcome, cost_per_outcome_unit, funds_allocated, total_org_funding, status, sector, as_of')
     .eq('id', holdingId)
     .single();
 
@@ -177,8 +177,8 @@ async function updateHoldingBasics(formData: FormData) {
   const name = getValue(formData, 'name');
   if (name !== undefined) updates.name = name;
 
-  const asset_class = getValue(formData, 'asset_class');
-  if (asset_class !== undefined) updates.asset_class = asset_class;
+  const asset_type = getValue(formData, 'asset_type');
+  if (asset_type !== undefined) updates.asset_type = asset_type;
 
   const sector = getValue(formData, 'sector');
   if (sector !== undefined) updates.sector = sector;
@@ -198,7 +198,6 @@ async function updateHoldingBasics(formData: FormData) {
   const funds_allocated = formData.has('funds_allocated') ? numOrNull(formData.get('funds_allocated')) : undefined;
   if (funds_allocated !== undefined) updates.funds_allocated = funds_allocated;
 
-  console.log('Updating holding basics:', holdingId, 'with values:', updates);
 
   const { error, data } = await supabase.from('holdings').update(updates).eq('id', holdingId).select();
 
@@ -207,7 +206,6 @@ async function updateHoldingBasics(formData: FormData) {
     throw new Error(`Failed to update holding: ${error.message}`);
   }
 
-  console.log('Update successful:', data);
   revalidatePath(`/dashboard/holdings/${holdingId}`);
   revalidatePath(`/dashboard`);
 }
@@ -237,7 +235,6 @@ async function updateHoldingContact(formData: FormData) {
   const website = getValue(formData, 'website');
   if (website !== undefined) updates.website = website;
 
-  console.log('Updating contact:', holdingId, 'with values:', updates);
 
   const { error, data } = await supabase.from('holdings').update(updates).eq('id', holdingId).select();
 
@@ -246,7 +243,6 @@ async function updateHoldingContact(formData: FormData) {
     throw new Error(`Failed to update contact: ${error.message}`);
   }
 
-  console.log('Contact update successful:', data);
   revalidatePath(`/dashboard/holdings/${holdingId}`);
   revalidatePath(`/dashboard`);
 }
@@ -267,7 +263,6 @@ async function updateHoldingLocation(formData: FormData) {
   const location_country = getValue(formData, 'location_country');
   if (location_country !== undefined) updates.location_country = location_country;
 
-  console.log('Updating location:', holdingId, 'with values:', updates);
 
   const { error, data } = await supabase.from('holdings').update(updates).eq('id', holdingId).select();
 
@@ -276,7 +271,6 @@ async function updateHoldingLocation(formData: FormData) {
     throw new Error(`Failed to update location: ${error.message}`);
   }
 
-  console.log('Location update successful:', data);
   revalidatePath(`/dashboard/holdings/${holdingId}`);
   revalidatePath(`/dashboard`);
 }
@@ -290,7 +284,6 @@ async function updateHoldingFunds(formData: FormData) {
 
   const updates: any = { funds_allocated };
 
-  console.log('Updating funds:', holdingId, 'with values:', updates);
 
   const { error, data } = await supabase.from('holdings').update(updates).eq('id', holdingId).select();
 
@@ -299,7 +292,6 @@ async function updateHoldingFunds(formData: FormData) {
     throw new Error(`Failed to update funds: ${error.message}`);
   }
 
-  console.log('Funds update successful:', data);
   revalidatePath(`/dashboard/holdings/${holdingId}`);
   revalidatePath(`/dashboard`);
 }
@@ -313,7 +305,6 @@ async function updateHoldingOrgFunding(formData: FormData) {
 
   const updates: any = { total_org_funding };
 
-  console.log('Updating org funding:', holdingId, 'with values:', updates);
 
   const { error, data } = await supabase.from('holdings').update(updates).eq('id', holdingId).select();
 
@@ -322,7 +313,6 @@ async function updateHoldingOrgFunding(formData: FormData) {
     throw new Error(`Failed to update org funding: ${error.message}`);
   }
 
-  console.log('Org funding update successful:', data);
   revalidatePath(`/dashboard/holdings/${holdingId}`);
   revalidatePath(`/dashboard`);
 }
@@ -388,7 +378,6 @@ async function updateHoldingCostPerOutcome(formData: FormData) {
     cost_per_outcome_unit: getValue(formData, 'cost_per_outcome_unit'),
   };
 
-  console.log('Updating cost per outcome:', holdingId, 'with values:', updates);
 
   const { error, data } = await supabase.from('holdings').update(updates).eq('id', holdingId).select();
 
@@ -397,7 +386,6 @@ async function updateHoldingCostPerOutcome(formData: FormData) {
     throw new Error(`Failed to update cost per outcome: ${error.message}`);
   }
 
-  console.log('Cost per outcome update successful:', data);
   revalidatePath(`/dashboard/holdings/${holdingId}`);
   revalidatePath(`/dashboard`);
 }
@@ -431,7 +419,6 @@ async function addFact(formData: FormData) {
     source: source || null,
   };
 
-  console.log('Adding fact:', row);
 
   const { error, data } = await supabase.from('metric_facts').insert(row).select();
 
@@ -440,7 +427,6 @@ async function addFact(formData: FormData) {
     throw new Error(`Failed to add fact: ${error.message}`);
   }
 
-  console.log('Fact added successfully:', data);
   revalidatePath(`/dashboard/holdings/${holdingId}`);
   revalidatePath(`/dashboard`);
 }
@@ -473,7 +459,6 @@ async function addContribution(formData: FormData) {
     source: source || null,
   };
 
-  console.log('Adding contribution:', row);
 
   const { error, data } = await supabase.from('holding_contributions').insert(row).select();
 
@@ -482,7 +467,6 @@ async function addContribution(formData: FormData) {
     throw new Error(`Failed to add contribution: ${error.message}`);
   }
 
-  console.log('Contribution added successfully:', data);
   revalidatePath(`/dashboard/holdings/${holdingId}`);
   revalidatePath(`/dashboard`);
 }
@@ -513,7 +497,6 @@ async function updateFact(formData: FormData) {
     source: source || null,
   };
 
-  console.log('Updating fact:', factId, 'with values:', updates);
 
   const { error, data } = await supabase
     .from('metric_facts')
@@ -526,7 +509,6 @@ async function updateFact(formData: FormData) {
     throw new Error(`Failed to update fact: ${error.message}`);
   }
 
-  console.log('Fact updated successfully:', data);
   revalidatePath(`/dashboard/holdings/${holdingId}`);
   revalidatePath(`/dashboard`);
 }
@@ -537,7 +519,6 @@ async function deleteFact(formData: FormData) {
   const factId = String(formData.get('fact_id'));
   const holdingId = String(formData.get('holding_id'));
 
-  console.log('Deleting fact:', factId);
 
   const { error } = await supabase
     .from('metric_facts')
@@ -549,7 +530,6 @@ async function deleteFact(formData: FormData) {
     throw new Error(`Failed to delete fact: ${error.message}`);
   }
 
-  console.log('Fact deleted successfully');
   revalidatePath(`/dashboard/holdings/${holdingId}`);
   revalidatePath(`/dashboard`);
 }
@@ -662,7 +642,7 @@ export default async function HoldingMiniDashboard({
   // Check if basic information is complete
   const hasBasicInfo = !!(
     holding.name &&
-    holding.asset_class &&
+    holding.asset_type &&
     holding.sector &&
     holding.status
   );
@@ -672,8 +652,9 @@ export default async function HoldingMiniDashboard({
       {/* Header */}
       <HoldingHeader
         holdingId={holding.id}
+        portfolioId={portfolioId}
         name={holding.name}
-        assetClass={holding.asset_class}
+        assetClass={holding.asset_type}
         sector={holding.sector}
         location={location}
         status={holding.status}
@@ -703,8 +684,8 @@ export default async function HoldingMiniDashboard({
           <label className="block">
             <span className="text-xs font-medium text-neutral-700">Asset Class</span>
             <input
-              name="asset_class"
-              defaultValue={holding.asset_class ?? ''}
+              name="asset_type"
+              defaultValue={holding.asset_type ?? ''}
               className="mt-1.5 w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
               placeholder="e.g., Equity, Debt"
             />

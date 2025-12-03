@@ -7,10 +7,23 @@ import {
   FILING_STATUS_LABELS,
   TAX_DISCLAIMER,
 } from '@/lib/tax/constants';
+import {
+  generateTXF,
+  generateForm8283Summary,
+  generateCarryforwardReport,
+  type TaxContributionExport,
+} from '@/lib/tax/turbotax-export';
 
 /**
- * GET /api/portfolio/[id]/tax/export?year=2024&format=json|csv|xlsx
+ * GET /api/portfolio/[id]/tax/export?year=2024&format=json|csv|xlsx|txf|form8283
  * Export tax data in various formats
+ *
+ * Formats:
+ * - json: Structured data for API consumption
+ * - csv: Spreadsheet-compatible format
+ * - xlsx: Excel workbook with multiple sheets
+ * - txf: TurboTax/TaxAct import file (Tax Exchange Format)
+ * - form8283: Form 8283 summary for non-cash contributions
  */
 export async function GET(
   req: Request,
@@ -156,6 +169,121 @@ export async function GET(
       headers: {
         'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         'Content-Disposition': `attachment; filename="tax-summary-${year}.xlsx"`,
+      },
+    });
+  }
+
+  if (format === 'txf') {
+    // Fetch from Phase 1 views for TXF export
+    const { data: phase1Contributions } = await sb
+      .from('v_tax_contributions_with_limits')
+      .select('*')
+      .eq('portfolio_id', portfolioId)
+      .eq('tax_year', year)
+      .order('contribution_date', { ascending: true });
+
+    const txfContributions: TaxContributionExport[] = (phase1Contributions || []).map((c: any) => ({
+      id: c.id,
+      contribution_date: c.contribution_date,
+      recipient_name: c.recipient_name,
+      recipient_ein: c.recipient_ein,
+      recipient_type: c.recipient_type,
+      contribution_type: c.contribution_type,
+      amount_usd: c.amount_usd,
+      fmv_at_donation: c.fmv_at_donation,
+      cost_basis: c.cost_basis,
+      property_description: c.notes,
+      deductible_amount: c.deductible_this_year ?? c.original_deductible_amount,
+      agi_limit_percentage: c.agi_limit_percentage,
+      carryforward_eligible: c.carryforward_eligible,
+      qcd_qualified: c.qcd_qualified ?? false,
+      requires_appraisal: c.requires_appraisal ?? false,
+      appraisal_value: c.appraisal_value ?? null,
+      notes: c.notes,
+    }));
+
+    const txf = generateTXF(txfContributions, year, portfolio?.name || 'Taxpayer');
+    return new NextResponse(txf, {
+      headers: {
+        'Content-Type': 'text/plain',
+        'Content-Disposition': `attachment; filename="turbotax-import-${year}.txf"`,
+      },
+    });
+  }
+
+  if (format === 'form8283') {
+    // Fetch from Phase 1 views for Form 8283
+    const { data: phase1Contributions } = await sb
+      .from('v_tax_contributions_with_limits')
+      .select('*')
+      .eq('portfolio_id', portfolioId)
+      .eq('tax_year', year)
+      .order('contribution_date', { ascending: true });
+
+    const form8283Contributions: TaxContributionExport[] = (phase1Contributions || []).map((c: any) => ({
+      id: c.id,
+      contribution_date: c.contribution_date,
+      recipient_name: c.recipient_name,
+      recipient_ein: c.recipient_ein,
+      recipient_type: c.recipient_type,
+      contribution_type: c.contribution_type,
+      amount_usd: c.amount_usd,
+      fmv_at_donation: c.fmv_at_donation,
+      cost_basis: c.cost_basis,
+      property_description: c.notes,
+      deductible_amount: c.deductible_this_year ?? c.original_deductible_amount,
+      agi_limit_percentage: c.agi_limit_percentage,
+      carryforward_eligible: c.carryforward_eligible,
+      qcd_qualified: c.qcd_qualified ?? false,
+      requires_appraisal: c.requires_appraisal ?? false,
+      appraisal_value: c.appraisal_value ?? null,
+      notes: c.notes,
+    }));
+
+    const form8283 = generateForm8283Summary(form8283Contributions, year);
+    return new NextResponse(form8283, {
+      headers: {
+        'Content-Type': 'text/plain',
+        'Content-Disposition': `attachment; filename="form-8283-summary-${year}.txt"`,
+      },
+    });
+  }
+
+  if (format === 'carryforward') {
+    // Generate carryforward report
+    const { data: phase1Contributions } = await sb
+      .from('v_tax_contributions_with_limits')
+      .select('*')
+      .eq('portfolio_id', portfolioId)
+      .eq('tax_year', year)
+      .eq('carryforward_eligible', true)
+      .order('contribution_date', { ascending: true });
+
+    const carryforwardContributions: TaxContributionExport[] = (phase1Contributions || []).map((c: any) => ({
+      id: c.id,
+      contribution_date: c.contribution_date,
+      recipient_name: c.recipient_name,
+      recipient_ein: c.recipient_ein,
+      recipient_type: c.recipient_type,
+      contribution_type: c.contribution_type,
+      amount_usd: c.amount_usd,
+      fmv_at_donation: c.fmv_at_donation,
+      cost_basis: c.cost_basis,
+      property_description: c.notes,
+      deductible_amount: c.deductible_this_year ?? c.original_deductible_amount,
+      agi_limit_percentage: c.agi_limit_percentage,
+      carryforward_eligible: c.carryforward_eligible,
+      qcd_qualified: false,
+      requires_appraisal: false,
+      appraisal_value: null,
+      notes: c.notes,
+    }));
+
+    const carryforwardReport = generateCarryforwardReport(carryforwardContributions, year);
+    return new NextResponse(carryforwardReport, {
+      headers: {
+        'Content-Type': 'text/plain',
+        'Content-Disposition': `attachment; filename="carryforward-schedule-${year}.txt"`,
       },
     });
   }

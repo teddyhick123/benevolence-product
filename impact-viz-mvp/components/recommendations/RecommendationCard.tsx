@@ -1,36 +1,86 @@
 'use client';
 
 import { useState } from 'react';
-
-type Recommendation = {
-  id: string;
-  organization_name: string;
-  website: string | null;
-  sector: string | null;
-  ein: string | null;
-  location: string | null;
-  description: string | null;
-  impact_focus: string[] | null;
-  accreditation: any;
-  contact_info: any;
-  min_investment: number | null;
-  max_investment: number | null;
-  recommended_at: string;
-};
+import CommentsSection from './CommentsSection';
+import StatusBadge from './StatusBadge';
+import StatusHistory from './StatusHistory';
+import CharityRatings from './CharityRatings';
+import DirectActionButtons from './DirectActionButtons';
+import { Recommendation } from '@/lib/schemas/recommendations';
 
 type Props = {
   recommendation: Recommendation;
   isManager?: boolean;
   onEdit?: (rec: Recommendation) => void;
   onArchive?: (id: string) => void;
+  onFavoriteToggle?: (id: string, currentState: boolean) => void;
+  // Comparison mode props
+  comparisonMode?: boolean;
+  isSelected?: boolean;
+  onSelectionToggle?: (id: string, selected: boolean) => void;
+  selectionDisabled?: boolean;
 };
 
-export default function RecommendationCard({ recommendation, isManager, onEdit, onArchive }: Props) {
+export default function RecommendationCard({
+  recommendation,
+  isManager,
+  onEdit,
+  onArchive,
+  onFavoriteToggle,
+  comparisonMode = false,
+  isSelected = false,
+  onSelectionToggle,
+  selectionDisabled = false,
+}: Props) {
   const [showContact, setShowContact] = useState(false);
+  const [showComments, setShowComments] = useState(false);
+  const [showStatusHistory, setShowStatusHistory] = useState(false);
+  const [showRatings, setShowRatings] = useState(false);
+  const [isFavorited, setIsFavorited] = useState(recommendation.is_favorited || false);
+  const [favoriteCount, setFavoriteCount] = useState(recommendation.favorite_count || 0);
+  const [favoriting, setFavoriting] = useState(false);
+  const [currentStatus, setCurrentStatus] = useState(recommendation.interaction_status || 'new');
 
   const hasAccreditation = recommendation.accreditation &&
     (recommendation.accreditation.charity_navigator_rating ||
      recommendation.accreditation.guidestar_rating);
+
+  // Check if we have charity ratings data
+  const hasRatings = recommendation.accreditation?.ratings;
+  const ratingsData = hasRatings ? recommendation.accreditation.ratings : null;
+
+  const handleFavoriteToggle = async () => {
+    if (favoriting) return;
+
+    setFavoriting(true);
+    const previousState = isFavorited;
+    const previousCount = favoriteCount;
+
+    // Optimistic update
+    setIsFavorited(!isFavorited);
+    setFavoriteCount(prev => isFavorited ? Math.max(0, prev - 1) : prev + 1);
+
+    try {
+      const method = isFavorited ? 'DELETE' : 'POST';
+      const res = await fetch(`/api/recommendations/${recommendation.id}/favorite`, {
+        method,
+      });
+
+      if (!res.ok) {
+        throw new Error('Failed to update favorite');
+      }
+
+      // Notify parent component if callback provided
+      onFavoriteToggle?.(recommendation.id, !previousState);
+    } catch (err) {
+      // Revert on error
+      setIsFavorited(previousState);
+      setFavoriteCount(previousCount);
+      console.error('Failed to toggle favorite:', err);
+    } finally {
+      setFavoriting(false);
+    }
+  };
 
   const formatInvestmentRange = () => {
     if (!recommendation.min_investment && !recommendation.max_investment) return null;
@@ -51,12 +101,32 @@ export default function RecommendationCard({ recommendation, isManager, onEdit, 
   };
 
   return (
-    <div className="card p-6 space-y-4 transition-all duration-200 hover:-translate-y-1 hover:shadow-lg will-change-transform rm:transition-none rm:transform-none relative">
+    <div className={`card p-6 space-y-4 transition-all duration-200 hover:-translate-y-1 hover:shadow-lg will-change-transform rm:transition-none rm:transform-none relative ${
+      isSelected ? 'ring-2 ring-azure bg-azure/5' : ''
+    }`}>
+      {/* Comparison Mode Selection Checkbox */}
+      {comparisonMode && (
+        <div className="absolute top-4 left-4 z-10">
+          <label className="flex items-center gap-2 cursor-pointer group">
+            <input
+              type="checkbox"
+              checked={isSelected}
+              onChange={(e) => onSelectionToggle?.(recommendation.id, e.target.checked)}
+              disabled={selectionDisabled && !isSelected}
+              className="w-5 h-5 text-azure border-2 border-neutral-300 rounded focus:ring-2 focus:ring-azure disabled:opacity-50 disabled:cursor-not-allowed"
+            />
+            <span className="text-sm font-medium text-neutral-700 group-hover:text-azure transition-colors">
+              {isSelected ? 'Selected' : 'Select to compare'}
+            </span>
+          </label>
+        </div>
+      )}
+
       {/* Header with accreditation badge and actions */}
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex-1">
+      <div className={`flex items-start justify-between gap-3 ${comparisonMode ? 'mt-8' : ''}`}>
+        <div className="flex-1 flex items-start gap-2">
           {hasAccreditation && (
-            <div className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-medium mb-2">
+            <div className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-medium">
               <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
               </svg>
@@ -65,32 +135,59 @@ export default function RecommendationCard({ recommendation, isManager, onEdit, 
           )}
         </div>
 
-        {isManager && (
-          <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2">
+          {/* Favorite Button - visible to all portfolio members */}
+          {!isManager && (
             <button
-              onClick={() => onEdit?.(recommendation)}
-              className="p-2 rounded-lg hover:bg-neutral-100 transition-colors text-neutral-600 hover:text-neutral-900"
-              title="Edit recommendation"
+              onClick={handleFavoriteToggle}
+              disabled={favoriting}
+              className={`p-2 rounded-lg transition-all ${
+                isFavorited
+                  ? 'bg-red-50 text-red-600 hover:bg-red-100'
+                  : 'text-neutral-400 hover:bg-neutral-100 hover:text-red-600'
+              }`}
+              title={isFavorited ? 'Remove from shortlist' : 'Add to shortlist'}
             >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+              <svg
+                className={`w-5 h-5 transition-transform ${favoriting ? 'scale-110' : ''}`}
+                fill={isFavorited ? 'currentColor' : 'none'}
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                strokeWidth={isFavorited ? 0 : 2}
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
               </svg>
             </button>
-            <button
-              onClick={() => {
-                if (confirm(`Archive "${recommendation.organization_name}"?`)) {
-                  onArchive?.(recommendation.id);
-                }
-              }}
-              className="p-2 rounded-lg hover:bg-red-50 transition-colors text-neutral-600 hover:text-red-600"
-              title="Archive recommendation"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
-              </svg>
-            </button>
-          </div>
-        )}
+          )}
+
+          {/* Manager Actions */}
+          {isManager && (
+            <>
+              <button
+                onClick={() => onEdit?.(recommendation)}
+                className="p-2 rounded-lg hover:bg-neutral-100 transition-colors text-neutral-600 hover:text-neutral-900"
+                title="Edit recommendation"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+              </button>
+              <button
+                onClick={() => {
+                  if (confirm(`Archive "${recommendation.organization_name}"?`)) {
+                    onArchive?.(recommendation.id);
+                  }
+                }}
+                className="p-2 rounded-lg hover:bg-red-50 transition-colors text-neutral-600 hover:text-red-600"
+                title="Archive recommendation"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+                </svg>
+              </button>
+            </>
+          )}
+        </div>
       </div>
 
       {/* Organization name */}
@@ -101,21 +198,27 @@ export default function RecommendationCard({ recommendation, isManager, onEdit, 
         <div className="w-12 h-0.5 bg-gradient-to-r from-azure via-azure/90 to-azure/70 rounded-full"></div>
       </div>
 
-      {/* Tags: Sector and Impact Focus */}
-      {(recommendation.sector || (recommendation.impact_focus && recommendation.impact_focus.length > 0)) && (
-        <div className="flex flex-wrap gap-2">
-          {recommendation.sector && (
-            <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-azure/10 text-azure border border-azure/20">
-              {recommendation.sector}
-            </span>
-          )}
-          {recommendation.impact_focus?.slice(0, 3).map((focus, idx) => (
-            <span key={idx} className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-neutral-100 text-neutral-700 border border-neutral-200">
-              {focus}
-            </span>
-          ))}
-        </div>
-      )}
+      {/* Tags: Status, Sector, and Impact Focus */}
+      <div className="flex flex-wrap gap-2">
+        {/* Status Badge */}
+        <StatusBadge
+          recommendationId={recommendation.id}
+          currentStatus={currentStatus as any}
+          onStatusChange={(newStatus) => setCurrentStatus(newStatus)}
+          readonly={isManager}
+        />
+
+        {recommendation.sector && (
+          <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-azure/10 text-azure border border-azure/20">
+            {recommendation.sector}
+          </span>
+        )}
+        {recommendation.impact_focus?.slice(0, 3).map((focus, idx) => (
+          <span key={idx} className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-neutral-100 text-neutral-700 border border-neutral-200">
+            {focus}
+          </span>
+        ))}
+      </div>
 
       {/* Description */}
       {recommendation.description && (
@@ -147,7 +250,7 @@ export default function RecommendationCard({ recommendation, isManager, onEdit, 
       </div>
 
       {/* Actions */}
-      <div className="flex items-center gap-3 pt-2">
+      <div className="flex items-center gap-3 pt-2 flex-wrap">
         {recommendation.website && (
           <a
             href={recommendation.website}
@@ -162,6 +265,38 @@ export default function RecommendationCard({ recommendation, isManager, onEdit, 
           </a>
         )}
 
+        <button
+          onClick={() => setShowComments(!showComments)}
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-neutral-300 text-sm font-medium text-neutral-700 hover:bg-neutral-50 transition-colors"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+          </svg>
+          Discussion
+        </button>
+
+        <button
+          onClick={() => setShowStatusHistory(!showStatusHistory)}
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-neutral-300 text-sm font-medium text-neutral-700 hover:bg-neutral-50 transition-colors"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          History
+        </button>
+
+        {recommendation.ein && (
+          <button
+            onClick={() => setShowRatings(!showRatings)}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-emerald-300 text-sm font-medium text-emerald-700 hover:bg-emerald-50 transition-colors"
+          >
+            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+            </svg>
+            Charity Ratings
+          </button>
+        )}
+
         {recommendation.contact_info && (
           <button
             onClick={() => setShowContact(!showContact)}
@@ -174,6 +309,24 @@ export default function RecommendationCard({ recommendation, isManager, onEdit, 
           </button>
         )}
       </div>
+
+      {/* Direct Action Flows - Only show for non-managers (portfolio members) */}
+      {!isManager && (
+        <div className="pt-4 border-t border-neutral-100">
+          <div className="text-xs font-medium text-neutral-600 uppercase tracking-wide mb-3">
+            Take Action
+          </div>
+          <DirectActionButtons
+            recommendation={recommendation}
+            onDonationCreated={(holdingId) => {
+              // Optionally update recommendation status to "donated"
+            }}
+            onGrantCreated={(holdingId) => {
+              // Optionally update recommendation status
+            }}
+          />
+        </div>
+      )}
 
       {/* Contact Info Expansion */}
       {showContact && recommendation.contact_info && (
@@ -204,6 +357,57 @@ export default function RecommendationCard({ recommendation, isManager, onEdit, 
               {recommendation.contact_info.contact_name}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Charity Ratings Expansion */}
+      {showRatings && (
+        <div className="pt-4 border-t border-neutral-100">
+          <div className="flex items-center justify-between mb-4">
+            <h4 className="font-medium text-neutral-900">Charity Ratings & Financial Health</h4>
+            <button
+              onClick={() => setShowRatings(false)}
+              className="text-neutral-600 hover:text-neutral-900"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+          <CharityRatings
+            recommendationId={recommendation.id}
+            ein={recommendation.ein}
+            organizationName={recommendation.organization_name}
+            initialRatings={ratingsData}
+          />
+        </div>
+      )}
+
+      {/* Status History Expansion */}
+      {showStatusHistory && (
+        <div className="pt-4 border-t border-neutral-100">
+          <div className="flex items-center justify-between mb-4">
+            <h4 className="font-medium text-neutral-900">Status Timeline</h4>
+            <button
+              onClick={() => setShowStatusHistory(false)}
+              className="text-neutral-600 hover:text-neutral-900"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+          <StatusHistory recommendationId={recommendation.id} />
+        </div>
+      )}
+
+      {/* Comments Section Expansion */}
+      {showComments && (
+        <div className="pt-4 border-t border-neutral-100">
+          <CommentsSection
+            recommendationId={recommendation.id}
+            onClose={() => setShowComments(false)}
+          />
         </div>
       )}
     </div>

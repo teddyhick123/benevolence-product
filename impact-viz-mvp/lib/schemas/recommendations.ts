@@ -1,6 +1,32 @@
 import { z } from 'zod';
 
 /**
+ * Centralized Recommendation type
+ * Used across all recommendation-related components
+ */
+export type Recommendation = {
+  id: string;
+  organization_name: string;
+  website: string | null;
+  sector: string | null;
+  ein: string | null;
+  location: string | null;
+  country: string | null;
+  description: string | null;
+  impact_focus: string[] | null;
+  accreditation: any;
+  contact_info: any;
+  min_investment: number | null;
+  max_investment: number | null;
+  recommended_at: string;
+  portfolio_id: string;
+  is_favorited?: boolean;
+  favorite_count?: number;
+  interaction_status?: string;
+  order_index?: number | null;
+};
+
+/**
  * Schema for updating a recommendation
  */
 export const updateRecommendationSchema = z.object({

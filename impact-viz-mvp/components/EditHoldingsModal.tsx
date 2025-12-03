@@ -3,6 +3,7 @@
 import * as React from 'react';
 import { createPortal } from 'react-dom';
 import clsx from 'clsx';
+import { ASSET_TYPE_LABELS, AssetType } from '@/lib/schemas/portfolio';
 
 function dateInputValue(v: unknown): string {
   if (!v) return '';
@@ -21,7 +22,7 @@ function dateInputValue(v: unknown): string {
 export type HoldingInput = {
   id?: string;
   name?: string;
-  asset_class?: string;
+  asset_type?: string;
   funds_allocated?: number | null;
   status?: string;
   as_of?: string | Date | number; // ISO date string or Date-like
@@ -60,7 +61,7 @@ export default function EditHoldingsModal({ portfolioId, initial, open, onClose,
 
   const isEditing = Boolean(initial?.id);
   const [name, setName] = React.useState(initial?.name ?? '');
-  const [assetClass, setAssetClass] = React.useState(initial?.asset_class ?? '');
+  const [assetClass, setAssetClass] = React.useState(initial?.asset_type ?? '');
   const [funds, setFunds] = React.useState<string>(
     initial?.funds_allocated != null ? String(initial.funds_allocated) : ''
   );
@@ -76,7 +77,7 @@ export default function EditHoldingsModal({ portfolioId, initial, open, onClose,
     // reset when initial/open changes
     if (!open) return;
     setName(initial?.name ?? '');
-    setAssetClass(initial?.asset_class ?? '');
+    setAssetClass(initial?.asset_type ?? '');
     setFunds(initial?.funds_allocated != null ? String(initial.funds_allocated) : '');
     setStatus(initial?.status ?? '');
     setAsOf(dateInputValue(initial?.as_of));
@@ -101,7 +102,7 @@ export default function EditHoldingsModal({ portfolioId, initial, open, onClose,
       // canonical snake_case used by DB
       name: name?.trim() || null,
       status: status?.trim() || null,
-      asset_class: assetClass?.trim() || null,
+      asset_type: assetClass?.trim() || null,
       funds_allocated: funds === '' ? null : Number(funds),
       as_of: asOf ? new Date(asOf).toISOString() : null,
       sector: sector?.trim() || null,
@@ -212,13 +213,38 @@ export default function EditHoldingsModal({ portfolioId, initial, open, onClose,
             </label>
 
             <label className="text-sm">
-              <div className="mb-1 text-neutral-700">Asset class</div>
-              <input
+              <div className="mb-1 text-neutral-700">Asset type</div>
+              <select
                 value={assetClass}
                 onChange={(e) => setAssetClass(e.target.value)}
-                placeholder="Private Equity / Debt / Infra"
-                className="w-full rounded-2xl border border-black/10 px-3 py-2"
-              />
+                className="w-full rounded-2xl border border-black/10 px-3 py-2 bg-white"
+              >
+                <option value="">Select type...</option>
+                <optgroup label="Investment Types">
+                  <option value="equity_investment">{ASSET_TYPE_LABELS.equity_investment}</option>
+                  <option value="private_equity_investment">{ASSET_TYPE_LABELS.private_equity_investment}</option>
+                  <option value="venture_capital_investment">{ASSET_TYPE_LABELS.venture_capital_investment}</option>
+                  <option value="debt_investment">{ASSET_TYPE_LABELS.debt_investment}</option>
+                  <option value="impact_bond">{ASSET_TYPE_LABELS.impact_bond}</option>
+                  <option value="conservation_investment">{ASSET_TYPE_LABELS.conservation_investment}</option>
+                  <option value="pri">{ASSET_TYPE_LABELS.pri}</option>
+                  <option value="mri">{ASSET_TYPE_LABELS.mri}</option>
+                </optgroup>
+                <optgroup label="Grant Types">
+                  <option value="foundation_grant">{ASSET_TYPE_LABELS.foundation_grant}</option>
+                  <option value="daf_grant">{ASSET_TYPE_LABELS.daf_grant}</option>
+                </optgroup>
+                <optgroup label="Donation Types">
+                  <option value="donation">{ASSET_TYPE_LABELS.donation}</option>
+                  <option value="real_estate_donation">{ASSET_TYPE_LABELS.real_estate_donation}</option>
+                  <option value="qcd_distribution">{ASSET_TYPE_LABELS.qcd_distribution}</option>
+                  <option value="cryptocurrency_donation">{ASSET_TYPE_LABELS.cryptocurrency_donation}</option>
+                  <option value="artwork_collectible_donation">{ASSET_TYPE_LABELS.artwork_collectible_donation}</option>
+                </optgroup>
+                <optgroup label="Other">
+                  <option value="other">{ASSET_TYPE_LABELS.other}</option>
+                </optgroup>
+              </select>
             </label>
 
             <label className="text-sm">

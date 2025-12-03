@@ -2,12 +2,14 @@
 
 import { useState, useEffect } from 'react';
 import { CONTRIBUTION_TYPE_LABELS } from '@/lib/tax/constants';
+import { suggestContributionType } from '@/lib/helpers/tax-holding-link';
+import { AssetType, ASSET_TYPE_LABELS } from '@/lib/schemas/portfolio';
 
 interface Holding {
   id: string;
   name: string;
   status: string;
-  asset_class: string | null;
+  asset_type: string | null;
   funds_allocated: number | null;
   sector: string | null;
   country: string | null;
@@ -66,17 +68,10 @@ export default function HoldingsImporter({
         throw new Error('Cannot import holding with no allocated funds');
       }
 
-      // Determine contribution type based on asset class
-      let contributionType = 'other_property';
-      if (holding.asset_class?.toLowerCase().includes('stock') ||
-          holding.asset_class?.toLowerCase().includes('equity')) {
-        contributionType = 'stock';
-      } else if (holding.asset_class?.toLowerCase().includes('real estate') ||
-                 holding.asset_class?.toLowerCase().includes('property')) {
-        contributionType = 'real_estate';
-      } else if (holding.asset_class?.toLowerCase().includes('cash')) {
-        contributionType = 'cash';
-      }
+      // Determine contribution type using asset_type enum
+      const contributionType = holding.asset_type
+        ? suggestContributionType(holding.asset_type as AssetType)
+        : 'other_property';
 
       const isNonCash = !['cash', 'check', 'wire'].includes(contributionType);
 
@@ -261,9 +256,11 @@ export default function HoldingsImporter({
                     </span>
                   </div>
                   <div className="mt-2 flex items-center gap-4 text-sm text-gray-600">
-                    {holding.asset_class && (
+                    {holding.asset_type && (
                       <>
-                        <span>{holding.asset_class}</span>
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-neutral-100 text-xs">
+                          {ASSET_TYPE_LABELS[holding.asset_type as AssetType] || holding.asset_type}
+                        </span>
                         <span>•</span>
                       </>
                     )}

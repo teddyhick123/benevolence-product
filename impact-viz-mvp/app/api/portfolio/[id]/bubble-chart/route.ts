@@ -22,7 +22,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
   // Get all holdings for this portfolio
   const { data: holdings, error: holdingsErr } = await supabase
     .from('holdings')
-    .select('id, name, sector')
+    .select('id, name, sector, asset_type')
     .eq('portfolio_id', portfolioId)
     .order('name');
 
@@ -99,6 +99,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
           holdingId: holding.id,
           holdingName: holding.name,
           sector: holding.sector,
+          assetType: (holding as any).asset_type || null,
           xValue,
           yValue,
           sizeValue,

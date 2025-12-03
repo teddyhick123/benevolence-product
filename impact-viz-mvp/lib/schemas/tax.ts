@@ -117,6 +117,9 @@ const baseTaxContributionSchema = z.object({
   appraiser_name: z.string().max(255).optional().nullable(),
   appraiser_tin: z.string().max(20).optional().nullable(),
 
+  // QCD (Qualified Charitable Distribution)
+  qcd_qualified: z.boolean().default(false).optional(),
+
   // Deduction tracking
   deductible_amount: z.number().nonnegative().optional().nullable(),
   applied_to_tax_year: z.number().int().optional().nullable(),
@@ -157,6 +160,18 @@ export const createTaxContributionSchema = baseTaxContributionSchema.refine(
   {
     message: 'Appraisal required for non-cash contributions over $5,000',
     path: ['requires_appraisal'],
+  }
+).refine(
+  (data) => {
+    // QCDs can only be cash contributions (from IRA)
+    if (data.qcd_qualified) {
+      return ['cash', 'check', 'wire'].includes(data.contribution_type);
+    }
+    return true;
+  },
+  {
+    message: 'Qualified Charitable Distributions (QCDs) must be cash contributions from IRA',
+    path: ['qcd_qualified'],
   }
 );
 
@@ -342,3 +357,376 @@ export type CreateFoundation990PF = z.infer<typeof createFoundation990PFSchema>;
 export type UpdateFoundation990PF = z.infer<typeof updateFoundation990PFSchema>;
 export type CreateTaxDocument = z.infer<typeof createTaxDocumentSchema>;
 export type UpdateTaxDocument = z.infer<typeof updateTaxDocumentSchema>;
+
+/**
+ * Phase 1 Enhancement: Donor Profiles & Tax Years
+ */
+
+// Update filing status schema to match database
+export const donorFilingStatusSchema = z.enum([
+  'single',
+  'married_filing_jointly',
+  'married_filing_separately',
+  'head_of_household',
+  'qualifying_widow',
+]);
+
+export type DonorFilingStatus = z.infer<typeof donorFilingStatusSchema>;
+
+export const DONOR_FILING_STATUS_LABELS: Record<DonorFilingStatus, string> = {
+  single: 'Single',
+  married_filing_jointly: 'Married Filing Jointly',
+  married_filing_separately: 'Married Filing Separately',
+  head_of_household: 'Head of Household',
+  qualifying_widow: 'Qualifying Widow(er)',
+};
+
+/**
+ * Donor Profile Schema
+ */
+export const donorProfileSchema = z.object({
+  date_of_birth: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD').optional().nullable(),
+  filing_status: donorFilingStatusSchema.optional().nullable(),
+  notes: z.string().max(1000).optional().nullable(),
+});
+
+export const createDonorProfileSchema = donorProfileSchema;
+export const updateDonorProfileSchema = donorProfileSchema.partial();
+
+export type DonorProfile = z.infer<typeof donorProfileSchema> & {
+  id: string;
+  portfolio_id: string;
+  age_as_of_date?: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+/**
+ * Tax Year Schema (with AGI tracking)
+ */
+export const taxYearDetailSchema = z.object({
+  tax_year: z.number().int().min(1900).max(2100),
+  adjusted_gross_income: z.number().nonnegative().optional().nullable(),
+  filing_status: donorFilingStatusSchema.optional().nullable(),
+  standard_deduction: z.number().nonnegative().optional().nullable(),
+  amt_exposure: z.boolean().optional().nullable(),
+  amt_notes: z.string().max(1000).optional().nullable(),
+  carryforward_from_prior_years: z.number().nonnegative().optional().nullable(),
+  notes: z.string().max(2000).optional().nullable(),
+});
+
+export const createTaxYearDetailSchema = taxYearDetailSchema;
+export const updateTaxYearDetailSchema = taxYearDetailSchema.partial().omit({ tax_year: true });
+
+export type TaxYearDetail = z.infer<typeof taxYearDetailSchema> & {
+  id: string;
+  portfolio_id: string;
+  agi_limit_60_pct?: number | null;
+  agi_limit_50_pct?: number | null;
+  agi_limit_30_pct?: number | null;
+  agi_limit_20_pct?: number | null;
+  total_contributions_60_pct?: number | null;
+  total_contributions_50_pct?: number | null;
+  total_contributions_30_pct?: number | null;
+  total_contributions_20_pct?: number | null;
+  created_at: string;
+  updated_at: string;
+};
+
+/**
+ * Tax Contribution with Limits (from view)
+ */
+export interface TaxContributionWithLimits {
+  id: string;
+  portfolio_id: string;
+  holding_id?: string | null;
+  tax_year: number;
+  contribution_date: string;
+  recipient_name: string;
+  recipient_ein?: string | null;
+  recipient_type?: string | null;
+  contribution_type: string;
+  amount_usd: number;
+  cost_basis?: number | null;
+  fmv_at_donation?: number | null;
+  original_deductible_amount?: number | null;
+  agi_limit_percentage?: number | null;
+  carryforward_eligible?: boolean | null;
+  carryforward_years?: number | null;
+
+  // Calculated from AGI
+  agi?: number | null;
+  filing_status?: string | null;
+  agi_limit_amount?: number | null;
+  deductible_this_year?: number | null;
+  excess_for_carryforward?: number | null;
+  within_agi_limit?: boolean | null;
+  capital_gains_avoided?: number | null;
+  estimated_tax_savings?: number | null;
+  qcd_tax_benefit?: number | null;
+
+  notes?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * Portfolio Tax Summary (from view)
+ */
+export interface PortfolioTaxSummary {
+  portfolio_id: string;
+  tax_year: number;
+  agi?: number | null;
+  filing_status?: string | null;
+  standard_deduction?: number | null;
+
+  agi_limit_60_pct?: number | null;
+  agi_limit_50_pct?: number | null;
+  agi_limit_30_pct?: number | null;
+  agi_limit_20_pct?: number | null;
+
+  total_contributions_count?: number;
+  total_contributed?: number | null;
+  contributed_60_pct?: number | null;
+  contributed_50_pct?: number | null;
+  contributed_30_pct?: number | null;
+  contributed_20_pct?: number | null;
+
+  total_deductible_this_year?: number | null;
+  total_excess_carryforward?: number | null;
+  total_capital_gains_avoided?: number | null;
+
+  total_qcd_amount?: number | null;
+  qcd_count?: number;
+
+  utilization_60_pct?: number | null;
+  utilization_30_pct?: number | null;
+
+  carryforward_from_prior_years?: number | null;
+
+  remaining_capacity_60_pct?: number | null;
+  remaining_capacity_30_pct?: number | null;
+
+  notes?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * Donation Capacity
+ */
+export interface DonationCapacity {
+  tax_year: number;
+  agi?: number | null;
+  limit_60_pct?: number | null;
+  used_60_pct?: number | null;
+  remaining_60_pct?: number | null;
+  limit_30_pct?: number | null;
+  used_30_pct?: number | null;
+  remaining_30_pct?: number | null;
+  limit_20_pct?: number | null;
+  used_20_pct?: number | null;
+  remaining_20_pct?: number | null;
+  limit_50_pct?: number | null;
+  used_50_pct?: number | null;
+  remaining_50_pct?: number | null;
+}
+
+/**
+ * Standard Deduction Amounts (2024)
+ */
+export const STANDARD_DEDUCTIONS_2024: Record<DonorFilingStatus, number> = {
+  single: 14600,
+  married_filing_jointly: 29200,
+  married_filing_separately: 14600,
+  head_of_household: 21900,
+  qualifying_widow: 29200,
+};
+
+/**
+ * Helper: Calculate age from date of birth
+ */
+export function calculateAge(dateOfBirth: string, asOfDate: string = new Date().toISOString()): number {
+  const dob = new Date(dateOfBirth);
+  const asOf = new Date(asOfDate);
+
+  let age = asOf.getFullYear() - dob.getFullYear();
+  const monthDiff = asOf.getMonth() - dob.getMonth();
+
+  if (monthDiff < 0 || (monthDiff === 0 && asOf.getDate() < dob.getDate())) {
+    age--;
+  }
+
+  return age;
+}
+
+/**
+ * Helper: Calculate precise age (with decimal for months)
+ */
+export function calculatePreciseAge(dateOfBirth: string, asOfDate: string = new Date().toISOString()): number {
+  const dob = new Date(dateOfBirth);
+  const asOf = new Date(asOfDate);
+
+  const years = asOf.getFullYear() - dob.getFullYear();
+  const months = asOf.getMonth() - dob.getMonth();
+  const days = asOf.getDate() - dob.getDate();
+
+  let totalMonths = years * 12 + months;
+  if (days < 0) {
+    totalMonths--;
+  }
+
+  return totalMonths / 12;
+}
+
+/**
+ * Helper: Check if eligible for QCD
+ */
+export function isQCDEligible(dateOfBirth: string, contributionDate: string): {
+  eligible: boolean;
+  age: number;
+  reason?: string;
+} {
+  const age = calculatePreciseAge(dateOfBirth, contributionDate);
+
+  if (age < 70.5) {
+    return {
+      eligible: false,
+      age,
+      reason: `Age ${age.toFixed(1)} is below required 70.5`,
+    };
+  }
+
+  return {
+    eligible: true,
+    age,
+  };
+}
+
+/**
+ * Helper: Get standard deduction for filing status and year
+ */
+export function getStandardDeduction(filingStatus: DonorFilingStatus, year: number = 2024): number {
+  if (year === 2024) {
+    return STANDARD_DEDUCTIONS_2024[filingStatus];
+  }
+  return STANDARD_DEDUCTIONS_2024[filingStatus];
+}
+
+/**
+ * Helper: Calculate whether itemizing is beneficial
+ */
+export function shouldItemize(
+  filingStatus: DonorFilingStatus,
+  totalCharitableContributions: number,
+  otherItemizedDeductions: number = 0,
+  year: number = 2024
+): {
+  shouldItemize: boolean;
+  standardDeduction: number;
+  totalItemized: number;
+  benefit: number;
+} {
+  const standardDeduction = getStandardDeduction(filingStatus, year);
+  const totalItemized = totalCharitableContributions + otherItemizedDeductions;
+  const benefit = totalItemized - standardDeduction;
+
+  return {
+    shouldItemize: totalItemized > standardDeduction,
+    standardDeduction,
+    totalItemized,
+    benefit: Math.max(0, benefit),
+  };
+}
+
+/**
+ * Helper: Calculate QCD limit and available amount
+ * Annual limit is $100,000 per individual (2024)
+ */
+export function calculateQCDLimit(
+  year: number = 2024,
+  filingStatus: DonorFilingStatus = 'single',
+): {
+  limit: number;
+  perIndividual: number;
+} {
+  const perIndividual = 100000; // IRS limit as of 2024
+
+  // For married filing jointly, each spouse has separate $100k limit
+  const limit = filingStatus === 'married_filing_jointly'
+    ? perIndividual * 2
+    : perIndividual;
+
+  return { limit, perIndividual };
+}
+
+/**
+ * Helper: Calculate QCD tax benefit
+ * QCDs reduce AGI directly (better than standard deduction)
+ */
+export function calculateQCDBenefit(
+  qcdAmount: number,
+  marginalTaxRate: number = 0.24, // Default 24% bracket
+): {
+  agiReduction: number;
+  taxSavings: number;
+  rmdSatisfied: number;
+} {
+  return {
+    agiReduction: qcdAmount, // Full amount reduces AGI
+    taxSavings: qcdAmount * marginalTaxRate, // Estimated tax savings
+    rmdSatisfied: qcdAmount, // Counts toward RMD
+  };
+}
+
+/**
+ * Helper: Validate QCD eligibility and amount
+ */
+export function validateQCD(
+  contribution: {
+    qcd_qualified: boolean;
+    contribution_type: string;
+    amount_usd: number;
+    contribution_date: string;
+  },
+  donorDateOfBirth?: string | null,
+  yearToDateQCDs: number = 0,
+): {
+  valid: boolean;
+  errors: string[];
+  warnings: string[];
+} {
+  const errors: string[] = [];
+  const warnings: string[] = [];
+
+  if (!contribution.qcd_qualified) {
+    return { valid: true, errors, warnings };
+  }
+
+  // Check contribution type
+  if (!['cash', 'check', 'wire'].includes(contribution.contribution_type)) {
+    errors.push('QCDs must be cash contributions from IRA');
+  }
+
+  // Check age eligibility
+  if (donorDateOfBirth) {
+    const eligibility = isQCDEligible(donorDateOfBirth, contribution.contribution_date);
+    if (!eligibility.eligible) {
+      errors.push(eligibility.reason || 'Donor must be 70½ or older for QCDs');
+    }
+  } else {
+    warnings.push('Cannot verify age eligibility without date of birth');
+  }
+
+  // Check annual limit
+  const totalQCDs = yearToDateQCDs + contribution.amount_usd;
+  if (totalQCDs > 100000) {
+    errors.push(`QCD limit exceeded: $${totalQCDs.toLocaleString()} (limit: $100,000/year)`);
+  }
+
+  return {
+    valid: errors.length === 0,
+    errors,
+    warnings,
+  };
+}

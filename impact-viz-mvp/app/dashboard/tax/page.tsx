@@ -9,6 +9,9 @@ import AGILimitVisualizer from '@/components/tax/AGILimitVisualizer';
 import ContributionsList from '@/components/tax/ContributionsList';
 import HoldingsImporter from '@/components/tax/HoldingsImporter';
 import TaxExportPanel from '@/components/tax/TaxExportPanel';
+import TaxScenarioModeler from '@/components/tax/TaxScenarioModeler';
+import TaxOptimizationEngine from '@/components/tax/TaxOptimizationEngine';
+import CPACollaborationPortal from '@/components/tax/CPACollaborationPortal';
 import { calculateAGILimits } from '@/lib/tax/agi-calculator';
 import type { AGILimits } from '@/lib/tax/agi-calculator';
 
@@ -206,6 +209,25 @@ function TaxDashboard() {
         <TaxExportPanel
           portfolioId={portfolioId}
           taxYear={selectedYear}
+        />
+
+        {/* Phase 2: Advanced Tax Features */}
+
+        {/* AI-Powered Optimization Engine */}
+        <TaxOptimizationEngine
+          portfolioId={portfolioId}
+          year={selectedYear}
+        />
+
+        {/* Tax Scenario Modeler */}
+        <TaxScenarioModeler
+          portfolioId={portfolioId}
+          year={selectedYear}
+        />
+
+        {/* CPA Collaboration Portal */}
+        <CPACollaborationPortal
+          portfolioId={portfolioId}
         />
 
         {/* Carryforward Summary */}

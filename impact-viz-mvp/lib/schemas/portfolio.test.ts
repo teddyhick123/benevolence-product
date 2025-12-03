@@ -6,15 +6,51 @@ import {
   updateWidgetSchema,
   createKpiSchema,
   updateKpiSchema,
+  assetTypeSchema,
+  ASSET_TYPE_LABELS,
 } from './portfolio';
 
 describe('Portfolio Schemas', () => {
+  describe('assetTypeSchema', () => {
+    it('should validate valid asset types', () => {
+      const validTypes = [
+        'equity_investment',
+        'debt_investment',
+        'pri',
+        'mri',
+        'foundation_grant',
+        'daf_grant',
+        'donation',
+        'other',
+      ];
+
+      validTypes.forEach(type => {
+        const result = assetTypeSchema.safeParse(type);
+        expect(result.success).toBe(true);
+      });
+    });
+
+    it('should reject invalid asset types', () => {
+      const result = assetTypeSchema.safeParse('invalid_type');
+      expect(result.success).toBe(false);
+    });
+
+    it('should have labels for all asset types', () => {
+      const types = assetTypeSchema.options;
+      types.forEach(type => {
+        expect(ASSET_TYPE_LABELS[type]).toBeDefined();
+        expect(ASSET_TYPE_LABELS[type].length).toBeGreaterThan(0);
+      });
+    });
+  });
+
   describe('createHoldingSchema', () => {
     it('should validate valid holding data', () => {
       const validData = {
         name: 'Test Holding',
         status: 'Active' as const,
-        asset_class: 'Equity',
+        asset_type: 'equity_investment' as const,
+        asset_subtype: 'Public Stock',
         funds_allocated: 100000,
         as_of: '2024-01-15',
       };
@@ -23,8 +59,29 @@ describe('Portfolio Schemas', () => {
       expect(result.success).toBe(true);
       if (result.success) {
         expect(result.data.name).toBe('Test Holding');
+        expect(result.data.asset_type).toBe('equity_investment');
         expect(result.data.funds_allocated).toBe(100000);
       }
+    });
+
+    it('should validate holding without asset_type', () => {
+      const validData = {
+        name: 'Test Holding',
+        funds_allocated: 100000,
+      };
+
+      const result = createHoldingSchema.safeParse(validData);
+      expect(result.success).toBe(true);
+    });
+
+    it('should reject invalid asset_type', () => {
+      const invalidData = {
+        name: 'Test',
+        asset_type: 'invalid_type',
+      };
+
+      const result = createHoldingSchema.safeParse(invalidData);
+      expect(result.success).toBe(false);
     });
 
     it('should require name field', () => {

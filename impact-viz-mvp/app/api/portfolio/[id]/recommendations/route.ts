@@ -10,19 +10,55 @@ function cacheHeaders() {
 export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id: portfolio_id } = await ctx.params;
   const supabase = await createSupabaseServerClient();
+  const { searchParams } = new URL(req.url);
+  const favoritesOnly = searchParams.get('favorites') === 'true';
 
   try {
-    const { data, error } = await supabase
+    // Get current user
+    const { data: { user } } = await supabase.auth.getUser();
+
+    // Base query for recommendations
+    let query = supabase
       .from('portfolio_recommendations')
-      .select('*')
+      .select(`
+        *,
+        recommendation_favorites!left(user_id)
+      `)
       .eq('portfolio_id', portfolio_id)
-      .eq('status', 'active')
+      .eq('status', 'active');
+
+    // If favorites_only filter is enabled, only return favorited recommendations
+    if (favoritesOnly && user) {
+      const { data: favoriteIds } = await supabase
+        .from('recommendation_favorites')
+        .select('recommendation_id')
+        .eq('user_id', user.id);
+
+      if (!favoriteIds || favoriteIds.length === 0) {
+        return NextResponse.json({ data: [] }, { headers: cacheHeaders() });
+      }
+
+      query = query.in('id', favoriteIds.map(f => f.recommendation_id));
+    }
+
+    const { data, error } = await query
       .order('order_index', { ascending: true })
       .order('recommended_at', { ascending: false });
 
     if (error) throw error;
 
-    return NextResponse.json({ data: data || [] }, { headers: cacheHeaders() });
+    // Transform data to include is_favorited and favorite_count
+    const enrichedData = (data || []).map(rec => {
+      const favorites = rec.recommendation_favorites || [];
+      return {
+        ...rec,
+        is_favorited: user ? favorites.some((f: any) => f.user_id === user.id) : false,
+        favorite_count: favorites.length,
+        recommendation_favorites: undefined, // Remove the raw join data
+      };
+    });
+
+    return NextResponse.json({ data: enrichedData }, { headers: cacheHeaders() });
   } catch (error: any) {
     return NextResponse.json(
       { error: error.message || 'Failed to fetch recommendations' },

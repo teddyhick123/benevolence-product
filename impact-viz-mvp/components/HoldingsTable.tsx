@@ -2,6 +2,7 @@
 import React, { useMemo, useState, useCallback } from 'react';
 import { useRouter, useParams, useSearchParams } from 'next/navigation';
 import EditHoldingsModal from './EditHoldingsModal';
+import { ASSET_TYPE_LABELS, AssetType } from '@/lib/schemas/portfolio';
 
 function parseDateISO(d?: string | null) {
   if (!d) return null;
@@ -20,7 +21,7 @@ type SimpleRow = {
   holding_name?: string | null; // legacy
   funds_allocated?: number | null;
   nav?: number | null; // legacy
-  asset_class?: string | null;
+  asset_type?: string | null;
   instrument_type?: string | null;
   as_of?: string | null; // canonical 'YYYY-MM-DD'
   as_of_date?: string | null; // legacy
@@ -88,7 +89,9 @@ export default function HoldingsTable({ rows, canEdit = false, onEditRow, portfo
       const funds = r.funds_allocated != null ? Number(r.funds_allocated)
                    : (r as any).nav != null ? Number((r as any).nav)
                    : null;
-      const assetClass = r.asset_class ?? '—';
+      const assetClass = r.asset_type
+        ? (ASSET_TYPE_LABELS[r.asset_type as AssetType] || r.asset_type)
+        : '—';
 
       // Prefer canonical as_of; fall back to legacy fields
       const asOfRaw =

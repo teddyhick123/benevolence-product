@@ -3,22 +3,7 @@
 import { useState } from 'react';
 import RecommendationsView from './RecommendationsView';
 import AddRecommendationModal from './AddRecommendationModal';
-
-type Recommendation = {
-  id: string;
-  organization_name: string;
-  website: string | null;
-  sector: string | null;
-  ein: string | null;
-  location: string | null;
-  description: string | null;
-  impact_focus: string[] | null;
-  accreditation: any;
-  contact_info: any;
-  min_investment: number | null;
-  max_investment: number | null;
-  recommended_at: string;
-};
+import { Recommendation } from '@/lib/schemas/recommendations';
 
 type Props = {
   portfolioId: string;
@@ -85,10 +70,19 @@ export default function RecommendationsManager({ portfolioId, recommendations, o
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="card p-4">
           <div className="text-sm text-neutral-600">Total Recommendations</div>
           <div className="text-2xl font-bold text-neutral-900 mt-1">{recommendations.length}</div>
+        </div>
+        <div className="card p-4">
+          <div className="text-sm text-neutral-600">Total Favorites</div>
+          <div className="text-2xl font-bold text-red-600 mt-1 flex items-center gap-2">
+            {recommendations.reduce((sum, r) => sum + (r.favorite_count || 0), 0)}
+            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+            </svg>
+          </div>
         </div>
         <div className="card p-4">
           <div className="text-sm text-neutral-600">Unique Sectors</div>
@@ -106,13 +100,11 @@ export default function RecommendationsManager({ portfolioId, recommendations, o
 
       {/* Recommendations Grid with Management Controls */}
       <RecommendationsView
-        recommendations={recommendations.map(rec => ({
-          ...rec,
-          onEdit: handleEdit,
-          onArchive: handleArchive,
-          isManager: true,
-        }))}
+        recommendations={recommendations}
         loading={false}
+        isManager={true}
+        onEdit={handleEdit}
+        onArchive={handleArchive}
       />
 
       {/* Add/Edit Modal */}

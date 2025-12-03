@@ -50,7 +50,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string; h
   const patch: Record<string, any> = {};
   if (validated.name !== undefined) patch.name = validated.name;
   if (validated.status !== undefined) patch.status = validated.status;
-  if (validated.asset_class !== undefined) patch.asset_class = validated.asset_class;
+  if (validated.asset_type !== undefined) patch.asset_type = validated.asset_type;
   if (validated.custodian !== undefined) patch.custodian = validated.custodian;
   if (validated.valuation_method !== undefined) patch.valuation_method = validated.valuation_method;
   if (validated.sector !== undefined) patch.sector = validated.sector;
@@ -79,7 +79,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string; h
       investee_id,
       name,
       status,
-      asset_class,
+      asset_type,
       funds_allocated,
       as_of,
       sector,

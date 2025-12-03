@@ -2,12 +2,11 @@ import { createSupabaseServerClient } from '@/lib/supabase-server';
 import KpiSection from '@/components/KpiSection';
 import HoldingsSection from '@/components/HoldingsSection';
 import WidgetsSection from '@/components/vis/WidgetsSection';
-import SummarySection from '@/components/SummarySection';
 import MapSection from '@/components/MapSection';
 import Reveal from '@/components/Reveal';
 import { headers } from 'next/headers';
 import AIAssistantButton from '@/components/AIAssistantButton';
-import TaxOverviewCard from '@/components/tax/TaxOverviewCard';
+import PortfolioSummarySection from '@/components/PortfolioSummarySection';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -130,25 +129,25 @@ export default async function Dashboard({ searchParams }: { searchParams?: Promi
         </div>
       </div>
 
+      {/* Phase 4: Portfolio Summary Section with Asset Type Tabs */}
       <Reveal>
+        <PortfolioSummarySection portfolioId={portfolioId} />
+      </Reveal>
+
+      <Reveal delay={75}>
         {/* Provide portfolio KPI sums as an optimization/hint; KpiSection can fall back to its own fetch if not used */}
         <KpiSection {...({ portfolioId, canEdit, initialSums: kpiSums, mode: 'portfolio-sum' } as any)} />
       </Reveal>
 
-      <Reveal delay={75}>
+      <Reveal delay={150}>
         <div className="grid grid-cols-12 gap-6 xl:gap-8 2xl:gap-10 w-full">
           <div className="col-span-12 lg:col-span-6 xl:col-span-7 min-w-0 isolate">
             <HoldingsSection portfolioId={portfolioId} canEdit={canEdit} />
           </div>
-          <div className="col-span-12 lg:col-span-6 xl:col-span-5 min-w-0 isolate space-y-6">
-            <TaxOverviewCard portfolioId={portfolioId} />
+          <div className="col-span-12 lg:col-span-6 xl:col-span-5 min-w-0 isolate">
             <WidgetsSection portfolioId={portfolioId} canEdit={canEdit} />
           </div>
         </div>
-      </Reveal>
-
-      <Reveal delay={150}>
-        <SummarySection portfolioId={portfolioId} />
       </Reveal>
 
       {showMap && (

@@ -111,6 +111,20 @@ export async function POST(
     );
   }
 
+  // Also upsert to tax_years table for backward compatibility with Phase 1/2 features
+  if (validated.estimated_agi || validated.filing_status) {
+    await sb
+      .from('tax_years')
+      .upsert({
+        portfolio_id: validated.portfolio_id,
+        tax_year: validated.tax_year,
+        adjusted_gross_income: validated.estimated_agi ?? null,
+        filing_status: validated.filing_status ?? null,
+      }, {
+        onConflict: 'portfolio_id,tax_year'
+      });
+  }
+
   return NextResponse.json(
     { data: created },
     { status: 201, headers: { 'Cache-Control': 'no-store' } }
@@ -172,6 +186,27 @@ export async function PUT(
       { error: updateErr.message },
       { status: 500, headers: { 'Cache-Control': 'no-store' } }
     );
+  }
+
+  // Also upsert to tax_years table for backward compatibility with Phase 1/2 features
+  if (validated.estimated_agi !== undefined || validated.filing_status !== undefined) {
+    const taxYearUpdate: any = {
+      portfolio_id,
+      tax_year: year,
+    };
+
+    if (validated.estimated_agi !== undefined) {
+      taxYearUpdate.adjusted_gross_income = validated.estimated_agi;
+    }
+    if (validated.filing_status !== undefined) {
+      taxYearUpdate.filing_status = validated.filing_status;
+    }
+
+    await sb
+      .from('tax_years')
+      .upsert(taxYearUpdate, {
+        onConflict: 'portfolio_id,tax_year'
+      });
   }
 
   return NextResponse.json(

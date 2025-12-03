@@ -3,11 +3,13 @@ import { useEffect, useState, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import * as d3 from 'd3';
 import { useWidgetDimensions } from '@/hooks/useWidgetDimensions';
+import { ASSET_TYPE_COLORS } from '@/lib/schemas/portfolio';
 
 interface BubbleData {
   holdingId: string;
   holdingName: string;
   sector: string | null;
+  assetType?: string | null;
   xValue: number;
   yValue: number;
   sizeValue: number;
@@ -26,7 +28,7 @@ interface Props {
     yMetric: string; // Metric code for Y-axis
     sizeMetric: string; // Metric code for bubble size
     colorMetric?: string; // Optional metric code for bubble color
-    colorMode?: 'metric' | 'sector'; // Color by metric value or sector
+    colorMode?: 'metric' | 'sector' | 'asset_type'; // Color by metric value, sector, or asset type
     minBubbleSize?: number;
     maxBubbleSize?: number;
     showLabels?: boolean; // Show holding names on bubbles
@@ -159,7 +161,7 @@ export default function ImpactBubbleChart({ portfolioId, title, config }: Props)
 
 interface BubbleChartD3Props {
   data: BubbleData[];
-  colorMode: 'metric' | 'sector';
+  colorMode: 'metric' | 'sector' | 'asset_type';
   showLabels: boolean;
   minBubbleSize: number;
   maxBubbleSize: number;
@@ -229,6 +231,12 @@ function BubbleChartD3({
       colorScale = d3.scaleOrdinal<string>()
         .domain(sectors)
         .range(d3.schemeCategory10);
+    } else if (colorMode === 'asset_type') {
+      // Use standard asset type color palette from schema
+      const assetTypes = Array.from(new Set(data.map(d => d.assetType || 'other')));
+      colorScale = d3.scaleOrdinal<string>()
+        .domain(assetTypes)
+        .range(assetTypes.map(t => ASSET_TYPE_COLORS[t as keyof typeof ASSET_TYPE_COLORS] || ASSET_TYPE_COLORS.other));
     } else {
       const colorExtent = d3.extent(data, d => d.colorValue ?? 0) as [number, number];
       colorScale = d3.scaleSequential<string>()
@@ -313,6 +321,8 @@ function BubbleChartD3({
       .attr('fill', d => {
         if (colorMode === 'sector') {
           return (colorScale as d3.ScaleOrdinal<string, string>)(d.sector || 'Unknown');
+        } else if (colorMode === 'asset_type') {
+          return (colorScale as d3.ScaleOrdinal<string, string>)(d.assetType || 'other');
         } else {
           return (colorScale as d3.ScaleSequential<string>)(d.colorValue ?? 0);
         }
@@ -370,15 +380,18 @@ function BubbleChartD3({
     }
 
     // Legend
-    if (colorMode === 'sector') {
-      const sectors = Array.from(new Set(data.map(d => d.sector || 'Unknown')));
+    if (colorMode === 'sector' || colorMode === 'asset_type') {
+      const legendData = colorMode === 'sector'
+        ? Array.from(new Set(data.map(d => d.sector || 'Unknown')))
+        : Array.from(new Set(data.map(d => d.assetType || 'other')));
+
       const legend = svg
         .append('g')
         .attr('transform', `translate(${margin.left + width - 120}, ${margin.top})`);
 
       legend
         .selectAll('.legend-item')
-        .data(sectors)
+        .data(legendData)
         .join('g')
         .attr('class', 'legend-item')
         .attr('transform', (d, i) => `translate(0, ${i * 20})`)

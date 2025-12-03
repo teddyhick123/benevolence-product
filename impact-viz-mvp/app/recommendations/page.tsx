@@ -4,22 +4,7 @@ import { useEffect, useState, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import RecommendationsView from '@/components/recommendations/RecommendationsView';
 import RecommendationsManager from '@/components/recommendations/RecommendationsManager';
-
-type Recommendation = {
-  id: string;
-  organization_name: string;
-  website: string | null;
-  sector: string | null;
-  ein: string | null;
-  location: string | null;
-  description: string | null;
-  impact_focus: string[] | null;
-  accreditation: any;
-  contact_info: any;
-  min_investment: number | null;
-  max_investment: number | null;
-  recommended_at: string;
-};
+import { Recommendation } from '@/lib/schemas/recommendations';
 
 function RecommendationsPageContent() {
   const searchParams = useSearchParams();
@@ -70,7 +55,12 @@ function RecommendationsPageContent() {
         });
         const recData = await recRes.json();
         if (recRes.ok) {
-          setRecommendations(recData.data || []);
+          // Add portfolio_id to each recommendation for DirectActionButtons
+          const recsWithPortfolio = (recData.data || []).map((rec: any) => ({
+            ...rec,
+            portfolio_id: portfolioId,
+          }));
+          setRecommendations(recsWithPortfolio);
         }
 
         // Check if user is admin
@@ -174,7 +164,13 @@ function RecommendationsPageContent() {
               // Reload recommendations
               fetch(`/api/portfolio/${portfolioId}/recommendations`, { cache: 'no-store' })
                 .then(res => res.json())
-                .then(data => setRecommendations(data.data || []))
+                .then(data => {
+                  const recsWithPortfolio = (data.data || []).map((rec: any) => ({
+                    ...rec,
+                    portfolio_id: portfolioId,
+                  }));
+                  setRecommendations(recsWithPortfolio);
+                })
                 .catch(err => console.error('Failed to reload recommendations:', err));
             }}
           />

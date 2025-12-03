@@ -1,10 +1,12 @@
 'use client';
 
 import InlineEdit from './InlineEdit';
+import AddToTaxTrackerButton from './AddToTaxTrackerButton';
 import { useRouter } from 'next/navigation';
 
 type HoldingHeaderProps = {
   holdingId: string;
+  portfolioId: string;
   name: string;
   assetClass?: string | null;
   sector?: string | null;
@@ -25,6 +27,7 @@ function humanDate(iso?: string | null) {
 
 export default function HoldingHeader({
   holdingId,
+  portfolioId,
   name,
   assetClass,
   sector,
@@ -63,14 +66,29 @@ export default function HoldingHeader({
   };
 
   return (
-    <header className="flex flex-col gap-1">
-      <p className="text-xs text-neutral-500">Holding</p>
-      <InlineEdit
-        value={name}
-        onSave={(newValue) => updateField('name', newValue)}
-        className="text-2xl font-semibold text-neutral-900"
-        as="h1"
-      />
+    <header className="flex flex-col gap-4">
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex-1">
+          <p className="text-xs text-neutral-500">Holding</p>
+          <InlineEdit
+            value={name}
+            onSave={(newValue) => updateField('name', newValue)}
+            className="text-2xl font-semibold text-neutral-900"
+            as="h1"
+          />
+        </div>
+
+        {/* Add to Tax Tracker Button */}
+        <div className="shrink-0">
+          <AddToTaxTrackerButton
+            holdingId={holdingId}
+            holdingName={name}
+            portfolioId={portfolioId}
+          />
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-1">
       {funds != null && isFinite(funds) && (
         <div className="flex items-baseline gap-2">
           <span className="text-sm text-neutral-500">Funds allocated:</span>
@@ -93,7 +111,7 @@ export default function HoldingHeader({
             Class:{' '}
             <InlineEdit
               value={assetClass}
-              onSave={(newValue) => updateField('asset_class', newValue)}
+              onSave={(newValue) => updateField('asset_type', newValue)}
               className="font-medium"
             />
           </span>
@@ -120,6 +138,7 @@ export default function HoldingHeader({
           </span>
         )}
         {asOf && <span>As of: <span className="font-medium">{humanDate(asOf)}</span></span>}
+      </div>
       </div>
     </header>
   );

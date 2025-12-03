@@ -6,15 +6,36 @@ export type PeopleGridConfigProps = {
   initialConfig?: any;
   onSave: (config: { title: string; config: any }) => void;
   onCancel: () => void;
+  portfolioId?: string;
 };
 
-export default function PeopleGridConfig({ initialConfig, onSave, onCancel }: PeopleGridConfigProps) {
+export default function PeopleGridConfig({ initialConfig, onSave, onCancel, portfolioId }: PeopleGridConfigProps) {
   const [title, setTitle] = React.useState(initialConfig?.title || 'People Helped');
   const [metricCode, setMetricCode] = React.useState(initialConfig?.config?.metric_code || '');
   const [mode, setMode] = React.useState(initialConfig?.config?.mode || 'sum');
   const [window, setWindow] = React.useState(initialConfig?.config?.window || '12m');
   const [perUnit, setPerUnit] = React.useState(initialConfig?.config?.perUnit || 10);
   const [target, setTarget] = React.useState(initialConfig?.config?.target || '');
+  const [availableMetrics, setAvailableMetrics] = React.useState<Array<{ metric_code: string; display_name: string }>>([]);
+
+  // Fetch available metrics
+  React.useEffect(() => {
+    if (!portfolioId) return;
+    (async () => {
+      try {
+        const res = await fetch(`/api/portfolio/${encodeURIComponent(portfolioId)}/kpis`, { cache: 'no-store' });
+        const json = await res.json();
+        if (json.data) {
+          setAvailableMetrics(json.data.map((kpi: any) => ({
+            metric_code: kpi.metric_code,
+            display_name: kpi.display_name || kpi.metric_code
+          })));
+        }
+      } catch (e) {
+        // Failed to fetch metrics, form will use manual input
+      }
+    })();
+  }, [portfolioId]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -51,15 +72,33 @@ export default function PeopleGridConfig({ initialConfig, onSave, onCancel }: Pe
           <label className="block text-sm font-medium text-neutral-700 mb-2">
             Metric Code <span className="text-red-500">*</span>
           </label>
-          <input
-            type="text"
-            value={metricCode}
-            onChange={(e) => setMetricCode(e.target.value.toUpperCase())}
-            placeholder="e.g., CLIENTS_SERVED"
-            required
-            className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-          />
-          <p className="mt-1 text-xs text-neutral-500">The metric representing people helped</p>
+          {availableMetrics.length > 0 ? (
+            <select
+              value={metricCode}
+              onChange={(e) => setMetricCode(e.target.value)}
+              required
+              className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+            >
+              <option value="">Select a metric...</option>
+              {availableMetrics.map(m => (
+                <option key={m.metric_code} value={m.metric_code}>
+                  {m.display_name} ({m.metric_code})
+                </option>
+              ))}
+            </select>
+          ) : (
+            <input
+              type="text"
+              value={metricCode}
+              onChange={(e) => setMetricCode(e.target.value.toUpperCase())}
+              placeholder="e.g., BENEFICIARIES_REACHED"
+              required
+              className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+            />
+          )}
+          <p className="mt-1 text-xs text-neutral-500">
+            {availableMetrics.length > 0 ? 'Select a metric from your portfolio KPIs' : 'Metric codes are automatically converted to uppercase'}
+          </p>
         </div>
 
         <div className="grid grid-cols-2 gap-4">

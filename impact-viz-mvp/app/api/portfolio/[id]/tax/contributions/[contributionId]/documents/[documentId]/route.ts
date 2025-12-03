@@ -1,54 +1,58 @@
 import { NextResponse } from 'next/server';
-import { createSupabaseServerClient } from '@/lib/supabase-server';
-
-const getSupabase = createSupabaseServerClient;
+import { supabasePublic } from '@/lib/supabasePublic';
 
 /**
  * GET /api/portfolio/[id]/tax/contributions/[contributionId]/documents/[documentId]
- * Get a specific document
+ * Get a single document with signed URL for viewing
  */
 export async function GET(
   req: Request,
   ctx: { params: Promise<{ id: string; contributionId: string; documentId: string }> }
 ) {
-  const { id: portfolioId, contributionId, documentId } = await ctx.params;
-  const supabase = await getSupabase();
+  const { id: portfolio_id, contributionId: contribution_id, documentId: doc_id } = await ctx.params;
+  const sb = await supabasePublic();
 
-  // Check permission via RLS
-  const { data: portfolio, error: permError } = await supabase
-    .from('portfolios')
-    .select('id')
-    .eq('id', portfolioId)
-    .single();
+  try {
+    // Fetch document
+    const { data: document, error } = await sb
+      .from('tax_documents')
+      .select('*')
+      .eq('id', doc_id)
+      .eq('tax_contribution_id', contribution_id)
+      .single();
 
-  if (permError || !portfolio) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    if (error) {
+      throw error;
+    }
+
+    if (!document) {
+      return NextResponse.json(
+        { error: 'Document not found' },
+        { status: 404, headers: { 'Cache-Control': 'no-store' } }
+      );
+    }
+
+    // Generate signed URL for private access (valid for 1 hour)
+    const { data: signedData } = await sb.storage
+      .from('tax-documents')
+      .createSignedUrl(document.storage_path, 3600);
+
+    return NextResponse.json(
+      {
+        data: {
+          ...document,
+          signed_url: signedData?.signedUrl,
+        },
+      },
+      { headers: { 'Cache-Control': 'private, max-age=3600' } }
+    );
+  } catch (error) {
+    console.error('Error fetching document:', error);
+    return NextResponse.json(
+      { error: 'Failed to fetch document' },
+      { status: 500, headers: { 'Cache-Control': 'no-store' } }
+    );
   }
-
-  // Fetch document
-  const { data, error } = await supabase
-    .from('tax_documents')
-    .select('*')
-    .eq('id', documentId)
-    .eq('portfolio_id', portfolioId)
-    .eq('tax_contribution_id', contributionId)
-    .single();
-
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 404 });
-  }
-
-  // Get signed URL for viewing
-  const { data: urlData } = await supabase.storage
-    .from('tax-documents')
-    .createSignedUrl(data.storage_path, 3600); // 1 hour expiry
-
-  return NextResponse.json({
-    data: {
-      ...data,
-      signed_url: urlData?.signedUrl,
-    },
-  });
 }
 
 /**
@@ -59,75 +63,83 @@ export async function DELETE(
   req: Request,
   ctx: { params: Promise<{ id: string; contributionId: string; documentId: string }> }
 ) {
-  const { id: portfolioId, contributionId, documentId } = await ctx.params;
-  const supabase = await getSupabase();
+  const { id: portfolio_id, contributionId: contribution_id, documentId: doc_id } = await ctx.params;
+  const sb = await supabasePublic();
 
-  // Check edit permission
-  const { data: canEdit, error: permError } = await supabase.rpc(
-    'can_edit_portfolio',
-    { p_portfolio_id: portfolioId }
-  );
+  // Check permissions
+  const { data: canEdit, error: canEditErr } = await sb.rpc('can_edit_portfolio', {
+    p_portfolio_id: portfolio_id,
+  });
 
-  if (permError || !canEdit) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  if (canEditErr || !canEdit) {
+    return NextResponse.json(
+      { error: 'Not authorized' },
+      { status: 403, headers: { 'Cache-Control': 'no-store' } }
+    );
   }
 
-  // Fetch document to get storage path
-  const { data: doc, error: fetchError } = await supabase
-    .from('tax_documents')
-    .select('storage_path, document_type')
-    .eq('id', documentId)
-    .eq('portfolio_id', portfolioId)
-    .eq('tax_contribution_id', contributionId)
-    .single();
-
-  if (fetchError || !doc) {
-    return NextResponse.json({ error: 'Document not found' }, { status: 404 });
-  }
-
-  // Delete from storage
-  const { error: storageError } = await supabase.storage
-    .from('tax-documents')
-    .remove([doc.storage_path]);
-
-  if (storageError) {
-    console.error('Storage delete error:', storageError);
-    // Continue anyway - we still want to remove the database record
-  }
-
-  // Delete database record
-  const { error: deleteError } = await supabase
-    .from('tax_documents')
-    .delete()
-    .eq('id', documentId);
-
-  if (deleteError) {
-    return NextResponse.json({ error: deleteError.message }, { status: 500 });
-  }
-
-  // Clear the storage path field on contribution if applicable
-  const updateField = getStoragePathField(doc.document_type);
-  if (updateField) {
-    // Check if there are other documents of this type
-    const { data: otherDocs } = await supabase
+  try {
+    // Fetch document to get storage path
+    const { data: document, error: fetchError } = await sb
       .from('tax_documents')
-      .select('id')
-      .eq('tax_contribution_id', contributionId)
-      .eq('document_type', doc.document_type)
-      .limit(1);
+      .select('*')
+      .eq('id', doc_id)
+      .eq('tax_contribution_id', contribution_id)
+      .single();
 
-    if (!otherDocs || otherDocs.length === 0) {
-      // No other documents of this type, clear the field
-      await supabase
+    if (fetchError || !document) {
+      return NextResponse.json(
+        { error: 'Document not found' },
+        { status: 404, headers: { 'Cache-Control': 'no-store' } }
+      );
+    }
+
+    // Delete from storage
+    const { error: storageError } = await sb.storage
+      .from('tax-documents')
+      .remove([document.storage_path]);
+
+    if (storageError) {
+      console.error('Error deleting from storage:', storageError);
+      // Continue anyway to delete database record
+    }
+
+    // Delete database record
+    const { error: deleteError } = await sb
+      .from('tax_documents')
+      .delete()
+      .eq('id', doc_id);
+
+    if (deleteError) {
+      throw deleteError;
+    }
+
+    // Clear the storage path field on the contribution if this was a primary document
+    const updateField = getStoragePathField(document.document_type);
+    if (updateField) {
+      await sb
         .from('tax_contributions')
         .update({ [updateField]: null })
-        .eq('id', contributionId);
+        .eq('id', contribution_id)
+        .eq(updateField, document.storage_path); // Only clear if it matches
     }
-  }
 
-  return NextResponse.json({ success: true });
+    return NextResponse.json(
+      { success: true },
+      { headers: { 'Cache-Control': 'no-store' } }
+    );
+  } catch (error) {
+    console.error('Error deleting document:', error);
+    return NextResponse.json(
+      { error: 'Failed to delete document' },
+      { status: 500, headers: { 'Cache-Control': 'no-store' } }
+    );
+  }
 }
 
+/**
+ * Map document type to the corresponding storage path field on tax_contributions
+ */
 function getStoragePathField(docType: string): string | null {
   switch (docType) {
     case 'receipt':

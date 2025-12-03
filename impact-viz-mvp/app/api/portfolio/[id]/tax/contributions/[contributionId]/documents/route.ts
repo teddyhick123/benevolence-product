@@ -41,10 +41,10 @@ export async function GET(
   // Fetch documents
   const { data, error } = await supabase
     .from('tax_documents')
-    .select('*')
+    .select('*, created_at:uploaded_at')
     .eq('portfolio_id', portfolioId)
     .eq('tax_contribution_id', contributionId)
-    .order('created_at', { ascending: false });
+    .order('uploaded_at', { ascending: false });
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });

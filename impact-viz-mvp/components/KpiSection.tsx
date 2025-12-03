@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import useSWR from 'swr';
 import SectionHeader from '@/components/SectionHeader';
 import KpiCard from '@/components/KpiCard';
@@ -102,7 +103,7 @@ export default function KpiSection({ portfolioId, canEdit = false, initialSums, 
   return (
     <section className="space-y-4">
       <SectionHeader
-        title="KPIs"
+        title="Key Performance Indicators"
         subtitle={usePortfolioSums ? 'Lifetime portfolio totals' : 'Key performance indicators compiled across all holdings'}
         canEdit={canEdit}
         onEdit={onAdd}
@@ -111,38 +112,35 @@ export default function KpiSection({ portfolioId, canEdit = false, initialSums, 
 
       {usePortfolioSums ? (
         sumRows.length === 0 ? (
-          <div className="rounded-2xl bg-white border border-black/5 shadow-soft p-6 text-sm text-neutral-600 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg will-change-transform rm:transition-none rm:transform-none">
+          <div className="rounded-2xl bg-white border border-black/5 shadow-soft p-6 text-sm text-neutral-600">
             No KPIs yet.
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {sumRows.map((k) => (
-              <KpiCard
-                key={k.id}
-                title={getTitle(k)}
-                value={k.value ?? undefined}
-                lastUpdated={k.as_of ?? undefined}
-                format={determineFormat(k)}
-                canEdit={false}
-                onEdit={undefined as any}
-                footnote={k.notes ?? undefined}
-              />
-            ))}
-          </div>
+          <KpiCarousel
+            kpis={sumRows}
+            getTitle={getTitle}
+            determineFormat={determineFormat}
+            canEdit={false}
+            onEdit={() => {}}
+          />
         )
       ) : isLoading ? (
-        <div className="rounded-2xl bg-white border border-black/5 shadow-soft p-6 text-sm text-neutral-500 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg will-change-transform rm:transition-none rm:transform-none">Loading KPIs…</div>
+        <div className="rounded-2xl bg-white border border-black/5 shadow-soft p-6 text-sm text-neutral-500 h-[280px] flex items-center justify-center">
+          Loading KPIs…
+        </div>
       ) : error ? (
-        <div className="rounded-2xl bg-white border border-red-200 text-red-700 p-6 text-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg will-change-transform rm:transition-none rm:transform-none">{error?.message || 'Failed to load KPIs'}</div>
+        <div className="rounded-2xl bg-white border border-red-200 text-red-700 p-6 text-sm h-[280px] flex items-center justify-center">
+          {error?.message || 'Failed to load KPIs'}
+        </div>
       ) : rows.length === 0 ? (
-        <div className="rounded-2xl bg-white border border-black/5 shadow-soft p-6 text-sm text-neutral-600 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg will-change-transform rm:transition-none rm:transform-none">
-          No KPIs yet.
+        <div className="rounded-2xl bg-white border border-black/5 shadow-soft p-6 text-sm text-neutral-600 h-[280px] flex flex-col items-center justify-center">
+          <div>No KPIs yet.</div>
           {canEdit ? (
             <div className="mt-3">
               <button
                 type="button"
                 onClick={onAdd}
-                className="inline-flex items-center gap-1.5 rounded-2xl border border-black/10 bg-white text-neutral-900 shadow-sm hover:shadow px-3 py-1.5 transition-transform duration-200 hover:-translate-y-0.5 will-change-transform rm:transition-none rm:transform-none"
+                className="inline-flex items-center gap-1.5 rounded-2xl border border-black/10 bg-white text-neutral-900 shadow-sm hover:shadow px-3 py-1.5"
               >
                 Add KPI
               </button>
@@ -150,20 +148,13 @@ export default function KpiSection({ portfolioId, canEdit = false, initialSums, 
           ) : null}
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {rows.map((k) => (
-            <KpiCard
-              key={k.id}
-              title={getTitle(k)}
-              value={k.value ?? undefined}
-              lastUpdated={k.as_of ?? undefined}
-              format={determineFormat(k)}
-              canEdit={canEdit}
-              onEdit={() => onEdit(k)}
-              footnote={k.notes ?? undefined}
-            />
-          ))}
-        </div>
+        <KpiCarousel
+          kpis={rows}
+          getTitle={getTitle}
+          determineFormat={determineFormat}
+          canEdit={canEdit}
+          onEdit={onEdit}
+        />
       )}
 
       <EditKpiModal
@@ -184,4 +175,120 @@ function determineFormat(k: KpiRow): 'raw' | 'number' | 'currency' | 'percent' {
   if (u.startsWith('$') || /^(USD|EUR|GBP|JPY|CAD|AUD|CHF|CNY)\b/i.test(u)) return 'currency';
   if (typeof k.value === 'number') return 'number';
   return 'raw';
+}
+
+/**
+ * KpiCarousel - Horizontally scrollable KPI carousel
+ * Shows KPIs in a horizontal scrolling row with smooth snap behavior
+ */
+function KpiCarousel({
+  kpis,
+  getTitle,
+  determineFormat,
+  canEdit,
+  onEdit,
+}: {
+  kpis: KpiRow[];
+  getTitle: (k: KpiRow) => string;
+  determineFormat: (k: KpiRow) => 'raw' | 'number' | 'currency' | 'percent';
+  canEdit: boolean;
+  onEdit: (k: KpiRow) => void;
+}) {
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  const scrollLeft = () => {
+    if (scrollContainerRef.current) {
+      const cardWidth = scrollContainerRef.current.querySelector('.kpi-card')?.clientWidth || 300;
+      scrollContainerRef.current.scrollBy({ left: -(cardWidth + 12), behavior: 'smooth' });
+    }
+  };
+
+  const scrollRight = () => {
+    if (scrollContainerRef.current) {
+      const cardWidth = scrollContainerRef.current.querySelector('.kpi-card')?.clientWidth || 300;
+      scrollContainerRef.current.scrollBy({ left: cardWidth + 12, behavior: 'smooth' });
+    }
+  };
+
+  if (kpis.length === 0) {
+    return null;
+  }
+
+  // If only 1-3 KPIs, show them all in a grid without carousel
+  if (kpis.length <= 3) {
+    return (
+      <div className="rounded-2xl bg-white border border-black/5 shadow-soft p-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          {kpis.map((k) => (
+            <KpiCard
+              key={k.id}
+              title={getTitle(k)}
+              value={k.value ?? undefined}
+              lastUpdated={k.as_of ?? undefined}
+              format={determineFormat(k)}
+              canEdit={canEdit}
+              onEdit={() => onEdit(k)}
+              footnote={k.notes ?? undefined}
+            />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-2xl bg-white border border-black/5 shadow-soft p-4 space-y-3">
+      {/* Navigation Controls */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={scrollLeft}
+            aria-label="Scroll left"
+            className="p-2 rounded-lg border border-black/10 bg-white hover:bg-neutral-50 shadow-sm transition-all duration-200 hover:-translate-y-0.5 will-change-transform"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            onClick={scrollRight}
+            aria-label="Scroll right"
+            className="p-2 rounded-lg border border-black/10 bg-white hover:bg-neutral-50 shadow-sm transition-all duration-200 hover:-translate-y-0.5 will-change-transform"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+          </button>
+          <span className="text-xs text-neutral-600 ml-2">
+            {kpis.length} KPIs
+          </span>
+        </div>
+      </div>
+
+      {/* Horizontally Scrollable KPI Cards */}
+      <div
+        ref={scrollContainerRef}
+        className="overflow-x-auto overflow-y-hidden scrollbar-thin scrollbar-thumb-neutral-300 scrollbar-track-transparent hover:scrollbar-thumb-neutral-400"
+        style={{ scrollbarWidth: 'thin' }}
+      >
+        <div className="flex gap-3 pb-2">
+          {kpis.map((k) => (
+            <div key={k.id} className="kpi-card flex-none w-full sm:w-[calc(50%-6px)] lg:w-[calc(33.333%-8px)]">
+              <KpiCard
+                title={getTitle(k)}
+                value={k.value ?? undefined}
+                lastUpdated={k.as_of ?? undefined}
+                format={determineFormat(k)}
+                canEdit={canEdit}
+                onEdit={() => onEdit(k)}
+                footnote={k.notes ?? undefined}
+              />
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
 }

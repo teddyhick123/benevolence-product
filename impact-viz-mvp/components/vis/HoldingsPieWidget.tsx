@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { pie as d3pie, arc as d3arc, PieArcDatum } from 'd3-shape';
 import { scaleOrdinal } from 'd3-scale';
 import { schemeTableau10 } from 'd3-scale-chromatic';
+import { ASSET_TYPE_COLORS, ASSET_TYPE_LABELS, AssetType } from '@/lib/schemas/portfolio';
 
 export type PieDatum = { label: string; value: number };
 
@@ -14,6 +15,7 @@ export type HoldingsPieWidgetProps = {
   showLegend?: boolean;     // default true
   legendMaxHeight?: number; // px, default 220
   formatMoney?: (n: number) => string;
+  colorBy?: 'default' | 'asset_type'; // default 'default': use standard palette, 'asset_type': use asset type colors
 };
 
 function defaultMoney(n: number) {
@@ -31,6 +33,7 @@ export default function HoldingsPieWidget({
   showLegend = true,
   legendMaxHeight = 220,
   formatMoney = defaultMoney,
+  colorBy = 'default',
 }: HoldingsPieWidgetProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<HTMLDivElement | null>(null);
@@ -76,9 +79,35 @@ export default function HoldingsPieWidget({
     () => d3arc<PieArcDatum<PieDatum>>().innerRadius(inner).outerRadius(radius - 4),
     [inner, radius]
   );
-  const color = useMemo(() => scaleOrdinal<string, string>(schemeTableau10 as readonly string[]), []);
 
-  const arcs = pieGen(cleaned);
+  // Color scale: use asset type colors if colorBy='asset_type', otherwise use default palette
+  const color = useMemo(() => {
+    if (colorBy === 'asset_type') {
+      // Map asset type keys to their colors
+      return scaleOrdinal<string, string>()
+        .domain(Object.keys(ASSET_TYPE_COLORS))
+        .range(Object.values(ASSET_TYPE_COLORS));
+    }
+    return scaleOrdinal<string, string>(schemeTableau10 as readonly string[]);
+  }, [colorBy]);
+
+  // Map labels to human-readable names when using asset type coloring
+  const displayData = useMemo(() => {
+    if (colorBy === 'asset_type') {
+      return cleaned.map(d => ({
+        ...d,
+        displayLabel: ASSET_TYPE_LABELS[d.label as AssetType] || d.label,
+        originalLabel: d.label,
+      }));
+    }
+    return cleaned.map(d => ({
+      ...d,
+      displayLabel: d.label,
+      originalLabel: d.label,
+    }));
+  }, [cleaned, colorBy]);
+
+  const arcs = pieGen(displayData);
 
   return (
     <div ref={containerRef} className="rounded-2xl border border-black/5 bg-white p-4 shadow-soft w-full h-full flex items-stretch gap-4">
@@ -95,12 +124,12 @@ export default function HoldingsPieWidget({
               <path
                 key={i}
                 d={arcGen(a) ?? undefined}
-                fill={color(a.data.label)}
+                fill={color((a.data as any).originalLabel)}
                 stroke="white"
                 strokeWidth={1}
               >
                 <title>
-                  {`${a.data.label}: ${formatMoney(a.data.value)} (${((a.data.value / total) * 100).toFixed(1)}%)`}
+                  {`${(a.data as any).displayLabel}: ${formatMoney(a.data.value)} (${((a.data.value / total) * 100).toFixed(1)}%)`}
                 </title>
               </path>
             ))}
@@ -118,16 +147,16 @@ export default function HoldingsPieWidget({
         <div className="w-[220px] max-w-[280px] md:flex-none">
           <div className="text-sm font-medium text-neutral-800 mb-2">Holdings Allocation</div>
           <div className="space-y-1 overflow-auto pr-2" style={{ maxHeight: '100%' }}>
-            {cleaned.map((d, idx) => (
-              <div key={`${d.label}-${d.value}-${idx}`} className="flex items-center justify-between gap-3 text-sm">
+            {displayData.map((d, idx) => (
+              <div key={`${d.originalLabel}-${d.value}-${idx}`} className="flex items-center justify-between gap-3 text-sm">
                 <div className="flex items-center gap-2 min-w-0">
                   <span
                     className="inline-block h-3 w-3 rounded-sm border border-black/10"
-                    style={{ background: color(d.label) }}
+                    style={{ background: color(d.originalLabel) }}
                     aria-hidden
                   />
-                  <span className="truncate" title={d.label}>
-                    {d.label}
+                  <span className="truncate" title={d.displayLabel}>
+                    {d.displayLabel}
                   </span>
                 </div>
                 <div className="tabular-nums text-neutral-700">

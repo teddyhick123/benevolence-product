@@ -1,0 +1,159 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { createSupabaseServerClient } from '@/lib/supabase-server';
+import { createMilestoneSchema } from '@/lib/schemas/grant';
+
+const getSupabase = createSupabaseServerClient;
+
+/**
+ * GET /api/portfolio/[id]/holdings/[holdingId]/milestones
+ * Get all milestones for a grant holding
+ */
+export async function GET(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string; holdingId: string }> }
+) {
+  try {
+    const { id: portfolioId, holdingId } = await params;
+    const supabase = await getSupabase();
+
+    // Verify holding belongs to portfolio and user has access
+    const { data: holding, error: holdingError } = await supabase
+      .from('holdings')
+      .select('id, name, portfolio_id')
+      .eq('id', holdingId)
+      .eq('portfolio_id', portfolioId)
+      .single();
+
+    if (holdingError || !holding) {
+      return NextResponse.json(
+        { error: 'Holding not found or access denied' },
+        { status: 404 }
+      );
+    }
+
+    // Get grant details to find grant_id
+    const { data: grantDetails } = await supabase
+      .from('grant_details')
+      .select('id')
+      .eq('holding_id', holdingId)
+      .maybeSingle();
+
+    if (!grantDetails) {
+      return NextResponse.json({
+        data: [],
+        count: 0,
+        message: 'No grant details found for this holding',
+      });
+    }
+
+    // Get milestones ordered by due date (nulls last)
+    const { data: milestones, error } = await supabase
+      .from('grant_milestones')
+      .select('*')
+      .eq('grant_id', grantDetails.id)
+      .order('due_date', { ascending: true, nullsFirst: false });
+
+    if (error) {
+      console.error('Error fetching milestones:', error);
+      return NextResponse.json({ error: 'Failed to fetch milestones' }, { status: 500 });
+    }
+
+    return NextResponse.json({
+      data: milestones || [],
+      count: milestones?.length || 0,
+    });
+  } catch (error) {
+    console.error('Unexpected error in GET milestones:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
+
+/**
+ * POST /api/portfolio/[id]/holdings/[holdingId]/milestones
+ * Create a new milestone
+ */
+export async function POST(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string; holdingId: string }> }
+) {
+  try {
+    const { id: portfolioId, holdingId } = await params;
+    const body = await req.json();
+    const supabase = await getSupabase();
+
+    // Verify holding belongs to portfolio and user can edit
+    const { data: canEdit } = await supabase.rpc('can_edit_portfolio', {
+      p_portfolio_id: portfolioId,
+      p_user_id: (await supabase.auth.getUser()).data.user?.id,
+    });
+
+    if (!canEdit) {
+      return NextResponse.json(
+        { error: 'Permission denied: cannot edit this portfolio' },
+        { status: 403 }
+      );
+    }
+
+    const { data: holding } = await supabase
+      .from('holdings')
+      .select('id')
+      .eq('id', holdingId)
+      .eq('portfolio_id', portfolioId)
+      .single();
+
+    if (!holding) {
+      return NextResponse.json({ error: 'Holding not found' }, { status: 404 });
+    }
+
+    // Get grant details
+    const { data: grantDetails } = await supabase
+      .from('grant_details')
+      .select('id')
+      .eq('holding_id', holdingId)
+      .single();
+
+    if (!grantDetails) {
+      return NextResponse.json(
+        { error: 'Grant details not found. Create grant details first.' },
+        { status: 404 }
+      );
+    }
+
+    // Validate request body
+    const validated = createMilestoneSchema.parse({
+      ...body,
+      grant_id: grantDetails.id, // Ensure grant_id matches the holding's grant
+    });
+
+    // Insert milestone
+    const { data: milestone, error } = await supabase
+      .from('grant_milestones')
+      .insert({
+        grant_id: validated.grant_id,
+        milestone_name: validated.milestone_name,
+        description: validated.description ?? null,
+        due_date: validated.due_date ?? null,
+        completed_date: validated.completed_date ?? null,
+        status: validated.status,
+        notes: validated.notes ?? null,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error creating milestone:', error);
+      return NextResponse.json({ error: 'Failed to create milestone' }, { status: 500 });
+    }
+
+    return NextResponse.json({ data: milestone }, { status: 201 });
+  } catch (error: any) {
+    if (error?.name === 'ZodError') {
+      return NextResponse.json(
+        { error: 'Validation error', details: error.errors },
+        { status: 400 }
+      );
+    }
+    console.error('Unexpected error in POST milestone:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}

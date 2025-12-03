@@ -28,8 +28,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   const name = getValue(formData, 'name');
   if (name !== undefined) updates.name = name;
 
-  const asset_class = getValue(formData, 'asset_class');
-  if (asset_class !== undefined) updates.asset_class = asset_class;
+  const asset_type = getValue(formData, 'asset_type');
+  if (asset_type !== undefined) updates.asset_type = asset_type;
 
   const sector = getValue(formData, 'sector');
   if (sector !== undefined) updates.sector = sector;

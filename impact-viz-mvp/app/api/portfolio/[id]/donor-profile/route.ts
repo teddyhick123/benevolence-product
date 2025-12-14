@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { supabasePublic } from '@/lib/supabasePublic';
+import { supabasePublic } from '@/lib/supabase';
 import { createDonorProfileSchema, updateDonorProfileSchema } from '@/lib/schemas/tax';
 import { validateRequest } from '@/lib/validation';
 

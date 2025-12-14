@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { createSupabaseServerClient } from '@/lib/supabase-server';
+import { createSupabaseServerClient } from '@/lib/supabase';
 import { createTaxDocumentSchema, documentTypeSchema } from '@/lib/schemas/tax';
 import type { DocumentType } from '@/lib/schemas/tax';
 

@@ -3,6 +3,7 @@
 import React from 'react';
 import { PortfolioDonationSummary } from '@/lib/schemas/donation';
 import { formatCurrency } from '@/lib/schemas/investment';
+import MetricItem from '@/components/MetricItem';
 
 type Props = {
   summary: PortfolioDonationSummary;
@@ -147,40 +148,3 @@ export default function PortfolioDonationSummaryCard({ summary, loading = false,
   );
 }
 
-function MetricItem({
-  label,
-  value,
-  helpText,
-  badge,
-  badgeColor = 'neutral',
-}: {
-  label: string;
-  value: string;
-  helpText?: string;
-  badge?: string;
-  badgeColor?: 'neutral' | 'amber' | 'green' | 'blue';
-}) {
-  const badgeColorClass =
-    badgeColor === 'amber'
-      ? 'bg-amber-50 text-amber-700 border-amber-200'
-      : badgeColor === 'green'
-      ? 'bg-green-50 text-green-700 border-green-200'
-      : badgeColor === 'blue'
-      ? 'bg-blue-50 text-blue-700 border-blue-200'
-      : 'bg-neutral-50 text-neutral-700 border-neutral-200';
-
-  return (
-    <div className="flex flex-col">
-      <div className="flex items-center justify-between gap-2 mb-1.5">
-        <span className="text-xs text-neutral-600">{label}</span>
-        {badge && (
-          <span className={`text-[10px] px-1.5 py-0.5 rounded-full border ${badgeColorClass}`}>
-            {badge}
-          </span>
-        )}
-      </div>
-      <div className="text-xl font-semibold tabular-nums text-neutral-900">{value}</div>
-      {helpText && <div className="text-xs text-neutral-500 mt-1">{helpText}</div>}
-    </div>
-  );
-}

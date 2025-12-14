@@ -2,7 +2,7 @@
 
 // app/api/admin/portfolios/[id]/settings/route.ts
 import { NextResponse } from 'next/server';
-import { createSupabaseServerClient } from '@/lib/supabase-server';
+import { createSupabaseServerClient } from '@/lib/supabase';
 import { portfolioSettingsSchema } from '@/lib/schemas/admin';
 
 /** Admin-only: upsert settings { show_map?: boolean, widgets?: string[] } */

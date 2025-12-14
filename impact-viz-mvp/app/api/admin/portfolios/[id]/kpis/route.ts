@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { supabasePublic } from '@/lib/supabasePublic';
+import { supabasePublic } from '@/lib/supabase';
 
 // Members (via RLS) can read kpi_definitions for their portfolios
 export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> }) {

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { supabasePublic } from '@/lib/supabasePublic';
+import { supabasePublic } from '@/lib/supabase';
 
 export async function GET(_: Request, ctx: { params: Promise<{ jobId: string }> }) {
   const { jobId } = await ctx.params;

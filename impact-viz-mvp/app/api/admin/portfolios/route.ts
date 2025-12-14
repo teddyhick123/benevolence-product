@@ -1,6 +1,6 @@
 // app/api/admin/portfolios/route.ts
 import { NextResponse } from 'next/server';
-import { createSupabaseServerClient } from '@/lib/supabase-server';
+import { createSupabaseServerClient } from '@/lib/supabase';
 import { createAdminPortfolioSchema } from '@/lib/schemas/admin';
 
 export async function POST(req: Request) {

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { createSupabaseServerClient } from '@/lib/supabase-server';
+import { createSupabaseServerClient } from '@/lib/supabase';
 import { revalidatePath } from 'next/cache';
 
 const getSupabase = createSupabaseServerClient;

@@ -2,7 +2,7 @@
 
 // app/api/portfolio/[id]/widgets/[widgetId]/route.ts
 import { NextResponse } from 'next/server';
-import { createSupabaseServerClient } from '@/lib/supabase-server';
+import { createSupabaseServerClient } from '@/lib/supabase';
 import { updateWidgetSchema } from '@/lib/schemas/portfolio';
 
 function cacheHeaders() {

@@ -1,6 +1,6 @@
 // app/api/auth/session/route.ts
 import { NextResponse } from 'next/server';
-import { createSupabaseServerClient } from '@/lib/supabase-server';
+import { createSupabaseServerClient } from '@/lib/supabase';
 import { authLimiter, getIP } from '@/lib/rate-limit';
 import { rateLimitExceeded } from '@/lib/rate-limit-response';
 

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { supabasePublic } from '@/lib/supabasePublic';
+import { supabasePublic } from '@/lib/supabase';
 import * as XLSX from 'xlsx';
 import {
   CONTRIBUTION_TYPE_LABELS,

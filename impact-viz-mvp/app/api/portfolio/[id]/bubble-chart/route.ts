@@ -1,6 +1,6 @@
 // app/api/portfolio/[id]/bubble-chart/route.ts
 import { NextResponse } from 'next/server';
-import { createSupabaseServerClient } from '@/lib/supabase-server';
+import { createSupabaseServerClient } from '@/lib/supabase';
 
 export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id: portfolioId } = await ctx.params;

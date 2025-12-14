@@ -1,6 +1,6 @@
 // app/api/admin/kpis/[kpiId]/route.ts
 import { NextResponse } from 'next/server';
-import { createSupabaseServerClient } from '@/lib/supabase-server';
+import { createSupabaseServerClient } from '@/lib/supabase';
 import { adminUpdateKpiSchema } from '@/lib/schemas/admin';
 
 function toNumber(value: any): number | null {

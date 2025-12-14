@@ -1,6 +1,6 @@
 // app/api/recommendations/[id]/route.ts
 import { NextResponse } from 'next/server';
-import { createSupabaseServerClient } from '@/lib/supabase-server';
+import { createSupabaseServerClient } from '@/lib/supabase';
 import { updateRecommendationSchema } from '@/lib/schemas/recommendations';
 
 function cacheHeaders() {

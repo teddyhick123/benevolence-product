@@ -35,10 +35,15 @@ export default function ImpactTimeline({ portfolioId, title, config }: Props) {
   const [selectedEvent, setSelectedEvent] = useState<TimelineEvent | null>(null);
 
   const holdingId = config?.holdingId;
-  const eventTypes = config?.eventTypes || [];
   const startDate = config?.startDate;
   const endDate = config?.endDate;
   const orientation = config?.orientation || 'horizontal';
+
+  // Stabilize eventTypes to prevent infinite loop
+  const eventTypesString = useMemo(() => {
+    const types = config?.eventTypes || [];
+    return types.join(',');
+  }, [config?.eventTypes]);
 
   useEffect(() => {
     let mounted = true;
@@ -49,7 +54,7 @@ export default function ImpactTimeline({ portfolioId, title, config }: Props) {
 
         const params = new URLSearchParams();
         if (holdingId) params.set('holdingId', holdingId);
-        if (eventTypes.length > 0) params.set('eventTypes', eventTypes.join(','));
+        if (eventTypesString) params.set('eventTypes', eventTypesString);
         if (startDate) params.set('startDate', startDate);
         if (endDate) params.set('endDate', endDate);
 
@@ -82,7 +87,7 @@ export default function ImpactTimeline({ portfolioId, title, config }: Props) {
     return () => {
       mounted = false;
     };
-  }, [portfolioId, holdingId, eventTypes, startDate, endDate]);
+  }, [portfolioId, holdingId, eventTypesString, startDate, endDate]);
 
   if (loading) {
     return (

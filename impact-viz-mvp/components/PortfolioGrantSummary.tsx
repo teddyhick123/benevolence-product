@@ -3,6 +3,7 @@
 import React from 'react';
 import { PortfolioGrantSummary } from '@/lib/schemas/grant';
 import { formatCurrency } from '@/lib/schemas/investment';
+import MetricItem from '@/components/MetricItem';
 
 type Props = {
   summary: PortfolioGrantSummary;
@@ -172,41 +173,6 @@ export default function PortfolioGrantSummaryCard({ summary, loading = false, on
   );
 }
 
-function MetricItem({
-  label,
-  value,
-  helpText,
-  badge,
-  badgeColor = 'amber',
-}: {
-  label: string;
-  value: string;
-  helpText?: string;
-  badge?: string;
-  badgeColor?: 'amber' | 'red' | 'green';
-}) {
-  const badgeColorClass =
-    badgeColor === 'red'
-      ? 'bg-red-50 text-red-700 border-red-200'
-      : badgeColor === 'green'
-      ? 'bg-green-50 text-green-700 border-green-200'
-      : 'bg-amber-50 text-amber-700 border-amber-200';
-
-  return (
-    <div className="flex flex-col">
-      <div className="flex items-center justify-between gap-2 mb-1.5">
-        <span className="text-xs text-neutral-600">{label}</span>
-        {badge && (
-          <span className={`text-[10px] px-1.5 py-0.5 rounded-full border ${badgeColorClass}`}>
-            {badge}
-          </span>
-        )}
-      </div>
-      <div className="text-xl font-semibold tabular-nums text-neutral-900">{value}</div>
-      {helpText && <div className="text-xs text-neutral-500 mt-1">{helpText}</div>}
-    </div>
-  );
-}
 
 function formatDate(dateString: string): string {
   try {

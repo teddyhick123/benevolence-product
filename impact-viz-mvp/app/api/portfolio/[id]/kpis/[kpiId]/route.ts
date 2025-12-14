@@ -1,6 +1,6 @@
 // app/api/portfolio/[id]/kpis/[kpiId]/route.ts
 import { NextResponse } from 'next/server';
-import { createSupabaseServerClient } from '@/lib/supabase-server';
+import { createSupabaseServerClient } from '@/lib/supabase';
 import { updateKpiSchema } from '@/lib/schemas/portfolio';
 
 function cacheHeaders() {

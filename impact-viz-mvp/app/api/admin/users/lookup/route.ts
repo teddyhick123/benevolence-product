@@ -1,6 +1,6 @@
 // app/api/admin/users/lookup/route.ts
 import { NextResponse } from 'next/server';
-import { createSupabaseServerClient } from '@/lib/supabase-server';
+import { createSupabaseServerClient } from '@/lib/supabase';
 import { createClient as createSB } from '@supabase/supabase-js';
 
 function noStore(json: any, status = 200) {

@@ -505,18 +505,15 @@ function WidgetConfigForm({
             <ImpactBubbleChartConfig {...props} />
           </React.Suspense>
         );
-      case 'radial_progress_rings':
       case 'emissions_bar':
       case 'd3_json':
-      case 'holdings_pie':
-      case 'people_grid':
         return (
           <div className="bg-neutral-50 border border-neutral-200 rounded-2xl p-8 text-center">
             <p className="text-neutral-600 mb-4">
               Advanced configuration for <strong>{type}</strong> coming soon.
             </p>
             <p className="text-sm text-neutral-500 mb-4">
-              For now, you can edit this widget using the JSON editor in the main widgets panel.
+              Contact support if you need help setting up this widget type.
             </p>
             <button
               onClick={onCancel}

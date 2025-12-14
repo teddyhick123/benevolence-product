@@ -1,6 +1,6 @@
 // app/api/portfolio/[id]/kpis/route.ts
 import { NextResponse } from 'next/server';
-import { createSupabaseServerClient } from '@/lib/supabase-server';
+import { createSupabaseServerClient } from '@/lib/supabase';
 import { createKpiSchema } from '@/lib/schemas/portfolio';
 import { validateRequest } from '@/lib/validation';
 
@@ -15,18 +15,67 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
   const url = new URL(req.url);
   const offset = Number(url.searchParams.get('offset') ?? '0') || 0;
   const limit = Math.min(Number(url.searchParams.get('limit') ?? '50') || 50, 200);
+  const hasData = url.searchParams.get('has_data') === 'true';
 
   const sb = await createSb();
 
-  const { data: defs, count, error } = await sb
-    .from('kpi_definitions')
-    .select(
-      'id, portfolio_id, display_name, metric_code, target_value, target_date, calculation, order_index',
-      { count: 'exact' }
-    )
-    .eq('portfolio_id', portfolio_id)
-    .order('order_index', { ascending: true })
-    .range(offset, offset + limit - 1);
+  // If has_data filter is requested, only return metrics that have data in metric_facts
+  let defs: any[] = [];
+  let count = 0;
+  let error = null;
+
+  if (hasData) {
+    // Get distinct metric_codes from metric_facts for this portfolio's holdings
+    const { data: metricCodes, error: metricErr } = await sb
+      .from('metric_facts')
+      .select('metric_code, holdings!inner(portfolio_id)')
+      .eq('holdings.portfolio_id', portfolio_id)
+      .not('metric_code', 'is', null);
+
+    if (metricErr) {
+      return NextResponse.json({ error: metricErr.message }, { status: 500, headers: cacheHeaders() });
+    }
+
+    // Extract unique metric codes
+    const uniqueMetricCodes = [...new Set((metricCodes || []).map((m: any) => m.metric_code))];
+
+    if (uniqueMetricCodes.length === 0) {
+      // No data, return empty array
+      defs = [];
+      count = 0;
+    } else {
+      // Fetch KPI definitions that match these metric codes
+      const result = await sb
+        .from('kpi_definitions')
+        .select(
+          'id, portfolio_id, display_name, metric_code, target_value, target_date, calculation, order_index',
+          { count: 'exact' }
+        )
+        .eq('portfolio_id', portfolio_id)
+        .in('metric_code', uniqueMetricCodes)
+        .order('order_index', { ascending: true })
+        .range(offset, offset + limit - 1);
+
+      defs = result.data ?? [];
+      count = result.count ?? 0;
+      error = result.error;
+    }
+  } else {
+    // Normal query - return all KPIs
+    const result = await sb
+      .from('kpi_definitions')
+      .select(
+        'id, portfolio_id, display_name, metric_code, target_value, target_date, calculation, order_index',
+        { count: 'exact' }
+      )
+      .eq('portfolio_id', portfolio_id)
+      .order('order_index', { ascending: true })
+      .range(offset, offset + limit - 1);
+
+    defs = result.data ?? [];
+    count = result.count ?? 0;
+    error = result.error;
+  }
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500, headers: cacheHeaders() });

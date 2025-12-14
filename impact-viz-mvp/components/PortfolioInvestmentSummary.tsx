@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { PortfolioInvestmentSummary, formatCurrency, formatMultiple, formatPercentage, getMOICColorClass, getGainColorClass } from '@/lib/schemas/investment';
+import MetricItem from '@/components/MetricItem';
 
 type Props = {
   summary: PortfolioInvestmentSummary;
@@ -141,33 +142,3 @@ export default function PortfolioInvestmentSummaryCard({ summary, loading = fals
   );
 }
 
-function MetricItem({
-  label,
-  value,
-  valueClassName,
-  helpText,
-  badge,
-}: {
-  label: string;
-  value: string;
-  valueClassName?: string;
-  helpText?: string;
-  badge?: string;
-}) {
-  return (
-    <div className="flex flex-col">
-      <div className="flex items-center justify-between gap-2 mb-1.5">
-        <span className="text-xs text-neutral-600">{label}</span>
-        {badge && (
-          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-green-50 text-green-700 border border-green-200">
-            {badge}
-          </span>
-        )}
-      </div>
-      <div className={`text-xl font-semibold tabular-nums ${valueClassName || 'text-neutral-900'}`}>
-        {value}
-      </div>
-      {helpText && <div className="text-xs text-neutral-500 mt-1">{helpText}</div>}
-    </div>
-  );
-}

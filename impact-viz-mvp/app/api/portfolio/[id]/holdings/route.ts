@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { supabasePublic } from '@/lib/supabasePublic';
+import { supabasePublic } from '@/lib/supabase';
 import { createHoldingSchema } from '@/lib/schemas/portfolio';
 import { validateRequest } from '@/lib/validation';
 

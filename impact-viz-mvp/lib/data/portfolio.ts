@@ -1,5 +1,5 @@
 // lib/data/portfolio.ts
-import { createSupabaseServerClient } from '@/lib/supabase-server';
+import { createSupabaseServerClient } from '@/lib/supabase';
 
 export async function getDefaultPortfolioId(): Promise<string | null> {
   const supabase = await createSupabaseServerClient();

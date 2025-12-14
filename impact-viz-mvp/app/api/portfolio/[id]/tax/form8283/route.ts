@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { supabasePublic } from '@/lib/supabasePublic';
+import { supabasePublic } from '@/lib/supabase';
 import { generateForm8283PDF, type Form8283Contribution } from '@/lib/tax/form8283-generator';
 
 /**

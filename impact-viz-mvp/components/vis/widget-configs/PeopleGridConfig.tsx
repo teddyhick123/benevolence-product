@@ -18,12 +18,12 @@ export default function PeopleGridConfig({ initialConfig, onSave, onCancel, port
   const [target, setTarget] = React.useState(initialConfig?.config?.target || '');
   const [availableMetrics, setAvailableMetrics] = React.useState<Array<{ metric_code: string; display_name: string }>>([]);
 
-  // Fetch available metrics
+  // Fetch available metrics (only those with actual data)
   React.useEffect(() => {
     if (!portfolioId) return;
     (async () => {
       try {
-        const res = await fetch(`/api/portfolio/${encodeURIComponent(portfolioId)}/kpis`, { cache: 'no-store' });
+        const res = await fetch(`/api/portfolio/${encodeURIComponent(portfolioId)}/kpis?has_data=true`, { cache: 'no-store' });
         const json = await res.json();
         if (json.data) {
           setAvailableMetrics(json.data.map((kpi: any) => ({

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createSupabaseServerClient } from '@/lib/supabase-server';
+import { createSupabaseServerClient } from '@/lib/supabase';
 import { updateTransactionSchema } from '@/lib/schemas/investment';
 
 const getSupabase = createSupabaseServerClient;

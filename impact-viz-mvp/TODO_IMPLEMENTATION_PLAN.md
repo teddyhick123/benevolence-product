@@ -196,16 +196,32 @@ const xirr = calculateXIRR(cashFlows);
 
 ---
 
-### 3. 🔶 MEDIUM: Tax Fields Enhancement
+### 3. ✅ COMPLETE: Tax Fields Enhancement
 **File**: `app/api/portfolio/[id]/tax/export/route.ts:199-200`
+**Completed**: November 30, 2025
+**Status**: ✅ IMPLEMENTED AND TESTED
+
+~~**Original State**: Missing important tax fields in contribution records~~
+
+**NEW State**: Enhanced tax tracking with QCD support
+- ✅ Added `qcd_qualified` field to database
+- ✅ Updated Zod schema with QCD validation
+- ✅ Added 3 QCD helper functions (limit, benefit, validation)
+- ✅ Fixed export routes to use real field values
+- ✅ Bonus: Fixed `requires_appraisal` hardcoding issue
+
+**Documentation**: See `TAX_FIELDS_ENHANCEMENT_COMPLETE.md` for full details
+
+---
+
+### ~~3. 🔶 MEDIUM: Tax Fields Enhancement~~ [COMPLETED]
+**Original File**: `app/api/portfolio/[id]/tax/export/route.ts:199-200`
 ```typescript
-qcd_qualified: false, // TODO: Add qcd_qualified field to contribution
-requires_appraisal: false, // TODO: Add from enhanced fields
+qcd_qualified: false, // TODO: Add qcd_qualified field to contribution [DONE]
+requires_appraisal: false, // TODO: Add from enhanced fields [DONE]
 ```
 
-**Current State**: Missing important tax fields in contribution records
-
-**Impact**: MEDIUM - Affects tax form accuracy, but has defaults
+**Original Impact**: MEDIUM - Affects tax form accuracy, but has defaults
 
 **Implementation**:
 

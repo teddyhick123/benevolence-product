@@ -1,6 +1,6 @@
 // app/api/portfolio/[id]/letter/generate/route.ts
 import { NextResponse } from 'next/server';
-import { createSupabaseServerClient } from '@/lib/supabase-server';
+import { createSupabaseServerClient } from '@/lib/supabase';
 import OpenAI from 'openai';
 import { aiAuthRequired } from '@/lib/rate-limit-response';
 

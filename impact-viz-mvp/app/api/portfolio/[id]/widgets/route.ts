@@ -2,7 +2,7 @@
 
 // app/api/portfolio/[id]/widgets/route.ts
 import { NextResponse } from 'next/server';
-import { createSupabaseServerClient } from '@/lib/supabase-server';
+import { createSupabaseServerClient } from '@/lib/supabase';
 import { createWidgetSchema } from '@/lib/schemas/portfolio';
 import { validateRequest } from '@/lib/validation';
 

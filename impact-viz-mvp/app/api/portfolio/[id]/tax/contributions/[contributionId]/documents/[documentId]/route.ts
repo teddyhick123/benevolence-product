@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { supabasePublic } from '@/lib/supabasePublic';
+import { supabasePublic } from '@/lib/supabase';
 
 /**
  * GET /api/portfolio/[id]/tax/contributions/[contributionId]/documents/[documentId]

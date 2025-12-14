@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { InvestmentPerformance, formatCurrency, formatMultiple, formatPercentage, getMOICColorClass, getGainColorClass } from '@/lib/schemas/investment';
+import MetricItem from '@/components/MetricItem';
 
 type Props = {
   investment: InvestmentPerformance;
@@ -71,14 +72,14 @@ export default function InvestmentPerformanceCard({ investment, onViewDetails, l
         <MetricItem
           label="Current NAV"
           value={formatCurrency(investment.current_nav)}
-          sublabel={investment.nav_as_of_date ? `as of ${formatDate(investment.nav_as_of_date)}` : undefined}
+          helpText={investment.nav_as_of_date ? `as of ${formatDate(investment.nav_as_of_date)}` : undefined}
         />
 
         {/* Cost Basis */}
         <MetricItem
           label="Cost Basis"
           value={formatCurrency(investment.cost_basis)}
-          sublabel={
+          helpText={
             investment.investment_count
               ? `${investment.investment_count} investment${investment.investment_count > 1 ? 's' : ''}`
               : undefined
@@ -89,7 +90,7 @@ export default function InvestmentPerformanceCard({ investment, onViewDetails, l
         <MetricItem
           label="Distributions"
           value={formatCurrency(investment.total_distributions)}
-          sublabel={
+          helpText={
             investment.distribution_count
               ? `${investment.distribution_count} distribution${investment.distribution_count > 1 ? 's' : ''}`
               : undefined
@@ -101,7 +102,7 @@ export default function InvestmentPerformanceCard({ investment, onViewDetails, l
           label="Unrealized Gain"
           value={formatCurrency(investment.unrealized_gain)}
           valueClassName={getGainColorClass(investment.unrealized_gain)}
-          sublabel={
+          helpText={
             investment.unrealized_gain_pct !== null && investment.unrealized_gain_pct !== undefined
               ? formatPercentage(investment.unrealized_gain_pct)
               : undefined
@@ -112,7 +113,7 @@ export default function InvestmentPerformanceCard({ investment, onViewDetails, l
         <MetricItem
           label="Total Value"
           value={formatCurrency(investment.total_value)}
-          sublabel="NAV + distributions"
+          helpText="NAV + distributions"
         />
 
         {/* MOIC */}
@@ -149,36 +150,6 @@ export default function InvestmentPerformanceCard({ investment, onViewDetails, l
   );
 }
 
-function MetricItem({
-  label,
-  value,
-  valueClassName,
-  sublabel,
-  badge,
-}: {
-  label: string;
-  value: string;
-  valueClassName?: string;
-  sublabel?: string;
-  badge?: string;
-}) {
-  return (
-    <div className="flex flex-col">
-      <div className="flex items-center justify-between gap-2 mb-1">
-        <span className="text-xs text-neutral-600">{label}</span>
-        {badge && (
-          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-green-50 text-green-700 border border-green-200">
-            {badge}
-          </span>
-        )}
-      </div>
-      <div className={`text-lg font-semibold tabular-nums ${valueClassName || 'text-neutral-900'}`}>
-        {value}
-      </div>
-      {sublabel && <div className="text-xs text-neutral-500 mt-0.5">{sublabel}</div>}
-    </div>
-  );
-}
 
 function formatDate(dateString: string): string {
   try {

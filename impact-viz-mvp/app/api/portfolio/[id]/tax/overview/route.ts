@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { supabasePublic } from '@/lib/supabasePublic';
+import { supabasePublic } from '@/lib/supabase';
 import { calculateAGILimits } from '@/lib/tax/agi-calculator';
 import { generateComplianceReport } from '@/lib/tax/substantiation-validator';
 import { summarizeCarryforwards, generateCarryforwardAlerts } from '@/lib/tax/carryforward-tracker';

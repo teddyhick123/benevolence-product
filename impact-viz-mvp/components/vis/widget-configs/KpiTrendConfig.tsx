@@ -21,7 +21,7 @@ export default function KpiTrendConfig({ initialConfig, onSave, onCancel, portfo
     if (!portfolioId) return;
     (async () => {
       try {
-        const res = await fetch(`/api/portfolio/${encodeURIComponent(portfolioId)}/kpis`, { cache: 'no-store' });
+        const res = await fetch(`/api/portfolio/${encodeURIComponent(portfolioId)}/kpis?has_data=true`, { cache: 'no-store' });
         const json = await res.json();
         if (json.data) {
           setAvailableMetrics(json.data.map((kpi: any) => ({

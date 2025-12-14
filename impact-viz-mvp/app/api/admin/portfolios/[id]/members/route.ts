@@ -1,6 +1,6 @@
 // app/api/admin/portfolios/[id]/members/route.ts
 import { NextResponse } from 'next/server';
-import { createSupabaseServerClient } from '@/lib/supabase-server';
+import { createSupabaseServerClient } from '@/lib/supabase';
 import { createClient } from '@supabase/supabase-js';
 import { addPortfolioMemberSchema } from '@/lib/schemas/admin';
 

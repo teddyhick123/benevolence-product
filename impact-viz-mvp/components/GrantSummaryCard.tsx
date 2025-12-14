@@ -9,6 +9,7 @@ import {
   daysUntilDue,
 } from '@/lib/schemas/grant';
 import { formatCurrency } from '@/lib/schemas/investment';
+import MetricItem from '@/components/MetricItem';
 
 type Props = {
   grant: GrantSummary;
@@ -99,6 +100,7 @@ export default function GrantSummaryCard({ grant, onViewDetails, loading = false
             value={reportDueText || '—'}
             valueClassName={daysUntil !== null && daysUntil < 0 ? 'text-red-600' : undefined}
             badge={daysUntil !== null && daysUntil < 7 && daysUntil >= 0 ? 'Due soon' : undefined}
+            badgeColor="amber"
           />
         )}
 
@@ -108,6 +110,7 @@ export default function GrantSummaryCard({ grant, onViewDetails, loading = false
             label="Renewal Date"
             value={formatDate(grant.renewal_date)}
             badge="Eligible"
+            badgeColor="amber"
           />
         )}
       </div>
@@ -175,33 +178,6 @@ export default function GrantSummaryCard({ grant, onViewDetails, loading = false
   );
 }
 
-function MetricItem({
-  label,
-  value,
-  valueClassName,
-  badge,
-}: {
-  label: string;
-  value: string;
-  valueClassName?: string;
-  badge?: string;
-}) {
-  return (
-    <div className="flex flex-col">
-      <div className="flex items-center justify-between gap-2 mb-1">
-        <span className="text-xs text-neutral-600">{label}</span>
-        {badge && (
-          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
-            {badge}
-          </span>
-        )}
-      </div>
-      <div className={`text-sm font-medium ${valueClassName || 'text-neutral-900'}`}>
-        {value}
-      </div>
-    </div>
-  );
-}
 
 function formatDate(dateString: string): string {
   try {

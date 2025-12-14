@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createSupabaseServerClient } from '@/lib/supabase-server';
+import { createSupabaseServerClient } from '@/lib/supabase';
 import { createTaxContributionDraft, HoldingForTax } from '@/lib/helpers/tax-holding-link';
 
 const getSupabase = createSupabaseServerClient;

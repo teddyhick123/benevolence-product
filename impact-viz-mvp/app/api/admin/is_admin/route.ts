@@ -1,6 +1,6 @@
 // app/api/admin/is_admin/route.ts
 import { NextResponse } from 'next/server';
-import { createSupabaseServerClient } from '@/lib/supabase-server';
+import { createSupabaseServerClient } from '@/lib/supabase';
 
 export async function GET() {
   const supabase = await createSupabaseServerClient();

@@ -1,5 +1,5 @@
 // app/admin/portfolios/[id]/members/page.tsx
-import { createSupabaseServerClient } from '@/lib/supabase-server';
+import { createSupabaseServerClient } from '@/lib/supabase';
 import AdminRoleSelect from '@/components/admin/AdminRoleSelect'
 import EmailLookupAdd from '@/components/admin/EmailLookupAdd';
 import RemoveMemberButton from '@/components/admin/RemoveMemberButton';

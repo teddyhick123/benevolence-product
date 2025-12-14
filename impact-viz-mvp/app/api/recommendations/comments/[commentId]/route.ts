@@ -1,6 +1,6 @@
 // app/api/recommendations/comments/[commentId]/route.ts
 import { NextResponse } from 'next/server';
-import { createSupabaseServerClient } from '@/lib/supabase-server';
+import { createSupabaseServerClient } from '@/lib/supabase';
 import { z } from 'zod';
 
 function cacheHeaders() {

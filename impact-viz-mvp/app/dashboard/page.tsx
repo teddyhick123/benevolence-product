@@ -1,4 +1,4 @@
-import { createSupabaseServerClient } from '@/lib/supabase-server';
+import { createSupabaseServerClient } from '@/lib/supabase';
 import KpiSection from '@/components/KpiSection';
 import HoldingsSection from '@/components/HoldingsSection';
 import WidgetsSection from '@/components/vis/WidgetsSection';

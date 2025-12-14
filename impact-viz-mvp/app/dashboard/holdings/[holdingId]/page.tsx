@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation';
-import { createSupabaseServerClient } from '@/lib/supabase-server';
+import { createSupabaseServerClient } from '@/lib/supabase';
 import React from 'react';
 import { revalidatePath } from 'next/cache';
 import HoldingHeader from '@/components/HoldingHeader';

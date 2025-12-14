@@ -20,7 +20,7 @@ const EVENT_TYPES = [
 export default function ImpactTimelineConfig({ initialConfig, onSave, onCancel }: ImpactTimelineConfigProps) {
   const [title, setTitle] = React.useState(initialConfig?.title || '');
   const [window, setWindow] = React.useState(initialConfig?.config?.window || '12m');
-  const [layout, setLayout] = React.useState<'horizontal' | 'vertical'>(initialConfig?.config?.layout || 'horizontal');
+  const [orientation, setOrientation] = React.useState<'horizontal' | 'vertical'>(initialConfig?.config?.orientation || 'horizontal');
   const [showHoldingNames, setShowHoldingNames] = React.useState(initialConfig?.config?.showHoldingNames ?? true);
   const [filterTypes, setFilterTypes] = React.useState<string[]>(
     initialConfig?.config?.filterTypes || ['milestone', 'achievement', 'funding', 'metric', 'other']
@@ -43,7 +43,7 @@ export default function ImpactTimelineConfig({ initialConfig, onSave, onCancel }
       title: title || 'Impact Timeline',
       config: {
         window,
-        layout,
+        orientation,
         showHoldingNames,
         filterTypes,
         minEvents
@@ -89,15 +89,15 @@ export default function ImpactTimelineConfig({ initialConfig, onSave, onCancel }
             Layout Style
           </label>
           <select
-            value={layout}
-            onChange={(e) => setLayout(e.target.value as 'horizontal' | 'vertical')}
+            value={orientation}
+            onChange={(e) => setOrientation(e.target.value as 'horizontal' | 'vertical')}
             className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
           >
             <option value="horizontal">Horizontal (D3 Timeline)</option>
             <option value="vertical">Vertical (Card List)</option>
           </select>
           <p className="mt-1 text-xs text-neutral-500">
-            {layout === 'horizontal' ? 'Visual D3 timeline with date axis' : 'Chronological list of event cards'}
+            {orientation === 'horizontal' ? 'Visual D3 timeline with date axis' : 'Chronological list of event cards'}
           </p>
         </div>
 

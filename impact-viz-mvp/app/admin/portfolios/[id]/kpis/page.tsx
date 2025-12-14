@@ -1,5 +1,5 @@
 // app/admin/portfolios/[id]/kpis/page.tsx
-import { createSupabaseServerClient } from '@/lib/supabase-server';
+import { createSupabaseServerClient } from '@/lib/supabase';
 import Link from 'next/link';
 
 export const dynamic = 'force-dynamic';

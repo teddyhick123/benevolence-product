@@ -1,4 +1,4 @@
-import { createSupabaseServerClient } from "@/lib/supabase-server";
+import { createSupabaseServerClient } from "@/lib/supabase";
 import ProfileHeader from "@/components/profile/ProfileHeader";
 import AccountSettings from "@/components/profile/AccountSettings";
 import PortfolioAccess from "@/components/profile/PortfolioAccess";

@@ -9,6 +9,8 @@
  * - Project multi-year carryforwards
  */
 
+import { getStandardDeduction, type FilingStatus } from './constants';
+
 export interface ScenarioInput {
   // Donor information
   agi: number;
@@ -100,8 +102,8 @@ export function calculateScenario(input: ScenarioInput): ScenarioResult {
 
   // Calculate tax savings
   const isAppreciatedAsset = ['stock', 'real_estate', 'pe_vc', 'other_property'].includes(donation_type);
-  const capitalGainsAvoided = isAppreciatedAsset && cost_basis > 0
-    ? donation_amount - cost_basis
+  const capitalGainsAvoided = isAppreciatedAsset && cost_basis >= 0
+    ? Math.max(donation_amount - cost_basis, 0)
     : 0;
   const capitalGainsTaxSaved = capitalGainsAvoided * 0.20; // 20% LTCG rate
 
@@ -209,6 +211,11 @@ export function compareScenarios(scenarios: ScenarioInput[]): {
   scenarios: ScenarioResult[];
   comparison: ScenarioComparison;
 } {
+  // Bug fix #1: Validate that we have at least 2 scenarios to compare
+  if (!scenarios || scenarios.length < 2) {
+    throw new Error('At least 2 scenarios are required for comparison');
+  }
+
   const results = scenarios.map(calculateScenario);
 
   const bestTaxSavings = results.reduce((best, current) =>
@@ -320,11 +327,13 @@ export function calculateOptimalDonation(input: {
 
   const optimalAmount = remainingCapacity;
 
+  // Bug fix #4: Fixed cost basis calculation and added zero-check protection
   const isAppreciatedAsset = ['stock', 'real_estate', 'pe_vc', 'other_property'].includes(input.donation_type);
   const costBasis = input.cost_basis || 0;
-  const capitalGainsTaxSaved = isAppreciatedAsset && costBasis > 0
-    ? (optimalAmount - (costBasis / optimalAmount) * optimalAmount) * 0.20
+  const capitalGainsAvoided = isAppreciatedAsset && costBasis > 0 && optimalAmount > 0
+    ? Math.max(optimalAmount - costBasis, 0)
     : 0;
+  const capitalGainsTaxSaved = capitalGainsAvoided * 0.20; // 20% LTCG rate
   const deductionValue = optimalAmount * 0.37;
   const taxSavingsAtOptimal = capitalGainsTaxSaved + deductionValue;
 
@@ -344,6 +353,8 @@ export function analyzeBunchingStrategy(input: {
   annual_donation_amount: number;
   donation_type: string;
   years_to_analyze: number;
+  filing_status?: FilingStatus; // Bug fix #3: Added filing status parameter
+  tax_year?: number; // Bug fix #3: Added tax year parameter
 }): {
   spread_strategy: {
     annual_deduction: number;
@@ -359,27 +370,46 @@ export function analyzeBunchingStrategy(input: {
   recommendation: 'spread' | 'bunch';
   savings_difference: number;
 } {
-  const { agi, annual_donation_amount, donation_type, years_to_analyze } = input;
+  const { agi, annual_donation_amount, donation_type, years_to_analyze, filing_status = 'married_joint', tax_year = new Date().getFullYear() } = input;
+
+  // Bug fix #7: Validate year range (2-10 years is reasonable)
+  if (years_to_analyze < 2 || years_to_analyze > 10) {
+    throw new Error('Years to analyze must be between 2 and 10');
+  }
+
   const agiLimitPercentage = getAGILimitForType(donation_type);
   const agiLimit = agi * (agiLimitPercentage / 100);
+
+  // Bug fix #2: Use getStandardDeduction instead of hardcoded value
+  const standardDeduction = getStandardDeduction(tax_year, filing_status);
 
   // Spread strategy: Donate same amount each year
   const spreadAnnualDeduction = Math.min(annual_donation_amount, agiLimit);
   const spreadTotalDeduction = spreadAnnualDeduction * years_to_analyze;
-  const spreadTaxSavings = spreadTotalDeduction * 0.37;
+
+  // Bug fix #9: Fixed tax calculation logic for spread strategy
+  // In spread years, donor itemizes if donation > standard deduction
+  // Tax benefit is the marginal tax savings from itemizing vs. standard deduction
+  const spreadYearsItemizing = spreadAnnualDeduction > standardDeduction ? years_to_analyze : 0;
+  const spreadItemizingBenefit = spreadYearsItemizing > 0
+    ? Math.max(spreadAnnualDeduction - standardDeduction, 0) * 0.37 * years_to_analyze
+    : 0;
+  const spreadTaxSavings = spreadItemizingBenefit;
 
   // Bunching strategy: Donate 2x every other year
   const bunchAmount = annual_donation_amount * 2;
   const bunchYears = Math.ceil(years_to_analyze / 2);
+  const offYears = years_to_analyze - bunchYears;
   const bunchYearDeduction = Math.min(bunchAmount, agiLimit);
   const offYearDeduction = 0; // Use standard deduction in off years
   const bunchTotalDeduction = bunchYearDeduction * bunchYears;
 
-  // Assume bunching allows itemizing in bunch years, standard deduction in off years
-  // Additional benefit from itemizing vs. standard deduction
-  const standardDeduction = 29200; // 2024 MFJ
-  const itemizingBenefit = Math.max(bunchYearDeduction - standardDeduction, 0) * 0.37;
-  const bunchTaxSavings = itemizingBenefit * bunchYears;
+  // Bug fix #9: Fixed bunching tax calculation logic
+  // In bunch years: itemize with larger deduction, save on marginal taxes
+  // In off years: use standard deduction (no additional benefit)
+  // The benefit is the excess deduction above standard deduction in bunch years
+  const bunchItemizingBenefit = Math.max(bunchYearDeduction - standardDeduction, 0) * 0.37;
+  const bunchTaxSavings = bunchItemizingBenefit * bunchYears;
 
   const recommendation = bunchTaxSavings > spreadTaxSavings ? 'bunch' : 'spread';
   const savingsDifference = Math.abs(bunchTaxSavings - spreadTaxSavings);

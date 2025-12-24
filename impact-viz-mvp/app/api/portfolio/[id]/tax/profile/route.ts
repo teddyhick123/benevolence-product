@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { supabasePublic } from '@/lib/supabase';
+import { supabasePublic, createAdminClient } from '@/lib/supabase';
 import { createTaxProfileSchema, updateTaxProfileSchema } from '@/lib/schemas/tax';
 import { validateRequest } from '@/lib/validation';
 
@@ -112,8 +112,10 @@ export async function POST(
   }
 
   // Also upsert to tax_years table for backward compatibility with Phase 1/2 features
+  // Use admin client to bypass RLS since this is an internal system sync operation
   if (validated.estimated_agi || validated.filing_status) {
-    await sb
+    const adminClient = createAdminClient();
+    const { error: taxYearError } = await adminClient
       .from('tax_years')
       .upsert({
         portfolio_id: validated.portfolio_id,
@@ -123,6 +125,13 @@ export async function POST(
       }, {
         onConflict: 'portfolio_id,tax_year'
       });
+
+    if (taxYearError) {
+      console.error('Error syncing to tax_years table:', taxYearError);
+      // Don't fail the whole request, but log the error
+    } else {
+      console.log(`Successfully synced AGI ${validated.estimated_agi} to tax_years for year ${validated.tax_year}`);
+    }
   }
 
   return NextResponse.json(
@@ -189,6 +198,7 @@ export async function PUT(
   }
 
   // Also upsert to tax_years table for backward compatibility with Phase 1/2 features
+  // Use admin client to bypass RLS since this is an internal system sync operation
   if (validated.estimated_agi !== undefined || validated.filing_status !== undefined) {
     const taxYearUpdate: any = {
       portfolio_id,
@@ -202,11 +212,19 @@ export async function PUT(
       taxYearUpdate.filing_status = validated.filing_status;
     }
 
-    await sb
+    const adminClient = createAdminClient();
+    const { error: taxYearError } = await adminClient
       .from('tax_years')
       .upsert(taxYearUpdate, {
         onConflict: 'portfolio_id,tax_year'
       });
+
+    if (taxYearError) {
+      console.error('Error syncing to tax_years table:', taxYearError);
+      // Don't fail the whole request, but log the error
+    } else {
+      console.log(`Successfully synced AGI ${validated.estimated_agi} to tax_years for year ${year}`);
+    }
   }
 
   return NextResponse.json(

@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState, useMemo, useRef } from 'react';
 import * as d3 from 'd3';
+import { useWidgetDimensions } from '@/hooks/useWidgetDimensions';
 
 interface HeatMapCell {
   holding: string;
@@ -207,8 +208,8 @@ function HeatMapChart({
   holdings,
   columns,
   matrix,
-  cellWidth,
-  cellHeight,
+  cellWidth: configCellWidth,
+  cellHeight: configCellHeight,
   colorScheme,
   minColor,
   maxColor,
@@ -216,6 +217,7 @@ function HeatMapChart({
   showValues
 }: HeatMapChartProps) {
   const svgRef = useRef<SVGSVGElement>(null);
+  const [containerRef, dimensions] = useWidgetDimensions(800, 600);
 
   useEffect(() => {
     if (!svgRef.current || matrix.length === 0) return;
@@ -224,12 +226,24 @@ function HeatMapChart({
     svg.selectAll('*').remove();
 
     const margin = { top: 80, right: 20, bottom: 20, left: 150 };
-    const width = columns.length * cellWidth;
-    const height = holdings.length * cellHeight;
+
+    // Calculate available space
+    const availableWidth = dimensions.width - margin.left - margin.right;
+    const availableHeight = dimensions.height - margin.top - margin.bottom;
+
+    // Dynamic cell sizing - fit to available space, with max sizes from config
+    const cellWidth = Math.min(configCellWidth, Math.floor(availableWidth / columns.length));
+    const cellHeight = Math.min(configCellHeight, Math.floor(availableHeight / holdings.length));
+
+    // Actual chart dimensions
+    const width = Math.max(columns.length * cellWidth, 300);
+    const height = Math.max(holdings.length * cellHeight, 200);
 
     svg
-      .attr('width', width + margin.left + margin.right)
-      .attr('height', height + margin.top + margin.bottom);
+      .attr('width', '100%')
+      .attr('height', '100%')
+      .attr('viewBox', `0 0 ${width + margin.left + margin.right} ${height + margin.top + margin.bottom}`)
+      .attr('preserveAspectRatio', 'xMidYMin meet');
 
     const g = svg
       .append('g')
@@ -371,11 +385,11 @@ function HeatMapChart({
       .selectAll('text')
       .attr('font-size', '10px');
 
-  }, [holdings, columns, matrix, cellWidth, cellHeight, colorScheme, minColor, maxColor, midColor, showValues]);
+  }, [holdings, columns, matrix, configCellWidth, configCellHeight, colorScheme, minColor, maxColor, midColor, showValues, dimensions]);
 
   return (
-    <div className="w-full overflow-x-auto">
-      <svg ref={svgRef} className="mx-auto" />
+    <div ref={containerRef} className="w-full h-full overflow-auto">
+      <svg ref={svgRef} className="min-w-full min-h-full" />
     </div>
   );
 }

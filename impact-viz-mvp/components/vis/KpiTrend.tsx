@@ -23,14 +23,32 @@ export default function KpiTrend({ portfolioId, title, config, metric: legacyMet
   useEffect(() => {
     let mounted = true;
     (async () => {
-      if (!metric) { setData([]); setLoading(false); return; }
+      if (!metric) {
+        console.warn('[KpiTrend] No metric code provided');
+        setData([]);
+        setLoading(false);
+        return;
+      }
       try {
         const params = new URLSearchParams({ metric });
         if (windowParam) params.set('window', windowParam);
-        const r = await fetch(`/api/portfolio/${encodeURIComponent(portfolioId)}/kpi-series?${params.toString()}`, { cache: 'no-store' });
+        const url = `/api/portfolio/${encodeURIComponent(portfolioId)}/kpi-series?${params.toString()}`;
+        console.log(`[KpiTrend] Fetching metric: ${metric} from ${url}`);
+        const r = await fetch(url, { cache: 'no-store' });
+        if (!r.ok) {
+          console.error(`[KpiTrend] HTTP ${r.status} for metric ${metric}`);
+          if (mounted) setData([]);
+          return;
+        }
         const j = await r.json();
-        if (mounted) setData(j.series || []);
-      } catch (_) {
+        console.log(`[KpiTrend] Response for ${metric}:`, j);
+        const series = j.series || [];
+        if (mounted) {
+          setData(series);
+          console.log(`[KpiTrend] ${series.length > 0 ? '✓' : '✗'} Got ${series.length} data points for ${metric}`);
+        }
+      } catch (e) {
+        console.error(`[KpiTrend] ✗ Failed to fetch metric ${metric}:`, e);
         if (mounted) setData([]);
       } finally {
         if (mounted) setLoading(false);

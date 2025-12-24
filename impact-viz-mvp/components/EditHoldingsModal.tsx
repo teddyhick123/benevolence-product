@@ -104,7 +104,7 @@ export default function EditHoldingsModal({ portfolioId, initial, open, onClose,
       status: status?.trim() || null,
       asset_type: assetClass?.trim() || null,
       funds_allocated: funds === '' ? null : Number(funds),
-      as_of: asOf ? new Date(asOf).toISOString() : null,
+      as_of: asOf || null, // Already in YYYY-MM-DD format from date input
       sector: sector?.trim() || null,
       country: country?.trim() || null,
       // camelCase mirrors for handlers that expect it

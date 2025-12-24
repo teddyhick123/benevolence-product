@@ -36,29 +36,39 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
       return NextResponse.json({ error: metricErr.message }, { status: 500, headers: cacheHeaders() });
     }
 
-    // Extract unique metric codes
-    const uniqueMetricCodes = [...new Set((metricCodes || []).map((m: any) => m.metric_code))];
+    // Extract unique metric codes (normalize to uppercase for case-insensitive matching)
+    const uniqueMetricCodes = [...new Set((metricCodes || []).map((m: any) => String(m.metric_code).toUpperCase()).filter(Boolean))];
 
     if (uniqueMetricCodes.length === 0) {
       // No data, return empty array
       defs = [];
       count = 0;
     } else {
-      // Fetch KPI definitions that match these metric codes
-      const result = await sb
+      // Fetch KPI definitions that match these metric codes (case-insensitive)
+      // Since Supabase doesn't support case-insensitive 'in', we'll fetch all and filter client-side
+      // Or use UPPER on both sides if the dataset is small enough
+      const allDefsResult = await sb
         .from('kpi_definitions')
         .select(
           'id, portfolio_id, display_name, metric_code, target_value, target_date, calculation, order_index',
           { count: 'exact' }
         )
         .eq('portfolio_id', portfolio_id)
-        .in('metric_code', uniqueMetricCodes)
-        .order('order_index', { ascending: true })
-        .range(offset, offset + limit - 1);
+        .order('order_index', { ascending: true });
 
-      defs = result.data ?? [];
-      count = result.count ?? 0;
-      error = result.error;
+      if (allDefsResult.error) {
+        error = allDefsResult.error;
+      } else {
+        // Filter to only include definitions with metric codes that exist in metric_facts
+        const allDefs = allDefsResult.data ?? [];
+        const filteredDefs = allDefs.filter((def: any) =>
+          def.metric_code && uniqueMetricCodes.includes(String(def.metric_code).toUpperCase())
+        );
+
+        // Apply pagination
+        defs = filteredDefs.slice(offset, offset + limit);
+        count = filteredDefs.length;
+      }
     }
   } else {
     // Normal query - return all KPIs

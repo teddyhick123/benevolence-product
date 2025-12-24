@@ -169,13 +169,20 @@ function WaterfallD3Chart({
     const svg = d3.select(svgRef.current);
     svg.selectAll('*').remove();
 
-    const margin = { top: 20, right: 40, bottom: 80, left: 60 };
+    // Calculate dynamic bottom margin based on longest label
+    const maxLabelLength = Math.max(...data.map(d => d.label.length));
+    const estimatedLabelHeight = Math.min(maxLabelLength * 4, 100); // ~4px per character, max 100px
+    const bottomMargin = Math.max(100, estimatedLabelHeight); // Minimum 100px, grows with label length
+
+    const margin = { top: 20, right: 40, bottom: bottomMargin, left: 60 };
     const width = Math.max(dimensions.width - margin.left - margin.right, 300);
     const height = Math.max(dimensions.height - margin.top - margin.bottom, 200);
 
     svg
-      .attr('width', width + margin.left + margin.right)
-      .attr('height', height + margin.top + margin.bottom);
+      .attr('width', '100%')
+      .attr('height', '100%')
+      .attr('viewBox', `0 0 ${width + margin.left + margin.right} ${height + margin.top + margin.bottom}`)
+      .attr('preserveAspectRatio', 'xMidYMin meet');
 
     const g = svg
       .append('g')
@@ -248,7 +255,19 @@ function WaterfallD3Chart({
       .selectAll('text')
       .attr('transform', 'rotate(-45)')
       .style('text-anchor', 'end')
-      .attr('font-size', '11px');
+      .attr('dx', '-0.5em')
+      .attr('dy', '0.15em')
+      .attr('font-size', '11px')
+      .each(function(d: any) {
+        // Truncate very long labels and add title for tooltip
+        const text = d3.select(this);
+        const labelText = String(d);
+        if (labelText.length > 25) {
+          text.text(labelText.substring(0, 22) + '...')
+            .append('title')
+            .text(labelText); // Full text on hover
+        }
+      });
 
     // Y Axis
     g.append('g')

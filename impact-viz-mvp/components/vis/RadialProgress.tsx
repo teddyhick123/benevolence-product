@@ -74,8 +74,15 @@ export default function RadialProgress({ portfolioId, holdingId, title, config }
             const baseUrl = holdingId
               ? `/api/holdings/${encodeURIComponent(holdingId)}/kpi-series`
               : `/api/portfolio/${encodeURIComponent(portfolioId)}/kpi-series`;
-            const res = await fetch(`${baseUrl}?${params.toString()}`, { cache: 'no-store' });
+            const url = `${baseUrl}?${params.toString()}`;
+            console.log(`[RadialProgress] Fetching metric: ${ring.metric_code} from ${url}`);
+            const res = await fetch(url, { cache: 'no-store' });
+            if (!res.ok) {
+              console.error(`[RadialProgress] HTTP ${res.status} for metric ${ring.metric_code}`);
+              return;
+            }
             const json = await res.json();
+            console.log(`[RadialProgress] Response for ${ring.metric_code}:`, json);
             const series = (json.series || []) as SeriesPoint[];
             if (series.length) {
               const sorted = [...series].sort((a, b) => +new Date(a.date) - +new Date(b.date));
@@ -83,9 +90,12 @@ export default function RadialProgress({ portfolioId, holdingId, title, config }
                 value: Number(sorted.at(-1)!.value),
                 display_name: json.display_name || ring.metric_code!
               };
+              console.log(`[RadialProgress] ✓ Got ${series.length} points for ${ring.metric_code}, latest value: ${newData[ring.metric_code!].value}`);
+            } else {
+              console.warn(`[RadialProgress] ✗ Empty series for metric ${ring.metric_code}`);
             }
           } catch (e) {
-            // Failed to fetch metric data, will use default value of 0
+            console.error(`[RadialProgress] ✗ Failed to fetch metric ${ring.metric_code}:`, e);
           }
         });
 

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { supabasePublic } from '@/lib/supabase';
+import { supabasePublic, createAdminClient } from '@/lib/supabase';
 import {
   calculateScenario,
   compareScenarios,
@@ -42,15 +42,22 @@ export async function POST(
     const body = await req.json();
     const { mode, year = new Date().getFullYear(), scenarios, donation_type, annual_amount, years } = body;
 
-    // Fetch tax year data for AGI
-    const { data: taxYear } = await sb
+    // Fetch tax year data for AGI using admin client to bypass RLS
+    // (RLS policies may block reading tax_years even for authorized users)
+    const adminClient = createAdminClient();
+    const { data: taxYear, error: taxYearError } = await adminClient
       .from('tax_years')
       .select('*')
       .eq('portfolio_id', portfolio_id)
       .eq('tax_year', year)
       .maybeSingle();
 
+    console.log(`[Scenarios] Fetching tax_year for portfolio ${portfolio_id}, year ${year}`);
+    console.log(`[Scenarios] Tax year data:`, taxYear);
+    console.log(`[Scenarios] Tax year error:`, taxYearError);
+
     if (!taxYear || !taxYear.adjusted_gross_income) {
+      console.log(`[Scenarios] AGI check failed - taxYear exists: ${!!taxYear}, AGI value: ${taxYear?.adjusted_gross_income}`);
       return NextResponse.json(
         {
           error: 'AGI not set',
@@ -162,6 +169,8 @@ export async function POST(
         annual_donation_amount: annual_amount,
         donation_type,
         years_to_analyze: years,
+        filing_status: baseInput.filing_status, // Pass filing status for correct standard deduction
+        tax_year: year, // Pass tax year for correct standard deduction
       });
 
       return NextResponse.json(

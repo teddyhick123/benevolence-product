@@ -50,7 +50,7 @@ function HeaderContent() {
   const currentPortfolioId = urlPortfolioId || portfolioId || process.env.NEXT_PUBLIC_PORTFOLIO_ID_DEFAULT || '';
 
   const dashboardHref = currentPortfolioId ? `/dashboard?portfolio_id=${encodeURIComponent(currentPortfolioId)}` : '/dashboard';
-  const recommendationsHref = currentPortfolioId ? `/recommendations?portfolio_id=${encodeURIComponent(currentPortfolioId)}` : '/recommendations';
+  const charitiesHref = '/charities';
   const taxHref = '/dashboard/tax';
 
   async function handleSignOut() {
@@ -91,10 +91,10 @@ function HeaderContent() {
                 Dashboard
               </Link>
               <Link
-                href={recommendationsHref}
+                href={charitiesHref}
                 className="font-sans text-sm px-4 py-2 rounded-md border border-black/10 hover:bg-white shadow-sm hover:shadow transition-transform duration-200 hover:-translate-y-0.5 will-change-transform rm:transition-none rm:transform-none"
               >
-                Recommendations
+                Charities
               </Link>
               <Link
                 href={taxHref}
@@ -150,10 +150,10 @@ function HeaderContent() {
               Dashboard
             </Link>
             <Link
-              href={recommendationsHref}
+              href={charitiesHref}
               className="block w-full text-left font-sans text-sm px-4 py-3 rounded-md border border-black/10 hover:bg-white shadow-sm hover:shadow transition-colors"
             >
-              Recommendations
+              Charities
             </Link>
             <Link
               href={taxHref}

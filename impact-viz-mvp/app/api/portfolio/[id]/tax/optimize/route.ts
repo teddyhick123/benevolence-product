@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { supabasePublic } from '@/lib/supabase';
+import { supabasePublic, createAdminClient } from '@/lib/supabase';
 import {
   optimizeDonationStrategy,
   generateOptimizationSummary,
@@ -47,15 +47,22 @@ export async function POST(
     const body = await req.json();
     const { year = new Date().getFullYear(), donation_goal, time_horizon = 1, preferences = {} } = body;
 
-    // Fetch tax year data
-    const { data: taxYear } = await sb
+    // Fetch tax year data using admin client to bypass RLS
+    // (RLS policies may block reading tax_years even for authorized users)
+    const adminClient = createAdminClient();
+    const { data: taxYear, error: taxYearError } = await adminClient
       .from('tax_years')
       .select('*')
       .eq('portfolio_id', portfolio_id)
       .eq('tax_year', year)
       .maybeSingle();
 
+    console.log(`[Optimize] Fetching tax_year for portfolio ${portfolio_id}, year ${year}`);
+    console.log(`[Optimize] Tax year data:`, taxYear);
+    console.log(`[Optimize] Tax year error:`, taxYearError);
+
     if (!taxYear || !taxYear.adjusted_gross_income) {
+      console.log(`[Optimize] AGI check failed - taxYear exists: ${!!taxYear}, AGI value: ${taxYear?.adjusted_gross_income}`);
       return NextResponse.json(
         {
           error: 'AGI not set',

@@ -53,6 +53,47 @@ export default function TaxScenarioModeler({
     setError(null);
 
     try {
+      // Bug fixes #5, #6, #7: Frontend validation
+
+      // Validate compare mode has at least 2 scenarios
+      if (mode === 'compare' && scenarios.length < 2) {
+        throw new Error('Compare mode requires at least 2 scenarios. Please add another scenario.');
+      }
+
+      // Validate donation amounts are positive and reasonable
+      if (mode === 'single' || mode === 'compare') {
+        for (const scenario of scenarios) {
+          if (scenario.donation_amount <= 0) {
+            throw new Error(`${scenario.name}: Donation amount must be greater than zero`);
+          }
+          if (scenario.donation_amount > 1000000000) {
+            throw new Error(`${scenario.name}: Donation amount seems unreasonably large (over $1B)`);
+          }
+          // Validate cost basis if provided
+          if (scenario.cost_basis !== undefined) {
+            if (scenario.cost_basis < 0) {
+              throw new Error(`${scenario.name}: Cost basis cannot be negative`);
+            }
+            if (scenario.cost_basis > scenario.donation_amount) {
+              throw new Error(`${scenario.name}: Cost basis cannot exceed donation amount (fair market value)`);
+            }
+          }
+        }
+      }
+
+      // Validate bunching parameters
+      if (mode === 'bunching') {
+        if (annualAmount <= 0) {
+          throw new Error('Annual donation amount must be greater than zero');
+        }
+        if (annualAmount > 1000000000) {
+          throw new Error('Annual donation amount seems unreasonably large (over $1B)');
+        }
+        if (bunchingYears < 2 || bunchingYears > 10) {
+          throw new Error('Years to analyze must be between 2 and 10');
+        }
+      }
+
       const body: any = {
         mode,
         year,

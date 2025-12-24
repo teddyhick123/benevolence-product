@@ -15,17 +15,28 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
   const supabase = await createSupabaseServerClient();
 
   // Fetch KPI series from view
+  // Use .or() with both exact and uppercase matching for reliability
   let query = supabase
     .from('v_portfolio_kpi_series')
     .select('period_end, value, unit, metric_code, kpi_def_id')
     .eq('portfolio_id', portfolio_id)
     .order('period_end', { ascending: true });
+
   if (kpiId) {
     query = query.eq('kpi_def_id', kpiId);
   } else {
-    query = query.eq('metric_code', metric);
+    // Try multiple matching strategies to handle case variations
+    // This will match if metric_code equals the value in any case
+    query = query.or(`metric_code.eq.${metric},metric_code.ilike.${metric}`);
   }
+
   const { data: rows, error: qErr } = await query;
+
+  // Debug logging
+  console.log(`[kpi-series API] Query for metric "${metric}" on portfolio ${portfolio_id}: ${rows?.length || 0} rows`);
+  if (qErr) {
+    console.error('[kpi-series API] Query error:', qErr);
+  }
   if (qErr) {
     return NextResponse.json({ error: qErr.message }, { status: 500, headers: { 'Cache-Control': 'no-store' } });
   }
@@ -48,11 +59,11 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
         displayName = kpiDef.display_name;
       }
     } else {
-      // Try looking up by metric_code and portfolio_id
+      // Try looking up by metric_code and portfolio_id (case-insensitive)
       const { data: kpiDef } = await supabase
         .from('kpi_definitions')
         .select('display_name')
-        .eq('metric_code', metric)
+        .ilike('metric_code', metric)
         .eq('portfolio_id', portfolio_id)
         .single();
       if (kpiDef?.display_name) {

@@ -11,7 +11,11 @@ import HoldingsImporter from '@/components/tax/HoldingsImporter';
 import TaxExportPanel from '@/components/tax/TaxExportPanel';
 import TaxScenarioModeler from '@/components/tax/TaxScenarioModeler';
 import TaxOptimizationEngine from '@/components/tax/TaxOptimizationEngine';
-import CPACollaborationPortal from '@/components/tax/CPACollaborationPortal';
+import TaxStrategyCenter from '@/components/tax/TaxStrategyCenter';
+// import CPACollaborationPortal from '@/components/tax/CPACollaborationPortal'; // Hidden - not ready yet
+
+// Feature flag for unified Tax Strategy Center
+const USE_UNIFIED_TAX_TOOLS = true;
 import { calculateAGILimits } from '@/lib/tax/agi-calculator';
 import type { AGILimits } from '@/lib/tax/agi-calculator';
 
@@ -213,22 +217,33 @@ function TaxDashboard() {
 
         {/* Phase 2: Advanced Tax Features */}
 
-        {/* AI-Powered Optimization Engine */}
-        <TaxOptimizationEngine
-          portfolioId={portfolioId}
-          year={selectedYear}
-        />
+        {USE_UNIFIED_TAX_TOOLS ? (
+          /* Unified Tax Strategy Center (NEW) */
+          <TaxStrategyCenter
+            portfolioId={portfolioId}
+            year={selectedYear}
+          />
+        ) : (
+          /* Legacy separate tools */
+          <>
+            {/* AI-Powered Optimization Engine */}
+            <TaxOptimizationEngine
+              portfolioId={portfolioId}
+              year={selectedYear}
+            />
 
-        {/* Tax Scenario Modeler */}
-        <TaxScenarioModeler
-          portfolioId={portfolioId}
-          year={selectedYear}
-        />
+            {/* Tax Scenario Modeler */}
+            <TaxScenarioModeler
+              portfolioId={portfolioId}
+              year={selectedYear}
+            />
+          </>
+        )}
 
-        {/* CPA Collaboration Portal */}
-        <CPACollaborationPortal
+        {/* CPA Collaboration Portal - Hidden until ready */}
+        {/* <CPACollaborationPortal
           portfolioId={portfolioId}
-        />
+        /> */}
 
         {/* Carryforward Summary */}
         {taxOverview?.carryforwardSummary && taxOverview.carryforwardSummary.totalAvailable > 0 && (

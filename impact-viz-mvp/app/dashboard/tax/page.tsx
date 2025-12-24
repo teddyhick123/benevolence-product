@@ -140,7 +140,7 @@ function TaxDashboard() {
               id="tax-year"
               value={selectedYear}
               onChange={(e) => setSelectedYear(Number(e.target.value))}
-              className="px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-azure focus:border-azure"
             >
               {yearOptions.map((year) => (
                 <option key={year} value={year}>
@@ -152,7 +152,7 @@ function TaxDashboard() {
         </div>
 
         {/* Disclaimer */}
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-800">
+        <div className="bg-azure/10 border border-azure/20 rounded-lg p-4 text-sm text-azure">
           <span className="font-medium">Note:</span> {TAX_DISCLAIMER_SHORT}
         </div>
       </div>
@@ -282,7 +282,7 @@ function TaxDashboard() {
                     ? 'bg-red-50 border-red-200'
                     : alert.severity === 'warning'
                     ? 'bg-yellow-50 border-yellow-200'
-                    : 'bg-blue-50 border-blue-200'
+                    : 'bg-azure/10 border-azure/20'
                 }`}
               >
                 <h3
@@ -291,7 +291,7 @@ function TaxDashboard() {
                       ? 'text-red-900'
                       : alert.severity === 'warning'
                       ? 'text-yellow-900'
-                      : 'text-blue-900'
+                      : 'text-ink'
                   }`}
                 >
                   {alert.title}
@@ -302,7 +302,7 @@ function TaxDashboard() {
                       ? 'text-red-800'
                       : alert.severity === 'warning'
                       ? 'text-yellow-800'
-                      : 'text-blue-800'
+                      : 'text-azure'
                   }`}
                 >
                   {alert.message}
@@ -313,7 +313,7 @@ function TaxDashboard() {
                       ? 'text-red-700'
                       : alert.severity === 'warning'
                       ? 'text-yellow-700'
-                      : 'text-blue-700'
+                      : 'text-azure/90'
                   }`}
                 >
                   <strong>Action:</strong> {alert.actionRequired}

@@ -61,11 +61,11 @@ export default function CharityCard({
         {/* Header */}
         <div className="flex items-start justify-between mb-2">
           <div className="flex-1">
-            <h3 className="text-lg font-semibold text-gray-900 line-clamp-2 hover:text-blue-600">
+            <h3 className="text-lg font-semibold text-gray-900 line-clamp-2 hover:text-azure">
               {charity.name}
             </h3>
             {charity.sector && (
-              <span className="inline-block mt-1 px-2 py-0.5 bg-blue-100 text-blue-800 text-xs font-medium rounded">
+              <span className="inline-block mt-1 px-2 py-0.5 bg-azure/10 text-azure text-xs font-medium rounded">
                 {charity.sector}
               </span>
             )}
@@ -123,7 +123,7 @@ export default function CharityCard({
               e.stopPropagation();
               onAddToPortfolio(charity.ein);
             }}
-            className="w-full px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded hover:bg-blue-700 transition-colors"
+            className="w-full px-4 py-2 bg-azure text-white text-sm font-medium rounded hover:bg-azure/90 transition-colors"
           >
             Add to Portfolio
           </button>

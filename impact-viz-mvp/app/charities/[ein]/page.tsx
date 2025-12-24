@@ -50,7 +50,7 @@ export default function CharityDetailPage() {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-azure mx-auto mb-4"></div>
           <p className="text-gray-600">Loading charity details...</p>
         </div>
       </div>
@@ -65,7 +65,7 @@ export default function CharityDetailPage() {
             {error || 'Charity not found'}
           </h2>
           <Link href="/charities">
-            <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+            <button className="px-4 py-2 bg-azure text-white rounded-lg hover:bg-azure/90">
               Back to Charities
             </button>
           </Link>
@@ -86,7 +86,7 @@ export default function CharityDetailPage() {
           {/* Back Button */}
           <Link
             href="/charities"
-            className="inline-flex items-center text-blue-600 hover:text-blue-800 mb-4"
+            className="inline-flex items-center text-azure hover:text-azure/80 mb-4"
           >
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back to Search
@@ -98,7 +98,7 @@ export default function CharityDetailPage() {
               <h1 className="text-3xl font-bold text-gray-900 mb-2">{charity.name}</h1>
               <div className="flex items-center gap-4 text-gray-600 mb-3">
                 {charity.sector && (
-                  <span className="inline-block px-3 py-1 bg-blue-100 text-blue-800 text-sm font-medium rounded">
+                  <span className="inline-block px-3 py-1 bg-azure/10 text-azure text-sm font-medium rounded">
                     {charity.sector}
                   </span>
                 )}
@@ -138,7 +138,7 @@ export default function CharityDetailPage() {
               <div className="relative">
                 <button
                   onClick={() => setAddToPortfolioModal(true)}
-                  className="px-6 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
+                  className="px-6 py-3 bg-azure text-white font-medium rounded-lg hover:bg-azure/90 transition-colors flex items-center gap-2"
                 >
                   Add to Portfolio
                   <ChevronDown className="w-4 h-4" />

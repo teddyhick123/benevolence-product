@@ -101,7 +101,7 @@ export default function CharityFilterSidebar({
             {hasActiveFilters && (
               <button
                 onClick={onClearFilters}
-                className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+                className="text-sm text-azure hover:text-azure/80 font-medium"
               >
                 Clear All
               </button>
@@ -127,7 +127,7 @@ export default function CharityFilterSidebar({
             <select
               value={filters.sector || ''}
               onChange={(e) => updateFilter('sector', e.target.value || undefined)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-azure focus:border-azure"
             >
               <option value="">All Sectors</option>
               {SECTORS.map((sector) => (
@@ -146,7 +146,7 @@ export default function CharityFilterSidebar({
             <select
               value={filters.state || ''}
               onChange={(e) => updateFilter('state', e.target.value || undefined)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-azure focus:border-azure"
             >
               <option value="">All States</option>
               {US_STATES.map((state) => (
@@ -242,7 +242,7 @@ export default function CharityFilterSidebar({
                     type="checkbox"
                     checked={(filters.impactFocus || []).includes(focus)}
                     onChange={() => toggleImpactFocus(focus)}
-                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    className="rounded border-gray-300 text-azure focus:ring-azure"
                   />
                   <span className="ml-2 text-sm text-gray-700">{focus}</span>
                 </label>
@@ -267,7 +267,7 @@ export default function CharityFilterSidebar({
                 <select
                   value={filters.interactionStatus || ''}
                   onChange={(e) => updateFilter('interactionStatus', e.target.value || undefined)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-azure focus:border-azure"
                 >
                   <option value="">All Statuses</option>
                   {INTERACTION_STATUSES.map((status) => (

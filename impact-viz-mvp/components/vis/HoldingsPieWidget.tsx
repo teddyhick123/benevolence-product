@@ -16,6 +16,7 @@ export type HoldingsPieWidgetProps = {
   legendMaxHeight?: number; // px, default 220
   formatMoney?: (n: number) => string;
   colorBy?: 'default' | 'asset_type'; // default 'default': use standard palette, 'asset_type': use asset type colors
+  customColors?: Record<string, string>; // custom color mapping by label
 };
 
 function defaultMoney(n: number) {
@@ -34,6 +35,7 @@ export default function HoldingsPieWidget({
   legendMaxHeight = 220,
   formatMoney = defaultMoney,
   colorBy = 'default',
+  customColors,
 }: HoldingsPieWidgetProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<HTMLDivElement | null>(null);
@@ -80,8 +82,14 @@ export default function HoldingsPieWidget({
     [inner, radius]
   );
 
-  // Color scale: use asset type colors if colorBy='asset_type', otherwise use default palette
+  // Color scale: use custom colors if provided, asset type colors if colorBy='asset_type', otherwise use default palette
   const color = useMemo(() => {
+    if (customColors) {
+      // Use custom color mapping
+      return scaleOrdinal<string, string>()
+        .domain(Object.keys(customColors))
+        .range(Object.values(customColors));
+    }
     if (colorBy === 'asset_type') {
       // Map asset type keys to their colors
       return scaleOrdinal<string, string>()
@@ -89,7 +97,7 @@ export default function HoldingsPieWidget({
         .range(Object.values(ASSET_TYPE_COLORS));
     }
     return scaleOrdinal<string, string>(schemeTableau10 as readonly string[]);
-  }, [colorBy]);
+  }, [colorBy, customColors]);
 
   // Map labels to human-readable names when using asset type coloring
   const displayData = useMemo(() => {

@@ -42,15 +42,15 @@ export default function AIAdvisorPanel({
       </div>
 
       {/* Link to Scenario Builder */}
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex items-start gap-3">
+      <div className="bg-azure/10 border border-azure/20 rounded-lg p-4 flex items-start gap-3">
         <div className="text-2xl">💡</div>
         <div className="flex-1">
-          <p className="text-sm text-blue-900 font-medium mb-2">
+          <p className="text-sm text-ink font-medium mb-2">
             Want to test specific scenarios manually?
           </p>
           <button
             onClick={onOpenScenarioBuilder}
-            className="text-sm text-blue-700 underline hover:text-blue-800"
+            className="text-sm text-azure/90 underline hover:text-azure"
           >
             Switch to Scenario Builder →
           </button>

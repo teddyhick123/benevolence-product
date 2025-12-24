@@ -186,7 +186,7 @@ export default function CharitiesPage() {
                 }}
                 className={`px-4 py-2 rounded-lg font-medium transition-colors ${
                   viewMode === 'discovery'
-                    ? 'bg-blue-600 text-white'
+                    ? 'bg-azure text-white'
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                 }`}
               >
@@ -199,7 +199,7 @@ export default function CharitiesPage() {
                 }}
                 className={`px-4 py-2 rounded-lg font-medium transition-colors ${
                   viewMode === 'portfolio'
-                    ? 'bg-blue-600 text-white'
+                    ? 'bg-azure text-white'
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                 }`}
               >
@@ -217,14 +217,14 @@ export default function CharitiesPage() {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search by name, EIN, or location..."
-                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-azure focus:border-azure"
               />
             </div>
             <div className="relative">
               <select
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value)}
-                className="appearance-none pl-4 pr-10 py-3 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="appearance-none pl-4 pr-10 py-3 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-azure focus:border-azure"
               >
                 <option value="relevance">Relevance</option>
                 <option value="rating">Rating (High to Low)</option>
@@ -307,7 +307,7 @@ export default function CharitiesPage() {
                           onClick={() => setPage(pageNum)}
                           className={`px-4 py-2 rounded-md ${
                             page === pageNum
-                              ? 'bg-blue-600 text-white'
+                              ? 'bg-azure text-white'
                               : 'border border-gray-300 hover:bg-gray-50'
                           }`}
                         >
@@ -323,7 +323,7 @@ export default function CharitiesPage() {
                           onClick={() => setPage(totalPages)}
                           className={`px-4 py-2 rounded-md ${
                             page === totalPages
-                              ? 'bg-blue-600 text-white'
+                              ? 'bg-azure text-white'
                               : 'border border-gray-300 hover:bg-gray-50'
                           }`}
                         >

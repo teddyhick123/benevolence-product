@@ -491,11 +491,11 @@ function SingleScenarioResults({ results }: { results: any }) {
 
       {/* Recommendations */}
       {results.recommendations && results.recommendations.length > 0 && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <p className="font-medium text-blue-900 mb-2">💡 Insights</p>
+        <div className="bg-azure/10 border border-azure/20 rounded-lg p-4">
+          <p className="font-medium text-ink mb-2">💡 Insights</p>
           <ul className="space-y-2">
             {results.recommendations.map((rec: string, idx: number) => (
-              <li key={idx} className="text-sm text-blue-800">
+              <li key={idx} className="text-sm text-azure">
                 {rec}
               </li>
             ))}
@@ -537,12 +537,12 @@ function CompareScenarioResults({ results }: { results: any }) {
             </p>
           </div>
 
-          <div className="p-4 bg-blue-50 rounded-lg">
-            <p className="text-sm text-blue-700 mb-1">Best AGI Utilization</p>
-            <p className="font-bold text-blue-900">
+          <div className="p-4 bg-azure/10 rounded-lg">
+            <p className="text-sm text-azure/90 mb-1">Best AGI Utilization</p>
+            <p className="font-bold text-ink">
               {results.comparison.best_agi_utilization.scenario_name}
             </p>
-            <p className="text-xl font-bold text-blue-900 mt-2">
+            <p className="text-xl font-bold text-ink mt-2">
               {Math.round(results.comparison.best_agi_utilization.utilization)}%
             </p>
           </div>

@@ -119,23 +119,23 @@ export default function WaterfallChart({ portfolioId, title, config }: Props) {
           data={data}
           showValues={config?.showValues ?? true}
           showConnectors={config?.showConnectors ?? true}
-          increaseColor={config?.increaseColor || '#059669'}
-          decreaseColor={config?.decreaseColor || '#dc2626'}
-          totalColor={config?.totalColor || '#3b82f6'}
+          increaseColor={config?.increaseColor || '#f4a261'}
+          decreaseColor={config?.decreaseColor || '#e07a5f'}
+          totalColor={config?.totalColor || '#5186a6'}
         />
       </div>
 
       <div className="flex items-center justify-center gap-4 text-xs text-neutral-600 shrink-0 mt-4">
         <div className="flex items-center gap-1">
-          <div className="w-4 h-4 rounded" style={{ backgroundColor: config?.increaseColor || '#059669' }}></div>
+          <div className="w-4 h-4 rounded" style={{ backgroundColor: config?.increaseColor || '#f4a261' }}></div>
           <span>Increase</span>
         </div>
         <div className="flex items-center gap-1">
-          <div className="w-4 h-4 rounded" style={{ backgroundColor: config?.decreaseColor || '#dc2626' }}></div>
+          <div className="w-4 h-4 rounded" style={{ backgroundColor: config?.decreaseColor || '#e07a5f' }}></div>
           <span>Decrease</span>
         </div>
         <div className="flex items-center gap-1">
-          <div className="w-4 h-4 rounded" style={{ backgroundColor: config?.totalColor || '#3b82f6' }}></div>
+          <div className="w-4 h-4 rounded" style={{ backgroundColor: config?.totalColor || '#5186a6' }}></div>
           <span>Total</span>
         </div>
       </div>
@@ -171,8 +171,8 @@ function WaterfallD3Chart({
 
     // Calculate dynamic bottom margin based on longest label
     const maxLabelLength = Math.max(...data.map(d => d.label.length));
-    const estimatedLabelHeight = Math.min(maxLabelLength * 4, 100); // ~4px per character, max 100px
-    const bottomMargin = Math.max(100, estimatedLabelHeight); // Minimum 100px, grows with label length
+    const estimatedLabelHeight = Math.min(maxLabelLength * 4, 120); // ~4px per character, max 120px
+    const bottomMargin = Math.max(110, estimatedLabelHeight); // Minimum 110px, grows with label length
 
     const margin = { top: 20, right: 40, bottom: bottomMargin, left: 60 };
     const width = Math.max(dimensions.width - margin.left - margin.right, 300);
@@ -237,7 +237,7 @@ function WaterfallD3Chart({
       .scaleBand()
       .domain(barData.map(d => d.label))
       .range([0, width])
-      .padding(0.2);
+      .padding(0.3);
 
     const maxValue = Math.max(...barData.map(d => Math.max(d.start, d.end)));
     const minValue = Math.min(0, ...barData.map(d => Math.min(d.start, d.end)));
@@ -255,9 +255,9 @@ function WaterfallD3Chart({
       .selectAll('text')
       .attr('transform', 'rotate(-45)')
       .style('text-anchor', 'end')
-      .attr('dx', '-0.5em')
-      .attr('dy', '0.15em')
-      .attr('font-size', '11px')
+      .attr('dx', '-0.8em')
+      .attr('dy', '0.25em')
+      .attr('font-size', '12px')
       .each(function(d: any) {
         // Truncate very long labels and add title for tooltip
         const text = d3.select(this);
@@ -273,7 +273,7 @@ function WaterfallD3Chart({
     g.append('g')
       .call(d3.axisLeft(yScale).ticks(8))
       .selectAll('text')
-      .attr('font-size', '11px');
+      .attr('font-size', '12px');
 
     // Grid lines
     g.append('g')

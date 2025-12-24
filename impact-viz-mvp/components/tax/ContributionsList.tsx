@@ -123,7 +123,7 @@ export default function ContributionsList({
                     {contribution.recipient_name}
                   </h3>
                   {contribution.document_count > 0 && (
-                    <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-blue-100 text-blue-800">
+                    <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-azure/10 text-azure">
                       {contribution.document_count} doc{contribution.document_count !== 1 ? 's' : ''}
                     </span>
                   )}

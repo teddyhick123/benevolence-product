@@ -155,7 +155,7 @@ export default function ContributionTaxWizard({
                 value={contributionDate}
                 onChange={(e) => setContributionDate(e.target.value)}
                 max={`${taxYear}-12-31`}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-azure focus:border-azure"
               />
             </div>
 
@@ -169,7 +169,7 @@ export default function ContributionTaxWizard({
                 value={recipientName}
                 onChange={(e) => setRecipientName(e.target.value)}
                 placeholder="e.g., American Red Cross"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-azure focus:border-azure"
               />
             </div>
 
@@ -184,7 +184,7 @@ export default function ContributionTaxWizard({
                 onChange={(e) => setRecipientEIN(e.target.value)}
                 placeholder={EIN_PLACEHOLDER}
                 maxLength={10}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-azure focus:border-azure"
               />
               <p className="mt-1 text-xs text-gray-500">Format: XX-XXXXXXX</p>
             </div>
@@ -197,7 +197,7 @@ export default function ContributionTaxWizard({
                 id="recipient-type"
                 value={recipientType}
                 onChange={(e) => setRecipientType(e.target.value as RecipientType | '')}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-azure focus:border-azure"
               >
                 <option value="">Select type</option>
                 {Object.entries(RECIPIENT_TYPE_LABELS).map(([value, label]) => (
@@ -216,7 +216,7 @@ export default function ContributionTaxWizard({
                 id="contrib-type"
                 value={contributionType}
                 onChange={(e) => setContributionType(e.target.value as ContributionType)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-azure focus:border-azure"
               >
                 {Object.entries(CONTRIBUTION_TYPE_LABELS).map(([value, label]) => (
                   <option key={value} value={value}>
@@ -239,7 +239,7 @@ export default function ContributionTaxWizard({
                   onChange={(e) => setAmount(e.target.value)}
                   placeholder="0.00"
                   step="0.01"
-                  className="w-full pl-7 pr-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full pl-7 pr-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-azure focus:border-azure"
                 />
               </div>
             </div>
@@ -255,7 +255,7 @@ export default function ContributionTaxWizard({
 
             {isNonCash ? (
               <>
-                <div className="bg-blue-50 border border-blue-200 rounded-md p-3 text-sm text-blue-800">
+                <div className="bg-azure/10 border border-azure/20 rounded-md p-3 text-sm text-azure">
                   Non-cash contributions require additional documentation for IRS compliance.
                 </div>
 
@@ -272,7 +272,7 @@ export default function ContributionTaxWizard({
                       onChange={(e) => setFmv(e.target.value)}
                       placeholder="0.00"
                       step="0.01"
-                      className="w-full pl-7 pr-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      className="w-full pl-7 pr-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-azure focus:border-azure"
                     />
                   </div>
                   <p className="mt-1 text-xs text-gray-500">
@@ -293,7 +293,7 @@ export default function ContributionTaxWizard({
                       onChange={(e) => setCostBasis(e.target.value)}
                       placeholder="0.00"
                       step="0.01"
-                      className="w-full pl-7 pr-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      className="w-full pl-7 pr-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-azure focus:border-azure"
                     />
                   </div>
                   <p className="mt-1 text-xs text-gray-500">
@@ -311,7 +311,7 @@ export default function ContributionTaxWizard({
                     value={dateAcquired}
                     onChange={(e) => setDateAcquired(e.target.value)}
                     max={contributionDate || undefined}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-azure focus:border-azure"
                   />
                   <p className="mt-1 text-xs text-gray-500">
                     When you acquired the property (for capital gains calculation)
@@ -328,7 +328,7 @@ export default function ContributionTaxWizard({
                     onChange={(e) => setPropertyDescription(e.target.value)}
                     rows={3}
                     placeholder="e.g., 100 shares of Apple Inc. (AAPL) common stock"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-azure focus:border-azure"
                   />
                 </div>
 
@@ -351,7 +351,7 @@ export default function ContributionTaxWizard({
                   onChange={(e) => setNotes(e.target.value)}
                   rows={4}
                   placeholder="Add any additional notes about this contribution..."
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-azure focus:border-azure"
                 />
               </div>
             )}
@@ -364,7 +364,7 @@ export default function ContributionTaxWizard({
             <h3 className="font-semibold text-gray-900">Substantiation & Review</h3>
 
             {substantiationText && (
-              <div className="bg-blue-50 border border-blue-200 rounded-md p-4 text-sm text-blue-900">
+              <div className="bg-azure/10 border border-azure/20 rounded-md p-4 text-sm text-ink">
                 <strong className="block mb-2">IRS Documentation Requirements:</strong>
                 {substantiationText}
               </div>
@@ -397,7 +397,7 @@ export default function ContributionTaxWizard({
                   onChange={(e) => setNotes(e.target.value)}
                   rows={3}
                   placeholder="Add any additional notes..."
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-azure focus:border-azure"
                 />
               </div>
             )}

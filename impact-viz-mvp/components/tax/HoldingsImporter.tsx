@@ -246,7 +246,7 @@ export default function HoldingsImporter({
                     <span
                       className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${
                         holding.status === 'Active'
-                          ? 'bg-blue-100 text-blue-800'
+                          ? 'bg-azure/10 text-azure'
                           : holding.status === 'Exited'
                           ? 'bg-gray-100 text-gray-800'
                           : 'bg-yellow-100 text-yellow-800'
@@ -300,7 +300,7 @@ export default function HoldingsImporter({
       </div>
 
       {/* Info Footer */}
-      <div className="px-6 py-4 bg-blue-50 border-t border-blue-200 text-sm text-blue-800">
+      <div className="px-6 py-4 bg-azure/10 border-t border-azure/20 text-sm text-azure">
         <strong>Note:</strong> Imported holdings will be added as tax contributions. You can edit the details
         (recipient type, documentation, etc.) after importing.
       </div>

@@ -9,6 +9,8 @@ module.exports = {
       colors: {
         creme: "#fffff9",
         azure: "#5186a6",
+        coral: "#e07a5f",
+        sunset: "#f4a261",
         ink: "#0f172a"
       },
       fontFamily: {

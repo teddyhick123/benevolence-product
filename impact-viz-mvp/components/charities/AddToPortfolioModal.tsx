@@ -159,7 +159,7 @@ export default function AddToPortfolioModal({
                   value={selectedPortfolioId}
                   onChange={(e) => setSelectedPortfolioId(e.target.value)}
                   required
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-azure focus:border-azure"
                 >
                   {portfolios.map((portfolio) => (
                     <option key={portfolio.id} value={portfolio.id}>
@@ -246,7 +246,7 @@ export default function AddToPortfolioModal({
               <button
                 type="submit"
                 disabled={isLoading || portfolios.length === 0}
-                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-4 py-2 bg-azure text-white rounded-md hover:bg-azure/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isLoading ? 'Adding...' : 'Add to Portfolio'}
               </button>

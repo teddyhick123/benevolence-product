@@ -397,7 +397,7 @@ export default function ContributionDetailModal({
           <div>
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Substantiation</h3>
 
-            <div className="bg-blue-50 border border-blue-200 rounded-md p-4 mb-4 text-sm text-blue-900">
+            <div className="bg-azure/10 border border-azure/20 rounded-md p-4 mb-4 text-sm text-ink">
               <strong>IRS Requirements:</strong>
               <p className="mt-1">{substantiationText}</p>
             </div>

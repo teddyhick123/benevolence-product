@@ -418,7 +418,7 @@ function MetricCard({ label, value, subtext, icon, highlight }: MetricCardProps)
 function StatusBadge({ status }: { status: string }) {
   const statusConfig = {
     available: { label: 'Available', class: 'bg-green-100 text-green-800' },
-    partially_used: { label: 'Partial', class: 'bg-blue-100 text-blue-800' },
+    partially_used: { label: 'Partial', class: 'bg-azure/10 text-azure' },
     fully_used: { label: 'Used', class: 'bg-neutral-100 text-neutral-800' },
     expired: { label: 'Expired', class: 'bg-red-100 text-red-800' },
   };

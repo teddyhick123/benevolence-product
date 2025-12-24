@@ -263,12 +263,16 @@ export default function EditHoldingsModal({ portfolioId, initial, open, onClose,
 
             <label className="text-sm">
               <div className="mb-1 text-neutral-700">Status</div>
-              <input
+              <select
                 value={status}
                 onChange={(e) => setStatus(e.target.value)}
-                placeholder="Active / Exited / On hold"
-                className="w-full rounded-2xl border border-black/10 px-3 py-2"
-              />
+                className="w-full rounded-2xl border border-black/10 px-3 py-2 bg-white"
+              >
+                <option value="">Select status...</option>
+                <option value="Active">Active</option>
+                <option value="Exited">Exited</option>
+                <option value="Pipeline">Pipeline</option>
+              </select>
             </label>
 
             <label className="text-sm">

@@ -40,7 +40,7 @@ const QUICK_ACTIONS: QuickAction[] = [
     question: 'Cash vs. stock donation - which is better?',
     description: 'Compare tax savings across different asset types side-by-side',
     mode: 'compare',
-    color: 'from-blue-50 to-cyan-50 border-blue-200',
+    color: 'from-azure/10 to-azure/5 border-azure/20',
   },
   {
     id: 'ai-optimize',
@@ -60,7 +60,7 @@ export default function QuickStartPanel({
   return (
     <div className="space-y-6">
       {/* Intro */}
-      <div className="bg-gradient-to-br from-indigo-50 to-blue-50 border border-indigo-200 rounded-xl p-6">
+      <div className="bg-gradient-to-br from-azure/10 to-azure/5 border border-azure/20 rounded-xl p-6">
         <h3 className="text-lg font-bold text-indigo-900 mb-2">
           ⚡ Get Instant Answers to Common Tax Questions
         </h3>

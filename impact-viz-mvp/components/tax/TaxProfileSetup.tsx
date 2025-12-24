@@ -156,7 +156,7 @@ export default function TaxProfileSetup({ portfolioId, taxYear, onSave }: TaxPro
         {!isEditing && profile && (
           <button
             onClick={() => setIsEditing(true)}
-            className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+            className="text-sm text-azure hover:text-azure font-medium"
           >
             Edit
           </button>
@@ -180,7 +180,7 @@ export default function TaxProfileSetup({ portfolioId, taxYear, onSave }: TaxPro
               id="filing-status"
               value={filingStatus}
               onChange={(e) => setFilingStatus(e.target.value as FilingStatus | '')}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-azure focus:border-azure"
             >
               <option value="">Select filing status</option>
               {Object.entries(FILING_STATUS_LABELS).map(([value, label]) => (
@@ -209,7 +209,7 @@ export default function TaxProfileSetup({ portfolioId, taxYear, onSave }: TaxPro
                 value={estimatedAGI}
                 onChange={(e) => setEstimatedAGI(e.target.value)}
                 placeholder="0"
-                className="w-full pl-7 pr-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full pl-7 pr-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-azure focus:border-azure"
               />
             </div>
             <p className="mt-1 text-xs text-gray-500">
@@ -230,7 +230,7 @@ export default function TaxProfileSetup({ portfolioId, taxYear, onSave }: TaxPro
                 value={carryforward}
                 onChange={(e) => setCarryforward(e.target.value)}
                 placeholder="0"
-                className="w-full pl-7 pr-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full pl-7 pr-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-azure focus:border-azure"
               />
             </div>
             <p className="mt-1 text-xs text-gray-500">

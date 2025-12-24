@@ -134,10 +134,11 @@ export default function AllAssetsOverview({
   }
 
   // Aggregate into three main buckets for pie chart
+  // Using sunset color palette consistent with RadialProgress widget
   const bucketsData = {
-    investments: { value: 0, count: 0, color: '#3b82f6' },
-    grants: { value: 0, count: 0, color: '#a855f7' },
-    donations: { value: 0, count: 0, color: '#ec4899' },
+    investments: { value: 0, count: 0, color: '#5186a6' },
+    grants: { value: 0, count: 0, color: '#e07a5f' },
+    donations: { value: 0, count: 0, color: '#f4a261' },
   };
 
   data.asset_type_breakdown.forEach((item) => {
@@ -194,7 +195,7 @@ export default function AllAssetsOverview({
               {bucketsData.investments.value > 0 && (
                 <div className="flex items-center justify-between text-sm">
                   <div className="flex items-center gap-2">
-                    <div className="w-2.5 h-2.5 rounded-sm bg-blue-500" />
+                    <div className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: bucketsData.investments.color }} />
                     <span className="text-neutral-700">Investments</span>
                   </div>
                   <span className="font-medium text-neutral-900">{formatMoney(bucketsData.investments.value)}</span>
@@ -203,7 +204,7 @@ export default function AllAssetsOverview({
               {bucketsData.grants.value > 0 && (
                 <div className="flex items-center justify-between text-sm">
                   <div className="flex items-center gap-2">
-                    <div className="w-2.5 h-2.5 rounded-sm bg-purple-500" />
+                    <div className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: bucketsData.grants.color }} />
                     <span className="text-neutral-700">Grants</span>
                   </div>
                   <span className="font-medium text-neutral-900">{formatMoney(bucketsData.grants.value)}</span>
@@ -212,7 +213,7 @@ export default function AllAssetsOverview({
               {bucketsData.donations.value > 0 && (
                 <div className="flex items-center justify-between text-sm">
                   <div className="flex items-center gap-2">
-                    <div className="w-2.5 h-2.5 rounded-sm bg-pink-500" />
+                    <div className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: bucketsData.donations.color }} />
                     <span className="text-neutral-700">Donations</span>
                   </div>
                   <span className="font-medium text-neutral-900">{formatMoney(bucketsData.donations.value)}</span>
@@ -246,6 +247,11 @@ export default function AllAssetsOverview({
                 size={140}
                 innerRadius={45}
                 showLegend={true}
+                customColors={{
+                  'Investments': bucketsData.investments.color,
+                  'Grants': bucketsData.grants.color,
+                  'Donations': bucketsData.donations.color,
+                }}
               />
             </div>
           )}

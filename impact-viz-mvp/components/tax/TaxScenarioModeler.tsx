@@ -654,8 +654,18 @@ function BunchingResults({ results }: { results: any }) {
       currency: 'USD',
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
-    }).format(amount);
+    }).format(amount || 0);
   };
+
+  // Add null/undefined checks
+  if (!results || !results.spread_strategy || !results.bunching_strategy) {
+    return (
+      <div className="bg-white rounded-xl border border-neutral-200 p-6">
+        <h3 className="text-lg font-semibold text-neutral-900 mb-4">Bunching Strategy Analysis</h3>
+        <p className="text-neutral-600">No bunching analysis results available.</p>
+      </div>
+    );
+  }
 
   const recommended = results.recommendation;
 
@@ -669,7 +679,7 @@ function BunchingResults({ results }: { results: any }) {
           {recommended === 'bunch' ? '📅 Bunching Strategy' : '📊 Spread Strategy'}
         </p>
         <p className="text-sm text-indigo-700 mt-2">
-          Save an additional {formatCurrency(results.savings_difference)} with {recommended === 'bunch' ? 'bunching' : 'spreading'}
+          Save an additional {formatCurrency(results.savings_difference || 0)} with {recommended === 'bunch' ? 'bunching' : 'spreading'}
         </p>
       </div>
 
@@ -679,15 +689,15 @@ function BunchingResults({ results }: { results: any }) {
           <div className="space-y-2 text-sm">
             <div className="flex justify-between">
               <span className="text-neutral-600">Annual Deduction:</span>
-              <span className="font-medium">{formatCurrency(results.spread_strategy.annual_deduction)}</span>
+              <span className="font-medium">{formatCurrency(results.spread_strategy?.annual_deduction || 0)}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-neutral-600">Total Over Years:</span>
-              <span className="font-medium">{formatCurrency(results.spread_strategy.total_deduction_over_years)}</span>
+              <span className="font-medium">{formatCurrency(results.spread_strategy?.total_deduction_over_years || 0)}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-neutral-600">Tax Savings:</span>
-              <span className="font-bold text-green-600">{formatCurrency(results.spread_strategy.tax_savings)}</span>
+              <span className="font-bold text-green-600">{formatCurrency(results.spread_strategy?.tax_savings || 0)}</span>
             </div>
           </div>
         </div>
@@ -697,15 +707,15 @@ function BunchingResults({ results }: { results: any }) {
           <div className="space-y-2 text-sm">
             <div className="flex justify-between">
               <span className="text-neutral-600">Bunch Year:</span>
-              <span className="font-medium">{formatCurrency(results.bunching_strategy.bunch_year_deduction)}</span>
+              <span className="font-medium">{formatCurrency(results.bunching_strategy?.bunch_year_deduction || 0)}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-neutral-600">Total Over Years:</span>
-              <span className="font-medium">{formatCurrency(results.bunching_strategy.total_deduction_over_years)}</span>
+              <span className="font-medium">{formatCurrency(results.bunching_strategy?.total_deduction_over_years || 0)}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-neutral-600">Tax Savings:</span>
-              <span className="font-bold text-green-600">{formatCurrency(results.bunching_strategy.tax_savings)}</span>
+              <span className="font-bold text-green-600">{formatCurrency(results.bunching_strategy?.tax_savings || 0)}</span>
             </div>
           </div>
         </div>

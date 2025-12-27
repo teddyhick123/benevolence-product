@@ -172,20 +172,23 @@ export default function PerformanceHeatMap({ portfolioId, title, config }: Props
           holdings={holdings}
           columns={columns}
           matrix={matrix}
-          cellWidth={config?.cellWidth || 80}
-          cellHeight={config?.cellHeight || 40}
+          cellWidth={config?.cellWidth || 90}
+          cellHeight={config?.cellHeight || 50}
           colorScheme={config?.colorScheme || 'sequential'}
-          minColor={config?.minColor || '#fef3c7'}
-          maxColor={config?.maxColor || '#059669'}
-          midColor={config?.midColor}
+          minColor={config?.minColor || '#e0f2fe'}
+          maxColor={config?.maxColor || '#5186a6'}
+          midColor={config?.midColor || '#e07a5f'}
           showValues={config?.showValues ?? false}
         />
       </div>
 
-      <div className="text-xs text-neutral-500 text-center shrink-0 mt-4">
-        {mode === 'temporal'
-          ? `Showing ${metricCode} over time`
-          : `Showing multiple metrics: ${metricsString}`}
+      <div className="text-xs text-neutral-500 text-center shrink-0 mt-4 px-4">
+        <div className="inline-flex items-center gap-2 bg-neutral-50 px-3 py-1.5 rounded-full">
+          <div className="w-1.5 h-1.5 rounded-full bg-azure"></div>
+          {mode === 'temporal'
+            ? `Performance: ${metricCode} over ${window === 'all' ? 'all time' : window}`
+            : `Comparing ${metricsString.split(',').length} metrics`}
+        </div>
       </div>
     </div>
   );
@@ -217,6 +220,7 @@ function HeatMapChart({
   showValues
 }: HeatMapChartProps) {
   const svgRef = useRef<SVGSVGElement>(null);
+  const tooltipRef = useRef<HTMLDivElement>(null);
   const [containerRef, dimensions] = useWidgetDimensions(800, 600);
 
   useEffect(() => {
@@ -225,15 +229,16 @@ function HeatMapChart({
     const svg = d3.select(svgRef.current);
     svg.selectAll('*').remove();
 
-    const margin = { top: 80, right: 20, bottom: 20, left: 150 };
+    // Increased margins for better label spacing
+    const margin = { top: 100, right: 40, bottom: 40, left: 180 };
 
     // Calculate available space
     const availableWidth = dimensions.width - margin.left - margin.right;
     const availableHeight = dimensions.height - margin.top - margin.bottom;
 
-    // Dynamic cell sizing - fit to available space, with max sizes from config
-    const cellWidth = Math.min(configCellWidth, Math.floor(availableWidth / columns.length));
-    const cellHeight = Math.min(configCellHeight, Math.floor(availableHeight / holdings.length));
+    // Dynamic cell sizing - larger minimum sizes for better readability
+    const cellWidth = Math.max(Math.min(configCellWidth, Math.floor(availableWidth / columns.length)), 70);
+    const cellHeight = Math.max(Math.min(configCellHeight, Math.floor(availableHeight / holdings.length)), 50);
 
     // Actual chart dimensions
     const width = Math.max(columns.length * cellWidth, 300);
@@ -272,88 +277,158 @@ function HeatMapChart({
         .interpolator(d3.interpolateRgb(minColor, maxColor));
     }
 
-    // Draw cells
+    // Tooltip element
+    const tooltip = tooltipRef.current ? d3.select(tooltipRef.current) : null;
+
+    // Draw cells with improved styling and hover effects
     holdings.forEach((holding, i) => {
       columns.forEach((col, j) => {
         const value = matrix[i][j];
 
         const cell = g
           .append('g')
-          .attr('transform', `translate(${j * cellWidth},${i * cellHeight})`);
+          .attr('transform', `translate(${j * cellWidth},${i * cellHeight})`)
+          .style('cursor', value !== null ? 'pointer' : 'default');
 
-        // Rectangle
-        cell
+        // Rectangle with better styling
+        const rect = cell
           .append('rect')
-          .attr('width', cellWidth - 2)
-          .attr('height', cellHeight - 2)
-          .attr('fill', value !== null ? colorScale(value) : '#f5f5f5')
-          .attr('stroke', '#fff')
-          .attr('stroke-width', 2)
-          .attr('rx', 4);
+          .attr('width', cellWidth - 4)
+          .attr('height', cellHeight - 4)
+          .attr('x', 2)
+          .attr('y', 2)
+          .attr('fill', value !== null ? colorScale(value) : '#f9fafb')
+          .attr('stroke', value !== null ? '#e5e7eb' : '#d1d5db')
+          .attr('stroke-width', 1)
+          .attr('rx', 6)
+          .style('transition', 'all 0.2s ease');
 
-        // Value text
+        // Add hover effects
+        if (value !== null) {
+          cell
+            .on('mouseenter', function(event) {
+              d3.select(this).select('rect')
+                .attr('stroke', '#5186a6')
+                .attr('stroke-width', 2)
+                .style('filter', 'brightness(1.1)');
+
+              if (tooltip) {
+                tooltip
+                  .style('opacity', 1)
+                  .style('left', `${event.pageX + 10}px`)
+                  .style('top', `${event.pageY - 10}px`)
+                  .html(`
+                    <div class="font-semibold text-sm mb-1">${holding}</div>
+                    <div class="text-xs text-neutral-600">${col}</div>
+                    <div class="text-sm font-bold mt-1 text-azure">${value.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
+                  `);
+              }
+            })
+            .on('mousemove', function(event) {
+              if (tooltip) {
+                tooltip
+                  .style('left', `${event.pageX + 10}px`)
+                  .style('top', `${event.pageY - 10}px`);
+              }
+            })
+            .on('mouseleave', function() {
+              d3.select(this).select('rect')
+                .attr('stroke', '#e5e7eb')
+                .attr('stroke-width', 1)
+                .style('filter', 'none');
+
+              if (tooltip) {
+                tooltip.style('opacity', 0);
+              }
+            });
+        }
+
+        // Value text - only show if explicitly enabled
         if (showValues && value !== null) {
+          const textColor = value > (minVal + maxVal) * 0.6 ? '#ffffff' : '#1f2937';
           cell
             .append('text')
             .attr('x', cellWidth / 2)
             .attr('y', cellHeight / 2)
             .attr('text-anchor', 'middle')
             .attr('dominant-baseline', 'middle')
-            .attr('fill', value > (minVal + maxVal) / 2 ? '#fff' : '#374151')
-            .attr('font-size', '11px')
+            .attr('fill', textColor)
+            .attr('font-size', '12px')
             .attr('font-weight', 600)
+            .style('pointer-events', 'none')
             .text(value.toLocaleString(undefined, { maximumFractionDigits: 0 }));
         }
       });
     });
 
-    // Column headers
+    // Column headers - rotated for better space usage
     columns.forEach((col, j) => {
-      g.append('text')
-        .attr('x', j * cellWidth + cellWidth / 2)
-        .attr('y', -10)
-        .attr('text-anchor', 'middle')
-        .attr('font-size', '12px')
+      const headerGroup = g.append('g')
+        .attr('transform', `translate(${j * cellWidth + cellWidth / 2}, -15)`);
+
+      headerGroup.append('text')
+        .attr('transform', 'rotate(-45)')
+        .attr('text-anchor', 'end')
+        .attr('font-size', '13px')
         .attr('font-weight', 600)
-        .attr('fill', '#374151')
+        .attr('fill', '#475569')
+        .style('letter-spacing', '0.01em')
+        .text(col.length > 30 ? col.substring(0, 27) + '...' : col)
+        .append('title')
         .text(col);
     });
 
-    // Row labels
+    // Row labels - better truncation with ellipsis
     holdings.forEach((holding, i) => {
-      g.append('text')
-        .attr('x', -10)
-        .attr('y', i * cellHeight + cellHeight / 2)
+      const maxChars = Math.floor(margin.left / 7); // Estimate based on available space
+      const truncated = holding.length > maxChars ? holding.substring(0, maxChars - 3) + '...' : holding;
+
+      const labelGroup = g.append('g')
+        .attr('transform', `translate(-15, ${i * cellHeight + cellHeight / 2})`);
+
+      labelGroup.append('text')
         .attr('text-anchor', 'end')
         .attr('dominant-baseline', 'middle')
-        .attr('font-size', '12px')
-        .attr('fill', '#374151')
-        .text(holding.length > 20 ? holding.substring(0, 20) + '...' : holding);
+        .attr('font-size', '13px')
+        .attr('font-weight', 500)
+        .attr('fill', '#475569')
+        .style('letter-spacing', '0.01em')
+        .text(truncated)
+        .append('title')
+        .text(holding);
     });
 
-    // Legend
-    const legendWidth = 200;
-    const legendHeight = 10;
-    const legendX = width - legendWidth - 20;
-    const legendY = -50;
-
-    const legendScale = d3
-      .scaleLinear()
-      .domain([0, legendWidth])
-      .range([minVal, maxVal]);
+    // Legend - improved styling and positioning
+    const legendWidth = Math.min(250, width * 0.4);
+    const legendHeight = 12;
+    const legendX = width - legendWidth;
+    const legendY = -60;
 
     const legendAxis = d3
       .axisBottom(d3.scaleLinear().domain([minVal, maxVal]).range([0, legendWidth]))
-      .ticks(5)
-      .tickSize(3);
+      .ticks(4)
+      .tickSize(4)
+      .tickFormat(d => d3.format('.2s')(d as number));
 
     const legendGroup = g
       .append('g')
       .attr('transform', `translate(${legendX},${legendY})`);
 
+    // Legend title
+    legendGroup
+      .append('text')
+      .attr('x', legendWidth / 2)
+      .attr('y', -8)
+      .attr('text-anchor', 'middle')
+      .attr('font-size', '11px')
+      .attr('font-weight', 600)
+      .attr('fill', '#64748b')
+      .style('letter-spacing', '0.02em')
+      .text('VALUE RANGE');
+
     // Gradient for legend
     const defs = svg.append('defs');
-    const gradientId = 'heat-map-gradient';
+    const gradientId = 'heat-map-gradient-' + Math.random().toString(36).substr(2, 9);
     const gradient = defs
       .append('linearGradient')
       .attr('id', gradientId)
@@ -371,25 +446,35 @@ function HeatMapChart({
       gradient.append('stop').attr('offset', '100%').attr('stop-color', maxColor);
     }
 
+    // Legend bar with border
     legendGroup
       .append('rect')
       .attr('width', legendWidth)
       .attr('height', legendHeight)
       .style('fill', `url(#${gradientId})`)
-      .attr('rx', 2);
+      .attr('stroke', '#e5e7eb')
+      .attr('stroke-width', 1)
+      .attr('rx', 3);
 
+    // Legend axis
     legendGroup
       .append('g')
       .attr('transform', `translate(0,${legendHeight})`)
       .call(legendAxis as any)
       .selectAll('text')
-      .attr('font-size', '10px');
+      .attr('font-size', '10px')
+      .attr('fill', '#64748b');
 
   }, [holdings, columns, matrix, configCellWidth, configCellHeight, colorScheme, minColor, maxColor, midColor, showValues, dimensions]);
 
   return (
-    <div ref={containerRef} className="w-full h-full overflow-auto">
+    <div ref={containerRef} className="w-full h-full overflow-auto relative">
       <svg ref={svgRef} className="min-w-full min-h-full" />
+      <div
+        ref={tooltipRef}
+        className="absolute pointer-events-none bg-white rounded-lg shadow-lg border border-neutral-200 px-3 py-2 text-neutral-900 transition-opacity duration-200"
+        style={{ opacity: 0, zIndex: 1000 }}
+      />
     </div>
   );
 }

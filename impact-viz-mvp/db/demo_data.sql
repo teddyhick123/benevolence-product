@@ -106,11 +106,44 @@ BEGIN
     (h_equity_saas, '2022-06-15', 'initial_investment', 1000000, 'Initial Series B investment'),
     (h_equity_saas, '2024-08-15', 'distribution', 25000, 'Special dividend from profitable operations');
 
-  -- Add KPI metrics
+  -- Add KPI metrics with time series showing growth
   INSERT INTO public.metric_facts (holding_id, metric_code, value, period_start, period_end) VALUES
-    (h_equity_saas, 'BENEFICIARIES_REACHED', 150000, '2024-01-01', '2024-06-30'),
-    (h_equity_saas, 'JOBS_CREATED', 45, '2024-01-01', '2024-06-30'),
-    (h_equity_saas, 'REVENUE_USD', 2800000, '2024-01-01', '2024-06-30');
+    -- Q3 2022
+    (h_equity_saas, 'BENEFICIARIES_REACHED', 45000, '2022-07-01', '2022-09-30'),
+    (h_equity_saas, 'JOBS_CREATED', 18, '2022-07-01', '2022-09-30'),
+    (h_equity_saas, 'REVENUE_USD', 850000, '2022-07-01', '2022-09-30'),
+    -- Q4 2022
+    (h_equity_saas, 'BENEFICIARIES_REACHED', 58000, '2022-10-01', '2022-12-31'),
+    (h_equity_saas, 'JOBS_CREATED', 22, '2022-10-01', '2022-12-31'),
+    (h_equity_saas, 'REVENUE_USD', 1050000, '2022-10-01', '2022-12-31'),
+    -- Q1 2023
+    (h_equity_saas, 'BENEFICIARIES_REACHED', 72000, '2023-01-01', '2023-03-31'),
+    (h_equity_saas, 'JOBS_CREATED', 28, '2023-01-01', '2023-03-31'),
+    (h_equity_saas, 'REVENUE_USD', 1280000, '2023-01-01', '2023-03-31'),
+    -- Q2 2023
+    (h_equity_saas, 'BENEFICIARIES_REACHED', 89000, '2023-04-01', '2023-06-30'),
+    (h_equity_saas, 'JOBS_CREATED', 32, '2023-04-01', '2023-06-30'),
+    (h_equity_saas, 'REVENUE_USD', 1580000, '2023-04-01', '2023-06-30'),
+    -- Q3 2023
+    (h_equity_saas, 'BENEFICIARIES_REACHED', 108000, '2023-07-01', '2023-09-30'),
+    (h_equity_saas, 'JOBS_CREATED', 36, '2023-07-01', '2023-09-30'),
+    (h_equity_saas, 'REVENUE_USD', 1920000, '2023-07-01', '2023-09-30'),
+    -- Q4 2023
+    (h_equity_saas, 'BENEFICIARIES_REACHED', 125000, '2023-10-01', '2023-12-31'),
+    (h_equity_saas, 'JOBS_CREATED', 40, '2023-10-01', '2023-12-31'),
+    (h_equity_saas, 'REVENUE_USD', 2250000, '2023-10-01', '2023-12-31'),
+    -- Q1 2024
+    (h_equity_saas, 'BENEFICIARIES_REACHED', 138000, '2024-01-01', '2024-03-31'),
+    (h_equity_saas, 'JOBS_CREATED', 42, '2024-01-01', '2024-03-31'),
+    (h_equity_saas, 'REVENUE_USD', 2550000, '2024-01-01', '2024-03-31'),
+    -- Q2 2024
+    (h_equity_saas, 'BENEFICIARIES_REACHED', 162000, '2024-04-01', '2024-06-30'),
+    (h_equity_saas, 'JOBS_CREATED', 48, '2024-04-01', '2024-06-30'),
+    (h_equity_saas, 'REVENUE_USD', 3050000, '2024-04-01', '2024-06-30'),
+    -- Q3 2024
+    (h_equity_saas, 'BENEFICIARIES_REACHED', 185000, '2024-07-01', '2024-09-30'),
+    (h_equity_saas, 'JOBS_CREATED', 52, '2024-07-01', '2024-09-30'),
+    (h_equity_saas, 'REVENUE_USD', 3420000, '2024-07-01', '2024-09-30');
 
   -- Equity Investment 2: Cleantech startup
   INSERT INTO public.holdings (
@@ -140,9 +173,30 @@ BEGIN
     (h_equity_cleantech, '2023-09-15', 'capital_call', 250000, 'Follow-on investment tranche');
 
   INSERT INTO public.metric_facts (holding_id, metric_code, value, period_start, period_end) VALUES
-    (h_equity_cleantech, 'BENEFICIARIES_REACHED', 8500, '2024-01-01', '2024-06-30'),
-    (h_equity_cleantech, 'CO2_AVOIDED_TONS', 1250, '2024-01-01', '2024-06-30'),
-    (h_equity_cleantech, 'ENERGY_SAVINGS_KWH', 3200000, '2024-01-01', '2024-06-30');
+    -- Q2 2023
+    (h_equity_cleantech, 'BENEFICIARIES_REACHED', 2100, '2023-04-01', '2023-06-30'),
+    (h_equity_cleantech, 'CO2_AVOIDED_TONS', 320, '2023-04-01', '2023-06-30'),
+    (h_equity_cleantech, 'ENERGY_SAVINGS_KWH', 780000, '2023-04-01', '2023-06-30'),
+    -- Q3 2023
+    (h_equity_cleantech, 'BENEFICIARIES_REACHED', 3500, '2023-07-01', '2023-09-30'),
+    (h_equity_cleantech, 'CO2_AVOIDED_TONS', 520, '2023-07-01', '2023-09-30'),
+    (h_equity_cleantech, 'ENERGY_SAVINGS_KWH', 1250000, '2023-07-01', '2023-09-30'),
+    -- Q4 2023
+    (h_equity_cleantech, 'BENEFICIARIES_REACHED', 4850, '2023-10-01', '2023-12-31'),
+    (h_equity_cleantech, 'CO2_AVOIDED_TONS', 730, '2023-10-01', '2023-12-31'),
+    (h_equity_cleantech, 'ENERGY_SAVINGS_KWH', 1780000, '2023-10-01', '2023-12-31'),
+    -- Q1 2024
+    (h_equity_cleantech, 'BENEFICIARIES_REACHED', 6200, '2024-01-01', '2024-03-31'),
+    (h_equity_cleantech, 'CO2_AVOIDED_TONS', 920, '2024-01-01', '2024-03-31'),
+    (h_equity_cleantech, 'ENERGY_SAVINGS_KWH', 2250000, '2024-01-01', '2024-03-31'),
+    -- Q2 2024
+    (h_equity_cleantech, 'BENEFICIARIES_REACHED', 7900, '2024-04-01', '2024-06-30'),
+    (h_equity_cleantech, 'CO2_AVOIDED_TONS', 1180, '2024-04-01', '2024-06-30'),
+    (h_equity_cleantech, 'ENERGY_SAVINGS_KWH', 2850000, '2024-04-01', '2024-06-30'),
+    -- Q3 2024
+    (h_equity_cleantech, 'BENEFICIARIES_REACHED', 9800, '2024-07-01', '2024-09-30'),
+    (h_equity_cleantech, 'CO2_AVOIDED_TONS', 1480, '2024-07-01', '2024-09-30'),
+    (h_equity_cleantech, 'ENERGY_SAVINGS_KWH', 3620000, '2024-07-01', '2024-09-30');
 
   -- ============================================================================
   -- PART 2: DEBT INVESTMENTS
@@ -179,8 +233,18 @@ BEGIN
     (h_debt_community, '2024-07-10', 'distribution', 11250, 'Semi-annual interest payment');
 
   INSERT INTO public.metric_facts (holding_id, metric_code, value, period_start, period_end) VALUES
-    (h_debt_community, 'HOUSING_UNITS_CREATED', 42, '2024-01-01', '2024-06-30'),
-    (h_debt_community, 'BENEFICIARIES_REACHED', 165, '2024-01-01', '2024-06-30');
+    -- H1 2023
+    (h_debt_community, 'HOUSING_UNITS_CREATED', 15, '2023-01-01', '2023-06-30'),
+    (h_debt_community, 'BENEFICIARIES_REACHED', 58, '2023-01-01', '2023-06-30'),
+    -- H2 2023
+    (h_debt_community, 'HOUSING_UNITS_CREATED', 24, '2023-07-01', '2023-12-31'),
+    (h_debt_community, 'BENEFICIARIES_REACHED', 95, '2023-07-01', '2023-12-31'),
+    -- H1 2024
+    (h_debt_community, 'HOUSING_UNITS_CREATED', 35, '2024-01-01', '2024-06-30'),
+    (h_debt_community, 'BENEFICIARIES_REACHED', 138, '2024-01-01', '2024-06-30'),
+    -- H2 2024 (partial)
+    (h_debt_community, 'HOUSING_UNITS_CREATED', 48, '2024-07-01', '2024-12-31'),
+    (h_debt_community, 'BENEFICIARIES_REACHED', 189, '2024-07-01', '2024-12-31');
 
   -- ============================================================================
   -- PART 3: PROGRAM RELATED INVESTMENTS (PRIs)
@@ -258,8 +322,18 @@ BEGIN
     (h_mri_housing, '2024-09-15', 'distribution', 9500, 'Q3 2024 dividend');
 
   INSERT INTO public.metric_facts (holding_id, metric_code, value, period_start, period_end) VALUES
-    (h_mri_housing, 'BENEFICIARIES_REACHED', 3200, '2024-01-01', '2024-06-30'),
-    (h_mri_housing, 'HOUSING_UNITS_CREATED', 450, '2024-01-01', '2024-06-30');
+    -- 2023 Annual
+    (h_mri_housing, 'BENEFICIARIES_REACHED', 2400, '2023-01-01', '2023-12-31'),
+    (h_mri_housing, 'HOUSING_UNITS_CREATED', 320, '2023-01-01', '2023-12-31'),
+    -- Q1 2024
+    (h_mri_housing, 'BENEFICIARIES_REACHED', 2850, '2024-01-01', '2024-03-31'),
+    (h_mri_housing, 'HOUSING_UNITS_CREATED', 380, '2024-01-01', '2024-03-31'),
+    -- Q2 2024
+    (h_mri_housing, 'BENEFICIARIES_REACHED', 3100, '2024-04-01', '2024-06-30'),
+    (h_mri_housing, 'HOUSING_UNITS_CREATED', 425, '2024-04-01', '2024-06-30'),
+    -- Q3 2024
+    (h_mri_housing, 'BENEFICIARIES_REACHED', 3450, '2024-07-01', '2024-09-30'),
+    (h_mri_housing, 'HOUSING_UNITS_CREATED', 485, '2024-07-01', '2024-09-30');
 
   -- ============================================================================
   -- PART 5: FOUNDATION GRANTS
@@ -317,9 +391,22 @@ BEGIN
     (g_foundation_1_id, '2024-07-01', '2024-12-31', '2025-01-31', NULL, 'interim');
 
   INSERT INTO public.metric_facts (holding_id, metric_code, value, period_start, period_end) VALUES
-    (h_grant_foundation_1, 'BENEFICIARIES_REACHED', 2500000, '2024-01-01', '2024-06-30'),
-    (h_grant_foundation_1, 'POLICY_WINS', 3, '2024-01-01', '2024-06-30'),
-    (h_grant_foundation_1, 'MEDIA_MENTIONS', 127, '2024-01-01', '2024-06-30');
+    -- H1 2023
+    (h_grant_foundation_1, 'BENEFICIARIES_REACHED', 1200000, '2023-01-01', '2023-06-30'),
+    (h_grant_foundation_1, 'POLICY_WINS', 1, '2023-01-01', '2023-06-30'),
+    (h_grant_foundation_1, 'MEDIA_MENTIONS', 42, '2023-01-01', '2023-06-30'),
+    -- H2 2023
+    (h_grant_foundation_1, 'BENEFICIARIES_REACHED', 1850000, '2023-07-01', '2023-12-31'),
+    (h_grant_foundation_1, 'POLICY_WINS', 2, '2023-07-01', '2023-12-31'),
+    (h_grant_foundation_1, 'MEDIA_MENTIONS', 78, '2023-07-01', '2023-12-31'),
+    -- H1 2024
+    (h_grant_foundation_1, 'BENEFICIARIES_REACHED', 2350000, '2024-01-01', '2024-06-30'),
+    (h_grant_foundation_1, 'POLICY_WINS', 4, '2024-01-01', '2024-06-30'),
+    (h_grant_foundation_1, 'MEDIA_MENTIONS', 115, '2024-01-01', '2024-06-30'),
+    -- H2 2024 (in progress)
+    (h_grant_foundation_1, 'BENEFICIARIES_REACHED', 2980000, '2024-07-01', '2024-12-31'),
+    (h_grant_foundation_1, 'POLICY_WINS', 5, '2024-07-01', '2024-12-31'),
+    (h_grant_foundation_1, 'MEDIA_MENTIONS', 163, '2024-07-01', '2024-12-31');
 
   -- Foundation Grant 2: Project-specific
   INSERT INTO public.holdings (
@@ -367,9 +454,18 @@ BEGIN
     (g_foundation_2_id, '2024-07-01', '2024-09-30', '2024-10-15', NULL, 'interim');
 
   INSERT INTO public.metric_facts (holding_id, metric_code, value, period_start, period_end) VALUES
-    (h_grant_foundation_2, 'BENEFICIARIES_REACHED', 450, '2024-01-01', '2024-06-30'),
-    (h_grant_foundation_2, 'TEACHERS_TRAINED', 25, '2024-01-01', '2024-06-30'),
-    (h_grant_foundation_2, 'CURRICULUM_MODULES_CREATED', 12, '2024-01-01', '2024-06-30');
+    -- Q1 2024
+    (h_grant_foundation_2, 'BENEFICIARIES_REACHED', 180, '2024-01-01', '2024-03-31'),
+    (h_grant_foundation_2, 'TEACHERS_TRAINED', 12, '2024-01-01', '2024-03-31'),
+    (h_grant_foundation_2, 'CURRICULUM_MODULES_CREATED', 6, '2024-01-01', '2024-03-31'),
+    -- Q2 2024
+    (h_grant_foundation_2, 'BENEFICIARIES_REACHED', 425, '2024-04-01', '2024-06-30'),
+    (h_grant_foundation_2, 'TEACHERS_TRAINED', 25, '2024-04-01', '2024-06-30'),
+    (h_grant_foundation_2, 'CURRICULUM_MODULES_CREATED', 12, '2024-04-01', '2024-06-30'),
+    -- Q3 2024
+    (h_grant_foundation_2, 'BENEFICIARIES_REACHED', 720, '2024-07-01', '2024-09-30'),
+    (h_grant_foundation_2, 'TEACHERS_TRAINED', 38, '2024-07-01', '2024-09-30'),
+    (h_grant_foundation_2, 'CURRICULUM_MODULES_CREATED', 18, '2024-07-01', '2024-09-30');
 
   -- ============================================================================
   -- PART 6: DAF GRANTS
@@ -414,8 +510,15 @@ BEGIN
     (g_daf_id, 'Serve 10,000 families', 'Reach milestone of 10,000 families served', '2024-12-31', NULL, 'in_progress');
 
   INSERT INTO public.metric_facts (holding_id, metric_code, value, period_start, period_end) VALUES
-    (h_grant_daf, 'BENEFICIARIES_REACHED', 7800, '2024-01-01', '2024-06-30'),
-    (h_grant_daf, 'MEALS_DISTRIBUTED', 156000, '2024-01-01', '2024-06-30');
+    -- Q2 2024
+    (h_grant_daf, 'BENEFICIARIES_REACHED', 4200, '2024-04-01', '2024-06-30'),
+    (h_grant_daf, 'MEALS_DISTRIBUTED', 82000, '2024-04-01', '2024-06-30'),
+    -- Q3 2024
+    (h_grant_daf, 'BENEFICIARIES_REACHED', 6800, '2024-07-01', '2024-09-30'),
+    (h_grant_daf, 'MEALS_DISTRIBUTED', 135000, '2024-07-01', '2024-09-30'),
+    -- Q4 2024 (projected)
+    (h_grant_daf, 'BENEFICIARIES_REACHED', 9500, '2024-10-01', '2024-12-31'),
+    (h_grant_daf, 'MEALS_DISTRIBUTED', 188000, '2024-10-01', '2024-12-31');
 
   -- ============================================================================
   -- PART 7: DONATIONS

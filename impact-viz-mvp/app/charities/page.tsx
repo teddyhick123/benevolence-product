@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { Search, ChevronDown } from 'lucide-react';
 import CharityCard from '@/components/charities/CharityCard';
 import CharityFilterSidebar from '@/components/charities/CharityFilterSidebar';
@@ -22,7 +22,6 @@ interface FilterState {
 
 export default function CharitiesPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
 
   // View mode
   const [viewMode, setViewMode] = useState<ViewMode>('discovery');

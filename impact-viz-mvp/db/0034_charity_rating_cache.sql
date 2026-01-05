@@ -24,10 +24,9 @@ CREATE INDEX IF NOT EXISTS idx_rating_cache_provider ON charity_rating_cache(pro
 CREATE INDEX IF NOT EXISTS idx_rating_cache_expires ON charity_rating_cache(expires_at);
 CREATE INDEX IF NOT EXISTS idx_rating_cache_charity_provider ON charity_rating_cache(charity_id, provider);
 
--- Index for cleanup of expired entries
+-- Index for cleanup of expired entries (simple index on expires_at for sorting)
 CREATE INDEX IF NOT EXISTS idx_rating_cache_expired
-  ON charity_rating_cache(expires_at)
-  WHERE expires_at < NOW();
+  ON charity_rating_cache(expires_at);
 
 -- Row Level Security
 ALTER TABLE charity_rating_cache ENABLE ROW LEVEL SECURITY;

@@ -14,10 +14,10 @@ import { supabasePublic } from '@/lib/supabase';
  */
 export async function POST(
   req: Request,
-  { params }: { params: { ein: string } }
+  { params }: { params: Promise<{ ein: string }> }
 ) {
   const sb = await supabasePublic();
-  const { ein } = params;
+  const { ein } = await params;
 
   try {
     const body = await req.json();

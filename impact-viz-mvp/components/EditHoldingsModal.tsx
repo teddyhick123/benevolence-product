@@ -28,6 +28,9 @@ export type HoldingInput = {
   as_of?: string | Date | number; // ISO date string or Date-like
   sector?: string | null;
   country?: string | null;
+  location_city?: string | null;
+  location_state?: string | null;
+  location_country?: string | null;
 };
 
 export type EditHoldingsModalProps = {
@@ -70,6 +73,11 @@ export default function EditHoldingsModal({ portfolioId, initial, open, onClose,
   const [sector, setSector] = React.useState(initial?.sector ?? '');
   const [country, setCountry] = React.useState(initial?.country ?? '');
 
+  // Location fields for geocoding
+  const [locationCity, setLocationCity] = React.useState(initial?.location_city ?? '');
+  const [locationState, setLocationState] = React.useState(initial?.location_state ?? '');
+  const [locationCountry, setLocationCountry] = React.useState(initial?.location_country ?? '');
+
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
@@ -83,6 +91,9 @@ export default function EditHoldingsModal({ portfolioId, initial, open, onClose,
     setAsOf(dateInputValue(initial?.as_of));
     setSector(initial?.sector ?? '');
     setCountry(initial?.country ?? '');
+    setLocationCity(initial?.location_city ?? '');
+    setLocationState(initial?.location_state ?? '');
+    setLocationCountry(initial?.location_country ?? '');
     setError(null);
     setBusy(false);
   }, [initial, open]);
@@ -107,6 +118,10 @@ export default function EditHoldingsModal({ portfolioId, initial, open, onClose,
       as_of: asOf || null, // Already in YYYY-MM-DD format from date input
       sector: sector?.trim() || null,
       country: country?.trim() || null,
+      // Location fields for geocoding
+      location_city: locationCity?.trim() || null,
+      location_state: locationState?.trim() || null,
+      location_country: locationCountry?.trim() || null,
       // camelCase mirrors for handlers that expect it
       assetClass: assetClass?.trim() || null,
       fundsAllocated: funds === '' ? null : Number(funds),
@@ -304,6 +319,47 @@ export default function EditHoldingsModal({ portfolioId, initial, open, onClose,
                 className="w-full rounded-2xl border border-black/10 px-3 py-2"
               />
             </label>
+          </div>
+
+          {/* Location fields for map geocoding */}
+          <div className="mt-4 pt-4 border-t border-black/5">
+            <div className="mb-2 text-sm font-medium text-neutral-700">
+              📍 Location (for map display)
+            </div>
+            <div className="text-xs text-neutral-500 mb-3">
+              Add location details to display this holding on the map. The system will automatically geocode the address.
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <label className="text-sm">
+                <div className="mb-1 text-neutral-700">City</div>
+                <input
+                  value={locationCity}
+                  onChange={(e) => setLocationCity(e.target.value)}
+                  placeholder="San Francisco"
+                  className="w-full rounded-2xl border border-black/10 px-3 py-2"
+                />
+              </label>
+
+              <label className="text-sm">
+                <div className="mb-1 text-neutral-700">State/Province</div>
+                <input
+                  value={locationState}
+                  onChange={(e) => setLocationState(e.target.value)}
+                  placeholder="CA"
+                  className="w-full rounded-2xl border border-black/10 px-3 py-2"
+                />
+              </label>
+
+              <label className="text-sm">
+                <div className="mb-1 text-neutral-700">Country</div>
+                <input
+                  value={locationCountry}
+                  onChange={(e) => setLocationCountry(e.target.value)}
+                  placeholder="USA"
+                  className="w-full rounded-2xl border border-black/10 px-3 py-2"
+                />
+              </label>
+            </div>
           </div>
 
           <div className="flex items-center justify-between pt-2">

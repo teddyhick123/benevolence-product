@@ -134,7 +134,9 @@ export default function CharityCard({
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
-              onEdit(charity.portfolio_metadata.recommendation_id);
+              if (charity.portfolio_metadata?.recommendation_id) {
+                onEdit(charity.portfolio_metadata.recommendation_id);
+              }
             }}
             className="w-full px-4 py-2 border border-gray-300 text-gray-700 text-sm font-medium rounded hover:bg-gray-50 transition-colors"
           >

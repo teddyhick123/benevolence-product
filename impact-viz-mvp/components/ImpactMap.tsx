@@ -42,10 +42,14 @@ const STROKE = '#ffffff';
 export default function ImpactMap({ points, onPointClick, onPointHover, highlightedId, height }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const svgRef = useRef<SVGSVGElement | null>(null);
+  const zoomBehaviorRef = useRef<any>(null); // Store zoom behavior for programmatic control
 
   // responsive width and height
   const [width, setWidth] = useState<number>(700);
   const [containerHeight, setContainerHeight] = useState<number>(600);
+
+  // Zoom state for programmatic zoom control
+  const [zoomTransform, setZoomTransform] = useState({ k: 1, x: 0, y: 0 });
 
   // Use responsive height on mobile, fixed height on desktop
   const h = height ?? containerHeight;
@@ -150,8 +154,22 @@ export default function ImpactMap({ points, onPointClick, onPointHover, highligh
     // background
     svg.append('rect').attr('x', 0).attr('y', 0).attr('width', width).attr('height', h).attr('fill', CARD_BG);
 
+    // Create main group for zoom/pan transforms
+    const g = svg.append('g');
+
+    // Setup zoom behavior
+    const zoom = d3.zoom()
+      .scaleExtent([1, 8]) // Min zoom 1x, max zoom 8x
+      .on('zoom', (event) => {
+        g.attr('transform', event.transform);
+        setZoomTransform({ k: event.transform.k, x: event.transform.x, y: event.transform.y });
+      });
+
+    svg.call(zoom as any);
+    zoomBehaviorRef.current = zoom;
+
     if (land) {
-      svg.append('path')
+      g.append('path')
         .datum(land as any)
         .attr('d', path as any)
         .attr('fill', AZURE)
@@ -162,7 +180,7 @@ export default function ImpactMap({ points, onPointClick, onPointHover, highligh
     }
 
     if (borders) {
-      svg.append('path')
+      g.append('path')
         .datum(borders as any)
         .attr('d', path as any)
         .attr('fill', 'none')
@@ -172,7 +190,7 @@ export default function ImpactMap({ points, onPointClick, onPointHover, highligh
     }
 
     const grat = d3.geoGraticule().step([20, 20]);
-    svg.append('path')
+    g.append('path')
       .attr('d', path(grat()) as any)
       .attr('fill', 'none')
       .attr('stroke', GRID)
@@ -186,7 +204,6 @@ export default function ImpactMap({ points, onPointClick, onPointHover, highligh
       .domain([0, maxAmount])
       .range([4, 16]); // Min 4px, max 16px for visual hierarchy
 
-    const g = svg.append('g');
     const circles = g
       .selectAll('circle')
       .data(cleanPoints, (d: any) => d.id)
@@ -244,6 +261,31 @@ export default function ImpactMap({ points, onPointClick, onPointHover, highligh
     circles.append('title').text(d => `${d.label}`);
   }, [cleanPoints, width, h, borders, land, onPointClick, onPointHover, highlightedId, points]);
 
+  // Zoom control handlers
+  const handleZoomIn = () => {
+    const svg = d3.select(svgRef.current);
+    if (zoomBehaviorRef.current) {
+      svg.transition().duration(300).call(zoomBehaviorRef.current.scaleBy, 1.5);
+    }
+  };
+
+  const handleZoomOut = () => {
+    const svg = d3.select(svgRef.current);
+    if (zoomBehaviorRef.current) {
+      svg.transition().duration(300).call(zoomBehaviorRef.current.scaleBy, 0.67);
+    }
+  };
+
+  const handleZoomReset = () => {
+    const svg = d3.select(svgRef.current);
+    if (zoomBehaviorRef.current) {
+      svg.transition().duration(500).call(
+        zoomBehaviorRef.current.transform,
+        d3.zoomIdentity
+      );
+    }
+  };
+
   return (
     <div
       ref={containerRef}
@@ -255,6 +297,50 @@ export default function ImpactMap({ points, onPointClick, onPointHover, highligh
       }}
     >
       <svg ref={svgRef} className="w-full" />
+
+      {/* Zoom Controls */}
+      <div className="absolute top-4 right-4 z-10 flex flex-col gap-1 bg-white rounded-lg border border-black/10 shadow-lg overflow-hidden">
+        <button
+          type="button"
+          onClick={handleZoomIn}
+          className="p-2 hover:bg-neutral-50 transition-colors border-b border-black/5"
+          aria-label="Zoom in"
+          title="Zoom in"
+        >
+          <svg className="w-5 h-5 text-neutral-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+          </svg>
+        </button>
+        <button
+          type="button"
+          onClick={handleZoomOut}
+          className="p-2 hover:bg-neutral-50 transition-colors border-b border-black/5"
+          aria-label="Zoom out"
+          title="Zoom out"
+        >
+          <svg className="w-5 h-5 text-neutral-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+          </svg>
+        </button>
+        <button
+          type="button"
+          onClick={handleZoomReset}
+          className="p-2 hover:bg-neutral-50 transition-colors"
+          aria-label="Reset zoom"
+          title="Reset zoom"
+        >
+          <svg className="w-5 h-5 text-neutral-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+        </button>
+      </div>
+
+      {/* Zoom Level Indicator */}
+      {zoomTransform.k !== 1 && (
+        <div className="absolute bottom-4 left-4 z-10 bg-white rounded-md border border-black/10 shadow-md px-3 py-1.5 text-xs font-medium text-neutral-700">
+          {Math.round(zoomTransform.k * 100)}%
+        </div>
+      )}
 
       {/* Enhanced Map Popover with KPIs */}
       {selected && (

@@ -9,7 +9,8 @@
  * - Project multi-year carryforwards
  */
 
-import { getStandardDeduction, type FilingStatus } from './constants';
+import { getStandardDeduction } from './constants';
+import type { FilingStatus } from '@/lib/schemas/tax';
 
 export interface ScenarioInput {
   // Donor information

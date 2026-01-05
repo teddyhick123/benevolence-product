@@ -59,6 +59,15 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string; h
   if (validated.funds_allocated !== undefined) patch.funds_allocated = validated.funds_allocated;
   if (validated.as_of !== undefined) patch.as_of = validated.as_of;
 
+  // Location fields for geocoding
+  if (validated.location_city !== undefined) patch.location_city = validated.location_city;
+  if (validated.location_state !== undefined) patch.location_state = validated.location_state;
+  if (validated.location_country !== undefined) patch.location_country = validated.location_country;
+
+  // Manual geocoding override (if user provides exact coordinates)
+  if (validated.latitude !== undefined) patch.latitude = validated.latitude;
+  if (validated.longitude !== undefined) patch.longitude = validated.longitude;
+
   if (Object.keys(patch).length === 0) {
     return NextResponse.json({ error: 'no valid fields to update' }, { status: 400, headers: cacheHeaders() });
   }
@@ -70,6 +79,69 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string; h
     .eq('portfolio_id', portfolio_id);
 
   if (updErr) return NextResponse.json({ error: updErr.message }, { status: 500, headers: cacheHeaders() });
+
+  // Auto-geocode if location fields changed (async, don't block response)
+  const locationChanged =
+    validated.location_city !== undefined ||
+    validated.location_state !== undefined ||
+    validated.location_country !== undefined;
+
+  if (locationChanged) {
+    // Import geocoding service dynamically to avoid cold start penalty
+    import('@/lib/services/google-maps').then(async ({ geocodeLocation }) => {
+      try {
+        // Fetch current location data to construct full address
+        const { data: current } = await sb
+          .from('holdings')
+          .select('location_city, location_state, location_country')
+          .eq('id', holdingId)
+          .single();
+
+        if (!current) return;
+
+        // Skip if no location data
+        if (!current.location_city && !current.location_state && !current.location_country) {
+          return;
+        }
+
+        // Perform geocoding
+        const result = await geocodeLocation({
+          city: current.location_city || undefined,
+          state: current.location_state || undefined,
+          country: current.location_country || undefined,
+        });
+
+        // Update holding with geocoding result
+        const geocodePatch = result
+          ? {
+              latitude: result.latitude,
+              longitude: result.longitude,
+              geocoded_at: result.geocodedAt,
+              geocode_status: 'success' as const,
+              geocode_provider: result.provider,
+              geocode_metadata: {
+                formattedAddress: result.formattedAddress,
+                accuracy: result.accuracy,
+                placeId: result.placeId,
+              },
+            }
+          : {
+              geocode_status: 'failed' as const,
+              geocoded_at: new Date().toISOString(),
+            };
+
+        await sb
+          .from('holdings')
+          .update(geocodePatch)
+          .eq('id', holdingId);
+      } catch (err) {
+        console.error('Auto-geocoding failed:', err);
+        // Don't throw - geocoding failure shouldn't break the main update
+      }
+    }).catch(err => {
+      console.error('Error importing geocoding service:', err);
+    });
+  }
 
   const { data, error: fetchErr } = await sb
     .from('v_holdings')

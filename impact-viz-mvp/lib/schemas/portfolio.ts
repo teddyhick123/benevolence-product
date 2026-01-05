@@ -164,6 +164,13 @@ export const createHoldingSchema = z.object({
   nav: z.number().positive('NAV must be positive').optional().nullable(), // Legacy support
   as_of: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD').optional().nullable(),
   as_of_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD').optional().nullable(), // Legacy support
+  // Location fields for geocoding
+  location_city: z.string().max(100).optional().nullable(),
+  location_state: z.string().max(100).optional().nullable(),
+  location_country: z.string().max(100).optional().nullable(),
+  // Geocoding results (usually auto-populated, but can be manually overridden)
+  latitude: z.number().min(-90).max(90).optional().nullable(),
+  longitude: z.number().min(-180).max(180).optional().nullable(),
 });
 
 /**

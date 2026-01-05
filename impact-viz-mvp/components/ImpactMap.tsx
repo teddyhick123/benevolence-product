@@ -1,6 +1,8 @@
 'use client';
 import * as d3 from 'd3';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { getAssetTypeColor } from '@/lib/schemas/portfolio';
+import MapPopover from '@/components/map/MapPopover';
 
 // Matches /api/portfolio/[id]/map shape
 export type ImpactMapPoint = {
@@ -12,11 +14,22 @@ export type ImpactMapPoint = {
   asOf: string | null;
   amountUSD: number | null;
   coords: [number, number]; // [lon, lat]
+  assetType?: string | null; // For color encoding
+  topKpis?: Array<{
+    metricCode: string;
+    displayName: string;
+    value: number;
+    unit: string | null;
+    periodEnd: string;
+  }>;
+  totalContributions?: number;
 };
 
 type Props = {
   points: ImpactMapPoint[];
   onPointClick?: (p: ImpactMapPoint) => void; // parent can open modal/focus row
+  onPointHover?: (holdingId: string | null) => void; // two-way highlighting with table
+  highlightedId?: string | null; // external highlight state (e.g., from table hover)
   height?: number;
 };
 
@@ -26,7 +39,7 @@ const CARD_BG = '#ffffff';          // card background
 const POINT = '#e85d04';            // orange points
 const STROKE = '#ffffff';
 
-export default function ImpactMap({ points, onPointClick, height }: Props) {
+export default function ImpactMap({ points, onPointClick, onPointHover, highlightedId, height }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const svgRef = useRef<SVGSVGElement | null>(null);
 
@@ -167,8 +180,11 @@ export default function ImpactMap({ points, onPointClick, height }: Props) {
       .attr('stroke-opacity', 0.35)
       .attr('shape-rendering', 'crispEdges');
 
-    // uniform radius for now; you can swap to scale later
-    const r = 6;
+    // Size encoding: scale circles by funds allocated (amountUSD)
+    const maxAmount = d3.max(cleanPoints, d => d.amountUSD || 0) || 1;
+    const radiusScale = d3.scaleSqrt()
+      .domain([0, maxAmount])
+      .range([4, 16]); // Min 4px, max 16px for visual hierarchy
 
     const g = svg.append('g');
     const circles = g
@@ -178,25 +194,42 @@ export default function ImpactMap({ points, onPointClick, height }: Props) {
       .append('circle')
       .attr('cx', d => (projection([d.lon!, d.lat!]) ?? [NaN, NaN])[0])
       .attr('cy', d => (projection([d.lon!, d.lat!]) ?? [NaN, NaN])[1])
-      .attr('r', r)
-      .attr('fill', POINT)
-      .attr('opacity', 0.9)
+      .attr('r', d => radiusScale(d.amountUSD || 0))
+      .attr('fill', d => getAssetTypeColor((d as any).assetType as any) || POINT)
+      .attr('opacity', d => {
+        // Two-way highlighting: dim non-highlighted points
+        if (highlightedId && (d as any).holdingId !== highlightedId) {
+          return 0.3;
+        }
+        return 0.85;
+      })
       .attr('stroke', STROKE)
       .attr('stroke-width', 1.5)
       .style('cursor', 'pointer')
-      .on('mouseenter', function () {
+      .on('mouseenter', function (_, d) {
+        const baseRadius = radiusScale((d as any).amountUSD || 0);
+        const holdingId = (d as any).holdingId;
+
+        // Notify parent of hover for two-way highlighting
+        onPointHover?.(holdingId);
+
         d3.select(this as SVGCircleElement)
           .transition()
           .duration(120)
-          .attr('r', r + 3)
+          .attr('r', baseRadius + 3)
           .attr('opacity', 1);
       })
-      .on('mouseleave', function () {
+      .on('mouseleave', function (_, d) {
+        const baseRadius = radiusScale((d as any).amountUSD || 0);
+
+        // Clear hover state
+        onPointHover?.(null);
+
         d3.select(this as SVGCircleElement)
           .transition()
           .duration(120)
-          .attr('r', r)
-          .attr('opacity', 0.9);
+          .attr('r', baseRadius)
+          .attr('opacity', highlightedId && (d as any).holdingId !== highlightedId ? 0.3 : 0.85);
       })
       .on('click', function (_event: any, d: any) {
         const el = d3.select(this as SVGCircleElement);
@@ -209,7 +242,7 @@ export default function ImpactMap({ points, onPointClick, height }: Props) {
       });
 
     circles.append('title').text(d => `${d.label}`);
-  }, [cleanPoints, width, h, borders, land, onPointClick, points]);
+  }, [cleanPoints, width, h, borders, land, onPointClick, onPointHover, highlightedId, points]);
 
   return (
     <div
@@ -223,42 +256,17 @@ export default function ImpactMap({ points, onPointClick, height }: Props) {
     >
       <svg ref={svgRef} className="w-full" />
 
-      {/* Built-in fallback popover (only shows if parent doesn't replace it) */}
+      {/* Enhanced Map Popover with KPIs */}
       {selected && (
-        <div
-          className="absolute z-10 w-[calc(100%-24px)] sm:max-w-sm rounded-xl border border-black/10 bg-white shadow-lg p-3 text-sm"
-          style={{
-            left: width < 640 ? '12px' : Math.max(12, Math.min(selected.x + 12, width - 240)),
-            top: width < 640 ? Math.max(12, selected.y - 120) : Math.max(12, Math.min(selected.y + 12, h - 12))
+        <MapPopover
+          point={selected.p}
+          position={{
+            x: width < 640 ? 12 : Math.max(12, Math.min(selected.x + 12, width - 240)),
+            y: width < 640 ? Math.max(12, selected.y - 120) : Math.max(12, Math.min(selected.y + 12, h - 12))
           }}
-        >
-          <div className="font-semibold text-neutral-900">{selected.p.name}</div>
-          <div className="text-xs text-neutral-600">
-            {selected.p.tags?.length ? selected.p.tags.join(' • ') : '—'}
-          </div>
-          <div className="text-xs text-neutral-600 mt-1">
-            {selected.p.status ?? 'Status unknown'}{selected.p.asOf ? ` • ${new Date(selected.p.asOf).toLocaleDateString()}` : ''}
-          </div>
-          {selected.p.amountUSD != null && (
-            <div className="text-xs text-neutral-900 mt-1">${selected.p.amountUSD.toLocaleString()}</div>
-          )}
-          <div className="mt-2 flex justify-end">
-            {selected.p.holdingId ? (
-              <button
-                type="button"
-                className="text-xs px-2 py-1 rounded-2xl border border-black/10 hover:bg-white shadow-sm hover:shadow transition-transform duration-200 hover:-translate-y-0.5"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onPointClick?.(selected.p);
-                }}
-              >
-                Open details
-              </button>
-            ) : (
-              <span className="text-xs text-neutral-500">No linked holding</span>
-            )}
-          </div>
-        </div>
+          onClose={() => setSelected(null)}
+          onOpenDetails={() => onPointClick?.(selected.p)}
+        />
       )}
 
       {!topoLoaded && (

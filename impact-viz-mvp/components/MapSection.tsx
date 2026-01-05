@@ -25,6 +25,15 @@ export type MapApiPoint = {
   asOf: string | null;
   amountUSD: number | null;
   coords: [number, number]; // [lon, lat]
+  assetType?: string | null;
+  topKpis?: Array<{
+    metricCode: string;
+    displayName: string;
+    value: number;
+    unit: string | null;
+    periodEnd: string;
+  }>;
+  totalContributions?: number;
 };
 
 export default function MapSection({ portfolioId }: { portfolioId: string }) {
@@ -33,6 +42,9 @@ export default function MapSection({ portfolioId }: { portfolioId: string }) {
     fetcher
   );
   const router = useRouter();
+
+  // Two-way highlighting state
+  const [highlightedHoldingId, setHighlightedHoldingId] = React.useState<string | null>(null);
 
   const points = data?.points ?? [];
 
@@ -65,6 +77,8 @@ export default function MapSection({ portfolioId }: { portfolioId: string }) {
                 // Navigate to the holdings details page at app/dashboard/holdings/[holdingId]/page.tsx
                 router.push(`/dashboard/holdings/${encodeURIComponent(p.holdingId)}`);
               }}
+              onPointHover={setHighlightedHoldingId}
+              highlightedId={highlightedHoldingId}
             />
           </div>
         </div>

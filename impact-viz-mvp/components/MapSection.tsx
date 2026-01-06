@@ -4,6 +4,7 @@ import * as React from 'react';
 import useSWR from 'swr';
 import SectionHeader from '@/components/SectionHeader';
 import ImpactMap from '@/components/ImpactMap';
+import MapModeSelector, { MapMode } from '@/components/map/MapModeSelector';
 import { useRouter } from 'next/navigation';
 
 const fetcher = async (url: string) => {
@@ -45,6 +46,9 @@ export default function MapSection({ portfolioId }: { portfolioId: string }) {
 
   // Two-way highlighting state
   const [highlightedHoldingId, setHighlightedHoldingId] = React.useState<string | null>(null);
+
+  // Visualization mode state
+  const [mapMode, setMapMode] = React.useState<MapMode>('points');
 
   // Filter state
   const [searchQuery, setSearchQuery] = React.useState<string>('');
@@ -100,10 +104,17 @@ export default function MapSection({ portfolioId }: { portfolioId: string }) {
         subtitle="Locations and activities across the portfolio"
       />
 
-      {/* Filter Controls */}
+      {/* Mode Selector and Filter Controls */}
       {points.length > 0 && (
-        <div className="space-y-3">
-          <div className="flex items-center gap-2">
+        <div className="flex gap-4">
+          {/* Visualization Mode Selector */}
+          <div className="w-64 flex-shrink-0">
+            <MapModeSelector mode={mapMode} onModeChange={setMapMode} />
+          </div>
+
+          {/* Filter Controls */}
+          <div className="flex-1 space-y-3">
+            <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={() => setShowFilters(!showFilters)}
@@ -190,6 +201,7 @@ export default function MapSection({ portfolioId }: { portfolioId: string }) {
               )}
             </div>
           )}
+          </div>
         </div>
       )}
 
@@ -214,6 +226,7 @@ export default function MapSection({ portfolioId }: { portfolioId: string }) {
           <div className="w-full h-[520px] sm:h-[560px] md:h-[600px] lg:h-[640px]">
             <ImpactMap
               points={filteredPoints as any}
+              mode={mapMode}
               onPointClick={(p: MapApiPoint) => {
                 if (!p.holdingId) return;
                 // Navigate to the holdings details page at app/dashboard/holdings/[holdingId]/page.tsx

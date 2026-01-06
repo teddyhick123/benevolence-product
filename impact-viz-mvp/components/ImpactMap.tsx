@@ -3,6 +3,25 @@ import * as d3 from 'd3';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { getAssetTypeColor } from '@/lib/schemas/portfolio';
 import MapPopover from '@/components/map/MapPopover';
+import { MapMode } from '@/components/map/MapModeSelector';
+import {
+  clusterPoints,
+  isCluster,
+  getClusterRadius,
+  getClusterLabel,
+  getOptimalClusterDistance,
+  type ClusterablePoint
+} from '@/lib/map/clustering';
+import {
+  generateHeatmapContours,
+  getHeatmapColorScale,
+  getOptimalBandwidth
+} from '@/lib/map/heatmap';
+import {
+  aggregateByCountry,
+  getCountryFillColor,
+  getChoroplethStats
+} from '@/lib/map/choropleth';
 
 // Matches /api/portfolio/[id]/map shape
 export type ImpactMapPoint = {
@@ -27,6 +46,7 @@ export type ImpactMapPoint = {
 
 type Props = {
   points: ImpactMapPoint[];
+  mode?: MapMode; // Visualization mode: 'points' | 'heatmap' | 'choropleth'
   onPointClick?: (p: ImpactMapPoint) => void; // parent can open modal/focus row
   onPointHover?: (holdingId: string | null) => void; // two-way highlighting with table
   highlightedId?: string | null; // external highlight state (e.g., from table hover)
@@ -39,7 +59,7 @@ const CARD_BG = '#ffffff';          // card background
 const POINT = '#e85d04';            // orange points
 const STROKE = '#ffffff';
 
-export default function ImpactMap({ points, onPointClick, onPointHover, highlightedId, height }: Props) {
+export default function ImpactMap({ points, mode = 'points', onPointClick, onPointHover, highlightedId, height }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const svgRef = useRef<SVGSVGElement | null>(null);
   const zoomBehaviorRef = useRef<any>(null); // Store zoom behavior for programmatic control
@@ -198,22 +218,106 @@ export default function ImpactMap({ points, onPointClick, onPointHover, highligh
       .attr('stroke-opacity', 0.35)
       .attr('shape-rendering', 'crispEdges');
 
-    // Size encoding: scale circles by funds allocated (amountUSD)
-    const maxAmount = d3.max(cleanPoints, d => d.amountUSD || 0) || 1;
-    const radiusScale = d3.scaleSqrt()
-      .domain([0, maxAmount])
-      .range([4, 16]); // Min 4px, max 16px for visual hierarchy
+    // Render based on visualization mode
+    if (mode === 'heatmap') {
+      // Heat Map Mode: Density visualization
+      const bandwidth = getOptimalBandwidth(cleanPoints.length, width, h);
+      const contours = generateHeatmapContours(
+        cleanPoints.map(p => ({ lon: p.lon, lat: p.lat, weight: (p.amountUSD || 0) / 1000 })),
+        projection as d3.GeoProjection,
+        width,
+        h,
+        bandwidth
+      );
 
-    const circles = g
-      .selectAll('circle')
-      .data(cleanPoints, (d: any) => d.id)
+      if (contours.length > 0) {
+        const maxDensity = d3.max(contours, c => c.properties.value) || 1;
+        const colorScale = getHeatmapColorScale([0, maxDensity]);
+
+        g.selectAll('path.contour')
+          .data(contours)
+          .enter()
+          .append('path')
+          .attr('class', 'contour')
+          .attr('d', d3.geoPath(projection as any) as any)
+          .attr('fill', d => colorScale(d.properties.value))
+          .attr('opacity', 0.6)
+          .attr('stroke', 'none');
+      }
+    } else if (mode === 'choropleth') {
+      // Choropleth Mode: Aggregate by country
+      const countryAggregates = aggregateByCountry(cleanPoints as any[]);
+      const stats = getChoroplethStats(countryAggregates);
+
+      // Color countries based on aggregate values
+      if (land) {
+        const landFeatures = (land as any).features || [land];
+
+        g.selectAll('path.country')
+          .data(landFeatures)
+          .enter()
+          .append('path')
+          .attr('class', 'country')
+          .attr('d', d3.geoPath(projection as any) as any)
+          .attr('fill', (d: any) => {
+            // Try to match country from feature properties
+            const countryCode = d.properties?.name || d.properties?.NAME || null;
+            if (!countryCode) return '#f0f0f0';
+
+            // Find aggregate for this country
+            const aggregate = Array.from(countryAggregates.values()).find(
+              a => a.country === countryCode ||
+                   a.country.toLowerCase().includes(countryCode.toLowerCase()) ||
+                   countryCode.toLowerCase().includes(a.country.toLowerCase())
+            );
+
+            if (!aggregate) return '#f0f0f0';
+
+            return getCountryFillColor(aggregate.totalAmount, stats.max);
+          })
+          .attr('stroke', AZURE)
+          .attr('stroke-width', 0.5)
+          .attr('opacity', 0.8)
+          .style('cursor', 'pointer')
+          .append('title')
+          .text((d: any) => d.properties?.name || 'Unknown');
+      }
+    } else {
+      // Points Mode: Render individual points or clusters
+      const clusterDistance = getOptimalClusterDistance(zoomTransform.k);
+      const displayPoints = clusterDistance > 0
+        ? clusterPoints(cleanPoints as ClusterablePoint[], clusterDistance, projection as d3.GeoProjection)
+        : cleanPoints.map(p => ({ ...p, type: 'point' as const }));
+
+      // Size encoding: scale circles by funds allocated (amountUSD)
+      const maxAmount = d3.max(cleanPoints, d => d.amountUSD || 0) || 1;
+      const radiusScale = d3.scaleSqrt()
+        .domain([0, maxAmount])
+        .range([4, 16]); // Min 4px, max 16px for visual hierarchy
+
+      const circles = g
+        .selectAll('circle')
+        .data(displayPoints, (d: any) => d.id)
       .enter()
       .append('circle')
       .attr('cx', d => (projection([d.lon!, d.lat!]) ?? [NaN, NaN])[0])
       .attr('cy', d => (projection([d.lon!, d.lat!]) ?? [NaN, NaN])[1])
-      .attr('r', d => radiusScale(d.amountUSD || 0))
-      .attr('fill', d => getAssetTypeColor((d as any).assetType as any) || POINT)
+      .attr('r', d => {
+        if (isCluster(d as any)) {
+          return getClusterRadius(d as any, 8);
+        }
+        return radiusScale((d as any).amountUSD || 0);
+      })
+      .attr('fill', d => {
+        if (isCluster(d as any)) {
+          return AZURE; // Clusters use azure color
+        }
+        return getAssetTypeColor((d as any).assetType as any) || POINT;
+      })
       .attr('opacity', d => {
+        if (isCluster(d as any)) {
+          return 0.9; // Clusters are more opaque
+        }
         // Two-way highlighting: dim non-highlighted points
         if (highlightedId && (d as any).holdingId !== highlightedId) {
           return 0.3;
@@ -221,7 +325,7 @@ export default function ImpactMap({ points, onPointClick, onPointHover, highligh
         return 0.85;
       })
       .attr('stroke', STROKE)
-      .attr('stroke-width', 1.5)
+      .attr('stroke-width', d => isCluster(d as any) ? 2 : 1.5)
       .style('cursor', 'pointer')
       .on('mouseenter', function (_, d) {
         const baseRadius = radiusScale((d as any).amountUSD || 0);
@@ -258,8 +362,26 @@ export default function ImpactMap({ points, onPointClick, onPointHover, highligh
         }
       });
 
-    circles.append('title').text(d => `${d.label}`);
-  }, [cleanPoints, width, h, borders, land, onPointClick, onPointHover, highlightedId, points]);
+      circles.append('title').text(d => `${d.label}`);
+
+      // Add cluster count labels
+      const clusterLabels = g
+        .selectAll('text.cluster-label')
+        .data(displayPoints.filter(d => isCluster(d as any)), (d: any) => d.id)
+        .enter()
+        .append('text')
+        .attr('class', 'cluster-label')
+        .attr('x', d => (projection([d.lon!, d.lat!]) ?? [NaN, NaN])[0])
+        .attr('y', d => (projection([d.lon!, d.lat!]) ?? [NaN, NaN])[1])
+        .attr('text-anchor', 'middle')
+        .attr('dominant-baseline', 'central')
+        .attr('fill', 'white')
+        .attr('font-size', '11px')
+        .attr('font-weight', '600')
+        .attr('pointer-events', 'none') // Don't interfere with circle events
+        .text(d => getClusterLabel(d as any));
+    }
+  }, [cleanPoints, width, h, borders, land, onPointClick, onPointHover, highlightedId, points, mode, zoomTransform.k]);
 
   // Zoom control handlers
   const handleZoomIn = () => {

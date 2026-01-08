@@ -42,6 +42,9 @@ export type ImpactMapPoint = {
     periodEnd: string;
   }>;
   totalContributions?: number;
+  locationCount?: number; // Number of locations for this holding
+  isPrimaryLocation?: boolean; // Whether this is the primary location
+  locationName?: string; // Name of the location (for additional locations)
 };
 
 type Props = {

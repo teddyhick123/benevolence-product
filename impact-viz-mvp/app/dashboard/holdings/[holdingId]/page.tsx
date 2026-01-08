@@ -632,7 +632,7 @@ async function addHoldingLocation(formData: FormData) {
   revalidatePath(`/dashboard`);
 }
 
-async function updateHoldingLocation(formData: FormData) {
+async function updateHoldingLocationRecord(formData: FormData) {
   'use server';
   const supabase = await getSupabase();
   const locationId = String(formData.get('location_id'));
@@ -660,7 +660,7 @@ async function updateHoldingLocation(formData: FormData) {
     .eq('id', locationId);
 
   if (error) {
-    console.error('updateHoldingLocation error:', error);
+    console.error('updateHoldingLocationRecord error:', error);
     throw new Error(`Failed to update location: ${error.message}`);
   }
 

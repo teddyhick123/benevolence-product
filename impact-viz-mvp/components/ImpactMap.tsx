@@ -177,9 +177,19 @@ export default function ImpactMap({ points, mode = 'points', onPointClick, onPoi
     // Create main group for zoom/pan transforms
     const g = svg.append('g');
 
-    // Setup zoom behavior
+    // Setup zoom behavior with better constraints
     const zoom = d3.zoom()
       .scaleExtent([1, 8]) // Min zoom 1x, max zoom 8x
+      .translateExtent([[-width * 0.5, -h * 0.5], [width * 1.5, h * 1.5]]) // Constrain panning
+      .wheelDelta((event) => {
+        // Smoother mouse wheel zoom (less sensitive)
+        return -event.deltaY * (event.deltaMode === 1 ? 0.05 : event.deltaMode ? 1 : 0.002);
+      })
+      .filter((event) => {
+        // Disable double-click zoom, allow mouse wheel and drag
+        if (event.type === 'dblclick') return false;
+        return true;
+      })
       .on('zoom', (event) => {
         g.attr('transform', event.transform);
         setZoomTransform({ k: event.transform.k, x: event.transform.x, y: event.transform.y });
@@ -383,27 +393,88 @@ export default function ImpactMap({ points, mode = 'points', onPointClick, onPoi
     }
   }, [cleanPoints, width, h, borders, land, onPointClick, onPointHover, highlightedId, points, mode, zoomTransform.k]);
 
-  // Zoom control handlers
+  // Zoom control handlers with smart zoom levels
   const handleZoomIn = () => {
     const svg = d3.select(svgRef.current);
     if (zoomBehaviorRef.current) {
-      svg.transition().duration(300).call(zoomBehaviorRef.current.scaleBy, 1.5);
+      const currentZoom = zoomTransform.k;
+      // Smart zoom levels: 1 → 2 → 4 → 8
+      let targetZoom = currentZoom * 2;
+      if (currentZoom < 1.5) targetZoom = 2;
+      else if (currentZoom < 3) targetZoom = 4;
+      else if (currentZoom < 6) targetZoom = 8;
+      else targetZoom = Math.min(8, currentZoom * 1.3); // Fine increment at max
+
+      svg.transition().duration(400).ease(d3.easeCubicOut).call(
+        zoomBehaviorRef.current.scaleTo,
+        targetZoom
+      );
     }
   };
 
   const handleZoomOut = () => {
     const svg = d3.select(svgRef.current);
     if (zoomBehaviorRef.current) {
-      svg.transition().duration(300).call(zoomBehaviorRef.current.scaleBy, 0.67);
+      const currentZoom = zoomTransform.k;
+      // Smart zoom levels: 8 → 4 → 2 → 1
+      let targetZoom = currentZoom / 2;
+      if (currentZoom > 6) targetZoom = 4;
+      else if (currentZoom > 3) targetZoom = 2;
+      else if (currentZoom > 1.5) targetZoom = 1;
+      else targetZoom = 1;
+
+      svg.transition().duration(400).ease(d3.easeCubicOut).call(
+        zoomBehaviorRef.current.scaleTo,
+        targetZoom
+      );
     }
   };
 
   const handleZoomReset = () => {
     const svg = d3.select(svgRef.current);
     if (zoomBehaviorRef.current) {
-      svg.transition().duration(500).call(
+      svg.transition().duration(600).ease(d3.easeCubicInOut).call(
         zoomBehaviorRef.current.transform,
         d3.zoomIdentity
+      );
+    }
+  };
+
+  const handleFitToPoints = () => {
+    if (!svgRef.current || cleanPoints.length === 0) return;
+
+    const svg = d3.select(svgRef.current);
+    const projection = d3.geoNaturalEarth1();
+    projection.fitExtent([[8, 8], [width - 8, h - 8]], { type: 'Sphere' } as any);
+
+    // Get bounding box of all points
+    const coords = cleanPoints.map(p => [p.lon, p.lat]);
+    const bounds = coords.reduce(
+      (acc, [lon, lat]) => {
+        return [
+          [Math.min(acc[0][0], lon), Math.min(acc[0][1], lat)],
+          [Math.max(acc[1][0], lon), Math.max(acc[1][1], lat)]
+        ];
+      },
+      [[Infinity, Infinity], [-Infinity, -Infinity]]
+    );
+
+    // Project bounds to screen coordinates
+    const topLeft = projection(bounds[0]) || [0, 0];
+    const bottomRight = projection(bounds[1]) || [width, h];
+
+    // Calculate zoom and pan to fit
+    const dx = bottomRight[0] - topLeft[0];
+    const dy = bottomRight[1] - topLeft[1];
+    const x = (topLeft[0] + bottomRight[0]) / 2;
+    const y = (topLeft[1] + bottomRight[1]) / 2;
+    const scale = Math.min(8, 0.85 / Math.max(dx / width, dy / h));
+    const translate = [width / 2 - scale * x, h / 2 - scale * y];
+
+    if (zoomBehaviorRef.current) {
+      svg.transition().duration(750).ease(d3.easeCubicInOut).call(
+        zoomBehaviorRef.current.transform,
+        d3.zoomIdentity.translate(translate[0], translate[1]).scale(scale)
       );
     }
   };
@@ -446,10 +517,21 @@ export default function ImpactMap({ points, mode = 'points', onPointClick, onPoi
         </button>
         <button
           type="button"
+          onClick={handleFitToPoints}
+          className="p-2 hover:bg-neutral-50 transition-colors border-b border-black/5"
+          aria-label="Fit to holdings"
+          title="Fit to holdings"
+        >
+          <svg className="w-5 h-5 text-neutral-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+          </svg>
+        </button>
+        <button
+          type="button"
           onClick={handleZoomReset}
           className="p-2 hover:bg-neutral-50 transition-colors"
           aria-label="Reset zoom"
-          title="Reset zoom"
+          title="Reset to world view"
         >
           <svg className="w-5 h-5 text-neutral-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -459,8 +541,15 @@ export default function ImpactMap({ points, mode = 'points', onPointClick, onPoi
 
       {/* Zoom Level Indicator */}
       {zoomTransform.k !== 1 && (
-        <div className="absolute bottom-4 left-4 z-10 bg-white rounded-md border border-black/10 shadow-md px-3 py-1.5 text-xs font-medium text-neutral-700">
-          {Math.round(zoomTransform.k * 100)}%
+        <div className="absolute bottom-4 left-4 z-10 bg-white rounded-md border border-black/10 shadow-md px-3 py-1.5">
+          <div className="flex items-center gap-2">
+            <svg className="w-3.5 h-3.5 text-neutral-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" />
+            </svg>
+            <span className="text-xs font-semibold text-neutral-700">
+              {Math.round(zoomTransform.k * 100)}%
+            </span>
+          </div>
         </div>
       )}
 

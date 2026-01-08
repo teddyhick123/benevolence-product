@@ -177,14 +177,23 @@ export function getClusterLabel(cluster: Cluster): string {
 
 /**
  * Determine optimal clustering distance based on zoom level
+ * Uses smooth interpolation to avoid sudden clustering changes
  */
 export function getOptimalClusterDistance(zoomScale: number): number {
-  // At zoom 1x: 40px clustering distance
-  // At zoom 2x: 30px
+  // Smooth curve: higher zoom = less clustering
+  // At zoom 1x: 50px clustering distance
+  // At zoom 2x: 35px
   // At zoom 4x: 20px
+  // At zoom 6x: 10px
   // At zoom 8x: 0px (no clustering)
+
   if (zoomScale >= 8) return 0;
-  if (zoomScale >= 4) return 20;
-  if (zoomScale >= 2) return 30;
-  return 40;
+
+  // Smooth exponential decay instead of hard thresholds
+  const maxDistance = 50;
+  const minDistance = 0;
+  const decayRate = 0.3; // Controls how quickly clustering reduces
+
+  const distance = maxDistance * Math.exp(-decayRate * (zoomScale - 1));
+  return Math.max(minDistance, Math.min(maxDistance, Math.round(distance)));
 }

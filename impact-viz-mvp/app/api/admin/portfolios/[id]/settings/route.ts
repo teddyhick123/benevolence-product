@@ -35,7 +35,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     );
   }
 
-  const { show_map, widgets } = validation.data;
+  const { name, show_map, widgets } = validation.data;
 
   const supabase = await createSupabaseServerClient();
 
@@ -45,7 +45,19 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     return NextResponse.json({ error: 'not authorized' }, { status: 403, headers: { 'Cache-Control': 'no-store' } });
   }
 
-  // Build upsert row
+  // Update portfolio name if provided
+  if (name !== undefined) {
+    const { error: nameError } = await supabase
+      .from('portfolios')
+      .update({ name })
+      .eq('id', portfolioId);
+
+    if (nameError) {
+      return NextResponse.json({ error: nameError.message }, { status: 500, headers: { 'Cache-Control': 'no-store' } });
+    }
+  }
+
+  // Build upsert row for settings
   const row: any = { portfolio_id: portfolioId };
   if (show_map !== undefined) row.show_map = show_map;
   if (widgets) row.widgets = widgets;

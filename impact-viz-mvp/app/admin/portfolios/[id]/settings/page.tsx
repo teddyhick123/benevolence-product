@@ -20,6 +20,7 @@ export default function PortfolioSettingsPage({ params }: { params: Promise<{ id
   const [error, setError] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
 
+  const [portfolioName, setPortfolioName] = useState<string>('');
   const [showMap, setShowMap] = useState<boolean>(true);
   const [widgets, setWidgets] = useState<string[]>(['kpi_waci','sector_emissions']);
 
@@ -29,11 +30,32 @@ export default function PortfolioSettingsPage({ params }: { params: Promise<{ id
       setLoading(true);
       setError(null);
       try {
-        const r = await fetch(`/api/portfolio/${encodeURIComponent(portfolioId)}/settings`, { cache: 'no-store' });
-        const j = await r.json();
+        // Fetch portfolio info and settings in parallel
+        const [portfolioRes, settingsRes] = await Promise.all([
+          fetch(`/api/portfolio/${encodeURIComponent(portfolioId)}`, { cache: 'no-store' }),
+          fetch(`/api/portfolio/${encodeURIComponent(portfolioId)}/settings`, { cache: 'no-store' })
+        ]);
+
         if (!mounted) return;
-        setShowMap(Boolean(j?.show_map ?? true));
-        if (Array.isArray(j?.widgets) && j.widgets.length) setWidgets(j.widgets);
+
+        // Handle portfolio info
+        if (portfolioRes.ok) {
+          const portfolioData = await portfolioRes.json();
+          if (mounted && portfolioData?.name) {
+            setPortfolioName(portfolioData.name);
+          }
+        }
+
+        // Handle settings
+        if (settingsRes.ok) {
+          const settingsData = await settingsRes.json();
+          if (mounted) {
+            setShowMap(Boolean(settingsData?.show_map ?? true));
+            if (Array.isArray(settingsData?.widgets) && settingsData.widgets.length) {
+              setWidgets(settingsData.widgets);
+            }
+          }
+        }
       } catch (e: any) {
         if (mounted) setError(e?.message || 'Failed to load settings');
       } finally {
@@ -54,12 +76,12 @@ export default function PortfolioSettingsPage({ params }: { params: Promise<{ id
       const res = await fetch(`/api/admin/portfolios/${encodeURIComponent(portfolioId)}/settings`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ show_map: showMap, widgets }),
+        body: JSON.stringify({ name: portfolioName, show_map: showMap, widgets }),
       });
       const j = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(j?.error || 'Failed to save');
       setOk('Settings saved');
-      setTimeout(() => setOk(null), 1500);
+      setTimeout(() => setOk(null), 3000);
     } catch (e: any) {
       setError(e?.message || 'Failed to save');
     } finally {
@@ -97,6 +119,27 @@ export default function PortfolioSettingsPage({ params }: { params: Promise<{ id
       )}
 
       <form onSubmit={onSave} className="space-y-6">
+        {/* Portfolio Name */}
+        <div className="card p-4">
+          <div className="space-y-2">
+            <label htmlFor="portfolioName" className="block text-sm font-medium text-neutral-700">
+              Portfolio Name
+            </label>
+            <input
+              type="text"
+              id="portfolioName"
+              value={portfolioName}
+              onChange={(e) => setPortfolioName(e.target.value)}
+              placeholder="Enter portfolio name"
+              required
+              className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-azure focus:border-transparent text-sm"
+            />
+            <p className="text-xs text-neutral-500">
+              This name appears in the dashboard header and admin lists.
+            </p>
+          </div>
+        </div>
+
         {/* Map toggle */}
         <div className="card p-4">
           <div className="flex items-center justify-between">

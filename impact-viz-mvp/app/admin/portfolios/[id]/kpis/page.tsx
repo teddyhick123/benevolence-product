@@ -1,9 +1,8 @@
-// app/admin/portfolios/[id]/kpis/page.tsx
-import { createSupabaseServerClient } from '@/lib/supabase';
-import Link from 'next/link';
+'use client';
 
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
+import { useEffect, useState, use } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 
 type KpiRow = {
   id: string;
@@ -20,45 +19,20 @@ type Metric = {
   unit: string | null;
 };
 
-async function loadData(portfolioId: string) {
-  const supabase = await createSupabaseServerClient();
-
-  // Admin gate
-  const { data: isAdmin, error: adminErr } = await supabase.rpc('is_admin');
-  if (adminErr || !isAdmin) {
-    return { error: 'Not authorized', kpis: [] as KpiRow[], metrics: [] as Metric[] };
-  }
-
-  const [{ data: kpis, error: kErr }, { data: metrics, error: mErr }] = await Promise.all([
-    supabase
-      .from('kpi_definitions')
-      .select('id, metric_code, display_name, target_value, target_date, order_index')
-      .eq('portfolio_id', portfolioId)
-      .order('order_index', { ascending: true }),
-    supabase
-      .from('metrics')
-      .select('code, name, unit')
-      .order('code', { ascending: true }),
-  ]);
-
-  const error = kErr?.message || mErr?.message || null;
-  return { error, kpis: (kpis ?? []) as KpiRow[], metrics: (metrics ?? []) as Metric[] };
-}
-
 function MetricCodeSelect({
-  name,
+  value,
+  onChange,
   metrics,
-  defaultValue,
 }: {
-  name: string;
+  value: string;
+  onChange: (value: string) => void;
   metrics: Metric[];
-  defaultValue?: string | null;
 }) {
   return (
     <select
-      name={name}
-      defaultValue={defaultValue ?? ''}
-      className="border rounded-2xl px-3 py-2 w-full"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className="border border-gray-300 rounded-lg px-3 py-2 w-full focus:ring-2 focus:ring-azure focus:border-azure"
       required
     >
       <option value="" disabled>
@@ -73,177 +47,437 @@ function MetricCodeSelect({
   );
 }
 
-export default async function KpisPage(ctx: { params: Promise<{ id: string }> }) {
-  const { id: portfolioId } = await ctx.params;
-  const { error, kpis, metrics } = await loadData(portfolioId);
+function KpiEditRow({ kpi, metrics, onSave, onDelete }: {
+  kpi: KpiRow;
+  metrics: Metric[];
+  onSave: (id: string, data: Partial<KpiRow>) => Promise<void>;
+  onDelete: (id: string) => Promise<void>;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [metricCode, setMetricCode] = useState(kpi.metric_code);
+  const [displayName, setDisplayName] = useState(kpi.display_name || '');
+  const [targetValue, setTargetValue] = useState(kpi.target_value?.toString() || '');
+  const [targetDate, setTargetDate] = useState(kpi.target_date || '');
+  const [orderIndex, setOrderIndex] = useState(kpi.order_index?.toString() || '0');
+
+  async function handleSave() {
+    setSaving(true);
+    try {
+      await onSave(kpi.id, {
+        metric_code: metricCode,
+        display_name: displayName || null,
+        target_value: targetValue ? parseFloat(targetValue) : null,
+        target_date: targetDate || null,
+        order_index: orderIndex ? parseInt(orderIndex) : null,
+      });
+      setEditing(false);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDelete() {
+    if (!confirm('Delete this KPI? This cannot be undone.')) return;
+    await onDelete(kpi.id);
+  }
+
+  if (editing) {
+    return (
+      <div className="border border-gray-200 rounded-lg p-4 bg-white space-y-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">Metric</label>
+            <MetricCodeSelect value={metricCode} onChange={setMetricCode} metrics={metrics} />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">Display Name</label>
+            <input
+              value={displayName}
+              onChange={(e) => setDisplayName(e.target.value)}
+              placeholder="Optional display name"
+              className="border border-gray-300 rounded-lg px-3 py-2 w-full focus:ring-2 focus:ring-azure focus:border-azure"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">Target Value</label>
+            <input
+              type="number"
+              step="any"
+              value={targetValue}
+              onChange={(e) => setTargetValue(e.target.value)}
+              placeholder="Target value"
+              className="border border-gray-300 rounded-lg px-3 py-2 w-full focus:ring-2 focus:ring-azure focus:border-azure"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">Target Date</label>
+            <input
+              type="date"
+              value={targetDate}
+              onChange={(e) => setTargetDate(e.target.value)}
+              className="border border-gray-300 rounded-lg px-3 py-2 w-full focus:ring-2 focus:ring-azure focus:border-azure"
+            />
+          </div>
+          <div className="md:col-span-2">
+            <label className="block text-xs font-medium text-gray-700 mb-1">Display Order</label>
+            <input
+              type="number"
+              value={orderIndex}
+              onChange={(e) => setOrderIndex(e.target.value)}
+              placeholder="Order index"
+              className="border border-gray-300 rounded-lg px-3 py-2 w-full focus:ring-2 focus:ring-azure focus:border-azure"
+            />
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="px-4 py-2 rounded-lg bg-azure text-white font-medium hover:bg-azure/90 transition disabled:opacity-50"
+          >
+            {saving ? 'Saving...' : 'Save Changes'}
+          </button>
+          <button
+            onClick={() => setEditing(false)}
+            disabled={saving}
+            className="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 transition"
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const metricInfo = metrics.find(m => m.code === kpi.metric_code);
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6">
-      {/* Top bar */}
+    <div className="border border-gray-200 rounded-lg p-4 bg-white hover:shadow-md transition">
+      <div className="flex items-start justify-between">
+        <div className="flex-1 space-y-2">
+          <div>
+            <div className="font-medium text-gray-900">
+              {kpi.display_name || kpi.metric_code}
+            </div>
+            {kpi.display_name && (
+              <div className="text-xs text-gray-500 font-mono">{kpi.metric_code}</div>
+            )}
+            {metricInfo && (
+              <div className="text-sm text-gray-600 mt-1">{metricInfo.name}</div>
+            )}
+          </div>
+          <div className="flex items-center gap-4 text-sm text-gray-600">
+            {kpi.target_value !== null && (
+              <div className="flex items-center gap-1">
+                <span className="text-xs text-gray-500">Target:</span>
+                <span className="font-medium">{kpi.target_value.toLocaleString()}</span>
+              </div>
+            )}
+            {kpi.target_date && (
+              <div className="flex items-center gap-1">
+                <span className="text-xs text-gray-500">By:</span>
+                <span>{new Date(kpi.target_date).toLocaleDateString()}</span>
+              </div>
+            )}
+            <div className="flex items-center gap-1">
+              <span className="text-xs text-gray-500">Order:</span>
+              <span>{kpi.order_index ?? 0}</span>
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 ml-4">
+          <button
+            onClick={() => setEditing(true)}
+            className="px-3 py-1.5 text-sm rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 transition"
+          >
+            Edit
+          </button>
+          <button
+            onClick={handleDelete}
+            className="px-3 py-1.5 text-sm rounded-lg border border-red-200 text-red-700 hover:bg-red-50 transition"
+          >
+            Delete
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function KpisPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id: portfolioId } = use(params);
+  const router = useRouter();
+
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  const [kpis, setKpis] = useState<KpiRow[]>([]);
+  const [metrics, setMetrics] = useState<Metric[]>([]);
+
+  // New KPI form state
+  const [newMetricCode, setNewMetricCode] = useState('');
+  const [newDisplayName, setNewDisplayName] = useState('');
+  const [newTargetValue, setNewTargetValue] = useState('');
+  const [newTargetDate, setNewTargetDate] = useState('');
+  const [newOrderIndex, setNewOrderIndex] = useState('');
+  const [creating, setCreating] = useState(false);
+
+  useEffect(() => {
+    loadData();
+  }, [portfolioId]);
+
+  async function loadData() {
+    setLoading(true);
+    setError(null);
+    try {
+      const [kpisRes, metricsRes] = await Promise.all([
+        fetch(`/api/admin/portfolios/${portfolioId}/kpis`, { cache: 'no-store' }),
+        fetch(`/api/metrics`, { cache: 'no-store' }),
+      ]);
+
+      if (!kpisRes.ok) throw new Error('Failed to load KPIs');
+      if (!metricsRes.ok) throw new Error('Failed to load metrics');
+
+      const kpisData = await kpisRes.json();
+      const metricsData = await metricsRes.json();
+
+      setKpis(kpisData.data || []);
+      setMetrics(metricsData.data || []);
+    } catch (err: any) {
+      setError(err.message || 'Failed to load data');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleCreate(e: React.FormEvent) {
+    e.preventDefault();
+    if (!newMetricCode) return;
+
+    setCreating(true);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      const res = await fetch(`/api/admin/portfolios/${portfolioId}/kpis`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          metric_code: newMetricCode,
+          display_name: newDisplayName || null,
+          target_value: newTargetValue ? parseFloat(newTargetValue) : null,
+          target_date: newTargetDate || null,
+          order_index: newOrderIndex ? parseInt(newOrderIndex) : null,
+        }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Failed to create KPI');
+      }
+
+      setSuccess('KPI created successfully');
+      setNewMetricCode('');
+      setNewDisplayName('');
+      setNewTargetValue('');
+      setNewTargetDate('');
+      setNewOrderIndex('');
+      await loadData();
+      setTimeout(() => setSuccess(null), 3000);
+    } catch (err: any) {
+      setError(err.message || 'Failed to create KPI');
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  async function handleSave(id: string, data: Partial<KpiRow>) {
+    setError(null);
+    setSuccess(null);
+
+    try {
+      const res = await fetch(`/api/admin/kpis/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+
+      if (!res.ok) {
+        const resData = await res.json();
+        throw new Error(resData.error || 'Failed to update KPI');
+      }
+
+      setSuccess('KPI updated successfully');
+      await loadData();
+      setTimeout(() => setSuccess(null), 3000);
+    } catch (err: any) {
+      setError(err.message || 'Failed to update KPI');
+    }
+  }
+
+  async function handleDelete(id: string) {
+    setError(null);
+    setSuccess(null);
+
+    try {
+      const res = await fetch(`/api/admin/kpis/${id}`, {
+        method: 'DELETE',
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Failed to delete KPI');
+      }
+
+      setSuccess('KPI deleted successfully');
+      await loadData();
+      setTimeout(() => setSuccess(null), 3000);
+    } catch (err: any) {
+      setError(err.message || 'Failed to delete KPI');
+    }
+  }
+
+  return (
+    <div className="mx-auto max-w-6xl space-y-6 p-6">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold">KPIs</h1>
-          <p className="text-sm text-neutral-600">Manage key performance indicators for this portfolio.</p>
+          <h1 className="text-3xl font-bold text-gray-900">KPI Management</h1>
+          <p className="text-sm text-gray-600 mt-1">Define and track key performance indicators for this portfolio</p>
         </div>
         <div className="flex items-center gap-2">
           <Link
-            href={`/admin/portfolios/${encodeURIComponent(portfolioId)}/members`}
-            className="px-4 py-2 rounded-2xl border border-black/10 hover:bg-white shadow-sm hover:shadow transition"
+            href={`/admin/portfolios/${portfolioId}/members`}
+            className="px-4 py-2 rounded-lg border border-gray-300 hover:bg-gray-50 transition text-sm font-medium"
           >
             Members
           </Link>
           <Link
-            href={`/dashboard?portfolio_id=${encodeURIComponent(portfolioId)}`}
-            className="px-4 py-2 rounded-2xl bg-gradient-to-r from-azure via-azure/90 to-azure/70 text-white shadow-soft hover:opacity-90 transition"
+            href={`/admin/portfolios/${portfolioId}/settings`}
+            className="px-4 py-2 rounded-lg border border-gray-300 hover:bg-gray-50 transition text-sm font-medium"
           >
-            Dashboard
+            Settings
+          </Link>
+          <Link
+            href={`/dashboard?portfolio_id=${portfolioId}`}
+            className="px-4 py-2 rounded-lg bg-azure text-white hover:bg-azure/90 transition text-sm font-medium"
+          >
+            View Dashboard
           </Link>
         </div>
       </div>
 
+      {/* Status Messages */}
       {error && (
-        <div className="card p-4 text-sm text-red-700 bg-red-50 border border-red-200">
-          {error}
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+          <div className="flex items-center gap-2 text-red-800">
+            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+            </svg>
+            <span className="font-medium">{error}</span>
+          </div>
         </div>
       )}
 
-      {/* Create KPI */}
-      <div className="card p-4 space-y-4">
-        <h2 className="text-lg font-medium">Add KPI</h2>
-        <form
-          action={`/api/admin/portfolios/${encodeURIComponent(portfolioId)}/kpis`}
-          method="post"
-          className="grid grid-cols-1 md:grid-cols-5 gap-3"
-        >
-          <div className="md:col-span-2">
-            <MetricCodeSelect name="metric_code" metrics={metrics} />
+      {success && (
+        <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+          <div className="flex items-center gap-2 text-green-800">
+            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+            </svg>
+            <span className="font-medium">{success}</span>
           </div>
-          <input
-            name="display_name"
-            placeholder="Display name (optional)"
-            className="border rounded-2xl px-3 py-2 w-full"
-          />
-          <input
-            name="target_value"
-            placeholder="Target value"
-            type="number"
-            step="any"
-            className="border rounded-2xl px-3 py-2 w-full"
-          />
-          <input
-            name="target_date"
-            placeholder="Target date (YYYY-MM-DD)"
-            pattern="\\d{4}-\\d{2}-\\d{2}"
-            className="border rounded-2xl px-3 py-2 w-full"
-          />
-          <input
-            name="order_index"
-            placeholder="Order"
-            type="number"
-            className="border rounded-2xl px-3 py-2 w-full"
-          />
-          <div className="md:col-span-5 flex items-center gap-2">
-            <button
-              type="submit"
-              className="px-4 py-2 rounded-2xl bg-gradient-to-r from-azure via-azure/90 to-azure/70 text-white shadow-soft hover:opacity-90 transition"
-            >
-              Create KPI
-            </button>
-            <span className="text-xs text-neutral-500">You can reorder later by changing order numbers.</span>
+        </div>
+      )}
+
+      {/* Create New KPI */}
+      <div className="bg-white border border-gray-200 rounded-lg p-6">
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">Add New KPI</h2>
+        <form onSubmit={handleCreate} className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="lg:col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Metric <span className="text-red-500">*</span>
+              </label>
+              <MetricCodeSelect value={newMetricCode} onChange={setNewMetricCode} metrics={metrics} />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Display Name</label>
+              <input
+                value={newDisplayName}
+                onChange={(e) => setNewDisplayName(e.target.value)}
+                placeholder="Optional custom name"
+                className="border border-gray-300 rounded-lg px-3 py-2 w-full focus:ring-2 focus:ring-azure focus:border-azure"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Target Value</label>
+              <input
+                type="number"
+                step="any"
+                value={newTargetValue}
+                onChange={(e) => setNewTargetValue(e.target.value)}
+                placeholder="0"
+                className="border border-gray-300 rounded-lg px-3 py-2 w-full focus:ring-2 focus:ring-azure focus:border-azure"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Target Date</label>
+              <input
+                type="date"
+                value={newTargetDate}
+                onChange={(e) => setNewTargetDate(e.target.value)}
+                className="border border-gray-300 rounded-lg px-3 py-2 w-full focus:ring-2 focus:ring-azure focus:border-azure"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Display Order</label>
+              <input
+                type="number"
+                value={newOrderIndex}
+                onChange={(e) => setNewOrderIndex(e.target.value)}
+                placeholder="0"
+                className="border border-gray-300 rounded-lg px-3 py-2 w-full focus:ring-2 focus:ring-azure focus:border-azure"
+              />
+            </div>
           </div>
-          <input type="hidden" name="__from" value="ui" />
+          <button
+            type="submit"
+            disabled={creating || !newMetricCode}
+            className="px-6 py-2.5 rounded-lg bg-azure text-white font-medium hover:bg-azure/90 transition disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {creating ? 'Creating...' : 'Create KPI'}
+          </button>
         </form>
       </div>
 
-      {/* List / Edit KPIs */}
-      <div className="card p-4">
-        {kpis.length === 0 ? (
-          <div className="text-sm text-neutral-600">No KPIs yet. Create one above.</div>
+      {/* Existing KPIs */}
+      <div className="bg-white border border-gray-200 rounded-lg p-6">
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">
+          Existing KPIs {kpis.length > 0 && <span className="text-sm font-normal text-gray-500">({kpis.length})</span>}
+        </h2>
+
+        {loading ? (
+          <div className="text-center py-8 text-gray-500">
+            <div className="inline-block w-6 h-6 border-2 border-gray-300 border-t-azure rounded-full animate-spin mb-2"></div>
+            <p className="text-sm">Loading KPIs...</p>
+          </div>
+        ) : kpis.length === 0 ? (
+          <div className="text-center py-8 text-gray-500">
+            <p>No KPIs defined yet. Create your first one above.</p>
+          </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-black/5">
-                  <th className="text-left px-3 py-2 font-medium text-neutral-700">Metric</th>
-                  <th className="text-left px-3 py-2 font-medium text-neutral-700">Display name</th>
-                  <th className="text-left px-3 py-2 font-medium text-neutral-700">Target</th>
-                  <th className="text-left px-3 py-2 font-medium text-neutral-700">Target date</th>
-                  <th className="text-left px-3 py-2 font-medium text-neutral-700">Order</th>
-                  <th className="text-right px-3 py-2 font-medium text-neutral-700">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {kpis.map((k) => (
-                  <tr key={k.id} className="border-b border-black/5 align-top">
-                    <td className="px-3 py-2 min-w-[220px]">
-                      <form
-                        action={`/api/admin/kpis/${encodeURIComponent(k.id)}`}
-                        method="post"
-                        className="grid grid-cols-1 gap-2 md:grid-cols-1"
-                      >
-                        <input type="hidden" name="_method" value="PUT" />
-                        <MetricCodeSelect name="metric_code" metrics={metrics} defaultValue={k.metric_code} />
-                        <div className="grid grid-cols-1 md:grid-cols-4 gap-2 mt-2">
-                          <input
-                            name="display_name"
-                            defaultValue={k.display_name ?? ''}
-                            placeholder="Display name"
-                            className="border rounded-2xl px-3 py-2 md:col-span-2"
-                          />
-                          <input
-                            name="target_value"
-                            defaultValue={k.target_value ?? ''}
-                            placeholder="Target value"
-                            type="number"
-                            step="any"
-                            className="border rounded-2xl px-3 py-2"
-                          />
-                          <input
-                            name="target_date"
-                            defaultValue={k.target_date ?? ''}
-                            placeholder="YYYY-MM-DD"
-                            pattern="\\d{4}-\\d{2}-\\d{2}"
-                            className="border rounded-2xl px-3 py-2"
-                          />
-                          <input
-                            name="order_index"
-                            defaultValue={k.order_index ?? 0}
-                            placeholder="Order"
-                            type="number"
-                            className="border rounded-2xl px-3 py-2"
-                          />
-                        </div>
-                        <div className="flex items-center gap-2 mt-2">
-                          <button className="px-3 py-1.5 rounded-2xl bg-gradient-to-r from-azure via-azure/90 to-azure/70 text-white shadow-soft hover:opacity-90 transition">
-                            Save
-                          </button>
-                          <form
-                            action={`/api/admin/kpis/${encodeURIComponent(k.id)}`}
-                            method="post"
-                            onSubmit={(e) => {
-                              if (!confirm('Delete this KPI?')) e.preventDefault();
-                            }}
-                          >
-                            <input type="hidden" name="_method" value="DELETE" />
-                            <button
-                              className="px-3 py-1.5 rounded-2xl border border-black/10 hover:bg-white shadow-sm hover:shadow transition"
-                              type="submit"
-                            >
-                              Delete
-                            </button>
-                          </form>
-                        </div>
-                      </form>
-                    </td>
-                    <td className="px-3 py-2 align-top"></td>
-                    <td className="px-3 py-2 align-top"></td>
-                    <td className="px-3 py-2 align-top"></td>
-                    <td className="px-3 py-2 align-top"></td>
-                    <td className="px-3 py-2 align-top text-right"></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="space-y-3">
+            {kpis.map((kpi) => (
+              <KpiEditRow
+                key={kpi.id}
+                kpi={kpi}
+                metrics={metrics}
+                onSave={handleSave}
+                onDelete={handleDelete}
+              />
+            ))}
           </div>
         )}
       </div>

@@ -35,6 +35,9 @@ export type MapApiPoint = {
     periodEnd: string;
   }>;
   totalContributions?: number;
+  isPrimaryLocation?: boolean; // True if from holdings table, false if from holding_locations
+  locationCount?: number; // Number of locations for this holding (primary + additional)
+  locationName?: string; // Original location name (for holding_locations)
 };
 
 export default function MapSection({ portfolioId }: { portfolioId: string }) {
@@ -53,7 +56,6 @@ export default function MapSection({ portfolioId }: { portfolioId: string }) {
   // Filter state
   const [searchQuery, setSearchQuery] = React.useState<string>('');
   const [assetTypeFilter, setAssetTypeFilter] = React.useState<string[]>([]);
-  const [showFilters, setShowFilters] = React.useState<boolean>(false);
 
   const points = data?.points ?? [];
 
@@ -106,42 +108,33 @@ export default function MapSection({ portfolioId }: { portfolioId: string }) {
 
       {/* Mode Selector and Filter Controls */}
       {points.length > 0 && (
-        <div className="flex gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-4">
           {/* Visualization Mode Selector */}
-          <div className="w-64 flex-shrink-0">
+          <div>
             <MapModeSelector mode={mapMode} onModeChange={setMapMode} />
           </div>
 
-          {/* Filter Controls */}
-          <div className="flex-1 space-y-3">
-            <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setShowFilters(!showFilters)}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-black/10 text-sm text-neutral-700 hover:bg-neutral-50 transition-colors"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
-              </svg>
-              Filters
-              {(searchQuery || assetTypeFilter.length > 0) && (
-                <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-azure text-white text-xs font-semibold">
-                  {(searchQuery ? 1 : 0) + assetTypeFilter.length}
+          {/* Filter Controls - Always Visible */}
+          <div className="rounded-xl border border-black/5 bg-white shadow-soft p-4 space-y-4">
+            {/* Header with count */}
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-neutral-800 flex items-center gap-2">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+                </svg>
+                Filters
+              </h3>
+              {filteredPoints.length !== points.length && (
+                <span className="text-sm text-neutral-600">
+                  Showing {filteredPoints.length} of {points.length}
                 </span>
               )}
-            </button>
-            {filteredPoints.length !== points.length && (
-              <span className="text-sm text-neutral-600">
-                Showing {filteredPoints.length} of {points.length} holdings
-              </span>
-            )}
-          </div>
+            </div>
 
-          {showFilters && (
-            <div className="rounded-xl border border-black/5 bg-white shadow-soft p-4 space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Search Input */}
               <div>
-                <label htmlFor="map-search" className="block text-sm font-medium text-neutral-700 mb-1.5">
+                <label htmlFor="map-search" className="block text-xs font-medium text-neutral-700 mb-1.5">
                   Search by name
                 </label>
                 <input
@@ -157,7 +150,7 @@ export default function MapSection({ portfolioId }: { portfolioId: string }) {
               {/* Asset Type Filters */}
               {uniqueAssetTypes.length > 0 && (
                 <div>
-                  <label className="block text-sm font-medium text-neutral-700 mb-2">
+                  <label className="block text-xs font-medium text-neutral-700 mb-1.5">
                     Asset Types
                   </label>
                   <div className="flex flex-wrap gap-2">
@@ -183,24 +176,23 @@ export default function MapSection({ portfolioId }: { portfolioId: string }) {
                   </div>
                 </div>
               )}
-
-              {/* Clear Filters */}
-              {(searchQuery || assetTypeFilter.length > 0) && (
-                <div className="pt-2 border-t border-black/5">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSearchQuery('');
-                      setAssetTypeFilter([]);
-                    }}
-                    className="text-sm text-azure hover:text-azure/80 font-medium"
-                  >
-                    Clear all filters
-                  </button>
-                </div>
-              )}
             </div>
-          )}
+
+            {/* Clear Filters */}
+            {(searchQuery || assetTypeFilter.length > 0) && (
+              <div className="pt-2 border-t border-black/5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchQuery('');
+                    setAssetTypeFilter([]);
+                  }}
+                  className="text-sm text-azure hover:text-azure/80 font-medium"
+                >
+                  Clear all filters
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}

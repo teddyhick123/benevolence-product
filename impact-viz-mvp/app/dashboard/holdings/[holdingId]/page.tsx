@@ -9,6 +9,8 @@ import EditableContactNotes from '@/components/EditableContactNotes';
 import HoldingWidgetsSection from '@/components/vis/HoldingWidgetsSection';
 import NewsSection from '@/components/NewsSection';
 import FactRow from '@/components/FactRow';
+import LocationsManagerWrapper from '@/components/holdings/LocationsManagerWrapper';
+import { geocodeLocation } from '@/lib/services/google-maps';
 
 type HoldingRow = {
   id: string;
@@ -127,6 +129,29 @@ async function fetchMetricNames(portfolioId: string): Promise<Map<string, string
   }
 
   return metricMap;
+}
+
+type HoldingLocationRow = {
+  id: string;
+  holding_id: string;
+  portfolio_id: string;
+  name: string;
+  lon: number;
+  lat: number;
+  status: string | null;
+  tags: string[];
+};
+
+async function fetchLocations(portfolioId: string, holdingId: string): Promise<HoldingLocationRow[]> {
+  const supabase = await getSupabase();
+  const { data, error } = await supabase
+    .from('holding_locations')
+    .select('id, holding_id, portfolio_id, name, lon, lat, status, tags')
+    .eq('portfolio_id', portfolioId)
+    .eq('holding_id', holdingId)
+    .order('name');
+  if (error || !data) return [];
+  return data as HoldingLocationRow[];
 }
 
 
@@ -263,6 +288,38 @@ async function updateHoldingLocation(formData: FormData) {
   const location_country = getValue(formData, 'location_country');
   if (location_country !== undefined) updates.location_country = location_country;
 
+  // Auto-geocode if location fields are provided
+  if (location_city || location_state || location_country) {
+    try {
+      const geocodeResult = await geocodeLocation({
+        city: location_city || undefined,
+        state: location_state || undefined,
+        country: location_country || undefined,
+      });
+
+      if (geocodeResult) {
+        updates.latitude = geocodeResult.latitude;
+        updates.longitude = geocodeResult.longitude;
+        updates.geocoded_at = new Date().toISOString();
+        updates.geocode_status = 'success';
+        updates.geocode_provider = 'google_maps';
+        updates.geocode_metadata = {
+          formatted_address: geocodeResult.formattedAddress,
+          place_id: geocodeResult.placeId,
+          accuracy: geocodeResult.accuracy,
+        };
+
+        console.log(`[Geocoding] Success for holding ${holdingId}: ${geocodeResult.formattedAddress}`);
+      } else {
+        updates.geocode_status = 'no_results';
+        console.log(`[Geocoding] No results for holding ${holdingId}`);
+      }
+    } catch (error) {
+      console.error(`[Geocoding] Error for holding ${holdingId}:`, error);
+      updates.geocode_status = 'error';
+      // Don't throw - allow location update to proceed even if geocoding fails
+    }
+  }
 
   const { error, data } = await supabase.from('holdings').update(updates).eq('id', holdingId).select();
 
@@ -533,6 +590,103 @@ async function deleteFact(formData: FormData) {
   revalidatePath(`/dashboard/holdings/${holdingId}`);
   revalidatePath(`/dashboard`);
 }
+
+async function addHoldingLocation(formData: FormData) {
+  'use server';
+  const supabase = await getSupabase();
+  const holdingId = String(formData.get('holding_id'));
+  const portfolioId = String(formData.get('portfolio_id'));
+
+  const name = getValue(formData, 'name');
+  if (!name) {
+    throw new Error('Location name is required');
+  }
+
+  const lon = formData.has('lon') ? numOrNull(formData.get('lon')) : null;
+  const lat = formData.has('lat') ? numOrNull(formData.get('lat')) : null;
+
+  if (lon === null || lat === null) {
+    throw new Error('Coordinates (longitude and latitude) are required');
+  }
+
+  const row = {
+    portfolio_id: portfolioId,
+    holding_id: holdingId,
+    name: name,
+    lon,
+    lat,
+    status: getValue(formData, 'status') || 'Active',
+    tags: [], // Could parse from formData if needed
+  };
+
+  const { error } = await supabase
+    .from('holding_locations')
+    .insert(row);
+
+  if (error) {
+    console.error('addHoldingLocation error:', error);
+    throw new Error(`Failed to add location: ${error.message}`);
+  }
+
+  revalidatePath(`/dashboard/holdings/${holdingId}`);
+  revalidatePath(`/dashboard`);
+}
+
+async function updateHoldingLocation(formData: FormData) {
+  'use server';
+  const supabase = await getSupabase();
+  const locationId = String(formData.get('location_id'));
+  const holdingId = String(formData.get('holding_id'));
+
+  const updates: any = {};
+
+  const name = getValue(formData, 'name');
+  if (name !== undefined) updates.name = name;
+
+  const status = getValue(formData, 'status');
+  if (status !== undefined) updates.status = status;
+
+  if (formData.has('lon')) {
+    updates.lon = numOrNull(formData.get('lon'));
+  }
+
+  if (formData.has('lat')) {
+    updates.lat = numOrNull(formData.get('lat'));
+  }
+
+  const { error } = await supabase
+    .from('holding_locations')
+    .update(updates)
+    .eq('id', locationId);
+
+  if (error) {
+    console.error('updateHoldingLocation error:', error);
+    throw new Error(`Failed to update location: ${error.message}`);
+  }
+
+  revalidatePath(`/dashboard/holdings/${holdingId}`);
+  revalidatePath(`/dashboard`);
+}
+
+async function deleteHoldingLocation(formData: FormData) {
+  'use server';
+  const supabase = await getSupabase();
+  const locationId = String(formData.get('location_id'));
+  const holdingId = String(formData.get('holding_id'));
+
+  const { error } = await supabase
+    .from('holding_locations')
+    .delete()
+    .eq('id', locationId);
+
+  if (error) {
+    console.error('deleteHoldingLocation error:', error);
+    throw new Error(`Failed to delete location: ${error.message}`);
+  }
+
+  revalidatePath(`/dashboard/holdings/${holdingId}`);
+  revalidatePath(`/dashboard`);
+}
 // --- End Server Actions ---
 
 export default async function HoldingMiniDashboard({
@@ -567,10 +721,11 @@ export default async function HoldingMiniDashboard({
 
   const portfolioId = String(holding.portfolio_id);
 
-  const [facts, contributions, metricNames] = await Promise.all([
+  const [facts, contributions, metricNames, locations] = await Promise.all([
     fetchFacts(holdingId),
     fetchContributions(portfolioId, holdingId),
     fetchMetricNames(portfolioId),
+    fetchLocations(portfolioId, holdingId),
   ]);
 
   const latestMetrics = latestByMetric(facts);
@@ -1010,6 +1165,18 @@ export default async function HoldingMiniDashboard({
           />
         </div>
 
+      </section>
+
+      {/* Locations Manager */}
+      <section>
+        <LocationsManagerWrapper
+          holdingId={holding.id}
+          portfolioId={portfolioId}
+          locations={locations as any}
+          addAction={addHoldingLocation}
+          updateAction={updateHoldingLocation}
+          deleteAction={deleteHoldingLocation}
+        />
       </section>
 
       {/* KPI Cards (latest per metric) */}

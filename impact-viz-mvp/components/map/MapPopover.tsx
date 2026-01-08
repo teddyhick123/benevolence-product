@@ -25,6 +25,8 @@ type Props = {
 export default function MapPopover({ point, position, onClose, onOpenDetails }: Props) {
   const hasKpis = point.topKpis && point.topKpis.length > 0;
   const hasFinancial = point.amountUSD != null || point.totalContributions != null;
+  const hasMultipleLocations = (point.locationCount ?? 0) > 1;
+  const isAdditionalLocation = point.isPrimaryLocation === false;
 
   return (
     <div
@@ -42,18 +44,43 @@ export default function MapPopover({ point, position, onClose, onOpenDetails }: 
             <h3 className="font-semibold text-neutral-900 text-base truncate">
               {point.name}
             </h3>
-            {point.tags && point.tags.length > 0 && (
-              <div className="flex flex-wrap gap-1.5 mt-1.5">
-                {point.tags.map((tag, idx) => (
-                  <span
-                    key={idx}
-                    className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-azure/10 text-azure border border-azure/20"
-                  >
-                    {tag}
-                  </span>
-                ))}
+
+            {/* Location Info Badge (for additional locations) */}
+            {isAdditionalLocation && point.locationName && (
+              <div className="flex items-center gap-1.5 mt-1">
+                <svg className="w-3.5 h-3.5 text-neutral-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                <span className="text-xs text-neutral-600 font-medium">
+                  {point.locationName}
+                </span>
               </div>
             )}
+
+            {/* Tags and Location Count */}
+            <div className="flex flex-wrap gap-1.5 mt-1.5">
+              {/* Multiple Locations Badge */}
+              {hasMultipleLocations && point.isPrimaryLocation && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-purple-50 text-purple-700 border border-purple-200">
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                  {point.locationCount} locations
+                </span>
+              )}
+
+              {/* Asset Type and Other Tags */}
+              {point.tags && point.tags.length > 0 && point.tags.map((tag, idx) => (
+                <span
+                  key={idx}
+                  className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-azure/10 text-azure border border-azure/20"
+                >
+                  {tag}
+                </span>
+              ))}
+            </div>
           </div>
           <button
             type="button"

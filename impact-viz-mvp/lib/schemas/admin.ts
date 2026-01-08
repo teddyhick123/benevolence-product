@@ -42,6 +42,7 @@ export const createAdminPortfolioSchema = z.object({
  * Schema for portfolio settings
  */
 export const portfolioSettingsSchema = z.object({
+  name: z.string().min(1, 'Portfolio name is required').max(255, 'Name too long').optional(),
   show_map: z.boolean().optional(),
   widgets: z.array(z.string()).optional(),
 });

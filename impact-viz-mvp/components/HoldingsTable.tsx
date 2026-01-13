@@ -3,6 +3,7 @@ import React, { useMemo, useState, useCallback } from 'react';
 import { useRouter, useParams, useSearchParams } from 'next/navigation';
 import EditHoldingsModal from './EditHoldingsModal';
 import { ASSET_TYPE_LABELS, AssetType } from '@/lib/schemas/portfolio';
+import AssetTypeFilter from '@/components/AssetTypeFilter';
 
 function parseDateISO(d?: string | null) {
   if (!d) return null;
@@ -69,7 +70,25 @@ function Pill({ children }: { children?: React.ReactNode }) {
  * - Accepts rows from our API or a simple array and normalizes them
  * - Styled to match crème + grey-azure theme
  */
-export default function HoldingsTable({ rows, canEdit = false, onEditRow, portfolioId }: { rows: SimpleRow[]; canEdit?: boolean; onEditRow?: (row: any, index: number) => void; portfolioId?: string }) {
+export default function HoldingsTable({
+  rows,
+  canEdit = false,
+  onEditRow,
+  portfolioId,
+  selectedAssetType,
+  onAssetTypeChange,
+  assetTypeCounts,
+  totalCount
+}: {
+  rows: SimpleRow[];
+  canEdit?: boolean;
+  onEditRow?: (row: any, index: number) => void;
+  portfolioId?: string;
+  selectedAssetType?: AssetType | 'all';
+  onAssetTypeChange?: (value: AssetType | 'all') => void;
+  assetTypeCounts?: Partial<Record<AssetType | 'all', number>>;
+  totalCount?: number;
+}) {
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' }>({ key: 'funds', direction: 'desc' });
   const router = useRouter();
   const [modalOpen, setModalOpen] = useState(false);
@@ -187,6 +206,22 @@ export default function HoldingsTable({ rows, canEdit = false, onEditRow, portfo
 
   return (
     <>
+      {/* Filter Bar - Mobile */}
+      {selectedAssetType !== undefined && onAssetTypeChange && (
+        <div className="md:hidden mb-4 flex items-center justify-between gap-3 flex-wrap px-1">
+          <AssetTypeFilter
+            value={selectedAssetType}
+            onChange={onAssetTypeChange}
+            counts={assetTypeCounts}
+          />
+          {totalCount !== undefined && (
+            <div className="text-xs text-neutral-600">
+              Showing {data.length} of {totalCount}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Mobile Card View */}
       <div className="md:hidden space-y-3">
         {data.map((r, i) => {
@@ -267,6 +302,26 @@ export default function HoldingsTable({ rows, canEdit = false, onEditRow, portfo
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
           <thead className="bg-white">
+            {/* Filter Row */}
+            {selectedAssetType !== undefined && onAssetTypeChange && (
+              <tr className="border-b border-black/5 bg-neutral-50/50">
+                <th colSpan={canEdit ? 7 : 6} className="px-3 py-3">
+                  <div className="flex items-center justify-between gap-4 flex-wrap">
+                    <AssetTypeFilter
+                      value={selectedAssetType}
+                      onChange={onAssetTypeChange}
+                      counts={assetTypeCounts}
+                    />
+                    {totalCount !== undefined && (
+                      <div className="text-xs text-neutral-600 font-normal">
+                        Showing {data.length} of {totalCount} holdings
+                      </div>
+                    )}
+                  </div>
+                </th>
+              </tr>
+            )}
+            {/* Column Headers */}
             <tr className="border-b border-black/5">
               <th
                 className="text-left px-3 py-2 font-medium text-neutral-700 cursor-pointer select-none"

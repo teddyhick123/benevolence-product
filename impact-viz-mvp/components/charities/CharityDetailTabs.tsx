@@ -201,6 +201,20 @@ export default function CharityDetailTabs({ charity }: CharityDetailTabsProps) {
         {/* FINANCIALS TAB */}
         {activeTab === 'financials' && (
           <div className="space-y-6">
+            {/* Ratings Not Available Message */}
+            {!charity.charity_navigator_rating && !charity.candid_rating && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 text-center">
+                <div className="text-4xl mb-3">📊</div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">Ratings Coming Soon</h3>
+                <p className="text-gray-600 mb-4">
+                  Charity ratings from Charity Navigator and Candid will be available once API keys are configured.
+                </p>
+                <p className="text-sm text-gray-500">
+                  In the meantime, you can view financial data and add this charity to your portfolio.
+                </p>
+              </div>
+            )}
+
             {/* Charity Navigator Rating */}
             {charity.charity_navigator_rating && (
               <div>

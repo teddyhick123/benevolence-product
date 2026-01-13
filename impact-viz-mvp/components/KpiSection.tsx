@@ -10,22 +10,25 @@ import EditKpiModal, { KpiInput } from '@/components/EditKpiModal';
 const fetcher = (url: string) => fetch(url, { cache: 'no-store' }).then(r => r.json());
 
 export type KpiRow = {
-  id: string;
+  metric_code: string;           // Primary identifier (was id)
   portfolio_id: string;
-  label: string;
-  display_name?: string | null;
-  metric_code: string | null;
+  metric_name: string;          // From metrics table
+  display_name?: string | null; // Optional override from portfolio_metric_targets
   value: number | null;
   unit: string | null;
-  as_of: string | null;        // ISO datetime
-  period_start: string | null;  // ISO datetime
   period_end: string | null;    // ISO datetime
-  notes: string | null;
+  target_value?: number | null;
+  target_date?: string | null;
+  progress_percentage?: number | null;
+  notes?: string | null;
+  // Legacy fields for backward compatibility
+  label?: string;
+  as_of?: string | null;
 };
 
 export default function KpiSection({ portfolioId, canEdit = false, initialSums, mode }: { portfolioId: string; canEdit?: boolean; initialSums?: Array<{ metric_code: string; total_value: number | null; latest_period: string | null }>; mode?: 'portfolio-sum' | 'raw'; }) {
   const { data, error, isLoading, mutate } = useSWR<{ data: KpiRow[]; count: number; nextOffset: number | null }>(
-    `/api/portfolio/${encodeURIComponent(portfolioId)}/kpi-series`,
+    `/api/portfolio/${encodeURIComponent(portfolioId)}/kpis`,
     fetcher
   );
 
@@ -40,17 +43,16 @@ export default function KpiSection({ portfolioId, canEdit = false, initialSums, 
 
   const sumRows: KpiRow[] = usePortfolioSums
     ? initialSums!.map((s, i) => ({
-        id: `sum-${s.metric_code}-${i}`,
-        portfolio_id: portfolioId,
-        label: nameByCode.get(s.metric_code) || prettifyMetric(s.metric_code),
-        display_name: nameByCode.get(s.metric_code) || null,
         metric_code: s.metric_code,
+        portfolio_id: portfolioId,
+        metric_name: nameByCode.get(s.metric_code) || prettifyMetric(s.metric_code),
+        display_name: nameByCode.get(s.metric_code) || null,
         value: s.total_value ?? null,
         unit: null,
+        period_end: s.latest_period,
+        // Legacy compatibility
+        label: nameByCode.get(s.metric_code) || prettifyMetric(s.metric_code),
         as_of: s.latest_period,
-        period_start: null,
-        period_end: null,
-        notes: null,
       }))
     : [];
 
@@ -60,13 +62,13 @@ export default function KpiSection({ portfolioId, canEdit = false, initialSums, 
   const onAdd = () => { setEditing(null); setOpen(true); };
   const onEdit = (row: KpiRow) => {
     setEditing({
-      id: row.id,
-      label: row.label,
-      metric_code: row.metric_code ?? undefined,
+      id: row.metric_code, // Use metric_code as id for editing
+      label: row.display_name || row.metric_name || row.label || '',
+      metric_code: row.metric_code,
       value: row.value ?? undefined,
       unit: row.unit ?? undefined,
-      as_of: row.as_of,
-      period_start: row.period_start,
+      as_of: row.as_of || row.period_end,
+      period_start: null,
       period_end: row.period_end,
       notes: row.notes ?? undefined,
     });
@@ -87,15 +89,11 @@ export default function KpiSection({ portfolioId, canEdit = false, initialSums, 
   function getTitle(k: KpiRow): string {
     const dn = (k.display_name ?? '').trim();
     if (dn) return dn;
+    const name = (k.metric_name ?? '').trim();
+    if (name) return name;
     const lbl = (k.label ?? '').trim();
-    const code = (k.metric_code ?? '').trim();
-
-    const norm = (s: string) => s.replace(/[\s_]+/g, ' ').trim().toLowerCase();
-
-    if (lbl && code && norm(lbl) === norm(code)) {
-      return prettifyMetric(code);
-    }
     if (lbl) return lbl;
+    const code = (k.metric_code ?? '').trim();
     if (code) return prettifyMetric(code);
     return 'KPI';
   }
@@ -221,10 +219,10 @@ function KpiCarousel({
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {kpis.map((k) => (
             <KpiCard
-              key={k.id}
+              key={k.metric_code}
               title={getTitle(k)}
               value={k.value ?? undefined}
-              lastUpdated={k.as_of ?? undefined}
+              lastUpdated={k.as_of || k.period_end || undefined}
               format={determineFormat(k)}
               canEdit={canEdit}
               onEdit={() => onEdit(k)}
@@ -275,11 +273,11 @@ function KpiCarousel({
       >
         <div className="flex gap-3 pb-2">
           {kpis.map((k) => (
-            <div key={k.id} className="kpi-card flex-none w-full sm:w-[calc(50%-6px)] lg:w-[calc(33.333%-8px)]">
+            <div key={k.metric_code} className="kpi-card flex-none w-full sm:w-[calc(50%-6px)] lg:w-[calc(33.333%-8px)]">
               <KpiCard
                 title={getTitle(k)}
                 value={k.value ?? undefined}
-                lastUpdated={k.as_of ?? undefined}
+                lastUpdated={k.as_of || k.period_end || undefined}
                 format={determineFormat(k)}
                 canEdit={canEdit}
                 onEdit={() => onEdit(k)}

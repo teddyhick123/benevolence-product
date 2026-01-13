@@ -11,34 +11,38 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
 
   const supabase = await createSupabaseServerClient();
 
-  // Pull latest KPI definitions (names/targets) and compute latest KPI values from v_portfolio_kpi_latest
-  const [{ data: kpis }, { data: latest }] = await Promise.all([
-    supabase
-      .from('kpi_definitions')
-      .select('metric_code, display_name, target_value, target_date')
-      .eq('portfolio_id', portfolio_id)
-      .order('order_index', { ascending: true }),
-    supabase
-      .from('v_portfolio_kpi_latest')
-      .select('display_name, metric_code, value, unit, period_end')
-      .eq('portfolio_id', portfolio_id)
-  ]);
+  // Get latest KPI values with targets from v_portfolio_kpi_latest
+  // This view now includes target_value, target_date, and display_name from portfolio_metric_targets
+  const { data: metrics } = await supabase
+    .from('v_portfolio_kpi_latest')
+    .select('metric_code, metric_name, display_name, value, unit, period_end, target_value, target_date')
+    .eq('portfolio_id', portfolio_id)
+    .order('metric_code', { ascending: true });
 
   // Build a concise prompt
   const lines: string[] = [];
   lines.push(`Portfolio ID: ${portfolio_id}`);
-  if (kpis && kpis.length) {
-    lines.push('Targets:');
-    for (const k of kpis) {
-      const name = k.display_name || k.metric_code;
-      lines.push(`- ${name}: target ${k.target_value ?? '—'} by ${k.target_date ?? '—'}`);
+
+  if (metrics && metrics.length) {
+    // Separate metrics with targets from those without
+    const withTargets = metrics.filter(m => m.target_value != null);
+    const withoutTargets = metrics.filter(m => m.target_value == null);
+
+    if (withTargets.length > 0) {
+      lines.push('Targets & Progress:');
+      for (const m of withTargets) {
+        const name = m.display_name || m.metric_name || m.metric_code;
+        const current = m.value != null ? `${m.value}${m.unit ? ' ' + m.unit : ''}` : '—';
+        lines.push(`- ${name}: ${current} / ${m.target_value ?? '—'} by ${m.target_date ?? '—'}`);
+      }
     }
-  }
-  if (latest && latest.length) {
-    lines.push('Latest KPI readings:');
-    for (const r of latest) {
-      const name = r.display_name || r.metric_code;
-      lines.push(`- ${name}: ${r.value ?? '—'}${r.unit ? ' ' + r.unit : ''} (as of ${r.period_end ?? '—'})`);
+
+    if (withoutTargets.length > 0) {
+      lines.push('Latest KPI readings (no targets set):');
+      for (const m of withoutTargets) {
+        const name = m.display_name || m.metric_name || m.metric_code;
+        lines.push(`- ${name}: ${m.value ?? '—'}${m.unit ? ' ' + m.unit : ''} (as of ${m.period_end ?? '—'})`);
+      }
     }
   }
 

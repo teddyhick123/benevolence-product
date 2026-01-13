@@ -152,7 +152,7 @@ export interface MapCluster {
 /**
  * Visualization mode for the map
  */
-export type MapMode = 'points' | 'heatmap' | 'choropleth';
+export type MapMode = 'points' | 'heatmap';
 
 /**
  * Sizing mode for map points
@@ -254,16 +254,6 @@ export interface HeatmapConfig {
   gradient: {                  // Color gradient stops
     [key: number]: string;     // e.g., { 0.4: 'blue', 0.6: 'lime', 0.8: 'yellow', 1.0: 'red' }
   };
-}
-
-/**
- * Choropleth map configuration
- */
-export interface ChoroplethConfig {
-  aggregateBy: 'country' | 'region';
-  metric: 'funds_allocated' | 'total_contributions' | 'holding_count';
-  colorScale: 'sequential' | 'diverging';
-  colorScheme: string;         // e.g., 'Blues', 'RdYlGn'
 }
 
 /**

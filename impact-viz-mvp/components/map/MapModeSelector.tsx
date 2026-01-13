@@ -1,9 +1,9 @@
 'use client';
 
 import React from 'react';
-import { Map, Flame, Globe } from 'lucide-react';
+import { Map, Flame } from 'lucide-react';
 
-export type MapMode = 'points' | 'heatmap' | 'choropleth';
+export type MapMode = 'points' | 'heatmap';
 
 interface MapModeSelectorProps {
   mode: MapMode;
@@ -28,12 +28,6 @@ const modes: Array<{
     label: 'Heat Map',
     icon: Flame,
     description: 'Density visualization',
-  },
-  {
-    value: 'choropleth',
-    label: 'Choropleth',
-    icon: Globe,
-    description: 'Aggregate by country',
   },
 ];
 

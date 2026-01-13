@@ -18,22 +18,20 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
   // Use .or() with both exact and uppercase matching for reliability
   let query = supabase
     .from('v_portfolio_kpi_series')
-    .select('period_end, value, unit, metric_code, kpi_def_id')
+    .select('period_end, value, unit, metric_code, metric_name, display_name')
     .eq('portfolio_id', portfolio_id)
     .order('period_end', { ascending: true });
 
-  if (kpiId) {
-    query = query.eq('kpi_def_id', kpiId);
-  } else {
-    // Try multiple matching strategies to handle case variations
-    // This will match if metric_code equals the value in any case
-    query = query.or(`metric_code.eq.${metric},metric_code.ilike.${metric}`);
+  // Query by metric_code (kpiId parameter is deprecated but kept for backward compatibility)
+  const metricCode = kpiId || metric;
+  if (metricCode) {
+    query = query.or(`metric_code.eq.${metricCode},metric_code.ilike.${metricCode}`);
   }
 
   const { data: rows, error: qErr } = await query;
 
   // Debug logging
-  console.log(`[kpi-series API] Query for metric "${metric}" on portfolio ${portfolio_id}: ${rows?.length || 0} rows`);
+  console.log(`[kpi-series API] Query for metric "${metricCode}" on portfolio ${portfolio_id}: ${rows?.length || 0} rows`);
   if (qErr) {
     console.error('[kpi-series API] Query error:', qErr);
   }
@@ -45,31 +43,11 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
     value: row.value,
   }));
 
-  // Get display name from kpi_definitions
-  let displayName = metric;
+  // Get display name from first row (view now includes display_name from portfolio_metric_targets)
+  let displayName = metricCode;
   if (rows && rows.length > 0) {
     const firstRow = rows[0];
-    if (firstRow.kpi_def_id) {
-      const { data: kpiDef } = await supabase
-        .from('kpi_definitions')
-        .select('display_name')
-        .eq('id', firstRow.kpi_def_id)
-        .single();
-      if (kpiDef?.display_name) {
-        displayName = kpiDef.display_name;
-      }
-    } else {
-      // Try looking up by metric_code and portfolio_id (case-insensitive)
-      const { data: kpiDef } = await supabase
-        .from('kpi_definitions')
-        .select('display_name')
-        .ilike('metric_code', metric)
-        .eq('portfolio_id', portfolio_id)
-        .single();
-      if (kpiDef?.display_name) {
-        displayName = kpiDef.display_name;
-      }
-    }
+    displayName = firstRow.display_name || firstRow.metric_name || metricCode;
   }
 
   return NextResponse.json({ series, display_name: displayName }, { headers: { 'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=60' } });

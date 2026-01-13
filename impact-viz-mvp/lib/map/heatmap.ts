@@ -14,14 +14,9 @@ export type HeatmapPoint = {
 };
 
 export type HeatmapContour = {
-  type: 'Feature';
-  geometry: {
-    type: 'MultiPolygon' | 'Polygon';
-    coordinates: any;
-  };
-  properties: {
-    value: number;
-  };
+  type: 'MultiPolygon';
+  value: number; // D3 contourDensity puts value directly on the object
+  coordinates: any;
 };
 
 /**

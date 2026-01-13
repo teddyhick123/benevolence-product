@@ -17,11 +17,6 @@ import {
   getHeatmapColorScale,
   getOptimalBandwidth
 } from '@/lib/map/heatmap';
-import {
-  aggregateByCountry,
-  getCountryFillColor,
-  getChoroplethStats
-} from '@/lib/map/choropleth';
 
 // Matches /api/portfolio/[id]/map shape
 export type ImpactMapPoint = {
@@ -49,7 +44,7 @@ export type ImpactMapPoint = {
 
 type Props = {
   points: ImpactMapPoint[];
-  mode?: MapMode; // Visualization mode: 'points' | 'heatmap' | 'choropleth'
+  mode?: MapMode; // Visualization mode: 'points' | 'heatmap'
   onPointClick?: (p: ImpactMapPoint) => void; // parent can open modal/focus row
   onPointHover?: (holdingId: string | null) => void; // two-way highlighting with table
   highlightedId?: string | null; // external highlight state (e.g., from table hover)
@@ -71,8 +66,14 @@ export default function ImpactMap({ points, mode = 'points', onPointClick, onPoi
   const [width, setWidth] = useState<number>(700);
   const [containerHeight, setContainerHeight] = useState<number>(600);
 
-  // Zoom state for programmatic zoom control
-  const [zoomTransform, setZoomTransform] = useState({ k: 1, x: 0, y: 0 });
+  // Zoom state for programmatic zoom control (use ref to avoid re-render loops)
+  const zoomTransformRef = useRef({ k: 1, x: 0, y: 0 });
+  const [zoomLevel, setZoomLevel] = useState(1); // Only for UI display
+  const isRestoringZoomRef = useRef(false); // Track if we're restoring zoom to prevent loops
+  const clusterUpdateTimeoutRef = useRef<NodeJS.Timeout | null>(null); // Debounce clustering updates
+
+  // Quantized zoom level for clustering (only updates at meaningful thresholds)
+  const [clusterZoomLevel, setClusterZoomLevel] = useState(1);
 
   // Use responsive height on mobile, fixed height on desktop
   const h = height ?? containerHeight;
@@ -195,10 +196,55 @@ export default function ImpactMap({ points, mode = 'points', onPointClick, onPoi
       })
       .on('zoom', (event) => {
         g.attr('transform', event.transform);
-        setZoomTransform({ k: event.transform.k, x: event.transform.x, y: event.transform.y });
+        zoomTransformRef.current = { k: event.transform.k, x: event.transform.x, y: event.transform.y };
+
+        // Skip state updates if we're restoring zoom (prevents feedback loop)
+        if (isRestoringZoomRef.current) {
+          return;
+        }
+
+        setZoomLevel(event.transform.k); // Update UI display only
+
+        // Debounce cluster zoom level updates to prevent excessive re-renders
+        // Only update after user stops zooming for 150ms
+        if (clusterUpdateTimeoutRef.current) {
+          clearTimeout(clusterUpdateTimeoutRef.current);
+        }
+
+        clusterUpdateTimeoutRef.current = setTimeout(() => {
+          const k = event.transform.k;
+          let quantizedZoom = 1;
+          if (k >= 7) quantizedZoom = 8;
+          else if (k >= 5) quantizedZoom = 6;
+          else if (k >= 3) quantizedZoom = 4;
+          else if (k >= 1.5) quantizedZoom = 2;
+          else quantizedZoom = 1;
+
+          setClusterZoomLevel(prev => {
+            // Only update if threshold crossed to avoid unnecessary re-renders
+            return prev !== quantizedZoom ? quantizedZoom : prev;
+          });
+        }, 150);
       });
 
+    // Apply zoom behavior and restore previous zoom state if it exists
     svg.call(zoom as any);
+
+    // Restore zoom transform from previous render
+    if (zoomTransformRef.current.k !== 1 || zoomTransformRef.current.x !== 0 || zoomTransformRef.current.y !== 0) {
+      const transform = d3.zoomIdentity
+        .translate(zoomTransformRef.current.x, zoomTransformRef.current.y)
+        .scale(zoomTransformRef.current.k);
+
+      // Set flag to prevent zoom event from updating state during restoration
+      isRestoringZoomRef.current = true;
+      svg.call(zoom.transform as any, transform);
+      // Clear flag after a brief delay to allow event to finish
+      setTimeout(() => {
+        isRestoringZoomRef.current = false;
+      }, 0);
+    }
+
     zoomBehaviorRef.current = zoom;
 
     if (land) {
@@ -244,7 +290,7 @@ export default function ImpactMap({ points, mode = 'points', onPointClick, onPoi
       );
 
       if (contours.length > 0) {
-        const maxDensity = d3.max(contours, c => c.properties.value) || 1;
+        const maxDensity = d3.max(contours, c => c.value) || 1;
         const colorScale = getHeatmapColorScale([0, maxDensity]);
 
         g.selectAll('path.contour')
@@ -253,51 +299,13 @@ export default function ImpactMap({ points, mode = 'points', onPointClick, onPoi
           .append('path')
           .attr('class', 'contour')
           .attr('d', d3.geoPath(projection as any) as any)
-          .attr('fill', d => colorScale(d.properties.value))
+          .attr('fill', d => colorScale(d.value))
           .attr('opacity', 0.6)
           .attr('stroke', 'none');
       }
-    } else if (mode === 'choropleth') {
-      // Choropleth Mode: Aggregate by country
-      const countryAggregates = aggregateByCountry(cleanPoints as any[]);
-      const stats = getChoroplethStats(countryAggregates);
-
-      // Color countries based on aggregate values
-      if (land) {
-        const landFeatures = (land as any).features || [land];
-
-        g.selectAll('path.country')
-          .data(landFeatures)
-          .enter()
-          .append('path')
-          .attr('class', 'country')
-          .attr('d', d3.geoPath(projection as any) as any)
-          .attr('fill', (d: any) => {
-            // Try to match country from feature properties
-            const countryCode = d.properties?.name || d.properties?.NAME || null;
-            if (!countryCode) return '#f0f0f0';
-
-            // Find aggregate for this country
-            const aggregate = Array.from(countryAggregates.values()).find(
-              a => a.country === countryCode ||
-                   a.country.toLowerCase().includes(countryCode.toLowerCase()) ||
-                   countryCode.toLowerCase().includes(a.country.toLowerCase())
-            );
-
-            if (!aggregate) return '#f0f0f0';
-
-            return getCountryFillColor(aggregate.totalAmount, stats.max);
-          })
-          .attr('stroke', AZURE)
-          .attr('stroke-width', 0.5)
-          .attr('opacity', 0.8)
-          .style('cursor', 'pointer')
-          .append('title')
-          .text((d: any) => d.properties?.name || 'Unknown');
-      }
     } else {
       // Points Mode: Render individual points or clusters
-      const clusterDistance = getOptimalClusterDistance(zoomTransform.k);
+      const clusterDistance = getOptimalClusterDistance(zoomTransformRef.current.k);
       const displayPoints = clusterDistance > 0
         ? clusterPoints(cleanPoints as ClusterablePoint[], clusterDistance, projection as d3.GeoProjection)
         : cleanPoints.map(p => ({ ...p, type: 'point' as const }));
@@ -394,13 +402,22 @@ export default function ImpactMap({ points, mode = 'points', onPointClick, onPoi
         .attr('pointer-events', 'none') // Don't interfere with circle events
         .text(d => getClusterLabel(d as any));
     }
-  }, [cleanPoints, width, h, borders, land, onPointClick, onPointHover, highlightedId, points, mode, zoomTransform.k]);
+
+    // Cleanup function
+    return () => {
+      // Remove any pending timeouts
+      isRestoringZoomRef.current = false;
+      if (clusterUpdateTimeoutRef.current) {
+        clearTimeout(clusterUpdateTimeoutRef.current);
+      }
+    };
+  }, [cleanPoints, width, h, borders, land, onPointClick, onPointHover, highlightedId, points, mode, clusterZoomLevel]);
 
   // Zoom control handlers with smart zoom levels
   const handleZoomIn = () => {
     const svg = d3.select(svgRef.current);
     if (zoomBehaviorRef.current) {
-      const currentZoom = zoomTransform.k;
+      const currentZoom = zoomTransformRef.current.k;
       // Smart zoom levels: 1 → 2 → 4 → 8
       let targetZoom = currentZoom * 2;
       if (currentZoom < 1.5) targetZoom = 2;
@@ -418,7 +435,7 @@ export default function ImpactMap({ points, mode = 'points', onPointClick, onPoi
   const handleZoomOut = () => {
     const svg = d3.select(svgRef.current);
     if (zoomBehaviorRef.current) {
-      const currentZoom = zoomTransform.k;
+      const currentZoom = zoomTransformRef.current.k;
       // Smart zoom levels: 8 → 4 → 2 → 1
       let targetZoom = currentZoom / 2;
       if (currentZoom > 6) targetZoom = 4;
@@ -543,14 +560,14 @@ export default function ImpactMap({ points, mode = 'points', onPointClick, onPoi
       </div>
 
       {/* Zoom Level Indicator */}
-      {zoomTransform.k !== 1 && (
+      {zoomLevel !== 1 && (
         <div className="absolute bottom-4 left-4 z-10 bg-white rounded-md border border-black/10 shadow-md px-3 py-1.5">
           <div className="flex items-center gap-2">
             <svg className="w-3.5 h-3.5 text-neutral-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" />
             </svg>
             <span className="text-xs font-semibold text-neutral-700">
-              {Math.round(zoomTransform.k * 100)}%
+              {Math.round(zoomLevel * 100)}%
             </span>
           </div>
         </div>

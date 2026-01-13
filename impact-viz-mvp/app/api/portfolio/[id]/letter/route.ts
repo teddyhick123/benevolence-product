@@ -20,40 +20,26 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
 
     if (portfolioError) throw portfolioError;
 
-    // 2. Fetch KPI definitions and latest values
+    // 2. Fetch latest KPI values with targets from v_portfolio_kpi_latest
     const { data: kpis, error: kpisError } = await sb
-      .from('kpi_definitions')
-      .select('id, metric_code, display_name, target_value, target_date, calculation')
+      .from('v_portfolio_kpi_latest')
+      .select('metric_code, metric_name, display_name, value, unit, period_end, target_value, target_date, progress_percentage')
       .eq('portfolio_id', portfolio_id)
-      .order('order_index', { ascending: true });
+      .order('metric_code', { ascending: true });
 
     if (kpisError) throw kpisError;
 
-    // 3. Fetch latest KPI values
-    const kpiIds = (kpis || []).map((k: any) => k.id);
-    let latestValues: any[] = [];
-
-    if (kpiIds.length > 0) {
-      const { data: latest, error: latestError } = await sb
-        .from('v_portfolio_kpi_latest')
-        .select('kpi_def_id, value, unit, period_start, period_end')
-        .eq('portfolio_id', portfolio_id)
-        .in('kpi_def_id', kpiIds);
-
-      if (!latestError) latestValues = latest || [];
-    }
-
-    // Combine KPIs with their latest values
-    const kpisWithValues = (kpis || []).map((kpi: any) => {
-      const latest = latestValues.find((l: any) => l.kpi_def_id === kpi.id);
-      return {
-        ...kpi,
-        latest_value: latest?.value ?? null,
-        unit: latest?.unit ?? null,
-        period_start: latest?.period_start ?? null,
-        period_end: latest?.period_end ?? null,
-      };
-    });
+    // Map to consistent structure for letter template
+    const kpisWithValues = (kpis || []).map((kpi: any) => ({
+      metric_code: kpi.metric_code,
+      display_name: kpi.display_name || kpi.metric_name,
+      target_value: kpi.target_value,
+      target_date: kpi.target_date,
+      latest_value: kpi.value,
+      unit: kpi.unit,
+      period_end: kpi.period_end,
+      progress_percentage: kpi.progress_percentage,
+    }));
 
     // 4. Fetch holdings summary
     const { data: holdings, error: holdingsError } = await sb

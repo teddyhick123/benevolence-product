@@ -342,8 +342,74 @@ export default function CharitiesPage() {
                 )}
               </>
             ) : (
-              <div className="text-center py-12 bg-white rounded-lg border border-gray-200">
-                <p className="text-gray-600">No charities found. Try adjusting your filters or search query.</p>
+              <div className="text-center py-16 bg-white rounded-lg border border-gray-200">
+                {viewMode === 'discovery' && total === 0 && !searchQuery && Object.keys(filters).length === 0 ? (
+                  // Empty database state
+                  <div className="max-w-md mx-auto px-6">
+                    <div className="text-6xl mb-4">📚</div>
+                    <h3 className="text-xl font-semibold text-gray-900 mb-2">No Charities Yet</h3>
+                    <p className="text-gray-600 mb-6">
+                      The charity database is currently empty. Import charities from ProPublica to get started.
+                    </p>
+                    <div className="bg-gray-50 rounded-lg p-4 mb-6 text-left">
+                      <p className="text-sm text-gray-700 font-medium mb-2">Run the import script:</p>
+                      <code className="text-xs bg-gray-900 text-green-400 px-3 py-2 rounded block font-mono">
+                        npx ts-node scripts/import-charities-propublica.ts
+                      </code>
+                    </div>
+                    <p className="text-xs text-gray-500">
+                      This will import charity data from the ProPublica API
+                    </p>
+                  </div>
+                ) : viewMode === 'portfolio' ? (
+                  // Empty portfolio state
+                  <div className="max-w-md mx-auto px-6">
+                    <div className="text-6xl mb-4">🎯</div>
+                    <h3 className="text-xl font-semibold text-gray-900 mb-2">Your Portfolio is Empty</h3>
+                    <p className="text-gray-600 mb-6">
+                      You haven't added any charities to your portfolio yet. Browse all charities to discover and add organizations.
+                    </p>
+                    <button
+                      onClick={() => setViewMode('discovery')}
+                      className="px-6 py-3 bg-azure text-white rounded-lg font-medium hover:opacity-90 transition-opacity"
+                    >
+                      Discover Charities
+                    </button>
+                  </div>
+                ) : (
+                  // No search results state
+                  <div className="max-w-md mx-auto px-6">
+                    <div className="text-6xl mb-4">🔍</div>
+                    <h3 className="text-xl font-semibold text-gray-900 mb-2">No Results Found</h3>
+                    <p className="text-gray-600 mb-6">
+                      No charities match your current search and filters. Try adjusting your criteria.
+                    </p>
+                    {(searchQuery || Object.keys(filters).length > 0) && (
+                      <div className="space-y-3">
+                        {searchQuery && (
+                          <div className="flex items-center justify-center gap-2 text-sm">
+                            <span className="text-gray-500">Search:</span>
+                            <span className="px-3 py-1 bg-gray-100 rounded-full text-gray-700">{searchQuery}</span>
+                            <button
+                              onClick={() => setSearchQuery('')}
+                              className="text-azure hover:text-azure/80"
+                            >
+                              Clear
+                            </button>
+                          </div>
+                        )}
+                        {Object.keys(filters).length > 0 && (
+                          <button
+                            onClick={handleClearFilters}
+                            className="text-azure hover:text-azure/80 text-sm font-medium"
+                          >
+                            Clear all filters
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )}
           </div>

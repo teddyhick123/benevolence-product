@@ -85,7 +85,18 @@ export default function AddToPortfolioModal({
           resetForm();
         }, 1500);
       } else {
-        setError(data.error || 'Failed to add charity to portfolio');
+        // Enhanced error messages for specific scenarios
+        if (response.status === 409) {
+          setError('This charity is already in your portfolio. You can view or edit it in the "My Portfolio" view.');
+        } else if (response.status === 404) {
+          setError('This charity could not be found. It may have been removed from the database.');
+        } else if (response.status === 403) {
+          setError('You do not have permission to modify this portfolio. Please contact your team administrator.');
+        } else if (response.status === 401) {
+          setError('Your session has expired. Please log in again.');
+        } else {
+          setError(data.error || 'Failed to add charity to portfolio. Please try again.');
+        }
       }
     } catch (err: any) {
       setError('An unexpected error occurred. Please try again.');

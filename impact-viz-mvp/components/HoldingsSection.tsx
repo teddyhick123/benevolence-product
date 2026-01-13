@@ -7,7 +7,6 @@ import useSWR from 'swr';
 import SectionHeader from '@/components/SectionHeader';
 import HoldingsTable from '@/components/HoldingsTable';
 import EditHoldingsModal, { HoldingInput } from '@/components/EditHoldingsModal';
-import AssetTypeFilter from '@/components/AssetTypeFilter';
 import { AssetType } from '@/lib/schemas/portfolio';
 
 const fetcher = (url: string) => fetch(url, { cache: 'no-store' }).then(r => r.json());
@@ -75,20 +74,6 @@ export default function HoldingsSection({ portfolioId, canEdit = false }: { port
         editLabel="Add holding"
       />
 
-      {/* Asset Type Filter */}
-      {!isLoading && !error && rows.length > 0 && (
-        <div className="flex items-center justify-between gap-4 flex-wrap">
-          <AssetTypeFilter
-            value={selectedAssetType}
-            onChange={setSelectedAssetType}
-            counts={assetTypeCounts}
-          />
-          <div className="text-sm text-neutral-600">
-            Showing {filteredRows.length} of {rows.length} holdings
-          </div>
-        </div>
-      )}
-
       {/* Scrollable container with fixed height matching widgets carousel (500px) */}
       {isLoading ? (
         <div className="rounded-2xl bg-white border border-black/5 shadow-soft p-6 text-sm text-neutral-500 h-[500px] flex items-center justify-center">
@@ -100,7 +85,15 @@ export default function HoldingsSection({ portfolioId, canEdit = false }: { port
         </div>
       ) : (
         <div className="h-[500px] overflow-y-auto overflow-x-auto rounded-2xl border border-black/5 bg-white shadow-soft">
-          <HoldingsTable rows={filteredRows as any} canEdit={canEdit} onEditRow={onEditRow} />
+          <HoldingsTable
+            rows={filteredRows as any}
+            canEdit={canEdit}
+            onEditRow={onEditRow}
+            selectedAssetType={selectedAssetType}
+            onAssetTypeChange={setSelectedAssetType}
+            assetTypeCounts={assetTypeCounts}
+            totalCount={rows.length}
+          />
         </div>
       )}
 

@@ -8,16 +8,11 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-function cacheHeaders() {
-  return { 'Cache-Control': 'no-store' } as const;
-}
-
 /**
- * POST /api/portfolio/[id]/letter/generate
- * Generate AI letter for portfolio
- * REQUIRES AUTHENTICATION - No anonymous AI access allowed
+ * GET /api/portfolio/[id]/letter/generate
+ * Fetch existing cached letter (no regeneration)
  */
-export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
+export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id: portfolio_id } = await ctx.params;
   const sb = await createSupabaseServerClient();
 
@@ -27,7 +22,106 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     if (!user) {
       return aiAuthRequired();
     }
-    // 1. Fetch portfolio data from the letter endpoint logic
+
+    // Fetch the latest cached letter for this portfolio
+    const { data: cachedLetter, error } = await sb
+      .from('generated_letters')
+      .select('*')
+      .eq('portfolio_id', portfolio_id)
+      .order('version', { ascending: false })
+      .limit(1)
+      .single();
+
+    if (error || !cachedLetter) {
+      return NextResponse.json(
+        { error: 'No cached letter found', code: 'NOT_FOUND' },
+        { status: 404 }
+      );
+    }
+
+    // Return cached letter with summary data
+    const summaryData = cachedLetter.summary_data as {
+      portfolio: any;
+      summary: any;
+      kpis: any[];
+      holdings: any[];
+    };
+
+    return NextResponse.json({
+      letter_content: cachedLetter.letter_content,
+      portfolio: summaryData.portfolio,
+      summary: {
+        ...summaryData.summary,
+        generated_at: cachedLetter.generated_at,
+      },
+      kpis: summaryData.kpis,
+      holdings: summaryData.holdings,
+      cached: true,
+      version: cachedLetter.version,
+    });
+  } catch (error: any) {
+    return NextResponse.json(
+      { error: error.message || 'Failed to fetch letter' },
+      { status: 500 }
+    );
+  }
+}
+
+/**
+ * POST /api/portfolio/[id]/letter/generate
+ * Generate AI letter for portfolio (with caching)
+ * Use ?force=true to regenerate even if cached version exists
+ * REQUIRES AUTHENTICATION - No anonymous AI access allowed
+ */
+export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
+  const { id: portfolio_id } = await ctx.params;
+  const { searchParams } = new URL(req.url);
+  const forceRegenerate = searchParams.get('force') === 'true';
+
+  const sb = await createSupabaseServerClient();
+
+  try {
+    // Verify user is authenticated
+    const { data: { user } } = await sb.auth.getUser();
+    if (!user) {
+      return aiAuthRequired();
+    }
+
+    // Check for existing cached letter (unless force regenerate)
+    if (!forceRegenerate) {
+      const { data: cachedLetter } = await sb
+        .from('generated_letters')
+        .select('*')
+        .eq('portfolio_id', portfolio_id)
+        .order('version', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (cachedLetter) {
+        // Return cached letter
+        const summaryData = cachedLetter.summary_data as {
+          portfolio: any;
+          summary: any;
+          kpis: any[];
+          holdings: any[];
+        };
+
+        return NextResponse.json({
+          letter_content: cachedLetter.letter_content,
+          portfolio: summaryData.portfolio,
+          summary: {
+            ...summaryData.summary,
+            generated_at: cachedLetter.generated_at,
+          },
+          kpis: summaryData.kpis,
+          holdings: summaryData.holdings,
+          cached: true,
+          version: cachedLetter.version,
+        });
+      }
+    }
+
+    // 1. Fetch portfolio data
     const { data: portfolio, error: portfolioError } = await sb
       .from('portfolios')
       .select('id, name')
@@ -57,7 +151,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
       progress_percentage: kpi.progress_percentage,
     }));
 
-    // 4. Fetch holdings summary
+    // 3. Fetch holdings summary
     const { data: holdings, error: holdingsError } = await sb
       .from('holdings')
       .select('id, name, status, sector, funds_allocated')
@@ -66,12 +160,12 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
 
     if (holdingsError) throw holdingsError;
 
-    // 5. Calculate portfolio summary stats
+    // 4. Calculate portfolio summary stats
     const totalHoldings = (holdings || []).length;
     const totalFundsAllocated = (holdings || []).reduce((sum: number, h: any) => sum + (h.funds_allocated || 0), 0);
-    const totalNAV = totalFundsAllocated; // Use funds_allocated as NAV
+    const totalNAV = totalFundsAllocated;
 
-    // 6. Build context for OpenAI
+    // 5. Build context for OpenAI
     const portfolioContext = `
 Portfolio: ${portfolio.name}
 
@@ -95,7 +189,7 @@ ${(holdings || []).slice(0, 10).map((h: any) => {
 ${totalHoldings > 10 ? `... and ${totalHoldings - 10} more holdings` : ''}
 `;
 
-    // 7. Generate letter content using OpenAI
+    // 6. Generate letter content using OpenAI
     const completion = await openai.chat.completions.create({
       model: 'gpt-4o',
       messages: [
@@ -135,8 +229,52 @@ INTEGRATION OF VISUALIZATIONS:
     });
 
     const generatedLetter = completion.choices[0]?.message?.content || '';
+    const generatedAt = new Date().toISOString();
 
-    // 8. Return generated letter along with structured data
+    // 7. Get current max version for this portfolio
+    const { data: existingVersions } = await sb
+      .from('generated_letters')
+      .select('version')
+      .eq('portfolio_id', portfolio_id)
+      .order('version', { ascending: false })
+      .limit(1);
+
+    const newVersion = existingVersions && existingVersions.length > 0
+      ? existingVersions[0].version + 1
+      : 1;
+
+    // 8. Save generated letter to database
+    const summaryData = {
+      portfolio: {
+        id: portfolio.id,
+        name: portfolio.name,
+      },
+      summary: {
+        total_holdings: totalHoldings,
+        total_funds_allocated: totalFundsAllocated,
+        total_nav: totalNAV,
+      },
+      kpis: kpisWithValues,
+      holdings: holdings || [],
+    };
+
+    const { error: insertError } = await sb
+      .from('generated_letters')
+      .insert({
+        portfolio_id: portfolio_id,
+        letter_content: generatedLetter,
+        summary_data: summaryData,
+        generated_at: generatedAt,
+        generated_by: user.id,
+        version: newVersion,
+      });
+
+    if (insertError) {
+      console.error('Failed to cache letter:', insertError);
+      // Don't fail the request, just log the error
+    }
+
+    // 9. Return generated letter along with structured data
     return NextResponse.json({
       letter_content: generatedLetter,
       portfolio: {
@@ -147,16 +285,18 @@ INTEGRATION OF VISUALIZATIONS:
         total_holdings: totalHoldings,
         total_funds_allocated: totalFundsAllocated,
         total_nav: totalNAV,
-        generated_at: new Date().toISOString(),
+        generated_at: generatedAt,
       },
       kpis: kpisWithValues,
       holdings: holdings || [],
-    }, { headers: cacheHeaders() });
+      cached: false,
+      version: newVersion,
+    });
 
   } catch (error: any) {
     return NextResponse.json(
       { error: error.message || 'Failed to generate letter' },
-      { status: 500, headers: cacheHeaders() }
+      { status: 500 }
     );
   }
 }

@@ -179,19 +179,38 @@ export default function AllAssetsOverview({
       <div className="rounded-2xl bg-white border border-black/5 shadow-soft p-6">
         <h3 className="text-sm font-medium text-neutral-600 mb-4">Portfolio Overview</h3>
 
-        <div className="flex items-start gap-6">
+        <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6">
+          {/* Mobile: Pie chart first, Desktop: Content first */}
+          {/* Pie Chart - shown first on mobile */}
+          {pieChartData.length > 0 && (
+            <div className="sm:hidden shrink-0">
+              <HoldingsPieWidget
+                data={pieChartData}
+                colorBy="default"
+                size={160}
+                innerRadius={50}
+                showLegend={false}
+                customColors={{
+                  'Investments': bucketsData.investments.color,
+                  'Grants': bucketsData.grants.color,
+                  'Donations': bucketsData.donations.color,
+                }}
+              />
+            </div>
+          )}
+
           {/* Left: Total and Breakdown */}
-          <div className="flex-1 space-y-4">
+          <div className="flex-1 space-y-4 text-center sm:text-left w-full">
             {/* Total Value */}
             <div>
-              <div className="text-4xl font-serif font-semibold text-neutral-900">
+              <div className="text-3xl sm:text-4xl font-serif font-semibold text-neutral-900">
                 {formatMoney(data.total_value)}
               </div>
               <div className="text-sm text-neutral-500 mt-1">Total Funds Contributed</div>
             </div>
 
             {/* Three Bucket Breakdown */}
-            <div className="space-y-2 pt-2">
+            <div className="space-y-2 pt-2 max-w-xs mx-auto sm:mx-0 sm:max-w-none">
               {bucketsData.investments.value > 0 && (
                 <div className="flex items-center justify-between text-sm">
                   <div className="flex items-center gap-2">
@@ -222,25 +241,25 @@ export default function AllAssetsOverview({
             </div>
 
             {/* Stats Row */}
-            <div className="grid grid-cols-3 gap-4 pt-4 border-t border-black/5">
-              <div>
-                <div className="text-2xl font-semibold text-neutral-900">{data.total_holdings}</div>
+            <div className="grid grid-cols-3 gap-2 sm:gap-4 pt-4 border-t border-black/5">
+              <div className="text-center sm:text-left">
+                <div className="text-xl sm:text-2xl font-semibold text-neutral-900">{data.total_holdings}</div>
                 <div className="text-xs text-neutral-500">Holdings</div>
               </div>
-              <div>
-                <div className="text-2xl font-semibold text-neutral-900">{data.active_holdings}</div>
+              <div className="text-center sm:text-left">
+                <div className="text-xl sm:text-2xl font-semibold text-neutral-900">{data.active_holdings}</div>
                 <div className="text-xs text-neutral-500">Active</div>
               </div>
-              <div>
-                <div className="text-2xl font-semibold text-neutral-900">{formatMoney(data.average_size)}</div>
-                <div className="text-xs text-neutral-500">Average Value</div>
+              <div className="text-center sm:text-left">
+                <div className="text-base sm:text-2xl font-semibold text-neutral-900 truncate">{formatMoney(data.average_size)}</div>
+                <div className="text-xs text-neutral-500">Avg Value</div>
               </div>
             </div>
           </div>
 
-          {/* Right: Small Donut Chart with Legend */}
+          {/* Right: Small Donut Chart with Legend (desktop only) */}
           {pieChartData.length > 0 && (
-            <div className="shrink-0">
+            <div className="hidden sm:block shrink-0">
               <HoldingsPieWidget
                 data={pieChartData}
                 colorBy="default"

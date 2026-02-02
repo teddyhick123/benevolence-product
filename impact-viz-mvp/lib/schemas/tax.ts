@@ -533,15 +533,42 @@ export interface DonationCapacity {
 }
 
 /**
- * Standard Deduction Amounts (2024)
+ * Standard Deduction Amounts by Year
+ * Source: IRS Revenue Procedures and One Big Beautiful Bill Act (2025)
  */
-export const STANDARD_DEDUCTIONS_2024: Record<DonorFilingStatus, number> = {
-  single: 14600,
-  married_filing_jointly: 29200,
-  married_filing_separately: 14600,
-  head_of_household: 21900,
-  qualifying_widow: 29200,
+export const STANDARD_DEDUCTIONS: Record<number, Record<DonorFilingStatus, number>> = {
+  2026: {
+    single: 16100,
+    married_filing_jointly: 32200,
+    married_filing_separately: 16100,
+    head_of_household: 24150,
+    qualifying_widow: 32200,
+  },
+  2025: {
+    single: 15750,
+    married_filing_jointly: 31500,
+    married_filing_separately: 15750,
+    head_of_household: 23625,
+    qualifying_widow: 31500,
+  },
+  2024: {
+    single: 14600,
+    married_filing_jointly: 29200,
+    married_filing_separately: 14600,
+    head_of_household: 21900,
+    qualifying_widow: 29200,
+  },
+  2023: {
+    single: 13850,
+    married_filing_jointly: 27700,
+    married_filing_separately: 13850,
+    head_of_household: 20800,
+    qualifying_widow: 27700,
+  },
 };
+
+// Backwards compatibility alias
+export const STANDARD_DEDUCTIONS_2024 = STANDARD_DEDUCTIONS[2024];
 
 /**
  * Helper: Calculate age from date of birth
@@ -607,10 +634,8 @@ export function isQCDEligible(dateOfBirth: string, contributionDate: string): {
  * Helper: Get standard deduction for filing status and year
  */
 export function getStandardDeduction(filingStatus: DonorFilingStatus, year: number = 2024): number {
-  if (year === 2024) {
-    return STANDARD_DEDUCTIONS_2024[filingStatus];
-  }
-  return STANDARD_DEDUCTIONS_2024[filingStatus];
+  const yearData = STANDARD_DEDUCTIONS[year] || STANDARD_DEDUCTIONS[2026];
+  return yearData[filingStatus];
 }
 
 /**
@@ -640,8 +665,29 @@ export function shouldItemize(
 }
 
 /**
+ * QCD Annual Limits by Year
+ * Starting 2024, indexed for inflation per SECURE 2.0 Act
+ */
+export const QCD_ANNUAL_LIMITS: Record<number, number> = {
+  2026: 111000,
+  2025: 108000,
+  2024: 105000,
+  2023: 100000,
+};
+
+/**
+ * QCD Split-Interest Gift Limits by Year (one-time CRT/gift annuity)
+ * Available starting 2024 per SECURE 2.0 Act
+ */
+export const QCD_SPLIT_INTEREST_LIMITS: Record<number, number> = {
+  2026: 55000,
+  2025: 54000,
+  2024: 53000,
+};
+
+/**
  * Helper: Calculate QCD limit and available amount
- * Annual limit is $100,000 per individual (2024)
+ * Annual limit is indexed for inflation starting 2024
  */
 export function calculateQCDLimit(
   year: number = 2024,
@@ -649,15 +695,18 @@ export function calculateQCDLimit(
 ): {
   limit: number;
   perIndividual: number;
+  splitInterestLimit: number;
 } {
-  const perIndividual = 100000; // IRS limit as of 2024
+  // Get year-specific limit, default to most recent if not found
+  const perIndividual = QCD_ANNUAL_LIMITS[year] || QCD_ANNUAL_LIMITS[2026];
+  const splitInterestLimit = QCD_SPLIT_INTEREST_LIMITS[year] || 0;
 
-  // For married filing jointly, each spouse has separate $100k limit
+  // For married filing jointly, each spouse has separate limit from their own IRA
   const limit = filingStatus === 'married_filing_jointly'
     ? perIndividual * 2
     : perIndividual;
 
-  return { limit, perIndividual };
+  return { limit, perIndividual, splitInterestLimit };
 }
 
 /**
@@ -691,6 +740,7 @@ export function validateQCD(
   },
   donorDateOfBirth?: string | null,
   yearToDateQCDs: number = 0,
+  taxYear?: number,
 ): {
   valid: boolean;
   errors: string[];
@@ -702,6 +752,10 @@ export function validateQCD(
   if (!contribution.qcd_qualified) {
     return { valid: true, errors, warnings };
   }
+
+  // Determine tax year from contribution date if not provided
+  const year = taxYear || new Date(contribution.contribution_date).getFullYear();
+  const yearLimit = QCD_ANNUAL_LIMITS[year] || QCD_ANNUAL_LIMITS[2026];
 
   // Check contribution type
   if (!['cash', 'check', 'wire'].includes(contribution.contribution_type)) {
@@ -718,10 +772,10 @@ export function validateQCD(
     warnings.push('Cannot verify age eligibility without date of birth');
   }
 
-  // Check annual limit
+  // Check annual limit (year-specific)
   const totalQCDs = yearToDateQCDs + contribution.amount_usd;
-  if (totalQCDs > 100000) {
-    errors.push(`QCD limit exceeded: $${totalQCDs.toLocaleString()} (limit: $100,000/year)`);
+  if (totalQCDs > yearLimit) {
+    errors.push(`QCD limit exceeded: $${totalQCDs.toLocaleString()} (${year} limit: $${yearLimit.toLocaleString()}/year)`);
   }
 
   return {

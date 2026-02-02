@@ -6,6 +6,8 @@
  * - CSV for manual import or spreadsheet analysis
  */
 
+import { getQCDLimit } from './constants';
+
 export interface TaxContributionExport {
   id: string;
   contribution_date: string;
@@ -292,7 +294,8 @@ export function generateForm8283Summary(
     lines.push('-'.repeat(60));
     lines.push(`Total QCD: $${totalQCD.toFixed(2)}`);
     lines.push('');
-    lines.push('ℹ️  QCDs count toward RMD and are excluded from income. Max $100,000/year per person.');
+    const qcdLimit = getQCDLimit(taxYear);
+    lines.push(`ℹ️  QCDs count toward RMD and are excluded from income. ${taxYear} limit: $${qcdLimit.toLocaleString()}/year per person.`);
   } else {
     lines.push('No QCD contributions');
   }

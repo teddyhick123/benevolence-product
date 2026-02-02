@@ -201,9 +201,12 @@ export default function InlineWidget({ widget, portfolioId }: InlineWidgetProps)
     />
   );
 
+  // d3_json widgets need a fixed height container since they use h-full
+  const needsFixedHeight = widget.type === 'd3_json';
+
   return (
     <div className="my-6 bg-white rounded-2xl border border-neutral-200 shadow-sm overflow-hidden">
-      <div className="p-4">
+      <div className={`p-4 ${needsFixedHeight ? 'h-[400px]' : ''}`}>
         {needsSuspense ? (
           <Suspense
             fallback={

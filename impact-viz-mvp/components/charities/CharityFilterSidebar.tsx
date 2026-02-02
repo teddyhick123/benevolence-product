@@ -21,6 +21,8 @@ interface CharityFilterSidebarProps {
   onFiltersChange: (filters: FilterState) => void;
   view?: 'discovery' | 'portfolio';
   onClearFilters: () => void;
+  isOpen?: boolean;
+  onClose?: () => void;
 }
 
 const SECTORS = [
@@ -71,6 +73,8 @@ export default function CharityFilterSidebar({
   onFiltersChange,
   view = 'discovery',
   onClearFilters,
+  isOpen = false,
+  onClose,
 }: CharityFilterSidebarProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
 
@@ -88,8 +92,8 @@ export default function CharityFilterSidebar({
 
   const hasActiveFilters = Object.keys(filters).length > 0;
 
-  return (
-    <div className={`bg-white border-r border-gray-200 transition-all duration-300 ${isCollapsed ? 'w-16' : 'w-80'}`}>
+  const sidebarContent = (
+    <div className={`bg-white transition-all duration-300 ${isCollapsed ? 'w-16' : 'w-80'}`}>
       {/* Header */}
       <div className="p-4 border-b border-gray-200 flex items-center justify-between">
         {!isCollapsed && (
@@ -108,12 +112,22 @@ export default function CharityFilterSidebar({
             )}
           </>
         )}
+        {/* Desktop collapse button */}
         <button
           onClick={() => setIsCollapsed(!isCollapsed)}
-          className="p-1 hover:bg-gray-100 rounded"
+          className="hidden lg:block p-1 hover:bg-gray-100 rounded"
         >
           {isCollapsed ? <Filter className="w-5 h-5" /> : <X className="w-5 h-5" />}
         </button>
+        {/* Mobile close button */}
+        {onClose && (
+          <button
+            onClick={onClose}
+            className="lg:hidden p-1 hover:bg-gray-100 rounded"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        )}
       </div>
 
       {/* Filters Content */}
@@ -282,5 +296,29 @@ export default function CharityFilterSidebar({
         </div>
       )}
     </div>
+  );
+
+  return (
+    <>
+      {/* Desktop sidebar - always visible */}
+      <div className="hidden lg:block border-r border-gray-200 flex-shrink-0">
+        {sidebarContent}
+      </div>
+
+      {/* Mobile overlay */}
+      {isOpen && (
+        <div className="lg:hidden fixed inset-0 z-50 flex">
+          {/* Backdrop */}
+          <div
+            className="absolute inset-0 bg-black/50"
+            onClick={onClose}
+          />
+          {/* Sidebar panel */}
+          <div className="relative z-10 h-full overflow-y-auto border-r border-gray-200 shadow-xl">
+            {sidebarContent}
+          </div>
+        </div>
+      )}
+    </>
   );
 }

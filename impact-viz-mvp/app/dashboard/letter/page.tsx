@@ -39,6 +39,8 @@ type LetterData = {
     sector: string;
     funds_allocated: number;
   }>;
+  cached?: boolean;
+  version?: number;
 };
 
 type WidgetData = {
@@ -66,6 +68,7 @@ function LetterPageContent() {
   const [chatMessage, setChatMessage] = useState('');
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoadingResponse, setIsLoadingResponse] = useState(false);
+  const [holdingReportTriggered, setHoldingReportTriggered] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -92,23 +95,36 @@ function LetterPageContent() {
           // Set portfolio ID immediately for navigation
           setPortfolio({ id: portfolioId, name: '', description: '' });
 
-          // Generate AI letter content
-          setGeneratingLetter(true);
-          const letterRes = await fetch(`/api/portfolio/${portfolioId}/letter/generate`, {
-            method: 'POST',
-            cache: 'no-store'
-          });
-          const letterData = await letterRes.json();
+          // Try to fetch cached letter first (GET)
+          const cachedRes = await fetch(`/api/portfolio/${portfolioId}/letter/generate`);
 
-          if (letterRes.ok) {
-            setLetterData(letterData);
+          if (cachedRes.ok) {
+            // Use cached letter
+            const cachedData = await cachedRes.json();
+            setLetterData(cachedData);
             setPortfolio({
-              id: letterData.portfolio.id,
-              name: letterData.portfolio.name,
-              description: letterData.portfolio.description,
+              id: cachedData.portfolio.id,
+              name: cachedData.portfolio.name,
+              description: cachedData.portfolio.description,
             });
+          } else {
+            // No cached letter - generate new one
+            setGeneratingLetter(true);
+            const letterRes = await fetch(`/api/portfolio/${portfolioId}/letter/generate`, {
+              method: 'POST',
+            });
+            const letterData = await letterRes.json();
+
+            if (letterRes.ok) {
+              setLetterData(letterData);
+              setPortfolio({
+                id: letterData.portfolio.id,
+                name: letterData.portfolio.name,
+                description: letterData.portfolio.description,
+              });
+            }
+            setGeneratingLetter(false);
           }
-          setGeneratingLetter(false);
         }
       } catch (error) {
         // Failed to load portfolio data
@@ -124,17 +140,34 @@ function LetterPageContent() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const sendMessage = async () => {
-    if (!chatMessage.trim() || isLoadingResponse || !portfolio?.id) return;
+  // Auto-trigger holding report when holding_id is in URL params
+  useEffect(() => {
+    const holdingId = searchParams.get('holding_id');
+    if (!holdingId || !portfolio?.id || loading || holdingReportTriggered || isLoadingResponse) return;
+
+    // Find holding name from letter data if available
+    const holding = letterData?.holdings?.find((h) => h.id === holdingId);
+    const holdingName = holding?.name || 'this holding';
+
+    setHoldingReportTriggered(true);
+    // Use setTimeout to ensure state is settled before sending
+    setTimeout(() => {
+      sendMessage(`Generate a detailed report about ${holdingName} (holding ID: ${holdingId}) with charts showing key metrics and trends.`);
+    }, 500);
+  }, [portfolio?.id, loading, holdingReportTriggered, isLoadingResponse, searchParams, letterData]);
+
+  const sendMessage = async (overrideMessage?: string) => {
+    const msgToSend = overrideMessage || chatMessage.trim();
+    if (!msgToSend || isLoadingResponse || !portfolio?.id) return;
 
     const userMessage: Message = {
       role: 'user',
-      content: chatMessage,
+      content: msgToSend,
       timestamp: new Date().toISOString(),
     };
 
     setMessages((prev) => [...prev, userMessage]);
-    setChatMessage('');
+    if (!overrideMessage) setChatMessage('');
     setIsLoadingResponse(true);
 
     try {
@@ -143,7 +176,7 @@ function LetterPageContent() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           portfolioId: portfolio.id,
-          message: chatMessage,
+          message: msgToSend,
           conversationHistory: messages.map((m) => ({
             role: m.role,
             content: m.content,
@@ -181,6 +214,26 @@ function LetterPageContent() {
     }
   };
 
+  const handleRegenerate = async () => {
+    if (!portfolio?.id || generatingLetter) return;
+
+    setGeneratingLetter(true);
+    try {
+      const res = await fetch(`/api/portfolio/${portfolio.id}/letter/generate?force=true`, {
+        method: 'POST',
+      });
+      const data = await res.json();
+
+      if (res.ok) {
+        setLetterData(data);
+      }
+    } catch (error) {
+      // Failed to regenerate
+    } finally {
+      setGeneratingLetter(false);
+    }
+  };
+
   if (loading || generatingLetter) {
     return (
       <div className="min-h-screen bg-creme flex items-center justify-center">
@@ -208,15 +261,28 @@ function LetterPageContent() {
             </svg>
             Back to Dashboard
           </a>
-          <button
-            onClick={() => window.print()}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-creme/80 border border-neutral-300 hover:bg-creme text-sm font-medium text-neutral-700 transition-colors"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-            </svg>
-            Export PDF
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleRegenerate}
+              disabled={generatingLetter}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-creme/80 border border-neutral-300 hover:bg-creme text-sm font-medium text-neutral-700 transition-colors disabled:opacity-50"
+              title="Generate a fresh letter with the latest data"
+            >
+              <svg className={`w-4 h-4 ${generatingLetter ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              Regenerate
+            </button>
+            <button
+              onClick={() => window.print()}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-creme/80 border border-neutral-300 hover:bg-creme text-sm font-medium text-neutral-700 transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+              </svg>
+              Export PDF
+            </button>
+          </div>
         </div>
       </header>
 
@@ -303,7 +369,17 @@ function LetterPageContent() {
               {/* Consolidated footer section */}
               <div className="mt-10 pt-6 border-t border-neutral-200/50 text-center space-y-2">
                 <p className="text-sm text-neutral-500">
-                  Generated {new Date(letterData.summary.generated_at).toLocaleDateString()}
+                  {letterData.cached ? 'Letter from ' : 'Generated '}
+                  {new Date(letterData.summary.generated_at).toLocaleDateString('en-US', {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric',
+                    hour: 'numeric',
+                    minute: '2-digit'
+                  })}
+                  {letterData.version && letterData.version > 1 && (
+                    <span className="text-neutral-400"> (v{letterData.version})</span>
+                  )}
                 </p>
                 <p className="text-sm text-neutral-600">
                   Ask questions below to explore details, request visualizations, or dive deeper into any metric.
@@ -405,7 +481,7 @@ function LetterPageContent() {
             />
             <button
               className="px-5 py-3 bg-gradient-to-r from-azure via-azure/90 to-azure/70 text-white rounded-2xl hover:opacity-90 disabled:opacity-50 transition-all font-medium inline-flex items-center gap-2 shadow-soft hover:shadow-md disabled:hover:shadow-soft"
-              onClick={sendMessage}
+              onClick={() => sendMessage()}
               disabled={!chatMessage.trim() || isLoadingResponse}
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

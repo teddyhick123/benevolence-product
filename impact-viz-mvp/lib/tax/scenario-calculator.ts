@@ -9,7 +9,7 @@
  * - Project multi-year carryforwards
  */
 
-import { getStandardDeduction } from './constants';
+import { getStandardDeduction, getQCDLimit } from './constants';
 import type { FilingStatus } from '@/lib/schemas/tax';
 
 export interface ScenarioInput {
@@ -176,10 +176,13 @@ export function calculateScenario(input: ScenarioInput): ScenarioResult {
     );
   }
 
-  if (input.age && input.age >= 70.5 && donation_amount <= 100000) {
+  // QCD recommendation with year-specific limit
+  const currentYear = new Date().getFullYear();
+  const qcdLimit = getQCDLimit(currentYear);
+  if (input.age && input.age >= 70.5 && donation_amount <= qcdLimit) {
     recommendations.push(
       `💰 You're QCD eligible! Consider using a Qualified Charitable Distribution ` +
-      `to exclude up to $100,000 from income (better than a deduction).`
+      `to exclude up to $${qcdLimit.toLocaleString()} from income (better than a deduction).`
     );
   }
 

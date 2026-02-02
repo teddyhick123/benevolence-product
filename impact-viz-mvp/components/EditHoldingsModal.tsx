@@ -19,6 +19,16 @@ function dateInputValue(v: unknown): string {
   return isNaN(d.getTime()) ? '' : d.toISOString().slice(0, 10);
 }
 
+type CharitySearchResult = {
+  ein: string;
+  name: string;
+  city?: string;
+  state?: string;
+  sector?: string;
+  annual_revenue?: number;
+  source: 'local' | 'propublica';
+};
+
 export type HoldingInput = {
   id?: string;
   name?: string;
@@ -78,6 +88,15 @@ export default function EditHoldingsModal({ portfolioId, initial, open, onClose,
   const [locationState, setLocationState] = React.useState(initial?.location_state ?? '');
   const [locationCountry, setLocationCountry] = React.useState(initial?.location_country ?? '');
 
+  // Charity linking state
+  const [selectedCharity, setSelectedCharity] = React.useState<CharitySearchResult | null>(null);
+  const [charityQuery, setCharityQuery] = React.useState('');
+  const [charityResults, setCharityResults] = React.useState<CharitySearchResult[]>([]);
+  const [charitySearching, setCharitySearching] = React.useState(false);
+  const [showCharityResults, setShowCharityResults] = React.useState(false);
+  const charityDebounceRef = React.useRef<NodeJS.Timeout | null>(null);
+  const charityContainerRef = React.useRef<HTMLDivElement>(null);
+
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
@@ -94,9 +113,55 @@ export default function EditHoldingsModal({ portfolioId, initial, open, onClose,
     setLocationCity(initial?.location_city ?? '');
     setLocationState(initial?.location_state ?? '');
     setLocationCountry(initial?.location_country ?? '');
+    setSelectedCharity(null);
+    setCharityQuery('');
+    setCharityResults([]);
+    setShowCharityResults(false);
     setError(null);
     setBusy(false);
   }, [initial, open]);
+
+  // Debounced charity search
+  React.useEffect(() => {
+    if (charityDebounceRef.current) clearTimeout(charityDebounceRef.current);
+
+    if (charityQuery.length < 2) {
+      setCharityResults([]);
+      setShowCharityResults(false);
+      return;
+    }
+
+    charityDebounceRef.current = setTimeout(async () => {
+      setCharitySearching(true);
+      try {
+        const res = await fetch(`/api/search-charities?q=${encodeURIComponent(charityQuery)}`);
+        if (res.ok) {
+          const data = await res.json();
+          setCharityResults(data.results || []);
+          setShowCharityResults(true);
+        }
+      } catch {
+        // Search failed silently
+      } finally {
+        setCharitySearching(false);
+      }
+    }, 400);
+
+    return () => {
+      if (charityDebounceRef.current) clearTimeout(charityDebounceRef.current);
+    };
+  }, [charityQuery]);
+
+  // Close charity dropdown on outside click
+  React.useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (charityContainerRef.current && !charityContainerRef.current.contains(e.target as Node)) {
+        setShowCharityResults(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   if (!mounted || !open) return null;
 
@@ -148,6 +213,20 @@ export default function EditHoldingsModal({ portfolioId, initial, open, onClose,
       });
       const j = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(j?.error || 'Request failed');
+
+      // Link charity after creation if one was selected
+      if (selectedCharity && j?.data?.id) {
+        try {
+          await fetch(`/api/holdings/${j.data.id}/link-charity`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ein: selectedCharity.ein }),
+          });
+        } catch {
+          // Charity link failed — holding was still created successfully
+        }
+      }
+
       onChanged?.();
       onClose();
     } catch (e: any) {
@@ -360,6 +439,94 @@ export default function EditHoldingsModal({ portfolioId, initial, open, onClose,
                 />
               </label>
             </div>
+          </div>
+
+          {/* Charity linking (optional) */}
+          <div className="mt-4 pt-4 border-t border-black/5">
+            <div className="mb-2 text-sm font-medium text-neutral-700">
+              Link Nonprofit (optional)
+            </div>
+            <div className="text-xs text-neutral-500 mb-3">
+              Search for a registered nonprofit to link public financial data.
+            </div>
+
+            {selectedCharity ? (
+              <div className="flex items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50/50 px-3 py-2.5">
+                <div className="flex items-center gap-2 min-w-0">
+                  <svg className="w-4 h-4 text-emerald-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-neutral-900 truncate">{selectedCharity.name}</p>
+                    <p className="text-xs text-neutral-500">
+                      EIN: {selectedCharity.ein}
+                      {selectedCharity.city && selectedCharity.state && ` \u00B7 ${selectedCharity.city}, ${selectedCharity.state}`}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedCharity(null)}
+                  className="flex-shrink-0 p-1 text-neutral-400 hover:text-red-500 transition-colors"
+                  aria-label="Remove charity"
+                >
+                  <XIcon className="h-4 w-4" />
+                </button>
+              </div>
+            ) : (
+              <div ref={charityContainerRef} className="relative">
+                <div className="relative">
+                  <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                  <input
+                    type="text"
+                    value={charityQuery}
+                    onChange={(e) => setCharityQuery(e.target.value)}
+                    placeholder="Search by nonprofit name or EIN..."
+                    className="w-full pl-10 pr-4 py-2 text-sm border border-black/10 rounded-2xl focus:outline-none focus:ring-2 focus:ring-azure/30 focus:border-azure/50 bg-white"
+                  />
+                  {charitySearching && (
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                      <div className="w-4 h-4 border-2 border-azure/30 border-t-azure rounded-full animate-spin" />
+                    </div>
+                  )}
+                </div>
+
+                {showCharityResults && charityResults.length > 0 && (
+                  <div className="absolute z-50 mt-1 w-full bg-white rounded-xl border border-neutral-200 shadow-lg max-h-48 overflow-y-auto">
+                    {charityResults.map((r, idx) => (
+                      <button
+                        key={`${r.ein}-${idx}`}
+                        type="button"
+                        onClick={() => {
+                          setSelectedCharity(r);
+                          setCharityQuery('');
+                          setCharityResults([]);
+                          setShowCharityResults(false);
+                        }}
+                        className="w-full px-3 py-2.5 flex items-center justify-between hover:bg-neutral-50 transition-colors text-left border-b border-neutral-100 last:border-b-0"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium text-neutral-900 truncate">{r.name}</p>
+                          <p className="text-xs text-neutral-500">
+                            EIN: {r.ein}
+                            {r.city && r.state && ` \u00B7 ${r.city}, ${r.state}`}
+                          </p>
+                        </div>
+                        <span className="flex-shrink-0 ml-2 text-xs text-azure font-medium">Select</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {showCharityResults && charityQuery.length >= 2 && charityResults.length === 0 && !charitySearching && (
+                  <div className="absolute z-50 mt-1 w-full bg-white rounded-xl border border-neutral-200 shadow-lg p-3">
+                    <p className="text-xs text-neutral-500 text-center">No charities found</p>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           <div className="flex items-center justify-between pt-2">

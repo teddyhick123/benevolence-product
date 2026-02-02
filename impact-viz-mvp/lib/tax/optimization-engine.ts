@@ -9,6 +9,7 @@
  */
 
 import { calculateScenario, compareScenarios, analyzeBunchingStrategy, type ScenarioInput } from './scenario-calculator';
+import { getQCDLimit } from './constants';
 
 export interface PortfolioHolding {
   id: string;
@@ -508,7 +509,8 @@ function optimizeQCDStrategy(
     return null;
   }
 
-  const qcdLimit = 100000;
+  const currentYear = new Date().getFullYear();
+  const qcdLimit = getQCDLimit(currentYear);
   const iraHoldings = holdings.filter(h => h.asset_type === 'qcd_distribution' || h.name.toLowerCase().includes('ira'));
 
   if (iraHoldings.length === 0) {

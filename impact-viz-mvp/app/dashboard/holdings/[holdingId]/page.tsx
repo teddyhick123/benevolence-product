@@ -10,6 +10,7 @@ import HoldingWidgetsSection from '@/components/vis/HoldingWidgetsSection';
 import NewsSection from '@/components/NewsSection';
 import FactRow from '@/components/FactRow';
 import LocationsManagerWrapper from '@/components/holdings/LocationsManagerWrapper';
+import FinancialProfileSection from '@/components/holdings/FinancialProfileSection';
 import { geocodeLocation } from '@/lib/services/google-maps';
 
 type HoldingRow = {
@@ -35,6 +36,7 @@ type HoldingRow = {
   status?: string | null;
   sector?: string | null;
   as_of?: string | null;
+  charity_id?: string | null;
 };
 
 type FactRow = {
@@ -65,7 +67,7 @@ async function fetchHolding(holdingId: string): Promise<{ holding: HoldingRow | 
   const supabase = await getSupabase();
   const { data, error } = await supabase
     .from('holdings')
-    .select('id, portfolio_id, name, asset_type, description, primary_contact_name, primary_contact_email, primary_contact_phone, primary_contact_photo, primary_contact_notes, website, location_city, location_state, location_country, theory_of_action, cost_per_outcome, cost_per_outcome_unit, funds_allocated, total_org_funding, status, sector, as_of')
+    .select('id, portfolio_id, name, asset_type, description, primary_contact_name, primary_contact_email, primary_contact_phone, primary_contact_photo, primary_contact_notes, website, location_city, location_state, location_country, theory_of_action, cost_per_outcome, cost_per_outcome_unit, funds_allocated, total_org_funding, status, sector, as_of, charity_id')
     .eq('id', holdingId)
     .single();
 
@@ -1165,6 +1167,14 @@ export default async function HoldingMiniDashboard({
           />
         </div>
 
+      </section>
+
+      {/* Public Financial Profile */}
+      <section className="rounded-2xl border border-black/10 bg-white/50 p-5 shadow-sm">
+        <FinancialProfileSection
+          holdingId={holding.id}
+          charityId={holding.charity_id}
+        />
       </section>
 
       {/* Locations Manager */}

@@ -27,6 +27,7 @@ export type AIAction = {
 // Tool execution result types
 type ToolResult = {
   action: AIAction | null;
+  additionalActions?: AIAction[];
   output: any; // Output varies by tool
 };
 
@@ -462,6 +463,20 @@ const PORTFOLIO_TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
       },
     },
   },
+  {
+    type: 'function',
+    function: {
+      name: 'generate_holding_report',
+      description: 'Generate a comprehensive report about a specific holding/charity with inline charts. Fetches all holding data, charity info, and metric history, then auto-generates relevant chart visualizations. The AI should write a narrative report around the returned data — charts will appear inline automatically.',
+      parameters: {
+        type: 'object',
+        properties: {
+          holding_id: { type: 'string', description: 'UUID of the holding to report on (find in HOLDINGS section)' },
+        },
+        required: ['holding_id'],
+      },
+    },
+  },
 ];
 
 /**
@@ -544,6 +559,9 @@ export class AIPortfolioAssistant {
 
           if (result.action) {
             actions.push(result.action);
+          }
+          if (result.additionalActions) {
+            actions.push(...result.additionalActions);
           }
           toolResults.push({
             role: 'tool',
@@ -750,6 +768,10 @@ export class AIPortfolioAssistant {
       }
 
       case 'get_metric_trend': {
+        // Normalize metric_code to uppercase
+        if (args.metric_code) {
+          args.metric_code = String(args.metric_code).toUpperCase();
+        }
         // Validate inputs
         InputValidator.validateString(args.metric_code, 'metric_code', { maxLength: 100, pattern: /^[A-Z0-9_]+$/ });
         if (!args.metric_code) {
@@ -760,7 +782,8 @@ export class AIPortfolioAssistant {
         }
         InputValidator.validateEnum(args.window, 'window', ['3m', '6m', '12m', '24m', 'all'] as const);
 
-        const window: TimeWindow = (args.window as TimeWindow) || '12m';
+        // Use 'all' as default to avoid missing older data
+        const window: TimeWindow = (args.window as TimeWindow) || 'all';
         const startDate = TimeWindowHelper.getStartDate(window);
 
         let query = this.supabase
@@ -792,6 +815,32 @@ export class AIPortfolioAssistant {
           .map(([date, { total }]) => ({ date, value: total }))
           .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
+        // If no data found, get list of available metrics to help the AI
+        if (trend.length === 0) {
+          const { data: availableMetrics } = await this.supabase
+            .from('metric_facts')
+            .select('metric_code, holdings!inner(portfolio_id)')
+            .eq('holdings.portfolio_id', portfolioId);
+
+          const uniqueMetrics = [...new Set((availableMetrics || []).map((m: any) => m.metric_code))];
+
+          return {
+            action: null,
+            output: {
+              metric_code: args.metric_code,
+              window,
+              trend: [],
+              data_points: 0,
+              no_data: true,
+              message: `No data found for metric '${args.metric_code}' in this portfolio.`,
+              available_metrics: uniqueMetrics,
+              suggestion: uniqueMetrics.length > 0
+                ? `Try one of these metrics instead: ${uniqueMetrics.slice(0, 10).join(', ')}`
+                : 'No metric data exists in this portfolio yet. Upload reports or add metrics to holdings first.',
+            },
+          };
+        }
+
         return {
           action: null,
           output: {
@@ -805,6 +854,10 @@ export class AIPortfolioAssistant {
       }
 
       case 'compare_holdings': {
+        // Normalize metric_code to uppercase
+        if (args.metric_code) {
+          args.metric_code = String(args.metric_code).toUpperCase();
+        }
         // Validate inputs
         InputValidator.validateString(args.metric_code, 'metric_code', { maxLength: 100, pattern: /^[A-Z0-9_]+$/ });
         if (!args.metric_code) {
@@ -859,6 +912,31 @@ export class AIPortfolioAssistant {
           }))
           .sort((a, b) => args.sort_order === 'asc' ? a.value - b.value : b.value - a.value)
           .slice(0, args.limit || 10);
+
+        // If no data found, get list of available metrics to help the AI
+        if (comparison.length === 0) {
+          const { data: availableMetrics } = await this.supabase
+            .from('metric_facts')
+            .select('metric_code, holdings!inner(portfolio_id)')
+            .eq('holdings.portfolio_id', portfolioId);
+
+          const uniqueMetrics = [...new Set((availableMetrics || []).map((m: any) => m.metric_code))];
+
+          return {
+            action: null,
+            output: {
+              metric_code: args.metric_code,
+              comparison: [],
+              holdings_with_data: 0,
+              no_data: true,
+              message: `No data found for metric '${args.metric_code}' in this portfolio.`,
+              available_metrics: uniqueMetrics,
+              suggestion: uniqueMetrics.length > 0
+                ? `Try one of these metrics instead: ${uniqueMetrics.slice(0, 10).join(', ')}`
+                : 'No metric data exists in this portfolio yet. Upload reports or add metrics to holdings first.',
+            },
+          };
+        }
 
         return {
           action: null,
@@ -956,7 +1034,7 @@ export class AIPortfolioAssistant {
       case 'get_holding_details': {
         const { data } = await this.supabase
           .from('holdings')
-          .select('*, metric_facts(*), holding_widgets(*)')
+          .select('*, metric_facts(*), holding_widgets(*), charities(*)')
           .eq('id', args.holding_id)
           .single();
 
@@ -1073,6 +1151,10 @@ export class AIPortfolioAssistant {
       }
 
       case 'get_chart_data': {
+        // Normalize metric_code to uppercase
+        if (args.metric_code) {
+          args.metric_code = String(args.metric_code).toUpperCase();
+        }
         // Validate inputs
         const validDataTypes = ['holdings_by_sector', 'holdings_by_country', 'metric_trend', 'metric_comparison', 'allocation_breakdown', 'status_breakdown'] as const;
         InputValidator.validateEnum(args.data_type, 'data_type', validDataTypes);
@@ -1090,7 +1172,59 @@ export class AIPortfolioAssistant {
         InputValidator.validateNumber(args.limit, 'limit', { min: 1, max: 100 });
 
         const limit = args.limit || 10;
-        const window = args.window || '12m';
+        // Use 'all' as default to avoid missing older data
+        const window = args.window || 'all';
+
+        // Helper function to create chart preview action
+        const createChartPreview = (title: string, chartType: string, data: any[], xField: string, yField: string, colors: string[]) => {
+          const isPieOrDonut = chartType === 'pie' || chartType === 'donut';
+          const d3Config = {
+            d3: {
+              kind: chartType,
+              data,
+              encoding: {
+                x: xField,
+                y: yField,
+                ...(isPieOrDonut && { label: xField, value: yField }),
+              },
+              options: {
+                colors,
+              },
+            },
+          };
+
+          const widgetPreview = {
+            id: crypto.randomUUID(),
+            portfolio_id: portfolioId,
+            type: 'd3_json',
+            title,
+            config: d3Config,
+            position: 0,
+            is_preview: true,
+          };
+
+          const previewAction: any = {
+            id: crypto.randomUUID(),
+            session_id: sessionId,
+            portfolio_id: portfolioId,
+            user_id: userId,
+            action_type: 'preview',
+            entity_type: 'widget',
+            entity_id: widgetPreview.id,
+            operation_data: {
+              table: 'widgets',
+              after: widgetPreview,
+              is_preview: true,
+            },
+            ai_reasoning: `Created ${chartType} chart: "${title}"`,
+            user_prompt: userPrompt,
+            status: 'preview',
+            batch_id: batchId,
+            sequence_order: sequenceOrder,
+          };
+
+          return { previewAction, widgetPreview };
+        };
 
         switch (args.data_type) {
           case 'holdings_by_sector': {
@@ -1110,15 +1244,23 @@ export class AIPortfolioAssistant {
               .sort((a, b) => b.funds - a.funds)
               .slice(0, limit);
 
+            const sectorChartType = chartData.length <= 6 ? 'pie' : 'bar';
+            const { previewAction: sectorAction, widgetPreview: sectorWidget } = createChartPreview(
+              'Holdings by Sector',
+              sectorChartType,
+              chartData,
+              'sector',
+              'funds',
+              CHART_COLORS
+            );
+
             return {
-              action: null,
+              action: sectorAction,
               output: {
                 data: chartData,
-                suggested_chart: chartData.length <= 6 ? 'pie' : 'bar',
-                x_field: 'sector',
-                y_field: 'funds',
-                title_suggestion: 'Holdings by Sector',
-                colors: CHART_COLORS,
+                chart_generated: true,
+                widget: sectorWidget,
+                message: `Generated a ${sectorChartType} chart showing holdings by sector.`,
               },
             };
           }
@@ -1140,15 +1282,23 @@ export class AIPortfolioAssistant {
               .sort((a, b) => b.funds - a.funds)
               .slice(0, limit);
 
+            const countryChartType = chartData.length <= 6 ? 'pie' : 'bar';
+            const { previewAction: countryAction, widgetPreview: countryWidget } = createChartPreview(
+              'Holdings by Country',
+              countryChartType,
+              chartData,
+              'country',
+              'funds',
+              CHART_COLORS
+            );
+
             return {
-              action: null,
+              action: countryAction,
               output: {
                 data: chartData,
-                suggested_chart: chartData.length <= 6 ? 'pie' : 'bar',
-                x_field: 'country',
-                y_field: 'funds',
-                title_suggestion: 'Holdings by Country',
-                colors: CHART_COLORS,
+                chart_generated: true,
+                widget: countryWidget,
+                message: `Generated a ${countryChartType} chart showing holdings by country.`,
               },
             };
           }
@@ -1158,7 +1308,9 @@ export class AIPortfolioAssistant {
               throw new Error('metric_code is required for metric_trend');
             }
 
-            const startDate = TimeWindowHelper.getStartDate(window as TimeWindow);
+            // Use 'all' as default to avoid missing older data
+            const effectiveWindow = (args.window as TimeWindow) || 'all';
+            const startDate = TimeWindowHelper.getStartDate(effectiveWindow);
 
             const { data: facts } = await this.supabase
               .from('metric_facts')
@@ -1179,16 +1331,83 @@ export class AIPortfolioAssistant {
               .map(([date, value]) => ({ date, value }))
               .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
+            // If no data found, get list of available metrics to help the AI
+            if (chartData.length === 0) {
+              const { data: availableMetrics } = await this.supabase
+                .from('metric_facts')
+                .select('metric_code, holdings!inner(portfolio_id)')
+                .eq('holdings.portfolio_id', portfolioId);
+
+              const uniqueMetrics = [...new Set((availableMetrics || []).map((m: any) => m.metric_code))];
+
+              return {
+                action: null,
+                output: {
+                  data: [],
+                  no_data: true,
+                  message: `No data found for metric '${args.metric_code}' in this portfolio.`,
+                  available_metrics: uniqueMetrics,
+                  suggestion: uniqueMetrics.length > 0
+                    ? `Try one of these metrics instead: ${uniqueMetrics.slice(0, 10).join(', ')}`
+                    : 'No metric data exists in this portfolio yet. Upload reports or add metrics to holdings first.',
+                },
+              };
+            }
+
+            // Auto-generate the chart widget so the AI doesn't need to call generate_d3_chart separately
+            const chartTitle = `${args.metric_code} Trend`;
+            const d3Config = {
+              d3: {
+                kind: 'line',
+                data: chartData,
+                encoding: {
+                  x: 'date',
+                  y: 'value',
+                },
+                options: {
+                  xType: 'time',
+                  colors: [CHART_COLORS[0]],
+                },
+              },
+            };
+
+            const widgetPreview = {
+              id: crypto.randomUUID(),
+              portfolio_id: portfolioId,
+              type: 'd3_json',
+              title: chartTitle,
+              config: d3Config,
+              position: 0,
+              is_preview: true,
+            };
+
+            const previewAction: any = {
+              id: crypto.randomUUID(),
+              session_id: sessionId,
+              portfolio_id: portfolioId,
+              user_id: userId,
+              action_type: 'preview',
+              entity_type: 'widget',
+              entity_id: widgetPreview.id,
+              operation_data: {
+                table: 'widgets',
+                after: widgetPreview,
+                is_preview: true,
+              },
+              ai_reasoning: `Created trend chart for ${args.metric_code}`,
+              user_prompt: userPrompt,
+              status: 'preview',
+              batch_id: batchId,
+              sequence_order: sequenceOrder,
+            };
+
             return {
-              action: null,
+              action: previewAction,
               output: {
                 data: chartData,
-                suggested_chart: 'line',
-                x_field: 'date',
-                y_field: 'value',
-                x_type: 'time',
-                title_suggestion: `${args.metric_code} Trend`,
-                colors: [CHART_COLORS[0]],
+                chart_generated: true,
+                widget: widgetPreview,
+                message: `Generated a line chart showing ${args.metric_code} trend with ${chartData.length} data points.`,
               },
             };
           }
@@ -1228,15 +1447,82 @@ export class AIPortfolioAssistant {
               .sort((a, b) => b.value - a.value)
               .slice(0, limit);
 
+            // If no data found, get list of available metrics to help the AI
+            if (chartData.length === 0) {
+              const { data: availableMetrics } = await this.supabase
+                .from('metric_facts')
+                .select('metric_code, holdings!inner(portfolio_id)')
+                .eq('holdings.portfolio_id', portfolioId);
+
+              const uniqueMetrics = [...new Set((availableMetrics || []).map((m: any) => m.metric_code))];
+
+              return {
+                action: null,
+                output: {
+                  data: [],
+                  no_data: true,
+                  message: `No data found for metric '${args.metric_code}' in this portfolio.`,
+                  available_metrics: uniqueMetrics,
+                  suggestion: uniqueMetrics.length > 0
+                    ? `Try one of these metrics instead: ${uniqueMetrics.slice(0, 10).join(', ')}`
+                    : 'No metric data exists in this portfolio yet. Upload reports or add metrics to holdings first.',
+                },
+              };
+            }
+
+            // Auto-generate the bar chart widget
+            const comparisonTitle = `${args.metric_code} by Holding`;
+            const comparisonD3Config = {
+              d3: {
+                kind: 'bar',
+                data: chartData,
+                encoding: {
+                  x: 'holding',
+                  y: 'value',
+                },
+                options: {
+                  colors: ['#10b981'],
+                },
+              },
+            };
+
+            const comparisonWidgetPreview = {
+              id: crypto.randomUUID(),
+              portfolio_id: portfolioId,
+              type: 'd3_json',
+              title: comparisonTitle,
+              config: comparisonD3Config,
+              position: 0,
+              is_preview: true,
+            };
+
+            const comparisonPreviewAction: any = {
+              id: crypto.randomUUID(),
+              session_id: sessionId,
+              portfolio_id: portfolioId,
+              user_id: userId,
+              action_type: 'preview',
+              entity_type: 'widget',
+              entity_id: comparisonWidgetPreview.id,
+              operation_data: {
+                table: 'widgets',
+                after: comparisonWidgetPreview,
+                is_preview: true,
+              },
+              ai_reasoning: `Created comparison chart for ${args.metric_code}`,
+              user_prompt: userPrompt,
+              status: 'preview',
+              batch_id: batchId,
+              sequence_order: sequenceOrder,
+            };
+
             return {
-              action: null,
+              action: comparisonPreviewAction,
               output: {
                 data: chartData,
-                suggested_chart: 'bar',
-                x_field: 'holding',
-                y_field: 'value',
-                title_suggestion: `${args.metric_code} by Holding`,
-                colors: ['#10b981'],
+                chart_generated: true,
+                widget: comparisonWidgetPreview,
+                message: `Generated a bar chart comparing ${args.metric_code} across ${chartData.length} holdings.`,
               },
             };
           }
@@ -1254,15 +1540,22 @@ export class AIPortfolioAssistant {
               funds: h.funds_allocated || 0,
             }));
 
+            const { previewAction: allocAction, widgetPreview: allocWidget } = createChartPreview(
+              'Portfolio Allocation',
+              'donut',
+              chartData,
+              'name',
+              'funds',
+              CHART_COLORS
+            );
+
             return {
-              action: null,
+              action: allocAction,
               output: {
                 data: chartData,
-                suggested_chart: 'donut',
-                x_field: 'name',
-                y_field: 'funds',
-                title_suggestion: 'Portfolio Allocation',
-                colors: CHART_COLORS,
+                chart_generated: true,
+                widget: allocWidget,
+                message: `Generated a donut chart showing portfolio allocation across ${chartData.length} holdings.`,
               },
             };
           }
@@ -1282,15 +1575,22 @@ export class AIPortfolioAssistant {
             const chartData = Object.entries(statuses)
               .map(([status, count]) => ({ status, count }));
 
+            const { previewAction: statusAction, widgetPreview: statusWidget } = createChartPreview(
+              'Holdings by Status',
+              'pie',
+              chartData,
+              'status',
+              'count',
+              ['#10b981', '#6b7280', '#f59e0b']
+            );
+
             return {
-              action: null,
+              action: statusAction,
               output: {
                 data: chartData,
-                suggested_chart: 'pie',
-                x_field: 'status',
-                y_field: 'count',
-                title_suggestion: 'Holdings by Status',
-                colors: ['#10b981', '#6b7280', '#f59e0b'],
+                chart_generated: true,
+                widget: statusWidget,
+                message: `Generated a pie chart showing holdings by status.`,
               },
             };
           }
@@ -1360,6 +1660,160 @@ export class AIPortfolioAssistant {
         return {
           action: previewAction,
           output: widgetPreview,
+        };
+      }
+
+      case 'generate_holding_report': {
+        InputValidator.validateUUID(args.holding_id, 'holding_id');
+
+        // 1. Fetch holding + charity data
+        const { data: holdingData } = await this.supabase
+          .from('holdings')
+          .select('*, charities(*)')
+          .eq('id', args.holding_id)
+          .single();
+
+        if (!holdingData) {
+          throw new Error(`Holding ${args.holding_id} not found`);
+        }
+
+        // 2. Fetch all metric_facts for this holding (no time filter)
+        const { data: metricFacts } = await this.supabase
+          .from('metric_facts')
+          .select('metric_code, value, unit, period_end')
+          .eq('holding_id', args.holding_id)
+          .order('period_end', { ascending: true });
+
+        const facts = metricFacts || [];
+
+        // 3. Group facts by metric_code
+        const metricGroups: Record<string, Array<{ date: string; value: number; unit: string | null }>> = {};
+        facts.forEach((f: any) => {
+          const code = f.metric_code;
+          if (!metricGroups[code]) metricGroups[code] = [];
+          metricGroups[code].push({
+            date: f.period_end || 'unknown',
+            value: Number(f.value || 0),
+            unit: f.unit,
+          });
+        });
+
+        // 4. Auto-generate chart previews for metrics with 2+ data points
+        const additionalActions: any[] = [];
+        const chartWidgets: any[] = [];
+        const palette = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899'];
+        let chartIndex = 0;
+
+        for (const [metricCode, series] of Object.entries(metricGroups)) {
+          if (series.length >= 2) {
+            // Create a line chart for this metric's trend
+            const chartData = series.map(s => ({ date: s.date, value: s.value }));
+            const unit = series[0]?.unit || '';
+            const chartTitle = `${holdingData.name} — ${metricCode}${unit ? ` (${unit})` : ''}`;
+
+            const d3Config = {
+              d3: {
+                kind: 'line',
+                data: chartData,
+                encoding: { x: 'date', y: 'value' },
+                options: {
+                  xType: 'time',
+                  xAxisLabel: 'Date',
+                  yAxisLabel: unit || 'Value',
+                  colors: [palette[chartIndex % palette.length]],
+                },
+              },
+            };
+
+            const widgetPreview = {
+              id: crypto.randomUUID(),
+              portfolio_id: portfolioId,
+              holding_id: args.holding_id,
+              type: 'd3_json',
+              title: chartTitle,
+              config: d3Config,
+              position: chartIndex,
+              is_preview: true,
+            };
+
+            const previewAction: any = {
+              id: crypto.randomUUID(),
+              session_id: sessionId,
+              portfolio_id: portfolioId,
+              user_id: userId,
+              action_type: 'preview',
+              entity_type: 'widget',
+              entity_id: widgetPreview.id,
+              operation_data: {
+                table: 'widgets',
+                after: widgetPreview,
+                is_preview: true,
+              },
+              ai_reasoning: `Auto-generated trend chart for ${metricCode} in holding report`,
+              user_prompt: userPrompt,
+              status: 'preview',
+              batch_id: batchId,
+              sequence_order: sequenceOrder + chartIndex + 1,
+            };
+
+            additionalActions.push(previewAction);
+            chartWidgets.push({ id: widgetPreview.id, title: chartTitle, metric: metricCode });
+            chartIndex++;
+          }
+        }
+
+        // 5. Build summary stats per metric
+        const metricSummaries: Record<string, { latest: number; total: number; count: number; unit: string | null; earliest: string; latest_date: string }> = {};
+        for (const [code, series] of Object.entries(metricGroups)) {
+          const sorted = [...series].sort((a, b) => a.date.localeCompare(b.date));
+          metricSummaries[code] = {
+            latest: sorted[sorted.length - 1].value,
+            total: sorted.reduce((s, d) => s + d.value, 0),
+            count: sorted.length,
+            unit: sorted[0].unit,
+            earliest: sorted[0].date,
+            latest_date: sorted[sorted.length - 1].date,
+          };
+        }
+
+        // 6. Build charity context
+        const charity = holdingData.charities;
+        const charityContext = charity ? {
+          name: charity.name,
+          legal_name: charity.legal_name,
+          ein: charity.ein,
+          mission: charity.mission_statement,
+          description: charity.description,
+          sector: charity.sector,
+          website: charity.website,
+          location: [charity.city, charity.state, charity.country].filter(Boolean).join(', '),
+          annual_revenue: charity.annual_revenue,
+          annual_expenses: charity.annual_expenses,
+          program_expense_ratio: charity.program_expense_ratio,
+          charity_navigator_rating: charity.charity_navigator_rating,
+          impact_focus: charity.impact_focus,
+        } : null;
+
+        return {
+          action: null,
+          additionalActions,
+          output: {
+            holding: {
+              id: holdingData.id,
+              name: holdingData.name,
+              sector: holdingData.sector,
+              country: holdingData.country,
+              status: holdingData.status,
+              funds_allocated: holdingData.funds_allocated,
+              nav: holdingData.nav,
+              asset_type: holdingData.asset_type,
+            },
+            charity: charityContext,
+            metrics: metricSummaries,
+            charts_generated: chartWidgets.length,
+            chart_details: chartWidgets,
+            instructions: 'Write a detailed narrative report about this holding. Charts for metrics with trend data will appear inline automatically. Reference the data naturally in your narrative — do NOT list raw numbers as bullet points.',
+          },
         };
       }
 
@@ -1523,6 +1977,52 @@ export class AIPortfolioAssistant {
       }
     });
 
+    // Build metricsWithData: metrics that actually have data in metric_facts for this portfolio
+    // This is the critical information the AI needs to know what can be queried/visualized
+    const metricsWithData: Array<{
+      code: string;
+      displayName: string;
+      latestValue: number;
+      unit: string | null;
+      dataPoints: number;
+      latestPeriod: string | null;
+      earliestPeriod: string | null;
+    }> = [];
+
+    // Count data points and get date ranges per metric
+    const metricStats: Record<string, { count: number; periods: string[] }> = {};
+    factsData.forEach((fact: any) => {
+      const code = fact.metric_code;
+      if (!metricStats[code]) {
+        metricStats[code] = { count: 0, periods: [] };
+      }
+      metricStats[code].count++;
+      if (fact.period_end && !metricStats[code].periods.includes(fact.period_end)) {
+        metricStats[code].periods.push(fact.period_end);
+      }
+    });
+
+    // Build the metricsWithData array from latestByMetric (metrics with actual data)
+    Object.keys(latestByMetric).forEach((code) => {
+      const stats = metricStats[code] || { count: 0, periods: [] };
+      const sortedPeriods = stats.periods.sort();
+      const kpiDef = kpiDefsData.find((k: any) => k.metric_code === code);
+      const metricDef = (metrics.data || []).find((m: any) => m.code === code);
+
+      metricsWithData.push({
+        code,
+        displayName: kpiDef?.display_name || metricDef?.name || code,
+        latestValue: latestByMetric[code].value,
+        unit: latestByMetric[code].unit || metricDef?.unit || null,
+        dataPoints: stats.count,
+        latestPeriod: sortedPeriods.length > 0 ? sortedPeriods[sortedPeriods.length - 1] : null,
+        earliestPeriod: sortedPeriods.length > 0 ? sortedPeriods[0] : null,
+      });
+    });
+
+    // Sort by data points (most data first)
+    metricsWithData.sort((a, b) => b.dataPoints - a.dataPoints);
+
     return {
       portfolio: portfolio.data,
       holdings: holdingsData,
@@ -1530,6 +2030,7 @@ export class AIPortfolioAssistant {
         ...(metrics.data || []),
         ...kpiDefsData.map((k: any) => ({ code: k.metric_code }))
       ],
+      metricsWithData, // NEW: metrics that actually have data
       widgets: portfolioWidgets.data || [],
       summary: {
         totalHoldings: holdingsData.length,
@@ -1581,6 +2082,20 @@ export class AIPortfolioAssistant {
       .map((a: any) => `  • ${a.action_type} ${a.entity_type}: ${a.ai_reasoning || 'No description'}`)
       .join('\n');
 
+    // Format metrics with data - THIS IS CRITICAL for the AI to know what can be visualized
+    const metricsWithDataSummary = (context.metricsWithData || [])
+      .slice(0, 15)
+      .map((m: any) => {
+        const valueStr = m.latestValue !== null && m.latestValue !== undefined
+          ? `${m.latestValue.toLocaleString()}${m.unit ? ' ' + m.unit : ''}`
+          : 'No recent value';
+        const dateRange = m.earliestPeriod && m.latestPeriod && m.earliestPeriod !== m.latestPeriod
+          ? ` (${m.earliestPeriod} to ${m.latestPeriod})`
+          : m.latestPeriod ? ` (as of ${m.latestPeriod})` : '';
+        return `  • ${m.code}: ${m.displayName} = ${valueStr}, ${m.dataPoints} data points${dateRange}`;
+      })
+      .join('\n');
+
     return `You are Ben, a friendly AI portfolio management assistant and data visualization expert. You help users manage their impact investment portfolio and create compelling visualizations.
 
 ⚠️ CRITICAL: You MUST use function calls to display visualizations. NEVER use markdown images, placeholders, or text descriptions as substitutes for actual widget displays. When users ask to see/show/display something, call the appropriate function (display_widget, create_portfolio_widget, etc).
@@ -1593,6 +2108,10 @@ Summary Stats:
 - Total Holdings: ${context.summary.totalHoldings} (${context.summary.activeHoldings} active)
 - Total AUM: ${formatCurrency(context.summary.totalAUM)}
 ${context.summary.totalNAV > 0 ? `- Total NAV: ${formatCurrency(context.summary.totalNAV)}` : ''}
+
+=== METRICS WITH DATA (Use these exact codes for charts/trends) ===
+${metricsWithDataSummary || 'No metric data yet. Upload reports or add metrics to holdings first.'}
+${(context.metricsWithData || []).length > 15 ? `... and ${context.metricsWithData.length - 15} more metrics` : ''}
 
 === KPI PERFORMANCE (Current vs Targets) ===
 ${kpiSummary || 'No KPIs tracked yet'}
@@ -1613,13 +2132,13 @@ ${context.widgets.length > 15 ? `... and ${context.widgets.length - 15} more` : 
 ${context.recentActions.length > 0 ? `=== RECENT CHANGES (Last 7 days) ===
 ${recentActionsSummary}
 ` : ''}
-Available Metrics: ${context.availableMetrics.length > 0 ? context.availableMetrics.map((m: any) => m.code || m.metric_code).filter(Boolean).join(', ') : 'RENEWABLE_MWH, CLIENTS_SERVED, CO2_AVOIDED, etc.'}
 
 === CAPABILITIES ===
 • Manage holdings (add/update/remove)
 • Add metric facts to holdings
 • Create visualizations (portfolio & holding level)
 • Search/filter holdings, compare metrics, get trends
+• Generate detailed reports about specific holdings/charities with inline charts
 • Answer questions using the data above
 
 === VISUALIZATION TOOLS ===
@@ -1659,44 +2178,75 @@ Widget Types & Required Config:
 
 === CRITICAL RULES ===
 
-1. **NEVER use markdown images** - ALWAYS use function calls for visualizations
-2. **Widget IDs are in context** - Don't call list_widgets to find them
-3. **New widgets are PREVIEWS** - Tell users to click "Save to Dashboard"
-4. **Use get_chart_data first** - It returns formatted data + suggested chart type + colors
-5. **Include ALL required fields** - metric_code, perUnit, mode, target, rings as needed
+1. **NEVER use markdown images (![...](...))** - This is STRICTLY FORBIDDEN. The chart widget displays automatically.
+2. **NEVER list data as bullet points** - When a chart is generated, do NOT list the data points in your response. The chart shows the data visually.
+3. **Charts auto-generate** - When you call get_chart_data, the chart is AUTOMATICALLY created and displayed. You do NOT need to call generate_d3_chart separately.
+4. **Keep responses SHORT after charts** - When chart_generated:true is in the tool result, just say something brief like "Here's the trend chart" - the visualization will appear automatically below your message.
+5. **Widget IDs are in context** - Don't call list_widgets to find them
+6. **New widgets are PREVIEWS** - Tell users to click "Save to Dashboard" if they want to keep it
+7. **ONLY use metric codes from METRICS WITH DATA section** - These are the ONLY metrics that have data. If a user asks for a metric not listed there, tell them what metrics ARE available instead.
+
+=== HANDLING CHART REQUESTS ===
+
+When a user asks for a chart/graph/visualization:
+1. Check METRICS WITH DATA for the relevant metric code
+2. Call get_chart_data with the appropriate data_type and metric_code
+3. The chart widget is created AUTOMATICALLY - you will see chart_generated:true in the response
+4. Your text response should be BRIEF - just acknowledge the chart. Example: "Here's the jobs trend chart showing growth over time."
+5. Do NOT list the data points, do NOT use markdown images, do NOT describe what the chart looks like
+
+=== WHAT TO DO / NOT DO ===
+
+WRONG (do NOT do this):
+"Here is the trend:
+- 2022-09-30: 18 jobs
+- 2022-12-31: 22 jobs
+![Chart](sandbox:/path)"
+
+CORRECT (do this):
+"Here's the jobs created trend chart."
+(The chart widget appears automatically below)
 
 === EXAMPLES ===
 
 User: "Show my holdings breakdown by sector"
-→ get_chart_data(data_type="holdings_by_sector")
-→ generate_d3_chart using returned data, suggested_chart, x_field, y_field, colors
+→ Call: get_chart_data(data_type="holdings_by_sector")
+→ Response: "Here's your holdings breakdown by sector."
 
-User: "Chart of carbon emissions trend"
-→ get_chart_data(data_type="metric_trend", metric_code="CO2_AVOIDED")
-→ generate_d3_chart with chart_type="line", x_type="time"
+User: "Chart of jobs created trend"
+→ Check METRICS WITH DATA for jobs-related code (e.g., JOBS_CREATED, JOBS_FTE)
+→ Call: get_chart_data(data_type="metric_trend", metric_code="JOBS_CREATED")
+→ Response: "Here's the jobs created trend over time."
 
-User: "Compare renewable energy across holdings"
-→ get_chart_data(data_type="metric_comparison", metric_code="RENEWABLE_MWH")
-→ generate_d3_chart with chart_type="bar"
+User: "Compare carbon emissions across holdings"
+→ Call: get_chart_data(data_type="metric_comparison", metric_code="CO2_AVOIDED")
+→ Response: "Here's how carbon emissions compare across your holdings."
 
 User: "Show portfolio allocation"
-→ get_chart_data(data_type="allocation_breakdown")
-→ generate_d3_chart with chart_type="donut"
-
-User: "How are we tracking on clients served?"
-→ Use KPI PERFORMANCE data above to answer, or create radial_progress widget
+→ Call: get_chart_data(data_type="allocation_breakdown")
+→ Response: "Here's your portfolio allocation breakdown."
 
 User: "Show the KPI Progress widget"
 → Find ID in EXISTING WIDGETS, call display_widget(widget_id)
 
-User: "Find all solar investments"
-→ search_holdings(sector="Solar")
+User: "Show me jobs data" (when no jobs metric exists)
+→ "I don't see jobs data in this portfolio. The metrics I have are: [list from METRICS WITH DATA]. Would you like to see one of these instead?"
+
+User: "Write a report about [holding name]"
+→ Find holding ID in HOLDINGS section
+→ Call: generate_holding_report(holding_id="...")
+→ Write a flowing narrative report using the returned data. Charts appear inline automatically.
+→ Include: overview, charity info (if linked), metric analysis, and forward outlook.
+→ Do NOT list raw data as bullet points — weave numbers naturally into prose.
+
+User: "Generate a report for [charity name]"
+→ Same as above — find the holding linked to that charity and call generate_holding_report
 
 === BEHAVIOR ===
-• Be concise and helpful
+• Be concise - especially after generating charts
 • Use the data above to answer questions directly
 • Create visualizations when asked
 • Ask for confirmation on deletes
-• Suggest relevant visualizations when appropriate`;
+• When a metric doesn't exist, suggest available alternatives`;
   }
 }

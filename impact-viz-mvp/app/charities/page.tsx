@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Search, ChevronDown } from 'lucide-react';
+import { Search, ChevronDown, SlidersHorizontal } from 'lucide-react';
 import CharityCard from '@/components/charities/CharityCard';
 import CharityFilterSidebar from '@/components/charities/CharityFilterSidebar';
 import AddToPortfolioModal from '@/components/charities/AddToPortfolioModal';
@@ -51,6 +51,9 @@ export default function CharitiesPage() {
     charityName: '',
     charityEin: '',
   });
+
+  // Mobile filter sidebar
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
 
   // Fetch user's default portfolio for "My Portfolio" view
   useEffect(() => {
@@ -165,11 +168,11 @@ export default function CharitiesPage() {
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <div className="bg-white border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="flex items-center justify-between mb-4">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">Charities</h1>
-              <p className="text-gray-600 mt-1">
+              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Charities</h1>
+              <p className="text-gray-600 mt-1 text-sm sm:text-base">
                 {viewMode === 'discovery'
                   ? 'Search and discover charitable organizations'
                   : 'Manage charities in your portfolio'}
@@ -183,7 +186,7 @@ export default function CharitiesPage() {
                   setViewMode('discovery');
                   setPage(1);
                 }}
-                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                className={`flex-1 sm:flex-none px-3 sm:px-4 py-2 rounded-lg font-medium text-sm sm:text-base transition-colors ${
                   viewMode === 'discovery'
                     ? 'bg-azure text-white'
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -196,7 +199,7 @@ export default function CharitiesPage() {
                   setViewMode('portfolio');
                   setPage(1);
                 }}
-                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                className={`flex-1 sm:flex-none px-3 sm:px-4 py-2 rounded-lg font-medium text-sm sm:text-base transition-colors ${
                   viewMode === 'portfolio'
                     ? 'bg-azure text-white'
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -208,7 +211,7 @@ export default function CharitiesPage() {
           </div>
 
           {/* Search Bar */}
-          <form onSubmit={handleSearch} className="flex gap-3">
+          <form onSubmit={handleSearch} className="flex flex-col sm:flex-row gap-3">
             <div className="flex-1 relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
               <input
@@ -219,25 +222,41 @@ export default function CharitiesPage() {
                 className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-azure focus:border-azure"
               />
             </div>
-            <div className="relative">
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value)}
-                className="appearance-none pl-4 pr-10 py-3 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-azure focus:border-azure"
+            <div className="flex gap-2">
+              {/* Mobile Filter Toggle */}
+              <button
+                type="button"
+                onClick={() => setMobileFiltersOpen(true)}
+                className="lg:hidden flex items-center gap-2 px-4 py-3 border border-gray-300 rounded-lg bg-white hover:bg-gray-50 transition-colors"
               >
-                <option value="relevance">Relevance</option>
-                <option value="rating">Rating (High to Low)</option>
-                <option value="revenue">Revenue (High to Low)</option>
-                <option value="name">Name (A-Z)</option>
-              </select>
-              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
+                <SlidersHorizontal className="w-5 h-5 text-gray-600" />
+                <span className="text-gray-700">Filters</span>
+                {Object.keys(filters).length > 0 && (
+                  <span className="bg-azure text-white text-xs px-2 py-0.5 rounded-full">
+                    {Object.keys(filters).length}
+                  </span>
+                )}
+              </button>
+              <div className="relative flex-1 sm:flex-none">
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value)}
+                  className="w-full sm:w-auto appearance-none pl-4 pr-10 py-3 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-azure focus:border-azure"
+                >
+                  <option value="relevance">Relevance</option>
+                  <option value="rating">Rating (High to Low)</option>
+                  <option value="revenue">Revenue (High to Low)</option>
+                  <option value="name">Name (A-Z)</option>
+                </select>
+                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
+              </div>
             </div>
           </form>
         </div>
       </div>
 
       {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
         <div className="flex gap-6">
           {/* Filters Sidebar */}
           <CharityFilterSidebar
@@ -245,6 +264,8 @@ export default function CharitiesPage() {
             onFiltersChange={setFilters}
             view={viewMode}
             onClearFilters={handleClearFilters}
+            isOpen={mobileFiltersOpen}
+            onClose={() => setMobileFiltersOpen(false)}
           />
 
           {/* Charities Grid */}
@@ -265,7 +286,7 @@ export default function CharitiesPage() {
 
             {/* Charities Grid */}
             {isLoading ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
                 {[...Array(6)].map((_, i) => (
                   <div key={i} className="bg-white border border-gray-200 rounded-lg p-4 animate-pulse">
                     <div className="h-6 bg-gray-200 rounded w-3/4 mb-4"></div>
@@ -276,7 +297,7 @@ export default function CharitiesPage() {
               </div>
             ) : charities.length > 0 ? (
               <>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
                   {charities.map((charity) => (
                     <CharityCard
                       key={charity.id}
@@ -289,22 +310,23 @@ export default function CharitiesPage() {
 
                 {/* Pagination */}
                 {totalPages > 1 && (
-                  <div className="mt-8 flex justify-center gap-2">
+                  <div className="mt-8 flex flex-wrap justify-center gap-2">
                     <button
                       onClick={() => setPage(Math.max(1, page - 1))}
                       disabled={page === 1}
-                      className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="px-3 sm:px-4 py-2 text-sm sm:text-base border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       Previous
                     </button>
 
-                    {[...Array(Math.min(5, totalPages))].map((_, i) => {
+                    {/* On mobile, show fewer page numbers */}
+                    {[...Array(Math.min(3, totalPages))].map((_, i) => {
                       const pageNum = i + 1;
                       return (
                         <button
                           key={pageNum}
                           onClick={() => setPage(pageNum)}
-                          className={`px-4 py-2 rounded-md ${
+                          className={`hidden sm:block px-4 py-2 rounded-md ${
                             page === pageNum
                               ? 'bg-azure text-white'
                               : 'border border-gray-300 hover:bg-gray-50'
@@ -315,12 +337,17 @@ export default function CharitiesPage() {
                       );
                     })}
 
-                    {totalPages > 5 && (
+                    {/* Mobile: show current page indicator */}
+                    <span className="sm:hidden px-3 py-2 text-sm text-gray-600">
+                      Page {page} of {totalPages}
+                    </span>
+
+                    {totalPages > 3 && (
                       <>
-                        <span className="px-4 py-2">...</span>
+                        <span className="hidden sm:block px-2 py-2">...</span>
                         <button
                           onClick={() => setPage(totalPages)}
-                          className={`px-4 py-2 rounded-md ${
+                          className={`hidden sm:block px-4 py-2 rounded-md ${
                             page === totalPages
                               ? 'bg-azure text-white'
                               : 'border border-gray-300 hover:bg-gray-50'
@@ -334,7 +361,7 @@ export default function CharitiesPage() {
                     <button
                       onClick={() => setPage(Math.min(totalPages, page + 1))}
                       disabled={page === totalPages}
-                      className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="px-3 sm:px-4 py-2 text-sm sm:text-base border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       Next
                     </button>

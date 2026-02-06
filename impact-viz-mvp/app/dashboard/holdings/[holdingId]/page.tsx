@@ -11,6 +11,7 @@ import NewsSection from '@/components/NewsSection';
 import FactRow from '@/components/FactRow';
 import LocationsManagerWrapper from '@/components/holdings/LocationsManagerWrapper';
 import FinancialProfileSection from '@/components/holdings/FinancialProfileSection';
+import ReportUploader from '@/components/holdings/ReportUploader';
 import { geocodeLocation } from '@/lib/services/google-maps';
 
 type HoldingRow = {
@@ -1236,6 +1237,16 @@ export default async function HoldingMiniDashboard({
             ))}
           </div>
         )}
+      </section>
+
+      {/* Upload End-of-Year Report */}
+      <section className="rounded-2xl border border-black/10 bg-white p-5 shadow-sm">
+        <h3 className="text-sm font-medium text-neutral-700 mb-4">Upload End-of-Year Report</h3>
+        <ReportUploader
+          holdingId={holding.id}
+          portfolioId={portfolioId}
+          holdingName={holding.name}
+        />
       </section>
 
       {/* Description, Theory of Action, and Legacy Cost */}

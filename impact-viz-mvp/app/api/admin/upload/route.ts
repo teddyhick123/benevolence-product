@@ -28,6 +28,14 @@ export async function POST(req: NextRequest) {
     const file = form.get('file') as File | null;
     if (!file) return NextResponse.json({ error: 'No file' }, { status: 400 });
 
+    // Check file size (50MB limit for Supabase storage)
+    const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+    if (file.size > MAX_FILE_SIZE) {
+      return NextResponse.json({
+        error: `File too large. Maximum size is 50MB, but your file is ${(file.size / (1024 * 1024)).toFixed(1)}MB.`
+      }, { status: 400 });
+    }
+
     const portfolio_id = (form.get('portfolio_id') as string) || null;
     const holding_id = (form.get('holding_id') as string) || null;
     const ai_mode = ((form.get('ai_mode') as string) ?? 'true') === 'true';
@@ -94,7 +102,18 @@ export async function POST(req: NextRequest) {
 
     // --- 4) Update storage path in upload record ---
     if (storagePath) {
-      await sb.from('uploads').update({ storage_path: storagePath }).eq('id', upload.id);
+      const { error: updateErr } = await sb.from('uploads').update({ storage_path: storagePath }).eq('id', upload.id);
+      if (updateErr) {
+        console.error('[Upload] Failed to update storage path:', updateErr);
+        return NextResponse.json({ error: 'Failed to save file reference' }, { status: 500 });
+      }
+    } else {
+      // Storage failed - can't proceed with ingestion
+      console.error('[Upload] Storage failed:', storageDebug);
+      return NextResponse.json({
+        error: 'Failed to store file',
+        storageDebug
+      }, { status: 500 });
     }
 
     // --- 5) Trigger ingestion in background ---
@@ -110,6 +129,7 @@ export async function POST(req: NextRequest) {
         autoApprove,
       }),
     }).catch((err) => {
+      console.error('[Upload] Failed to trigger ingest:', err);
       // The upload will remain in 'queued' status and can be retried
     });
 

@@ -3,7 +3,16 @@
 import * as React from 'react';
 import { createPortal } from 'react-dom';
 import clsx from 'clsx';
-import { ASSET_TYPE_LABELS, AssetType } from '@/lib/schemas/portfolio';
+import {
+  ASSET_TYPE_LABELS,
+  ASSET_TYPE_DESCRIPTIONS,
+  AssetType,
+  SECTORS,
+  HOLDING_STATUSES,
+  INVESTMENT_ASSET_TYPES,
+  GRANT_ASSET_TYPES,
+  DONATION_ASSET_TYPES,
+} from '@/lib/schemas/portfolio';
 
 function dateInputValue(v: unknown): string {
   if (!v) return '';
@@ -78,8 +87,8 @@ export default function EditHoldingsModal({ portfolioId, initial, open, onClose,
   const [funds, setFunds] = React.useState<string>(
     initial?.funds_allocated != null ? String(initial.funds_allocated) : ''
   );
-  const [status, setStatus] = React.useState(initial?.status ?? '');
-  const [asOf, setAsOf] = React.useState(dateInputValue(initial?.as_of));
+  const [status, setStatus] = React.useState(initial?.status ?? (initial?.id ? '' : 'Active'));
+  const [asOf, setAsOf] = React.useState(dateInputValue(initial?.as_of) || (initial?.id ? '' : new Date().toISOString().slice(0, 10)));
   const [sector, setSector] = React.useState(initial?.sector ?? '');
   const [country, setCountry] = React.useState(initial?.country ?? '');
 
@@ -106,8 +115,8 @@ export default function EditHoldingsModal({ portfolioId, initial, open, onClose,
     setName(initial?.name ?? '');
     setAssetClass(initial?.asset_type ?? '');
     setFunds(initial?.funds_allocated != null ? String(initial.funds_allocated) : '');
-    setStatus(initial?.status ?? '');
-    setAsOf(dateInputValue(initial?.as_of));
+    setStatus(initial?.status ?? (initial?.id ? '' : 'Active'));
+    setAsOf(dateInputValue(initial?.as_of) || (initial?.id ? '' : new Date().toISOString().slice(0, 10)));
     setSector(initial?.sector ?? '');
     setCountry(initial?.country ?? '');
     setLocationCity(initial?.location_city ?? '');
@@ -174,12 +183,16 @@ export default function EditHoldingsModal({ portfolioId, initial, open, onClose,
     setBusy(true);
     setError(null);
 
+    // Parse funds - only include if valid positive number
+    const fundsNum = funds ? Number(funds) : null;
+    const validFunds = fundsNum && Number.isFinite(fundsNum) && fundsNum > 0 ? fundsNum : null;
+
     const payload: any = {
       // canonical snake_case used by DB
       name: name?.trim() || null,
       status: status?.trim() || null,
       asset_type: assetClass?.trim() || null,
-      funds_allocated: funds === '' ? null : Number(funds),
+      funds_allocated: validFunds,
       as_of: asOf || null, // Already in YYYY-MM-DD format from date input
       sector: sector?.trim() || null,
       country: country?.trim() || null,
@@ -187,10 +200,6 @@ export default function EditHoldingsModal({ portfolioId, initial, open, onClose,
       location_city: locationCity?.trim() || null,
       location_state: locationState?.trim() || null,
       location_country: locationCountry?.trim() || null,
-      // camelCase mirrors for handlers that expect it
-      assetClass: assetClass?.trim() || null,
-      fundsAllocated: funds === '' ? null : Number(funds),
-      asOf: asOf || null,
     };
 
     try {
@@ -258,7 +267,7 @@ export default function EditHoldingsModal({ portfolioId, initial, open, onClose,
   return createPortal(
     <div
       className={clsx(
-        'fixed inset-0 z-[10000] flex items-start justify-center p-4 sm:p-6',
+        'fixed inset-0 z-[10000] flex items-start justify-center p-4 sm:p-6 overflow-y-auto',
         'bg-black/30 backdrop-blur-[1px]'
       )}
       role="dialog"
@@ -268,8 +277,8 @@ export default function EditHoldingsModal({ portfolioId, initial, open, onClose,
         if (e.target === e.currentTarget) close();
       }}
     >
-      <div className="w-full max-w-lg rounded-2xl bg-white shadow-xl ring-1 ring-black/10">
-        <div className="flex items-start justify-between gap-3 p-4 border-b border-black/5">
+      <div className="w-full max-w-lg rounded-2xl bg-white shadow-xl ring-1 ring-black/10 my-auto max-h-[calc(100vh-3rem)] flex flex-col">
+        <div className="flex items-start justify-between gap-3 p-4 border-b border-black/5 flex-shrink-0">
           <div className="min-w-0">
             <h3 id="edit-holding-title" className="text-base font-semibold text-neutral-900">
               {isEditing ? 'Edit holding' : 'Add holding'}
@@ -288,7 +297,7 @@ export default function EditHoldingsModal({ portfolioId, initial, open, onClose,
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-4 space-y-3">
+        <form onSubmit={handleSubmit} className="p-4 space-y-3 overflow-y-auto flex-1">
           {error ? (
             <div className="text-sm rounded-md bg-red-50 text-red-700 px-3 py-2 border border-red-200">
               {error}
@@ -315,30 +324,29 @@ export default function EditHoldingsModal({ portfolioId, initial, open, onClose,
               >
                 <option value="">Select type...</option>
                 <optgroup label="Investment Types">
-                  <option value="equity_investment">{ASSET_TYPE_LABELS.equity_investment}</option>
-                  <option value="private_equity_investment">{ASSET_TYPE_LABELS.private_equity_investment}</option>
-                  <option value="venture_capital_investment">{ASSET_TYPE_LABELS.venture_capital_investment}</option>
-                  <option value="debt_investment">{ASSET_TYPE_LABELS.debt_investment}</option>
-                  <option value="impact_bond">{ASSET_TYPE_LABELS.impact_bond}</option>
-                  <option value="conservation_investment">{ASSET_TYPE_LABELS.conservation_investment}</option>
-                  <option value="pri">{ASSET_TYPE_LABELS.pri}</option>
-                  <option value="mri">{ASSET_TYPE_LABELS.mri}</option>
+                  {INVESTMENT_ASSET_TYPES.map((type) => (
+                    <option key={type} value={type}>{ASSET_TYPE_LABELS[type]}</option>
+                  ))}
                 </optgroup>
                 <optgroup label="Grant Types">
-                  <option value="foundation_grant">{ASSET_TYPE_LABELS.foundation_grant}</option>
-                  <option value="daf_grant">{ASSET_TYPE_LABELS.daf_grant}</option>
+                  {GRANT_ASSET_TYPES.map((type) => (
+                    <option key={type} value={type}>{ASSET_TYPE_LABELS[type]}</option>
+                  ))}
                 </optgroup>
                 <optgroup label="Donation Types">
-                  <option value="donation">{ASSET_TYPE_LABELS.donation}</option>
-                  <option value="real_estate_donation">{ASSET_TYPE_LABELS.real_estate_donation}</option>
-                  <option value="qcd_distribution">{ASSET_TYPE_LABELS.qcd_distribution}</option>
-                  <option value="cryptocurrency_donation">{ASSET_TYPE_LABELS.cryptocurrency_donation}</option>
-                  <option value="artwork_collectible_donation">{ASSET_TYPE_LABELS.artwork_collectible_donation}</option>
+                  {DONATION_ASSET_TYPES.filter(t => !GRANT_ASSET_TYPES.includes(t)).map((type) => (
+                    <option key={type} value={type}>{ASSET_TYPE_LABELS[type]}</option>
+                  ))}
                 </optgroup>
                 <optgroup label="Other">
                   <option value="other">{ASSET_TYPE_LABELS.other}</option>
                 </optgroup>
               </select>
+              {assetClass && ASSET_TYPE_DESCRIPTIONS[assetClass as AssetType] && (
+                <div className="mt-1.5 text-xs text-neutral-500 bg-neutral-50 rounded-lg px-2.5 py-1.5 border border-neutral-100">
+                  {ASSET_TYPE_DESCRIPTIONS[assetClass as AssetType]}
+                </div>
+              )}
             </label>
 
             <label className="text-sm">
@@ -363,9 +371,9 @@ export default function EditHoldingsModal({ portfolioId, initial, open, onClose,
                 className="w-full rounded-2xl border border-black/10 px-3 py-2 bg-white"
               >
                 <option value="">Select status...</option>
-                <option value="Active">Active</option>
-                <option value="Exited">Exited</option>
-                <option value="Pipeline">Pipeline</option>
+                {HOLDING_STATUSES.map((s) => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
               </select>
             </label>
 
@@ -381,12 +389,17 @@ export default function EditHoldingsModal({ portfolioId, initial, open, onClose,
 
             <label className="text-sm">
               <div className="mb-1 text-neutral-700">Sector</div>
-              <input
+              <select
                 value={sector}
                 onChange={(e) => setSector(e.target.value)}
-                placeholder="Renewables / Healthcare / Education"
-                className="w-full rounded-2xl border border-black/10 px-3 py-2"
-              />
+                className="w-full rounded-2xl border border-black/10 px-3 py-2 bg-white"
+              >
+                <option value="">Select sector...</option>
+                {SECTORS.map((s) => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+                <option value="Other">Other</option>
+              </select>
             </label>
 
             <label className="text-sm">
@@ -504,6 +517,14 @@ export default function EditHoldingsModal({ portfolioId, initial, open, onClose,
                           setCharityQuery('');
                           setCharityResults([]);
                           setShowCharityResults(false);
+                          // Auto-populate fields from charity data
+                          if (!name && r.name) setName(r.name);
+                          if (!sector && r.sector) setSector(r.sector);
+                          if (!locationCity && r.city) setLocationCity(r.city);
+                          if (!locationState && r.state) setLocationState(r.state);
+                          if (!locationCountry) setLocationCountry('USA');
+                          // Suggest donation as asset type for nonprofits
+                          if (!assetClass) setAssetClass('donation');
                         }}
                         className="w-full px-3 py-2.5 flex items-center justify-between hover:bg-neutral-50 transition-colors text-left border-b border-neutral-100 last:border-b-0"
                       >

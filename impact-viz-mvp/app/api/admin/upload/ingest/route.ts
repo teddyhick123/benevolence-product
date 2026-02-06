@@ -21,6 +21,7 @@ function supabaseService() {
  */
 export async function POST(req: NextRequest) {
   const sb = supabaseService();
+  let uploadId: string | undefined;
 
   try {
     // Parse and validate request body
@@ -42,7 +43,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { uploadId, autoApprove } = validation.data;
+    uploadId = validation.data.uploadId;
+    const { autoApprove } = validation.data;
 
     // 1. Fetch upload record
     const { data: upload, error: uploadErr } = await sb
@@ -239,13 +241,18 @@ export async function POST(req: NextRequest) {
     });
 
   } catch (error: any) {
+    console.error('[Ingest Error]', error);
+
     // Update upload status to error
-    const { uploadId } = await req.json().catch(() => ({}));
     if (uploadId) {
-      await sb.from('uploads').update({
-        status: 'error',
-        updated_at: new Date().toISOString(),
-      }).eq('id', uploadId);
+      try {
+        await sb.from('uploads').update({
+          status: 'error',
+          updated_at: new Date().toISOString(),
+        }).eq('id', uploadId);
+      } catch (updateErr) {
+        console.error('[Ingest] Failed to update error status:', updateErr);
+      }
     }
 
     return NextResponse.json({

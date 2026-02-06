@@ -152,13 +152,13 @@ export function getAssetTypeColor(assetType: AssetType): string {
  */
 export const createHoldingSchema = z.object({
   name: z.string().min(1, 'Name is required').max(255, 'Name too long'),
-  status: z.enum(['Active', 'Exited', 'Pipeline']).optional(),
-  asset_type: assetTypeSchema.optional(),
+  status: z.enum(['Active', 'Pipeline', 'Exited', 'On Hold']).optional().nullable(),
+  asset_type: assetTypeSchema.optional().nullable(),
   asset_subtype: z.string().max(200, 'Asset subtype too long').optional().nullable(),
   custodian: z.string().max(100).optional(),
   valuation_method: z.string().max(100).optional(),
-  sector: z.string().max(100).optional(),
-  country: z.string().max(100).optional(),
+  sector: z.string().max(100).optional().nullable(),
+  country: z.string().max(100).optional().nullable(),
   investee_id: z.string().uuid().optional().nullable(),
   funds_allocated: z.number().positive('Funds allocated must be positive').optional().nullable(),
   nav: z.number().positive('NAV must be positive').optional().nullable(), // Legacy support
@@ -217,6 +217,38 @@ export const createKpiSchema = z.object({
 export const updateKpiSchema = createKpiSchema.partial().extend({
   metric_code: z.string().max(50).optional(), // Make optional for updates
 });
+
+/**
+ * Common sectors for impact portfolios
+ */
+export const SECTORS = [
+  'Education',
+  'Health',
+  'Environment',
+  'Human Services',
+  'Arts & Culture',
+  'International Development',
+  'Animals & Wildlife',
+  'Religion & Faith',
+  'Community Development',
+  'Research & Public Policy',
+  'Housing & Shelter',
+  'Food Security',
+  'Economic Development',
+  'Climate & Energy',
+  'Water & Sanitation',
+  'Gender Equity',
+  'Racial Justice',
+  'Disaster Relief',
+] as const;
+
+export type Sector = typeof SECTORS[number];
+
+/**
+ * Holding statuses
+ */
+export const HOLDING_STATUSES = ['Active', 'Pipeline', 'Exited', 'On Hold'] as const;
+export type HoldingStatus = typeof HOLDING_STATUSES[number];
 
 /**
  * Common query parameter schemas

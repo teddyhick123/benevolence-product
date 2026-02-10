@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 
 type StagedFact = {
   id: string;
@@ -21,16 +21,17 @@ export default function ReportUploader({
   holdingName: string;
 }) {
   const [file, setFile] = useState<File | null>(null);
-  const [status, setStatus] = useState<'idle' | 'uploading' | 'processing' | 'done' | 'error'>('idle');
+  const [status, setStatus] = useState<'idle' | 'uploading' | 'done' | 'error'>('idle');
   const [msg, setMsg] = useState('');
   const [uploadId, setUploadId] = useState<string | null>(null);
   const [factsCount, setFactsCount] = useState(0);
-  const [progress, setProgress] = useState(0);
+  const [chunksProcessed, setChunksProcessed] = useState(0);
   const [stagedFacts, setStagedFacts] = useState<StagedFact[]>([]);
   const [showReview, setShowReview] = useState(false);
   const [aiMode, setAiMode] = useState(true);
 
-  const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+  // 200MB limit (handled in chunks on server)
+  const MAX_FILE_SIZE = 200 * 1024 * 1024;
 
   async function loadStagedFacts(id: string) {
     try {
@@ -62,37 +63,6 @@ export default function ReportUploader({
     }
   }
 
-  useEffect(() => {
-    if (!uploadId || status === 'done' || status === 'error') return;
-
-    const interval = setInterval(async () => {
-      try {
-        const res = await fetch(`/api/admin/upload/${uploadId}/status`);
-        if (res.ok) {
-          const data = await res.json();
-          if (data.status === 'done') {
-            setStatus('done');
-            setProgress(100);
-            setFactsCount(data.factsExtracted || 0);
-            setMsg(`Processing complete! Extracted ${data.factsExtracted || 0} facts.`);
-            if (aiMode && data.factsExtracted > 0) loadStagedFacts(uploadId);
-          } else if (data.status === 'error') {
-            setStatus('error');
-            setProgress(0);
-            setMsg('Processing failed. Please try again.');
-          } else if (data.status === 'processing') {
-            setStatus('processing');
-            setProgress((prev) => Math.min(90, prev + 5));
-            setMsg('Extracting data from document...');
-            setFactsCount(data.factsExtracted || 0);
-          }
-        }
-      } catch {}
-    }, 2000);
-
-    return () => clearInterval(interval);
-  }, [uploadId, status, aiMode]);
-
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!file) return;
@@ -100,14 +70,14 @@ export default function ReportUploader({
     // Check file size
     if (file.size > MAX_FILE_SIZE) {
       setStatus('error');
-      setMsg(`File too large. Maximum size is 50MB, but your file is ${(file.size / (1024 * 1024)).toFixed(1)}MB.`);
+      setMsg(`File too large. Maximum size is 200MB, but your file is ${(file.size / (1024 * 1024)).toFixed(1)}MB.`);
       return;
     }
 
     setStatus('uploading');
-    setMsg('Uploading file...');
+    setMsg('Processing document... This may take a moment for large files.');
     setFactsCount(0);
-    setProgress(10);
+    setChunksProcessed(0);
 
     try {
       const fd = new FormData();
@@ -122,13 +92,23 @@ export default function ReportUploader({
 
       if (!res.ok) throw new Error(data?.error || 'Upload failed');
 
+      // Processing is now synchronous - we get results directly
       setUploadId(data.uploadId);
-      setStatus('processing');
-      setProgress(20);
-      setMsg('Processing document...');
+      setFactsCount(data.factsExtracted || 0);
+      setChunksProcessed(data.chunksProcessed || 0);
+      setStatus('done');
+      setMsg(
+        data.factsExtracted > 0
+          ? `Extracted ${data.factsExtracted} facts from ${data.chunksProcessed} document sections.`
+          : data.message || 'No facts found in document.'
+      );
+
+      // Load staged facts for review
+      if (data.factsExtracted > 0 && data.uploadId) {
+        loadStagedFacts(data.uploadId);
+      }
     } catch (err: any) {
       setStatus('error');
-      setProgress(0);
       setMsg(err?.message || 'Upload failed');
     }
   }
@@ -139,12 +119,12 @@ export default function ReportUploader({
     setMsg('');
     setUploadId(null);
     setFactsCount(0);
-    setProgress(0);
+    setChunksProcessed(0);
     setStagedFacts([]);
     setShowReview(false);
   }
 
-  const disabled = !file || status === 'uploading' || status === 'processing';
+  const disabled = !file || status === 'uploading';
 
   return (
     <div className="space-y-4">
@@ -182,15 +162,15 @@ export default function ReportUploader({
         >
           <input
             type="file"
-            accept=".csv,.xlsx,.xls,.pdf"
+            accept=".csv,.xlsx,.xls,.pdf,.docx"
             onChange={(e) => setFile(e.target.files?.[0] || null)}
             className="hidden"
             id={`reportFileInput-${holdingId}`}
           />
           <label htmlFor={`reportFileInput-${holdingId}`} className="cursor-pointer text-sm text-azure">
-            {file ? `Selected: ${file.name}` : 'Click to choose a file or drag and drop here'}
+            {file ? `Selected: ${file.name} (${(file.size / (1024 * 1024)).toFixed(1)}MB)` : 'Click to choose a file or drag and drop here'}
           </label>
-          <p className="text-xs text-neutral-500 mt-1">CSV, XLSX, XLS, or PDF</p>
+          <p className="text-xs text-neutral-500 mt-1">CSV, XLSX, XLS, PDF, or DOCX (up to 200MB)</p>
         </div>
 
         <div className="text-sm text-neutral-600">
@@ -201,42 +181,33 @@ export default function ReportUploader({
           disabled={disabled}
           className="px-5 py-2.5 rounded-md bg-gradient-to-r from-azure via-azure/90 to-azure/70 text-white shadow-soft hover:opacity-90 disabled:opacity-50 transition"
         >
-          {status === 'uploading' ? 'Uploading...' : status === 'processing' ? 'Processing...' : 'Upload Report'}
+          {status === 'uploading' ? 'Processing...' : 'Upload Report'}
         </button>
       </form>
 
-      {/* Progress indicator */}
-      {(status === 'uploading' || status === 'processing') && (
+      {/* Processing indicator */}
+      {status === 'uploading' && (
         <div className="p-4 rounded-2xl bg-azure/5 border border-azure/20 space-y-3">
           <div className="flex items-center gap-3">
             <div className="w-5 h-5 border-2 border-azure border-t-transparent rounded-full animate-spin" />
             <div className="flex-1">
               <div className="text-sm font-medium text-neutral-800">{msg}</div>
-              {factsCount > 0 && (
-                <div className="text-xs text-neutral-600 mt-1">{factsCount} facts extracted so far...</div>
-              )}
-            </div>
-            <div className="text-sm font-medium text-azure">{progress}%</div>
-          </div>
-          <div className="relative h-2 bg-neutral-200 rounded-full overflow-hidden">
-            <div
-              className="absolute inset-y-0 left-0 bg-azure rounded-full transition-all duration-500 ease-out"
-              style={{ width: `${progress}%` }}
-            >
-              <div className="absolute inset-0 bg-white/20 animate-pulse" />
+              <div className="text-xs text-neutral-500 mt-1">
+                Large documents are split into sections and processed individually.
+              </div>
             </div>
           </div>
         </div>
       )}
 
-      {status !== 'idle' && status !== 'processing' && status !== 'uploading' && (
-        <div className={`text-sm ${status === 'error' ? 'text-red-600' : 'text-green-700'}`}>{msg}</div>
+      {status === 'error' && (
+        <div className="text-sm text-red-600 p-3 rounded-lg bg-red-50 border border-red-200">{msg}</div>
       )}
 
       {status === 'done' && (
         <div className="space-y-4">
           <div className="p-3 rounded-2xl bg-green-50 border border-green-200 flex items-center gap-3 flex-wrap">
-            <span>Processing complete! {factsCount > 0 && `Extracted ${factsCount} facts.`}</span>
+            <span>{msg}</span>
             {stagedFacts.length > 0 && (
               <button onClick={() => setShowReview(!showReview)} className="text-sm underline font-medium">
                 {showReview ? 'Hide' : 'Review & Approve'}

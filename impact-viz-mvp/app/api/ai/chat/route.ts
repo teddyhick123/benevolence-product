@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { AIPortfolioAssistant } from '@/lib/ai-assistant';
+import { ClaudePortfolioAssistant } from '@/lib/claude-assistant';
 import { cookies } from 'next/headers';
 import { createServerClient } from '@supabase/ssr';
 import { aiAuthRequired } from '@/lib/rate-limit-response';
@@ -24,10 +24,10 @@ function supabaseService() {
  */
 export async function POST(req: NextRequest) {
   try {
-    // Verify env vars
-    const { NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE, OPENAI_API_KEY } = process.env;
-    if (!NEXT_PUBLIC_SUPABASE_URL || !SUPABASE_SERVICE_ROLE || !OPENAI_API_KEY) {
-      return NextResponse.json({ error: 'Missing required env vars' }, { status: 500 });
+    // Verify env vars - now requires Anthropic API key for Claude
+    const { NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE, ANTHROPIC_API_KEY } = process.env;
+    if (!NEXT_PUBLIC_SUPABASE_URL || !SUPABASE_SERVICE_ROLE || !ANTHROPIC_API_KEY) {
+      return NextResponse.json({ error: 'Missing required env vars (ANTHROPIC_API_KEY required)' }, { status: 500 });
     }
 
     // Get authenticated user
@@ -137,8 +137,13 @@ export async function POST(req: NextRequest) {
       })
       .eq('id', sessionId);
 
-    // Initialize AI assistant
-    const assistant = new AIPortfolioAssistant(SUPABASE_SERVICE_ROLE, OPENAI_API_KEY);
+    // Initialize Claude AI assistant
+    const assistant = new ClaudePortfolioAssistant(SUPABASE_SERVICE_ROLE, ANTHROPIC_API_KEY);
+
+    // Filter conversation history to only include user/assistant messages (Claude doesn't accept system in messages array)
+    const filteredHistory = (conversationHistory || [])
+      .filter(msg => msg.role === 'user' || msg.role === 'assistant')
+      .map(msg => ({ role: msg.role as 'user' | 'assistant', content: msg.content }));
 
     // Process the message
     const result = await assistant.chat({
@@ -146,7 +151,7 @@ export async function POST(req: NextRequest) {
       userId: user.id,
       sessionId,
       message,
-      conversationHistory: conversationHistory || [],
+      conversationHistory: filteredHistory,
     });
 
     // Check if any widgets were created/displayed and fetch their full data

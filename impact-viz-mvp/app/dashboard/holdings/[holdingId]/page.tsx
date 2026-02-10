@@ -12,6 +12,7 @@ import FactRow from '@/components/FactRow';
 import LocationsManagerWrapper from '@/components/holdings/LocationsManagerWrapper';
 import FinancialProfileSection from '@/components/holdings/FinancialProfileSection';
 import ReportUploader from '@/components/holdings/ReportUploader';
+import OrgSubmittedMetrics from '@/components/holdings/OrgSubmittedMetrics';
 import { geocodeLocation } from '@/lib/services/google-maps';
 
 type HoldingRow = {
@@ -155,6 +156,45 @@ async function fetchLocations(portfolioId: string, holdingId: string): Promise<H
     .order('name');
   if (error || !data) return [];
   return data as HoldingLocationRow[];
+}
+
+async function fetchOrgSubmittedFacts(holdingId: string) {
+  const supabase = await getSupabase();
+  const { data, error } = await supabase
+    .from('staging_metric_facts')
+    .select(`
+      id,
+      metric_code,
+      value,
+      unit,
+      period_end,
+      source,
+      created_at,
+      metrics (name, unit),
+      organizations:submitted_by_org_id (name)
+    `)
+    .eq('holding_id', holdingId)
+    .not('submitted_by_org_id', 'is', null)
+    .eq('approved', false)
+    .order('created_at', { ascending: false });
+
+  if (error || !data) return [];
+  return data;
+}
+
+async function fetchLinkedOrg(holdingId: string): Promise<{ id: string; name: string } | null> {
+  const supabase = await getSupabase();
+  const { data, error } = await supabase
+    .from('organization_holdings')
+    .select('organizations (id, name)')
+    .eq('holding_id', holdingId)
+    .not('verified_at', 'is', null)
+    .limit(1)
+    .single();
+
+  if (error || !data) return null;
+  const org = (data as any).organizations;
+  return org ? { id: org.id, name: org.name } : null;
 }
 
 
@@ -724,11 +764,13 @@ export default async function HoldingMiniDashboard({
 
   const portfolioId = String(holding.portfolio_id);
 
-  const [facts, contributions, metricNames, locations] = await Promise.all([
+  const [facts, contributions, metricNames, locations, orgSubmittedFacts, linkedOrg] = await Promise.all([
     fetchFacts(holdingId),
     fetchContributions(portfolioId, holdingId),
     fetchMetricNames(portfolioId),
     fetchLocations(portfolioId, holdingId),
+    fetchOrgSubmittedFacts(holdingId),
+    fetchLinkedOrg(holdingId),
   ]);
 
   const latestMetrics = latestByMetric(facts);
@@ -820,6 +862,13 @@ export default async function HoldingMiniDashboard({
         funds={funds}
         contributionCount={totalContributions > 0 ? contributions.length : undefined}
         isManualFunds={totalContributions === 0 && holding.funds_allocated != null}
+      />
+
+      {/* Organization Submitted Metrics */}
+      <OrgSubmittedMetrics
+        holdingId={holding.id}
+        pendingFacts={orgSubmittedFacts as any}
+        linkedOrg={linkedOrg}
       />
 
       {!hasBasicInfo && (

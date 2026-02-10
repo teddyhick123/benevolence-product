@@ -12,6 +12,7 @@ const supabase = createClient(
 function HeaderContent() {
   const [user, setUser] = useState<any>(null);
   const [portfolioId, setPortfolioId] = useState<string | null>(null);
+  const [hasOrg, setHasOrg] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const searchParams = useSearchParams();
   const pathname = usePathname();
@@ -24,24 +25,33 @@ function HeaderContent() {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Fetch user's portfolio ID from API
+  // Fetch user's portfolio ID and org membership from API
   useEffect(() => {
-    async function fetchPortfolio() {
+    async function fetchUserData() {
       try {
-        const res = await fetch('/api/me', { cache: 'no-store' });
-        if (res.ok) {
-          const data = await res.json();
+        const [meRes, orgRes] = await Promise.all([
+          fetch('/api/me', { cache: 'no-store' }),
+          fetch('/api/org', { cache: 'no-store' }),
+        ]);
+
+        if (meRes.ok) {
+          const data = await meRes.json();
           if (data?.portfolio_id) {
             setPortfolioId(data.portfolio_id);
           }
         }
+
+        if (orgRes.ok) {
+          const orgData = await orgRes.json();
+          setHasOrg(orgData?.organizations?.length > 0);
+        }
       } catch (error) {
-        // Failed to fetch portfolio
+        // Failed to fetch data
       }
     }
 
     if (user) {
-      fetchPortfolio();
+      fetchUserData();
     }
   }, [user]);
 
@@ -108,6 +118,14 @@ function HeaderContent() {
               >
                 Profile
               </Link>
+              {hasOrg && (
+                <Link
+                  href="/org"
+                  className="font-sans text-sm px-4 py-2 rounded-md border border-black/10 hover:bg-white shadow-sm hover:shadow transition-transform duration-200 hover:-translate-y-0.5 will-change-transform rm:transition-none rm:transform-none"
+                >
+                  Org Portal
+                </Link>
+              )}
               <button
                 onClick={handleSignOut}
                 className="font-sans text-sm px-4 py-2 rounded-md border border-black/10 hover:bg-white shadow-sm hover:shadow transition-transform duration-200 hover:-translate-y-0.5 will-change-transform rm:transition-none rm:transform-none"
@@ -167,6 +185,14 @@ function HeaderContent() {
             >
               Profile
             </Link>
+            {hasOrg && (
+              <Link
+                href="/org"
+                className="block w-full text-left font-sans text-sm px-4 py-3 rounded-md border border-black/10 hover:bg-white shadow-sm hover:shadow transition-colors"
+              >
+                Org Portal
+              </Link>
+            )}
             <button
               onClick={handleSignOut}
               className="block w-full text-left font-sans text-sm px-4 py-3 rounded-md border border-black/10 hover:bg-white shadow-sm hover:shadow transition-colors"

@@ -4,11 +4,31 @@ import { useState, useRef, useEffect } from 'react';
 import { ArrowPathIcon, ChatBubbleLeftRightIcon, XMarkIcon, MicrophoneIcon, StopIcon } from '@heroicons/react/24/outline';
 import { useAudioRecorder } from '@/hooks/useAudioRecorder';
 import TrefoilLoader from './TrefoilLoader';
+import InlineWidget from './InlineWidget';
+import ReactMarkdown from 'react-markdown';
+
+type ContentBlock = {
+  type: 'text' | 'chart';
+  content?: string;
+  widget?: any;
+};
+
+type WidgetData = {
+  id: string;
+  portfolio_id?: string;
+  holding_id?: string;
+  type: string;
+  title: string | null;
+  config: any | null;
+  is_preview?: boolean;
+};
 
 type Message = {
   role: 'user' | 'assistant';
   content: string;
   timestamp: string;
+  content_blocks?: ContentBlock[];
+  widgets?: WidgetData[];
 };
 
 type AIAction = {
@@ -131,6 +151,8 @@ Just ask me anything, and I'll help you out! If you don't like a change I make, 
           role: 'assistant',
           content: data.message,
           timestamp: new Date().toISOString(),
+          content_blocks: data.content_blocks,
+          widgets: data.widgets,
         };
         setMessages((prev) => [...prev, assistantMessage]);
       }
@@ -262,8 +284,9 @@ Just ask me anything, and I'll help you out! If you don't like a change I make, 
         {messages.map((msg, idx) => (
           <div
             key={idx}
-            className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+            className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}
           >
+            {/* Main message bubble */}
             <div
               className={`max-w-[80%] rounded-lg px-4 py-2 ${
                 msg.role === 'user'
@@ -271,11 +294,48 @@ Just ask me anything, and I'll help you out! If you don't like a change I make, 
                   : 'bg-neutral-100 text-neutral-900'
               }`}
             >
-              <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+              {msg.role === 'assistant' ? (
+                <div className="text-sm prose prose-sm prose-neutral max-w-none">
+                  <ReactMarkdown>{msg.content}</ReactMarkdown>
+                </div>
+              ) : (
+                <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+              )}
               <p className={`text-xs mt-1 ${msg.role === 'user' ? 'text-blue-200' : 'text-neutral-500'}`}>
                 {new Date(msg.timestamp).toLocaleTimeString()}
               </p>
             </div>
+
+            {/* Render content_blocks if present (new structured report format) */}
+            {msg.content_blocks && msg.content_blocks.length > 0 && (
+              <div className="w-full mt-2 space-y-2">
+                {msg.content_blocks.map((block, blockIdx) => (
+                  <div key={`block-${idx}-${blockIdx}`}>
+                    {block.type === 'text' && block.content && (
+                      <div className="bg-neutral-50 rounded-lg px-4 py-2 text-sm prose prose-sm prose-neutral max-w-none">
+                        <ReactMarkdown>{block.content}</ReactMarkdown>
+                      </div>
+                    )}
+                    {block.type === 'chart' && block.widget && (
+                      <InlineWidget widget={block.widget} portfolioId={portfolioId} />
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Render widgets if present (existing widget format) */}
+            {msg.widgets && msg.widgets.length > 0 && !msg.content_blocks && (
+              <div className="w-full mt-2 space-y-2">
+                {msg.widgets.map((widget, widgetIdx) => (
+                  <InlineWidget
+                    key={`widget-${idx}-${widgetIdx}`}
+                    widget={widget}
+                    portfolioId={portfolioId}
+                  />
+                ))}
+              </div>
+            )}
           </div>
         ))}
 

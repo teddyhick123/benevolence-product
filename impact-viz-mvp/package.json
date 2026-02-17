@@ -6,7 +6,8 @@
     "dev": "next dev -p 3000",
     "build": "next build",
     "start": "next start -p 3000",
-    "lint": "next lint",
+    "lint": "eslint . --ext .js,.jsx,.ts,.tsx",
+    "lint:fix": "eslint . --ext .js,.jsx,.ts,.tsx --fix",
     "vercel-build": "next build",
     "test": "vitest",
     "test:ui": "vitest --ui",
@@ -37,6 +38,7 @@
     "postcss": "^8.5.6",
     "react": "18.2.0",
     "react-dom": "18.2.0",
+    "react-markdown": "^10.1.0",
     "supabase": "^2.47.2",
     "swr": "^2.3.6",
     "tailwindcss": "^4.1.12",
@@ -46,6 +48,7 @@
     "zod": "3.23.8"
   },
   "devDependencies": {
+    "@eslint/eslintrc": "^3.3.3",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.0",
@@ -56,7 +59,7 @@
     "@types/topojson-client": "^3.1.5",
     "@vitest/ui": "^4.0.12",
     "eslint": "8.57.0",
-    "eslint-config-next": "^16.0.10",
+    "eslint-config-next": "^15.5.12",
     "jsdom": "^27.2.0",
     "typescript": "5.5.4",
     "vitest": "^4.0.12"

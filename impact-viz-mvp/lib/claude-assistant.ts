@@ -414,13 +414,136 @@ const PORTFOLIO_TOOLS: Anthropic.Tool[] = [
   },
   {
     name: 'generate_holding_report',
-    description: 'Generate a comprehensive report about a specific holding/charity with inline charts. Fetches all holding data, charity info, and metric history, then auto-generates relevant chart visualizations. The AI should write a narrative report around the returned data — charts will appear inline automatically.',
+    description: 'Generate a comprehensive report about a specific holding/charity with inline charts. Fetches all holding data, charity info, and metric history, then auto-generates relevant chart visualizations. Returns content_blocks array with interleaved text and chart widgets.',
     input_schema: {
       type: 'object',
       properties: {
         holding_id: { type: 'string', description: 'UUID of the holding to report on (find in HOLDINGS section)' },
+        metric_codes: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Specific metric codes to include in report (optional - if empty, auto-selects all available)',
+        },
+        chart_preferences: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              metric_code: { type: 'string' },
+              chart_type: { type: 'string', enum: ['line', 'bar', 'area', 'pie', 'gauge'] },
+            },
+          },
+          description: 'Chart type preferences for specific metrics (optional)',
+        },
+        include_sections: {
+          type: 'array',
+          items: { type: 'string', enum: ['overview', 'financials', 'impact', 'trends'] },
+          description: 'Sections to include in report (optional - default: all)',
+        },
+        time_range: {
+          type: 'string',
+          enum: ['3m', '6m', '12m', 'ytd', 'all'],
+          description: 'Time range for metric data (default: all)',
+        },
       },
       required: ['holding_id'],
+    },
+  },
+  {
+    name: 'generate_custom_report',
+    description: 'Generate a custom report with user-specified metrics, chart types, and sections. Returns content_blocks array with interleaved text and chart widgets for inline rendering.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        scope: {
+          type: 'string',
+          enum: ['portfolio', 'holding', 'sector'],
+          description: 'Report scope: portfolio (entire portfolio), holding (specific holding), or sector (sector-based analysis)',
+        },
+        holding_id: {
+          type: 'string',
+          description: 'Required if scope is "holding" - UUID of the holding',
+        },
+        sector: {
+          type: 'string',
+          description: 'Required if scope is "sector" - sector name to analyze',
+        },
+        metric_codes: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Specific metric codes to include',
+        },
+        chart_preferences: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              metric_code: { type: 'string' },
+              chart_type: { type: 'string', enum: ['line', 'bar', 'area', 'pie', 'gauge'] },
+            },
+          },
+          description: 'Chart type preferences for specific metrics',
+        },
+        include_sections: {
+          type: 'array',
+          items: { type: 'string', enum: ['overview', 'financials', 'impact', 'trends', 'comparison'] },
+          description: 'Sections to include in report',
+        },
+        time_range: {
+          type: 'string',
+          enum: ['3m', '6m', '12m', 'ytd', 'all'],
+          description: 'Time range for metric data (default: 12m)',
+        },
+        title: {
+          type: 'string',
+          description: 'Custom report title (optional)',
+        },
+      },
+      required: ['scope'],
+    },
+  },
+  {
+    name: 'save_report_template',
+    description: 'Save a report configuration as a reusable template for future report generation',
+    input_schema: {
+      type: 'object',
+      properties: {
+        name: { type: 'string', description: 'Name for the template (e.g., "Quarterly Impact Report")' },
+        scope: {
+          type: 'string',
+          enum: ['portfolio', 'holding', 'sector'],
+          description: 'Report scope',
+        },
+        config: {
+          type: 'object',
+          description: 'Report configuration including metric_codes, chart_preferences, include_sections, time_range',
+          properties: {
+            metric_codes: { type: 'array', items: { type: 'string' } },
+            chart_preferences: { type: 'array' },
+            include_sections: { type: 'array', items: { type: 'string' } },
+            time_range: { type: 'string' },
+          },
+        },
+        is_default: {
+          type: 'boolean',
+          description: 'Set as default template for this scope (optional)',
+        },
+      },
+      required: ['name', 'scope', 'config'],
+    },
+  },
+  {
+    name: 'list_report_templates',
+    description: 'List available report templates for the portfolio',
+    input_schema: {
+      type: 'object',
+      properties: {
+        scope: {
+          type: 'string',
+          enum: ['portfolio', 'holding', 'sector'],
+          description: 'Filter by scope (optional)',
+        },
+      },
     },
   },
 ];
@@ -567,6 +690,7 @@ export class ClaudePortfolioAssistant {
           type: 'function',
           function: { name: t.name, arguments: JSON.stringify(t.input) },
         })),
+        toolResults,
       };
     }
 
@@ -574,6 +698,7 @@ export class ClaudePortfolioAssistant {
       message: textContent,
       actions: [],
       toolCalls: [],
+      toolResults: [],
     };
   }
 
@@ -705,7 +830,7 @@ export class ClaudePortfolioAssistant {
 
         let query = this.supabase
           .from('holdings')
-          .select('id, name, sector, country, status, funds_allocated, nav, description')
+          .select('id, name, sector, country, status, funds_allocated, description')
           .eq('portfolio_id', portfolioId);
 
         if (args.sector) query = query.ilike('sector', `%${args.sector}%`);
@@ -904,7 +1029,7 @@ export class ClaudePortfolioAssistant {
 
         const { data: holdings } = await this.supabase
           .from('holdings')
-          .select('id, name, sector, status, funds_allocated, nav')
+          .select('id, name, sector, status, funds_allocated')
           .eq('portfolio_id', portfolioId)
           .order('funds_allocated', { ascending: false });
 
@@ -940,7 +1065,7 @@ export class ClaudePortfolioAssistant {
 
         if (includeKpis) {
           const { data: kpis } = await this.supabase
-            .from('kpi_definitions')
+            .from('portfolio_metric_targets')
             .select('metric_code, target_value, display_name')
             .eq('portfolio_id', portfolioId);
 
@@ -1589,6 +1714,25 @@ export class ClaudePortfolioAssistant {
       case 'generate_holding_report': {
         InputValidator.validateUUID(args.holding_id, 'holding_id');
 
+        // Parse optional parameters
+        const requestedMetrics = args.metric_codes || [];
+        const chartPrefs = args.chart_preferences || [];
+        const includeSections = args.include_sections || ['overview', 'financials', 'impact', 'trends'];
+        const timeRange = args.time_range || 'all';
+
+        // Calculate date filter based on time_range
+        const getTimeRangeStart = (range: string): string => {
+          const now = new Date();
+          switch (range) {
+            case '3m': return new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000).toISOString();
+            case '6m': return new Date(now.getTime() - 180 * 24 * 60 * 60 * 1000).toISOString();
+            case '12m': return new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000).toISOString();
+            case 'ytd': return new Date(now.getFullYear(), 0, 1).toISOString();
+            default: return new Date(now.getTime() - 3650 * 24 * 60 * 60 * 1000).toISOString();
+          }
+        };
+        const timeRangeStart = getTimeRangeStart(timeRange);
+
         const { data: holdingData } = await this.supabase
           .from('holdings')
           .select('*, charities(*)')
@@ -1599,12 +1743,19 @@ export class ClaudePortfolioAssistant {
           throw new Error(`Holding ${args.holding_id} not found`);
         }
 
-        const { data: metricFacts } = await this.supabase
+        let metricFactsQuery = this.supabase
           .from('metric_facts')
           .select('metric_code, value, unit, period_end')
           .eq('holding_id', args.holding_id)
+          .gte('period_end', timeRangeStart)
           .order('period_end', { ascending: true });
 
+        // Filter by requested metrics if specified
+        if (requestedMetrics.length > 0) {
+          metricFactsQuery = metricFactsQuery.in('metric_code', requestedMetrics.map((m: string) => m.toUpperCase()));
+        }
+
+        const { data: metricFacts } = await metricFactsQuery;
         const facts = metricFacts || [];
 
         const metricGroups: Record<string, Array<{ date: string; value: number; unit: string | null }>> = {};
@@ -1618,37 +1769,413 @@ export class ClaudePortfolioAssistant {
           });
         });
 
+        // Build content_blocks array for structured output
+        const contentBlocks: Array<{ type: 'text' | 'chart'; content?: string; widget?: any }> = [];
         const additionalActions: any[] = [];
-        const chartWidgets: any[] = [];
         const palette = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899'];
         let chartIndex = 0;
 
-        for (const [metricCode, series] of Object.entries(metricGroups)) {
-          if (series.length >= 2) {
-            const chartData = series.map(s => ({ date: s.date, value: s.value }));
-            const unit = series[0]?.unit || '';
-            const chartTitle = `${holdingData.name} — ${metricCode}${unit ? ` (${unit})` : ''}`;
+        // Helper to get chart type preference
+        const getChartType = (metricCode: string): string => {
+          const pref = chartPrefs.find((p: any) => p.metric_code?.toUpperCase() === metricCode.toUpperCase());
+          return pref?.chart_type || 'line';
+        };
 
+        // Build metric summaries
+        const metricSummaries: Record<string, { latest: number; total: number; count: number; unit: string | null; earliest: string; latest_date: string }> = {};
+        for (const [code, series] of Object.entries(metricGroups)) {
+          const sorted = [...series].sort((a, b) => a.date.localeCompare(b.date));
+          metricSummaries[code] = {
+            latest: sorted[sorted.length - 1].value,
+            total: sorted.reduce((s, d) => s + d.value, 0),
+            count: sorted.length,
+            unit: sorted[0].unit,
+            earliest: sorted[0].date,
+            latest_date: sorted[sorted.length - 1].date,
+          };
+        }
+
+        // Extract charity context
+        const charity = holdingData.charities;
+        const charityContext = charity ? {
+          name: charity.name,
+          legal_name: charity.legal_name,
+          ein: charity.ein,
+          mission: charity.mission_statement,
+          description: charity.description,
+          sector: charity.sector,
+          website: charity.website,
+          location: [charity.city, charity.state, charity.country].filter(Boolean).join(', '),
+          annual_revenue: charity.annual_revenue,
+          annual_expenses: charity.annual_expenses,
+          program_expense_ratio: charity.program_expense_ratio,
+          charity_navigator_rating: charity.charity_navigator_rating,
+          impact_focus: charity.impact_focus,
+        } : null;
+
+        // Add overview section
+        if (includeSections.includes('overview')) {
+          contentBlocks.push({
+            type: 'text',
+            content: `## Overview\n\n**${holdingData.name}** is a ${holdingData.status || 'Active'} holding in the ${holdingData.sector || 'General'} sector${holdingData.country ? `, based in ${holdingData.country}` : ''}.${charityContext?.mission ? `\n\n**Mission:** ${charityContext.mission}` : ''}`,
+          });
+        }
+
+        // Add financials section
+        if (includeSections.includes('financials') && (holdingData.funds_allocated || charityContext?.annual_revenue)) {
+          let financialText = '## Financial Overview\n\n';
+          if (holdingData.funds_allocated) {
+            financialText += `- **Funds Allocated:** $${holdingData.funds_allocated.toLocaleString()}\n`;
+          }
+          if (holdingData.nav) {
+            financialText += `- **Current NAV:** $${holdingData.nav.toLocaleString()}\n`;
+          }
+          if (charityContext?.annual_revenue) {
+            financialText += `- **Annual Revenue:** $${charityContext.annual_revenue.toLocaleString()}\n`;
+          }
+          if (charityContext?.program_expense_ratio) {
+            financialText += `- **Program Expense Ratio:** ${(charityContext.program_expense_ratio * 100).toFixed(1)}%\n`;
+          }
+          if (charityContext?.charity_navigator_rating) {
+            financialText += `- **Charity Navigator Rating:** ${charityContext.charity_navigator_rating}/4 stars\n`;
+          }
+          contentBlocks.push({ type: 'text', content: financialText });
+        }
+
+        // Add impact/trends section with charts
+        if (includeSections.includes('impact') || includeSections.includes('trends')) {
+          const metricsToChart = Object.keys(metricGroups);
+
+          if (metricsToChart.length > 0) {
+            contentBlocks.push({
+              type: 'text',
+              content: '## Impact Metrics\n\nThe following charts show key performance indicators over time:',
+            });
+
+            for (const metricCode of metricsToChart) {
+              const series = metricGroups[metricCode];
+              if (series.length >= 2) {
+                const chartType = getChartType(metricCode);
+                const chartData = series.map(s => ({ date: s.date, value: s.value }));
+                const unit = series[0]?.unit || '';
+                const chartTitle = `${metricCode}${unit ? ` (${unit})` : ''}`;
+
+                const d3Config = {
+                  d3: {
+                    kind: chartType,
+                    data: chartData,
+                    encoding: { x: 'date', y: 'value' },
+                    options: {
+                      xType: 'time',
+                      xAxisLabel: 'Date',
+                      yAxisLabel: unit || 'Value',
+                      colors: [palette[chartIndex % palette.length]],
+                    },
+                  },
+                };
+
+                const widgetPreview = {
+                  id: crypto.randomUUID(),
+                  portfolio_id: portfolioId,
+                  holding_id: args.holding_id,
+                  type: 'd3_json',
+                  title: chartTitle,
+                  config: d3Config,
+                  position: chartIndex,
+                  is_preview: true,
+                };
+
+                const previewAction: any = {
+                  id: crypto.randomUUID(),
+                  session_id: sessionId,
+                  portfolio_id: portfolioId,
+                  user_id: userId,
+                  action_type: 'preview',
+                  entity_type: 'widget',
+                  entity_id: widgetPreview.id,
+                  operation_data: {
+                    table: 'widgets',
+                    after: widgetPreview,
+                    is_preview: true,
+                  },
+                  ai_reasoning: `Auto-generated ${chartType} chart for ${metricCode} in holding report`,
+                  user_prompt: userPrompt,
+                  status: 'preview',
+                  batch_id: batchId,
+                  sequence_order: sequenceOrder + chartIndex + 1,
+                };
+
+                additionalActions.push(previewAction);
+                contentBlocks.push({
+                  type: 'chart',
+                  widget: widgetPreview,
+                });
+
+                // Add metric summary text after chart
+                const summary = metricSummaries[metricCode];
+                contentBlocks.push({
+                  type: 'text',
+                  content: `**${metricCode}**: Latest value of ${summary.latest.toLocaleString()}${unit ? ' ' + unit : ''} (${summary.count} data points from ${summary.earliest} to ${summary.latest_date}).\n`,
+                });
+
+                chartIndex++;
+              }
+            }
+          } else {
+            contentBlocks.push({
+              type: 'text',
+              content: '## Impact Metrics\n\nNo metric data available for this holding in the selected time range.',
+            });
+          }
+        }
+
+        return {
+          action: null,
+          additionalActions,
+          output: {
+            content_blocks: contentBlocks,
+            holding: {
+              id: holdingData.id,
+              name: holdingData.name,
+              sector: holdingData.sector,
+              country: holdingData.country,
+              status: holdingData.status,
+              funds_allocated: holdingData.funds_allocated,
+              nav: holdingData.nav,
+              asset_type: holdingData.asset_type,
+            },
+            charity: charityContext,
+            metrics: metricSummaries,
+            charts_generated: chartIndex,
+            time_range: timeRange,
+            sections_included: includeSections,
+          },
+        };
+      }
+
+      case 'generate_custom_report': {
+        const scope = args.scope;
+        const requestedMetrics = args.metric_codes || [];
+        const chartPrefs = args.chart_preferences || [];
+        const includeSections = args.include_sections || ['overview', 'impact', 'trends'];
+        const timeRange = args.time_range || '12m';
+        const customTitle = args.title;
+
+        // Calculate date filter
+        const getTimeRangeStart = (range: string): string => {
+          const now = new Date();
+          switch (range) {
+            case '3m': return new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000).toISOString();
+            case '6m': return new Date(now.getTime() - 180 * 24 * 60 * 60 * 1000).toISOString();
+            case '12m': return new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000).toISOString();
+            case 'ytd': return new Date(now.getFullYear(), 0, 1).toISOString();
+            default: return new Date(now.getTime() - 3650 * 24 * 60 * 60 * 1000).toISOString();
+          }
+        };
+        const timeRangeStart = getTimeRangeStart(timeRange);
+
+        const contentBlocks: Array<{ type: 'text' | 'chart'; content?: string; widget?: any }> = [];
+        const additionalActions: any[] = [];
+        const palette = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899'];
+        let chartIndex = 0;
+
+        // Helper to get chart type preference
+        const getChartType = (metricCode: string): string => {
+          const pref = chartPrefs.find((p: any) => p.metric_code?.toUpperCase() === metricCode.toUpperCase());
+          return pref?.chart_type || 'line';
+        };
+
+        if (scope === 'holding') {
+          if (!args.holding_id) {
+            throw new ValidationError('holding_id is required when scope is "holding"');
+          }
+          InputValidator.validateUUID(args.holding_id, 'holding_id');
+
+          // Delegate to generate_holding_report logic
+          return this.executeTool('generate_holding_report', {
+            holding_id: args.holding_id,
+            metric_codes: requestedMetrics,
+            chart_preferences: chartPrefs,
+            include_sections: includeSections,
+            time_range: timeRange,
+          }, portfolioId, userId, sessionId, batchId, sequenceOrder, userPrompt);
+        }
+
+        if (scope === 'sector') {
+          if (!args.sector) {
+            throw new ValidationError('sector is required when scope is "sector"');
+          }
+
+          // Get holdings in sector
+          const { data: holdings } = await this.supabase
+            .from('holdings')
+            .select('id, name, sector, funds_allocated, status')
+            .eq('portfolio_id', portfolioId)
+            .ilike('sector', `%${args.sector}%`);
+
+          if (!holdings || holdings.length === 0) {
+            return {
+              action: null,
+              output: {
+                content_blocks: [{
+                  type: 'text',
+                  content: `## Sector Report: ${args.sector}\n\nNo holdings found in the ${args.sector} sector.`,
+                }],
+                error: `No holdings found in sector "${args.sector}"`,
+              },
+            };
+          }
+
+          const holdingIds = holdings.map((h: any) => h.id);
+          const reportTitle = customTitle || `${args.sector} Sector Report`;
+
+          contentBlocks.push({
+            type: 'text',
+            content: `# ${reportTitle}\n\n**${holdings.length} holdings** in the ${args.sector} sector, with total allocation of $${holdings.reduce((s: number, h: any) => s + (h.funds_allocated || 0), 0).toLocaleString()}.`,
+          });
+
+          // Get metrics for these holdings
+          let metricQuery = this.supabase
+            .from('metric_facts')
+            .select('metric_code, value, unit, period_end, holding_id')
+            .in('holding_id', holdingIds)
+            .gte('period_end', timeRangeStart)
+            .order('period_end', { ascending: true });
+
+          if (requestedMetrics.length > 0) {
+            metricQuery = metricQuery.in('metric_code', requestedMetrics.map((m: string) => m.toUpperCase()));
+          }
+
+          const { data: metricFacts } = await metricQuery;
+          const facts = metricFacts || [];
+
+          // Aggregate by metric and period
+          const metricGroups: Record<string, Record<string, number>> = {};
+          facts.forEach((f: any) => {
+            const code = f.metric_code;
+            const period = f.period_end;
+            if (!metricGroups[code]) metricGroups[code] = {};
+            metricGroups[code][period] = (metricGroups[code][period] || 0) + Number(f.value || 0);
+          });
+
+          // Generate charts for each metric
+          for (const [metricCode, periodData] of Object.entries(metricGroups)) {
+            const chartData = Object.entries(periodData)
+              .map(([date, value]) => ({ date, value }))
+              .sort((a, b) => a.date.localeCompare(b.date));
+
+            if (chartData.length >= 2) {
+              const chartType = getChartType(metricCode);
+              const chartTitle = `${args.sector} — ${metricCode} Trend`;
+
+              const d3Config = {
+                d3: {
+                  kind: chartType,
+                  data: chartData,
+                  encoding: { x: 'date', y: 'value' },
+                  options: {
+                    xType: 'time',
+                    colors: [palette[chartIndex % palette.length]],
+                  },
+                },
+              };
+
+              const widgetPreview = {
+                id: crypto.randomUUID(),
+                portfolio_id: portfolioId,
+                type: 'd3_json',
+                title: chartTitle,
+                config: d3Config,
+                position: chartIndex,
+                is_preview: true,
+              };
+
+              const previewAction: any = {
+                id: crypto.randomUUID(),
+                session_id: sessionId,
+                portfolio_id: portfolioId,
+                user_id: userId,
+                action_type: 'preview',
+                entity_type: 'widget',
+                entity_id: widgetPreview.id,
+                operation_data: {
+                  table: 'widgets',
+                  after: widgetPreview,
+                  is_preview: true,
+                },
+                ai_reasoning: `Sector report chart for ${metricCode}`,
+                user_prompt: userPrompt,
+                status: 'preview',
+                batch_id: batchId,
+                sequence_order: sequenceOrder + chartIndex + 1,
+              };
+
+              additionalActions.push(previewAction);
+              contentBlocks.push({ type: 'chart', widget: widgetPreview });
+              chartIndex++;
+            }
+          }
+
+          return {
+            action: null,
+            additionalActions,
+            output: {
+              content_blocks: contentBlocks,
+              scope: 'sector',
+              sector: args.sector,
+              holdings_count: holdings.length,
+              charts_generated: chartIndex,
+              time_range: timeRange,
+            },
+          };
+        }
+
+        // Portfolio-level report
+        const { data: holdings } = await this.supabase
+          .from('holdings')
+          .select('id, name, sector, funds_allocated, status')
+          .eq('portfolio_id', portfolioId)
+          .order('funds_allocated', { ascending: false });
+
+        const holdingsData = holdings || [];
+        const holdingIds = holdingsData.map((h: any) => h.id);
+        const reportTitle = customTitle || 'Portfolio Report';
+
+        const totalAUM = holdingsData.reduce((s: number, h: any) => s + (h.funds_allocated || 0), 0);
+        const totalNAV = holdingsData.reduce((s: number, h: any) => s + (h.nav || 0), 0);
+
+        contentBlocks.push({
+          type: 'text',
+          content: `# ${reportTitle}\n\n**Portfolio Overview**\n- ${holdingsData.length} holdings\n- Total AUM: $${totalAUM.toLocaleString()}\n${totalNAV > 0 ? `- Total NAV: $${totalNAV.toLocaleString()}` : ''}`,
+        });
+
+        // Sector breakdown chart
+        if (includeSections.includes('overview')) {
+          const sectorBreakdown: Record<string, number> = {};
+          holdingsData.forEach((h: any) => {
+            const sector = h.sector || 'Unspecified';
+            sectorBreakdown[sector] = (sectorBreakdown[sector] || 0) + (h.funds_allocated || 0);
+          });
+
+          const sectorData = Object.entries(sectorBreakdown)
+            .map(([sector, funds]) => ({ sector, funds }))
+            .sort((a, b) => b.funds - a.funds);
+
+          if (sectorData.length > 1) {
             const d3Config = {
               d3: {
-                kind: 'line',
-                data: chartData,
-                encoding: { x: 'date', y: 'value' },
-                options: {
-                  xType: 'time',
-                  xAxisLabel: 'Date',
-                  yAxisLabel: unit || 'Value',
-                  colors: [palette[chartIndex % palette.length]],
-                },
+                kind: sectorData.length <= 6 ? 'pie' : 'bar',
+                data: sectorData,
+                encoding: { x: 'sector', y: 'funds', label: 'sector', value: 'funds' },
+                options: { colors: palette },
               },
             };
 
             const widgetPreview = {
               id: crypto.randomUUID(),
               portfolio_id: portfolioId,
-              holding_id: args.holding_id,
               type: 'd3_json',
-              title: chartTitle,
+              title: 'Portfolio Allocation by Sector',
               config: d3Config,
               position: chartIndex,
               is_preview: true,
@@ -1667,7 +2194,7 @@ export class ClaudePortfolioAssistant {
                 after: widgetPreview,
                 is_preview: true,
               },
-              ai_reasoning: `Auto-generated trend chart for ${metricCode} in holding report`,
+              ai_reasoning: 'Portfolio sector allocation chart',
               user_prompt: userPrompt,
               status: 'preview',
               batch_id: batchId,
@@ -1675,60 +2202,180 @@ export class ClaudePortfolioAssistant {
             };
 
             additionalActions.push(previewAction);
-            chartWidgets.push({ id: widgetPreview.id, title: chartTitle, metric: metricCode });
+            contentBlocks.push({ type: 'chart', widget: widgetPreview });
             chartIndex++;
           }
         }
 
-        const metricSummaries: Record<string, { latest: number; total: number; count: number; unit: string | null; earliest: string; latest_date: string }> = {};
-        for (const [code, series] of Object.entries(metricGroups)) {
-          const sorted = [...series].sort((a, b) => a.date.localeCompare(b.date));
-          metricSummaries[code] = {
-            latest: sorted[sorted.length - 1].value,
-            total: sorted.reduce((s, d) => s + d.value, 0),
-            count: sorted.length,
-            unit: sorted[0].unit,
-            earliest: sorted[0].date,
-            latest_date: sorted[sorted.length - 1].date,
-          };
-        }
+        // Get metrics for all holdings
+        if (includeSections.includes('impact') || includeSections.includes('trends')) {
+          let metricQuery = this.supabase
+            .from('metric_facts')
+            .select('metric_code, value, unit, period_end')
+            .in('holding_id', holdingIds)
+            .gte('period_end', timeRangeStart)
+            .order('period_end', { ascending: true });
 
-        const charity = holdingData.charities;
-        const charityContext = charity ? {
-          name: charity.name,
-          legal_name: charity.legal_name,
-          ein: charity.ein,
-          mission: charity.mission_statement,
-          description: charity.description,
-          sector: charity.sector,
-          website: charity.website,
-          location: [charity.city, charity.state, charity.country].filter(Boolean).join(', '),
-          annual_revenue: charity.annual_revenue,
-          annual_expenses: charity.annual_expenses,
-          program_expense_ratio: charity.program_expense_ratio,
-          charity_navigator_rating: charity.charity_navigator_rating,
-          impact_focus: charity.impact_focus,
-        } : null;
+          if (requestedMetrics.length > 0) {
+            metricQuery = metricQuery.in('metric_code', requestedMetrics.map((m: string) => m.toUpperCase()));
+          }
+
+          const { data: metricFacts } = await metricQuery;
+          const facts = metricFacts || [];
+
+          // Aggregate by metric and period
+          const metricGroups: Record<string, Record<string, number>> = {};
+          facts.forEach((f: any) => {
+            const code = f.metric_code;
+            const period = f.period_end;
+            if (!metricGroups[code]) metricGroups[code] = {};
+            metricGroups[code][period] = (metricGroups[code][period] || 0) + Number(f.value || 0);
+          });
+
+          if (Object.keys(metricGroups).length > 0) {
+            contentBlocks.push({
+              type: 'text',
+              content: '## Impact Metrics',
+            });
+
+            for (const [metricCode, periodData] of Object.entries(metricGroups)) {
+              const chartData = Object.entries(periodData)
+                .map(([date, value]) => ({ date, value }))
+                .sort((a, b) => a.date.localeCompare(b.date));
+
+              if (chartData.length >= 2) {
+                const chartType = getChartType(metricCode);
+                const chartTitle = `${metricCode} Trend`;
+
+                const d3Config = {
+                  d3: {
+                    kind: chartType,
+                    data: chartData,
+                    encoding: { x: 'date', y: 'value' },
+                    options: {
+                      xType: 'time',
+                      colors: [palette[chartIndex % palette.length]],
+                    },
+                  },
+                };
+
+                const widgetPreview = {
+                  id: crypto.randomUUID(),
+                  portfolio_id: portfolioId,
+                  type: 'd3_json',
+                  title: chartTitle,
+                  config: d3Config,
+                  position: chartIndex,
+                  is_preview: true,
+                };
+
+                const previewAction: any = {
+                  id: crypto.randomUUID(),
+                  session_id: sessionId,
+                  portfolio_id: portfolioId,
+                  user_id: userId,
+                  action_type: 'preview',
+                  entity_type: 'widget',
+                  entity_id: widgetPreview.id,
+                  operation_data: {
+                    table: 'widgets',
+                    after: widgetPreview,
+                    is_preview: true,
+                  },
+                  ai_reasoning: `Portfolio report chart for ${metricCode}`,
+                  user_prompt: userPrompt,
+                  status: 'preview',
+                  batch_id: batchId,
+                  sequence_order: sequenceOrder + chartIndex + 1,
+                };
+
+                additionalActions.push(previewAction);
+                contentBlocks.push({ type: 'chart', widget: widgetPreview });
+                chartIndex++;
+              }
+            }
+          }
+        }
 
         return {
           action: null,
           additionalActions,
           output: {
-            holding: {
-              id: holdingData.id,
-              name: holdingData.name,
-              sector: holdingData.sector,
-              country: holdingData.country,
-              status: holdingData.status,
-              funds_allocated: holdingData.funds_allocated,
-              nav: holdingData.nav,
-              asset_type: holdingData.asset_type,
-            },
-            charity: charityContext,
-            metrics: metricSummaries,
-            charts_generated: chartWidgets.length,
-            chart_details: chartWidgets,
-            instructions: 'Write a detailed narrative report about this holding. Charts for metrics with trend data will appear inline automatically. Reference the data naturally in your narrative — do NOT list raw numbers as bullet points.',
+            content_blocks: contentBlocks,
+            scope: 'portfolio',
+            holdings_count: holdingsData.length,
+            total_aum: totalAUM,
+            total_nav: totalNAV,
+            charts_generated: chartIndex,
+            time_range: timeRange,
+            sections_included: includeSections,
+          },
+        };
+      }
+
+      case 'save_report_template': {
+        InputValidator.validateString(args.name, 'name', { maxLength: 200 });
+        InputValidator.validateEnum(args.scope, 'scope', ['portfolio', 'holding', 'sector'] as const);
+
+        if (!args.name) {
+          throw new ValidationError('name is required');
+        }
+        if (!args.scope) {
+          throw new ValidationError('scope is required');
+        }
+        if (!args.config) {
+          throw new ValidationError('config is required');
+        }
+
+        const { data: template, error } = await this.supabase
+          .from('report_templates')
+          .insert({
+            portfolio_id: portfolioId,
+            name: args.name,
+            scope: args.scope,
+            config: args.config,
+            is_default: args.is_default || false,
+          })
+          .select()
+          .single();
+
+        if (error) {
+          throw new Error(`Failed to save template: ${error.message}`);
+        }
+
+        return {
+          action: null,
+          output: {
+            success: true,
+            template: template,
+            message: `Report template "${args.name}" saved successfully.`,
+          },
+        };
+      }
+
+      case 'list_report_templates': {
+        let query = this.supabase
+          .from('report_templates')
+          .select('id, name, scope, config, is_default, created_at')
+          .eq('portfolio_id', portfolioId)
+          .order('created_at', { ascending: false });
+
+        if (args.scope) {
+          InputValidator.validateEnum(args.scope, 'scope', ['portfolio', 'holding', 'sector'] as const);
+          query = query.eq('scope', args.scope);
+        }
+
+        const { data: templates, error } = await query;
+
+        if (error) {
+          throw new Error(`Failed to list templates: ${error.message}`);
+        }
+
+        return {
+          action: null,
+          output: {
+            templates: templates || [],
+            count: templates?.length || 0,
           },
         };
       }
@@ -1758,9 +2405,9 @@ export class ClaudePortfolioAssistant {
         .single(),
       this.supabase
         .from('holdings')
-        .select('id, name, sector, country, status, funds_allocated, nav')
+        .select('id, name, sector, country, status, funds_allocated, asset_type, description')
         .eq('portfolio_id', portfolioId)
-        .order('funds_allocated', { ascending: false }),
+        .order('funds_allocated', { ascending: false, nullsFirst: false }),
       this.supabase
         .from('metrics')
         .select('code, name, unit'),
@@ -1770,8 +2417,8 @@ export class ClaudePortfolioAssistant {
         .eq('portfolio_id', portfolioId)
         .order('position', { ascending: true }),
       this.supabase
-        .from('kpi_definitions')
-        .select('metric_code, target_value, display_name')
+        .from('portfolio_metric_targets')
+        .select('metric_code, target_value, display_name, target_date')
         .eq('portfolio_id', portfolioId),
       this.supabase
         .from('metric_facts')
@@ -2029,6 +2676,8 @@ ${recentActionsSummary}
 • Create visualizations (portfolio & holding level)
 • Search/filter holdings, compare metrics, get trends
 • Generate detailed reports about specific holdings/charities with inline charts
+• Generate custom reports with user-specified metrics and chart types
+• Save report templates for reuse
 • Answer questions using the data above
 
 === VISUALIZATION TOOLS ===
@@ -2131,6 +2780,36 @@ User: "Write a report about [holding name]"
 
 User: "Generate a report for [charity name]"
 → Same as above — find the holding linked to that charity and call generate_holding_report
+
+User: "Generate a report with bar charts for JOBS_CREATED and line charts for CO2_AVOIDED"
+→ Call: generate_holding_report or generate_custom_report with chart_preferences parameter
+→ Example: generate_holding_report(holding_id="...", chart_preferences=[{metric_code:"JOBS_CREATED",chart_type:"bar"},{metric_code:"CO2_AVOIDED",chart_type:"line"}])
+
+User: "Create a portfolio report showing only financial and impact sections"
+→ Call: generate_custom_report(scope="portfolio", include_sections=["financials","impact"])
+
+User: "Generate a sector report for Education"
+→ Call: generate_custom_report(scope="sector", sector="Education")
+
+User: "Save this report configuration for reuse"
+→ Call: save_report_template(name="...", scope="...", config={...})
+
+User: "What report templates do I have?"
+→ Call: list_report_templates()
+
+=== REPORT CUSTOMIZATION ===
+
+**generate_holding_report** and **generate_custom_report** support:
+- metric_codes: Array of specific metrics to include (e.g., ["JOBS_CREATED", "CO2_AVOIDED"])
+- chart_preferences: Array of {metric_code, chart_type} to customize visualization per metric
+- include_sections: Array of sections ["overview", "financials", "impact", "trends"]
+- time_range: "3m" | "6m" | "12m" | "ytd" | "all"
+
+Chart type options: "line", "bar", "area", "pie", "gauge"
+
+**generate_custom_report** also supports:
+- scope: "portfolio" (full portfolio), "holding" (single holding), "sector" (sector analysis)
+- title: Custom report title
 
 === BEHAVIOR ===
 • Be concise - especially after generating charts

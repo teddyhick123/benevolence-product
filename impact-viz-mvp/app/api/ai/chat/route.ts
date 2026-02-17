@@ -190,6 +190,22 @@ export async function POST(req: NextRequest) {
       widgets = [...previewWidgets, ...savedWidgets];
     }
 
+    // Extract content_blocks from tool results if present (for structured reports)
+    let contentBlocks: any[] | undefined;
+    if (result.toolResults) {
+      for (const tr of result.toolResults) {
+        try {
+          const parsed = typeof tr.content === 'string' ? JSON.parse(tr.content) : tr.content;
+          if (parsed?.content_blocks && Array.isArray(parsed.content_blocks)) {
+            contentBlocks = parsed.content_blocks;
+            break;
+          }
+        } catch {
+          // Ignore parsing errors
+        }
+      }
+    }
+
     // Save assistant response to session (with widget references if any)
     const assistantMessage: any = {
       role: 'assistant',
@@ -199,6 +215,10 @@ export async function POST(req: NextRequest) {
 
     if (widgets.length > 0) {
       assistantMessage.widgets = widgets;
+    }
+
+    if (contentBlocks && contentBlocks.length > 0) {
+      assistantMessage.content_blocks = contentBlocks;
     }
 
     messages.push(assistantMessage);
@@ -215,6 +235,7 @@ export async function POST(req: NextRequest) {
       message: result.message,
       actions: result.actions,
       widgets,
+      content_blocks: contentBlocks,
       sessionId,
     });
 

@@ -63,7 +63,7 @@ export async function PUT(req: Request, ctx: { params: Promise<{ kpiId: string }
   const { supabase, error: adminErr } = await requireAdmin();
   if (adminErr) return NextResponse.json({ error: adminErr }, { status: 403 });
 
-  const { error } = await supabase.from('kpi_definitions').update(fields).eq('id', kpiId);
+  const { error } = await supabase.from('portfolio_metric_targets').update(fields).eq('id', kpiId);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   // If coming from a form, redirect back to the referer or to the KPIs page
@@ -77,7 +77,7 @@ export async function DELETE(_req: Request, ctx: { params: Promise<{ kpiId: stri
   const { supabase, error: adminErr } = await requireAdmin();
   if (adminErr) return NextResponse.json({ error: adminErr }, { status: 403 });
 
-  const { error } = await supabase.from('kpi_definitions').delete().eq('id', kpiId);
+  const { error } = await supabase.from('portfolio_metric_targets').delete().eq('id', kpiId);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ ok: true });
 }

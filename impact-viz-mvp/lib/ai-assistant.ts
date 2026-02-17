@@ -733,7 +733,7 @@ export class AIPortfolioAssistant {
 
         let query = this.supabase
           .from('holdings')
-          .select('id, name, sector, country, status, funds_allocated, nav, description')
+          .select('id, name, sector, country, status, funds_allocated, description')
           .eq('portfolio_id', portfolioId);
 
         if (args.sector) {
@@ -956,7 +956,7 @@ export class AIPortfolioAssistant {
         // Get holdings
         const { data: holdings } = await this.supabase
           .from('holdings')
-          .select('id, name, sector, status, funds_allocated, nav')
+          .select('id, name, sector, status, funds_allocated')
           .eq('portfolio_id', portfolioId)
           .order('funds_allocated', { ascending: false });
 
@@ -993,7 +993,7 @@ export class AIPortfolioAssistant {
         if (includeKpis) {
           // Get KPI definitions with targets
           const { data: kpis } = await this.supabase
-            .from('kpi_definitions')
+            .from('portfolio_metric_targets')
             .select('metric_code, target_value, display_name')
             .eq('portfolio_id', portfolioId);
 
@@ -1844,7 +1844,7 @@ export class AIPortfolioAssistant {
       // All holdings with basic info
       this.supabase
         .from('holdings')
-        .select('id, name, sector, country, status, funds_allocated, nav')
+        .select('id, name, sector, country, status, funds_allocated')
         .eq('portfolio_id', portfolioId)
         .order('funds_allocated', { ascending: false }),
       // Available metrics
@@ -1859,7 +1859,7 @@ export class AIPortfolioAssistant {
         .order('position', { ascending: true }),
       // KPI definitions with targets
       this.supabase
-        .from('kpi_definitions')
+        .from('portfolio_metric_targets')
         .select('metric_code, target_value, display_name')
         .eq('portfolio_id', portfolioId),
       // Latest metric facts (aggregate across all holdings)

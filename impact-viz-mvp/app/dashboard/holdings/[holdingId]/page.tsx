@@ -103,16 +103,16 @@ async function fetchMetricNames(portfolioId: string): Promise<Map<string, string
   const supabase = await getSupabase();
   const metricMap = new Map<string, string>();
 
-  // First try to get portfolio-specific display names from kpi_definitions
-  const { data: kpiDefs } = await supabase
-    .from('kpi_definitions')
+  // First try to get portfolio-specific display names from portfolio_metric_targets
+  const { data: targets } = await supabase
+    .from('portfolio_metric_targets')
     .select('metric_code, display_name')
     .eq('portfolio_id', portfolioId);
 
-  if (kpiDefs) {
-    for (const def of kpiDefs) {
-      if (def.display_name) {
-        metricMap.set(def.metric_code, def.display_name);
+  if (targets) {
+    for (const target of targets) {
+      if (target.display_name) {
+        metricMap.set(target.metric_code, target.display_name);
       }
     }
   }
@@ -124,7 +124,7 @@ async function fetchMetricNames(portfolioId: string): Promise<Map<string, string
 
   if (metrics) {
     for (const metric of metrics) {
-      // Only add if not already set by kpi_definitions (portfolio-specific takes precedence)
+      // Only add if not already set by portfolio_metric_targets (portfolio-specific takes precedence)
       if (!metricMap.has(metric.code) && metric.name) {
         metricMap.set(metric.code, metric.name);
       }

@@ -65,14 +65,6 @@ export default function HoldingsPieWidget({
     return () => ro.disconnect();
   }, []);
 
-  if (!cleaned.length || total <= 0) {
-    return (
-      <div className="rounded-2xl border border-black/5 bg-white p-4 text-sm text-neutral-600">
-        No holdings to visualize yet.
-      </div>
-    );
-  }
-
   const square = Math.max(160, Math.min(cw, ch));
   const radius = square / 2;
   const inner = Math.min(Math.max(0, innerRadius), Math.max(0, radius - 8));
@@ -116,6 +108,15 @@ export default function HoldingsPieWidget({
   }, [cleaned, colorBy]);
 
   const arcs = pieGen(displayData);
+
+  // Early return AFTER all hooks to follow Rules of Hooks
+  if (!cleaned.length || total <= 0) {
+    return (
+      <div className="rounded-2xl border border-black/5 bg-white p-4 text-sm text-neutral-600">
+        No holdings to visualize yet.
+      </div>
+    );
+  }
 
   return (
     <div ref={containerRef} className="rounded-2xl border border-black/5 bg-white p-4 shadow-soft w-full h-full flex items-stretch gap-4">

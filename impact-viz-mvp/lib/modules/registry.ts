@@ -128,7 +128,6 @@ Common metric types:
       'generate_custom_report',
       'save_report_template',
       'list_report_templates',
-      'generate_pdf_report',
       'export_data',
     ],
     tables: [
@@ -159,9 +158,7 @@ Charts are rendered inline within the report narrative.
     tools: [
       'run_tax_scenario',
       'calculate_deduction',
-      'analyze_contribution',
       'get_carryforward',
-      'generate_form_8283',
     ],
     tables: [
       'tax_profiles',
@@ -279,7 +276,6 @@ Receipts must include required IRS information:
     tools: [
       'refresh_charity_data',
       'search_similar_charities',
-      'fetch_news_about_holding',
       'get_charity_financials',
     ],
     tables: [
@@ -314,7 +310,6 @@ External data sources:
       'project_metric_trend',
       'benchmark_holding',
       'analyze_portfolio_risk',
-      'run_monte_carlo',
     ],
     tables: [
       'benchmark_data',

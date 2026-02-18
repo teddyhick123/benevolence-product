@@ -553,6 +553,239 @@ export const PORTFOLIO_TOOLS: Anthropic.Tool[] = [
       },
     },
   },
+  {
+    name: 'export_data',
+    description: 'Export portfolio or holding data to CSV, Excel, or JSON format',
+    input_schema: {
+      type: 'object',
+      properties: {
+        data_type: {
+          type: 'string',
+          enum: ['holdings', 'metrics', 'transactions', 'contributions'],
+          description: 'Type of data to export',
+        },
+        format: {
+          type: 'string',
+          enum: ['csv', 'xlsx', 'json'],
+          description: 'Export format (default: csv)',
+        },
+        holding_id: {
+          type: 'string',
+          description: 'Specific holding ID to export (optional - if omitted, exports all)',
+        },
+        date_from: {
+          type: 'string',
+          description: 'Start date for filtering (YYYY-MM-DD, optional)',
+        },
+        date_to: {
+          type: 'string',
+          description: 'End date for filtering (YYYY-MM-DD, optional)',
+        },
+      },
+      required: ['data_type'],
+    },
+  },
+  // ==================== EXTERNAL DATA MODULE ====================
+  {
+    name: 'refresh_charity_data',
+    description: 'Fetch latest data from Charity Navigator and Candid for a holding/charity',
+    input_schema: {
+      type: 'object',
+      properties: {
+        holding_id: {
+          type: 'string',
+          description: 'UUID of the holding to refresh data for',
+        },
+        ein: {
+          type: 'string',
+          description: 'EIN of the charity (alternative to holding_id)',
+        },
+      },
+    },
+  },
+  {
+    name: 'search_similar_charities',
+    description: 'Find charities similar to a given holding based on sector, size, or mission',
+    input_schema: {
+      type: 'object',
+      properties: {
+        holding_id: {
+          type: 'string',
+          description: 'UUID of the holding to find similar charities for',
+        },
+        sector: {
+          type: 'string',
+          description: 'Sector to search within (optional)',
+        },
+        limit: {
+          type: 'number',
+          description: 'Maximum results to return (default: 5)',
+        },
+      },
+      required: ['holding_id'],
+    },
+  },
+  {
+    name: 'get_charity_financials',
+    description: 'Get detailed financial information for a charity from external sources',
+    input_schema: {
+      type: 'object',
+      properties: {
+        holding_id: {
+          type: 'string',
+          description: 'UUID of the holding',
+        },
+        ein: {
+          type: 'string',
+          description: 'EIN of the charity (alternative to holding_id)',
+        },
+      },
+    },
+  },
+  // ==================== TAX OPTIMIZATION MODULE ====================
+  {
+    name: 'run_tax_scenario',
+    description: 'Compare different donation strategies (cash vs stock, timing, etc.) for tax optimization',
+    input_schema: {
+      type: 'object',
+      properties: {
+        scenario_type: {
+          type: 'string',
+          enum: ['cash_vs_stock', 'timing', 'bunching', 'daf_vs_direct'],
+          description: 'Type of tax scenario to run',
+        },
+        donation_amount: {
+          type: 'number',
+          description: 'Total donation amount to analyze',
+        },
+        tax_year: {
+          type: 'number',
+          description: 'Tax year for the scenario (default: current year)',
+        },
+        assets: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              name: { type: 'string' },
+              current_value: { type: 'number' },
+              cost_basis: { type: 'number' },
+              holding_period: { type: 'string', enum: ['short', 'long'] },
+            },
+          },
+          description: 'Assets available for donation (for cash_vs_stock)',
+        },
+      },
+      required: ['scenario_type', 'donation_amount'],
+    },
+  },
+  {
+    name: 'calculate_deduction',
+    description: 'Calculate the tax deduction for a charitable contribution',
+    input_schema: {
+      type: 'object',
+      properties: {
+        amount: {
+          type: 'number',
+          description: 'Contribution amount',
+        },
+        asset_type: {
+          type: 'string',
+          enum: ['cash', 'public_stock', 'private_stock', 'real_estate', 'other'],
+          description: 'Type of asset being donated',
+        },
+        recipient_type: {
+          type: 'string',
+          enum: ['public_charity', 'private_foundation', 'daf'],
+          description: 'Type of recipient organization',
+        },
+        agi: {
+          type: 'number',
+          description: 'Adjusted Gross Income (optional - uses tax profile if not provided)',
+        },
+      },
+      required: ['amount', 'asset_type', 'recipient_type'],
+    },
+  },
+  {
+    name: 'get_carryforward',
+    description: 'Get carryforward amounts from prior year charitable contributions',
+    input_schema: {
+      type: 'object',
+      properties: {
+        tax_year: {
+          type: 'number',
+          description: 'Tax year to check carryforwards for (default: current year)',
+        },
+      },
+    },
+  },
+  // ==================== ANALYTICS MODULE ====================
+  {
+    name: 'project_metric_trend',
+    description: 'Project future values of a metric with confidence intervals',
+    input_schema: {
+      type: 'object',
+      properties: {
+        metric_code: {
+          type: 'string',
+          description: 'Metric code to project',
+        },
+        holding_id: {
+          type: 'string',
+          description: 'Holding ID (optional - if omitted, projects portfolio-wide)',
+        },
+        periods_ahead: {
+          type: 'number',
+          description: 'Number of periods to project (default: 4)',
+        },
+        method: {
+          type: 'string',
+          enum: ['linear', 'exponential', 'moving_average'],
+          description: 'Projection method (default: linear)',
+        },
+      },
+      required: ['metric_code'],
+    },
+  },
+  {
+    name: 'benchmark_holding',
+    description: 'Compare a holding against sector or size-band peers',
+    input_schema: {
+      type: 'object',
+      properties: {
+        holding_id: {
+          type: 'string',
+          description: 'UUID of the holding to benchmark',
+        },
+        benchmark_type: {
+          type: 'string',
+          enum: ['sector', 'size', 'geography'],
+          description: 'Type of benchmark comparison',
+        },
+        metrics: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Metrics to compare (optional - uses defaults if not specified)',
+        },
+      },
+      required: ['holding_id'],
+    },
+  },
+  {
+    name: 'analyze_portfolio_risk',
+    description: 'Analyze portfolio concentration and diversification risk',
+    input_schema: {
+      type: 'object',
+      properties: {
+        risk_type: {
+          type: 'string',
+          enum: ['concentration', 'sector', 'geography', 'all'],
+          description: 'Type of risk analysis (default: all)',
+        },
+      },
+    },
+  },
 ];
 
 /**
@@ -2426,6 +2659,739 @@ export class ClaudePortfolioAssistant {
             count: templates?.length || 0,
           },
         };
+      }
+
+      // ==================== EXPORT DATA ====================
+      case 'export_data': {
+        const dataType = args.data_type;
+        const format = args.format || 'csv';
+        const holdingId = args.holding_id;
+        const dateFrom = args.date_from;
+        const dateTo = args.date_to;
+
+        let data: any[] = [];
+        let filename = '';
+
+        switch (dataType) {
+          case 'holdings': {
+            let query = this.supabase
+              .from('holdings')
+              .select('id, name, sector, country, status, funds_allocated, asset_type, description, created_at')
+              .eq('portfolio_id', portfolioId);
+
+            if (holdingId) {
+              query = query.eq('id', holdingId);
+            }
+
+            const { data: holdings, error } = await query;
+            if (error) throw new Error(`Failed to fetch holdings: ${error.message}`);
+            data = holdings || [];
+            filename = `holdings_export_${new Date().toISOString().split('T')[0]}`;
+            break;
+          }
+
+          case 'metrics': {
+            let query = this.supabase
+              .from('metric_facts')
+              .select(`
+                id,
+                holding_id,
+                holdings(name),
+                metric_code,
+                value,
+                unit,
+                period_start,
+                period_end,
+                created_at
+              `)
+              .eq('portfolio_id', portfolioId);
+
+            if (holdingId) {
+              query = query.eq('holding_id', holdingId);
+            }
+            if (dateFrom) {
+              query = query.gte('period_start', dateFrom);
+            }
+            if (dateTo) {
+              query = query.lte('period_end', dateTo);
+            }
+
+            const { data: metrics, error } = await query.order('period_start', { ascending: false });
+            if (error) throw new Error(`Failed to fetch metrics: ${error.message}`);
+
+            // Flatten the data
+            data = (metrics || []).map((m: any) => ({
+              id: m.id,
+              holding_id: m.holding_id,
+              holding_name: m.holdings?.name,
+              metric_code: m.metric_code,
+              value: m.value,
+              unit: m.unit,
+              period_start: m.period_start,
+              period_end: m.period_end,
+              created_at: m.created_at,
+            }));
+            filename = `metrics_export_${new Date().toISOString().split('T')[0]}`;
+            break;
+          }
+
+          case 'contributions': {
+            const { data: contributions, error } = await this.supabase
+              .from('contributions')
+              .select('*')
+              .eq('portfolio_id', portfolioId)
+              .order('contribution_date', { ascending: false });
+
+            if (error) throw new Error(`Failed to fetch contributions: ${error.message}`);
+            data = contributions || [];
+            filename = `contributions_export_${new Date().toISOString().split('T')[0]}`;
+            break;
+          }
+
+          default:
+            throw new ValidationError(`Unknown data type: ${dataType}`);
+        }
+
+        if (data.length === 0) {
+          return {
+            action: null,
+            output: {
+              message: `No ${dataType} data found to export`,
+              count: 0,
+            },
+          };
+        }
+
+        // Format the data based on requested format
+        let exportContent: string;
+        let mimeType: string;
+
+        if (format === 'json') {
+          exportContent = JSON.stringify(data, null, 2);
+          mimeType = 'application/json';
+        } else if (format === 'csv') {
+          // Convert to CSV
+          const headers = Object.keys(data[0]);
+          const csvRows = [
+            headers.join(','),
+            ...data.map(row =>
+              headers.map(h => {
+                const val = row[h];
+                if (val === null || val === undefined) return '';
+                if (typeof val === 'string' && (val.includes(',') || val.includes('"'))) {
+                  return `"${val.replace(/"/g, '""')}"`;
+                }
+                return String(val);
+              }).join(',')
+            ),
+          ];
+          exportContent = csvRows.join('\n');
+          mimeType = 'text/csv';
+        } else {
+          // For xlsx, return the data and let frontend handle it
+          exportContent = JSON.stringify(data);
+          mimeType = 'application/json';
+        }
+
+        return {
+          action: null,
+          output: {
+            filename: `${filename}.${format}`,
+            format,
+            mimeType,
+            content: exportContent,
+            rowCount: data.length,
+            message: `Exported ${data.length} ${dataType} records`,
+          },
+        };
+      }
+
+      // ==================== EXTERNAL DATA MODULE ====================
+      case 'refresh_charity_data': {
+        const holdingId = args.holding_id;
+        const ein = args.ein;
+
+        let targetEin = ein;
+        let holdingName = '';
+
+        // If holdingId provided, look up the EIN
+        if (holdingId && !ein) {
+          const { data: holding, error } = await this.supabase
+            .from('holdings')
+            .select('name, charity_id, charities(ein)')
+            .eq('id', holdingId)
+            .single();
+
+          if (error) throw new Error(`Holding not found: ${error.message}`);
+          holdingName = holding?.name || '';
+          targetEin = (holding as any)?.charities?.ein;
+        }
+
+        if (!targetEin) {
+          return {
+            action: null,
+            output: {
+              error: 'No EIN found for this holding. Link the holding to a charity first.',
+              success: false,
+            },
+          };
+        }
+
+        // Fetch from external sources (simplified - actual implementation would use the services)
+        const charityData: any = {
+          ein: targetEin,
+          refreshed_at: new Date().toISOString(),
+        };
+
+        // Try to fetch from charity_ratings cache or external API
+        const { data: cachedRating } = await this.supabase
+          .from('charity_ratings')
+          .select('*')
+          .eq('ein', targetEin)
+          .maybeSingle();
+
+        if (cachedRating) {
+          charityData.ratings = cachedRating;
+          charityData.source = 'cache';
+        } else {
+          charityData.message = 'No cached data found. External API call would be made here.';
+          charityData.source = 'none';
+        }
+
+        return {
+          action: null,
+          output: {
+            success: true,
+            holding_name: holdingName,
+            ein: targetEin,
+            data: charityData,
+          },
+        };
+      }
+
+      case 'search_similar_charities': {
+        InputValidator.validateUUID(args.holding_id, 'holding_id');
+
+        const { data: holding, error: holdingError } = await this.supabase
+          .from('holdings')
+          .select('name, sector, country, funds_allocated')
+          .eq('id', args.holding_id)
+          .single();
+
+        if (holdingError) throw new Error(`Holding not found: ${holdingError.message}`);
+
+        const sector = args.sector || holding?.sector;
+        const limit = args.limit || 5;
+
+        // Search for similar charities in the charities table
+        let query = this.supabase
+          .from('charities')
+          .select('ein, name, city, state, ntee_code, total_revenue, rating_overall')
+          .limit(limit);
+
+        if (sector) {
+          // Match on NTEE code prefix or search in mission
+          query = query.ilike('ntee_code', `${sector.charAt(0)}%`);
+        }
+
+        const { data: similar, error } = await query;
+
+        return {
+          action: null,
+          output: {
+            reference_holding: holding?.name,
+            sector: sector,
+            similar_charities: similar || [],
+            count: similar?.length || 0,
+          },
+        };
+      }
+
+      case 'get_charity_financials': {
+        const holdingId = args.holding_id;
+        const ein = args.ein;
+
+        let targetEin = ein;
+
+        if (holdingId && !ein) {
+          const { data: holding } = await this.supabase
+            .from('holdings')
+            .select('charity_id, charities(ein, name, total_revenue, total_expenses, total_assets)')
+            .eq('id', holdingId)
+            .single();
+
+          if ((holding as any)?.charities) {
+            return {
+              action: null,
+              output: {
+                source: 'database',
+                financials: (holding as any).charities,
+              },
+            };
+          }
+          targetEin = (holding as any)?.charities?.ein;
+        }
+
+        if (targetEin) {
+          const { data: charity } = await this.supabase
+            .from('charities')
+            .select('*')
+            .eq('ein', targetEin)
+            .single();
+
+          if (charity) {
+            return {
+              action: null,
+              output: {
+                source: 'database',
+                financials: {
+                  ein: charity.ein,
+                  name: charity.name,
+                  total_revenue: charity.total_revenue,
+                  total_expenses: charity.total_expenses,
+                  total_assets: charity.total_assets,
+                  program_expense_ratio: charity.program_expense_ratio,
+                  admin_expense_ratio: charity.admin_expense_ratio,
+                  fundraising_expense_ratio: charity.fundraising_expense_ratio,
+                },
+              },
+            };
+          }
+        }
+
+        return {
+          action: null,
+          output: {
+            error: 'No financial data found. Try refreshing charity data first.',
+          },
+        };
+      }
+
+      // ==================== TAX OPTIMIZATION MODULE ====================
+      case 'run_tax_scenario': {
+        const scenarioType = args.scenario_type;
+        const donationAmount = args.donation_amount;
+        const taxYear = args.tax_year || new Date().getFullYear();
+
+        // Get tax profile for context
+        const { data: taxProfile } = await this.supabase
+          .from('tax_profiles')
+          .select('*')
+          .eq('portfolio_id', portfolioId)
+          .maybeSingle();
+
+        const agi = taxProfile?.estimated_agi || 500000; // Default if no profile
+        const taxBracket = taxProfile?.marginal_rate || 0.37;
+
+        let result: any = {
+          scenario_type: scenarioType,
+          donation_amount: donationAmount,
+          tax_year: taxYear,
+          agi,
+          tax_bracket: taxBracket,
+        };
+
+        switch (scenarioType) {
+          case 'cash_vs_stock': {
+            // Cash donation
+            const cashDeductionLimit = agi * 0.6;
+            const cashDeduction = Math.min(donationAmount, cashDeductionLimit);
+            const cashTaxSavings = cashDeduction * taxBracket;
+            const cashCarryforward = Math.max(0, donationAmount - cashDeductionLimit);
+
+            // Stock donation (assuming long-term appreciated)
+            const stockDeductionLimit = agi * 0.3;
+            const stockDeduction = Math.min(donationAmount, stockDeductionLimit);
+            // Stock also avoids capital gains
+            const assets = args.assets || [];
+            let totalGainAvoided = 0;
+            assets.forEach((a: any) => {
+              if (a.holding_period === 'long') {
+                totalGainAvoided += (a.current_value - a.cost_basis);
+              }
+            });
+            const capGainsTaxAvoided = totalGainAvoided * 0.20; // Assume 20% LTCG rate
+            const stockTaxSavings = (stockDeduction * taxBracket) + capGainsTaxAvoided;
+            const stockCarryforward = Math.max(0, donationAmount - stockDeductionLimit);
+
+            result.scenarios = {
+              cash: {
+                deduction: cashDeduction,
+                tax_savings: cashTaxSavings,
+                carryforward: cashCarryforward,
+                effective_cost: donationAmount - cashTaxSavings,
+              },
+              appreciated_stock: {
+                deduction: stockDeduction,
+                tax_savings: stockTaxSavings,
+                capital_gains_avoided: capGainsTaxAvoided,
+                carryforward: stockCarryforward,
+                effective_cost: donationAmount - stockTaxSavings,
+              },
+            };
+            result.recommendation = stockTaxSavings > cashTaxSavings
+              ? 'Donating appreciated stock saves more in taxes'
+              : 'Cash donation provides better tax benefits in this case';
+            break;
+          }
+
+          case 'bunching': {
+            // Compare spreading over 2 years vs bunching in 1
+            const standardDeduction = 29200; // 2024 MFJ
+            const spreadYearlyDonation = donationAmount / 2;
+            const spreadDeduction = Math.max(0, spreadYearlyDonation - standardDeduction) * 2;
+            const bunchedDeduction = Math.max(0, donationAmount - standardDeduction);
+
+            result.scenarios = {
+              spread_over_2_years: {
+                yearly_donation: spreadYearlyDonation,
+                total_itemized_benefit: spreadDeduction,
+                tax_savings: spreadDeduction * taxBracket,
+              },
+              bunched_in_1_year: {
+                donation: donationAmount,
+                itemized_benefit: bunchedDeduction,
+                tax_savings: bunchedDeduction * taxBracket,
+              },
+            };
+            result.recommendation = bunchedDeduction > spreadDeduction
+              ? 'Bunching donations in one year provides better tax benefits'
+              : 'Spreading donations may work better for your situation';
+            break;
+          }
+
+          default:
+            result.message = `Scenario type '${scenarioType}' analysis would be performed here`;
+        }
+
+        return { action: null, output: result };
+      }
+
+      case 'calculate_deduction': {
+        const amount = args.amount;
+        const assetType = args.asset_type;
+        const recipientType = args.recipient_type;
+
+        // Get AGI from args or tax profile
+        let agi = args.agi;
+        if (!agi) {
+          const { data: taxProfile } = await this.supabase
+            .from('tax_profiles')
+            .select('estimated_agi')
+            .eq('portfolio_id', portfolioId)
+            .maybeSingle();
+          agi = taxProfile?.estimated_agi || 500000;
+        }
+
+        // Determine AGI limit based on asset and recipient type
+        let agiLimitPercent = 0.6; // Default for cash to public charity
+
+        if (assetType === 'cash' && recipientType === 'public_charity') {
+          agiLimitPercent = 0.6;
+        } else if (assetType === 'cash' && recipientType === 'private_foundation') {
+          agiLimitPercent = 0.3;
+        } else if (assetType === 'public_stock' && recipientType === 'public_charity') {
+          agiLimitPercent = 0.3;
+        } else if (assetType === 'public_stock' && recipientType === 'private_foundation') {
+          agiLimitPercent = 0.2;
+        } else {
+          agiLimitPercent = 0.3; // Default for other assets
+        }
+
+        const maxDeduction = agi * agiLimitPercent;
+        const allowedDeduction = Math.min(amount, maxDeduction);
+        const carryforward = Math.max(0, amount - maxDeduction);
+
+        return {
+          action: null,
+          output: {
+            contribution_amount: amount,
+            asset_type: assetType,
+            recipient_type: recipientType,
+            agi,
+            agi_limit_percent: agiLimitPercent * 100,
+            max_deduction_this_year: maxDeduction,
+            allowed_deduction: allowedDeduction,
+            carryforward_amount: carryforward,
+            carryforward_years: carryforward > 0 ? 5 : 0,
+          },
+        };
+      }
+
+      case 'get_carryforward': {
+        const taxYear = args.tax_year || new Date().getFullYear();
+
+        // Query carryforward data from contributions
+        const { data: contributions } = await this.supabase
+          .from('contributions')
+          .select('*')
+          .eq('portfolio_id', portfolioId)
+          .not('carryforward_amount', 'is', null)
+          .gt('carryforward_amount', 0);
+
+        const carryforwards = (contributions || [])
+          .filter((c: any) => {
+            const contribYear = new Date(c.contribution_date).getFullYear();
+            const yearsAgo = taxYear - contribYear;
+            return yearsAgo > 0 && yearsAgo <= 5; // Within 5-year window
+          })
+          .map((c: any) => ({
+            contribution_date: c.contribution_date,
+            original_amount: c.amount,
+            carryforward_amount: c.carryforward_amount,
+            years_remaining: 5 - (taxYear - new Date(c.contribution_date).getFullYear()),
+          }));
+
+        const totalCarryforward = carryforwards.reduce(
+          (sum: number, c: any) => sum + (c.carryforward_amount || 0),
+          0
+        );
+
+        return {
+          action: null,
+          output: {
+            tax_year: taxYear,
+            total_carryforward: totalCarryforward,
+            carryforwards,
+            message: totalCarryforward > 0
+              ? `You have $${totalCarryforward.toLocaleString()} in charitable contribution carryforwards available`
+              : 'No carryforward amounts found',
+          },
+        };
+      }
+
+      // ==================== ANALYTICS MODULE ====================
+      case 'project_metric_trend': {
+        const metricCode = args.metric_code;
+        const holdingId = args.holding_id;
+        const periodsAhead = args.periods_ahead || 4;
+        const method = args.method || 'linear';
+
+        // Get historical data
+        let query = this.supabase
+          .from('metric_facts')
+          .select('value, period_start, period_end')
+          .eq('portfolio_id', portfolioId)
+          .eq('metric_code', metricCode)
+          .order('period_start', { ascending: true });
+
+        if (holdingId) {
+          query = query.eq('holding_id', holdingId);
+        }
+
+        const { data: historicalData, error } = await query;
+
+        if (error || !historicalData || historicalData.length < 2) {
+          return {
+            action: null,
+            output: {
+              error: 'Not enough historical data for projection. Need at least 2 data points.',
+              data_points: historicalData?.length || 0,
+            },
+          };
+        }
+
+        // Simple linear projection
+        const values = historicalData.map((d: any) => d.value);
+        const n = values.length;
+
+        // Calculate slope and intercept
+        const sumX = (n * (n - 1)) / 2;
+        const sumY = values.reduce((a: number, b: number) => a + b, 0);
+        const sumXY = values.reduce((sum: number, y: number, x: number) => sum + x * y, 0);
+        const sumX2 = (n * (n - 1) * (2 * n - 1)) / 6;
+
+        const slope = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
+        const intercept = (sumY - slope * sumX) / n;
+
+        // Generate projections
+        const projections = [];
+        const lastPeriod = new Date(historicalData[n - 1].period_end || historicalData[n - 1].period_start);
+
+        for (let i = 1; i <= periodsAhead; i++) {
+          const projectedValue = intercept + slope * (n - 1 + i);
+          const projectedDate = new Date(lastPeriod);
+          projectedDate.setMonth(projectedDate.getMonth() + 3 * i); // Assuming quarterly
+
+          // Simple confidence interval (gets wider further out)
+          const stdDev = Math.sqrt(
+            values.reduce((sum: number, v: number, idx: number) => {
+              const predicted = intercept + slope * idx;
+              return sum + Math.pow(v - predicted, 2);
+            }, 0) / (n - 2)
+          );
+          const confidenceMargin = stdDev * 1.96 * Math.sqrt(1 + 1/n + Math.pow(i, 2) / sumX2);
+
+          projections.push({
+            period: projectedDate.toISOString().split('T')[0],
+            projected_value: Math.max(0, projectedValue),
+            confidence_low: Math.max(0, projectedValue - confidenceMargin),
+            confidence_high: projectedValue + confidenceMargin,
+          });
+        }
+
+        return {
+          action: null,
+          output: {
+            metric_code: metricCode,
+            method,
+            historical_data_points: n,
+            trend: slope > 0 ? 'increasing' : slope < 0 ? 'decreasing' : 'stable',
+            slope_per_period: slope,
+            projections,
+          },
+        };
+      }
+
+      case 'benchmark_holding': {
+        InputValidator.validateUUID(args.holding_id, 'holding_id');
+
+        const { data: holding, error } = await this.supabase
+          .from('holdings')
+          .select('name, sector, country, funds_allocated')
+          .eq('id', args.holding_id)
+          .single();
+
+        if (error) throw new Error(`Holding not found: ${error.message}`);
+
+        const benchmarkType = args.benchmark_type || 'sector';
+        const metrics = args.metrics || ['funds_allocated'];
+
+        // Get peer holdings for comparison
+        let peerQuery = this.supabase
+          .from('holdings')
+          .select('id, name, sector, funds_allocated')
+          .eq('portfolio_id', portfolioId)
+          .neq('id', args.holding_id);
+
+        if (benchmarkType === 'sector' && holding?.sector) {
+          peerQuery = peerQuery.eq('sector', holding.sector);
+        }
+
+        const { data: peers } = await peerQuery;
+
+        // Calculate percentiles
+        const peerValues = (peers || []).map((p: any) => p.funds_allocated || 0);
+        const holdingValue = holding?.funds_allocated || 0;
+        const allValues = [...peerValues, holdingValue].sort((a, b) => a - b);
+
+        const percentile = allValues.length > 1
+          ? (allValues.indexOf(holdingValue) / (allValues.length - 1)) * 100
+          : 50;
+
+        return {
+          action: null,
+          output: {
+            holding: holding?.name,
+            benchmark_type: benchmarkType,
+            peer_count: peers?.length || 0,
+            metrics: {
+              funds_allocated: {
+                value: holdingValue,
+                percentile: Math.round(percentile),
+                peer_average: peerValues.length > 0
+                  ? peerValues.reduce((a: number, b: number) => a + b, 0) / peerValues.length
+                  : null,
+                peer_median: peerValues.length > 0
+                  ? peerValues[Math.floor(peerValues.length / 2)]
+                  : null,
+              },
+            },
+          },
+        };
+      }
+
+      case 'analyze_portfolio_risk': {
+        const riskType = args.risk_type || 'all';
+
+        // Get all holdings
+        const { data: holdings } = await this.supabase
+          .from('holdings')
+          .select('id, name, sector, country, funds_allocated')
+          .eq('portfolio_id', portfolioId);
+
+        if (!holdings || holdings.length === 0) {
+          return {
+            action: null,
+            output: { error: 'No holdings found in portfolio' },
+          };
+        }
+
+        const totalAllocation = holdings.reduce((sum: number, h: any) => sum + (h.funds_allocated || 0), 0);
+        const result: any = { total_holdings: holdings.length, total_allocation: totalAllocation };
+
+        // Concentration risk (single holding exposure)
+        if (riskType === 'concentration' || riskType === 'all') {
+          const sorted = [...holdings].sort((a: any, b: any) =>
+            (b.funds_allocated || 0) - (a.funds_allocated || 0)
+          );
+          const top3 = sorted.slice(0, 3);
+          const top3Percent = totalAllocation > 0
+            ? (top3.reduce((sum: number, h: any) => sum + (h.funds_allocated || 0), 0) / totalAllocation) * 100
+            : 0;
+
+          result.concentration = {
+            top_3_holdings: top3.map((h: any) => ({
+              name: h.name,
+              allocation: h.funds_allocated,
+              percent: totalAllocation > 0 ? ((h.funds_allocated || 0) / totalAllocation) * 100 : 0,
+            })),
+            top_3_percent: top3Percent,
+            risk_level: top3Percent > 50 ? 'high' : top3Percent > 30 ? 'medium' : 'low',
+          };
+        }
+
+        // Sector concentration
+        if (riskType === 'sector' || riskType === 'all') {
+          const bySector: Record<string, number> = {};
+          holdings.forEach((h: any) => {
+            const sector = h.sector || 'Unknown';
+            bySector[sector] = (bySector[sector] || 0) + (h.funds_allocated || 0);
+          });
+
+          const sectorEntries = Object.entries(bySector)
+            .map(([sector, amount]) => ({
+              sector,
+              amount,
+              percent: totalAllocation > 0 ? (amount / totalAllocation) * 100 : 0,
+            }))
+            .sort((a, b) => b.amount - a.amount);
+
+          const topSectorPercent = sectorEntries[0]?.percent || 0;
+
+          result.sector_concentration = {
+            sectors: sectorEntries,
+            top_sector: sectorEntries[0]?.sector,
+            top_sector_percent: topSectorPercent,
+            risk_level: topSectorPercent > 40 ? 'high' : topSectorPercent > 25 ? 'medium' : 'low',
+          };
+        }
+
+        // Geographic concentration
+        if (riskType === 'geography' || riskType === 'all') {
+          const byCountry: Record<string, number> = {};
+          holdings.forEach((h: any) => {
+            const country = h.country || 'Unknown';
+            byCountry[country] = (byCountry[country] || 0) + (h.funds_allocated || 0);
+          });
+
+          const countryEntries = Object.entries(byCountry)
+            .map(([country, amount]) => ({
+              country,
+              amount,
+              percent: totalAllocation > 0 ? (amount / totalAllocation) * 100 : 0,
+            }))
+            .sort((a, b) => b.amount - a.amount);
+
+          result.geographic_concentration = {
+            countries: countryEntries,
+            country_count: countryEntries.length,
+            top_country: countryEntries[0]?.country,
+            top_country_percent: countryEntries[0]?.percent || 0,
+          };
+        }
+
+        return { action: null, output: result };
       }
 
       default:

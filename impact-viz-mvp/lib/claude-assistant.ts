@@ -2,6 +2,12 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { createClient } from '@supabase/supabase-js';
 import { AIActionExecutor } from './ai-action-executor';
+import {
+  ModuleId,
+  filterToolsForOrg,
+  getOrgEnabledModules,
+  getSystemPromptForModules,
+} from './modules';
 
 // AI Action types (same as ai-assistant.ts)
 export type AIAction = {
@@ -129,7 +135,8 @@ const CHART_COLORS = [
 ];
 
 // Tool definitions for Claude function calling (Anthropic format)
-const PORTFOLIO_TOOLS: Anthropic.Tool[] = [
+// Exported for use by module filtering system
+export const PORTFOLIO_TOOLS: Anthropic.Tool[] = [
   {
     name: 'add_holding',
     description: 'Create a new holding/investment in the portfolio',
@@ -551,10 +558,15 @@ const PORTFOLIO_TOOLS: Anthropic.Tool[] = [
 /**
  * Claude-powered AI Assistant for portfolio management
  * Uses Anthropic's Claude Sonnet model for conversation and function calling
+ *
+ * Supports modular tool filtering - only tools from enabled modules are available.
+ * When orgId is provided, tools are filtered based on the organization's enabled modules.
  */
 export class ClaudePortfolioAssistant {
   private anthropic: Anthropic;
   private supabase: ReturnType<typeof createClient>;
+  private enabledModules: ModuleId[] = ['core'];
+  private moduleSystemPrompt: string = '';
 
   constructor(supabaseServiceRole: string, anthropicApiKey: string) {
     this.anthropic = new Anthropic({ apiKey: anthropicApiKey });
@@ -566,21 +578,57 @@ export class ClaudePortfolioAssistant {
   }
 
   /**
+   * Initialize assistant with organization context for module filtering
+   * Call this before chat() when you want module-based tool filtering
+   */
+  async initializeForOrg(orgId: string): Promise<void> {
+    this.enabledModules = await getOrgEnabledModules(this.supabase, orgId);
+    this.moduleSystemPrompt = getSystemPromptForModules(this.enabledModules);
+  }
+
+  /**
+   * Get tools filtered by enabled modules
+   */
+  private getFilteredTools(): Anthropic.Tool[] {
+    return filterToolsForOrg(PORTFOLIO_TOOLS, this.enabledModules);
+  }
+
+  /**
+   * Reset to default (all tools) - useful for admin or portfolio-only context
+   */
+  resetToDefault(): void {
+    this.enabledModules = ['core'];
+    this.moduleSystemPrompt = '';
+  }
+
+  /**
    * Process a user message and generate AI response with actions
+   *
+   * @param params.orgId - Optional organization ID for module-based tool filtering
+   *                       If provided, tools will be filtered based on enabled modules
    */
   async chat(params: {
     portfolioId: string;
     userId: string;
     sessionId: string;
     message: string;
+    orgId?: string;
     conversationHistory?: Array<{ role: 'user' | 'assistant'; content: string }>;
   }) {
-    const { portfolioId, userId, sessionId, message, conversationHistory = [] } = params;
+    const { portfolioId, userId, sessionId, message, orgId, conversationHistory = [] } = params;
+
+    // Initialize for organization if provided (enables module filtering)
+    if (orgId) {
+      await this.initializeForOrg(orgId);
+    }
+
+    // Get filtered tools based on enabled modules
+    const tools = this.getFilteredTools();
 
     // Get portfolio context
     const context = await this.getPortfolioContext(portfolioId);
 
-    // Build system prompt
+    // Build system prompt with module-specific additions
     const systemPrompt = this.buildSystemPrompt(context);
 
     // Convert conversation history to Claude format
@@ -592,12 +640,12 @@ export class ClaudePortfolioAssistant {
       { role: 'user', content: message },
     ];
 
-    // Call Claude with function calling
+    // Call Claude with function calling (using filtered tools)
     const response = await this.anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 4096,
       system: systemPrompt,
-      tools: PORTFOLIO_TOOLS,
+      tools,
       messages: claudeMessages,
     });
 
@@ -656,12 +704,12 @@ export class ClaudePortfolioAssistant {
         }
       }
 
-      // Get final response with tool results
+      // Get final response with tool results (using same filtered tools)
       const finalResponse = await this.anthropic.messages.create({
         model: 'claude-sonnet-4-20250514',
         max_tokens: 4096,
         system: systemPrompt,
-        tools: PORTFOLIO_TOOLS,
+        tools,
         messages: [
           ...claudeMessages,
           { role: 'assistant', content: response.content },
@@ -2811,6 +2859,10 @@ Chart type options: "line", "bar", "area", "pie", "gauge"
 - scope: "portfolio" (full portfolio), "holding" (single holding), "sector" (sector analysis)
 - title: Custom report title
 
+${this.moduleSystemPrompt ? `
+=== ENABLED CAPABILITIES ===
+${this.moduleSystemPrompt}
+` : ''}
 === BEHAVIOR ===
 • Be concise - especially after generating charts
 • Use the data above to answer questions directly

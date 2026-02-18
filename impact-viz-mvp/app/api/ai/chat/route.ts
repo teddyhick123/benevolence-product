@@ -107,6 +107,33 @@ export async function POST(req: NextRequest) {
 
     const sb = supabaseService();
 
+    // Get organization context for this portfolio (if any)
+    // This enables module-based tool filtering
+    let orgId: string | undefined;
+    const { data: orgHolding } = await sb
+      .from('organization_holdings')
+      .select('organization_id')
+      .eq('holding_id', portfolioId)
+      .maybeSingle();
+
+    // If portfolio is linked to an org via holdings, use that org
+    // Otherwise check if user belongs to an org that might be relevant
+    if (orgHolding?.organization_id) {
+      orgId = orgHolding.organization_id;
+    } else {
+      // Check if user has an organization membership
+      const { data: userOrg } = await sb
+        .from('organization_members')
+        .select('organization_id')
+        .eq('user_id', user.id)
+        .limit(1)
+        .maybeSingle();
+
+      if (userOrg?.organization_id) {
+        orgId = userOrg.organization_id;
+      }
+    }
+
     // Get or create AI session
     const { data: sessionIdData } = await sb.rpc('get_or_create_ai_session', {
       p_portfolio_id: portfolioId,
@@ -145,9 +172,10 @@ export async function POST(req: NextRequest) {
       .filter(msg => msg.role === 'user' || msg.role === 'assistant')
       .map(msg => ({ role: msg.role as 'user' | 'assistant', content: msg.content }));
 
-    // Process the message
+    // Process the message (orgId enables module-based tool filtering)
     const result = await assistant.chat({
       portfolioId,
+      orgId,
       userId: user.id,
       sessionId,
       message,

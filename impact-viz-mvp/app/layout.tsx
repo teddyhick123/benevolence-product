@@ -4,10 +4,11 @@ import Header from "@/components/Header";
 import LoadingScreen from "@/components/LoadingScreen";
 import SWRProvider from "@/components/SWRProvider";
 import { Montserrat, Playfair_Display } from "next/font/google";
+import { branding } from "@/lib/config";
 
 export const metadata: Metadata = {
-  title: "Benevolence",
-  description: "Impact investing dashboard",
+  title: branding.appName,
+  description: branding.tagline,
 };
 const mont = Montserrat({
   subsets: ['latin'],

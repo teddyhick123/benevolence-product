@@ -1,116 +1,117 @@
-import { createSupabaseServerClient } from "@/lib/supabase";
+import { cookies } from "next/headers";
+import { createServerClient } from "@supabase/ssr";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import OrgDashboard from "@/components/org/OrgDashboard";
+import { getOrgEnabledModules } from "@/lib/modules";
+import { MODULE_REGISTRY } from "@/lib/modules/registry";
+import { createAdminClient } from "@/lib/supabase";
+import OrgDashboardClient from "./OrgDashboardClient";
 
 export const dynamic = "force-dynamic";
-export const revalidate = 0;
 
 interface Props {
   params: Promise<{ orgId: string }>;
 }
 
-async function loadOrgData(orgId: string) {
-  const supabase = await createSupabaseServerClient();
-
-  // Verify user has access
-  const { data: roleData } = await supabase.rpc("org_role", { p_org_id: orgId });
-  if (!roleData) {
-    return { error: "Not authorized", org: null, holdings: [], pendingFacts: [], recentFacts: [] };
-  }
-
-  // Load organization
-  const { data: org, error: orgError } = await supabase
-    .from("organizations")
-    .select("*")
-    .eq("id", orgId)
-    .single();
-
-  if (orgError || !org) {
-    return { error: orgError?.message || "Organization not found", org: null, holdings: [], pendingFacts: [], recentFacts: [] };
-  }
-
-  // Load linked holdings
-  const { data: holdingsData } = await supabase
-    .from("organization_holdings")
-    .select(`
-      holding_id,
-      verified_at,
-      holdings (
-        id,
-        name,
-        portfolio_id,
-        portfolios (name)
-      )
-    `)
-    .eq("organization_id", orgId);
-
-  // Load pending staging facts
-  const { data: pendingFacts } = await supabase
-    .from("staging_metric_facts")
-    .select(`
-      id,
-      metric_code,
-      value,
-      period_end,
-      created_at,
-      holdings (name),
-      metrics (name, unit)
-    `)
-    .eq("submitted_by_org_id", orgId)
-    .eq("approved", false)
-    .order("created_at", { ascending: false })
-    .limit(10);
-
-  // Load recent approved facts
-  const { data: recentFacts } = await supabase
-    .from("metric_facts")
-    .select(`
-      id,
-      metric_code,
-      value,
-      period_end,
-      updated_at,
-      holdings (name),
-      metrics (name, unit)
-    `)
-    .eq("submitted_by_org_id", orgId)
-    .order("updated_at", { ascending: false })
-    .limit(10);
-
-  return {
-    error: null,
-    org,
-    role: roleData,
-    holdings: holdingsData || [],
-    pendingFacts: pendingFacts || [],
-    recentFacts: recentFacts || [],
-  };
-}
+const MODULE_ROUTES: Record<string, string> = {
+  impact_tracking: "/dashboard",
+  reporting: "/dashboard/reports",
+  tax_optimization: "/dashboard/tax",
+  grant_management: "/dashboard/grants",
+  donor_management: "/donors",
+  external_data: "/charities",
+  analytics: "/dashboard/analytics",
+};
 
 export default async function OrgDashboardPage({ params }: Props) {
   const { orgId } = await params;
-  const { error, org, role, holdings, pendingFacts, recentFacts } = await loadOrgData(orgId);
 
-  if (error || !org) {
+  // Auth check
+  const cookieStore = await cookies();
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        get(name: string) {
+          return cookieStore.get(name)?.value;
+        },
+        set() {},
+        remove() {},
+      },
+    }
+  );
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    redirect("/login");
+  }
+
+  // Get org data
+  const adminClient = createAdminClient();
+
+  const { data: org } = await adminClient
+    .from("organizations")
+    .select("id, name, logo_url, description, ein, org_type, website, created_at")
+    .eq("id", orgId)
+    .single();
+
+  if (!org) {
     return (
-      <div className="card p-6">
-        <h2 className="text-xl font-semibold text-red-600 mb-2">Error</h2>
-        <p className="text-neutral-600">{error || "Organization not found"}</p>
-        <Link href="/org" className="mt-4 inline-block text-azure hover:underline">
-          Back to organizations
-        </Link>
+      <div className="max-w-4xl mx-auto py-12 px-6">
+        <div className="bg-red-50 border border-red-200 rounded-xl p-6 text-center">
+          <h1 className="text-xl font-semibold text-red-800 mb-2">
+            Organization Not Found
+          </h1>
+          <p className="text-red-600">
+            This organization doesn't exist or you don't have access.
+          </p>
+          <Link
+            href="/dashboard"
+            className="mt-4 inline-block text-azure hover:underline"
+          >
+            Go to Dashboard
+          </Link>
+        </div>
       </div>
     );
   }
 
+  // Get user's role in this org
+  const { data: membership } = await adminClient
+    .from("organization_members")
+    .select("role")
+    .eq("organization_id", orgId)
+    .eq("user_id", user.id)
+    .single();
+
+  const userRole = membership?.role || "viewer";
+
+  // Get enabled modules
+  const enabledModules = await getOrgEnabledModules(adminClient, orgId);
+  const nonCoreModules = enabledModules.filter((m) => m !== "core");
+
+  // Build module data for client
+  const moduleData = nonCoreModules.map((moduleId) => {
+    const moduleDef = MODULE_REGISTRY[moduleId];
+    const route = MODULE_ROUTES[moduleId] || "/dashboard";
+    return {
+      id: moduleId,
+      name: moduleDef?.name || moduleId,
+      description: moduleDef?.description || "",
+      href: `${route}?org_id=${orgId}`,
+    };
+  });
+
   return (
-    <OrgDashboard
-      org={org}
-      role={role}
-      holdings={holdings}
-      pendingFacts={pendingFacts}
-      recentFacts={recentFacts}
+    <OrgDashboardClient
+      orgId={orgId}
+      initialOrg={org}
+      enabledModules={enabledModules}
+      moduleData={moduleData}
+      userRole={userRole}
     />
   );
 }

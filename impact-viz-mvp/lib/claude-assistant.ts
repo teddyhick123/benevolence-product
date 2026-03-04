@@ -786,6 +786,291 @@ export const PORTFOLIO_TOOLS: Anthropic.Tool[] = [
       },
     },
   },
+  // ==================== GRANT MANAGEMENT MODULE ====================
+  {
+    name: 'start_due_diligence',
+    description: 'Start a due diligence workflow for a grantee. Creates checklist tasks for 501(c)(3) verification, financial review, mission alignment, and capacity evaluation.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        holding_id: { type: 'string', description: 'Grant holding to start due diligence for' },
+        template_id: { type: 'string', description: 'Optional: specific workflow template ID' },
+        due_date: { type: 'string', description: 'Target completion date (ISO format)' },
+        assigned_to: { type: 'string', description: 'Optional: user ID to assign tasks to' },
+        priority_items: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Optional: specific checklist items to prioritize',
+        },
+      },
+      required: ['holding_id'],
+    },
+  },
+  {
+    name: 'get_workflow_status',
+    description: 'Get the current status of workflows for a grant, including all tasks and their completion status.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        holding_id: { type: 'string', description: 'Grant holding ID' },
+        workflow_id: { type: 'string', description: 'Optional: specific workflow ID' },
+        include_completed: { type: 'boolean', description: 'Include completed workflows (default: false)' },
+      },
+      required: ['holding_id'],
+    },
+  },
+  {
+    name: 'complete_workflow_task',
+    description: 'Mark a workflow task as completed with an outcome.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        task_id: { type: 'string', description: 'Task ID to complete' },
+        outcome: {
+          type: 'string',
+          enum: ['pass', 'fail', 'conditional', 'n/a'],
+          description: 'Task outcome',
+        },
+        notes: { type: 'string', description: 'Notes about the completion' },
+      },
+      required: ['task_id', 'outcome'],
+    },
+  },
+  {
+    name: 'track_milestone',
+    description: 'Update a grant milestone status or add a new milestone.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        holding_id: { type: 'string', description: 'Grant holding ID' },
+        milestone_id: { type: 'string', description: 'Optional: existing milestone to update' },
+        name: { type: 'string', description: 'Milestone name (for new milestones)' },
+        description: { type: 'string', description: 'Milestone description' },
+        due_date: { type: 'string', description: 'Due date (ISO format)' },
+        status: {
+          type: 'string',
+          enum: ['pending', 'in_progress', 'completed', 'overdue', 'cancelled'],
+          description: 'Milestone status',
+        },
+        notes: { type: 'string', description: 'Progress notes' },
+      },
+      required: ['holding_id'],
+    },
+  },
+  {
+    name: 'schedule_reminder',
+    description: 'Schedule a reminder for a grant-related deadline.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        portfolio_id: { type: 'string', description: 'Portfolio ID' },
+        holding_id: { type: 'string', description: 'Optional: related grant holding' },
+        title: { type: 'string', description: 'Reminder title' },
+        description: { type: 'string', description: 'Reminder details' },
+        due_date: { type: 'string', description: 'Deadline date (ISO format)' },
+        remind_days_before: {
+          type: 'array',
+          items: { type: 'number' },
+          description: 'Days before due date to send reminders (e.g., [7, 3, 1])',
+        },
+        reminder_type: {
+          type: 'string',
+          enum: ['report_due', 'milestone_due', 'payment_due', 'renewal', 'follow_up', 'site_visit', 'custom'],
+          description: 'Type of reminder',
+        },
+      },
+      required: ['portfolio_id', 'title', 'due_date'],
+    },
+  },
+  {
+    name: 'get_upcoming_deadlines',
+    description: 'Get all upcoming deadlines for grants in a portfolio including reports, milestones, payments, and workflow tasks.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        portfolio_id: { type: 'string', description: 'Portfolio ID' },
+        days_ahead: { type: 'number', description: 'Days to look ahead (default: 30)' },
+        include_types: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Filter by deadline types: reports, milestones, payments, renewals',
+        },
+      },
+      required: ['portfolio_id'],
+    },
+  },
+  {
+    name: 'log_grant_communication',
+    description: 'Log a communication with a grantee.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        holding_id: { type: 'string', description: 'Grant holding ID' },
+        direction: { type: 'string', enum: ['inbound', 'outbound'], description: 'Communication direction' },
+        comm_type: {
+          type: 'string',
+          enum: ['email', 'phone', 'meeting', 'site_visit', 'letter', 'portal_message', 'other'],
+          description: 'Type of communication',
+        },
+        subject: { type: 'string', description: 'Subject/topic' },
+        summary: { type: 'string', description: 'Summary of communication' },
+        contact_name: { type: 'string', description: 'Contact person' },
+        follow_up_required: { type: 'boolean', description: 'Needs follow-up?' },
+        follow_up_date: { type: 'string', description: 'Follow-up date if required (ISO format)' },
+      },
+      required: ['holding_id', 'direction', 'comm_type', 'summary'],
+    },
+  },
+  {
+    name: 'get_grant_health',
+    description: 'Get comprehensive health assessment for one or all grants in a portfolio including payment, milestone, report, and workflow status.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        portfolio_id: { type: 'string', description: 'Portfolio ID' },
+        holding_id: { type: 'string', description: 'Optional: specific grant holding' },
+        include_details: { type: 'boolean', description: 'Include detailed breakdown (default: true)' },
+      },
+      required: ['portfolio_id'],
+    },
+  },
+  {
+    name: 'record_grant_payment',
+    description: 'Record or update a grant payment/disbursement.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        holding_id: { type: 'string', description: 'Grant holding ID' },
+        payment_id: { type: 'string', description: 'Optional: existing payment to update' },
+        amount: { type: 'number', description: 'Payment amount' },
+        scheduled_date: { type: 'string', description: 'Scheduled payment date (ISO format)' },
+        actual_date: { type: 'string', description: 'Actual payment date when completed (ISO format)' },
+        status: {
+          type: 'string',
+          enum: ['scheduled', 'approved', 'processing', 'completed', 'cancelled'],
+          description: 'Payment status',
+        },
+        payment_method: { type: 'string', enum: ['check', 'wire', 'ach'], description: 'Payment method' },
+        notes: { type: 'string', description: 'Payment notes' },
+      },
+      required: ['holding_id'],
+    },
+  },
+  // ==================== DONOR MANAGEMENT MODULE ====================
+  {
+    name: 'log_contribution_received',
+    description: 'Log a donation received by the organization. Optionally auto-creates donor record if not found. Can automatically generate a receipt for contributions >= $250.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        organization_id: { type: 'string', description: 'Organization UUID receiving the donation' },
+        amount: { type: 'number', description: 'Donation amount in USD' },
+        contribution_date: { type: 'string', description: 'Date of contribution (YYYY-MM-DD, defaults to today)' },
+        contribution_type: {
+          type: 'string',
+          enum: ['cash', 'check', 'credit_card', 'wire', 'ach', 'stock', 'crypto', 'real_estate', 'in_kind', 'other'],
+          description: 'Type of contribution (default: cash)',
+        },
+        donor_id: { type: 'string', description: 'Existing donor UUID (optional - provide donor info to auto-create)' },
+        donor_name: { type: 'string', description: 'Donor name for auto-creation (e.g., "John Smith" or "Smith Foundation")' },
+        donor_email: { type: 'string', description: 'Donor email for auto-creation' },
+        donor_type: {
+          type: 'string',
+          enum: ['individual', 'foundation', 'corporation', 'government', 'other'],
+          description: 'Type of donor (default: individual)',
+        },
+        designation: { type: 'string', description: 'Fund designation (e.g., "General Fund", "Building Campaign")' },
+        is_restricted: { type: 'boolean', description: 'Whether the gift is restricted' },
+        quid_pro_quo_value: { type: 'number', description: 'Value of goods/services provided in exchange (IRS requirement)' },
+        campaign: { type: 'string', description: 'Campaign or appeal name' },
+        notes: { type: 'string', description: 'Additional notes' },
+        auto_generate_receipt: { type: 'boolean', description: 'Automatically generate receipt for contributions >= $250' },
+      },
+      required: ['organization_id', 'amount'],
+    },
+  },
+  {
+    name: 'generate_receipt',
+    description: 'Generate an IRS-compliant tax receipt for a contribution. Required for donations >= $250.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        contribution_id: { type: 'string', description: 'Contribution UUID to generate receipt for' },
+        send_immediately: { type: 'boolean', description: 'Send receipt to donor immediately (default: false)' },
+      },
+      required: ['contribution_id'],
+    },
+  },
+  {
+    name: 'generate_acknowledgment',
+    description: 'Create a thank-you letter or acknowledgment for a donor. Can be for a specific contribution or general.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        organization_id: { type: 'string', description: 'Organization UUID' },
+        donor_id: { type: 'string', description: 'Donor UUID to acknowledge' },
+        contribution_id: { type: 'string', description: 'Optional: specific contribution to acknowledge' },
+        letter_type: {
+          type: 'string',
+          enum: ['thank_you', 'annual_summary', 'welcome', 'custom'],
+          description: 'Type of acknowledgment letter (default: thank_you)',
+        },
+        custom_message: { type: 'string', description: 'Custom message to include in the letter' },
+        send_via: {
+          type: 'string',
+          enum: ['email', 'mail', 'both'],
+          description: 'How to send the acknowledgment (default: email)',
+        },
+      },
+      required: ['organization_id', 'donor_id'],
+    },
+  },
+  {
+    name: 'get_donor_summary',
+    description: 'Get a comprehensive donor profile including giving history, communications, and status.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        donor_id: { type: 'string', description: 'Donor UUID' },
+        include_contributions: { type: 'boolean', description: 'Include detailed contribution history (default: true)' },
+        include_communications: { type: 'boolean', description: 'Include communication log (default: true)' },
+        year: { type: 'number', description: 'Filter contributions to specific year' },
+      },
+      required: ['donor_id'],
+    },
+  },
+  {
+    name: 'search_donors',
+    description: 'Search and filter donors by various criteria.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        organization_id: { type: 'string', description: 'Organization UUID' },
+        name: { type: 'string', description: 'Search by donor name (partial match)' },
+        email: { type: 'string', description: 'Search by email' },
+        donor_type: {
+          type: 'string',
+          enum: ['individual', 'foundation', 'corporation', 'government', 'other'],
+          description: 'Filter by donor type',
+        },
+        donor_tier: {
+          type: 'string',
+          enum: ['major', 'leadership', 'sustainer', 'supporter'],
+          description: 'Filter by giving tier',
+        },
+        recency_status: {
+          type: 'string',
+          enum: ['active', 'lapsed', 'inactive'],
+          description: 'Filter by recency status',
+        },
+        min_lifetime_giving: { type: 'number', description: 'Minimum lifetime giving amount' },
+        has_pending_receipts: { type: 'boolean', description: 'Filter to donors with pending receipts' },
+        has_pending_acknowledgments: { type: 'boolean', description: 'Filter to donors needing acknowledgment' },
+        limit: { type: 'number', description: 'Maximum results to return (default: 50)' },
+      },
+      required: ['organization_id'],
+    },
+  },
 ];
 
 /**
@@ -875,7 +1160,7 @@ export class ClaudePortfolioAssistant {
 
     // Call Claude with function calling (using filtered tools)
     const response = await this.anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-4-5-20250929',
       max_tokens: 4096,
       system: systemPrompt,
       tools,
@@ -939,7 +1224,7 @@ export class ClaudePortfolioAssistant {
 
       // Get final response with tool results (using same filtered tools)
       const finalResponse = await this.anthropic.messages.create({
-        model: 'claude-sonnet-4-20250514',
+        model: 'claude-sonnet-4-5-20250929',
         max_tokens: 4096,
         system: systemPrompt,
         tools,
@@ -3392,6 +3677,1393 @@ export class ClaudePortfolioAssistant {
         }
 
         return { action: null, output: result };
+      }
+
+      // ==================== GRANT MANAGEMENT MODULE ====================
+      case 'start_due_diligence': {
+        InputValidator.validateUUID(args.holding_id, 'holding_id');
+        if (args.template_id) InputValidator.validateUUID(args.template_id, 'template_id');
+        if (args.due_date) InputValidator.validateDateString(args.due_date, 'due_date');
+        if (args.assigned_to) InputValidator.validateUUID(args.assigned_to, 'assigned_to');
+
+        // Get or use default due diligence template
+        let template;
+        if (args.template_id) {
+          const { data, error } = await this.supabase
+            .from('workflow_templates')
+            .select('*')
+            .eq('id', args.template_id)
+            .single();
+          if (error) throw new Error(`Template not found: ${error.message}`);
+          template = data;
+        } else {
+          // Use system default due diligence template
+          const { data, error } = await this.supabase
+            .from('workflow_templates')
+            .select('*')
+            .eq('workflow_type', 'due_diligence')
+            .eq('is_system', true)
+            .limit(1)
+            .single();
+          if (error) {
+            return {
+              action: null,
+              output: {
+                error: 'No due diligence template found. Please create one first.',
+                success: false,
+              },
+            };
+          }
+          template = data;
+        }
+
+        // Get grant_id from holding
+        const { data: grant, error: grantError } = await this.supabase
+          .from('grant_details')
+          .select('id')
+          .eq('holding_id', args.holding_id)
+          .maybeSingle();
+
+        if (grantError) throw new Error(`Error finding grant: ${grantError.message}`);
+
+        // If no grant details exist, create them
+        let grantId = grant?.id;
+        if (!grantId) {
+          const { data: newGrant, error: createError } = await this.supabase
+            .from('grant_details')
+            .insert({ holding_id: args.holding_id })
+            .select('id')
+            .single();
+          if (createError) throw new Error(`Error creating grant details: ${createError.message}`);
+          grantId = newGrant.id;
+        }
+
+        // Get holding name for workflow naming
+        const { data: holding } = await this.supabase
+          .from('holdings')
+          .select('name')
+          .eq('id', args.holding_id)
+          .single();
+
+        // Create workflow instance
+        const { data: workflow, error: wfError } = await this.supabase
+          .from('workflow_instances')
+          .insert({
+            template_id: template.id,
+            grant_id: grantId,
+            portfolio_id: portfolioId,
+            name: `Due Diligence - ${holding?.name || args.holding_id}`,
+            due_date: args.due_date || null,
+            started_by: userId,
+            status: 'active',
+          })
+          .select()
+          .single();
+
+        if (wfError) throw new Error(`Error creating workflow: ${wfError.message}`);
+
+        // Calculate task due dates based on estimated days
+        const calculateTaskDueDate = (workflowDueDate: string | null, estimatedDays: number, stepIndex: number): string | null => {
+          if (!workflowDueDate) return null;
+          const dueDate = new Date(workflowDueDate);
+          // Work backwards from due date, earlier steps get earlier dates
+          const totalSteps = template.steps.length;
+          const daysBeforeDue = Math.max(0, ((totalSteps - stepIndex) / totalSteps) * 14); // Spread over 2 weeks before due
+          dueDate.setDate(dueDate.getDate() - daysBeforeDue);
+          return dueDate.toISOString().split('T')[0];
+        };
+
+        // Create tasks from template steps
+        const tasks = template.steps.map((step: any, index: number) => ({
+          workflow_id: workflow.id,
+          step_id: step.id,
+          name: step.name,
+          description: step.description,
+          sequence_order: step.order || index + 1,
+          is_required: step.required !== false,
+          assigned_to: args.assigned_to || null,
+          due_date: calculateTaskDueDate(args.due_date, step.estimated_days || 1, index),
+          status: 'pending',
+        }));
+
+        const { error: taskError } = await this.supabase
+          .from('workflow_tasks')
+          .insert(tasks);
+
+        if (taskError) throw new Error(`Error creating tasks: ${taskError.message}`);
+
+        return {
+          action: null,
+          output: {
+            success: true,
+            workflow_id: workflow.id,
+            workflow_name: workflow.name,
+            template_used: template.name,
+            tasks_created: tasks.length,
+            due_date: args.due_date || 'Not set',
+            message: `Started due diligence workflow "${workflow.name}" with ${tasks.length} tasks`,
+          },
+        };
+      }
+
+      case 'get_workflow_status': {
+        InputValidator.validateUUID(args.holding_id, 'holding_id');
+        if (args.workflow_id) InputValidator.validateUUID(args.workflow_id, 'workflow_id');
+
+        // Get grant_id from holding
+        const { data: grant } = await this.supabase
+          .from('grant_details')
+          .select('id')
+          .eq('holding_id', args.holding_id)
+          .maybeSingle();
+
+        if (!grant) {
+          return {
+            action: null,
+            output: {
+              workflows: [],
+              message: 'No grant details found for this holding',
+            },
+          };
+        }
+
+        // Build workflow query
+        let workflowQuery = this.supabase
+          .from('workflow_instances')
+          .select(`
+            id,
+            name,
+            status,
+            due_date,
+            started_at,
+            completed_at,
+            notes,
+            workflow_templates(name, workflow_type),
+            workflow_tasks(
+              id,
+              name,
+              description,
+              status,
+              is_required,
+              due_date,
+              outcome,
+              outcome_notes,
+              completed_at,
+              sequence_order
+            )
+          `)
+          .eq('grant_id', grant.id)
+          .order('started_at', { ascending: false });
+
+        if (args.workflow_id) {
+          workflowQuery = workflowQuery.eq('id', args.workflow_id);
+        }
+
+        if (!args.include_completed) {
+          workflowQuery = workflowQuery.eq('status', 'active');
+        }
+
+        const { data: workflows, error } = await workflowQuery;
+
+        if (error) throw new Error(`Error fetching workflows: ${error.message}`);
+
+        // Calculate completion stats for each workflow
+        const workflowsWithStats = (workflows || []).map((wf: any) => {
+          const tasks = wf.workflow_tasks || [];
+          const completedTasks = tasks.filter((t: any) => t.status === 'completed').length;
+          const requiredTasks = tasks.filter((t: any) => t.is_required).length;
+          const completedRequired = tasks.filter((t: any) => t.is_required && t.status === 'completed').length;
+
+          return {
+            ...wf,
+            template_name: wf.workflow_templates?.name,
+            workflow_type: wf.workflow_templates?.workflow_type,
+            tasks_total: tasks.length,
+            tasks_completed: completedTasks,
+            tasks_pending: tasks.filter((t: any) => t.status === 'pending').length,
+            tasks_in_progress: tasks.filter((t: any) => t.status === 'in_progress').length,
+            required_tasks: requiredTasks,
+            required_completed: completedRequired,
+            completion_percentage: tasks.length > 0 ? Math.round((completedTasks / tasks.length) * 100) : 0,
+            workflow_tasks: tasks.sort((a: any, b: any) => a.sequence_order - b.sequence_order),
+          };
+        });
+
+        return {
+          action: null,
+          output: {
+            workflows: workflowsWithStats,
+            total_workflows: workflowsWithStats.length,
+          },
+        };
+      }
+
+      case 'complete_workflow_task': {
+        InputValidator.validateUUID(args.task_id, 'task_id');
+        InputValidator.validateEnum(args.outcome, 'outcome', ['pass', 'fail', 'conditional', 'n/a'] as const);
+
+        // Update the task
+        const { data: task, error } = await this.supabase
+          .from('workflow_tasks')
+          .update({
+            status: 'completed',
+            outcome: args.outcome,
+            outcome_notes: args.notes || null,
+            completed_at: new Date().toISOString(),
+            completed_by: userId,
+          })
+          .eq('id', args.task_id)
+          .select('*, workflow_instances(id, name, grant_id)')
+          .single();
+
+        if (error) throw new Error(`Error completing task: ${error.message}`);
+
+        // Check if all required tasks are completed
+        const { data: remainingTasks } = await this.supabase
+          .from('workflow_tasks')
+          .select('id, status, is_required')
+          .eq('workflow_id', (task as any).workflow_instances.id)
+          .eq('is_required', true)
+          .neq('status', 'completed');
+
+        const allRequiredComplete = !remainingTasks || remainingTasks.length === 0;
+
+        // If all required tasks complete, mark workflow as completed
+        if (allRequiredComplete) {
+          await this.supabase
+            .from('workflow_instances')
+            .update({
+              status: 'completed',
+              completed_at: new Date().toISOString(),
+            })
+            .eq('id', (task as any).workflow_instances.id);
+        }
+
+        return {
+          action: null,
+          output: {
+            success: true,
+            task_id: args.task_id,
+            task_name: task.name,
+            outcome: args.outcome,
+            workflow_completed: allRequiredComplete,
+            message: allRequiredComplete
+              ? `Task "${task.name}" completed. All required tasks done - workflow marked as completed.`
+              : `Task "${task.name}" marked as ${args.outcome}`,
+          },
+        };
+      }
+
+      case 'track_milestone': {
+        InputValidator.validateUUID(args.holding_id, 'holding_id');
+        if (args.milestone_id) InputValidator.validateUUID(args.milestone_id, 'milestone_id');
+        if (args.due_date) InputValidator.validateDateString(args.due_date, 'due_date');
+        if (args.status) {
+          InputValidator.validateEnum(args.status, 'status', ['pending', 'in_progress', 'completed', 'overdue', 'cancelled'] as const);
+        }
+
+        // Get grant_id from holding
+        const { data: grant, error: grantError } = await this.supabase
+          .from('grant_details')
+          .select('id')
+          .eq('holding_id', args.holding_id)
+          .maybeSingle();
+
+        if (grantError) throw new Error(`Error finding grant: ${grantError.message}`);
+
+        // If no grant details exist, create them
+        let grantId = grant?.id;
+        if (!grantId) {
+          const { data: newGrant, error: createError } = await this.supabase
+            .from('grant_details')
+            .insert({ holding_id: args.holding_id })
+            .select('id')
+            .single();
+          if (createError) throw new Error(`Error creating grant details: ${createError.message}`);
+          grantId = newGrant.id;
+        }
+
+        if (args.milestone_id) {
+          // Update existing milestone
+          const updateData: any = {};
+          if (args.name) updateData.milestone_name = args.name;
+          if (args.description) updateData.description = args.description;
+          if (args.due_date) updateData.due_date = args.due_date;
+          if (args.status) updateData.status = args.status;
+          if (args.notes) updateData.notes = args.notes;
+          if (args.status === 'completed') {
+            updateData.completed_date = new Date().toISOString().split('T')[0];
+          }
+
+          const { data: milestone, error } = await this.supabase
+            .from('grant_milestones')
+            .update(updateData)
+            .eq('id', args.milestone_id)
+            .select()
+            .single();
+
+          if (error) throw new Error(`Error updating milestone: ${error.message}`);
+
+          return {
+            action: null,
+            output: {
+              success: true,
+              action: 'updated',
+              milestone: milestone,
+              message: `Milestone "${milestone.milestone_name}" updated`,
+            },
+          };
+        } else {
+          // Create new milestone
+          if (!args.name) {
+            throw new ValidationError('name is required when creating a new milestone');
+          }
+
+          const { data: milestone, error } = await this.supabase
+            .from('grant_milestones')
+            .insert({
+              grant_id: grantId,
+              milestone_name: args.name,
+              description: args.description || null,
+              due_date: args.due_date || null,
+              status: args.status || 'pending',
+              notes: args.notes || null,
+            })
+            .select()
+            .single();
+
+          if (error) throw new Error(`Error creating milestone: ${error.message}`);
+
+          return {
+            action: null,
+            output: {
+              success: true,
+              action: 'created',
+              milestone: milestone,
+              message: `New milestone "${args.name}" created`,
+            },
+          };
+        }
+      }
+
+      case 'schedule_reminder': {
+        InputValidator.validateUUID(args.portfolio_id, 'portfolio_id');
+        if (args.holding_id) InputValidator.validateUUID(args.holding_id, 'holding_id');
+        InputValidator.validateDateString(args.due_date, 'due_date');
+        if (args.reminder_type) {
+          InputValidator.validateEnum(args.reminder_type, 'reminder_type', [
+            'report_due', 'milestone_due', 'payment_due', 'renewal', 'follow_up', 'site_visit', 'custom'
+          ] as const);
+        }
+
+        // Calculate reminder times based on days_before
+        const remindDaysBefore = args.remind_days_before || [7, 3, 1];
+        const dueDate = new Date(args.due_date);
+        const remindAt = remindDaysBefore.map((days: number) => {
+          const reminderDate = new Date(dueDate);
+          reminderDate.setDate(reminderDate.getDate() - days);
+          reminderDate.setHours(9, 0, 0, 0); // 9 AM
+          return reminderDate.toISOString();
+        });
+
+        // Get entity info if holding_id provided
+        let entityType = null;
+        let entityId = null;
+        if (args.holding_id) {
+          const { data: grant } = await this.supabase
+            .from('grant_details')
+            .select('id')
+            .eq('holding_id', args.holding_id)
+            .maybeSingle();
+          if (grant) {
+            entityType = 'grant';
+            entityId = grant.id;
+          }
+        }
+
+        const { data: reminder, error } = await this.supabase
+          .from('reminders')
+          .insert({
+            portfolio_id: args.portfolio_id,
+            reminder_type: args.reminder_type || 'custom',
+            entity_type: entityType,
+            entity_id: entityId,
+            title: args.title,
+            description: args.description || null,
+            due_date: args.due_date,
+            remind_at: remindAt,
+            notify_users: [userId],
+            created_by: userId,
+            status: 'pending',
+          })
+          .select()
+          .single();
+
+        if (error) throw new Error(`Error creating reminder: ${error.message}`);
+
+        return {
+          action: null,
+          output: {
+            success: true,
+            reminder_id: reminder.id,
+            title: args.title,
+            due_date: args.due_date,
+            reminder_dates: remindAt.map((r: string) => r.split('T')[0]),
+            message: `Reminder "${args.title}" scheduled for ${args.due_date} with ${remindAt.length} notifications`,
+          },
+        };
+      }
+
+      case 'get_upcoming_deadlines': {
+        InputValidator.validateUUID(args.portfolio_id, 'portfolio_id');
+        const daysAhead = args.days_ahead || 30;
+
+        // Use the database function for comprehensive deadline view
+        const { data: deadlines, error } = await this.supabase
+          .rpc('get_upcoming_deadlines', {
+            p_portfolio_id: args.portfolio_id,
+            p_days_ahead: daysAhead,
+          });
+
+        if (error) throw new Error(`Error fetching deadlines: ${error.message}`);
+
+        // Filter by types if specified
+        let filteredDeadlines = deadlines || [];
+        if (args.include_types && args.include_types.length > 0) {
+          const typeMapping: Record<string, string[]> = {
+            reports: ['report'],
+            milestones: ['milestone'],
+            payments: ['payment'],
+            renewals: ['renewal'],
+            tasks: ['workflow_task'],
+          };
+          const allowedTypes = args.include_types.flatMap((t: string) => typeMapping[t] || [t]);
+          filteredDeadlines = filteredDeadlines.filter((d: any) => allowedTypes.includes(d.deadline_type));
+        }
+
+        // Group by priority
+        const overdue = filteredDeadlines.filter((d: any) => d.priority === 'overdue');
+        const urgent = filteredDeadlines.filter((d: any) => d.priority === 'urgent');
+        const normal = filteredDeadlines.filter((d: any) => d.priority === 'normal');
+
+        return {
+          action: null,
+          output: {
+            days_ahead: daysAhead,
+            total_deadlines: filteredDeadlines.length,
+            overdue: {
+              count: overdue.length,
+              items: overdue,
+            },
+            urgent: {
+              count: urgent.length,
+              items: urgent,
+            },
+            upcoming: {
+              count: normal.length,
+              items: normal,
+            },
+            all_deadlines: filteredDeadlines,
+          },
+        };
+      }
+
+      case 'log_grant_communication': {
+        InputValidator.validateUUID(args.holding_id, 'holding_id');
+        InputValidator.validateEnum(args.direction, 'direction', ['inbound', 'outbound'] as const);
+        InputValidator.validateEnum(args.comm_type, 'comm_type', [
+          'email', 'phone', 'meeting', 'site_visit', 'letter', 'portal_message', 'other'
+        ] as const);
+        if (args.follow_up_date) InputValidator.validateDateString(args.follow_up_date, 'follow_up_date');
+
+        // Get grant_id from holding
+        const { data: grant, error: grantError } = await this.supabase
+          .from('grant_details')
+          .select('id')
+          .eq('holding_id', args.holding_id)
+          .maybeSingle();
+
+        if (grantError) throw new Error(`Error finding grant: ${grantError.message}`);
+
+        // If no grant details exist, create them
+        let grantId = grant?.id;
+        if (!grantId) {
+          const { data: newGrant, error: createError } = await this.supabase
+            .from('grant_details')
+            .insert({ holding_id: args.holding_id })
+            .select('id')
+            .single();
+          if (createError) throw new Error(`Error creating grant details: ${createError.message}`);
+          grantId = newGrant.id;
+        }
+
+        const { data: communication, error } = await this.supabase
+          .from('grant_communications')
+          .insert({
+            grant_id: grantId,
+            direction: args.direction,
+            comm_type: args.comm_type,
+            subject: args.subject || null,
+            summary: args.summary,
+            contact_name: args.contact_name || null,
+            contact_email: args.contact_email || null,
+            occurred_at: new Date().toISOString(),
+            logged_by: userId,
+            follow_up_required: args.follow_up_required || false,
+            follow_up_date: args.follow_up_date || null,
+            follow_up_notes: args.follow_up_notes || null,
+          })
+          .select()
+          .single();
+
+        if (error) throw new Error(`Error logging communication: ${error.message}`);
+
+        // If follow-up required, create a reminder
+        if (args.follow_up_required && args.follow_up_date) {
+          await this.supabase
+            .from('reminders')
+            .insert({
+              portfolio_id: portfolioId,
+              reminder_type: 'follow_up',
+              entity_type: 'grant_communication',
+              entity_id: communication.id,
+              title: `Follow up: ${args.subject || 'Communication with grantee'}`,
+              description: args.follow_up_notes || `Follow up on ${args.comm_type} from ${new Date().toLocaleDateString()}`,
+              due_date: args.follow_up_date,
+              remind_at: [new Date(args.follow_up_date).toISOString()],
+              notify_users: [userId],
+              created_by: userId,
+              status: 'pending',
+            });
+        }
+
+        return {
+          action: null,
+          output: {
+            success: true,
+            communication_id: communication.id,
+            type: args.comm_type,
+            direction: args.direction,
+            follow_up_scheduled: args.follow_up_required && args.follow_up_date ? args.follow_up_date : null,
+            message: `${args.direction === 'inbound' ? 'Incoming' : 'Outgoing'} ${args.comm_type} logged successfully`,
+          },
+        };
+      }
+
+      case 'get_grant_health': {
+        InputValidator.validateUUID(args.portfolio_id, 'portfolio_id');
+        if (args.holding_id) InputValidator.validateUUID(args.holding_id, 'holding_id');
+
+        // Use the v_grant_health view
+        let query = this.supabase
+          .from('v_grant_health')
+          .select('*')
+          .eq('portfolio_id', args.portfolio_id);
+
+        if (args.holding_id) {
+          query = query.eq('holding_id', args.holding_id);
+        }
+
+        const { data: healthData, error } = await query;
+
+        if (error) throw new Error(`Error fetching grant health: ${error.message}`);
+
+        if (!healthData || healthData.length === 0) {
+          return {
+            action: null,
+            output: {
+              grants: [],
+              message: 'No grants found in this portfolio',
+            },
+          };
+        }
+
+        // Calculate portfolio-level stats
+        const highRisk = healthData.filter((g: any) => g.risk_level === 'high');
+        const mediumRisk = healthData.filter((g: any) => g.risk_level === 'medium');
+        const avgHealthScore = healthData.reduce((sum: number, g: any) => sum + (g.health_score || 0), 0) / healthData.length;
+        const totalDisbursed = healthData.reduce((sum: number, g: any) => sum + (g.total_disbursed || 0), 0);
+        const totalScheduled = healthData.reduce((sum: number, g: any) => sum + (g.total_scheduled || 0), 0);
+
+        const result: any = {
+          summary: {
+            total_grants: healthData.length,
+            average_health_score: Math.round(avgHealthScore),
+            high_risk_count: highRisk.length,
+            medium_risk_count: mediumRisk.length,
+            low_risk_count: healthData.length - highRisk.length - mediumRisk.length,
+            total_disbursed: totalDisbursed,
+            total_scheduled: totalScheduled,
+            disbursement_rate: totalScheduled > 0 ? Math.round((totalDisbursed / totalScheduled) * 100) : 0,
+          },
+        };
+
+        if (args.include_details !== false) {
+          result.grants = healthData.map((g: any) => ({
+            holding_id: g.holding_id,
+            grant_name: g.grant_name,
+            grant_type: g.grant_type,
+            health_score: g.health_score,
+            risk_level: g.risk_level,
+            funds_allocated: g.funds_allocated,
+            total_disbursed: g.total_disbursed,
+            payments_pending: g.payments_pending,
+            milestones: {
+              total: g.total_milestones,
+              completed: g.milestones_completed,
+              overdue: g.milestones_overdue,
+            },
+            reports: {
+              total: g.total_reports,
+              submitted: g.reports_submitted,
+              overdue: g.reports_overdue,
+            },
+            active_workflows: g.active_workflows,
+            workflow_tasks_pending: g.workflow_tasks_pending,
+            period_start: g.grant_period_start,
+            period_end: g.grant_period_end,
+          }));
+
+          // Highlight attention needed
+          result.attention_needed = [];
+          if (highRisk.length > 0) {
+            result.attention_needed.push({
+              type: 'high_risk_grants',
+              count: highRisk.length,
+              grants: highRisk.map((g: any) => g.grant_name),
+            });
+          }
+          const overdueReports = healthData.filter((g: any) => g.reports_overdue > 0);
+          if (overdueReports.length > 0) {
+            result.attention_needed.push({
+              type: 'overdue_reports',
+              count: overdueReports.reduce((sum: number, g: any) => sum + g.reports_overdue, 0),
+              grants: overdueReports.map((g: any) => g.grant_name),
+            });
+          }
+          const overdueMilestones = healthData.filter((g: any) => g.milestones_overdue > 0);
+          if (overdueMilestones.length > 0) {
+            result.attention_needed.push({
+              type: 'overdue_milestones',
+              count: overdueMilestones.reduce((sum: number, g: any) => sum + g.milestones_overdue, 0),
+              grants: overdueMilestones.map((g: any) => g.grant_name),
+            });
+          }
+        }
+
+        return { action: null, output: result };
+      }
+
+      case 'record_grant_payment': {
+        InputValidator.validateUUID(args.holding_id, 'holding_id');
+        if (args.payment_id) InputValidator.validateUUID(args.payment_id, 'payment_id');
+        if (args.amount) InputValidator.validateNumber(args.amount, 'amount', { min: 0 });
+        if (args.scheduled_date) InputValidator.validateDateString(args.scheduled_date, 'scheduled_date');
+        if (args.actual_date) InputValidator.validateDateString(args.actual_date, 'actual_date');
+        if (args.status) {
+          InputValidator.validateEnum(args.status, 'status', [
+            'scheduled', 'approved', 'processing', 'completed', 'cancelled'
+          ] as const);
+        }
+        if (args.payment_method) {
+          InputValidator.validateEnum(args.payment_method, 'payment_method', ['check', 'wire', 'ach'] as const);
+        }
+
+        // Get grant_id from holding
+        const { data: grant, error: grantError } = await this.supabase
+          .from('grant_details')
+          .select('id')
+          .eq('holding_id', args.holding_id)
+          .maybeSingle();
+
+        if (grantError) throw new Error(`Error finding grant: ${grantError.message}`);
+
+        // If no grant details exist, create them
+        let grantId = grant?.id;
+        if (!grantId) {
+          const { data: newGrant, error: createError } = await this.supabase
+            .from('grant_details')
+            .insert({ holding_id: args.holding_id })
+            .select('id')
+            .single();
+          if (createError) throw new Error(`Error creating grant details: ${createError.message}`);
+          grantId = newGrant.id;
+        }
+
+        if (args.payment_id) {
+          // Update existing payment
+          const updateData: any = {};
+          if (args.amount !== undefined) updateData.amount = args.amount;
+          if (args.scheduled_date) updateData.scheduled_date = args.scheduled_date;
+          if (args.actual_date) updateData.actual_date = args.actual_date;
+          if (args.status) updateData.status = args.status;
+          if (args.payment_method) updateData.payment_method = args.payment_method;
+          if (args.notes) updateData.notes = args.notes;
+
+          // If marking as approved, record approval info
+          if (args.status === 'approved') {
+            updateData.approved_by = userId;
+            updateData.approved_at = new Date().toISOString();
+          }
+
+          const { data: payment, error } = await this.supabase
+            .from('grant_payments')
+            .update(updateData)
+            .eq('id', args.payment_id)
+            .select()
+            .single();
+
+          if (error) throw new Error(`Error updating payment: ${error.message}`);
+
+          return {
+            action: null,
+            output: {
+              success: true,
+              action: 'updated',
+              payment: payment,
+              message: `Payment #${payment.payment_number} updated to ${args.status || 'current status'}`,
+            },
+          };
+        } else {
+          // Create new payment - determine payment number
+          const { data: existingPayments } = await this.supabase
+            .from('grant_payments')
+            .select('payment_number')
+            .eq('grant_id', grantId)
+            .order('payment_number', { ascending: false })
+            .limit(1);
+
+          const nextPaymentNumber = ((existingPayments || [])[0]?.payment_number || 0) + 1;
+
+          if (!args.amount) {
+            throw new ValidationError('amount is required when creating a new payment');
+          }
+
+          const { data: payment, error } = await this.supabase
+            .from('grant_payments')
+            .insert({
+              grant_id: grantId,
+              payment_number: nextPaymentNumber,
+              amount: args.amount,
+              scheduled_date: args.scheduled_date || null,
+              actual_date: args.actual_date || null,
+              status: args.status || 'scheduled',
+              payment_method: args.payment_method || null,
+              notes: args.notes || null,
+            })
+            .select()
+            .single();
+
+          if (error) throw new Error(`Error creating payment: ${error.message}`);
+
+          return {
+            action: null,
+            output: {
+              success: true,
+              action: 'created',
+              payment: payment,
+              message: `Payment #${nextPaymentNumber} for $${args.amount.toLocaleString()} created`,
+            },
+          };
+        }
+      }
+
+      // ==================== DONOR MANAGEMENT MODULE ====================
+      case 'log_contribution_received': {
+        InputValidator.validateUUID(args.organization_id, 'organization_id');
+        InputValidator.validateNumber(args.amount, 'amount', { min: 0.01 });
+        if (args.donor_id) InputValidator.validateUUID(args.donor_id, 'donor_id');
+        if (args.contribution_date) InputValidator.validateDateString(args.contribution_date, 'contribution_date');
+        if (args.contribution_type) {
+          InputValidator.validateEnum(args.contribution_type, 'contribution_type', [
+            'cash', 'check', 'credit_card', 'wire', 'ach', 'stock', 'crypto', 'real_estate', 'in_kind', 'other'
+          ] as const);
+        }
+        if (args.donor_type) {
+          InputValidator.validateEnum(args.donor_type, 'donor_type', [
+            'individual', 'foundation', 'corporation', 'government', 'other'
+          ] as const);
+        }
+
+        let donorId = args.donor_id;
+
+        // Auto-create donor if not provided but name given
+        if (!donorId && args.donor_name) {
+          const donorType = args.donor_type || 'individual';
+          const isOrg = ['foundation', 'corporation', 'government'].includes(donorType);
+
+          // Parse name for individuals
+          let firstName = null;
+          let lastName = null;
+          let orgName = null;
+
+          if (isOrg) {
+            orgName = args.donor_name;
+          } else {
+            const nameParts = args.donor_name.trim().split(/\s+/);
+            if (nameParts.length >= 2) {
+              firstName = nameParts.slice(0, -1).join(' ');
+              lastName = nameParts[nameParts.length - 1];
+            } else {
+              firstName = args.donor_name;
+            }
+          }
+
+          // Check for existing donor by email or name
+          let existingDonor = null;
+          if (args.donor_email) {
+            const { data } = await this.supabase
+              .from('donors')
+              .select('id')
+              .eq('organization_id', args.organization_id)
+              .eq('email', args.donor_email)
+              .maybeSingle();
+            existingDonor = data;
+          }
+
+          if (!existingDonor && !isOrg && lastName) {
+            const { data } = await this.supabase
+              .from('donors')
+              .select('id')
+              .eq('organization_id', args.organization_id)
+              .eq('first_name', firstName)
+              .eq('last_name', lastName)
+              .maybeSingle();
+            existingDonor = data;
+          }
+
+          if (!existingDonor && isOrg && orgName) {
+            const { data } = await this.supabase
+              .from('donors')
+              .select('id')
+              .eq('organization_id', args.organization_id)
+              .eq('organization_name', orgName)
+              .maybeSingle();
+            existingDonor = data;
+          }
+
+          if (existingDonor) {
+            donorId = existingDonor.id;
+          } else {
+            // Create new donor
+            const { data: newDonor, error: donorError } = await this.supabase
+              .from('donors')
+              .insert({
+                organization_id: args.organization_id,
+                donor_type: donorType,
+                first_name: firstName,
+                last_name: lastName,
+                organization_name: orgName,
+                email: args.donor_email || null,
+                created_by: userId,
+              })
+              .select('id')
+              .single();
+
+            if (donorError) throw new Error(`Error creating donor: ${donorError.message}`);
+            donorId = newDonor.id;
+          }
+        }
+
+        // Create the contribution
+        const { data: contribution, error: contribError } = await this.supabase
+          .from('contributions_received')
+          .insert({
+            organization_id: args.organization_id,
+            donor_id: donorId || null,
+            amount: args.amount,
+            contribution_date: args.contribution_date || new Date().toISOString().split('T')[0],
+            contribution_type: args.contribution_type || 'cash',
+            designation: args.designation || null,
+            is_restricted: args.is_restricted || false,
+            quid_pro_quo_value: args.quid_pro_quo_value || 0,
+            campaign: args.campaign || null,
+            notes: args.notes || null,
+            created_by: userId,
+          })
+          .select('*, donors(first_name, last_name, organization_name, donor_type)')
+          .single();
+
+        if (contribError) throw new Error(`Error creating contribution: ${contribError.message}`);
+
+        // Auto-generate receipt for contributions >= $250
+        let receiptGenerated = false;
+        if (args.auto_generate_receipt && args.amount >= 250) {
+          const receiptNumber = await this.supabase.rpc('generate_receipt_number', {
+            p_org_id: args.organization_id,
+          });
+
+          if (receiptNumber.data) {
+            await this.supabase
+              .from('contributions_received')
+              .update({
+                receipt_number: receiptNumber.data,
+                receipt_status: 'generated',
+                receipt_generated_at: new Date().toISOString(),
+              })
+              .eq('id', contribution.id);
+            receiptGenerated = true;
+          }
+        }
+
+        // Build donor display name
+        const donor = contribution.donors;
+        const donorName = donor
+          ? (donor.donor_type === 'individual'
+              ? `${donor.first_name || ''} ${donor.last_name || ''}`.trim()
+              : donor.organization_name)
+          : 'Anonymous';
+
+        return {
+          action: null,
+          output: {
+            success: true,
+            contribution_id: contribution.id,
+            amount: args.amount,
+            donor_id: donorId,
+            donor_name: donorName,
+            donor_created: !args.donor_id && donorId ? true : false,
+            receipt_generated: receiptGenerated,
+            message: `Logged $${args.amount.toLocaleString()} contribution from ${donorName}${receiptGenerated ? ' (receipt generated)' : ''}`,
+          },
+        };
+      }
+
+      case 'generate_receipt': {
+        InputValidator.validateUUID(args.contribution_id, 'contribution_id');
+
+        // Get contribution with donor and organization info
+        const { data: contribution, error: contribError } = await this.supabase
+          .from('contributions_received')
+          .select(`
+            *,
+            donors(first_name, last_name, organization_name, donor_type, email, address_line1, city, state, postal_code),
+            organizations(name, ein, website)
+          `)
+          .eq('id', args.contribution_id)
+          .single();
+
+        if (contribError) throw new Error(`Contribution not found: ${contribError.message}`);
+
+        const org = (contribution as any).organizations;
+        const donor = (contribution as any).donors;
+
+        // Generate receipt number if not already generated
+        let receiptNumber = contribution.receipt_number;
+        if (!receiptNumber) {
+          const { data: newReceiptNum } = await this.supabase.rpc('generate_receipt_number', {
+            p_org_id: contribution.organization_id,
+          });
+          receiptNumber = newReceiptNum;
+        }
+
+        // Build goods/services statement
+        const goodsServicesStatement = contribution.quid_pro_quo_value > 0
+          ? `The estimated value of goods and services provided in exchange for this contribution was $${contribution.quid_pro_quo_value.toLocaleString()}. The tax-deductible portion is $${contribution.tax_deductible_amount.toLocaleString()}.`
+          : 'No goods or services were provided in exchange for this contribution.';
+
+        // Update contribution with receipt info
+        const { error: updateError } = await this.supabase
+          .from('contributions_received')
+          .update({
+            receipt_number: receiptNumber,
+            receipt_status: 'generated',
+            receipt_generated_at: new Date().toISOString(),
+          })
+          .eq('id', args.contribution_id);
+
+        if (updateError) throw new Error(`Error updating contribution: ${updateError.message}`);
+
+        // Create acknowledgment letter record for the receipt
+        const donorName = donor
+          ? (donor.donor_type === 'individual'
+              ? `${donor.first_name || ''} ${donor.last_name || ''}`.trim()
+              : donor.organization_name)
+          : 'Donor';
+
+        const receiptBody = `Dear ${donorName},
+
+Thank you for your generous contribution to ${org?.name || 'our organization'}.
+
+This letter serves as your official receipt for tax purposes.
+
+Contribution Details:
+- Date: ${new Date(contribution.contribution_date).toLocaleDateString()}
+- Amount: $${contribution.amount.toLocaleString()}
+- Receipt Number: ${receiptNumber}
+
+${goodsServicesStatement}
+
+${org?.ein ? `Organization EIN: ${org.ein}` : ''}
+
+Thank you for your support!
+
+Sincerely,
+${org?.name || 'The Organization'}`;
+
+        const { data: letter } = await this.supabase
+          .from('acknowledgment_letters')
+          .insert({
+            organization_id: contribution.organization_id,
+            donor_id: contribution.donor_id,
+            contribution_id: contribution.id,
+            letter_type: 'tax_receipt',
+            subject: `Tax Receipt - ${receiptNumber}`,
+            body: receiptBody,
+            org_name: org?.name,
+            org_ein: org?.ein,
+            contribution_amount: contribution.amount,
+            contribution_date: contribution.contribution_date,
+            goods_services_statement: goodsServicesStatement,
+            status: 'draft',
+            created_by: userId,
+          })
+          .select()
+          .single();
+
+        // Send immediately if requested
+        if (args.send_immediately && donor?.email) {
+          await this.supabase
+            .from('acknowledgment_letters')
+            .update({
+              status: 'sent',
+              sent_via: 'email',
+              sent_at: new Date().toISOString(),
+            })
+            .eq('id', letter?.id);
+
+          await this.supabase
+            .from('contributions_received')
+            .update({
+              receipt_status: 'sent',
+              receipt_sent_at: new Date().toISOString(),
+            })
+            .eq('id', args.contribution_id);
+        }
+
+        return {
+          action: null,
+          output: {
+            success: true,
+            receipt_number: receiptNumber,
+            letter_id: letter?.id,
+            amount: contribution.amount,
+            tax_deductible_amount: contribution.tax_deductible_amount,
+            donor_name: donorName,
+            sent: args.send_immediately && donor?.email ? true : false,
+            message: `Tax receipt ${receiptNumber} generated for $${contribution.amount.toLocaleString()}${args.send_immediately && donor?.email ? ' and sent to ' + donor.email : ''}`,
+          },
+        };
+      }
+
+      case 'generate_acknowledgment': {
+        InputValidator.validateUUID(args.organization_id, 'organization_id');
+        InputValidator.validateUUID(args.donor_id, 'donor_id');
+        if (args.contribution_id) InputValidator.validateUUID(args.contribution_id, 'contribution_id');
+        if (args.letter_type) {
+          InputValidator.validateEnum(args.letter_type, 'letter_type', [
+            'thank_you', 'annual_summary', 'welcome', 'custom'
+          ] as const);
+        }
+        if (args.send_via) {
+          InputValidator.validateEnum(args.send_via, 'send_via', ['email', 'mail', 'both'] as const);
+        }
+
+        // Get donor info
+        const { data: donor, error: donorError } = await this.supabase
+          .from('donors')
+          .select('*')
+          .eq('id', args.donor_id)
+          .single();
+
+        if (donorError) throw new Error(`Donor not found: ${donorError.message}`);
+
+        // Get organization info
+        const { data: org } = await this.supabase
+          .from('organizations')
+          .select('name, ein')
+          .eq('id', args.organization_id)
+          .single();
+
+        const donorName = donor.donor_type === 'individual'
+          ? `${donor.first_name || ''} ${donor.last_name || ''}`.trim()
+          : donor.organization_name;
+
+        const letterType = args.letter_type || 'thank_you';
+        let subject = '';
+        let body = '';
+
+        if (letterType === 'thank_you') {
+          // Get contribution if specified
+          let contributionInfo = '';
+          if (args.contribution_id) {
+            const { data: contrib } = await this.supabase
+              .from('contributions_received')
+              .select('amount, contribution_date')
+              .eq('id', args.contribution_id)
+              .single();
+
+            if (contrib) {
+              contributionInfo = `\n\nYour recent gift of $${contrib.amount.toLocaleString()} on ${new Date(contrib.contribution_date).toLocaleDateString()} will make a real difference in our work.`;
+            }
+          }
+
+          subject = `Thank You for Your Generous Support`;
+          body = `Dear ${donorName},
+
+Thank you so much for your generous support of ${org?.name || 'our organization'}!${contributionInfo}
+
+${args.custom_message || 'Your contribution helps us continue our important work in the community.'}
+
+We are deeply grateful for donors like you who make our mission possible.
+
+With sincere thanks,
+${org?.name || 'The Organization'}`;
+
+        } else if (letterType === 'annual_summary') {
+          // Get annual summary
+          const { data: summary } = await this.supabase.rpc('get_donor_annual_summary', {
+            p_donor_id: args.donor_id,
+          });
+
+          const summaryData = summary?.[0] || { total_contributions: 0, contribution_count: 0, total_tax_deductible: 0 };
+
+          subject = `Your ${new Date().getFullYear()} Giving Summary`;
+          body = `Dear ${donorName},
+
+Thank you for your incredible generosity this year!
+
+Your ${new Date().getFullYear()} Giving Summary:
+- Total Contributions: $${Number(summaryData.total_contributions).toLocaleString()}
+- Number of Gifts: ${summaryData.contribution_count}
+- Total Tax-Deductible: $${Number(summaryData.total_tax_deductible).toLocaleString()}
+
+${args.custom_message || 'Your support has made a tremendous impact on our mission.'}
+
+${org?.ein ? `Organization EIN: ${org.ein}` : ''}
+
+With gratitude,
+${org?.name || 'The Organization'}`;
+
+        } else if (letterType === 'welcome') {
+          subject = `Welcome to ${org?.name || 'Our Organization'}`;
+          body = `Dear ${donorName},
+
+Welcome to the ${org?.name || 'our organization'} family!
+
+Thank you for your first gift to our organization. We are thrilled to have you as a supporter.
+
+${args.custom_message || 'Your generosity will help us continue our important work.'}
+
+We look forward to keeping you updated on the impact of your support.
+
+Warmly,
+${org?.name || 'The Organization'}`;
+
+        } else {
+          subject = args.custom_message?.substring(0, 50) || 'Message from ' + (org?.name || 'Our Organization');
+          body = args.custom_message || '';
+        }
+
+        // Create the acknowledgment letter
+        const { data: letter, error: letterError } = await this.supabase
+          .from('acknowledgment_letters')
+          .insert({
+            organization_id: args.organization_id,
+            donor_id: args.donor_id,
+            contribution_id: args.contribution_id || null,
+            letter_type: letterType,
+            subject,
+            body,
+            org_name: org?.name,
+            org_ein: org?.ein,
+            status: 'draft',
+            sent_via: args.send_via || 'email',
+            created_by: userId,
+          })
+          .select()
+          .single();
+
+        if (letterError) throw new Error(`Error creating letter: ${letterError.message}`);
+
+        // Update donor acknowledgment status if contribution specified
+        if (args.contribution_id) {
+          await this.supabase
+            .from('contributions_received')
+            .update({ acknowledgment_status: 'draft' })
+            .eq('id', args.contribution_id);
+        }
+
+        return {
+          action: null,
+          output: {
+            success: true,
+            letter_id: letter.id,
+            letter_type: letterType,
+            donor_name: donorName,
+            subject,
+            status: 'draft',
+            message: `${letterType.replace('_', ' ')} letter created for ${donorName}`,
+          },
+        };
+      }
+
+      case 'get_donor_summary': {
+        InputValidator.validateUUID(args.donor_id, 'donor_id');
+
+        // Get donor details
+        const { data: donor, error: donorError } = await this.supabase
+          .from('v_donor_summary')
+          .select('*')
+          .eq('donor_id', args.donor_id)
+          .single();
+
+        if (donorError) throw new Error(`Donor not found: ${donorError.message}`);
+
+        const result: any = {
+          donor: {
+            id: donor.donor_id,
+            name: donor.display_name,
+            email: donor.email,
+            type: donor.donor_type,
+            tier: donor.donor_tier,
+            status: donor.recency_status,
+            is_anonymous: donor.is_anonymous,
+          },
+          giving_stats: {
+            total_lifetime: donor.total_lifetime_giving,
+            total_ytd: donor.total_ytd_giving,
+            gift_count: donor.gift_count,
+            largest_gift: donor.largest_gift,
+            average_gift: donor.average_gift,
+            first_gift_date: donor.first_gift_date,
+            last_gift_date: donor.last_gift_date,
+            days_since_last_gift: donor.days_since_last_gift,
+          },
+          pending_items: {
+            has_pending_receipts: donor.has_pending_receipts,
+            has_pending_acknowledgments: donor.has_pending_acknowledgments,
+          },
+        };
+
+        // Include contributions if requested
+        if (args.include_contributions !== false) {
+          let contribQuery = this.supabase
+            .from('contributions_received')
+            .select('id, contribution_date, amount, contribution_type, designation, receipt_status, acknowledgment_status')
+            .eq('donor_id', args.donor_id)
+            .order('contribution_date', { ascending: false });
+
+          if (args.year) {
+            const yearStart = `${args.year}-01-01`;
+            const yearEnd = `${args.year}-12-31`;
+            contribQuery = contribQuery.gte('contribution_date', yearStart).lte('contribution_date', yearEnd);
+          }
+
+          const { data: contributions } = await contribQuery.limit(50);
+          result.contributions = contributions || [];
+        }
+
+        // Include communications if requested
+        if (args.include_communications !== false) {
+          const { data: communications } = await this.supabase
+            .from('donor_communications')
+            .select('id, direction, comm_type, subject, summary, occurred_at, follow_up_required, follow_up_date')
+            .eq('donor_id', args.donor_id)
+            .order('occurred_at', { ascending: false })
+            .limit(20);
+
+          result.communications = communications || [];
+        }
+
+        return {
+          action: null,
+          output: result,
+        };
+      }
+
+      case 'search_donors': {
+        InputValidator.validateUUID(args.organization_id, 'organization_id');
+        if (args.donor_type) {
+          InputValidator.validateEnum(args.donor_type, 'donor_type', [
+            'individual', 'foundation', 'corporation', 'government', 'other'
+          ] as const);
+        }
+        if (args.donor_tier) {
+          InputValidator.validateEnum(args.donor_tier, 'donor_tier', [
+            'major', 'leadership', 'sustainer', 'supporter'
+          ] as const);
+        }
+        if (args.recency_status) {
+          InputValidator.validateEnum(args.recency_status, 'recency_status', [
+            'active', 'lapsed', 'inactive'
+          ] as const);
+        }
+        if (args.min_lifetime_giving) {
+          InputValidator.validateNumber(args.min_lifetime_giving, 'min_lifetime_giving', { min: 0 });
+        }
+
+        const limit = Math.min(args.limit || 50, 100);
+
+        // Use the view for computed fields
+        let query = this.supabase
+          .from('v_donor_summary')
+          .select('*')
+          .eq('organization_id', args.organization_id);
+
+        // Apply filters
+        if (args.name) {
+          query = query.ilike('display_name', `%${args.name}%`);
+        }
+        if (args.email) {
+          query = query.ilike('email', `%${args.email}%`);
+        }
+        if (args.donor_type) {
+          query = query.eq('donor_type', args.donor_type);
+        }
+        if (args.donor_tier) {
+          query = query.eq('donor_tier', args.donor_tier);
+        }
+        if (args.recency_status) {
+          query = query.eq('recency_status', args.recency_status);
+        }
+        if (args.min_lifetime_giving) {
+          query = query.gte('total_lifetime_giving', args.min_lifetime_giving);
+        }
+        if (args.has_pending_receipts) {
+          query = query.eq('has_pending_receipts', true);
+        }
+        if (args.has_pending_acknowledgments) {
+          query = query.eq('has_pending_acknowledgments', true);
+        }
+
+        const { data: donors, error } = await query
+          .order('total_lifetime_giving', { ascending: false })
+          .limit(limit);
+
+        if (error) throw new Error(`Error searching donors: ${error.message}`);
+
+        return {
+          action: null,
+          output: {
+            donors: (donors || []).map((d: any) => ({
+              donor_id: d.donor_id,
+              name: d.display_name,
+              email: d.email,
+              type: d.donor_type,
+              tier: d.donor_tier,
+              status: d.recency_status,
+              total_lifetime_giving: d.total_lifetime_giving,
+              total_ytd_giving: d.total_ytd_giving,
+              gift_count: d.gift_count,
+              last_gift_date: d.last_gift_date,
+              has_pending_receipts: d.has_pending_receipts,
+              has_pending_acknowledgments: d.has_pending_acknowledgments,
+            })),
+            count: donors?.length || 0,
+            filters_applied: Object.keys(args).filter(k => k !== 'organization_id' && k !== 'limit' && args[k] !== undefined),
+          },
+        };
       }
 
       default:

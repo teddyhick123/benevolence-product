@@ -55,7 +55,7 @@ export async function searchOrganizations(query: string, state?: string): Promis
 
     const response = await fetch(`${PROPUBLICA_BASE_URL}/search.json?${params.toString()}`, {
       headers: {
-        'User-Agent': 'Benevolence-Impact-Viz/1.0',
+        'User-Agent': 'Impact-Platform/1.0',
       },
     });
 
@@ -78,7 +78,7 @@ export async function getOrganization(ein: string): Promise<ProPublicaOrganizati
   try {
     const response = await fetch(`${PROPUBLICA_BASE_URL}/organizations/${ein}.json`, {
       headers: {
-        'User-Agent': 'Benevolence-Impact-Viz/1.0',
+        'User-Agent': 'Impact-Platform/1.0',
       },
     });
 

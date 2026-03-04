@@ -1,33 +1,17 @@
 /**
  * Module Registry
  *
- * Defines all available modules in the Benevolence platform.
- * Each module contains a set of AI tools, database tables, and UI routes.
+ * Server-side module definitions for the platform.
+ * Each module contains AI tools, database tables, UI routes, and system prompts.
  * Organizations can enable/disable modules to customize their experience.
+ *
+ * NOTE: For client-side use, import from './client-info' instead.
  */
 
-export type ModuleId =
-  | 'core'
-  | 'impact_tracking'
-  | 'reporting'
-  | 'tax_optimization'
-  | 'grant_management'
-  | 'donor_management'
-  | 'external_data'
-  | 'analytics';
+import type { ModuleId, ModuleDefinition } from './types';
 
-export interface ModuleDefinition {
-  id: ModuleId;
-  name: string;
-  description: string;
-  isCore: boolean;
-  icon: string;
-  tools: string[];
-  tables: string[];
-  routes: string[];
-  dependencies?: ModuleId[];
-  systemPromptAddition?: string;
-}
+// Re-export types for backwards compatibility
+export type { ModuleId, ModuleDefinition } from './types';
 
 /**
  * Complete registry of all modules and their configurations
@@ -133,6 +117,7 @@ Common metric types:
     tables: [
       'report_templates',
       'generated_documents',
+      'report_schedules',
     ],
     routes: [
       '/dashboard/reports',
@@ -142,10 +127,12 @@ You can generate comprehensive reports with inline charts. Available actions inc
 - Generate holding reports with metrics and charts
 - Create custom portfolio-wide or sector-based reports
 - Save report configurations as reusable templates
-- Export data to PDF, CSV, or Excel formats
+- Export data to CSV, JSON, or Excel formats
+- Schedule recurring reports (daily, weekly, monthly, quarterly, yearly)
 
 Reports can include sections for overview, financials, impact metrics, and trends.
 Charts are rendered inline within the report narrative.
+Generated documents are stored and can be shared via public links.
 `,
   },
 
@@ -188,28 +175,39 @@ Tax limits:
   grant_management: {
     id: 'grant_management',
     name: 'Grant Management',
-    description: 'Due diligence, milestones, and workflow automation',
+    description: 'Due diligence, milestones, payments, and workflow automation',
     isCore: false,
     icon: 'clipboard-check',
     tools: [
       'start_due_diligence',
-      'track_milestone',
       'get_workflow_status',
       'complete_workflow_task',
+      'track_milestone',
       'schedule_reminder',
       'get_upcoming_deadlines',
+      'log_grant_communication',
+      'get_grant_health',
+      'record_grant_payment',
     ],
     tables: [
       'grant_details',
+      'grant_milestones',
+      'grant_reports',
       'workflow_templates',
       'workflow_instances',
       'workflow_tasks',
+      'grant_payments',
+      'grant_budget_items',
+      'grant_communications',
+      'grant_contacts',
+      'grant_documents',
       'reminders',
     ],
     routes: [
       '/dashboard/grants',
       '/dashboard/grants/workflows',
       '/dashboard/grants/calendar',
+      '/dashboard/grants/payments',
     ],
     systemPromptAddition: `
 You can manage grant workflows and due diligence. Available actions include:
@@ -217,13 +215,19 @@ You can manage grant workflows and due diligence. Available actions include:
 - Track grant milestones and reporting requirements
 - Manage workflow tasks and assignments
 - Schedule reminders for upcoming deadlines
-- View deadline calendars
+- Log communications with grantees
+- Track payments and disbursements
+- Assess grant health and risk levels
 
 Due diligence typically includes:
 - 501(c)(3) verification
-- Financial review
+- Financial review (990 analysis, audits)
 - Mission alignment assessment
 - Capacity evaluation
+- Reference checks
+- Site visits (when applicable)
+
+Payment tracking includes scheduled, approved, and completed disbursements.
 `,
   },
 
@@ -302,7 +306,7 @@ External data sources:
   analytics: {
     id: 'analytics',
     name: 'Analytics',
-    description: 'Projections, benchmarking, and risk analysis',
+    description: 'Projections, benchmarking, risk analysis, and AI-generated insights',
     isCore: false,
     icon: 'trending-up',
     dependencies: ['impact_tracking'],
@@ -310,32 +314,51 @@ External data sources:
       'project_metric_trend',
       'benchmark_holding',
       'analyze_portfolio_risk',
+      'generate_insight',
+      'get_risk_snapshot',
     ],
     tables: [
       'benchmark_data',
       'metric_projections_cache',
+      'portfolio_risk_snapshots',
+      'analytics_insights',
     ],
     routes: [
       '/dashboard/analytics',
       '/dashboard/analytics/projections',
       '/dashboard/analytics/benchmarks',
+      '/dashboard/analytics/risk',
+      '/dashboard/analytics/insights',
     ],
     systemPromptAddition: `
-You can provide advanced analytics and projections. Available actions include:
-- Project metric trends with confidence intervals
-- Benchmark holdings against sector/size peers
-- Analyze portfolio risk and concentration
-- Run Monte Carlo simulations for forecasting
+You can provide advanced analytics, projections, and AI-generated insights. Available actions include:
+- Project metric trends with confidence intervals (linear regression, moving average)
+- Benchmark holdings against sector, size, and geographic peers
+- Analyze portfolio risk including concentration, sector, and geographic exposure
+- Generate and manage AI-powered insights and recommendations
+- Track risk snapshots over time with historical analysis
 
 Projection methods:
-- Linear regression
-- Exponential smoothing
-- Monte Carlo simulation (1000+ runs)
+- Linear regression with R-squared confidence scoring
+- Moving average with configurable window sizes
+- Confidence intervals (95%) for all projections
 
 Risk analysis includes:
-- Sector concentration
-- Geographic concentration
-- Single-holding exposure
+- Concentration risk (top 3 holdings, Herfindahl-Hirschman Index)
+- Sector distribution and largest sector exposure
+- Geographic distribution and regional concentration
+- Overall risk scoring (0-100) with severity levels
+
+Benchmarking capabilities:
+- Compare holdings against portfolio peers
+- Compare against external sector benchmarks
+- Percentile rankings (25th, 50th, 75th)
+- Program expense ratio and efficiency metrics
+
+Insights are categorized by:
+- Severity: critical, high, medium, low, info
+- Categories: performance, risk, compliance, opportunity, alert, trend
+- Actionable recommendations with suggested next steps
 `,
   },
 };
@@ -352,14 +375,14 @@ export function getToolsForModules(enabledModules: ModuleId[]): string[] {
     if (processedModules.has(moduleId)) return;
     processedModules.add(moduleId);
 
-    const module = MODULE_REGISTRY[moduleId];
-    if (!module) return;
+    const moduleDef = MODULE_REGISTRY[moduleId];
+    if (!moduleDef) return;
 
     // Add this module's tools
-    module.tools.forEach(tool => tools.add(tool));
+    moduleDef.tools.forEach(tool => tools.add(tool));
 
     // Process dependencies
-    module.dependencies?.forEach(depId => processModule(depId));
+    moduleDef.dependencies?.forEach(depId => processModule(depId));
   }
 
   // Always include core
@@ -382,16 +405,16 @@ export function getSystemPromptForModules(enabledModules: ModuleId[]): string {
     if (processedModules.has(moduleId)) return;
     processedModules.add(moduleId);
 
-    const module = MODULE_REGISTRY[moduleId];
-    if (!module) return;
+    const moduleDef = MODULE_REGISTRY[moduleId];
+    if (!moduleDef) return;
 
     // Add system prompt if present
-    if (module.systemPromptAddition) {
-      additions.push(`## ${module.name}\n${module.systemPromptAddition.trim()}`);
+    if (moduleDef.systemPromptAddition) {
+      additions.push(`## ${moduleDef.name}\n${moduleDef.systemPromptAddition.trim()}`);
     }
 
     // Process dependencies
-    module.dependencies?.forEach(depId => processModule(depId));
+    moduleDef.dependencies?.forEach(depId => processModule(depId));
   }
 
   // Always include core
@@ -417,8 +440,8 @@ export function isRouteAccessible(route: string, enabledModules: ModuleId[]): bo
 
   // Check if any enabled module provides this route
   for (const moduleId of withDeps) {
-    const module = MODULE_REGISTRY[moduleId];
-    if (module?.routes.some(r => route.startsWith(r))) {
+    const moduleDef = MODULE_REGISTRY[moduleId];
+    if (moduleDef?.routes.some(r => route.startsWith(r))) {
       return true;
     }
   }
@@ -445,13 +468,13 @@ export function canDisableModule(moduleId: ModuleId, enabledModules: ModuleId[])
   canDisable: boolean;
   blockedBy?: string[];
 } {
-  const module = MODULE_REGISTRY[moduleId];
+  const moduleDef = MODULE_REGISTRY[moduleId];
 
-  if (!module) {
+  if (!moduleDef) {
     return { canDisable: false, blockedBy: ['Module not found'] };
   }
 
-  if (module.isCore) {
+  if (moduleDef.isCore) {
     return { canDisable: false, blockedBy: ['Core modules cannot be disabled'] };
   }
 
@@ -478,10 +501,10 @@ export function getRequiredModules(moduleId: ModuleId): ModuleId[] {
   const required = new Set<ModuleId>();
 
   function addDependencies(id: ModuleId) {
-    const module = MODULE_REGISTRY[id];
-    if (!module) return;
+    const modDef = MODULE_REGISTRY[id];
+    if (!modDef) return;
 
-    module.dependencies?.forEach(depId => {
+    modDef.dependencies?.forEach(depId => {
       if (!required.has(depId)) {
         required.add(depId);
         addDependencies(depId);

@@ -55,7 +55,7 @@ export default function NewPortfolioPage() {
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="e.g., Benevolence Climate Fund I"
+              placeholder="e.g., Climate Impact Fund I"
               required
               className="border rounded-2xl px-3 py-2 w-full"
             />

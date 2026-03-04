@@ -2,7 +2,7 @@
 
 ## Vision
 
-Transform Benevolence into a **configurable AI-powered platform** where each organization gets a tailored instance of Claude with exactly the tools they need. Organizations enable modules based on their use case - whether they're a family foundation, community foundation, DAF sponsor, or nonprofit.
+This is a **configurable AI-powered platform** where each organization gets a tailored instance of Claude with exactly the tools they need. Organizations enable modules based on their use case - whether they're a family foundation, community foundation, DAF sponsor, or nonprofit.
 
 ---
 

@@ -5,78 +5,18 @@
  *
  * Provides module state management for the frontend.
  * Allows components to check which modules are enabled and conditionally render.
+ *
+ * Uses shared types and info from lib/modules for single source of truth.
  */
 
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
-import { createBrowserClient } from '@/lib/supabase';
+import { createBrowserClient } from '@/lib/supabase-browser';
+import type { ModuleId } from '@/lib/modules/types';
+import { MODULE_INFO, getModuleDependencies, canDisableModuleClient, getRouteModule } from '@/lib/modules/client-info';
 
-// Module types (duplicated from lib/modules for client-side use)
-export type ModuleId =
-  | 'core'
-  | 'impact_tracking'
-  | 'reporting'
-  | 'tax_optimization'
-  | 'grant_management'
-  | 'donor_management'
-  | 'external_data'
-  | 'analytics';
-
-// Module metadata for UI
-export const MODULE_INFO: Record<ModuleId, {
-  name: string;
-  description: string;
-  icon: string;
-  routes: string[];
-}> = {
-  core: {
-    name: 'Core',
-    description: 'Basic portfolio and holding management',
-    icon: 'folder',
-    routes: ['/dashboard', '/dashboard/holdings', '/org'],
-  },
-  impact_tracking: {
-    name: 'Impact Tracking',
-    description: 'KPIs, metrics, trends, and visualizations',
-    icon: 'chart-bar',
-    routes: ['/dashboard/metrics', '/dashboard/map', '/dashboard/widgets'],
-  },
-  reporting: {
-    name: 'Reporting',
-    description: 'Custom reports, templates, and exports',
-    icon: 'document-text',
-    routes: ['/dashboard/reports'],
-  },
-  tax_optimization: {
-    name: 'Tax Optimization',
-    description: 'Tax scenarios, deductions, and compliance',
-    icon: 'calculator',
-    routes: ['/dashboard/tax'],
-  },
-  grant_management: {
-    name: 'Grant Management',
-    description: 'Due diligence, milestones, and workflows',
-    icon: 'clipboard-check',
-    routes: ['/dashboard/grants'],
-  },
-  donor_management: {
-    name: 'Donor Management',
-    description: 'Track contributions and acknowledgments',
-    icon: 'users',
-    routes: ['/dashboard/donors'],
-  },
-  external_data: {
-    name: 'External Data',
-    description: 'Charity Navigator, Candid, and news',
-    icon: 'globe',
-    routes: [],
-  },
-  analytics: {
-    name: 'Analytics',
-    description: 'Projections, benchmarking, and risk analysis',
-    icon: 'trending-up',
-    routes: ['/dashboard/analytics'],
-  },
-};
+// Re-export for backwards compatibility
+export type { ModuleId } from '@/lib/modules/types';
+export { MODULE_INFO } from '@/lib/modules/client-info';
 
 interface ModuleContextType {
   enabledModules: ModuleId[];
@@ -168,11 +108,8 @@ export function ModuleProvider({ children, orgId }: ModuleProviderProps) {
         return { success: false, error: 'Not authenticated' };
       }
 
-      // Handle dependencies
-      const dependencies: ModuleId[] = [];
-      if (moduleId === 'reporting') dependencies.push('impact_tracking');
-      if (moduleId === 'analytics') dependencies.push('impact_tracking');
-
+      // Get dependencies from shared helper (single source of truth)
+      const dependencies = getModuleDependencies(moduleId);
       const modulesToEnable = [moduleId, ...dependencies];
 
       for (const modId of modulesToEnable) {
@@ -199,21 +136,13 @@ export function ModuleProvider({ children, orgId }: ModuleProviderProps) {
   }, [orgId, supabase, fetchModules]);
 
   const disableModule = useCallback(async (moduleId: ModuleId): Promise<{ success: boolean; error?: string }> => {
-    if (moduleId === 'core') {
-      return { success: false, error: 'Core module cannot be disabled' };
-    }
+    // Use shared helper for dependency checking (single source of truth)
+    const { canDisable, blockedBy } = canDisableModuleClient(moduleId, enabledModules);
 
-    // Check for dependents
-    const dependents: ModuleId[] = [];
-    if (moduleId === 'impact_tracking') {
-      if (enabledModules.includes('reporting')) dependents.push('reporting');
-      if (enabledModules.includes('analytics')) dependents.push('analytics');
-    }
-
-    if (dependents.length > 0) {
+    if (!canDisable) {
       return {
         success: false,
-        error: `Cannot disable: required by ${dependents.map(d => MODULE_INFO[d].name).join(', ')}`,
+        error: blockedBy ? blockedBy.join(', ') : 'Cannot disable this module',
       };
     }
 
@@ -326,16 +255,10 @@ export function useRouteModule(route: string): {
   requiredModule: ModuleId | null;
   isAccessible: boolean;
 } {
-  const { enabledModules, canAccessRoute } = useModules();
+  const { canAccessRoute } = useModules();
 
-  // Find which module provides this route
-  let requiredModule: ModuleId | null = null;
-  for (const [moduleId, info] of Object.entries(MODULE_INFO)) {
-    if (info.routes.some(r => route.startsWith(r))) {
-      requiredModule = moduleId as ModuleId;
-      break;
-    }
-  }
+  // Use shared helper (single source of truth)
+  const requiredModule = getRouteModule(route);
 
   return {
     requiredModule,

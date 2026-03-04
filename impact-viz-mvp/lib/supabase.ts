@@ -1,29 +1,16 @@
 // lib/supabase.ts
-// Unified Supabase client configuration
-// Consolidates: supabaseClient.ts, supabasePublic.ts, supabaseServer.ts, supabase-server.ts
+// Server-side Supabase client configuration
+//
+// For CLIENT components, use:
+//   import { createBrowserClient } from '@/lib/supabase-browser';
+//
+// For SERVER components/API routes, use:
+//   import { createServerClient, createAdminClient } from '@/lib/supabase';
 
-import {
-  createBrowserClient as createBrowserClientSSR,
-  createServerClient as createServerClientSSR
-} from '@supabase/ssr';
+import { createServerClient as createServerClientSSR } from '@supabase/ssr';
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
-
-/**
- * Creates a Supabase client for use in Client Components
- * Uses the public anon key for client-side authentication with RLS
- *
- * @example
- * 'use client';
- * import { createBrowserClient } from '@/lib/supabase';
- * const supabase = createBrowserClient();
- */
-export function createBrowserClient() {
-  return createBrowserClientSSR(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
-}
+import { createBrowserClient } from './supabase-browser';
 
 /**
  * Creates a Supabase client for use in Server Components, Route Handlers, and Server Actions

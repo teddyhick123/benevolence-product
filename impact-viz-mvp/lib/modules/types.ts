@@ -16,7 +16,8 @@ export type ModuleId =
   | 'grant_management'
   | 'donor_management'
   | 'external_data'
-  | 'analytics';
+  | 'analytics'
+  | 'compliance_regulatory';
 
 /**
  * All available module IDs as a const array (useful for iteration)
@@ -30,6 +31,7 @@ export const ALL_MODULE_IDS: readonly ModuleId[] = [
   'donor_management',
   'external_data',
   'analytics',
+  'compliance_regulatory',
 ] as const;
 
 /**

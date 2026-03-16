@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase-browser';
+import RiskAlerts from './RiskAlerts';
+import GrantExportButton from './GrantExportButton';
 
 type GrantHealth = {
   holding_id: string;
@@ -168,6 +170,9 @@ export default function GrantHealthDashboard({ portfolioId }: Props) {
 
   return (
     <div className="space-y-6">
+      {/* Risk Alerts */}
+      <RiskAlerts grants={grants} portfolioId={portfolioId} />
+
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="bg-white rounded-lg border border-gray-200 p-6">
@@ -225,8 +230,9 @@ export default function GrantHealthDashboard({ portfolioId }: Props) {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Grant List */}
         <div className="lg:col-span-2 bg-white rounded-lg border border-gray-200 overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-200">
+          <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
             <h2 className="text-lg font-semibold text-gray-900">Grants Overview</h2>
+            <GrantExportButton portfolioId={portfolioId} />
           </div>
           {grants.length === 0 ? (
             <div className="p-8 text-center text-gray-500">

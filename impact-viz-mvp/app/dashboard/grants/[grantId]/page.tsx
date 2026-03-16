@@ -3,6 +3,9 @@
 import { useState, useEffect } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase-browser';
+import DocumentManager from '@/components/grants/DocumentManager';
+import BudgetTracker from '@/components/grants/BudgetTracker';
+import GrantExportButton from '@/components/grants/GrantExportButton';
 
 type GrantDetails = {
   id: string;
@@ -73,7 +76,7 @@ export default function GrantDetailPage() {
   const [health, setHealth] = useState<GrantHealth | null>(null);
   const [milestones, setMilestones] = useState<Milestone[]>([]);
   const [communications, setCommunications] = useState<Communication[]>([]);
-  const [activeSection, setActiveSection] = useState<'overview' | 'milestones' | 'communications'>('overview');
+  const [activeSection, setActiveSection] = useState<'overview' | 'milestones' | 'communications' | 'documents' | 'budget'>('overview');
 
   useEffect(() => {
     if (!grantId) return;
@@ -238,6 +241,9 @@ export default function GrantDetailPage() {
           </p>
         </div>
         <div className="flex items-center gap-3">
+          {portfolioId && (
+            <GrantExportButton portfolioId={portfolioId} grantId={grantId} />
+          )}
           <a
             href={`/dashboard/holdings/${grant.holding_id}?portfolio_id=${portfolioId}`}
             className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
@@ -353,7 +359,7 @@ export default function GrantDetailPage() {
       {/* Section Tabs */}
       <div className="border-b border-gray-200">
         <nav className="-mb-px flex space-x-8">
-          {(['overview', 'milestones', 'communications'] as const).map((section) => (
+          {(['overview', 'milestones', 'communications', 'documents', 'budget'] as const).map((section) => (
             <button
               key={section}
               onClick={() => setActiveSection(section)}
@@ -467,6 +473,14 @@ export default function GrantDetailPage() {
             </ul>
           )}
         </div>
+      )}
+
+      {activeSection === 'documents' && portfolioId && (
+        <DocumentManager grantId={grantId} portfolioId={portfolioId} />
+      )}
+
+      {activeSection === 'budget' && portfolioId && (
+        <BudgetTracker grantId={grantId} portfolioId={portfolioId} />
       )}
 
       {activeSection === 'overview' && (

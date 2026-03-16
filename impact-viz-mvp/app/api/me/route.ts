@@ -35,6 +35,13 @@ export async function GET() {
     return NextResponse.json({ user: null, portfolios: [] }, { headers: { 'Cache-Control': 'no-store' } });
   }
 
+  // Fetch org membership
+  const { data: orgMembership } = await supabase
+    .from('organization_members')
+    .select('organization_id')
+    .eq('user_id', user.id)
+    .maybeSingle();
+
   // Fetch memberships -> portfolios
   const { data: memberships, error } = await supabase
     .from('portfolio_members')
@@ -73,6 +80,8 @@ export async function GET() {
     portfolio_id: recommended_portfolio_id,
     // keep the explicit field as well for newer callers
     recommended_portfolio_id,
+    // org membership
+    organization_id: orgMembership?.organization_id ?? null,
     error: null,
   }, { headers: { 'Cache-Control': 'no-store' } });
 }

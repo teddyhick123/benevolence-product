@@ -361,6 +361,75 @@ Insights are categorized by:
 - Actionable recommendations with suggested next steps
 `,
   },
+
+  compliance_regulatory: {
+    id: 'compliance_regulatory',
+    name: 'Compliance & Regulatory',
+    description: 'IRC §4942 payout tracking, self-dealing screening, filing calendar, and 990-PF data assembly',
+    isCore: false,
+    icon: 'shield-check',
+    dependencies: ['grant_management'],
+    tools: [
+      'get_compliance_status',
+      'calculate_payout_requirement',
+      'get_payout_forecast',
+      'screen_for_self_dealing',
+      'register_disqualified_person',
+      'track_filing_deadline',
+      'log_expenditure_responsibility',
+      'assess_qualifying_distribution',
+      'get_990pf_export_data',
+      'get_state_registration_status',
+    ],
+    tables: [
+      'compliance_profiles',
+      'disqualified_persons',
+      'filing_calendar',
+      'self_dealing_incidents',
+      'state_registrations',
+      'expenditure_responsibility_grants',
+      'qualifying_distributions',
+      'payout_history',
+    ],
+    routes: [
+      '/dashboard/compliance',
+    ],
+    systemPromptAddition: `
+You can assist with philanthropic compliance and regulatory requirements. Available actions include:
+
+**IRC §4942 Payout Requirements (Private Foundations):**
+- Calculate the minimum distribution requirement (5% of average net investment assets)
+- Track qualifying distributions made to date vs. required distributable amount
+- Forecast remaining payout needed and warn of shortfalls
+- Classify distributions by category (grants, program expenses, set-asides)
+
+**IRC §4941 Self-Dealing Prevention:**
+- Screen proposed transactions against the registered disqualified persons list
+- Flag potential self-dealing incidents for review
+- Track incident resolution and Form 4720 reporting
+
+**IRC §4946 Disqualified Persons Registry:**
+- Maintain registry of foundation managers, substantial contributors, 20%+ owners, family members, and 35%+ owned entities
+- Track active vs. terminated relationships
+
+**IRC §4945 Expenditure Responsibility:**
+- Track ER agreements for grants to non-public-charity grantees
+- Monitor required report submissions and terminal reports
+- Flag compliance deficiencies
+
+**Filing Calendar:**
+- Manage federal and state filing deadlines (990-PF, 990, 990-T, Form 4720, Form 8868, state registrations)
+- Track extensions, filed dates, and confirmation numbers
+
+**State Registrations:**
+- Track registration status across all states where organization solicits or operates
+- Monitor renewal deadlines and annual report requirements
+
+**990-PF Data Assembly:**
+- Export structured data by 990-PF Part for preparer review
+- Pull qualifying distributions, investment assets, and distributable amount
+`,
+  },
 };
 
 /**

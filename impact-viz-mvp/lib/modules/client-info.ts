@@ -80,6 +80,15 @@ export const MODULE_INFO: Record<ModuleId, ModuleInfo> = {
     dependencies: ['impact_tracking'],
     isCore: false,
   },
+  compliance_regulatory: {
+    id: 'compliance_regulatory',
+    name: 'Compliance & Regulatory',
+    description: 'IRC §4942 payout tracking, self-dealing screening, filing calendar, and 990-PF data assembly',
+    icon: 'shield-check',
+    routes: ['/dashboard/compliance'],
+    dependencies: ['grant_management'],
+    isCore: false,
+  },
 };
 
 /**

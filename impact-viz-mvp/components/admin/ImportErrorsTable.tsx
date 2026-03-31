@@ -3,12 +3,14 @@
 // Browse validation errors for an import job
 
 import { useState, useEffect, useCallback } from 'react';
+import type { AISuggestion } from '@/lib/import/ai/validate-row';
 
 interface ValidationError {
   field: string;
   message: string;
   severity: 'error' | 'warning';
   rule: string;
+  auto_fixable?: boolean;
 }
 
 interface ErrorRow {
@@ -28,6 +30,14 @@ interface ImportErrorsTableProps {
   importJobId: string;
 }
 
+const STAGING_TABLE: Record<EntityType, string> = {
+  holdings: 'staging_import_holdings',
+  investees: 'staging_import_investees',
+  contributions: 'staging_import_contributions',
+  metrics: 'staging_import_metrics',
+  users: 'staging_import_users',
+};
+
 const PAGE_SIZE = 50;
 
 export function ImportErrorsTable({ importJobId }: ImportErrorsTableProps) {
@@ -38,6 +48,10 @@ export function ImportErrorsTable({ importJobId }: ImportErrorsTableProps) {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // AI fix state: rowId → suggestions
+  const [aiFixMap, setAiFixMap] = useState<Record<string, AISuggestion[]>>({});
+  const [loadingAIFor, setLoadingAIFor] = useState<Set<string>>(new Set());
 
   const fetchErrors = useCallback(async () => {
     setLoading(true);
@@ -52,10 +66,10 @@ export function ImportErrorsTable({ importJobId }: ImportErrorsTableProps) {
 
       const res = await fetch(`/api/admin/imports/${importJobId}/errors?${params}`);
       if (!res.ok) {
-        const body = await res.json();
+        const body = await res.json() as { error?: string };
         throw new Error(body.error ?? 'Failed to load errors');
       }
-      const data = await res.json();
+      const data = await res.json() as { rows?: ErrorRow[]; total?: number };
       setRows(data.rows ?? []);
       setTotal(data.total ?? 0);
     } catch (err) {
@@ -68,6 +82,49 @@ export function ImportErrorsTable({ importJobId }: ImportErrorsTableProps) {
   useEffect(() => {
     fetchErrors();
   }, [fetchErrors]);
+
+  const fetchAIFix = async (row: ErrorRow) => {
+    setLoadingAIFor((prev) => new Set(prev).add(row.id));
+    try {
+      const res = await fetch('/api/admin/import/ai/suggest', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          import_job_id: importJobId,
+          staging_table: STAGING_TABLE[entity],
+          staging_row_ids: [row.id],
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json() as {
+          suggestions: Array<{ row_id: string; suggestions: AISuggestion[] }>;
+        };
+        const rowSuggestions = data.suggestions.find((s) => s.row_id === row.id);
+        if (rowSuggestions) {
+          setAiFixMap((prev) => ({ ...prev, [row.id]: rowSuggestions.suggestions }));
+        }
+      }
+    } catch {
+      // silently fail
+    } finally {
+      setLoadingAIFor((prev) => {
+        const next = new Set(prev);
+        next.delete(row.id);
+        return next;
+      });
+    }
+  };
+
+  const fetchAllAutoFixable = async () => {
+    const autoFixableRows = rows.filter((r) =>
+      r.validation_errors?.some((e) => e.auto_fixable)
+    );
+    for (const row of autoFixableRows) {
+      if (!aiFixMap[row.id]) {
+        await fetchAIFix(row);
+      }
+    }
+  };
 
   const handleExportCSV = () => {
     const headers = ['Row #', 'Entity', 'Field', 'Error Message', 'Severity', 'Raw Value'];
@@ -97,37 +154,61 @@ export function ImportErrorsTable({ importJobId }: ImportErrorsTableProps) {
 
   const entityOptions: EntityType[] = ['holdings', 'investees', 'contributions', 'metrics', 'users'];
 
+  const autoFixableCount = rows.filter((r) =>
+    r.validation_errors?.some((e) => e.auto_fixable)
+  ).length;
+
   return (
     <div className="space-y-4">
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-3">
-        <div className="flex items-center gap-2">
-          <label className="text-xs text-neutral-500">Entity</label>
-          <select
-            value={entity}
-            onChange={(e) => { setEntity(e.target.value as EntityType); setOffset(0); }}
-            className="text-xs border border-neutral-200 rounded-md px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-azure/30"
-          >
-            {entityOptions.map((e) => (
-              <option key={e} value={e}>
-                {e.charAt(0).toUpperCase() + e.slice(1)}
-              </option>
-            ))}
-          </select>
+        {/* Entity type tabs */}
+        <div className="flex gap-1">
+          {entityOptions.map((e) => (
+            <button
+              key={e}
+              onClick={() => { setEntity(e); setOffset(0); }}
+              className={`px-3 py-1.5 text-xs rounded-md border transition-colors capitalize ${
+                entity === e
+                  ? 'border-azure bg-azure/10 text-azure font-medium'
+                  : 'border-neutral-200 text-neutral-500 hover:bg-neutral-50'
+              }`}
+            >
+              {e}
+            </button>
+          ))}
         </div>
-        <div className="flex items-center gap-2">
-          <label className="text-xs text-neutral-500">Severity</label>
-          <select
-            value={severity}
-            onChange={(e) => { setSeverity(e.target.value as SeverityFilter); setOffset(0); }}
-            className="text-xs border border-neutral-200 rounded-md px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-azure/30"
-          >
-            <option value="all">All</option>
-            <option value="error">Errors only</option>
-            <option value="warning">Warnings only</option>
-          </select>
+
+        {/* Severity filter */}
+        <div className="flex gap-1">
+          {(['all', 'error', 'warning'] as SeverityFilter[]).map((s) => (
+            <button
+              key={s}
+              onClick={() => { setSeverity(s); setOffset(0); }}
+              className={`px-3 py-1.5 text-xs rounded-md border transition-colors ${
+                severity === s
+                  ? s === 'error'
+                    ? 'border-red-300 bg-red-50 text-red-700 font-medium'
+                    : s === 'warning'
+                    ? 'border-yellow-300 bg-yellow-50 text-yellow-700 font-medium'
+                    : 'border-azure bg-azure/10 text-azure font-medium'
+                  : 'border-neutral-200 text-neutral-500 hover:bg-neutral-50'
+              }`}
+            >
+              {s === 'all' ? 'All' : s === 'error' ? 'Errors only' : 'Warnings only'}
+            </button>
+          ))}
         </div>
-        <div className="ml-auto">
+
+        <div className="ml-auto flex items-center gap-2">
+          {autoFixableCount > 0 && (
+            <button
+              onClick={fetchAllAutoFixable}
+              className="text-xs px-3 py-1.5 border border-azure/30 rounded-md text-azure hover:bg-azure/5 transition-colors"
+            >
+              ✦ Apply All Auto-Fixable ({autoFixableCount})
+            </button>
+          )}
           <button
             onClick={handleExportCSV}
             disabled={rows.length === 0}
@@ -164,37 +245,82 @@ export function ImportErrorsTable({ importJobId }: ImportErrorsTableProps) {
                 <th className="text-left px-3 py-2 font-medium text-neutral-600">Error Message</th>
                 <th className="text-left px-3 py-2 font-medium text-neutral-600">Severity</th>
                 <th className="text-left px-3 py-2 font-medium text-neutral-600">Raw Value</th>
+                <th className="text-left px-3 py-2 font-medium text-neutral-600">AI Fix</th>
               </tr>
             </thead>
             <tbody>
-              {rows.flatMap((row) =>
-                (row.validation_errors ?? []).map((e, idx) => (
-                  <tr
-                    key={`${row.id}-${idx}`}
-                    className={`border-b border-neutral-50 ${
-                      e.severity === 'error' ? 'bg-red-50/30' : 'bg-yellow-50/30'
-                    }`}
-                  >
-                    <td className="px-3 py-2 font-mono tabular-nums">{row.row_number}</td>
-                    <td className="px-3 py-2 font-mono">{e.field}</td>
-                    <td className="px-3 py-2 text-neutral-700">{e.message}</td>
-                    <td className="px-3 py-2">
-                      <span
-                        className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${
-                          e.severity === 'error'
-                            ? 'bg-red-100 text-red-700'
-                            : 'bg-yellow-100 text-yellow-700'
-                        }`}
-                      >
-                        {e.severity}
-                      </span>
-                    </td>
-                    <td className="px-3 py-2 font-mono text-neutral-500 max-w-xs truncate">
-                      {String(row.raw_data[e.field] ?? '—')}
-                    </td>
-                  </tr>
-                ))
-              )}
+              {rows.flatMap((row) => {
+                const hasAutoFixable = row.validation_errors?.some((e) => e.auto_fixable) ?? false;
+                const rowSuggestions = aiFixMap[row.id] ?? [];
+                const isLoadingAI = loadingAIFor.has(row.id);
+
+                return (row.validation_errors ?? []).map((e, idx) => {
+                  const aiSug = rowSuggestions.find((s) => s.field === e.field);
+                  return (
+                    <tr
+                      key={`${row.id}-${idx}`}
+                      className={`border-b border-neutral-50 ${
+                        hasAutoFixable ? 'bg-azure/2' :
+                        e.severity === 'error' ? 'bg-red-50/30' : 'bg-yellow-50/30'
+                      }`}
+                    >
+                      <td className="px-3 py-2 font-mono tabular-nums">{row.row_number}</td>
+                      <td className="px-3 py-2 font-mono">{e.field}</td>
+                      <td className="px-3 py-2 text-neutral-700">{e.message}</td>
+                      <td className="px-3 py-2">
+                        <span
+                          className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${
+                            e.severity === 'error'
+                              ? 'bg-red-100 text-red-700'
+                              : 'bg-yellow-100 text-yellow-700'
+                          }`}
+                        >
+                          {e.severity}
+                        </span>
+                        {e.auto_fixable && (
+                          <span className="ml-1 inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-azure/10 text-azure">
+                            auto-fixable
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-3 py-2 font-mono text-neutral-500 max-w-xs truncate">
+                        {String(row.raw_data[e.field] ?? '—')}
+                      </td>
+                      <td className="px-3 py-2">
+                        {idx === 0 && (
+                          <>
+                            {!aiFixMap[row.id] && !isLoadingAI && (
+                              hasAutoFixable ? (
+                                <button
+                                  onClick={() => fetchAIFix(row)}
+                                  className="text-xs px-2 py-1 rounded border border-azure/30 text-azure hover:bg-azure/5 transition-colors whitespace-nowrap"
+                                >
+                                  ✦ Apply Fix
+                                </button>
+                              ) : null
+                            )}
+                            {isLoadingAI && (
+                              <span className="text-xs text-neutral-400 animate-pulse">
+                                Analyzing…
+                              </span>
+                            )}
+                          </>
+                        )}
+                        {aiSug && (
+                          <div className="text-xs">
+                            <span className="text-green-700 font-medium">
+                              → {String(aiSug.proposed_value ?? '—')}
+                            </span>
+                            <span className="ml-1 text-neutral-400">
+                              ({Math.round(aiSug.confidence * 100)}%)
+                            </span>
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                });
+              })}
             </tbody>
           </table>
         </div>

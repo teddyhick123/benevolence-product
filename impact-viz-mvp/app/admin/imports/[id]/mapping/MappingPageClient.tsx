@@ -2,9 +2,10 @@
 // app/admin/imports/[id]/mapping/MappingPageClient.tsx
 // Client component for the mapping review page
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { MappingGrid, type TargetField } from '@/components/admin/MappingGrid';
 import type { EntityMappingConfig, MappingProfile, ImportJob } from '@/lib/import/types';
+import type { MappingAssistResult } from '@/lib/import/ai/mapping-assist';
 
 interface StagingPreview {
   entity: string;
@@ -54,10 +55,57 @@ export function MappingPageClient({ job, mappingProfile, stagingPreviews }: Mapp
   const [validating, setValidating] = useState(false);
   const [validateResult, setValidateResult] = useState<string | null>(null);
 
+  // AI state per entity
+  const [aiSuggestions, setAiSuggestions] = useState<Record<string, MappingAssistResult>>({});
+  const [aiLoading, setAiLoading] = useState<Record<string, boolean>>({});
+  const [aiToast, setAiToast] = useState<string | null>(null);
+
   const activePreview = stagingPreviews.find((p) => p.entity === activeEntity);
   const targetFields = ENTITY_TARGET_FIELDS[activeEntity] ?? [];
   const entityConfig: EntityMappingConfig = currentProfile.entity_mappings[activeEntity] ?? {
     field_map: {},
+  };
+
+  // Auto-run AI analysis on page load for entities with source fields
+  useEffect(() => {
+    for (const preview of stagingPreviews) {
+      if (preview.sourceFields.length > 0 && !aiSuggestions[preview.entity]) {
+        fetchAISuggestions(preview.entity);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const fetchAISuggestions = async (entityType: string) => {
+    const preview = stagingPreviews.find((p) => p.entity === entityType);
+    if (!preview || preview.sourceFields.length === 0) return;
+
+    setAiLoading((prev) => ({ ...prev, [entityType]: true }));
+    try {
+      const res = await fetch('/api/admin/imports/mapping-assist', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          source_system: job.source_type,
+          entity_type: entityType,
+          source_fields: preview.sourceFields,
+          sample_records: [],
+          existing_mapping: currentProfile.entity_mappings[entityType] ?? undefined,
+        }),
+      });
+
+      if (res.ok) {
+        const body = await res.json() as { data: MappingAssistResult };
+        setAiSuggestions((prev) => ({ ...prev, [entityType]: body.data }));
+        const high = body.data.mappings.filter((m) => m.confidence >= 0.85).length;
+        setAiToast(`AI mapped ${high}/${body.data.mappings.length} fields automatically`);
+        setTimeout(() => setAiToast(null), 4000);
+      }
+    } catch {
+      // non-blocking — AI is best-effort
+    } finally {
+      setAiLoading((prev) => ({ ...prev, [entityType]: false }));
+    }
   };
 
   const handleMappingChange = (mapping: EntityMappingConfig) => {
@@ -87,11 +135,11 @@ export function MappingPageClient({ job, mappingProfile, stagingPreviews }: Mapp
     });
 
     if (!res.ok) {
-      const body = await res.json();
+      const body = await res.json() as { error?: string };
       throw new Error(body.error ?? 'Failed to save mapping');
     }
 
-    const { profile } = await res.json();
+    const { profile } = await res.json() as { profile: MappingProfile };
     setCurrentProfile(profile);
   };
 
@@ -99,10 +147,8 @@ export function MappingPageClient({ job, mappingProfile, stagingPreviews }: Mapp
     setValidating(true);
     setValidateResult(null);
     try {
-      // Save current mapping first
       await handleSaveMapping(entityConfig);
 
-      // Trigger validation run
       const res = await fetch(`/api/admin/imports/${job.id}/run-validate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -110,10 +156,10 @@ export function MappingPageClient({ job, mappingProfile, stagingPreviews }: Mapp
       });
 
       if (!res.ok) {
-        const body = await res.json();
+        const body = await res.json() as { error?: string };
         setValidateResult(`Error: ${body.error ?? 'Validation failed'}`);
       } else {
-        const body = await res.json();
+        const body = await res.json() as { valid?: number; invalid?: number; warnings?: number };
         setValidateResult(
           `Validation complete: ${body.valid ?? 0} valid, ${body.invalid ?? 0} invalid, ${body.warnings ?? 0} warnings`
         );
@@ -127,6 +173,13 @@ export function MappingPageClient({ job, mappingProfile, stagingPreviews }: Mapp
 
   return (
     <div className="space-y-6">
+      {/* AI toast */}
+      {aiToast && (
+        <div className="fixed top-4 right-4 z-50 px-4 py-3 bg-azure text-white text-sm rounded-lg shadow-lg transition-opacity">
+          ✦ {aiToast}
+        </div>
+      )}
+
       {/* Entity tabs */}
       <div className="flex gap-1 border-b border-neutral-200">
         {entityTypes.map((et) => (
@@ -143,6 +196,9 @@ export function MappingPageClient({ job, mappingProfile, stagingPreviews }: Mapp
             {stagingPreviews.find((p) => p.entity === et)?.rowCount
               ? ` (${stagingPreviews.find((p) => p.entity === et)!.rowCount.toLocaleString()})`
               : ''}
+            {aiLoading[et] && (
+              <span className="ml-1 text-xs animate-spin">⟳</span>
+            )}
           </button>
         ))}
       </div>
@@ -153,6 +209,9 @@ export function MappingPageClient({ job, mappingProfile, stagingPreviews }: Mapp
           sourceFields={activePreview.sourceFields}
           targetFields={targetFields}
           existingMapping={entityConfig}
+          aiSuggestions={aiSuggestions[activeEntity]}
+          onRequestAISuggestions={() => fetchAISuggestions(activeEntity)}
+          isLoadingAI={aiLoading[activeEntity] ?? false}
           onChange={handleMappingChange}
           onSave={handleSaveMapping}
         />

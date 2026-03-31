@@ -4,9 +4,10 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { MappingProfile, EntityType } from './types';
 import { STAGING_TABLE_MAP } from './types';
-import { applyFieldMapping } from './transformer';
+import { applyFieldMapping, enrichTransformedRow, applyEnrichment } from './transformer';
 import { validateTransformedRow } from './validator';
 import type { EntityMappingConfig } from './validator';
+import { ImportProgressEmitter } from './progress-emitter';
 
 interface ETLRunResult {
   processed: number;
@@ -35,6 +36,15 @@ export async function runTransformValidate(
 
     let offset = 0;
     let hasMore = true;
+    let totalRows = 0;
+
+    // Get total count for progress calculation
+    const { count } = await supabase
+      .from(stagingTable)
+      .select('*', { count: 'exact', head: true })
+      .eq('import_job_id', importJobId)
+      .eq('validation_status', 'pending');
+    totalRows = count ?? 0;
 
     while (hasMore) {
       const { data: rows, error: fetchError } = await supabase
@@ -59,8 +69,18 @@ export async function runTransformValidate(
         try {
           const rawData = row.raw_data as Record<string, string>;
           const { transformed, warnings: transformWarnings } = applyFieldMapping(rawData, entityConfig);
+
+          // Enrichment step (best-effort, non-blocking)
+          let enrichedData = transformed;
+          try {
+            const enrichment = await enrichTransformedRow(supabase, entityType, transformed);
+            enrichedData = applyEnrichment(transformed, enrichment);
+          } catch {
+            // enrichment failure is non-critical
+          }
+
           const validationErrors = validateTransformedRow(
-            transformed,
+            enrichedData,
             entityType,
             entityConfig as unknown as EntityMappingConfig,
             { portfolioId: options?.portfolioId }
@@ -98,7 +118,7 @@ export async function runTransformValidate(
           await supabase
             .from(stagingTable)
             .update({
-              transformed_data: transformed,
+              transformed_data: enrichedData,
               validation_status: validationStatus,
               validation_errors: allErrors.length > 0 ? allErrors : null,
             })
@@ -130,6 +150,15 @@ export async function runTransformValidate(
         .from('import_jobs')
         .update({ records_validated: result.processed })
         .eq('id', importJobId);
+
+      // Emit progress event
+      ImportProgressEmitter.emit(importJobId, {
+        type: 'validation',
+        entity: entityType,
+        processed: result.processed,
+        percent: totalRows > 0 ? Math.round((result.processed / totalRows) * 100) : 0,
+        message: `Validated ${result.processed} rows`,
+      });
 
       offset += BATCH_SIZE;
       hasMore = rows.length === BATCH_SIZE;

@@ -1,56 +1,21 @@
 // lib/import/transformer.ts
 // Applies field mapping from import_mapping_profiles to raw staging data
 
-import type { EntityMappingConfig, FieldMappingConfig } from './types';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import type { EntityMappingConfig, FieldMappingConfig, EntityType } from './types';
+import { normalizeEIN } from './utils/normalize-ein';
+import { parseFlexibleDate, deriveTaxYear } from './utils/date-parser';
 
 export interface TransformResult {
   transformed: Record<string, unknown>;
   warnings: Array<{ field: string; message: string }>;
 }
 
-function parseDate(value: string): string | null {
-  const v = value.trim();
-  if (!v) return null;
-
-  // Try YYYY-MM-DD
-  if (/^\d{4}-\d{2}-\d{2}$/.test(v)) {
-    const d = new Date(v + 'T00:00:00');
-    return isNaN(d.getTime()) ? null : v;
-  }
-
-  // Try MM/DD/YYYY or M/D/YYYY
-  const mdyMatch = v.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-  if (mdyMatch) {
-    const [, m, d, y] = mdyMatch;
-    const date = new Date(`${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}T00:00:00`);
-    if (!isNaN(date.getTime())) {
-      return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
-    }
-  }
-
-  // Try YYYYMMDD
-  if (/^\d{8}$/.test(v)) {
-    const y = v.slice(0, 4);
-    const m = v.slice(4, 6);
-    const d = v.slice(6, 8);
-    const date = new Date(`${y}-${m}-${d}T00:00:00`);
-    if (!isNaN(date.getTime())) {
-      return `${y}-${m}-${d}`;
-    }
-  }
-
-  // Try native Date parsing as fallback
-  const date = new Date(v);
-  if (!isNaN(date.getTime())) {
-    return date.toISOString().split('T')[0];
-  }
-
-  return null;
-}
-
-function normalizeEin(value: string): string {
-  const digits = value.replace(/\D/g, '');
-  return digits.padStart(9, '0');
+export interface EnrichmentResult {
+  charityId?: string;
+  charityName?: string;
+  charityData?: Record<string, unknown>;
+  geocoded?: { lat: number; lon: number; city?: string; state?: string };
 }
 
 function slugify(value: string): string {
@@ -79,7 +44,7 @@ function coerceValue(
 
     case 'date': {
       if (!trimmed) return { value: null };
-      const parsed = parseDate(trimmed);
+      const parsed = parseFlexibleDate(trimmed);
       if (!parsed) {
         return { value: null, warning: `Could not parse "${trimmed}" as date` };
       }
@@ -96,7 +61,6 @@ function coerceValue(
       if (config.values_map) {
         const mapped = config.values_map[trimmed];
         if (mapped !== undefined) return { value: mapped };
-        // Try case-insensitive lookup
         const key = Object.keys(config.values_map).find(
           (k) => k.toLowerCase() === trimmed.toLowerCase()
         );
@@ -121,7 +85,6 @@ export function applyFieldMapping(
     const rawValue = rawData[fieldConfig.source] ?? '';
     const isEmpty = rawValue === null || rawValue === undefined || rawValue.trim() === '';
 
-    // Apply default if value is empty
     if (isEmpty) {
       transformed[targetField] = fieldConfig.default ?? null;
       continue;
@@ -130,10 +93,10 @@ export function applyFieldMapping(
     const { value, warning } = coerceValue(rawValue, fieldConfig);
     let finalValue = value;
 
-    // Apply transforms
+    // Apply transforms using utility functions
     if (fieldConfig.transform && typeof finalValue === 'string') {
       if (fieldConfig.transform === 'normalize_ein') {
-        finalValue = normalizeEin(finalValue);
+        finalValue = normalizeEIN(finalValue);
       } else if (fieldConfig.transform === 'slugify') {
         finalValue = slugify(finalValue);
       }
@@ -147,4 +110,111 @@ export function applyFieldMapping(
   }
 
   return { transformed, warnings };
+}
+
+// ---------------------------------------------------------------------------
+// Enrichment step
+// ---------------------------------------------------------------------------
+
+export async function enrichTransformedRow(
+  supabase: SupabaseClient,
+  entityType: EntityType,
+  transformed: Record<string, unknown>
+): Promise<EnrichmentResult> {
+  const result: EnrichmentResult = {};
+
+  // EIN → Charity lookup
+  const ein = (transformed['ein'] ?? transformed['recipient_ein']) as string | null;
+  if (ein) {
+    const normalizedEin = normalizeEIN(ein);
+    if (normalizedEin) {
+      const { data: charityByEin } = await supabase
+        .from('charities')
+        .select('id, name')
+        .eq('ein', normalizedEin)
+        .single();
+
+      if (charityByEin) {
+        result.charityId = charityByEin.id as string;
+        result.charityName = charityByEin.name as string;
+        result.charityData = {
+          charity_id: charityByEin.id,
+          charity_match_confidence: 1.0,
+          charity_match_method: 'ein_exact',
+        };
+      }
+    }
+  }
+
+  // Name → Charity fuzzy match (if no EIN match)
+  if (!result.charityId) {
+    const nameField = (
+      transformed['recipient_name'] ??
+      transformed['display_name'] ??
+      transformed['name']
+    ) as string | null;
+
+    if (nameField) {
+      const { data: charityByName } = await supabase
+        .from('charities')
+        .select('id, name')
+        .textSearch('search_vector', nameField.replace(/['"]/g, ''))
+        .limit(1)
+        .single();
+
+      if (charityByName) {
+        result.charityId = charityByName.id as string;
+        result.charityName = charityByName.name as string;
+        result.charityData = {
+          charity_id: charityByName.id,
+          charity_match_confidence: 0.85,
+          charity_match_method: 'name_fuzzy',
+        };
+      }
+    }
+  }
+
+  // Contribution-specific enrichments
+  if (entityType === 'contributions') {
+    const contributionDate = transformed['contribution_date'] as string | null;
+
+    // Tax year derivation
+    if (contributionDate && !transformed['tax_year']) {
+      transformed['tax_year'] = deriveTaxYear(contributionDate);
+      transformed['_tax_year_derived'] = true;
+    }
+
+    // Deductible amount calculation
+    if (transformed['deductible_amount'] == null) {
+      const amountUsd = (transformed['amount_usd'] as number) ?? 0;
+      const quidProQuo = (transformed['quid_pro_quo_value'] as number) ?? 0;
+      transformed['deductible_amount'] = amountUsd - quidProQuo;
+      transformed['_deductible_amount_derived'] = true;
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Merges enrichment metadata into transformed_data under _enrichment key.
+ */
+export function applyEnrichment(
+  transformed: Record<string, unknown>,
+  enrichment: EnrichmentResult
+): Record<string, unknown> {
+  const enrichmentMeta: Record<string, unknown> = {
+    charity_id: enrichment.charityId ?? null,
+    charity_match_confidence: (enrichment.charityData?.charity_match_confidence as number) ?? null,
+    charity_match_method: (enrichment.charityData?.charity_match_method as string) ?? 'none',
+    tax_year_derived: transformed['_tax_year_derived'] ?? false,
+    deductible_amount_derived: transformed['_deductible_amount_derived'] ?? false,
+  };
+
+  // Clean internal flags
+  const { _tax_year_derived, _deductible_amount_derived, ...rest } = transformed;
+  void _tax_year_derived;
+  void _deductible_amount_derived;
+
+  return { ...rest, _enrichment: enrichmentMeta };
 }

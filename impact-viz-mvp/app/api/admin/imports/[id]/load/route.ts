@@ -4,6 +4,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient, createServerClient } from '@/lib/supabase';
 import { loadStagingToProduction } from '@/lib/import/loader';
+import { generateReconciliationReport } from '@/lib/import/reconciler';
 
 async function requireAdmin(): Promise<string | null> {
   const supabase = await createServerClient();
@@ -67,11 +68,26 @@ export async function POST(
     const results = await loadStagingToProduction(supabase, id, { batchSize, dryRun });
 
     if (!dryRun) {
-      // Set status to paused (pending reconciliation)
+      // Auto-run reconciliation after load
+      const report = await generateReconciliationReport(supabase, id);
+
+      const newStatus = report.overallSuccess ? 'completed' : 'paused';
+      const pauseReason = report.overallSuccess
+        ? null
+        : 'Reconciliation failed. Review discrepancies.';
+
       await supabase
         .from('import_jobs')
-        .update({ status: 'paused', pause_reason: 'Load complete. Run reconciliation to verify.' })
+        .update({
+          status: newStatus,
+          reconciliation_data: report as unknown as Record<string, unknown>,
+          ...(report.overallSuccess
+            ? { completed_at: new Date().toISOString(), pause_reason: null }
+            : { pause_reason: pauseReason }),
+        })
         .eq('id', id);
+
+      return NextResponse.json({ results, reconciliation: report }, { headers: { 'Cache-Control': 'no-store' } });
     }
 
     return NextResponse.json({ results }, { headers: { 'Cache-Control': 'no-store' } });

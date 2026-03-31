@@ -6,6 +6,7 @@ import type { MappingProfile, EntityType } from './types';
 import { STAGING_TABLE_MAP } from './types';
 import { applyFieldMapping } from './transformer';
 import { validateTransformedRow } from './validator';
+import type { EntityMappingConfig } from './validator';
 
 interface ETLRunResult {
   processed: number;
@@ -58,9 +59,12 @@ export async function runTransformValidate(
         try {
           const rawData = row.raw_data as Record<string, string>;
           const { transformed, warnings: transformWarnings } = applyFieldMapping(rawData, entityConfig);
-          const validationErrors = validateTransformedRow(transformed, entityConfig, {
-            portfolioId: options?.portfolioId,
-          });
+          const validationErrors = validateTransformedRow(
+            transformed,
+            entityType,
+            entityConfig as unknown as EntityMappingConfig,
+            { portfolioId: options?.portfolioId }
+          );
 
           // Determine status
           const hasErrors = validationErrors.some((e) => e.severity === 'error');

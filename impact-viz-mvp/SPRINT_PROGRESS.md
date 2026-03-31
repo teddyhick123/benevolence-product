@@ -42,6 +42,35 @@
 - `components/admin/ImportAuditLog.tsx` — Audit log viewer with snapshot diffs
 - `components/admin/ReconciliationReport.tsx` — Reconciliation report with AI analysis
 
+## Sprint 4 (Days 16–20): AI Copilot + Reporting + Polish
+| Day | Feature | Status |
+|-----|---------|--------|
+| 16 | Streaming AI chat endpoint, migration copilot system prompt | ✅ Done |
+| 17 | AI copilot chat UI, streaming messages, action buttons, bulk-fix endpoint | ✅ Done |
+| 18 | AI migration report generation, markdown viewer, download | ✅ Done |
+| 19 | Performance optimization, health score, bulk-fix polish | ✅ Done |
+| 20 | Client-facing migration guide, blueprint updated, sprint4 complete | ✅ Done |
+
+## Files Created in Sprint 4
+- `lib/import/ai/chat.ts` — Migration Copilot with streaming + [ACTIONS] parsing
+- `lib/import/ai/generate-report.ts` — AI report generator with stats compilation
+- `app/api/admin/imports/[id]/ai/chat/route.ts` — SSE streaming chat endpoint
+- `app/api/admin/imports/[id]/bulk-fix/route.ts` — Bulk fix for 4 fix types (EIN, date, currency, gift type)
+- `app/api/admin/imports/[id]/skip-warnings/route.ts` — Mark warning rows as valid
+- `app/api/admin/imports/[id]/report/route.ts` — Report generation + Supabase Storage
+- `components/admin/ImportCopilot.tsx` — Floating AI chat panel with action buttons
+- `components/admin/ImportReportViewer.tsx` — Markdown report with print/download
+- `components/admin/MigrationHealthScore.tsx` — 0-100 circular health score
+- `lib/import/__tests__/performance.test.ts` — 1000-row smoke test (<30s assertion)
+- `docs/MIGRATION_GUIDE.md` — Full client-facing Blackbaud → Benevolence guide
+- `docs/AI_IMPORTER_BLUEPRINT.md` — Updated with all sprints complete + final stats
+
+## Final Stats (All 20 Days Complete — 2026-03-31)
+- **Total commits on feature/ai-importer:** 20 (one per day)
+- **TypeScript errors:** Pre-existing d3 declaration issues only; import system clean
+- **Tests:** 140+ passing (sprint 1-3) + 1 new performance smoke test
+
 ## Test Summary
-- 140 tests passing across 7 test files
-- TypeScript clean (no errors in sprint3 code; pre-existing d3 declaration issues unrelated)
+- 140 tests passing across 7 test files (sprints 1–3)
+- 1 performance smoke test (1000 rows transform+validate)
+- TypeScript clean (no errors in import system; pre-existing d3 declaration issues unrelated)

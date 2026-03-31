@@ -4,8 +4,7 @@
 import { describe, it, expect } from 'vitest';
 import { validateTransformedRow } from '../validator';
 import { applyFieldMapping } from '../transformer';
-import type { EntityMappingConfig } from '../validator';
-import type { MappingProfile } from '../types';
+import type { EntityMappingConfig } from '../types';
 
 // Generate N fake contribution rows
 function generateContributionRows(count: number): Array<Record<string, string>> {
@@ -23,23 +22,16 @@ function generateContributionRows(count: number): Array<Record<string, string>> 
   return rows;
 }
 
-// Minimal mapping profile for contributions
-const testMappingProfile: MappingProfile = {
-  id: 'test',
-  name: 'Performance Test',
-  source_type: 'blackbaud',
-  entity_mappings: {
-    contributions: {
-      source_entity: 'contributions',
-      field_mappings: [
-        { source_field: 'DonorName', target_field: 'donor_name', transform: 'string' },
-        { source_field: 'GiftDate', target_field: 'contribution_date', transform: 'date' },
-        { source_field: 'GiftAmount', target_field: 'amount_usd', transform: 'numeric' },
-        { source_field: 'GiftType', target_field: 'gift_type', transform: 'string' },
-        { source_field: 'FundEIN', target_field: 'recipient_ein', transform: 'normalize_ein' },
-        { source_field: 'FundName', target_field: 'recipient_name', transform: 'string' },
-      ],
-    },
+// Minimal EntityMappingConfig for contributions (using types.ts structure)
+const testEntityConfig: EntityMappingConfig = {
+  source_entity: 'contributions',
+  field_map: {
+    donor_name:        { source: 'DonorName',  type: 'string' },
+    contribution_date: { source: 'GiftDate',   type: 'date' },
+    amount_usd:        { source: 'GiftAmount', type: 'numeric' },
+    gift_type:         { source: 'GiftType',   type: 'string' },
+    recipient_ein:     { source: 'FundEIN',    type: 'string', transform: 'normalize_ein' },
+    recipient_name:    { source: 'FundName',   type: 'string', required: true },
   },
 };
 
@@ -47,7 +39,6 @@ describe('performance smoke test', () => {
   it('transforms and validates 1000 rows in under 30 seconds', () => {
     const ROW_COUNT = 1000;
     const rows = generateContributionRows(ROW_COUNT);
-    const entityConfig = testMappingProfile.entity_mappings.contributions as EntityMappingConfig;
 
     const startMs = Date.now();
 
@@ -55,7 +46,7 @@ describe('performance smoke test', () => {
     let invalidCount = 0;
 
     for (const rawRow of rows) {
-      const { transformed } = applyFieldMapping(rawRow, entityConfig);
+      const { transformed } = applyFieldMapping(rawRow, testEntityConfig);
       const errors = validateTransformedRow(transformed, 'contributions');
       if (errors.some((e) => e.severity === 'error')) {
         invalidCount++;

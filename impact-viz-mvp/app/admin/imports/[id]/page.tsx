@@ -7,6 +7,7 @@ import { ImportStatusBadge } from '@/components/admin/ImportStatusBadge';
 import { ImportProgressMonitor } from '@/components/admin/ImportProgressMonitor';
 import { ImportErrorsTable } from '@/components/admin/ImportErrorsTable';
 import { ImportAuditLog } from '@/components/admin/ImportAuditLog';
+import { ImportCopilot } from '@/components/admin/ImportCopilot';
 import type { ImportJob } from '@/lib/import/types';
 
 export const dynamic = 'force-dynamic';
@@ -156,6 +157,9 @@ export default async function ImportDetailPage({
         <h3 className="font-medium mb-4">Audit Log</h3>
         <ImportAuditLog importJobId={id} />
       </div>
+
+      {/* AI Copilot panel */}
+      <ImportCopilot importJobId={id} initialStatus={importJob.status} />
     </div>
   );
 }

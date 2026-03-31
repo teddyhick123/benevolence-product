@@ -7,6 +7,8 @@ import type { ImportJob } from '@/lib/import/types';
 import type { ProgressEvent } from '@/lib/import/progress-emitter';
 import { ImportStatusBadge } from './ImportStatusBadge';
 
+type RollbackScope = 'full' | 'investees' | 'holdings' | 'users' | 'contributions' | 'metrics';
+
 interface EntityProgress {
   processed: number;
   total: number;
@@ -34,6 +36,9 @@ export function ImportProgressMonitor({ importJobId, initialJob }: ImportProgres
   const [message, setMessage] = useState<string>('');
   const [etaSeconds, setEtaSeconds] = useState<number | null>(null);
   const [sseConnected, setSseConnected] = useState(false);
+  const [rollbackInProgress, setRollbackInProgress] = useState(false);
+  const [rollbackMessage, setRollbackMessage] = useState<string | null>(null);
+  const [showRollbackMenu, setShowRollbackMenu] = useState(false);
   const eventSourceRef = useRef<EventSource | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -135,18 +140,50 @@ export function ImportProgressMonitor({ importJobId, initialJob }: ImportProgres
     pollJobStatus();
   };
 
-  const handleRollback = async () => {
-    if (!confirm('Roll back all changes from this import? This cannot be undone.')) return;
-    await fetch(`/api/admin/imports/${importJobId}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'rollback' }),
-    });
-    pollJobStatus();
+  const handleRollback = async (scope: RollbackScope = 'full') => {
+    const scopeLabel = scope === 'full' ? 'all changes' : `${scope} only`;
+    if (!confirm(`Roll back ${scopeLabel} from this import? This cannot be undone.`)) return;
+    setShowRollbackMenu(false);
+    setRollbackInProgress(true);
+    setRollbackMessage(`Rolling back ${scopeLabel}…`);
+    try {
+      const res = await fetch(`/api/admin/imports/${importJobId}/rollback`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ scope }),
+      });
+      const data = await res.json() as { result?: { recordsReverted: number }; error?: string };
+      if (res.ok && data.result) {
+        setRollbackMessage(`Rollback complete. ${data.result.recordsReverted} records reverted.`);
+      } else {
+        setRollbackMessage(`Rollback error: ${data.error ?? 'Unknown error'}`);
+      }
+    } catch {
+      setRollbackMessage('Rollback failed. Check console.');
+    } finally {
+      setRollbackInProgress(false);
+      pollJobStatus();
+    }
   };
+
+  const ROLLBACK_SCOPES: { label: string; scope: RollbackScope }[] = [
+    { label: 'Full rollback', scope: 'full' },
+    { label: 'Rollback contributions only', scope: 'contributions' },
+    { label: 'Rollback holdings only', scope: 'holdings' },
+    { label: 'Rollback investees only', scope: 'investees' },
+    { label: 'Rollback metrics only', scope: 'metrics' },
+  ];
 
   return (
     <div className="space-y-4">
+      {/* Rollback progress message */}
+      {rollbackMessage && (
+        <div className={`p-3 rounded-lg text-sm ${rollbackInProgress ? 'bg-orange-50 border border-orange-200 text-orange-800' : 'bg-neutral-50 border border-neutral-200 text-neutral-700'}`}>
+          {rollbackInProgress && <span className="inline-block w-2 h-2 rounded-full bg-orange-400 animate-pulse mr-2" />}
+          {rollbackMessage}
+        </div>
+      )}
+
       {/* Status banners */}
       {isPaused && (
         <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg text-sm text-yellow-800">
@@ -244,12 +281,28 @@ export function ImportProgressMonitor({ importJobId, initialJob }: ImportProgres
           </button>
         )}
         {(isComplete || isPaused) && (
-          <button
-            onClick={handleRollback}
-            className="px-3 py-1.5 text-xs rounded-md bg-orange-50 border border-orange-200 text-orange-700 hover:bg-orange-100 transition-colors"
-          >
-            Rollback
-          </button>
+          <div className="relative">
+            <button
+              onClick={() => setShowRollbackMenu((v) => !v)}
+              disabled={rollbackInProgress}
+              className="px-3 py-1.5 text-xs rounded-md bg-orange-50 border border-orange-200 text-orange-700 hover:bg-orange-100 transition-colors disabled:opacity-50"
+            >
+              {rollbackInProgress ? 'Rolling back…' : 'Rollback ▾'}
+            </button>
+            {showRollbackMenu && (
+              <div className="absolute top-full mt-1 left-0 z-10 w-52 bg-white border border-neutral-200 rounded-lg shadow-lg py-1 text-sm">
+                {ROLLBACK_SCOPES.map(({ label, scope }) => (
+                  <button
+                    key={scope}
+                    onClick={() => handleRollback(scope)}
+                    className="w-full text-left px-3 py-2 hover:bg-neutral-50 text-neutral-700"
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         )}
 
         {job.records_failed > 0 && (

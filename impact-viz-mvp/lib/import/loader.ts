@@ -3,6 +3,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { ImportProgressEmitter } from './progress-emitter';
+import { ImportAuditor } from './auditor';
 
 export type LoadPhase = 'investees' | 'holdings' | 'users' | 'contributions' | 'metrics';
 
@@ -46,19 +47,24 @@ export async function loadStagingToProduction(
   const batchSize = options?.batchSize ?? 500;
   const dryRun = options?.dryRun ?? false;
 
+  const auditor = new ImportAuditor(supabase, importJobId);
   const results: LoadResult[] = [];
 
-  for (const phase of LOAD_ORDER) {
-    const result = await loadPhase(supabase, importJobId, phase, batchSize, dryRun);
-    results.push(result);
+  try {
+    for (const phase of LOAD_ORDER) {
+      const result = await loadPhase(supabase, importJobId, phase, batchSize, dryRun, auditor);
+      results.push(result);
 
-    // Emit phase-complete progress
-    ImportProgressEmitter.emit(importJobId, {
-      type: 'loading',
-      entity: phase,
-      processed: result.inserted + result.updated + result.skipped + result.failed,
-      message: `Loaded ${phase}: ${result.inserted} inserted, ${result.updated} updated, ${result.failed} failed`,
-    });
+      // Emit phase-complete progress
+      ImportProgressEmitter.emit(importJobId, {
+        type: 'loading',
+        entity: phase,
+        processed: result.inserted + result.updated + result.skipped + result.failed,
+        message: `Loaded ${phase}: ${result.inserted} inserted, ${result.updated} updated, ${result.failed} failed`,
+      });
+    }
+  } finally {
+    await auditor.close();
   }
 
   return results;
@@ -69,7 +75,8 @@ async function loadPhase(
   importJobId: string,
   phase: LoadPhase,
   batchSize: number,
-  dryRun: boolean
+  dryRun: boolean,
+  auditor: ImportAuditor
 ): Promise<LoadResult> {
   const result: LoadResult = {
     phase,
@@ -106,7 +113,7 @@ async function loadPhase(
     // Process each row in the batch
     for (const row of rows as StagingRow[]) {
       try {
-        const outcome = await processRow(supabase, phase, row as StagingInvesteeRow, dryRun, importJobId);
+        const outcome = await processRow(supabase, phase, row as StagingInvesteeRow, dryRun, importJobId, auditor);
         if (outcome === 'insert') result.inserted++;
         else if (outcome === 'update') result.updated++;
         else result.skipped++;
@@ -114,6 +121,14 @@ async function loadPhase(
         const message = err instanceof Error ? err.message : String(err);
         result.failed++;
         result.errors.push({ rowId: row.id, message });
+        auditor.log({
+          tableName: getProductionTable(phase),
+          operation: 'error',
+          recordId: row.id,
+          stagingTable,
+          stagingRowId: row.id,
+          errorMessage: message,
+        });
         if (!dryRun) {
           await supabase
             .from(stagingTable)
@@ -162,21 +177,23 @@ async function processRow(
   phase: LoadPhase,
   row: StagingInvesteeRow,
   dryRun: boolean,
-  importJobId: string
+  importJobId: string,
+  auditor: ImportAuditor
 ): Promise<'insert' | 'update' | 'skip'> {
   const data = row.transformed_data ?? {};
+  const stagingTable = getStagingTable(phase);
 
   switch (phase) {
     case 'investees':
-      return processInvestee(supabase, row, data, dryRun);
+      return processInvestee(supabase, row, data, dryRun, auditor, stagingTable);
     case 'holdings':
-      return processHolding(supabase, row, data, dryRun, importJobId);
+      return processHolding(supabase, row, data, dryRun, importJobId, auditor, stagingTable);
     case 'users':
-      return processUser(supabase, row, data, dryRun, importJobId);
+      return processUser(supabase, row, data, dryRun, importJobId, auditor, stagingTable);
     case 'contributions':
-      return processContribution(supabase, row, data, dryRun, importJobId);
+      return processContribution(supabase, row, data, dryRun, importJobId, auditor, stagingTable);
     case 'metrics':
-      return processMetric(supabase, row, data, dryRun, importJobId);
+      return processMetric(supabase, row, data, dryRun, importJobId, auditor, stagingTable);
   }
 }
 
@@ -186,7 +203,9 @@ async function processInvestee(
   supabase: SupabaseClient,
   row: StagingInvesteeRow,
   data: Record<string, unknown>,
-  dryRun: boolean
+  dryRun: boolean,
+  auditor: ImportAuditor,
+  stagingTable: string
 ): Promise<'insert' | 'update' | 'skip'> {
   const ein = data.ein as string | null;
   const displayName = data.display_name as string | null;
@@ -225,7 +244,6 @@ async function processInvestee(
   };
   if (ein) investeePayload.ein = ein;
   if (charityId) investeePayload.charity_id = charityId;
-  // Copy other non-internal fields
   for (const [k, v] of Object.entries(data)) {
     if (!['display_name', 'country', 'ein', '_enrichment'].includes(k)) {
       investeePayload[k] = v;
@@ -233,7 +251,18 @@ async function processInvestee(
   }
 
   if (existingId) {
+    const { data: before } = await supabase.from('investees').select('*').eq('id', existingId).single();
     await supabase.from('investees').update(investeePayload).eq('id', existingId);
+    const { data: after } = await supabase.from('investees').select('*').eq('id', existingId).single();
+    auditor.log({
+      tableName: 'investees',
+      operation: 'update',
+      recordId: existingId,
+      stagingTable,
+      stagingRowId: row.id,
+      dataBefore: before ?? undefined,
+      dataAfter: after ?? undefined,
+    });
     await supabase
       .from('staging_import_investees')
       .update({ action_taken: 'update', final_id: existingId })
@@ -243,9 +272,17 @@ async function processInvestee(
     const { data: inserted, error } = await supabase
       .from('investees')
       .insert(investeePayload)
-      .select('id')
+      .select('*')
       .single();
     if (error) throw new Error(`investee insert failed: ${error.message}`);
+    auditor.log({
+      tableName: 'investees',
+      operation: 'insert',
+      recordId: inserted.id,
+      stagingTable,
+      stagingRowId: row.id,
+      dataAfter: inserted,
+    });
     await supabase
       .from('staging_import_investees')
       .update({ action_taken: 'create', final_id: inserted.id })
@@ -261,7 +298,9 @@ async function processHolding(
   row: StagingRow,
   data: Record<string, unknown>,
   dryRun: boolean,
-  importJobId: string
+  importJobId: string,
+  auditor: ImportAuditor,
+  stagingTable: string
 ): Promise<'insert' | 'update' | 'skip'> {
   const name = data.name as string | null;
   const portfolioId = data.portfolio_id as string | null;
@@ -301,23 +340,17 @@ async function processHolding(
   }
 
   if (existingId) {
+    const { data: before } = await supabase.from('holdings').select('*').eq('id', existingId).single();
     await supabase.from('holdings').update(payload).eq('id', existingId);
-    await supabase
-      .from('staging_import_holdings')
-      .update({ action_taken: 'update', final_id: existingId })
-      .eq('id', row.id);
+    const { data: after } = await supabase.from('holdings').select('*').eq('id', existingId).single();
+    auditor.log({ tableName: 'holdings', operation: 'update', recordId: existingId, stagingTable, stagingRowId: row.id, dataBefore: before ?? undefined, dataAfter: after ?? undefined });
+    await supabase.from('staging_import_holdings').update({ action_taken: 'update', final_id: existingId }).eq('id', row.id);
     return 'update';
   } else {
-    const { data: inserted, error } = await supabase
-      .from('holdings')
-      .insert(payload)
-      .select('id')
-      .single();
+    const { data: inserted, error } = await supabase.from('holdings').insert(payload).select('*').single();
     if (error) throw new Error(`holding insert failed: ${error.message}`);
-    await supabase
-      .from('staging_import_holdings')
-      .update({ action_taken: 'create', final_id: inserted.id })
-      .eq('id', row.id);
+    auditor.log({ tableName: 'holdings', operation: 'insert', recordId: inserted.id, stagingTable, stagingRowId: row.id, dataAfter: inserted });
+    await supabase.from('staging_import_holdings').update({ action_taken: 'create', final_id: inserted.id }).eq('id', row.id);
     return 'insert';
   }
 }
@@ -329,7 +362,9 @@ async function processUser(
   row: StagingRow,
   data: Record<string, unknown>,
   dryRun: boolean,
-  importJobId: string
+  _importJobId: string,
+  auditor: ImportAuditor,
+  stagingTable: string
 ): Promise<'insert' | 'update' | 'skip'> {
   const email = data.email as string | null;
   const displayName = data.display_name as string | null;
@@ -353,27 +388,19 @@ async function processUser(
   if (dryRun) return profileId ? 'update' : 'insert';
 
   if (profileId) {
-    // Link to existing profile — add to portfolio_members if needed
     if (portfolioId) {
       await supabase
         .from('portfolio_members')
         .upsert({ profile_id: profileId, portfolio_id: portfolioId, role }, { onConflict: 'profile_id,portfolio_id' });
     }
-    await supabase
-      .from('staging_import_users')
-      .update({ action_taken: 'update', final_profile_id: profileId })
-      .eq('id', row.id);
+    auditor.log({ tableName: 'profiles', operation: 'update', recordId: profileId, stagingTable, stagingRowId: row.id });
+    await supabase.from('staging_import_users').update({ action_taken: 'update', final_profile_id: profileId }).eq('id', row.id);
     return 'update';
   } else {
-    // Create profile stub
     const profilePayload: Record<string, unknown> = { display_name: displayName };
     if (email) profilePayload.email = email;
 
-    const { data: inserted, error } = await supabase
-      .from('profiles')
-      .insert(profilePayload)
-      .select('id')
-      .single();
+    const { data: inserted, error } = await supabase.from('profiles').insert(profilePayload).select('*').single();
     if (error) throw new Error(`profile insert failed: ${error.message}`);
 
     if (portfolioId) {
@@ -381,11 +408,8 @@ async function processUser(
         .from('portfolio_members')
         .upsert({ profile_id: inserted.id, portfolio_id: portfolioId, role }, { onConflict: 'profile_id,portfolio_id' });
     }
-
-    await supabase
-      .from('staging_import_users')
-      .update({ action_taken: 'create', final_profile_id: inserted.id })
-      .eq('id', row.id);
+    auditor.log({ tableName: 'profiles', operation: 'insert', recordId: inserted.id, stagingTable, stagingRowId: row.id, dataAfter: inserted });
+    await supabase.from('staging_import_users').update({ action_taken: 'create', final_profile_id: inserted.id }).eq('id', row.id);
     return 'insert';
   }
 }
@@ -397,7 +421,9 @@ async function processContribution(
   row: StagingRow,
   data: Record<string, unknown>,
   dryRun: boolean,
-  importJobId: string
+  importJobId: string,
+  auditor: ImportAuditor,
+  stagingTable: string
 ): Promise<'insert' | 'update' | 'skip'> {
   const portfolioId = data.portfolio_id as string | null;
   const contributionDate = data.contribution_date as string | null;
@@ -448,16 +474,16 @@ async function processContribution(
   let outcome: 'insert' | 'update';
 
   if (existingTaxId) {
+    const { data: before } = await supabase.from('tax_contributions').select('*').eq('id', existingTaxId).single();
     await supabase.from('tax_contributions').update(taxPayload).eq('id', existingTaxId);
+    const { data: after } = await supabase.from('tax_contributions').select('*').eq('id', existingTaxId).single();
+    auditor.log({ tableName: 'tax_contributions', operation: 'update', recordId: existingTaxId, stagingTable, stagingRowId: row.id, dataBefore: before ?? undefined, dataAfter: after ?? undefined });
     taxContributionId = existingTaxId;
     outcome = 'update';
   } else {
-    const { data: inserted, error } = await supabase
-      .from('tax_contributions')
-      .insert(taxPayload)
-      .select('id')
-      .single();
+    const { data: inserted, error } = await supabase.from('tax_contributions').insert(taxPayload).select('*').single();
     if (error) throw new Error(`tax_contribution insert failed: ${error.message}`);
+    auditor.log({ tableName: 'tax_contributions', operation: 'insert', recordId: inserted.id, stagingTable, stagingRowId: row.id, dataAfter: inserted });
     taxContributionId = inserted.id;
     outcome = 'insert';
   }
@@ -492,7 +518,9 @@ async function processMetric(
   row: StagingRow,
   data: Record<string, unknown>,
   dryRun: boolean,
-  importJobId: string
+  importJobId: string,
+  auditor: ImportAuditor,
+  stagingTable: string
 ): Promise<'insert' | 'update' | 'skip'> {
   const metricCode = data.metric_code as string | null;
   const holdingName = data.holding_name as string | null;
@@ -546,23 +574,17 @@ async function processMetric(
   }
 
   if (existingId) {
+    const { data: before } = await supabase.from('metric_facts').select('*').eq('id', existingId).single();
     await supabase.from('metric_facts').update(payload).eq('id', existingId);
-    await supabase
-      .from('staging_import_metrics')
-      .update({ action_taken: 'update', final_id: existingId })
-      .eq('id', row.id);
+    const { data: after } = await supabase.from('metric_facts').select('*').eq('id', existingId).single();
+    auditor.log({ tableName: 'metric_facts', operation: 'update', recordId: existingId, stagingTable, stagingRowId: row.id, dataBefore: before ?? undefined, dataAfter: after ?? undefined });
+    await supabase.from('staging_import_metrics').update({ action_taken: 'update', final_id: existingId }).eq('id', row.id);
     return 'update';
   } else {
-    const { data: inserted, error } = await supabase
-      .from('metric_facts')
-      .insert(payload)
-      .select('id')
-      .single();
+    const { data: inserted, error } = await supabase.from('metric_facts').insert(payload).select('*').single();
     if (error) throw new Error(`metric_fact insert failed: ${error.message}`);
-    await supabase
-      .from('staging_import_metrics')
-      .update({ action_taken: 'create', final_id: inserted.id })
-      .eq('id', row.id);
+    auditor.log({ tableName: 'metric_facts', operation: 'insert', recordId: inserted.id, stagingTable, stagingRowId: row.id, dataAfter: inserted });
+    await supabase.from('staging_import_metrics').update({ action_taken: 'create', final_id: inserted.id }).eq('id', row.id);
     return 'insert';
   }
 }
@@ -576,6 +598,17 @@ function getStagingTable(phase: LoadPhase): string {
     users: 'staging_import_users',
     contributions: 'staging_import_contributions',
     metrics: 'staging_import_metrics',
+  };
+  return map[phase];
+}
+
+function getProductionTable(phase: LoadPhase): string {
+  const map: Record<LoadPhase, string> = {
+    investees: 'investees',
+    holdings: 'holdings',
+    users: 'profiles',
+    contributions: 'tax_contributions',
+    metrics: 'metric_facts',
   };
   return map[phase];
 }

@@ -6,6 +6,7 @@ import { createServerClient } from '@/lib/supabase';
 import { ImportStatusBadge } from '@/components/admin/ImportStatusBadge';
 import { ImportProgressMonitor } from '@/components/admin/ImportProgressMonitor';
 import { ImportErrorsTable } from '@/components/admin/ImportErrorsTable';
+import { ImportAuditLog } from '@/components/admin/ImportAuditLog';
 import type { ImportJob } from '@/lib/import/types';
 
 export const dynamic = 'force-dynamic';
@@ -148,6 +149,12 @@ export default async function ImportDetailPage({
           )}
         </div>
         <ImportErrorsTable importJobId={id} />
+      </div>
+
+      {/* Audit Log */}
+      <div id="audit" className="card p-6">
+        <h3 className="font-medium mb-4">Audit Log</h3>
+        <ImportAuditLog importJobId={id} />
       </div>
     </div>
   );

@@ -4,15 +4,25 @@
 
 import { useState } from 'react';
 import type { ReconciliationReport, EntityReconciliation } from '@/lib/import/reconciler';
+import type { ReconciliationAnalysis } from '@/lib/import/ai/reconcile';
+
+const SEVERITY_COLORS: Record<string, string> = {
+  critical: 'bg-red-100 text-red-800 border-red-200',
+  warning: 'bg-yellow-100 text-yellow-800 border-yellow-200',
+  info: 'bg-blue-100 text-blue-800 border-blue-200',
+};
 
 interface ReconciliationReportProps {
-  report: ReconciliationReport;
+  report: ReconciliationReport & { ai_analysis?: ReconciliationAnalysis };
   onCommit?: () => void;
   onReviewErrors?: () => void;
+  importJobId?: string;
 }
 
-export function ReconciliationReportView({ report, onCommit, onReviewErrors }: ReconciliationReportProps) {
+export function ReconciliationReportView({ report, onCommit, onReviewErrors, importJobId }: ReconciliationReportProps) {
   const [committing, setCommitting] = useState(false);
+  const [aiAnalysis, setAiAnalysis] = useState<ReconciliationAnalysis | undefined>(report.ai_analysis);
+  const [loadingAi, setLoadingAi] = useState(false);
 
   const handleCommit = async () => {
     setCommitting(true);
@@ -22,6 +32,22 @@ export function ReconciliationReportView({ report, onCommit, onReviewErrors }: R
       setCommitting(false);
     }
   };
+
+  const handleRunAiAnalysis = async () => {
+    if (!importJobId) return;
+    setLoadingAi(true);
+    try {
+      const res = await fetch(`/api/admin/imports/${importJobId}/ai/reconcile`, { method: 'POST' });
+      if (res.ok) {
+        const data = await res.json() as { analysis: ReconciliationAnalysis };
+        setAiAnalysis(data.analysis);
+      }
+    } finally {
+      setLoadingAi(false);
+    }
+  };
+
+  const autoFixableCount = aiAnalysis?.suggestedFixes.filter((f) => f.autoFixable).length ?? 0;
 
   return (
     <div className="space-y-6">
@@ -77,6 +103,63 @@ export function ReconciliationReportView({ report, onCommit, onReviewErrors }: R
             ))}
           </ul>
         </div>
+      )}
+
+      {/* AI Analysis */}
+      {aiAnalysis ? (
+        <div className="bg-neutral-50 border border-neutral-200 rounded-lg p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-medium text-neutral-500 uppercase tracking-wide">AI Analysis</span>
+            <span className={`text-xs px-2 py-0.5 rounded-full ${aiAnalysis.isAcceptable ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-700'}`}>
+              {aiAnalysis.isAcceptable ? 'Acceptable' : 'Action Required'}
+            </span>
+            <span className="text-xs text-neutral-400 ml-auto">
+              Confidence: {(aiAnalysis.confidence * 100).toFixed(0)}%
+            </span>
+          </div>
+          <blockquote className="border-l-4 border-azure pl-3 text-sm text-neutral-700 italic">
+            {aiAnalysis.explanation}
+          </blockquote>
+          {aiAnalysis.rootCauses.length > 0 && (
+            <div>
+              <p className="text-xs font-medium text-neutral-500 mb-1">Root Causes</p>
+              <ul className="list-disc list-inside space-y-0.5 text-sm text-neutral-700">
+                {aiAnalysis.rootCauses.map((cause, i) => <li key={i}>{cause}</li>)}
+              </ul>
+            </div>
+          )}
+          {aiAnalysis.suggestedFixes.length > 0 && (
+            <div>
+              <p className="text-xs font-medium text-neutral-500 mb-1.5">Suggested Fixes</p>
+              <div className="space-y-2">
+                {aiAnalysis.suggestedFixes.map((fix, i) => (
+                  <div key={i} className={`flex items-start gap-2 text-sm px-3 py-2 rounded border ${SEVERITY_COLORS[fix.severity]}`}>
+                    <span className="font-medium capitalize text-xs mt-0.5">{fix.severity}</span>
+                    <span>{fix.description}</span>
+                    {fix.autoFixable && (
+                      <span className="ml-auto text-xs bg-white rounded px-1.5 py-0.5 border">Auto-fixable</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {autoFixableCount > 0 && (
+            <button className="text-sm text-azure hover:underline">
+              Auto-fix {autoFixableCount} issue{autoFixableCount !== 1 ? 's' : ''}
+            </button>
+          )}
+        </div>
+      ) : (
+        importJobId && (
+          <button
+            onClick={handleRunAiAnalysis}
+            disabled={loadingAi}
+            className="text-sm text-azure hover:underline disabled:opacity-50"
+          >
+            {loadingAi ? 'Running AI analysis…' : 'Run AI analysis'}
+          </button>
+        )
       )}
 
       {/* CTA buttons */}

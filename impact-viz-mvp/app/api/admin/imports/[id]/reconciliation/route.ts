@@ -5,6 +5,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient, createServerClient } from '@/lib/supabase';
 import { generateReconciliationReport } from '@/lib/import/reconciler';
+import { analyzeReconciliation } from '@/lib/import/ai/reconcile';
 
 async function requireAdmin(): Promise<string | null> {
   const supabase = await createServerClient();
@@ -87,6 +88,37 @@ export async function POST(
 
   const report = await generateReconciliationReport(supabase, id);
 
+  // Run AI analysis when there are discrepancies
+  let reconciliationData: Record<string, unknown> = report as unknown as Record<string, unknown>;
+  const hasDiscrepancies = !report.overallSuccess || report.entities.some((e) => (e.amountDelta ?? 0) > 0);
+
+  if (hasDiscrepancies) {
+    try {
+      const { data: stagingMismatches } = await supabase
+        .from('staging_import_contributions')
+        .select('id, transformed_data, final_tax_contribution_id')
+        .eq('import_job_id', id)
+        .in('validation_status', ['valid', 'warning'])
+        .is('final_tax_contribution_id', null)
+        .neq('action_taken', 'skip')
+        .limit(5);
+
+      const sampleMismatches = (stagingMismatches ?? []).map((row: {
+        id: string;
+        transformed_data: Record<string, unknown> | null;
+        final_tax_contribution_id: string | null;
+      }) => ({
+        staging: { id: row.id, ...(row.transformed_data ?? {}) },
+        production: { note: 'No matching record found in tax_contributions' },
+      }));
+
+      const aiAnalysis = await analyzeReconciliation(report, sampleMismatches);
+      reconciliationData = { ...reconciliationData, ai_analysis: aiAnalysis };
+    } catch (aiErr) {
+      console.error('[reconciliation] AI analysis failed:', aiErr);
+    }
+  }
+
   // Update status based on reconciliation outcome
   const newStatus = report.overallSuccess ? 'completed' : 'paused';
   const pauseReason = report.overallSuccess
@@ -96,11 +128,11 @@ export async function POST(
   await supabase
     .from('import_jobs')
     .update({
-      reconciliation_data: report as unknown as Record<string, unknown>,
+      reconciliation_data: reconciliationData,
       status: newStatus,
       ...(report.overallSuccess ? { completed_at: new Date().toISOString(), pause_reason: null } : { pause_reason: pauseReason }),
     })
     .eq('id', id);
 
-  return NextResponse.json({ report }, { headers: { 'Cache-Control': 'no-store' } });
+  return NextResponse.json({ report: reconciliationData }, { headers: { 'Cache-Control': 'no-store' } });
 }

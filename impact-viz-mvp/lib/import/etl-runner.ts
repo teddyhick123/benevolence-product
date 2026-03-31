@@ -34,7 +34,7 @@ export async function runTransformValidate(
     const entityConfig = mappingProfile.entity_mappings[entityType];
     if (!entityConfig) continue;
 
-    let offset = 0;
+    let lastId: string | null = null;
     let hasMore = true;
     let totalRows = 0;
 
@@ -47,12 +47,20 @@ export async function runTransformValidate(
     totalRows = count ?? 0;
 
     while (hasMore) {
-      const { data: rows, error: fetchError } = await supabase
+      // Keyset pagination — avoids slow OFFSET on large tables
+      let query = supabase
         .from(stagingTable)
         .select('id, raw_data')
         .eq('import_job_id', importJobId)
         .eq('validation_status', 'pending')
-        .range(offset, offset + BATCH_SIZE - 1);
+        .order('id', { ascending: true })
+        .limit(BATCH_SIZE);
+
+      if (lastId !== null) {
+        query = query.gt('id', lastId);
+      }
+
+      const { data: rows, error: fetchError } = await query;
 
       if (fetchError) {
         console.error(`[etl-runner] Error fetching ${stagingTable} rows:`, fetchError.message);
@@ -160,7 +168,10 @@ export async function runTransformValidate(
         message: `Validated ${result.processed} rows`,
       });
 
-      offset += BATCH_SIZE;
+      // Advance keyset cursor
+      if (rows.length > 0) {
+        lastId = rows[rows.length - 1].id as string;
+      }
       hasMore = rows.length === BATCH_SIZE;
     }
   }

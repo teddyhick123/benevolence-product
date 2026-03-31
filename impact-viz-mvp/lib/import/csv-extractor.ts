@@ -35,6 +35,14 @@ export async function extractCSVToStaging(
     );
   }
 
+  // Enforce 50MB file size limit
+  const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+  if (fileData.size > MAX_FILE_SIZE) {
+    throw new Error(
+      `File too large: ${(fileData.size / (1024 * 1024)).toFixed(1)}MB exceeds the 50MB limit. Please split your file into smaller batches.`
+    );
+  }
+
   const csvText = await fileData.text();
 
   // Parse CSV — keep all values as strings for validation later

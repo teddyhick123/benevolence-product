@@ -49,11 +49,18 @@ export async function loadStagingToProduction(
 
   const auditor = new ImportAuditor(supabase, importJobId);
   const results: LoadResult[] = [];
+  const loadingStartMs = Date.now();
+  const phaseTimings: Record<string, number> = {};
 
   try {
     for (const phase of LOAD_ORDER) {
+      const phaseStart = Date.now();
       const result = await loadPhase(supabase, importJobId, phase, batchSize, dryRun, auditor);
+      phaseTimings[phase] = Date.now() - phaseStart;
       results.push(result);
+
+      const phaseMs = phaseTimings[phase] ?? 0;
+      console.log(`[loader] ${phase}: ${result.inserted} inserted, ${result.updated} updated, ${result.failed} failed in ${phaseMs}ms`);
 
       // Emit phase-complete progress
       ImportProgressEmitter.emit(importJobId, {
@@ -65,6 +72,37 @@ export async function loadStagingToProduction(
     }
   } finally {
     await auditor.close();
+  }
+
+  // Store performance metrics in reconciliation_data
+  const totalMs = Date.now() - loadingStartMs;
+  const totalLoaded = results.reduce((sum, r) => sum + r.inserted + r.updated, 0);
+  const rowsPerSecond = totalMs > 0 ? Math.round((totalLoaded / totalMs) * 1000) : 0;
+
+  try {
+    const { data: currentJob } = await supabase
+      .from('import_jobs')
+      .select('reconciliation_data')
+      .eq('id', importJobId)
+      .single();
+
+    const existingRecon = (currentJob?.reconciliation_data as Record<string, unknown>) ?? {};
+    await supabase
+      .from('import_jobs')
+      .update({
+        reconciliation_data: {
+          ...existingRecon,
+          performance: {
+            loading_ms: totalMs,
+            phase_timings_ms: phaseTimings,
+            rows_per_second: rowsPerSecond,
+            total_loaded: totalLoaded,
+          },
+        },
+      })
+      .eq('id', importJobId);
+  } catch {
+    // non-critical
   }
 
   return results;

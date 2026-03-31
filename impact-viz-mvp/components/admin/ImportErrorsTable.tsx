@@ -48,6 +48,8 @@ export function ImportErrorsTable({ importJobId }: ImportErrorsTableProps) {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [bulkFixFeedback, setBulkFixFeedback] = useState<string | null>(null);
+  const [applyingBulkFix, setApplyingBulkFix] = useState(false);
 
   // AI fix state: rowId → suggestions
   const [aiFixMap, setAiFixMap] = useState<Record<string, AISuggestion[]>>({});
@@ -115,15 +117,59 @@ export function ImportErrorsTable({ importJobId }: ImportErrorsTableProps) {
     }
   };
 
-  const fetchAllAutoFixable = async () => {
-    const autoFixableRows = rows.filter((r) =>
-      r.validation_errors?.some((e) => e.auto_fixable)
-    );
-    for (const row of autoFixableRows) {
-      if (!aiFixMap[row.id]) {
-        await fetchAIFix(row);
+  const applyAllAutoFixable = async () => {
+    setApplyingBulkFix(true);
+    setBulkFixFeedback(null);
+
+    // Detect which fields need fixing from current rows
+    const fieldFixMap: Record<string, string> = {
+      recipient_ein: 'normalize_ein',
+      organization_ein: 'normalize_ein',
+      ein: 'normalize_ein',
+      contribution_date: 'parse_date',
+      date: 'parse_date',
+      amount: 'strip_currency',
+      grant_amount: 'strip_currency',
+      gift_type: 'map_gift_type',
+    };
+
+    const fixesNeeded = new Set<string>();
+    for (const row of rows) {
+      for (const err of row.validation_errors ?? []) {
+        if (err.auto_fixable && fieldFixMap[err.field]) {
+          fixesNeeded.add(`${err.field}:${fieldFixMap[err.field]}`);
+        }
       }
     }
+
+    let totalFixed = 0;
+    let totalStillFailing = 0;
+
+    for (const key of fixesNeeded) {
+      const [field, fix] = key.split(':');
+      try {
+        const res = await fetch(`/api/admin/imports/${importJobId}/bulk-fix`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ entity, field, fix }),
+        });
+        if (res.ok) {
+          const data = await res.json() as { fixed?: number; still_failing?: number };
+          totalFixed += data.fixed ?? 0;
+          totalStillFailing += data.still_failing ?? 0;
+        }
+      } catch {
+        // continue
+      }
+    }
+
+    setApplyingBulkFix(false);
+    setBulkFixFeedback(
+      `Fixed ${totalFixed} rows. ${totalStillFailing > 0 ? `${totalStillFailing} rows still have errors.` : 'All fixed!'}`
+    );
+
+    // Refresh the table
+    await fetchErrors();
   };
 
   const handleExportCSV = () => {
@@ -203,10 +249,11 @@ export function ImportErrorsTable({ importJobId }: ImportErrorsTableProps) {
         <div className="ml-auto flex items-center gap-2">
           {autoFixableCount > 0 && (
             <button
-              onClick={fetchAllAutoFixable}
-              className="text-xs px-3 py-1.5 border border-azure/30 rounded-md text-azure hover:bg-azure/5 transition-colors"
+              onClick={applyAllAutoFixable}
+              disabled={applyingBulkFix}
+              className="text-xs px-3 py-1.5 border border-azure/30 rounded-md text-azure hover:bg-azure/5 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
-              ✦ Apply All Auto-Fixable ({autoFixableCount})
+              {applyingBulkFix ? 'Applying fixes…' : `✦ Apply ${autoFixableCount} auto-fixable fixes`}
             </button>
           )}
           <button
@@ -223,6 +270,18 @@ export function ImportErrorsTable({ importJobId }: ImportErrorsTableProps) {
       <p className="text-xs text-neutral-500">
         {loading ? 'Loading…' : `${total.toLocaleString()} row${total === 1 ? '' : 's'} with issues`}
       </p>
+
+      {bulkFixFeedback && (
+        <div className="p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-700 flex items-center justify-between">
+          <span>{bulkFixFeedback}</span>
+          <button
+            onClick={() => setBulkFixFeedback(null)}
+            className="text-green-500 hover:text-green-700 ml-2"
+          >
+            ×
+          </button>
+        </div>
+      )}
 
       {error && (
         <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">

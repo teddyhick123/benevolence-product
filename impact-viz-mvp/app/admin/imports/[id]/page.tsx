@@ -9,6 +9,7 @@ import { ImportErrorsTable } from '@/components/admin/ImportErrorsTable';
 import { ImportAuditLog } from '@/components/admin/ImportAuditLog';
 import { ImportCopilot } from '@/components/admin/ImportCopilot';
 import { ImportReportViewer } from '@/components/admin/ImportReportViewer';
+import { MigrationHealthScore } from '@/components/admin/MigrationHealthScore';
 import type { ImportJob } from '@/lib/import/types';
 
 export const dynamic = 'force-dynamic';
@@ -88,6 +89,11 @@ export default async function ImportDetailPage({
             )}
           </div>
         </div>
+        <MigrationHealthScore
+          totalRecords={importJob.total_records_extracted ?? 0}
+          failedRecords={importJob.records_failed ?? 0}
+          hasCriticalErrors={(importJob.records_failed ?? 0) > 0}
+        />
       </div>
 
       {/* Real-time progress monitor */}

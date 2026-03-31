@@ -74,8 +74,10 @@ export function MappingGrid({
     suggestionMap[s.sourceField] = s;
   }
 
+  type AIMappingSuggestion = MappingAssistResult['mappings'][number];
+
   // AI suggestions keyed by targetField
-  const aiByTarget: Record<string, (typeof aiSuggestions)['mappings'][number]> = {};
+  const aiByTarget: Record<string, AIMappingSuggestion> = {};
   if (aiSuggestions) {
     for (const m of aiSuggestions.mappings) {
       aiByTarget[m.targetField] = m;
@@ -83,7 +85,7 @@ export function MappingGrid({
   }
 
   // AI suggestions keyed by sourceField
-  const aiBySource: Record<string, (typeof aiSuggestions)['mappings'][number]> = {};
+  const aiBySource: Record<string, AIMappingSuggestion> = {};
   if (aiSuggestions) {
     for (const m of aiSuggestions.mappings) {
       aiBySource[m.sourceField] = m;

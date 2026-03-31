@@ -39,11 +39,20 @@ export function createImportWorker(): Worker {
       const { importJobId, storagePaths, mappingProfileId } = job.data;
       const supabase = createAdminClient();
 
-      // 1. Mark job as running
+      // 1. Mark job as running with initial heartbeat
       await supabase
         .from('import_jobs')
-        .update({ status: 'running', started_at: new Date().toISOString() })
+        .update({ status: 'running', started_at: new Date().toISOString(), last_heartbeat_at: new Date().toISOString() })
         .eq('id', importJobId);
+
+      // Start heartbeat - updates last_heartbeat_at every 30s
+      const heartbeatInterval = setInterval(async () => {
+        await supabase
+          .from('import_jobs')
+          .update({ last_heartbeat_at: new Date().toISOString() })
+          .eq('id', importJobId)
+          .eq('status', 'running'); // only update if still running
+      }, 30_000);
 
       try {
         const entityTypes: EntityType[] = Object.keys(storagePaths ?? {}) as EntityType[];
@@ -110,6 +119,8 @@ export function createImportWorker(): Worker {
           .eq('id', importJobId);
 
         throw err;
+      } finally {
+        clearInterval(heartbeatInterval);
       }
     },
     {

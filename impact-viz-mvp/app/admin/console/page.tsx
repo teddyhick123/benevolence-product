@@ -79,6 +79,9 @@ export default async function AdminConsole() {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Admin Console</h1>
         <div className="flex items-center gap-2">
+          <Link href="/admin/imports" className="px-4 py-2 rounded-md border border-black/10 hover:bg-white shadow-sm text-sm transition-transform duration-200 hover:-translate-y-0.5 will-change-transform rm:transition-none rm:transform-none">
+            Data Imports
+          </Link>
           <Link href="/admin/portfolios/new" className="px-4 py-2 rounded-md bg-gradient-to-r from-azure via-azure/90 to-azure/70 text-white shadow-soft hover:opacity-90 transition-transform duration-200 hover:-translate-y-0.5 will-change-transform rm:transition-none rm:transform-none">
             New Portfolio
           </Link>

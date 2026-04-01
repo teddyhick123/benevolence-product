@@ -249,6 +249,34 @@ export async function GET(
     });
   }
 
+  if (format === 'pdf') {
+    const { generateTaxReportPDF } = await import('@/lib/pdf/tax-report-generator');
+    const buffer = generateTaxReportPDF({
+      portfolioName: portfolio?.name || 'Portfolio',
+      taxYear: year,
+      generatedAt: new Date().toISOString(),
+      summary: {
+        totalContributions,
+        totalDeductible,
+        cashContributions,
+        nonCashContributions,
+        contributionCount: (contributions || []).length,
+        complianceRate: exportData.summary.complianceRate,
+        totalCarryforwardAvailable: totalCarryforward,
+      },
+      profile: exportData.profile,
+      contributions: exportData.contributions,
+      carryforwards: exportData.carryforwards,
+    });
+
+    return new NextResponse(buffer, {
+      headers: {
+        'Content-Type': 'application/pdf',
+        'Content-Disposition': `attachment; filename="tax-summary-${year}.pdf"`,
+      },
+    });
+  }
+
   if (format === 'carryforward') {
     // Generate carryforward report
     const { data: phase1Contributions } = await sb

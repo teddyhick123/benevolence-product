@@ -1,0 +1,145 @@
+// app/api/admin/imports/[id]/ai/chat/route.ts
+// POST /api/admin/imports/:id/ai/chat
+// Streaming AI Migration Copilot chat
+
+import { createAdminClient } from '@/lib/supabase';
+import { createServerClient } from '@/lib/supabase';
+import { streamMigrationChat } from '@/lib/import/ai/chat';
+import type { ChatMessage } from '@/lib/import/ai/chat';
+
+interface ErrorRow {
+  validation_errors: Array<{ field: string; message: string; severity: string }> | null;
+}
+
+interface ErrorEntry {
+  field: string;
+  message: string;
+  count: number;
+}
+
+function buildErrorSummary(rows: ErrorRow[]): ErrorEntry[] {
+  const counts: Record<string, ErrorEntry> = {};
+  for (const row of rows) {
+    for (const err of row.validation_errors ?? []) {
+      const key = `${err.field}::${err.message}`;
+      if (!counts[key]) {
+        counts[key] = { field: err.field, message: err.message, count: 0 };
+      }
+      counts[key].count++;
+    }
+  }
+  return Object.values(counts)
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 15);
+}
+
+async function requireAdmin(): Promise<string | null> {
+  const supabase = await createServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return null;
+  const { data: isAdmin } = await supabase.rpc('is_admin');
+  return isAdmin ? user.id : null;
+}
+
+export async function POST(
+  req: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const userId = await requireAdmin();
+  if (!userId) {
+    return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
+  }
+
+  const { id: importJobId } = await params;
+  const body = await req.json() as { message?: string; history?: ChatMessage[] };
+  const { message, history = [] } = body;
+
+  if (!message || typeof message !== 'string') {
+    return new Response(JSON.stringify({ error: 'message is required' }), { status: 400 });
+  }
+
+  const supabase = createAdminClient();
+
+  // Fetch job context
+  const { data: job } = await supabase
+    .from('import_jobs')
+    .select('*')
+    .eq('id', importJobId)
+    .single();
+
+  if (!job) {
+    return new Response(JSON.stringify({ error: 'Import job not found' }), { status: 404 });
+  }
+
+  // Fetch recent error sample (up to 100 invalid rows)
+  const { data: recentErrors } = await supabase
+    .from('staging_import_contributions')
+    .select('validation_errors')
+    .eq('import_job_id', importJobId)
+    .eq('validation_status', 'invalid')
+    .limit(100);
+
+  const errorSummary = buildErrorSummary((recentErrors ?? []) as ErrorRow[]);
+
+  const encoder = new TextEncoder();
+
+  const stream = new ReadableStream({
+    async start(controller) {
+      try {
+        const { actions } = await streamMigrationChat(
+          {
+            importJobId,
+            message,
+            history,
+            jobContext: {
+              status: (job as Record<string, unknown>).status as string ?? 'unknown',
+              recordsExtracted: (job as Record<string, unknown>).total_records_extracted as number ?? 0,
+              recordsLoaded: (job as Record<string, unknown>).records_loaded as number ?? 0,
+              recordsFailed: (job as Record<string, unknown>).records_failed as number ?? 0,
+              recentErrors: errorSummary,
+              reconciliation: (job as Record<string, unknown>).reconciliation_data as Record<string, unknown> | undefined,
+            },
+          },
+          (chunk) => {
+            controller.enqueue(
+              encoder.encode(
+                `data: ${JSON.stringify({ type: 'chunk', text: chunk })}\n\n`
+              )
+            );
+          }
+        );
+
+        if (actions.length > 0) {
+          controller.enqueue(
+            encoder.encode(
+              `data: ${JSON.stringify({ type: 'actions', actions })}\n\n`
+            )
+          );
+        }
+
+        controller.enqueue(
+          encoder.encode(`data: ${JSON.stringify({ type: 'done' })}\n\n`)
+        );
+        controller.close();
+      } catch (err) {
+        const errMessage = err instanceof Error ? err.message : 'Unknown error';
+        controller.enqueue(
+          encoder.encode(
+            `data: ${JSON.stringify({ type: 'error', message: errMessage })}\n\n`
+          )
+        );
+        controller.close();
+      }
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      Connection: 'keep-alive',
+    },
+  });
+}

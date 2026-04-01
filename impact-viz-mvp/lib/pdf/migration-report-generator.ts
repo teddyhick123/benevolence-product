@@ -1,6 +1,21 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
+/**
+ * Calculates a 0–100 health score for a migration job.
+ * Penalises financial delta up to 20 points.
+ */
+export function calculateHealthScore(
+  entityCounts: Record<string, { total: number; loaded: number; failed: number }>,
+  deltaPercent: number
+): number {
+  const totalSource = Object.values(entityCounts).reduce((s, e) => s + e.total, 0);
+  const totalLoaded = Object.values(entityCounts).reduce((s, e) => s + e.loaded, 0);
+  const successRate = totalSource > 0 ? (totalLoaded / totalSource) * 100 : 100;
+  const financialPenalty = Math.min(deltaPercent * 5, 20);
+  return Math.max(0, Math.min(100, Math.round(successRate - financialPenalty)));
+}
+
 export interface MigrationReportData {
   jobName: string;
   portfolioName: string;

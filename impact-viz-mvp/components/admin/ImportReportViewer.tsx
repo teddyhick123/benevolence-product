@@ -10,11 +10,12 @@ interface ImportReportViewerProps {
 
 export function ImportReportViewer({ importJobId }: ImportReportViewerProps) {
   const [markdown, setMarkdown] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loadingReport, setLoadingReport] = useState(false);
+  const [loadingPDF, setLoadingPDF] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const generateReport = async () => {
-    setLoading(true);
+    setLoadingReport(true);
     setError(null);
     try {
       const res = await fetch(`/api/admin/imports/${importJobId}/report?format=markdown`);
@@ -27,7 +28,7 @@ export function ImportReportViewer({ importJobId }: ImportReportViewerProps) {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');
     } finally {
-      setLoading(false);
+      setLoadingReport(false);
     }
   };
 
@@ -47,7 +48,7 @@ export function ImportReportViewer({ importJobId }: ImportReportViewerProps) {
   };
 
   const downloadPDF = async () => {
-    setLoading(true);
+    setLoadingPDF(true);
     setError(null);
     try {
       const res = await fetch(`/api/admin/imports/${importJobId}/report?format=pdf`);
@@ -65,7 +66,7 @@ export function ImportReportViewer({ importJobId }: ImportReportViewerProps) {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');
     } finally {
-      setLoading(false);
+      setLoadingPDF(false);
     }
   };
 
@@ -80,13 +81,15 @@ export function ImportReportViewer({ importJobId }: ImportReportViewerProps) {
         if (line.startsWith('# ')) return `<h1 class="text-2xl font-bold mb-4">${esc(line.slice(2))}</h1>`;
         // Blockquote
         if (line.startsWith('> ')) return `<blockquote class="border-l-4 border-azure pl-4 py-1 my-2 bg-azure/5 text-neutral-700 italic text-sm">${inlineFormat(line.slice(2))}</blockquote>`;
-        // Table row
-        if (line.startsWith('|')) return `<tr>${line.split('|').filter(Boolean).map((cell) => {
-          const trimmed = cell.trim();
-          const isHeader = /^[-:]+$/.test(trimmed.replace(/\s/g, ''));
-          if (isHeader) return '';
-          return `<td class="border border-neutral-200 px-3 py-1.5 text-sm">${inlineFormat(trimmed)}</td>`;
-        }).join('')}</tr>`;
+        // Table row — skip separator lines (e.g. |---|---|)
+        if (line.startsWith('|')) {
+          const cells = line.split('|').filter(Boolean).map(c => c.trim());
+          const isSeparator = cells.every(c => /^[-: ]+$/.test(c));
+          if (isSeparator) return '';
+          return `<tr>${cells.map(cell =>
+            `<td class="border border-neutral-200 px-3 py-1.5 text-sm">${inlineFormat(cell)}</td>`
+          ).join('')}</tr>`;
+        }
         // List item
         if (line.startsWith('- ') || line.startsWith('* ')) return `<li class="ml-4 text-sm list-disc">${inlineFormat(line.slice(2))}</li>`;
         if (/^\d+\. /.test(line)) return `<li class="ml-4 text-sm list-decimal">${inlineFormat(line.replace(/^\d+\. /, ''))}</li>`;
@@ -120,12 +123,12 @@ export function ImportReportViewer({ importJobId }: ImportReportViewerProps) {
           </p>
           <button
             onClick={generateReport}
-            disabled={loading}
+            disabled={loadingReport}
             className="px-5 py-2.5 bg-azure text-white rounded-lg text-sm font-medium hover:bg-azure/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
-            {loading ? 'AI is writing your report...' : 'Generate Migration Report'}
+            {loadingReport ? 'AI is writing your report...' : 'Generate Migration Report'}
           </button>
-          {loading && (
+          {loadingReport && (
             <p className="mt-3 text-xs text-neutral-400 animate-pulse">
               This takes about 10-15 seconds...
             </p>
@@ -146,10 +149,10 @@ export function ImportReportViewer({ importJobId }: ImportReportViewerProps) {
             <div className="flex gap-2">
               <button
                 onClick={generateReport}
-                disabled={loading}
+                disabled={loadingReport}
                 className="text-xs px-3 py-1.5 border border-neutral-200 rounded-md hover:bg-neutral-50 disabled:opacity-40 transition-colors"
               >
-                {loading ? 'Regenerating...' : 'Regenerate'}
+                {loadingReport ? 'Regenerating...' : 'Regenerate'}
               </button>
               <button
                 onClick={downloadMarkdown}
@@ -159,10 +162,10 @@ export function ImportReportViewer({ importJobId }: ImportReportViewerProps) {
               </button>
               <button
                 onClick={downloadPDF}
-                disabled={loading}
+                disabled={loadingPDF}
                 className="text-xs px-3 py-1.5 border border-azure/30 text-azure rounded-md hover:bg-azure/5 disabled:opacity-40 transition-colors"
               >
-                Download PDF
+                {loadingPDF ? 'Generating PDF...' : 'Download PDF'}
               </button>
               <button
                 onClick={handlePrint}

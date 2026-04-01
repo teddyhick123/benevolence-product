@@ -2,19 +2,27 @@
 // Generates a board-level portfolio summary PDF
 
 import { NextResponse } from 'next/server';
-import { supabasePublic } from '@/lib/supabase';
+import { createServerClient } from '@/lib/supabase';
 import type { BoardReportData } from '@/lib/pdf/board-report-generator';
 
 export async function GET(
   req: Request,
   ctx: { params: Promise<{ id: string }> }
 ) {
+  // Auth guard — require authenticated user
+  const authClient = await createServerClient();
+  const { data: { user } } = await authClient.auth.getUser();
+  if (!user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   const { id: portfolioId } = await ctx.params;
   const url = new URL(req.url);
   const asOf = url.searchParams.get('as_of') ?? new Date().toISOString().slice(0, 10);
   const taxYear = Number(url.searchParams.get('year') ?? new Date().getFullYear());
 
-  const sb = await supabasePublic();
+  // Use the authed client so RLS enforces portfolio ownership
+  const sb = authClient;
 
   const [
     { data: portfolio },

@@ -5,6 +5,7 @@
 import { createAdminClient, createServerClient } from '@/lib/supabase';
 import { generateMigrationReport } from '@/lib/import/ai/generate-report';
 import type { ReportParams, EntityStats } from '@/lib/import/ai/generate-report';
+import { calculateHealthScore } from '@/lib/pdf/migration-report-generator';
 
 async function requireAdmin(): Promise<string | null> {
   const supabase = await createServerClient();
@@ -17,17 +18,6 @@ async function requireAdmin(): Promise<string | null> {
 }
 
 type StagingRow = Record<string, unknown>;
-
-function calculateHealthScore(
-  entityCounts: Record<string, EntityStats>,
-  deltaPercent: number
-): number {
-  const totalSource = Object.values(entityCounts).reduce((s, e) => s + e.total, 0);
-  const totalLoaded = Object.values(entityCounts).reduce((s, e) => s + e.loaded, 0);
-  const successRate = totalSource > 0 ? (totalLoaded / totalSource) * 100 : 100;
-  const financialPenalty = Math.min(deltaPercent * 5, 20);
-  return Math.max(0, Math.min(100, Math.round(successRate - financialPenalty)));
-}
 
 async function countStagingRows(
   supabase: ReturnType<typeof createAdminClient>,

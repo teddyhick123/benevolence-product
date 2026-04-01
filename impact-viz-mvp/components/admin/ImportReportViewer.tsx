@@ -46,6 +46,29 @@ export function ImportReportViewer({ importJobId }: ImportReportViewerProps) {
     window.print();
   };
 
+  const downloadPDF = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/admin/imports/${importJobId}/report?format=pdf`);
+      if (!res.ok) {
+        const body = await res.json() as { error?: string };
+        throw new Error(body.error ?? 'Failed to generate PDF');
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `migration-report.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unknown error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Minimal markdown renderer (headings, bold, blockquotes, tables, lists, code)
   const renderMarkdown = (md: string): string => {
     return md
@@ -133,6 +156,13 @@ export function ImportReportViewer({ importJobId }: ImportReportViewerProps) {
                 className="text-xs px-3 py-1.5 border border-neutral-200 rounded-md hover:bg-neutral-50 transition-colors"
               >
                 Download .md
+              </button>
+              <button
+                onClick={downloadPDF}
+                disabled={loading}
+                className="text-xs px-3 py-1.5 border border-azure/30 text-azure rounded-md hover:bg-azure/5 disabled:opacity-40 transition-colors"
+              >
+                Download PDF
               </button>
               <button
                 onClick={handlePrint}

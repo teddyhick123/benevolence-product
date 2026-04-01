@@ -8,7 +8,7 @@ export interface TaxExportButtonProps {
   variant?: 'button' | 'dropdown';
 }
 
-type ExportFormat = 'json' | 'csv' | 'xlsx' | 'txf' | 'form8283' | 'carryforward';
+type ExportFormat = 'json' | 'csv' | 'xlsx' | 'txf' | 'form8283' | 'carryforward' | 'pdf';
 
 interface ExportOption {
   format: ExportFormat;
@@ -49,6 +49,12 @@ const EXPORT_OPTIONS: ExportOption[] = [
     label: 'Excel Workbook',
     description: 'Full report with multiple sheets',
     icon: '📗',
+  },
+  {
+    format: 'pdf',
+    label: 'PDF Report',
+    description: 'Formatted tax summary PDF for records',
+    icon: '📄',
   },
   {
     format: 'json',

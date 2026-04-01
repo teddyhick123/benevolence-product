@@ -18,6 +18,17 @@ async function requireAdmin(): Promise<string | null> {
 
 type StagingRow = Record<string, unknown>;
 
+function calculateHealthScore(
+  entityCounts: Record<string, EntityStats>,
+  deltaPercent: number
+): number {
+  const totalSource = Object.values(entityCounts).reduce((s, e) => s + e.total, 0);
+  const totalLoaded = Object.values(entityCounts).reduce((s, e) => s + e.loaded, 0);
+  const successRate = totalSource > 0 ? (totalLoaded / totalSource) * 100 : 100;
+  const financialPenalty = Math.min(deltaPercent * 5, 20);
+  return Math.max(0, Math.min(100, Math.round(successRate - financialPenalty)));
+}
+
 async function countStagingRows(
   supabase: ReturnType<typeof createAdminClient>,
   importJobId: string,
@@ -169,11 +180,40 @@ export async function GET(
   }
 
   if (format === 'pdf') {
-    // PDF not yet implemented — return markdown with a note
-    return Response.json({
-      markdown,
-      url: storageUrl,
-      note: 'PDF rendering not yet available. Use the markdown and browser print.',
+    const { generateMigrationReportPDF } = await import('@/lib/pdf/migration-report-generator');
+
+    // Fetch portfolio name
+    const { data: portfolio } = await supabase
+      .from('portfolios')
+      .select('name')
+      .eq('id', jobData.portfolio_id as string)
+      .single();
+
+    const healthScore = calculateHealthScore(entityCounts, deltaPercent);
+
+    const buffer = generateMigrationReportPDF({
+      jobName: (jobData.name as string) ?? 'Untitled Import',
+      portfolioName: portfolio?.name ?? 'Portfolio',
+      sourceSystem: (jobData.source_type as string) ?? 'Legacy System',
+      completedAt: (jobData.completed_at as string) ?? new Date().toISOString(),
+      entityCounts,
+      financialReconciliation: { sourceTotal, loadedTotal, deltaPercent },
+      healthScore,
+      aiSuggestionsApplied: (recon.ai_suggestions_applied as number) ?? 0,
+      errorsFixed: (recon.errors_fixed as number) ?? 0,
+      actionItems,
+      enrichmentStats: {
+        charitiesMatched: charitiesMatched ?? 0,
+        taxYearsDerived: entityCounts.contributions?.loaded ?? 0,
+      },
+      aiSummary: (recon.ai_analysis as Record<string, unknown> | null)?.explanation as string | undefined,
+    });
+
+    return new Response(buffer, {
+      headers: {
+        'Content-Type': 'application/pdf',
+        'Content-Disposition': `attachment; filename="migration-report-${importJobId.slice(0, 8)}.pdf"`,
+      },
     });
   }
 

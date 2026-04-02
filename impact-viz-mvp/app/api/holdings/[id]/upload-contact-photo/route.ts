@@ -6,6 +6,14 @@ const getSupabase = createSupabaseServerClient;
 
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id: holdingId } = await ctx.params;
+
+  // Auth check
+  const supabaseAuth = await getSupabase();
+  const { data: { user } } = await supabaseAuth.auth.getUser();
+  if (!user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   const formData = await req.formData();
   const file = formData.get('photo') as File;
 
@@ -47,12 +55,16 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
       return NextResponse.json({ error: uploadError.message }, { status: 500 });
     }
 
-    // Get public URL
-    const { data: urlData } = supabase.storage
+    // Generate signed URL (1 hour expiry) — bucket is private
+    const { data: signedUrlData, error: signedUrlError } = await supabase.storage
       .from('holdings')
-      .getPublicUrl(filePath);
+      .createSignedUrl(filePath, 3600);
 
-    const photoUrl = urlData.publicUrl;
+    if (signedUrlError || !signedUrlData) {
+      return NextResponse.json({ error: 'Failed to generate signed URL' }, { status: 500 });
+    }
+
+    const photoUrl = signedUrlData.signedUrl;
 
     // Update holding with photo URL
     const { error: updateError, data: updateData } = await supabase

@@ -51,7 +51,7 @@ function HeaderContent() {
 
   const dashboardHref = currentPortfolioId ? `/dashboard?portfolio_id=${encodeURIComponent(currentPortfolioId)}` : '/dashboard';
   const charitiesHref = '/charities';
-  const taxHref = '/dashboard/tax';
+  const taxHref = currentPortfolioId ? `/dashboard/tax?portfolio_id=${encodeURIComponent(currentPortfolioId)}` : '/dashboard/tax';
 
   async function handleSignOut() {
     await supabase.auth.signOut();

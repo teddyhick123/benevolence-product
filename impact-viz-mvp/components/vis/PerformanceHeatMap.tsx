@@ -469,7 +469,7 @@ function HeatMapChart({
 
   return (
     <div ref={containerRef} className="w-full h-full overflow-auto relative">
-      <svg ref={svgRef} className="min-w-full min-h-full" />
+      <svg ref={svgRef} className="min-w-full min-h-full" role="img" aria-label="Performance heat map chart" />
       <div
         ref={tooltipRef}
         className="absolute pointer-events-none bg-white rounded-lg shadow-lg border border-neutral-200 px-3 py-2 text-neutral-900 transition-opacity duration-200"

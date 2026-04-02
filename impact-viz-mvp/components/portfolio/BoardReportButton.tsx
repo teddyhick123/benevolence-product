@@ -17,6 +17,8 @@ export default function BoardReportButton({ portfolioId, asOfDate }: BoardReport
     try {
       const params = new URLSearchParams();
       if (asOfDate) params.set('as_of', asOfDate);
+      const year = asOfDate ? new Date(asOfDate).getFullYear() : new Date().getFullYear();
+      params.set('year', String(year));
       const res = await fetch(`/api/portfolio/${portfolioId}/board-report?${params}`);
       if (!res.ok) {
         const body = await res.json() as { error?: string };

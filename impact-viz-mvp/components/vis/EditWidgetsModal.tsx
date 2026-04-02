@@ -29,6 +29,8 @@ export type EditWidgetsModalProps = {
 export default function EditWidgetsModal({ portfolioId, holdingId, open, onClose, onChanged }: EditWidgetsModalProps) {
   const [mounted, setMounted] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
+  const dialogRef = React.useRef<HTMLDivElement>(null);
+  const triggerRef = React.useRef<Element | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const [editing, setEditing] = React.useState<WidgetRow | null>(null);
   const [draggedWidget, setDraggedWidget] = React.useState<string | null>(null);
@@ -56,6 +58,35 @@ export default function EditWidgetsModal({ portfolioId, holdingId, open, onClose
     setBusy(false);
     setEditing(null);
   }, [open, portfolioId]);
+
+  // Focus management
+  React.useEffect(() => {
+    if (!mounted) return;
+    if (open) {
+      triggerRef.current = document.activeElement;
+      const first = dialogRef.current?.querySelector<HTMLElement>(
+        'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      );
+      first?.focus();
+    } else {
+      (triggerRef.current as HTMLElement | null)?.focus?.();
+    }
+  }, [open, mounted]);
+
+  function handleDialogKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
+    if (e.key !== 'Tab') return;
+    const focusable = dialogRef.current?.querySelectorAll<HTMLElement>(
+      'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    );
+    if (!focusable || focusable.length === 0) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (e.shiftKey) {
+      if (document.activeElement === first) { e.preventDefault(); last.focus(); }
+    } else {
+      if (document.activeElement === last) { e.preventDefault(); first.focus(); }
+    }
+  }
 
   // Determine API endpoint
   const apiEndpoint = holdingId
@@ -243,6 +274,7 @@ export default function EditWidgetsModal({ portfolioId, holdingId, open, onClose
 
   return createPortal(
     <div
+      ref={dialogRef}
       className={clsx(
         'fixed inset-0 z-[10000] flex items-start justify-center p-4 sm:p-6',
         'bg-black/50 backdrop-blur-sm',
@@ -251,6 +283,7 @@ export default function EditWidgetsModal({ portfolioId, holdingId, open, onClose
       role="dialog"
       aria-modal="true"
       aria-labelledby="edit-widgets-title"
+      onKeyDown={handleDialogKeyDown}
       onClick={(e) => { if (e.target === e.currentTarget && !busy) onClose(); }}
     >
       <div className="w-full max-w-4xl max-h-[90vh] flex flex-col rounded-3xl bg-gradient-to-b from-white to-neutral-50 shadow-2xl ring-1 ring-black/10 animate-in slide-in-from-top-4 duration-300">
@@ -429,7 +462,7 @@ export default function EditWidgetsModal({ portfolioId, holdingId, open, onClose
                             onClick={() => move(w.id, -1)}
                             disabled={i === 0 || busy}
                             className="p-2 rounded-lg border border-neutral-200 hover:bg-neutral-50 hover:border-neutral-300 disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-150"
-                            title="Move up"
+                            aria-label="Move up"
                           >
                             <svg className="w-4 h-4 text-neutral-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
@@ -440,7 +473,7 @@ export default function EditWidgetsModal({ portfolioId, holdingId, open, onClose
                             onClick={() => move(w.id, +1)}
                             disabled={i === widgets.length - 1 || busy}
                             className="p-2 rounded-lg border border-neutral-200 hover:bg-neutral-50 hover:border-neutral-300 disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-150"
-                            title="Move down"
+                            aria-label="Move down"
                           >
                             <svg className="w-4 h-4 text-neutral-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -459,7 +492,7 @@ export default function EditWidgetsModal({ portfolioId, holdingId, open, onClose
                             onClick={() => removeWidget(w.id)}
                             disabled={busy}
                             className="p-2 rounded-lg border border-red-200 hover:bg-red-50 hover:border-red-300 text-red-600 transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
-                            title="Delete"
+                            aria-label="Delete widget"
                           >
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />

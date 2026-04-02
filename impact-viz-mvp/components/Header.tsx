@@ -86,24 +86,28 @@ function HeaderContent() {
             <nav className="hidden md:flex items-center gap-3">
               <Link
                 href={dashboardHref}
+                aria-current={pathname.startsWith('/dashboard') && !pathname.startsWith('/dashboard/tax') ? 'page' : undefined}
                 className="font-sans text-sm px-4 py-2 rounded-md border border-black/10 hover:bg-white shadow-sm hover:shadow transition-transform duration-200 hover:-translate-y-0.5 will-change-transform rm:transition-none rm:transform-none"
               >
                 Dashboard
               </Link>
               <Link
                 href={charitiesHref}
+                aria-current={pathname.startsWith('/charities') ? 'page' : undefined}
                 className="font-sans text-sm px-4 py-2 rounded-md border border-black/10 hover:bg-white shadow-sm hover:shadow transition-transform duration-200 hover:-translate-y-0.5 will-change-transform rm:transition-none rm:transform-none"
               >
                 Charities
               </Link>
               <Link
                 href={taxHref}
+                aria-current={pathname.startsWith('/dashboard/tax') ? 'page' : undefined}
                 className="font-sans text-sm px-4 py-2 rounded-md border border-black/10 hover:bg-white shadow-sm hover:shadow transition-transform duration-200 hover:-translate-y-0.5 will-change-transform rm:transition-none rm:transform-none"
               >
                 Tax
               </Link>
               <Link
                 href="/profile"
+                aria-current={pathname === '/profile' ? 'page' : undefined}
                 className="font-sans text-sm px-4 py-2 rounded-md border border-black/10 hover:bg-white shadow-sm hover:shadow transition-transform duration-200 hover:-translate-y-0.5 will-change-transform rm:transition-none rm:transform-none"
               >
                 Profile
@@ -145,24 +149,28 @@ function HeaderContent() {
           <nav className="px-4 py-3 space-y-2">
             <Link
               href={dashboardHref}
+              aria-current={pathname.startsWith('/dashboard') && !pathname.startsWith('/dashboard/tax') ? 'page' : undefined}
               className="block w-full text-left font-sans text-sm px-4 py-3 rounded-md border border-black/10 hover:bg-white shadow-sm hover:shadow transition-colors"
             >
               Dashboard
             </Link>
             <Link
               href={charitiesHref}
+              aria-current={pathname.startsWith('/charities') ? 'page' : undefined}
               className="block w-full text-left font-sans text-sm px-4 py-3 rounded-md border border-black/10 hover:bg-white shadow-sm hover:shadow transition-colors"
             >
               Charities
             </Link>
             <Link
               href={taxHref}
+              aria-current={pathname.startsWith('/dashboard/tax') ? 'page' : undefined}
               className="block w-full text-left font-sans text-sm px-4 py-3 rounded-md border border-black/10 hover:bg-white shadow-sm hover:shadow transition-colors"
             >
               Tax
             </Link>
             <Link
               href="/profile"
+              aria-current={pathname === '/profile' ? 'page' : undefined}
               className="block w-full text-left font-sans text-sm px-4 py-3 rounded-md border border-black/10 hover:bg-white shadow-sm hover:shadow transition-colors"
             >
               Profile

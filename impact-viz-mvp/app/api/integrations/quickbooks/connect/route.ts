@@ -35,8 +35,11 @@ export async function GET(req: Request): Promise<NextResponse> {
 
   const oauthClient = createOAuthClient();
 
-  // Encode portfolio_id in the OAuth state parameter so we can recover it in the callback
-  const state = Buffer.from(JSON.stringify({ portfolioId, userId: user.id })).toString(
+  // Generate a CSRF nonce to validate in the callback
+  const nonce = crypto.randomUUID();
+
+  // Encode portfolio_id, userId, and nonce in the OAuth state parameter
+  const state = Buffer.from(JSON.stringify({ portfolioId, userId: user.id, nonce })).toString(
     'base64url'
   );
 
@@ -45,5 +48,10 @@ export async function GET(req: Request): Promise<NextResponse> {
     state,
   });
 
-  return NextResponse.redirect(authUri);
+  const response = NextResponse.redirect(authUri);
+  response.headers.set(
+    'Set-Cookie',
+    `qb_oauth_nonce=${nonce}; HttpOnly; SameSite=Lax; Max-Age=600; Path=/`
+  );
+  return response;
 }

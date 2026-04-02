@@ -29,11 +29,25 @@ export async function GET(req: Request): Promise<NextResponse> {
     return NextResponse.json({ error: 'Missing state parameter' }, { status: 400 });
   }
 
+  // Read CSRF nonce from cookie
+  const cookieHeader = (req as Request & { headers: Headers }).headers.get('cookie') ?? '';
+  const cookieNonce = cookieHeader
+    .split(';')
+    .map((c) => c.trim())
+    .find((c) => c.startsWith('qb_oauth_nonce='))
+    ?.split('=')[1];
+
   let portfolioId: string;
   try {
     const decoded = JSON.parse(
       Buffer.from(stateParam, 'base64url').toString('utf-8')
-    ) as { portfolioId: string; userId: string };
+    ) as { portfolioId: string; userId: string; nonce?: string };
+
+    // Validate CSRF nonce
+    if (!cookieNonce || !decoded.nonce || cookieNonce !== decoded.nonce) {
+      return NextResponse.json({ error: 'Invalid state' }, { status: 400 });
+    }
+
     portfolioId = decoded.portfolioId;
   } catch {
     return NextResponse.json({ error: 'Invalid state parameter' }, { status: 400 });
@@ -99,5 +113,11 @@ export async function GET(req: Request): Promise<NextResponse> {
 
   const settingsUrl = new URL('/dashboard/settings/integrations', url.origin);
   settingsUrl.searchParams.set('connected', '1');
-  return NextResponse.redirect(settingsUrl.toString());
+  const redirectResponse = NextResponse.redirect(settingsUrl.toString());
+  // Clear the CSRF nonce cookie
+  redirectResponse.headers.set(
+    'Set-Cookie',
+    'qb_oauth_nonce=; HttpOnly; SameSite=Lax; Max-Age=0; Path=/'
+  );
+  return redirectResponse;
 }

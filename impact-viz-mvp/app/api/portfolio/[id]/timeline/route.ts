@@ -28,6 +28,17 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
   const holdingMap = new Map((holdings || []).map(h => [h.id, h.name]));
   const holdingIds = Array.from(holdingMap.keys());
 
+  // Pre-build investeeId → holding map to avoid per-event queries
+  const { data: holdingsWithInvestees } = await supabase
+    .from('holdings')
+    .select('id, name, investee_id')
+    .eq('portfolio_id', portfolioId)
+    .not('investee_id', 'is', null);
+
+  const investeeToHolding = new Map(
+    (holdingsWithInvestees ?? []).map(h => [h.investee_id as string, h])
+  );
+
   // Collect timeline events from multiple sources
   const events: any[] = [];
 
@@ -35,20 +46,14 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
   const { data: dbEvents } = await supabase
     .from('events')
     .select('*')
-    .order('event_date', { ascending: false });
+    .order('event_date', { ascending: false })
+    .limit(500);
 
   if (dbEvents) {
     for (const evt of dbEvents) {
-      // Check if this event is related to a holding in this portfolio
       if (evt.investee_id) {
-        const { data: relatedHoldings } = await supabase
-          .from('holdings')
-          .select('id, name')
-          .eq('investee_id', evt.investee_id)
-          .eq('portfolio_id', portfolioId);
-
-        if (relatedHoldings && relatedHoldings.length > 0) {
-          const holding = relatedHoldings[0];
+        const holding = investeeToHolding.get(evt.investee_id);
+        if (holding) {
           events.push({
             id: `event-${evt.id}`,
             date: evt.event_date,
@@ -68,7 +73,8 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
     .from('holding_contributions')
     .select('*')
     .eq('portfolio_id', portfolioId)
-    .order('contributed_at', { ascending: false });
+    .order('contributed_at', { ascending: false })
+    .limit(1000);
 
   if (contributions) {
     for (const contrib of contributions) {

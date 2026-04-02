@@ -40,69 +40,50 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
     );
   }
 
+  // Get all holding IDs first
+  const holdingIds = holdings.map(h => h.id);
+
+  // Single batched query for all metrics
+  const { data: metricRows } = await supabase
+    .from('metric_facts')
+    .select('holding_id, metric_code, value, period_end')
+    .in('holding_id', holdingIds)
+    .in('metric_code', [xMetric, yMetric, sizeMetric, colorMetric].filter(Boolean) as string[])
+    .order('period_end', { ascending: false });
+
+  // Build lookup map in JS — take latest value per (holding_id, metric_code)
+  const metricMap = new Map<string, Map<string, number>>();
+  for (const row of metricRows ?? []) {
+    if (!metricMap.has(row.holding_id)) metricMap.set(row.holding_id, new Map());
+    const hMap = metricMap.get(row.holding_id)!;
+    if (!hMap.has(row.metric_code)) hMap.set(row.metric_code, row.value); // take latest
+  }
+
   const bubbleData = [];
 
   for (const holding of holdings) {
-    // Get latest value for each metric
-    const { data: xData } = await supabase
-      .from('metric_facts')
-      .select('value')
-      .eq('holding_id', holding.id)
-      .eq('metric_code', xMetric)
-      .order('period_end', { ascending: false })
-      .limit(1);
-
-    const { data: yData } = await supabase
-      .from('metric_facts')
-      .select('value')
-      .eq('holding_id', holding.id)
-      .eq('metric_code', yMetric)
-      .order('period_end', { ascending: false })
-      .limit(1);
-
-    const { data: sizeData } = await supabase
-      .from('metric_facts')
-      .select('value')
-      .eq('holding_id', holding.id)
-      .eq('metric_code', sizeMetric)
-      .order('period_end', { ascending: false })
-      .limit(1);
-
-    let colorValue: number | undefined;
-    if (colorMetric) {
-      const { data: colorData } = await supabase
-        .from('metric_facts')
-        .select('value')
-        .eq('holding_id', holding.id)
-        .eq('metric_code', colorMetric)
-        .order('period_end', { ascending: false })
-        .limit(1);
-
-      if (colorData && colorData.length > 0) {
-        colorValue = Number(colorData[0].value) || 0;
-      }
-    }
+    const hMap = metricMap.get(holding.id);
+    const xValue = hMap?.get(xMetric);
+    const yValue = hMap?.get(yMetric);
+    const sizeValue = hMap?.get(sizeMetric);
 
     // Only include holdings that have all three required metrics
-    if (
-      xData && xData.length > 0 &&
-      yData && yData.length > 0 &&
-      sizeData && sizeData.length > 0
-    ) {
-      const xValue = Number(xData[0].value) || 0;
-      const yValue = Number(yData[0].value) || 0;
-      const sizeValue = Number(sizeData[0].value) || 0;
+    if (xValue != null && yValue != null && sizeValue != null) {
+      const xNum = Number(xValue) || 0;
+      const yNum = Number(yValue) || 0;
+      const sizeNum = Number(sizeValue) || 0;
 
       // Only include if size is positive (can't have zero or negative sized bubbles)
-      if (sizeValue > 0) {
+      if (sizeNum > 0) {
+        const colorValue = colorMetric ? (hMap?.get(colorMetric) != null ? Number(hMap!.get(colorMetric)) || 0 : undefined) : undefined;
         bubbleData.push({
           holdingId: holding.id,
           holdingName: holding.name,
           sector: holding.sector,
           assetType: (holding as any).asset_type || null,
-          xValue,
-          yValue,
-          sizeValue,
+          xValue: xNum,
+          yValue: yNum,
+          sizeValue: sizeNum,
           colorValue,
           xMetric,
           yMetric,

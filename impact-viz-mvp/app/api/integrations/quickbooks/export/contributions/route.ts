@@ -69,7 +69,8 @@ export async function POST(req: Request): Promise<Response> {
     )
     .eq('portfolio_id', portfolioId)
     .eq('tax_year', taxYear)
-    .order('contribution_date');
+    .order('contribution_date')
+    .limit(1000);
 
   if (fetchError) {
     return Response.json({ error: 'Failed to fetch contributions' }, { status: 500 });
@@ -91,46 +92,54 @@ export async function POST(req: Request): Promise<Response> {
   const exported: string[] = [];
   const failed: Array<{ id: string; error: string }> = [];
 
-  for (const contribution of contributions as ContributionRow[]) {
-    const amount = contribution.calculated_deductible_amount ?? contribution.amount_usd;
-    if (!amount || amount <= 0) continue;
+  const eligibleContributions = (contributions as ContributionRow[]).filter(c => {
+    const amount = c.calculated_deductible_amount ?? c.amount_usd;
+    return amount && amount > 0;
+  });
 
-    const entry: QBJournalEntry = {
-      TxnDate: contribution.contribution_date,
-      DocNumber: `BEN-CONTRIB-${contribution.id.slice(0, 8).toUpperCase()}`,
-      PrivateNote: `Charitable contribution to ${contribution.recipient_name} — exported from Benevolence`,
-      Line: [
-        {
-          Description: `Charitable contribution — ${contribution.recipient_name}`,
-          Amount: amount,
-          DetailType: 'JournalEntryLineDetail',
-          JournalEntryLineDetail: {
-            PostingType: 'Debit',
-            AccountRef: { value: expense_account_id, name: 'Charitable Contributions' },
-          },
-        },
-        {
-          Description: `Payment — ${contribution.recipient_name}`,
-          Amount: amount,
-          DetailType: 'JournalEntryLineDetail',
-          JournalEntryLineDetail: {
-            PostingType: 'Credit',
-            AccountRef: { value: bank_account_id, name: 'Bank Account' },
-          },
-        },
-      ],
-    };
-
-    try {
-      await createJournalEntryAsync(client, entry);
-      exported.push(contribution.id);
-    } catch (err) {
-      console.error(`[QB] Journal entry failed for contribution ${contribution.id}:`, err);
-      failed.push({
-        id: contribution.id,
-        error: err instanceof Error ? err.message : 'Unknown error',
-      });
-    }
+  const BATCH_SIZE = 30;
+  for (let i = 0; i < eligibleContributions.length; i += BATCH_SIZE) {
+    const batch = eligibleContributions.slice(i, i + BATCH_SIZE);
+    await Promise.all(
+      batch.map(async (contribution) => {
+        const amount = contribution.calculated_deductible_amount ?? contribution.amount_usd;
+        const entry: QBJournalEntry = {
+          TxnDate: contribution.contribution_date,
+          DocNumber: `BEN-CONTRIB-${contribution.id.slice(0, 8).toUpperCase()}`,
+          PrivateNote: `Charitable contribution to ${contribution.recipient_name} — exported from Benevolence`,
+          Line: [
+            {
+              Description: `Charitable contribution — ${contribution.recipient_name}`,
+              Amount: amount,
+              DetailType: 'JournalEntryLineDetail',
+              JournalEntryLineDetail: {
+                PostingType: 'Debit',
+                AccountRef: { value: expense_account_id, name: 'Charitable Contributions' },
+              },
+            },
+            {
+              Description: `Payment — ${contribution.recipient_name}`,
+              Amount: amount,
+              DetailType: 'JournalEntryLineDetail',
+              JournalEntryLineDetail: {
+                PostingType: 'Credit',
+                AccountRef: { value: bank_account_id, name: 'Bank Account' },
+              },
+            },
+          ],
+        };
+        try {
+          await createJournalEntryAsync(client, entry);
+          exported.push(contribution.id);
+        } catch (err) {
+          console.error(`[QB] Journal entry failed for contribution ${contribution.id}:`, err);
+          failed.push({
+            id: contribution.id,
+            error: err instanceof Error ? err.message : 'Unknown error',
+          });
+        }
+      })
+    );
   }
 
   return Response.json({

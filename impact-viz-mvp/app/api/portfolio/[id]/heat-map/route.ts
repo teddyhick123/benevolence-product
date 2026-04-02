@@ -152,25 +152,44 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
       );
     }
 
-    // Get latest value for each metric for each holding
+    const holdingIds = holdings.map(h => h.id);
+
+    // Single batched query for all holdings × metrics
+    const { data: metricRows, error: metricsErr } = await supabase
+      .from('metric_facts')
+      .select('holding_id, metric_code, value, period_end')
+      .in('holding_id', holdingIds)
+      .in('metric_code', metricCodes)
+      .order('period_end', { ascending: false });
+
+    if (metricsErr) {
+      return NextResponse.json(
+        { error: metricsErr.message },
+        { status: 500, headers: { 'Cache-Control': 'no-store' } }
+      );
+    }
+
+    // Build 2D map: holdingId → metricCode → latest value
+    const metricMap = new Map<string, Map<string, number>>();
+    for (const row of metricRows ?? []) {
+      if (!metricMap.has(row.holding_id)) metricMap.set(row.holding_id, new Map());
+      const hMap = metricMap.get(row.holding_id)!;
+      if (!hMap.has(row.metric_code)) hMap.set(row.metric_code, row.value); // take latest
+    }
+
+    const holdingNames = new Map(holdings.map(h => [h.id, h.name]));
     const cells = [];
 
     for (const holding of holdings) {
+      const hMap = metricMap.get(holding.id);
       for (const metricCode of metricCodes) {
-        const { data: metrics, error: metricsErr } = await supabase
-          .from('metric_facts')
-          .select('value')
-          .eq('holding_id', holding.id)
-          .eq('metric_code', metricCode)
-          .order('period_end', { ascending: false })
-          .limit(1);
-
-        if (!metricsErr && metrics && metrics.length > 0) {
+        const val = hMap?.get(metricCode);
+        if (val != null) {
           cells.push({
-            holding: holding.name,
+            holding: holdingNames.get(holding.id) || holding.name,
             holdingId: holding.id,
             period: metricCode, // In metrics mode, "period" is actually the metric name
-            value: Number(metrics[0].value) || 0
+            value: Number(val) || 0
           });
         }
       }

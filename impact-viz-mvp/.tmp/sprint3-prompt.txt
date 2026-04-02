@@ -1,0 +1,508 @@
+You are building the AI-Native Importer for the Benevolence codebase at /home/node/.openclaw/workspace/Benevolence/impact-viz-mvp on branch feature/ai-importer.
+
+Complete Sprint 3 Days 11-15 in order. After each day, commit with the specified message before moving to the next. Do not ask for approval — build, commit, continue.
+
+---
+
+## DAY 11: Loader with Dependency Ordering + Batch Transactions
+
+### Goal
+Load validated staging data into production tables in correct FK dependency order, using batch transactions.
+
+### 1. Create lib/import/loader.ts
+
+```typescript
+import { SupabaseClient } from '@supabase/supabase-js';
+import { ImportProgressEmitter } from './progress-emitter';
+
+export type LoadPhase = 'investees' | 'holdings' | 'users' | 'contributions' | 'metrics';
+
+// Dependency order — MUST load in this sequence to satisfy FKs
+export const LOAD_ORDER: LoadPhase[] = ['investees', 'holdings', 'users', 'contributions', 'metrics'];
+
+export interface LoadResult {
+  phase: LoadPhase;
+  inserted: number;
+  updated: number;
+  skipped: number;
+  failed: number;
+  errors: Array<{ rowId: string; message: string }>;
+}
+
+export interface LoadOptions {
+  batchSize?: number; // default 500
+  upsertMode?: 'insert_only' | 'upsert'; // default 'upsert'
+  dryRun?: boolean; // if true, validate but don't write
+}
+
+export async function loadStagingToProduction(
+  supabase: SupabaseClient,
+  importJobId: string,
+  options?: LoadOptions
+): Promise<LoadResult[]>
+```
+
+Implementation details:
+
+**For each phase in LOAD_ORDER:**
+
+1. Fetch staging rows in batches of `batchSize` (default 500) where:
+   - `import_job_id = importJobId`
+   - `validation_status IN ('valid', 'warning')` (skip 'invalid')
+   - `action_taken = 'pending'`
+
+2. For each batch, process in a single transaction:
+   - Resolve cross-references (e.g., investee_id from staging_import_investees.final_id)
+   - Attempt upsert based on match_criteria from mapping profile
+   - On success: update staging row `action_taken = 'create'` or `'update'`, set `final_id`
+   - On failure: update staging row `action_taken = 'error'`, increment records_failed
+
+3. **Phase: investees**
+   - Target table: `investees`
+   - Match on: `display_name + country` (if no EIN) or `ein` (if present)
+   - Also check `_enrichment.charity_id` — if set, link `charity_id` on investee
+   - After insert/update: set `staging_import_investees.final_id`
+
+4. **Phase: holdings**
+   - Target table: `holdings`
+   - Resolve `investee_id` from `staging_import_investees.final_id` via display_name match
+   - Match on: `portfolio_id + name`
+   - After insert/update: set `staging_import_holdings.final_id`
+
+5. **Phase: users**
+   - Target table: `profiles` (and optionally `portfolio_members`)
+   - If user email matches existing `auth.users`: link, set role in `portfolio_members`
+   - If no match: create profile stub with `display_name`, flag for invite
+   - After: set `staging_import_users.final_profile_id`
+
+6. **Phase: contributions**
+   - Target tables: `tax_contributions` AND `holding_contributions`
+   - Resolve `holding_id` from `staging_import_holdings.final_id`
+   - Insert into `tax_contributions` with all enriched fields
+   - If `holding_id` present, also insert into `holding_contributions`
+   - Match on: `portfolio_id + contribution_date + amount_usd + recipient_name` (avoid duplicates)
+   - After: set `final_tax_contribution_id` and `final_holding_contribution_id`
+
+7. **Phase: metrics**
+   - Target table: `metric_facts`
+   - Resolve `holding_id` from `staging_import_holdings.final_id`
+   - Ensure `metric_code` exists in `metrics` table; skip if not
+   - Match on: `holding_id + metric_code + period_start`
+   - After: set `staging_import_metrics.final_id`
+
+8. Update `import_jobs` counters after each batch:
+   - `records_loaded += inserted + updated`
+   - `records_failed += failed`
+
+9. Emit progress events via `ImportProgressEmitter` after each batch.
+
+### 2. Create app/api/admin/imports/[id]/load/route.ts
+
+```typescript
+// POST /api/admin/imports/:id/load
+// Triggers the load phase for a paused import job
+// Requires: job must be in 'paused' status
+// Sets job status to 'running' during load, then 'completed' when done
+// Body: { dry_run?: boolean, batch_size?: number }
+// Returns: { results: LoadResult[] }
+```
+
+### 3. Create app/api/admin/imports/[id]/commit/route.ts
+
+```typescript
+// POST /api/admin/imports/:id/commit
+// Finalizes the import — makes loaded data visible
+// Currently a no-op (data is already visible after load)
+// But sets import_jobs.status = 'completed' and completed_at
+// Returns: { job: ImportJob }
+```
+
+Commit message: 'feat: sprint3 day11 — loader with dependency ordering, batch transactions, load/commit API'
+
+---
+
+## DAY 12: Audit Logging
+
+### Goal
+Write before/after snapshots to import_audit_log for every DB change, enabling precise rollback.
+
+### 1. Create lib/import/auditor.ts
+
+```typescript
+import { SupabaseClient } from '@supabase/supabase-js';
+
+export interface AuditEntry {
+  importJobId: string;
+  tableName: string;
+  operation: 'insert' | 'update' | 'skip' | 'error' | 'rollback';
+  recordId: string;
+  stagingTable?: string;
+  stagingRowId?: string;
+  dataBefore?: Record<string, unknown>; // for updates
+  dataAfter?: Record<string, unknown>;
+  errorMessage?: string;
+}
+
+export class ImportAuditor {
+  private supabase: SupabaseClient;
+  private importJobId: string;
+  private buffer: AuditEntry[] = [];
+  private flushInterval: ReturnType<typeof setInterval>;
+
+  constructor(supabase: SupabaseClient, importJobId: string) {
+    this.supabase = supabase;
+    this.importJobId = importJobId;
+    // Auto-flush every 5 seconds to avoid losing audit trail on crash
+    this.flushInterval = setInterval(() => this.flush(), 5000);
+  }
+
+  log(entry: Omit<AuditEntry, 'importJobId'>): void {
+    this.buffer.push({ ...entry, importJobId: this.importJobId });
+    // Flush immediately if buffer is large
+    if (this.buffer.length >= 100) this.flush();
+  }
+
+  async flush(): Promise<void> {
+    if (this.buffer.length === 0) return;
+    const toFlush = [...this.buffer];
+    this.buffer = [];
+    await this.supabase.from('import_audit_log').insert(
+      toFlush.map(e => ({
+        import_job_id: e.importJobId,
+        table_name: e.tableName,
+        operation: e.operation,
+        record_id: e.recordId,
+        staging_table: e.stagingTable,
+        staging_row_id: e.stagingRowId,
+        data_snapshot: e.dataBefore || e.dataAfter
+          ? { before: e.dataBefore, after: e.dataAfter }
+          : null,
+        error_message: e.errorMessage,
+      }))
+    );
+  }
+
+  async close(): Promise<void> {
+    clearInterval(this.flushInterval);
+    await this.flush();
+  }
+}
+```
+
+### 2. Integrate auditor into loader
+
+In lib/import/loader.ts:
+- Create an `ImportAuditor` instance at the start of `loadStagingToProduction`
+- Before each upsert: if update, fetch the existing row as `dataBefore`
+- After each upsert: log with `dataAfter` = inserted/updated row
+- On error: log with `operation = 'error'` and `errorMessage`
+- Call `auditor.close()` in finally block
+
+For fetching before snapshots on updates:
+```typescript
+// Before updating, fetch existing row
+let dataBefore: Record<string, unknown> | undefined;
+if (matchedId) {
+  const { data } = await supabase.from(tableName).select('*').eq('id', matchedId).single();
+  dataBefore = data ?? undefined;
+}
+```
+
+### 3. Create app/api/admin/imports/[id]/audit/route.ts
+
+```typescript
+// GET /api/admin/imports/:id/audit
+// Returns paginated audit log entries for this job
+// Query params: table_name, operation, limit=50, offset=0
+// Returns: { entries: AuditLogEntry[], total: number }
+```
+
+### 4. Add audit log tab to import detail UI
+
+In app/admin/imports/[id]/page.tsx, the "Audit Log" tab currently shows a stub.
+Replace with a simple table component that fetches from the audit API:
+- Columns: Table, Operation (badge), Record ID (truncated), Timestamp
+- Filter by table_name and operation
+- Show "View snapshot" expandable row that displays before/after JSON diff
+
+Commit message: 'feat: sprint3 day12 — audit logger with buffered writes, before/after snapshots, audit UI'
+
+---
+
+## DAY 13: Reconciliation Engine
+
+### Goal
+Compare source staging data vs loaded production data to detect discrepancies.
+
+### 1. Create lib/import/reconciler.ts
+
+```typescript
+import { SupabaseClient } from '@supabase/supabase-js';
+
+export interface EntityReconciliation {
+  entity: string;
+  sourceCount: number;
+  loadedCount: number;
+  skippedCount: number;
+  failedCount: number;
+  matchRate: number; // loadedCount / sourceCount
+  // Financial totals (for contributions)
+  sourceTotalAmount?: number;
+  loadedTotalAmount?: number;
+  amountDelta?: number;
+  amountDeltaPercent?: number;
+  // Issues
+  missingIds: string[]; // staging IDs that have no final_id (sample, max 10)
+  duplicateWarnings: string[]; // any detected duplicates
+  withinTolerance: boolean; // matchRate >= threshold (default 0.99)
+}
+
+export interface ReconciliationReport {
+  importJobId: string;
+  generatedAt: string;
+  overallSuccess: boolean;
+  entities: EntityReconciliation[];
+  summary: string; // plain English summary
+  actionItems: string[]; // list of things to fix
+}
+
+export async function generateReconciliationReport(
+  supabase: SupabaseClient,
+  importJobId: string,
+  tolerancePercent?: number // default 1% delta allowed
+): Promise<ReconciliationReport>
+```
+
+Implementation for each entity:
+
+**investees:**
+- Source count: `COUNT(*) FROM staging_import_investees WHERE import_job_id = ? AND validation_status IN ('valid','warning')`
+- Loaded count: `COUNT(*) FROM staging_import_investees WHERE import_job_id = ? AND action_taken IN ('create','update')`
+- Missing: rows where final_id IS NULL and action_taken != 'skip'
+
+**holdings:**
+- Same pattern as investees
+
+**contributions:**
+- Source count + SUM(transformed_data->>'amount_usd') from staging
+- Loaded count + SUM(amount_usd) from tax_contributions WHERE id IN (SELECT final_tax_contribution_id FROM staging_import_contributions WHERE import_job_id = ?)
+- Amount delta = |source_total - loaded_total|
+- Delta percent = delta / source_total * 100
+
+**metrics:**
+- Source count vs loaded count
+
+Store the report JSON in `import_jobs.reconciliation_data`.
+
+### 2. Create app/api/admin/imports/[id]/reconciliation/route.ts
+
+```typescript
+// GET /api/admin/imports/:id/reconciliation
+// Returns the stored reconciliation_data, or generates it if not present
+// POST /api/admin/imports/:id/reconciliation
+// Force-regenerate reconciliation report
+```
+
+### 3. Auto-run reconciliation after load
+
+In the load API route (app/api/admin/imports/[id]/load/route.ts), after loadStagingToProduction() completes:
+- Call generateReconciliationReport()
+- Store in import_jobs.reconciliation_data
+- If overallSuccess = false, set job status = 'paused' with pause_reason = 'Reconciliation failed. Review discrepancies.'
+- If overallSuccess = true, set job status = 'completed'
+
+### 4. Create components/admin/ReconciliationReport.tsx
+
+UI component to display the reconciliation report:
+- Summary card at top: overall pass/fail badge + one-line summary
+- Table per entity: source count, loaded count, match rate (progress bar), amount delta
+- Action items list (if any)
+- "Looks good, Commit" button (if overall pass) → calls commit endpoint
+- "Review Issues" button (if fail) → scrolls to error browser
+
+Commit message: 'feat: sprint3 day13 — reconciliation engine, delta detection, auto-run after load'
+
+---
+
+## DAY 14: AI Reconciliation Analysis
+
+### Goal
+Use Claude to explain reconciliation discrepancies in plain English and suggest fixes.
+
+### 1. Create lib/import/ai/reconcile.ts
+
+```typescript
+import { callAI } from './client';
+
+const RECONCILE_SYSTEM = `You are a data integrity analyst specializing in philanthropic software migrations.
+
+Your task: analyze discrepancies between source (staging) and target (production) data after a migration, and explain them clearly in plain English.
+
+Rules:
+- Be specific about root causes, not vague
+- Distinguish between acceptable rounding differences vs real data loss
+- Suggest concrete fixes when possible
+- Tone: professional, reassuring, educational
+
+Output ONLY valid JSON:
+{
+  "explanation": "Plain English explanation of all discrepancies",
+  "root_causes": ["Cause 1", "Cause 2"],
+  "is_acceptable": true|false,
+  "confidence": 0.0-1.0,
+  "suggested_fixes": [
+    {
+      "description": "What to do",
+      "severity": "critical|warning|info",
+      "auto_fixable": true|false
+    }
+  ],
+  "statistics": {
+    "rows_with_rounding": 0,
+    "max_individual_delta": 0.00,
+    "likely_cause": "rounding|missing_data|transformation|duplicate|unknown"
+  }
+}`;
+
+export interface ReconciliationAnalysis {
+  explanation: string;
+  rootCauses: string[];
+  isAcceptable: boolean;
+  confidence: number;
+  suggestedFixes: Array<{
+    description: string;
+    severity: 'critical' | 'warning' | 'info';
+    autoFixable: boolean;
+  }>;
+  statistics: {
+    rowsWithRounding: number;
+    maxIndividualDelta: number;
+    likelyCause: string;
+  };
+}
+
+export async function analyzeReconciliation(
+  report: ReconciliationReport,
+  sampleMismatches?: Array<{ staging: Record<string, unknown>; production: Record<string, unknown> }>
+): Promise<ReconciliationAnalysis>
+```
+
+USER prompt: pass the full reconciliation report + up to 5 sample mismatches as JSON.
+
+### 2. Integrate AI analysis into reconciliation flow
+
+In app/api/admin/imports/[id]/reconciliation/route.ts (POST):
+- After generating ReconciliationReport
+- If there are any discrepancies (overallSuccess = false OR amountDelta > 0):
+  - Fetch 5 sample mismatched rows (staging vs production)
+  - Call analyzeReconciliation()
+  - Store AI analysis in import_jobs.reconciliation_data.ai_analysis
+
+### 3. Update ReconciliationReport.tsx UI
+
+Add AI analysis section:
+- Show AI explanation as a highlighted quote block
+- Show root causes as a bullet list
+- Show suggested fixes with severity badges
+- "Auto-fix X issues" button if any fixes are auto_fixable
+
+### 4. Create app/api/admin/imports/[id]/ai/reconcile/route.ts
+
+```typescript
+// POST - trigger AI reconciliation analysis for a job
+// Fetches reconciliation data + sample mismatches, calls AI, returns analysis
+// Stores result in reconciliation_data.ai_analysis
+```
+
+Commit message: 'feat: sprint3 day14 — AI reconciliation analysis, root cause explanation, fix suggestions'
+
+---
+
+## DAY 15: Rollback + Partial Rollback
+
+### Goal
+Enable full or partial rollback of an import using the audit log.
+
+### 1. Create lib/import/rollback.ts
+
+```typescript
+import { SupabaseClient } from '@supabase/supabase-js';
+
+export type RollbackScope = 'full' | LoadPhase; // 'full' or specific entity
+
+export interface RollbackResult {
+  scope: RollbackScope;
+  recordsReverted: number;
+  recordsSkipped: number;
+  errors: Array<{ recordId: string; table: string; message: string }>;
+  durationMs: number;
+}
+
+export async function rollbackImport(
+  supabase: SupabaseClient,
+  importJobId: string,
+  scope: RollbackScope = 'full'
+): Promise<RollbackResult>
+```
+
+Implementation:
+1. Fetch audit log entries for this job, filtered by scope (all tables or specific table)
+   - Order by `created_at DESC` (reverse order — undo last operations first)
+   - Only process entries where `operation IN ('insert', 'update')` (skip errors/skips)
+
+2. For each audit entry in reverse order:
+   - If `operation = 'insert'`: DELETE FROM table_name WHERE id = record_id
+   - If `operation = 'update'`: UPDATE table_name SET ... = data_snapshot->>'before' WHERE id = record_id
+   - Log each rollback action as new audit entry with `operation = 'rollback'`
+   - On error: log but continue (don't stop full rollback on one failure)
+
+3. After rollback:
+   - Reset staging rows: UPDATE staging_import_* SET action_taken = 'pending', final_id = NULL WHERE import_job_id = ?
+   - Update import_jobs.status = 'rolled_back'
+   - Update import_jobs.records_loaded = 0, records_failed = 0
+
+4. For partial rollback (specific entity only):
+   - Only fetch audit entries for that entity's table(s)
+   - Reset only that entity's staging rows
+   - Leave other entities intact
+   - Set job status back to 'paused'
+
+### 2. Create app/api/admin/imports/[id]/rollback/route.ts
+
+```typescript
+// POST /api/admin/imports/:id/rollback
+// Body: { scope?: 'full' | 'investees' | 'holdings' | 'contributions' | 'metrics' | 'users' }
+// Default scope: 'full'
+// Requires: job must be in 'completed', 'paused', or 'failed' status
+// Returns: { result: RollbackResult, job: ImportJob }
+```
+
+### 3. Add rollback UI
+
+In components/admin/ImportProgressMonitor.tsx:
+- Add "Rollback" button (shown when status is completed/paused)
+- On click: confirm dialog "Are you sure? This will undo all loaded data."
+- Dropdown option: "Rollback contributions only" / "Rollback holdings only" / "Full rollback"
+- Show progress during rollback (it may take a while for large datasets)
+- On complete: show "Rollback complete. X records reverted."
+
+### 4. Sprint 3 Wrap-Up
+- Run: pnpm tsc --noEmit 2>&1 | head -40
+- Fix critical TypeScript errors
+- Run: pnpm test --run 2>&1 | tail -20
+- Update SPRINT_PROGRESS.md: mark Days 11-15 as Done
+- Commit all remaining changes
+
+Commit message: 'feat: sprint3 day15 — full and partial rollback, audit-driven undo, sprint3 complete'
+
+---
+
+## Final Instructions
+
+- Complete each day fully before moving to the next
+- Fix errors and continue — do not stop
+- Use TypeScript, avoid 'any' where possible
+- Follow existing code patterns (check lib/ and components/ for conventions)
+- After ALL 5 days: run pnpm tsc --noEmit, fix critical errors
+- Update SPRINT_PROGRESS.md: mark Days 11-15 as Done
+- Report: days completed, files created, total commits, any issues

@@ -31,15 +31,15 @@ export async function GET(
     { data: kpiSeries },
   ] = await Promise.all([
     sb.from('portfolios').select('name').eq('id', portfolioId).single(),
-    sb.from('holdings').select('name, value_usd, asset_class, sector').eq('portfolio_id', portfolioId),
+    sb.from('holdings').select('name, funds_allocated, asset_type, sector').eq('portfolio_id', portfolioId),
     sb
       .from('v_tax_contributions_enriched')
       .select('amount_usd')
       .eq('portfolio_id', portfolioId)
       .eq('tax_year', taxYear),
     sb
-      .from('portfolio_kpis')
-      .select('name, value, unit, trend')
+      .from('v_portfolio_kpi_latest')
+      .select('metric_name, value, unit')
       .eq('portfolio_id', portfolioId)
       .limit(12),
   ]);
@@ -51,11 +51,11 @@ export async function GET(
   const holdingsList = holdings ?? [];
   const contributionsList = contributions ?? [];
 
-  // Aggregate holdings by asset class
+  // Aggregate holdings by asset type
   const assetClassMap = new Map<string, number>();
   for (const h of holdingsList) {
-    const key = h.asset_class ?? 'Other';
-    assetClassMap.set(key, (assetClassMap.get(key) ?? 0) + (h.value_usd ?? 0));
+    const key = h.asset_type ?? 'Other';
+    assetClassMap.set(key, (assetClassMap.get(key) ?? 0) + (h.funds_allocated ?? 0));
   }
   const totalPortfolioValue = [...assetClassMap.values()].reduce((s, v) => s + v, 0);
   const holdingsByAssetClass = [...assetClassMap.entries()]
@@ -71,7 +71,7 @@ export async function GET(
   for (const h of holdingsList) {
     const key = h.sector ?? 'Other';
     const existing = sectorMap.get(key) ?? { value: 0, count: 0 };
-    sectorMap.set(key, { value: existing.value + (h.value_usd ?? 0), count: existing.count + 1 });
+    sectorMap.set(key, { value: existing.value + (h.funds_allocated ?? 0), count: existing.count + 1 });
   }
   const holdingsBySector = [...sectorMap.entries()]
     .map(([sector, stats]) => ({ sector, ...stats }))
@@ -79,14 +79,14 @@ export async function GET(
 
   // Top holdings by value
   const topHoldings = holdingsList
-    .filter(h => h.value_usd != null)
-    .sort((a, b) => (b.value_usd ?? 0) - (a.value_usd ?? 0))
+    .filter(h => h.funds_allocated != null)
+    .sort((a, b) => (b.funds_allocated ?? 0) - (a.funds_allocated ?? 0))
     .slice(0, 10)
     .map(h => ({
       name: h.name ?? 'Unknown',
-      value: h.value_usd ?? 0,
+      value: h.funds_allocated ?? 0,
       sector: h.sector ?? 'Other',
-      assetClass: h.asset_class ?? 'Other',
+      assetClass: h.asset_type ?? 'Other',
     }));
 
   const totalContributions = contributionsList.reduce((s, c) => s + (c.amount_usd ?? 0), 0);
@@ -104,10 +104,9 @@ export async function GET(
     contributionCount: contributionsList.length,
     topHoldings,
     kpis: (kpiSeries ?? []).map((k: any) => ({
-      name: k.name,
+      name: k.metric_name ?? k.name,
       value: String(k.value),
       unit: k.unit ?? '',
-      trend: k.trend ?? undefined,
     })),
   };
 

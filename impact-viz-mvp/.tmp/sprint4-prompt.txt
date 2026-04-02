@@ -1,0 +1,546 @@
+You are building the AI-Native Importer for the Benevolence codebase at /home/node/.openclaw/workspace/Benevolence/impact-viz-mvp on branch feature/ai-importer.
+
+Complete Sprint 4 Days 16-20 in order. After each day, commit with the specified message before moving to the next. Do not ask for approval — build, commit, continue.
+
+---
+
+## DAY 16: AI Chat Endpoint (Streaming)
+
+### Goal
+Build a streaming AI chat endpoint that acts as a migration copilot, answering questions about the import job.
+
+### 1. Create lib/import/ai/chat.ts
+
+```typescript
+import { callAIStreaming } from './client';
+
+const CHAT_SYSTEM = `You are the Benevolence Migration Copilot — an expert AI assistant helping clients migrate their philanthropic data from Blackbaud, Salesforce NPSP, or DonorPerfect to Benevolence.
+
+You have access to the current import job context. Use it to give specific, actionable answers.
+
+## Your Capabilities
+- Explain why rows failed validation and suggest fixes
+- Interpret reconciliation discrepancies
+- Guide users through the import process step by step
+- Suggest bulk fixes when patterns of errors are detected
+- Explain what each import phase does in plain language
+
+## Tone
+- Professional but approachable
+- Confident but not dismissive of concerns
+- Use plain English — avoid database jargon unless necessary
+- When suggesting actions, be specific (field names, row counts, exact steps)
+
+## Available Actions (include in suggested_actions array when relevant)
+- { "type": "bulk_fix", "description": "...", "entity": "contributions", "field": "recipient_ein", "fix": "normalize_ein" }
+- { "type": "export_failed", "description": "Download failed rows as CSV" }
+- { "type": "adjust_mapping", "description": "...", "entity": "...", "field": "..." }
+- { "type": "skip_warnings", "description": "Mark all warnings as acceptable and proceed" }
+- { "type": "rollback", "description": "...", "scope": "full|contributions|holdings" }
+- { "type": "commit", "description": "Finalize and commit the import" }
+- { "type": "view_errors", "description": "Open error browser filtered to...", "filter": "..." }
+
+## Response Format
+Respond conversationally. If you have suggested actions, end with:
+[ACTIONS]
+{ "suggested_actions": [...] }
+[/ACTIONS]
+
+Keep responses concise — under 200 words unless a detailed explanation is needed.`;
+
+export interface ChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+export interface ChatAction {
+  type: string;
+  description: string;
+  [key: string]: unknown;
+}
+
+export async function streamMigrationChat(
+  params: {
+    importJobId: string;
+    message: string;
+    history: ChatMessage[];
+    jobContext: {
+      status: string;
+      recordsExtracted: number;
+      recordsLoaded: number;
+      recordsFailed: number;
+      recentErrors: Array<{ field: string; message: string; count: number }>;
+      reconciliation?: Record<string, unknown>;
+    };
+  },
+  onChunk: (text: string) => void
+): Promise<{ fullResponse: string; actions: ChatAction[] }>
+```
+
+Implementation:
+- Build user prompt including job context + conversation history + new message
+- Stream response via callAIStreaming
+- Parse [ACTIONS]...[/ACTIONS] block from response
+- Return full response text + parsed actions array
+
+### 2. Create app/api/admin/imports/[id]/ai/chat/route.ts
+
+```typescript
+// POST /api/admin/imports/:id/ai/chat
+// Body: { message: string, history: ChatMessage[] }
+// Returns: Server-Sent Events stream
+// Each SSE event: { type: 'chunk', text: '...' } or { type: 'actions', actions: [...] } or { type: 'done' }
+
+export async function POST(req: Request, { params }: { params: { id: string } }) {
+  const { message, history } = await req.json();
+  const importJobId = params.id;
+
+  // Fetch job context from DB
+  const supabase = createAdminClient();
+  const { data: job } = await supabase
+    .from('import_jobs')
+    .select('*')
+    .eq('id', importJobId)
+    .single();
+
+  // Fetch recent errors summary
+  const { data: recentErrors } = await supabase
+    .from('staging_import_contributions')
+    .select('validation_errors')
+    .eq('import_job_id', importJobId)
+    .eq('validation_status', 'invalid')
+    .limit(100);
+
+  // Build error summary
+  const errorSummary = buildErrorSummary(recentErrors ?? []);
+
+  // Stream response
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream({
+    async start(controller) {
+      try {
+        const { fullResponse, actions } = await streamMigrationChat(
+          {
+            importJobId,
+            message,
+            history,
+            jobContext: {
+              status: job?.status ?? 'unknown',
+              recordsExtracted: job?.total_records_extracted ?? 0,
+              recordsLoaded: job?.records_loaded ?? 0,
+              recordsFailed: job?.records_failed ?? 0,
+              recentErrors: errorSummary,
+              reconciliation: job?.reconciliation_data,
+            },
+          },
+          (chunk) => {
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'chunk', text: chunk })}\n\n`));
+          }
+        );
+
+        // Send actions
+        if (actions.length > 0) {
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'actions', actions })}\n\n`));
+        }
+
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'done' })}\n\n`));
+        controller.close();
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Unknown error';
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'error', message })}\n\n`));
+        controller.close();
+      }
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+    },
+  });
+}
+```
+
+Commit message: 'feat: sprint4 day16 — streaming AI chat endpoint, migration copilot system prompt'
+
+---
+
+## DAY 17: Chat UI Integration
+
+### Goal
+Embed the AI chat copilot in the import detail page as a persistent side panel.
+
+### 1. Create components/admin/ImportCopilot.tsx (Client Component)
+
+```tsx
+// Props: importJobId, initialStatus
+// A collapsible chat panel anchored to the right side of the import detail page
+
+// Layout:
+// ┌─────────────────────────────────────────────────────────────┐
+// │ 🤖 Migration Copilot                              [Minimize] │
+// ├─────────────────────────────────────────────────────────────┤
+// │ Assistant: Hi! I'm your migration copilot. I can help you   │
+// │ understand errors, suggest fixes, and guide you through      │
+// │ the import process. What would you like to know?            │
+// │                                                             │
+// │ User: Why did 200 contributions fail?                        │
+// │                                                             │
+// │ Assistant: The failures are due to missing recipient_ein...  │
+// │                                                             │
+// │ ┌─ Suggested Actions ─────────────────────────────────────┐ │
+// │ │ [Fix all EIN formatting]  [Export failed rows]          │ │
+// │ └─────────────────────────────────────────────────────────┘ │
+// ├─────────────────────────────────────────────────────────────┤
+// │ [Type a question...]                            [Send →]    │
+// └─────────────────────────────────────────────────────────────┘
+
+// Features:
+// - Connects to SSE endpoint for streaming responses
+// - Renders text progressively as it streams (like ChatGPT)
+// - Shows action buttons for suggested_actions
+// - Action buttons call appropriate API endpoints when clicked
+// - Persists conversation in component state (not DB — session only)
+// - Starter prompts shown when empty: 
+//   "Why did rows fail?", "How do I fix EIN errors?", "Is my data ready to load?"
+// - Minimize to floating button in corner
+// - Auto-scroll to bottom on new messages
+```
+
+### 2. Update app/admin/imports/[id]/page.tsx
+
+Add ImportCopilot to the page layout:
+- Show as a collapsible panel on the right side (or bottom drawer on mobile)
+- Pass importJobId and current job status
+
+### 3. Handle action button clicks in ImportCopilot
+
+When user clicks a suggested action:
+- `bulk_fix`: call POST /api/admin/imports/:id/bulk-fix with the fix params
+- `export_failed`: trigger download via GET /api/admin/imports/:id/errors?format=csv
+- `rollback`: call POST /api/admin/imports/:id/rollback
+- `commit`: call POST /api/admin/imports/:id/commit
+- `view_errors`: navigate to errors tab with filter applied
+- `skip_warnings`: call POST /api/admin/imports/:id/skip-warnings (create this stub endpoint)
+
+### 4. Create app/api/admin/imports/[id]/bulk-fix/route.ts
+
+```typescript
+// POST /api/admin/imports/:id/bulk-fix
+// Body: { entity: string, field: string, fix: 'normalize_ein' | 'parse_date' | 'strip_currency' | 'map_gift_type' }
+// Applies the fix to all staging rows for this job+entity that have that field error
+// Returns: { fixed: number, still_failing: number }
+```
+
+Implement these fixes:
+- normalize_ein: strip non-digits, format as XX-XXXXXXX
+- parse_date: try parseFlexibleDate() from lib/import/utils/date-parser.ts
+- strip_currency: remove $, commas, then parse as float
+- map_gift_type: map common non-standard values (PayPal→cash, Venmo→cash, DAF→other_property, Online→cash)
+
+### 5. Create app/api/admin/imports/[id]/skip-warnings/route.ts
+
+```typescript
+// POST /api/admin/imports/:id/skip-warnings
+// Marks all 'warning' severity validation_errors as acceptable
+// Updates validation_status from 'warning' to 'valid' for rows with only warnings (no errors)
+// Returns: { updated: number }
+```
+
+Commit message: 'feat: sprint4 day17 — AI copilot chat UI, streaming messages, action buttons, bulk-fix endpoint'
+
+---
+
+## DAY 18: PDF Report Generation
+
+### Goal
+Generate a beautiful, professional migration report PDF that clients can share with their board.
+
+### 1. Create lib/import/ai/generate-report.ts
+
+```typescript
+import { callAI } from './client';
+
+const REPORT_SYSTEM = `You are a professional consultant writing a migration summary report for a philanthropic organization.
+
+The organization has just migrated their data from a legacy system (Blackbaud or similar) to Benevolence, a modern philanthropic management platform.
+
+Write a comprehensive yet readable report that:
+1. Celebrates the successful migration
+2. Provides clear data on what was migrated
+3. Highlights any data quality improvements made
+4. Lists any remaining action items clearly
+5. Projects the efficiency gains the organization will experience
+
+## Tone
+- Professional and confident
+- Warm and mission-aligned (remember this is a charitable organization)
+- Factual — stick to the numbers provided
+- Optimistic but honest about any remaining issues
+
+## Format
+Return valid Markdown. Use:
+- # for main title
+- ## for sections
+- **bold** for key metrics
+- > blockquote for executive summary
+- Tables for data comparisons
+- - bullet lists for action items
+
+Include these sections in order:
+1. Executive Summary (blockquote)
+2. Migration Overview (stats table)
+3. Data Quality Analysis
+4. Financial Reconciliation
+5. What's New in Benevolence (3-4 bullet points about features they now have)
+6. Action Items (if any)
+7. Next Steps (go-live checklist)
+
+Include chart placeholders: [CHART: Holdings by Asset Class] — the PDF renderer will replace these.`;
+
+export interface ReportParams {
+  jobName: string;
+  portfolioName: string;
+  sourceSystem: string;
+  completedAt: string;
+  entityCounts: Record<string, { loaded: number; failed: number; total: number }>;
+  financialReconciliation: {
+    sourceTotal: number;
+    loadedTotal: number;
+    deltaPercent: number;
+  };
+  errorsFixed: number;
+  aiSuggestionsApplied: number;
+  actionItems: string[];
+  enrichmentStats: {
+    charitiesMatched: number;
+    taxYearsDerived: number;
+    deductibleAmountsCalculated: number;
+  };
+}
+
+export async function generateMigrationReport(params: ReportParams): Promise<string>
+// Returns Markdown string
+```
+
+### 2. Create app/api/admin/imports/[id]/report/route.ts
+
+```typescript
+// GET /api/admin/imports/:id/report?format=markdown|pdf
+// Generates the migration report
+// For markdown: returns { markdown: string }
+// For pdf: generates PDF and returns { url: string } (Supabase Storage URL)
+
+// PDF generation: use @sparticuz/chromium + puppeteer-core (serverless-compatible)
+// OR simpler: return markdown and let client render/print
+// Start with markdown-only, add PDF later if needed
+```
+
+Implementation:
+- Gather all stats from import_jobs + staging counts + reconciliation_data
+- Call generateMigrationReport() with compiled params
+- Store markdown in Supabase Storage at: `reports/{import_job_id}/migration-report.md`
+- Return markdown + storage URL
+
+### 3. Create components/admin/ImportReportViewer.tsx (Client Component)
+
+```tsx
+// Shows the generated report in a clean, printable layout
+// Features:
+// - "Generate Report" button → calls GET /api/admin/imports/:id/report
+// - Loading state: "AI is writing your report..."
+// - Renders markdown with react-markdown
+// - "Download as Markdown" button
+// - "Print" button (uses browser print with clean CSS)
+// - Report shown in a white card with proper typography
+```
+
+### 4. Add report tab to import detail page
+
+In app/admin/imports/[id]/page.tsx, add a "Report" tab containing ImportReportViewer.
+
+Commit message: 'feat: sprint4 day18 — AI migration report generation, markdown viewer, download'
+
+---
+
+## DAY 19: Performance Optimization + Bulk Fix Polish
+
+### Goal
+Ensure the importer handles 10,000+ row datasets efficiently and the bulk fix UX is polished.
+
+### 1. Performance audit
+
+In lib/import/loader.ts:
+- Review batch processing — ensure DB transactions are bounded (max 500 rows/transaction)
+- Add timing instrumentation: log time per phase per batch
+- Ensure staging table queries use indexes (import_job_id + validation_status)
+
+In lib/import/etl-runner.ts:
+- Ensure cursor-based pagination (OFFSET is slow for large tables — use keyset pagination):
+  ```typescript
+  // Instead of OFFSET, use: WHERE id > lastId ORDER BY id LIMIT batchSize
+  ```
+
+In lib/import/csv-extractor.ts:
+- Verify streaming parse is used (not loading entire CSV into memory)
+- Cap file size at 50MB with clear error message
+
+### 2. Add performance metrics to import_jobs
+
+Update the load API to store timing data in import_jobs.reconciliation_data:
+```json
+{
+  "...existing reconciliation...",
+  "performance": {
+    "extraction_ms": 1200,
+    "validation_ms": 3400,
+    "loading_ms": 8900,
+    "total_ms": 13500,
+    "rows_per_second": 750
+  }
+}
+```
+
+### 3. Polish bulk-fix UI
+
+In components/admin/ImportErrorsTable.tsx:
+- "Apply All Auto-Fixable" button should show count: "Apply 148 auto-fixable fixes"
+- After applying: show toast "Fixed 148 rows. 3 rows still have errors."
+- After fix: auto-refresh the error table
+- Show which fix was applied in the row (e.g., "EIN normalized: 12-3456789")
+
+### 4. Add migration health score
+
+Create components/admin/MigrationHealthScore.tsx:
+```tsx
+// A single 0-100 score that summarizes migration quality
+// Calculation:
+// - Start at 100
+// - -1 for each % of rows that failed (max -30)
+// - -5 if financial reconciliation delta > 1%
+// - -10 if any critical errors remain
+// - +5 bonus if >90% success rate
+// Score bands: 90-100 = Excellent (green), 75-89 = Good (yellow), <75 = Needs Work (red)
+// Show as a large circular progress indicator
+// Include tooltip explaining the score
+```
+
+Add MigrationHealthScore to the import detail page header.
+
+### 5. Write performance test
+
+Create lib/import/__tests__/performance.test.ts:
+```typescript
+// Generate 1000 fake staging rows (contributions)
+// Run full transform+validate cycle
+// Assert: completes in < 30 seconds
+// Assert: memory usage stays reasonable (no leak)
+// This is a rough smoke test, not a strict benchmark
+```
+
+Commit message: 'feat: sprint4 day19 — performance optimization, health score, bulk-fix polish'
+
+---
+
+## DAY 20: Documentation, Beta Test Prep + Sprint 4 Complete
+
+### Goal
+Write client-facing documentation, finalize the branch, and prepare for beta test.
+
+### 1. Create docs/MIGRATION_GUIDE.md
+
+A client-facing guide for using the importer:
+
+```markdown
+# Migration Guide: Switching to Benevolence
+
+## Overview
+Moving from Blackbaud to Benevolence is straightforward with our AI-powered Migration Copilot.
+This guide walks you through the complete process.
+
+## Before You Start
+- [ ] Export your data from Blackbaud (instructions below)
+- [ ] Gather list of staff who need access
+- [ ] Note your current annual spend on legacy software
+
+## Step 1: Export from Blackbaud RE NXT
+Instructions for exporting: Constituents.csv, Funds.csv, Gifts.csv, CustomFields.csv
+(include specific menu paths)
+
+## Step 2: Upload to Benevolence
+...
+
+## Step 3: Review AI Mapping Suggestions
+...
+
+## Step 4: Validate Your Data
+...
+
+## Step 5: Review Errors & Apply AI Fixes
+...
+
+## Step 6: Load Your Data
+...
+
+## Step 7: Review Reconciliation Report
+...
+
+## Step 8: Generate Migration Report
+...
+
+## Step 9: Go Live
+...
+
+## Common Issues & Solutions
+- EIN formatting problems
+- Date format mismatches
+- Missing required fields
+- Duplicate detection
+
+## Support
+Contact your Benevolence implementation specialist...
+```
+
+### 2. Update docs/AI_IMPORTER_BLUEPRINT.md
+
+Mark all sprints as DONE. Add:
+- Final file count and line count
+- Known limitations
+- Future improvements (Salesforce NPSP support, direct DB connection, etc.)
+
+### 3. Update SPRINT_PROGRESS.md
+
+Mark all 20 days as done. Add final stats.
+
+### 4. Final TypeScript check + test run
+
+```bash
+pnpm tsc --noEmit 2>&1 | head -50
+pnpm test --run 2>&1 | tail -30
+```
+
+Fix any remaining critical TypeScript errors.
+
+### 5. Merge prep
+
+```bash
+git log --oneline feature/ai-importer ^main | wc -l  # count commits
+git diff --stat main feature/ai-importer | tail -3    # summary of changes
+```
+
+### 6. Final commit
+
+Commit message: 'feat: sprint4 complete — AI copilot, PDF reports, performance, docs, importer DONE'
+
+---
+
+## Final Instructions
+
+- Complete each day fully before moving to the next
+- Fix errors and continue — do not stop
+- Use TypeScript, avoid 'any' where possible
+- After ALL 5 days: run pnpm tsc --noEmit and pnpm test --run, fix critical errors
+- Update SPRINT_PROGRESS.md: mark all 20 days as Done
+- Final report: total commits, total files created, any known issues, TypeScript error count

@@ -7,6 +7,7 @@ import Reveal from '@/components/Reveal';
 import { headers } from 'next/headers';
 import AIAssistantButton from '@/components/AIAssistantButton';
 import PortfolioSummarySection from '@/components/PortfolioSummarySection';
+import GrantsList from '@/components/grants/GrantsList';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -148,6 +149,10 @@ export default async function Dashboard({ searchParams }: { searchParams?: Promi
             <WidgetsSection portfolioId={portfolioId} canEdit={canEdit} />
           </div>
         </div>
+      </Reveal>
+
+      <Reveal delay={200}>
+        <GrantsList portfolioId={portfolioId} />
       </Reveal>
 
       {showMap && (

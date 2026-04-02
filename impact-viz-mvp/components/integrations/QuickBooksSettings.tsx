@@ -42,7 +42,7 @@ export default function QuickBooksSettings({ portfolioId }: Props) {
   const [expenseAccountId, setExpenseAccountId] = useState('');
   const [bankAccountId, setBankAccountId] = useState('');
 
-  const fetchStatus = useCallback(async () => {
+  const fetchStatus = useCallback(async (): Promise<QBStatus | null> => {
     setLoading(true);
     try {
       const res = await fetch(
@@ -50,16 +50,21 @@ export default function QuickBooksSettings({ portfolioId }: Props) {
       );
       const data = (await res.json()) as QBStatus;
       setStatus(data);
+      return data;
     } catch {
       setStatus({ connected: false });
+      return null;
     } finally {
       setLoading(false);
     }
   }, [portfolioId]);
 
   useEffect(() => {
-    void fetchStatus();
-  }, [fetchStatus]);
+    void fetchStatus().then((s) => {
+      if (s?.connected) void loadAccounts();
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Pre-select expense / bank accounts when account list changes
   useEffect(() => {

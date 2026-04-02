@@ -9,6 +9,7 @@
  */
 
 import type { AGILimitCategory } from '@/lib/schemas/tax';
+import { calculateOBBBAGIFloor, calculateEffectiveDeductionValue } from '@/lib/tax/constants';
 
 export interface TaxContribution {
   id: string;
@@ -35,6 +36,8 @@ export interface AGILimits {
   totalDeductible: number;
   totalCarryforward: number;
   buckets: Record<AGILimitCategory, AGILimitBucket>;
+  /** OBBB 2026+: estimated tax savings after the 35% benefit cap (top bracket assumed 37%) */
+  effectiveBenefitValue?: number;
 }
 
 export interface CarryforwardAmount {
@@ -173,11 +176,13 @@ export function calculateAGILimits(
       }
 
       if (carryforwardAmount > 0) {
+        // Conservation easements have a 15-year carryforward; all others are 5 years
+        const carryforwardYears = contribution.contribution_type === 'conservation_easement' ? 15 : 5;
         carryforwards.push({
           contributionId: contribution.id,
           amount: carryforwardAmount,
           category,
-          expiresYear: taxYear + 5,
+          expiresYear: taxYear + carryforwardYears,
         });
       }
     }
@@ -187,12 +192,25 @@ export function calculateAGILimits(
     bucket.percentageUsed = (bucket.used / bucket.limit) * 100;
   });
 
+  // OBBB 2026 changes (One Big Beautiful Bill Act, effective tax year 2026):
+  // 1. 0.5% AGI floor: only contributions exceeding 0.5% of AGI are deductible.
+  //    Reduce totalDeductible by the floor amount (but never below zero).
+  // 2. 35% benefit cap: for taxpayers in the 37% bracket, the effective deduction benefit
+  //    is capped at 35%. effectiveBenefitValue reflects this cap (assuming 37% marginal rate).
+  let effectiveBenefitValue: number | undefined;
+  if (taxYear >= 2026) {
+    const floor = calculateOBBBAGIFloor(estimatedAGI, taxYear);
+    totalDeductible = Math.max(0, totalDeductible - floor);
+    effectiveBenefitValue = calculateEffectiveDeductionValue(totalDeductible, 0.37, taxYear);
+  }
+
   const limits: AGILimits = {
     estimatedAGI,
     totalContributions,
     totalDeductible,
     totalCarryforward: carryforwards.reduce((sum, cf) => sum + cf.amount, 0),
     buckets,
+    effectiveBenefitValue,
   };
 
   return { limits, carryforwards };

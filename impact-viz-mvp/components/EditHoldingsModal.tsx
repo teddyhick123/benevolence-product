@@ -64,6 +64,8 @@ export type EditHoldingsModalProps = {
 
 export default function EditHoldingsModal({ portfolioId, initial, open, onClose, onChanged }: EditHoldingsModalProps) {
   const [mounted, setMounted] = React.useState(false);
+  const dialogRef = React.useRef<HTMLDivElement>(null);
+  const triggerRef = React.useRef<Element | null>(null);
 
   React.useEffect(() => {
     setMounted(true);
@@ -80,6 +82,35 @@ export default function EditHoldingsModal({ portfolioId, initial, open, onClose,
       };
     }
   }, [open, mounted]);
+
+  // Focus management: capture trigger, focus first element, restore on close
+  React.useEffect(() => {
+    if (!mounted) return;
+    if (open) {
+      triggerRef.current = document.activeElement;
+      const first = dialogRef.current?.querySelector<HTMLElement>(
+        'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      );
+      first?.focus();
+    } else {
+      (triggerRef.current as HTMLElement | null)?.focus?.();
+    }
+  }, [open, mounted]);
+
+  function handleDialogKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
+    if (e.key !== 'Tab') return;
+    const focusable = dialogRef.current?.querySelectorAll<HTMLElement>(
+      'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    );
+    if (!focusable || focusable.length === 0) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (e.shiftKey) {
+      if (document.activeElement === first) { e.preventDefault(); last.focus(); }
+    } else {
+      if (document.activeElement === last) { e.preventDefault(); first.focus(); }
+    }
+  }
 
   const isEditing = Boolean(initial?.id);
   const [name, setName] = React.useState(initial?.name ?? '');
@@ -266,6 +297,7 @@ export default function EditHoldingsModal({ portfolioId, initial, open, onClose,
 
   return createPortal(
     <div
+      ref={dialogRef}
       className={clsx(
         'fixed inset-0 z-[10000] flex items-start justify-center p-4 sm:p-6 overflow-y-auto',
         'bg-black/30 backdrop-blur-[1px]'
@@ -273,6 +305,7 @@ export default function EditHoldingsModal({ portfolioId, initial, open, onClose,
       role="dialog"
       aria-modal="true"
       aria-labelledby="edit-holding-title"
+      onKeyDown={handleDialogKeyDown}
       onClick={(e) => {
         if (e.target === e.currentTarget) close();
       }}
@@ -299,7 +332,7 @@ export default function EditHoldingsModal({ portfolioId, initial, open, onClose,
 
         <form onSubmit={handleSubmit} className="p-4 space-y-3 overflow-y-auto flex-1">
           {error ? (
-            <div className="text-sm rounded-md bg-red-50 text-red-700 px-3 py-2 border border-red-200">
+            <div className="text-sm rounded-md bg-red-50 text-red-700 px-3 py-2 border border-red-200" role="alert">
               {error}
             </div>
           ) : null}

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { X, DollarSign, AlertCircle, CheckCircle } from 'lucide-react';
 
 interface AddToPortfolioModalProps {
@@ -32,6 +32,8 @@ export default function AddToPortfolioModal({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<Element | null>(null);
 
   // Fetch user's portfolios
   useEffect(() => {
@@ -39,6 +41,34 @@ export default function AddToPortfolioModal({
       fetchPortfolios();
     }
   }, [isOpen]);
+
+  // Focus management
+  useEffect(() => {
+    if (isOpen) {
+      triggerRef.current = document.activeElement;
+      const first = dialogRef.current?.querySelector<HTMLElement>(
+        'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      );
+      first?.focus();
+    } else {
+      (triggerRef.current as HTMLElement | null)?.focus?.();
+    }
+  }, [isOpen]);
+
+  function handleDialogKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
+    if (e.key !== 'Tab') return;
+    const focusable = dialogRef.current?.querySelectorAll<HTMLElement>(
+      'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    );
+    if (!focusable || focusable.length === 0) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (e.shiftKey) {
+      if (document.activeElement === first) { e.preventDefault(); last.focus(); }
+    } else {
+      if (document.activeElement === last) { e.preventDefault(); first.focus(); }
+    }
+  }
 
   const fetchPortfolios = async () => {
     try {
@@ -116,15 +146,23 @@ export default function AddToPortfolioModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+    <div
+      ref={dialogRef}
+      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="add-portfolio-modal-title"
+      onKeyDown={handleDialogKeyDown}
+    >
       <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
-          <h2 className="text-xl font-semibold text-gray-900">Add to Portfolio</h2>
+          <h2 id="add-portfolio-modal-title" className="text-xl font-semibold text-gray-900">Add to Portfolio</h2>
           <button
             onClick={onClose}
             className="p-1 hover:bg-gray-100 rounded-full transition-colors"
             disabled={isLoading}
+            aria-label="Close"
           >
             <X className="w-6 h-6 text-gray-600" />
           </button>
@@ -132,7 +170,7 @@ export default function AddToPortfolioModal({
 
         {/* Success Message */}
         {success && (
-          <div className="p-6 bg-green-50 border-b border-green-100">
+          <div className="p-6 bg-green-50 border-b border-green-100" role="status">
             <div className="flex items-center text-green-800">
               <CheckCircle className="w-6 h-6 mr-3" />
               <span className="font-medium">Successfully added {charityName} to your portfolio!</span>
@@ -142,7 +180,7 @@ export default function AddToPortfolioModal({
 
         {/* Error Message */}
         {error && (
-          <div className="p-6 bg-red-50 border-b border-red-100">
+          <div className="p-6 bg-red-50 border-b border-red-100" role="alert">
             <div className="flex items-center text-red-800">
               <AlertCircle className="w-6 h-6 mr-3" />
               <span>{error}</span>

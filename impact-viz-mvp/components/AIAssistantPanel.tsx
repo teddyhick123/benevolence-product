@@ -272,6 +272,7 @@ Just ask me anything, and I'll help you out! If you don't like a change I make, 
           <button
             onClick={onClose}
             className="p-1 hover:bg-white/20 rounded-lg transition-colors"
+            aria-label="Close AI assistant"
           >
             <XMarkIcon className="h-5 w-5" />
           </button>

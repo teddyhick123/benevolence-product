@@ -253,7 +253,7 @@ export default function KpiTrend({ portfolioId, title, config, metric: legacyMet
         {loading ? (
           <div className="w-full h-full bg-neutral-100 rounded animate-pulse" />
         ) : (
-          <svg ref={ref} className="w-full h-full block" />
+          <svg ref={ref} className="w-full h-full block" role="img" aria-label={title ? `${title} trend chart` : (metric ? `${metric} trend chart` : 'KPI trend chart')} />
         )}
       </div>
     </div>

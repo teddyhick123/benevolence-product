@@ -92,13 +92,13 @@ export default function DonorProfileForm({
         </p>
 
         {error && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700" role="alert">
             {error}
           </div>
         )}
 
         {success && (
-          <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-700">
+          <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-700" role="status">
             ✅ Donor profile saved successfully
           </div>
         )}
@@ -106,11 +106,12 @@ export default function DonorProfileForm({
         <div className="space-y-4">
           {/* Date of Birth */}
           <div>
-            <label className="block text-sm font-medium text-neutral-700 mb-2">
+            <label htmlFor="donor-dob" className="block text-sm font-medium text-neutral-700 mb-2">
               Date of Birth
               <span className="ml-1 text-neutral-500 font-normal">(optional)</span>
             </label>
             <input
+              id="donor-dob"
               type="date"
               value={dateOfBirth}
               onChange={(e) => setDateOfBirth(e.target.value)}
@@ -140,11 +141,12 @@ export default function DonorProfileForm({
 
           {/* Filing Status */}
           <div>
-            <label className="block text-sm font-medium text-neutral-700 mb-2">
+            <label htmlFor="donor-filing-status" className="block text-sm font-medium text-neutral-700 mb-2">
               Tax Filing Status
               <span className="ml-1 text-neutral-500 font-normal">(optional)</span>
             </label>
             <select
+              id="donor-filing-status"
               value={filingStatus}
               onChange={(e) => setFilingStatus(e.target.value as DonorFilingStatus)}
               className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
@@ -163,11 +165,12 @@ export default function DonorProfileForm({
 
           {/* Notes */}
           <div>
-            <label className="block text-sm font-medium text-neutral-700 mb-2">
+            <label htmlFor="donor-notes" className="block text-sm font-medium text-neutral-700 mb-2">
               Notes
               <span className="ml-1 text-neutral-500 font-normal">(optional)</span>
             </label>
             <textarea
+              id="donor-notes"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               rows={3}

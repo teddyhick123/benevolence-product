@@ -56,11 +56,14 @@ export function ImportReportViewer({ importJobId }: ImportReportViewerProps) {
         const body = await res.json() as { error?: string };
         throw new Error(body.error ?? 'Failed to generate PDF');
       }
+      const disposition = res.headers.get('Content-Disposition');
+      const match = disposition?.match(/filename="?(.+?)"?$/);
+      const filename = match?.[1] ?? `migration-report-${importJobId}.pdf`;
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `migration-report.pdf`;
+      a.download = filename;
       a.click();
       URL.revokeObjectURL(url);
     } catch (err) {

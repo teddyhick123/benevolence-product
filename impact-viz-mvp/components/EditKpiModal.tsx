@@ -28,6 +28,8 @@ export type EditKpiModalProps = {
 
 export default function EditKpiModal({ portfolioId, initial, open, onClose, onChanged }: EditKpiModalProps) {
   const [mounted, setMounted] = React.useState(false);
+  const dialogRef = React.useRef<HTMLDivElement>(null);
+  const triggerRef = React.useRef<Element | null>(null);
 
   React.useEffect(() => {
     setMounted(true);
@@ -44,6 +46,35 @@ export default function EditKpiModal({ portfolioId, initial, open, onClose, onCh
       };
     }
   }, [open, mounted]);
+
+  // Focus management
+  React.useEffect(() => {
+    if (!mounted) return;
+    if (open) {
+      triggerRef.current = document.activeElement;
+      const first = dialogRef.current?.querySelector<HTMLElement>(
+        'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      );
+      first?.focus();
+    } else {
+      (triggerRef.current as HTMLElement | null)?.focus?.();
+    }
+  }, [open, mounted]);
+
+  function handleDialogKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
+    if (e.key !== 'Tab') return;
+    const focusable = dialogRef.current?.querySelectorAll<HTMLElement>(
+      'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    );
+    if (!focusable || focusable.length === 0) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (e.shiftKey) {
+      if (document.activeElement === first) { e.preventDefault(); last.focus(); }
+    } else {
+      if (document.activeElement === last) { e.preventDefault(); first.focus(); }
+    }
+  }
 
   const isEditing = Boolean(initial?.id);
 
@@ -144,10 +175,12 @@ export default function EditKpiModal({ portfolioId, initial, open, onClose, onCh
 
   return createPortal(
     <div
+      ref={dialogRef}
       className={clsx('fixed inset-0 z-[10000] flex items-start justify-center p-4 sm:p-6', 'bg-black/30 backdrop-blur-[1px]')}
       role="dialog"
       aria-modal="true"
       aria-labelledby="edit-kpi-title"
+      onKeyDown={handleDialogKeyDown}
       onClick={(e) => { if (e.target === e.currentTarget) close(); }}
     >
       <div className="w-full max-w-xl rounded-2xl bg-white shadow-xl ring-1 ring-black/10">
@@ -167,7 +200,7 @@ export default function EditKpiModal({ portfolioId, initial, open, onClose, onCh
 
         <form onSubmit={handleSubmit} className="p-4 space-y-3">
           {error ? (
-            <div className="text-sm rounded-md bg-red-50 text-red-700 px-3 py-2 border border-red-200">{error}</div>
+            <div className="text-sm rounded-md bg-red-50 text-red-700 px-3 py-2 border border-red-200" role="alert">{error}</div>
           ) : null}
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

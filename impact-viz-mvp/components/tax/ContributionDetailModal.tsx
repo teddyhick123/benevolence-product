@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   CONTRIBUTION_TYPE_LABELS,
   RECIPIENT_TYPE_LABELS,
@@ -62,6 +62,8 @@ export default function ContributionDetailModal({
   const [error, setError] = useState<string | null>(null);
   const [docRefresh, setDocRefresh] = useState(0);
   const [showUploader, setShowUploader] = useState(false);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<Element | null>(null);
 
   // Edit form state
   const [formData, setFormData] = useState<Partial<ContributionDetail>>({});
@@ -88,6 +90,33 @@ export default function ContributionDetailModal({
   useEffect(() => {
     fetchContribution();
   }, [portfolioId, contributionId]);
+
+  // Focus management
+  useEffect(() => {
+    triggerRef.current = document.activeElement;
+    const first = dialogRef.current?.querySelector<HTMLElement>(
+      'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    );
+    first?.focus();
+    return () => {
+      (triggerRef.current as HTMLElement | null)?.focus?.();
+    };
+  }, []);
+
+  function handleDialogKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
+    if (e.key !== 'Tab') return;
+    const focusable = dialogRef.current?.querySelectorAll<HTMLElement>(
+      'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    );
+    if (!focusable || focusable.length === 0) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (e.shiftKey) {
+      if (document.activeElement === first) { e.preventDefault(); last.focus(); }
+    } else {
+      if (document.activeElement === last) { e.preventDefault(); first.focus(); }
+    }
+  }
 
   // Callback for document upload completion
   const handleUploadComplete = useCallback(() => {
@@ -175,12 +204,19 @@ export default function ContributionDetailModal({
   );
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+    <div
+      ref={dialogRef}
+      className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="contribution-detail-title"
+      onKeyDown={handleDialogKeyDown}
+    >
       <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
           <div>
-            <h2 className="text-2xl font-bold text-gray-900">
+            <h2 id="contribution-detail-title" className="text-2xl font-bold text-gray-900">
               {contribution.recipient_name}
             </h2>
             <p className="text-sm text-gray-600 mt-1">
@@ -200,8 +236,9 @@ export default function ContributionDetailModal({
                 <button
                   onClick={onClose}
                   className="text-gray-400 hover:text-gray-600"
+                  aria-label="Close"
                 >
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                   </svg>
                 </button>
@@ -230,7 +267,7 @@ export default function ContributionDetailModal({
         {/* Content */}
         <div className="px-6 py-6 space-y-6">
           {error && editing && (
-            <div className="p-3 bg-red-50 border border-red-200 rounded-md text-sm text-red-700">
+            <div className="p-3 bg-red-50 border border-red-200 rounded-md text-sm text-red-700" role="alert">
               {error}
             </div>
           )}

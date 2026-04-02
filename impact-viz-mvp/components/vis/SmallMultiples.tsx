@@ -308,6 +308,8 @@ function SmallChart({ holding, height, showBenchmark, benchmarkValue, onClick }:
           height={height}
           className="w-full"
           preserveAspectRatio="none"
+          role="img"
+          aria-label={`${holding.holdingName} trend sparkline`}
         />
       </div>
 

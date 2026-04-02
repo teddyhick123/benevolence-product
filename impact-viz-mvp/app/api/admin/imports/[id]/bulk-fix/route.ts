@@ -107,20 +107,28 @@ export async function POST(
 
   const supabase = createAdminClient();
 
-  // Fetch all invalid rows for this job+entity
+  // Fetch all invalid rows for this job+entity (no hard cap)
   const { data: rows, error: fetchError } = await supabase
     .from(stagingTable)
     .select('id, transformed_data, validation_errors, validation_status')
     .eq('import_job_id', importJobId)
-    .in('validation_status', ['invalid', 'warning'])
-    .limit(5000);
+    .in('validation_status', ['invalid', 'warning']);
 
   if (fetchError) {
     return Response.json({ error: fetchError.message }, { status: 500 });
   }
 
+  const total = (rows ?? []).length;
   let fixed = 0;
   let still_failing = 0;
+  const now = new Date().toISOString();
+  const updates: Array<{
+    id: string;
+    transformed_data: Record<string, unknown>;
+    validation_errors: Array<{ field: string }>;
+    validation_status: string;
+    updated_at: string;
+  }> = [];
 
   for (const row of rows ?? []) {
     const errors = (row.validation_errors as Array<{ field: string }> | null) ?? [];
@@ -135,25 +143,31 @@ export async function POST(
       continue;
     }
 
-    // Apply the fix to transformed_data
     const updatedTransformed = { ...transformed, [field]: fixedValue };
-
-    // Remove the fixed field's errors; keep others
     const remainingErrors = errors.filter((e) => e.field !== field);
     const newStatus = remainingErrors.length === 0 ? 'valid' : row.validation_status;
 
-    await supabase
-      .from(stagingTable)
-      .update({
-        transformed_data: updatedTransformed,
-        validation_errors: remainingErrors,
-        validation_status: newStatus,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', row.id);
-
+    updates.push({
+      id: row.id,
+      transformed_data: updatedTransformed,
+      validation_errors: remainingErrors,
+      validation_status: newStatus,
+      updated_at: now,
+    });
     fixed++;
   }
 
-  return Response.json({ fixed, still_failing });
+  // Bulk upsert in chunks of 500
+  const chunkSize = 500;
+  for (let i = 0; i < updates.length; i += chunkSize) {
+    const chunk = updates.slice(i, i + chunkSize);
+    const { error: upsertError } = await supabase
+      .from(stagingTable)
+      .upsert(chunk, { onConflict: 'id' });
+    if (upsertError) {
+      return Response.json({ error: upsertError.message }, { status: 500 });
+    }
+  }
+
+  return Response.json({ total, fixed, still_failing });
 }

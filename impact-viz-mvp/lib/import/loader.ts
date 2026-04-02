@@ -126,7 +126,7 @@ async function loadPhase(
   };
 
   const stagingTable = getStagingTable(phase);
-  let offset = 0;
+  let lastId = '';
   let hasMore = true;
 
   while (hasMore) {
@@ -136,7 +136,9 @@ async function loadPhase(
       .eq('import_job_id', importJobId)
       .in('validation_status', ['valid', 'warning'])
       .eq('action_taken', 'pending')
-      .range(offset, offset + batchSize - 1);
+      .gt('id', lastId)
+      .order('id')
+      .limit(batchSize);
 
     if (fetchError) {
       console.error(`[loader] Error fetching ${stagingTable}:`, fetchError.message);
@@ -199,11 +201,11 @@ async function loadPhase(
     ImportProgressEmitter.emit(importJobId, {
       type: 'loading',
       entity: phase,
-      processed: offset + rows.length,
-      message: `Loading ${phase} batch at offset ${offset}`,
+      processed: result.inserted + result.updated + result.skipped + result.failed,
+      message: `Loading ${phase} batch after id ${lastId}`,
     });
 
-    offset += batchSize;
+    lastId = rows[rows.length - 1].id;
     hasMore = rows.length === batchSize;
   }
 

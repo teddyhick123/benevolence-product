@@ -71,14 +71,15 @@ export async function rollbackImport(
       tablesToRevert = PHASE_TABLES[scope];
     }
 
-    // Fetch audit entries in reverse chronological order
+    // Fetch audit entries in reverse chronological order (limit to prevent OOM)
     const { data: auditEntries, error: auditError } = await supabase
       .from('import_audit_log')
       .select('*')
       .eq('import_job_id', importJobId)
       .in('operation', ['insert', 'update'])
       .in('table_name', tablesToRevert)
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      .limit(5000);
 
     if (auditError) {
       throw new Error(`Failed to fetch audit log: ${auditError.message}`);
@@ -86,64 +87,94 @@ export async function rollbackImport(
 
     const entries = (auditEntries ?? []) as AuditLogRow[];
 
-    // Process in reverse order (last operations undone first)
+    // Group entries by table and operation for bulk processing
+    const insertsByTable = new Map<string, AuditLogRow[]>();
+    const updatesByTable = new Map<string, AuditLogRow[]>();
+
     for (const entry of entries) {
-      try {
-        if (entry.operation === 'insert') {
-          // Delete the inserted record
+      if (entry.operation === 'insert') {
+        if (!insertsByTable.has(entry.table_name)) insertsByTable.set(entry.table_name, []);
+        insertsByTable.get(entry.table_name)!.push(entry);
+      } else if (entry.operation === 'update') {
+        if (!updatesByTable.has(entry.table_name)) updatesByTable.set(entry.table_name, []);
+        updatesByTable.get(entry.table_name)!.push(entry);
+      }
+    }
+
+    // Bulk DELETE inserted records per table
+    for (const [tableName, tableEntries] of insertsByTable) {
+      const ids = tableEntries.map(e => e.record_id);
+      const chunkSize = 500;
+      for (let i = 0; i < ids.length; i += chunkSize) {
+        const chunk = ids.slice(i, i + chunkSize);
+        try {
           const { error } = await supabase
-            .from(entry.table_name)
+            .from(tableName)
             .delete()
-            .eq('id', entry.record_id);
-
-          if (error) {
-            throw new Error(error.message);
+            .in('id', chunk);
+          if (error) throw new Error(error.message);
+          result.recordsReverted += chunk.length;
+          for (const entry of tableEntries.slice(i, i + chunkSize)) {
+            auditor.log({
+              tableName: entry.table_name,
+              operation: 'rollback',
+              recordId: entry.record_id,
+              stagingTable: entry.staging_table ?? undefined,
+              stagingRowId: entry.staging_row_id ?? undefined,
+            });
           }
-
-          auditor.log({
-            tableName: entry.table_name,
-            operation: 'rollback',
-            recordId: entry.record_id,
-            stagingTable: entry.staging_table ?? undefined,
-            stagingRowId: entry.staging_row_id ?? undefined,
-          });
-          result.recordsReverted++;
-        } else if (entry.operation === 'update') {
-          // Restore previous state
-          const dataBefore = entry.data_snapshot?.before;
-          if (!dataBefore) {
-            result.recordsSkipped++;
-            continue;
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          for (const entry of tableEntries.slice(i, i + chunkSize)) {
+            result.errors.push({ recordId: entry.record_id, table: tableName, message });
           }
-
-          // Remove metadata fields that shouldn't be set directly
-          const restorePayload = { ...dataBefore };
-          delete restorePayload.id;
-          delete restorePayload.created_at;
-
-          const { error } = await supabase
-            .from(entry.table_name)
-            .update(restorePayload)
-            .eq('id', entry.record_id);
-
-          if (error) {
-            throw new Error(error.message);
-          }
-
-          auditor.log({
-            tableName: entry.table_name,
-            operation: 'rollback',
-            recordId: entry.record_id,
-            stagingTable: entry.staging_table ?? undefined,
-            stagingRowId: entry.staging_row_id ?? undefined,
-            dataAfter: dataBefore,
-          });
-          result.recordsReverted++;
         }
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        result.errors.push({ recordId: entry.record_id, table: entry.table_name, message });
-        // Continue rolling back other records on error
+      }
+    }
+
+    // Bulk upsert (restore) updated records per table
+    for (const [tableName, tableEntries] of updatesByTable) {
+      const restorePayloads: Array<Record<string, unknown>> = [];
+      const skippedEntries: AuditLogRow[] = [];
+
+      for (const entry of tableEntries) {
+        const dataBefore = entry.data_snapshot?.before;
+        if (!dataBefore) {
+          result.recordsSkipped++;
+          skippedEntries.push(entry);
+          continue;
+        }
+        const payload: Record<string, unknown> = { ...dataBefore, id: entry.record_id };
+        delete payload['created_at'];
+        restorePayloads.push(payload);
+      }
+
+      const chunkSize = 500;
+      for (let i = 0; i < restorePayloads.length; i += chunkSize) {
+        const chunk = restorePayloads.slice(i, i + chunkSize);
+        try {
+          const { error } = await supabase
+            .from(tableName)
+            .upsert(chunk, { onConflict: 'id' });
+          if (error) throw new Error(error.message);
+          result.recordsReverted += chunk.length;
+          for (const entry of tableEntries.slice(i, i + chunkSize)) {
+            if (skippedEntries.includes(entry)) continue;
+            auditor.log({
+              tableName: entry.table_name,
+              operation: 'rollback',
+              recordId: entry.record_id,
+              stagingTable: entry.staging_table ?? undefined,
+              stagingRowId: entry.staging_row_id ?? undefined,
+              dataAfter: entry.data_snapshot?.before,
+            });
+          }
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          for (const entry of tableEntries.slice(i, i + chunkSize)) {
+            result.errors.push({ recordId: entry.record_id, table: tableName, message });
+          }
+        }
       }
     }
 

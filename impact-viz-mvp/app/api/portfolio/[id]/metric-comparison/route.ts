@@ -61,25 +61,41 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
     );
   }
 
-  // For each holding, get metric data
+  const holdingIds = holdings.map(h => h.id);
+  const startDateStr = startDate.toISOString().split('T')[0];
+
+  // Single batched query for all holdings
+  const { data: rows, error: metricsErr } = await supabase
+    .from('metric_facts')
+    .select('holding_id, period_end, value')
+    .in('holding_id', holdingIds)
+    .eq('metric_code', metricCode)
+    .gte('period_end', startDateStr)
+    .order('period_end');
+
+  if (metricsErr) {
+    return NextResponse.json(
+      { error: metricsErr.message },
+      { status: 500, headers: { 'Cache-Control': 'no-store' } }
+    );
+  }
+
+  // Group by holding_id in memory
+  const byHolding = new Map<string, Array<{ period_end: string; value: number }>>();
+  for (const row of rows ?? []) {
+    if (!byHolding.has(row.holding_id)) byHolding.set(row.holding_id, []);
+    byHolding.get(row.holding_id)!.push({ period_end: row.period_end, value: row.value });
+  }
+
+  const holdingMap = new Map(holdings.map(h => [h.id, h]));
   const comparisonData = [];
 
-  for (const holding of holdings) {
-    const { data: metrics, error: metricsErr } = await supabase
-      .from('metric_facts')
-      .select('period_end, value')
-      .eq('holding_id', holding.id)
-      .eq('metric_code', metricCode)
-      .gte('period_end', startDate.toISOString().split('T')[0])
-      .order('period_end', { ascending: true });
+  for (const [holdingId, points] of byHolding) {
+    if (points.length === 0) continue;
+    const holding = holdingMap.get(holdingId);
+    if (!holding) continue;
 
-    if (metricsErr || !metrics || metrics.length === 0) {
-      // Skip holdings without data for this metric
-      continue;
-    }
-
-    // Calculate trend and percent change
-    const data = metrics.map((m: any) => ({
+    const data = points.map(m => ({
       date: m.period_end,
       value: Number(m.value) || 0
     }));

@@ -83,10 +83,13 @@ export async function GET(
     users: 'staging_import_users',
   };
 
-  const entityCounts: Record<string, EntityStats> = {};
-  for (const [entity, table] of Object.entries(stagingTables)) {
-    entityCounts[entity] = await countStagingRows(supabase, importJobId, table);
-  }
+  const entityCountEntries = await Promise.all(
+    Object.entries(stagingTables).map(async ([entity, table]) => {
+      const counts = await countStagingRows(supabase, importJobId, table);
+      return [entity, counts] as const;
+    })
+  );
+  const entityCounts: Record<string, EntityStats> = Object.fromEntries(entityCountEntries);
 
   // Build financial reconciliation from reconciliation_data
   const recon = (jobData.reconciliation_data as Record<string, unknown> | null) ?? {};

@@ -196,17 +196,11 @@ async function reconcileContributions(
     .eq('import_job_id', importJobId)
     .eq('action_taken', 'error');
 
-  // Source amount total from staging transformed_data
-  const { data: stagingRows } = await supabase
-    .from('staging_import_contributions')
-    .select('transformed_data')
-    .eq('import_job_id', importJobId)
-    .in('validation_status', ['valid', 'warning']);
-
-  const sourceTotalAmount = (stagingRows ?? []).reduce((sum: number, r: { transformed_data: Record<string, unknown> | null }) => {
-    const amount = r.transformed_data?.amount_usd;
-    return sum + (typeof amount === 'number' ? amount : parseFloat(String(amount ?? 0)) || 0);
-  }, 0);
+  // Source amount total — push SUM to PostgreSQL to avoid loading all JSONB blobs
+  const { data: sumResult } = await supabase.rpc('sum_contribution_amounts', {
+    p_import_job_id: importJobId,
+  });
+  const sourceTotalAmount = (sumResult as Array<{ total: number }> | null)?.[0]?.total ?? 0;
 
   // Loaded amount total from tax_contributions
   const { data: loadedIds } = await supabase
@@ -222,11 +216,19 @@ async function reconcileContributions(
 
   let loadedTotalAmount = 0;
   if (taxIds.length > 0) {
-    const { data: taxRows } = await supabase
-      .from('tax_contributions')
-      .select('amount_usd')
-      .in('id', taxIds);
-    loadedTotalAmount = (taxRows ?? []).reduce((sum: number, r: { amount_usd: number | null }) => sum + (r.amount_usd ?? 0), 0);
+    // Chunk to avoid PostgREST URL limits
+    const chunkSize = 500;
+    for (let i = 0; i < taxIds.length; i += chunkSize) {
+      const chunk = taxIds.slice(i, i + chunkSize);
+      const { data: taxRows } = await supabase
+        .from('tax_contributions')
+        .select('amount_usd')
+        .in('id', chunk);
+      loadedTotalAmount += (taxRows ?? []).reduce(
+        (sum: number, r: { amount_usd: number | null }) => sum + (r.amount_usd ?? 0),
+        0
+      );
+    }
   }
 
   const amountDelta = Math.abs(sourceTotalAmount - loadedTotalAmount);

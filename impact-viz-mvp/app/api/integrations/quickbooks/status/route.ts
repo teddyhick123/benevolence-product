@@ -1,6 +1,6 @@
 // app/api/integrations/quickbooks/status/route.ts
-// GET /api/integrations/quickbooks/status?portfolio_id=<uuid>
-// Returns the current connection status and metadata for the portfolio.
+// GET /api/integrations/quickbooks/status?org_id=<uuid>
+// Returns the current connection status and metadata for the org.
 
 import { createServerClient } from '@/lib/supabase';
 
@@ -14,16 +14,27 @@ export async function GET(req: Request): Promise<Response> {
   }
 
   const { searchParams } = new URL(req.url);
-  const portfolioId = searchParams.get('portfolio_id');
-  if (!portfolioId) {
-    return Response.json({ error: 'portfolio_id is required' }, { status: 400 });
+  const orgId = searchParams.get('org_id');
+  if (!orgId) {
+    return Response.json({ error: 'org_id is required' }, { status: 400 });
   }
 
-  // RLS will naturally restrict to portfolios the user belongs to
+  // Confirm user is a member of this org
+  const { data: membership } = await supabase
+    .from('organization_members')
+    .select('id')
+    .eq('org_id', orgId)
+    .eq('user_id', user.id)
+    .single();
+
+  if (!membership) {
+    return Response.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
   const { data: connection } = await supabase
     .from('quickbooks_connections')
     .select('realm_id, connected_at, last_sync_at, token_expiry')
-    .eq('portfolio_id', portfolioId)
+    .eq('org_id', orgId)
     .single();
 
   if (!connection) {

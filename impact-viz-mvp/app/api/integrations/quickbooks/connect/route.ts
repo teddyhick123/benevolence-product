@@ -1,5 +1,5 @@
 // app/api/integrations/quickbooks/connect/route.ts
-// GET /api/integrations/quickbooks/connect?portfolio_id=<uuid>
+// GET /api/integrations/quickbooks/connect?org_id=<uuid>
 // Redirects the authenticated user to Intuit's OAuth authorization page.
 
 import { NextResponse } from 'next/server';
@@ -16,16 +16,16 @@ export async function GET(req: Request): Promise<NextResponse> {
   }
 
   const { searchParams } = new URL(req.url);
-  const portfolioId = searchParams.get('portfolio_id');
-  if (!portfolioId) {
-    return NextResponse.json({ error: 'portfolio_id is required' }, { status: 400 });
+  const orgId = searchParams.get('org_id');
+  if (!orgId) {
+    return NextResponse.json({ error: 'org_id is required' }, { status: 400 });
   }
 
-  // Confirm user is a member of this portfolio
+  // Confirm user is a member of this org
   const { data: membership } = await supabase
-    .from('portfolio_members')
+    .from('organization_members')
     .select('id')
-    .eq('portfolio_id', portfolioId)
+    .eq('org_id', orgId)
     .eq('user_id', user.id)
     .single();
 
@@ -38,8 +38,8 @@ export async function GET(req: Request): Promise<NextResponse> {
   // Generate a CSRF nonce to validate in the callback
   const nonce = crypto.randomUUID();
 
-  // Encode portfolio_id, userId, and nonce in the OAuth state parameter
-  const state = Buffer.from(JSON.stringify({ portfolioId, userId: user.id, nonce })).toString(
+  // Encode orgId, userId, and nonce in the OAuth state parameter
+  const state = Buffer.from(JSON.stringify({ orgId, userId: user.id, nonce })).toString(
     'base64url'
   );
 

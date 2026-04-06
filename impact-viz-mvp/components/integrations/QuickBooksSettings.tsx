@@ -22,13 +22,13 @@ interface QBAccount {
 }
 
 interface Props {
-  portfolioId: string;
+  orgId: string;
 }
 
 const currentYear = new Date().getFullYear();
 const YEAR_OPTIONS = Array.from({ length: 5 }, (_, i) => currentYear - i);
 
-export default function QuickBooksSettings({ portfolioId }: Props) {
+export default function QuickBooksSettings({ orgId }: Props) {
   const [status, setStatus] = useState<QBStatus | null>(null);
   const [accounts, setAccounts] = useState<QBAccount[]>([]);
   const [loading, setLoading] = useState(true);
@@ -46,7 +46,7 @@ export default function QuickBooksSettings({ portfolioId }: Props) {
     setLoading(true);
     try {
       const res = await fetch(
-        `/api/integrations/quickbooks/status?portfolio_id=${portfolioId}`
+        `/api/integrations/quickbooks/status?org_id=${orgId}`
       );
       const data = (await res.json()) as QBStatus;
       setStatus(data);
@@ -57,7 +57,7 @@ export default function QuickBooksSettings({ portfolioId }: Props) {
     } finally {
       setLoading(false);
     }
-  }, [portfolioId]);
+  }, [orgId]);
 
   useEffect(() => {
     void fetchStatus().then((s) => {
@@ -85,7 +85,7 @@ export default function QuickBooksSettings({ portfolioId }: Props) {
   }
 
   async function handleConnect() {
-    window.location.href = `/api/integrations/quickbooks/connect?portfolio_id=${portfolioId}`;
+    window.location.href = `/api/integrations/quickbooks/connect?org_id=${orgId}`;
   }
 
   async function handleDisconnect() {
@@ -95,7 +95,7 @@ export default function QuickBooksSettings({ portfolioId }: Props) {
       const res = await fetch('/api/integrations/quickbooks/disconnect', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ portfolio_id: portfolioId }),
+        body: JSON.stringify({ org_id: orgId }),
       });
       if (res.ok) {
         showMsg('success', 'Disconnected from QuickBooks.');
@@ -116,7 +116,7 @@ export default function QuickBooksSettings({ portfolioId }: Props) {
       const res = await fetch('/api/integrations/quickbooks/sync/accounts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ portfolio_id: portfolioId }),
+        body: JSON.stringify({ org_id: orgId }),
       });
       const d = (await res.json()) as { ok?: boolean; synced?: number; error?: string };
       if (d.ok) {
@@ -135,7 +135,7 @@ export default function QuickBooksSettings({ portfolioId }: Props) {
   async function loadAccounts() {
     try {
       const res = await fetch(
-        `/api/integrations/quickbooks/accounts?portfolio_id=${portfolioId}`
+        `/api/integrations/quickbooks/accounts?org_id=${orgId}`
       );
       if (res.ok) {
         const d = (await res.json()) as { accounts?: QBAccount[] };
@@ -157,7 +157,7 @@ export default function QuickBooksSettings({ portfolioId }: Props) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          portfolio_id: portfolioId,
+          org_id: orgId,
           tax_year: exportYear,
           expense_account_id: expenseAccountId,
           bank_account_id: bankAccountId,
@@ -194,7 +194,7 @@ export default function QuickBooksSettings({ portfolioId }: Props) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          portfolio_id: portfolioId,
+          org_id: orgId,
           expense_account_id: expenseAccountId,
           bank_account_id: bankAccountId,
         }),
@@ -401,7 +401,7 @@ export default function QuickBooksSettings({ portfolioId }: Props) {
                 <div className="flex-1">
                   <p className="text-sm font-medium text-gray-800">Export Contributions</p>
                   <p className="text-xs text-gray-500">
-                    Create journal entries for charitable contributions
+                    Create journal entries for charitable contributions across all portfolios
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -432,7 +432,7 @@ export default function QuickBooksSettings({ portfolioId }: Props) {
               <div>
                 <p className="text-sm font-medium text-gray-800">Export Grants</p>
                 <p className="text-xs text-gray-500">
-                  Create journal entries for all portfolio grants
+                  Create journal entries for all org grants
                 </p>
               </div>
               <button

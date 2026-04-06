@@ -1,19 +1,19 @@
 // app/api/integrations/quickbooks/export/contributions/route.ts
 // POST /api/integrations/quickbooks/export/contributions
-// Body: { portfolio_id: string; tax_year: number; expense_account_id: string; bank_account_id: string }
+// Body: { org_id: string; tax_year: number; expense_account_id: string; bank_account_id: string }
 //
-// Reads contributions from v_tax_contributions_enriched for the given tax year
+// Fetches contributions across ALL portfolios belonging to the org for the given tax year
 // and creates Journal Entries in QuickBooks (debit Expense, credit Bank).
 
 import { createServerClient } from '@/lib/supabase';
 import {
-  getAuthenticatedQBClient,
+  getAuthenticatedQBClientByOrg,
   createJournalEntryAsync,
   QBJournalEntry,
 } from '@/lib/integrations/quickbooks/client';
 
 interface ExportBody {
-  portfolio_id?: string;
+  org_id?: string;
   tax_year?: number;
   expense_account_id?: string;
   bank_account_id?: string;
@@ -37,23 +37,23 @@ export async function POST(req: Request): Promise<Response> {
   }
 
   const body = (await req.json().catch(() => ({}))) as ExportBody;
-  const { portfolio_id: portfolioId, tax_year: taxYear, expense_account_id, bank_account_id } =
-    body;
+  const { org_id: orgId, tax_year: taxYear, expense_account_id, bank_account_id } = body;
 
-  if (!portfolioId || !taxYear || !expense_account_id || !bank_account_id) {
+  if (!orgId || !taxYear || !expense_account_id || !bank_account_id) {
     return Response.json(
       {
         error:
-          'portfolio_id, tax_year, expense_account_id, and bank_account_id are required',
+          'org_id, tax_year, expense_account_id, and bank_account_id are required',
       },
       { status: 400 }
     );
   }
 
+  // Confirm user is a member of this org
   const { data: membership } = await supabase
-    .from('portfolio_members')
+    .from('organization_members')
     .select('id')
-    .eq('portfolio_id', portfolioId)
+    .eq('org_id', orgId)
     .eq('user_id', user.id)
     .single();
 
@@ -61,16 +61,28 @@ export async function POST(req: Request): Promise<Response> {
     return Response.json({ error: 'Forbidden' }, { status: 403 });
   }
 
-  // Fetch contributions for the given year
+  // Fetch all portfolio IDs belonging to this org
+  const { data: portfolios, error: portfolioError } = await supabase
+    .from('portfolios')
+    .select('id')
+    .eq('org_id', orgId);
+
+  if (portfolioError || !portfolios || portfolios.length === 0) {
+    return Response.json({ ok: true, exported: 0, message: 'No portfolios found for this org' });
+  }
+
+  const portfolioIds = portfolios.map((p) => p.id);
+
+  // Fetch contributions across all org portfolios for the given tax year
   const { data: contributions, error: fetchError } = await supabase
     .from('v_tax_contributions_enriched')
     .select(
       'id, contribution_date, recipient_name, amount_usd, calculated_deductible_amount'
     )
-    .eq('portfolio_id', portfolioId)
+    .in('portfolio_id', portfolioIds)
     .eq('tax_year', taxYear)
     .order('contribution_date')
-    .limit(1000);
+    .limit(2000);
 
   if (fetchError) {
     return Response.json({ error: 'Failed to fetch contributions' }, { status: 500 });
@@ -80,7 +92,7 @@ export async function POST(req: Request): Promise<Response> {
     return Response.json({ ok: true, exported: 0, message: 'No contributions found for this year' });
   }
 
-  const qbResult = await getAuthenticatedQBClient(portfolioId);
+  const qbResult = await getAuthenticatedQBClientByOrg(orgId);
   if (!qbResult) {
     return Response.json(
       { error: 'QuickBooks not connected or token refresh failed' },

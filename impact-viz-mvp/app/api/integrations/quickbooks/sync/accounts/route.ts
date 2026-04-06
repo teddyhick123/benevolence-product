@@ -1,11 +1,11 @@
 // app/api/integrations/quickbooks/sync/accounts/route.ts
 // POST /api/integrations/quickbooks/sync/accounts
-// Body: { portfolio_id: string }
+// Body: { org_id: string }
 // Fetches the Chart of Accounts from QuickBooks and upserts into qb_accounts.
 
 import { createServerClient, createAdminClient } from '@/lib/supabase';
 import {
-  getAuthenticatedQBClient,
+  getAuthenticatedQBClientByOrg,
   findAccountsAsync,
 } from '@/lib/integrations/quickbooks/client';
 
@@ -18,16 +18,16 @@ export async function POST(req: Request): Promise<Response> {
     return Response.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const body = (await req.json().catch(() => ({}))) as { portfolio_id?: string };
-  const portfolioId = body.portfolio_id;
-  if (!portfolioId) {
-    return Response.json({ error: 'portfolio_id is required' }, { status: 400 });
+  const body = (await req.json().catch(() => ({}))) as { org_id?: string };
+  const orgId = body.org_id;
+  if (!orgId) {
+    return Response.json({ error: 'org_id is required' }, { status: 400 });
   }
 
   const { data: membership } = await supabase
-    .from('portfolio_members')
+    .from('organization_members')
     .select('id')
-    .eq('portfolio_id', portfolioId)
+    .eq('org_id', orgId)
     .eq('user_id', user.id)
     .single();
 
@@ -35,7 +35,7 @@ export async function POST(req: Request): Promise<Response> {
     return Response.json({ error: 'Forbidden' }, { status: 403 });
   }
 
-  const qbResult = await getAuthenticatedQBClient(portfolioId);
+  const qbResult = await getAuthenticatedQBClientByOrg(orgId);
   if (!qbResult) {
     return Response.json(
       { error: 'QuickBooks not connected or token refresh failed' },
@@ -56,7 +56,7 @@ export async function POST(req: Request): Promise<Response> {
   const now = new Date().toISOString();
 
   const rows = accounts.map((a) => ({
-    portfolio_id: portfolioId,
+    org_id: orgId,
     qb_account_id: a.Id,
     name: a.Name,
     type: a.AccountType,
@@ -67,10 +67,10 @@ export async function POST(req: Request): Promise<Response> {
 
   const adminSupabase = createAdminClient();
 
-  // Upsert all accounts; ignore conflicts on (portfolio_id, qb_account_id)
+  // Upsert all accounts; conflict on (org_id, qb_account_id)
   const { error: upsertError } = await adminSupabase
     .from('qb_accounts')
-    .upsert(rows, { onConflict: 'portfolio_id,qb_account_id' });
+    .upsert(rows, { onConflict: 'org_id,qb_account_id' });
 
   if (upsertError) {
     console.error('[QB] qb_accounts upsert error:', upsertError);
@@ -81,7 +81,7 @@ export async function POST(req: Request): Promise<Response> {
   await adminSupabase
     .from('quickbooks_connections')
     .update({ last_sync_at: now })
-    .eq('portfolio_id', portfolioId);
+    .eq('org_id', orgId);
 
   return Response.json({ ok: true, synced: rows.length });
 }

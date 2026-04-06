@@ -1,18 +1,18 @@
 // app/api/integrations/quickbooks/export/grants/route.ts
 // POST /api/integrations/quickbooks/export/grants
-// Body: { portfolio_id: string; expense_account_id: string; bank_account_id: string; since?: string }
+// Body: { org_id: string; expense_account_id: string; bank_account_id: string; since?: string }
 //
-// Reads grants (holdings with grant_details) and creates Journal Entries in QuickBooks.
+// Reads grants across ALL portfolios belonging to the org and creates Journal Entries in QuickBooks.
 
 import { createServerClient } from '@/lib/supabase';
 import {
-  getAuthenticatedQBClient,
+  getAuthenticatedQBClientByOrg,
   createJournalEntryAsync,
   QBJournalEntry,
 } from '@/lib/integrations/quickbooks/client';
 
 interface ExportGrantsBody {
-  portfolio_id?: string;
+  org_id?: string;
   expense_account_id?: string;
   bank_account_id?: string;
   /** ISO date string — only export grants whose period started on or after this date */
@@ -37,19 +37,20 @@ export async function POST(req: Request): Promise<Response> {
   }
 
   const body = (await req.json().catch(() => ({}))) as ExportGrantsBody;
-  const { portfolio_id: portfolioId, expense_account_id, bank_account_id, since } = body;
+  const { org_id: orgId, expense_account_id, bank_account_id, since } = body;
 
-  if (!portfolioId || !expense_account_id || !bank_account_id) {
+  if (!orgId || !expense_account_id || !bank_account_id) {
     return Response.json(
-      { error: 'portfolio_id, expense_account_id, and bank_account_id are required' },
+      { error: 'org_id, expense_account_id, and bank_account_id are required' },
       { status: 400 }
     );
   }
 
+  // Confirm user is a member of this org
   const { data: membership } = await supabase
-    .from('portfolio_members')
+    .from('organization_members')
     .select('id')
-    .eq('portfolio_id', portfolioId)
+    .eq('org_id', orgId)
     .eq('user_id', user.id)
     .single();
 
@@ -57,7 +58,19 @@ export async function POST(req: Request): Promise<Response> {
     return Response.json({ error: 'Forbidden' }, { status: 403 });
   }
 
-  // Fetch holdings that have grant_details, along with grant period info
+  // Fetch all portfolio IDs belonging to this org
+  const { data: portfolios } = await supabase
+    .from('portfolios')
+    .select('id')
+    .eq('org_id', orgId);
+
+  if (!portfolios || portfolios.length === 0) {
+    return Response.json({ ok: true, exported: 0, message: 'No portfolios found for this org' });
+  }
+
+  const portfolioIds = portfolios.map((p) => p.id);
+
+  // Fetch holdings with grant_details across all org portfolios
   let query = supabase
     .from('holdings')
     .select(
@@ -66,10 +79,10 @@ export async function POST(req: Request): Promise<Response> {
        total_committed,
        grant_details!inner(grant_period_start, grant_period_end)`
     )
-    .eq('portfolio_id', portfolioId)
+    .in('portfolio_id', portfolioIds)
     .not('total_committed', 'is', null)
     .gt('total_committed', 0)
-    .limit(1000);
+    .limit(2000);
 
   if (since) {
     query = query.gte('grant_details.grant_period_start', since);
@@ -86,7 +99,7 @@ export async function POST(req: Request): Promise<Response> {
     return Response.json({ ok: true, exported: 0, message: 'No grants found' });
   }
 
-  const qbResult = await getAuthenticatedQBClient(portfolioId);
+  const qbResult = await getAuthenticatedQBClientByOrg(orgId);
   if (!qbResult) {
     return Response.json(
       { error: 'QuickBooks not connected or token refresh failed' },

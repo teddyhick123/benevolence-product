@@ -21,15 +21,24 @@ async function requireAdmin(): Promise<string | null> {
   return adminRow ? user.id : null;
 }
 
-export async function GET(_req: NextRequest) {
+export async function GET(req: NextRequest) {
   const userId = await requireAdmin();
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
+  const { searchParams } = new URL(req.url);
+  const orgId = searchParams.get('org_id');
+
   const supabase = createAdminClient();
-  const { data, error } = await supabase
+  let query = supabase
     .from('import_mapping_profiles')
     .select('*')
     .order('name');
+
+  if (orgId) {
+    query = query.eq('org_id', orgId);
+  }
+
+  const { data, error } = await query;
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
@@ -41,7 +50,7 @@ export async function POST(req: NextRequest) {
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const body = await req.json();
-  const { id, name, source_system, description, entity_mappings } = body;
+  const { id, name, source_system, description, entity_mappings, org_id } = body;
 
   if (!name || !source_system || !entity_mappings) {
     return NextResponse.json(
@@ -56,7 +65,7 @@ export async function POST(req: NextRequest) {
     // Update existing
     const { data, error } = await supabase
       .from('import_mapping_profiles')
-      .update({ name, source_system, description, entity_mappings })
+      .update({ name, source_system, description, entity_mappings, org_id: org_id || null })
       .eq('id', id)
       .select()
       .single();
@@ -67,7 +76,7 @@ export async function POST(req: NextRequest) {
     // Create new
     const { data, error } = await supabase
       .from('import_mapping_profiles')
-      .insert({ name, source_system, description, entity_mappings, created_by: userId })
+      .insert({ name, source_system, description, entity_mappings, org_id: org_id || null, created_by: userId })
       .select()
       .single();
 

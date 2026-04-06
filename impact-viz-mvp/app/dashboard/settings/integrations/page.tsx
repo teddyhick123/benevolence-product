@@ -21,20 +21,20 @@ export default async function IntegrationsSettingsPage({
     redirect('/login');
   }
 
-  // Resolve the active portfolio from membership
+  // Resolve the active org from membership
   const { data: memberships } = await supabase
-    .from('portfolio_members')
-    .select('portfolio_id, role, portfolios(id, name)')
+    .from('organization_members')
+    .select('org_id, role, organizations(id, name)')
     .eq('user_id', user.id)
     .order('role')
     .limit(1);
 
-  const portfolioId = memberships?.[0]?.portfolio_id;
+  const orgId = memberships?.[0]?.org_id;
 
-  if (!portfolioId) {
+  if (!orgId) {
     return (
       <div className="mx-auto max-w-2xl px-4 py-12">
-        <p className="text-sm text-gray-500">No portfolio found. Please contact your administrator.</p>
+        <p className="text-sm text-gray-500">No organization found. Please contact your administrator.</p>
       </div>
     );
   }
@@ -63,7 +63,7 @@ export default async function IntegrationsSettingsPage({
         </div>
       )}
 
-      <QuickBooksSettings portfolioId={portfolioId} />
+      <QuickBooksSettings orgId={orgId} />
     </div>
   );
 }

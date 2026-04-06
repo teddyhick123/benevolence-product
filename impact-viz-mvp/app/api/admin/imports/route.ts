@@ -64,6 +64,7 @@ export async function POST(req: NextRequest) {
 
   const name = formData.get('name') as string | null;
   const portfolioId = formData.get('portfolio_id') as string | null;
+  const orgId = formData.get('org_id') as string | null;
   const sourceType = (formData.get('source_type') as string | null) ?? 'csv_export';
   const mappingProfileId = formData.get('mapping_profile_id') as string | null;
 
@@ -77,6 +78,7 @@ export async function POST(req: NextRequest) {
     .insert({
       name,
       portfolio_id: portfolioId || null,
+      org_id: orgId || null,
       source_type: sourceType as 'csv_export' | 'blackbaud_api' | 'direct_db',
       mapping_profile_id: mappingProfileId || null,
       status: 'pending',

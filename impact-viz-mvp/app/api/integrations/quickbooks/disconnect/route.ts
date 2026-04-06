@@ -1,6 +1,6 @@
 // app/api/integrations/quickbooks/disconnect/route.ts
 // POST /api/integrations/quickbooks/disconnect
-// Body: { portfolio_id: string }
+// Body: { org_id: string }
 // Revokes the QB OAuth token and removes the stored connection record.
 
 import { createServerClient, createAdminClient } from '@/lib/supabase';
@@ -15,17 +15,17 @@ export async function POST(req: Request): Promise<Response> {
     return Response.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const body = (await req.json().catch(() => ({}))) as { portfolio_id?: string };
-  const portfolioId = body.portfolio_id;
-  if (!portfolioId) {
-    return Response.json({ error: 'portfolio_id is required' }, { status: 400 });
+  const body = (await req.json().catch(() => ({}))) as { org_id?: string };
+  const orgId = body.org_id;
+  if (!orgId) {
+    return Response.json({ error: 'org_id is required' }, { status: 400 });
   }
 
   // Confirm membership
   const { data: membership } = await supabase
-    .from('portfolio_members')
+    .from('organization_members')
     .select('id')
-    .eq('portfolio_id', portfolioId)
+    .eq('org_id', orgId)
     .eq('user_id', user.id)
     .single();
 
@@ -38,7 +38,7 @@ export async function POST(req: Request): Promise<Response> {
   const { data: connection } = await adminSupabase
     .from('quickbooks_connections')
     .select('access_token, refresh_token')
-    .eq('portfolio_id', portfolioId)
+    .eq('org_id', orgId)
     .single();
 
   // Best-effort token revocation — don't fail the whole request if this errors
@@ -60,11 +60,11 @@ export async function POST(req: Request): Promise<Response> {
     adminSupabase
       .from('quickbooks_connections')
       .delete()
-      .eq('portfolio_id', portfolioId),
+      .eq('org_id', orgId),
     adminSupabase
       .from('qb_accounts')
       .delete()
-      .eq('portfolio_id', portfolioId),
+      .eq('org_id', orgId),
   ]);
 
   return Response.json({ ok: true });

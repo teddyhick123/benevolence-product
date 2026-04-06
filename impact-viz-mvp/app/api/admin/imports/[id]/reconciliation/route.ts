@@ -56,10 +56,13 @@ export async function GET(
 
   // Generate on-demand
   const report = await generateReconciliationReport(supabase, id);
-  await supabase
+  const { error: cacheErr } = await supabase
     .from('import_jobs')
     .update({ reconciliation_data: report as unknown as Record<string, unknown> })
     .eq('id', id);
+  if (cacheErr) {
+    console.error('[reconciliation GET] Failed to cache report:', cacheErr);
+  }
 
   return NextResponse.json({ report }, { headers: { 'Cache-Control': 'no-store' } });
 }
@@ -125,7 +128,7 @@ export async function POST(
     ? null
     : 'Reconciliation failed. Review discrepancies.';
 
-  await supabase
+  const { error: updateErr } = await supabase
     .from('import_jobs')
     .update({
       reconciliation_data: reconciliationData,
@@ -133,6 +136,14 @@ export async function POST(
       ...(report.overallSuccess ? { completed_at: new Date().toISOString(), pause_reason: null } : { pause_reason: pauseReason }),
     })
     .eq('id', id);
+
+  if (updateErr) {
+    console.error('[reconciliation POST] Failed to update import job status:', updateErr);
+    return NextResponse.json(
+      { error: 'Reconciliation completed but job status could not be saved.' },
+      { status: 500, headers: { 'Cache-Control': 'no-store' } }
+    );
+  }
 
   return NextResponse.json({ report: reconciliationData }, { headers: { 'Cache-Control': 'no-store' } });
 }

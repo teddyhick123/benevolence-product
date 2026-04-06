@@ -84,7 +84,7 @@ export async function POST(req: Request) {
 
       // Store in import_ai_suggestions
       for (const s of suggestions) {
-        await supabase.from('import_ai_suggestions').upsert({
+        const { error: upsertError } = await supabase.from('import_ai_suggestions').upsert({
           import_job_id,
           staging_table,
           staging_row_id: row.id,
@@ -100,6 +100,9 @@ export async function POST(req: Request) {
         }, {
           onConflict: 'staging_row_id,field',
         });
+        if (upsertError) {
+          console.error(`[ai/suggest] Failed to save suggestion for row ${row.id} field ${s.field}:`, upsertError);
+        }
       }
 
       results.push({ row_id: row.id, suggestions });

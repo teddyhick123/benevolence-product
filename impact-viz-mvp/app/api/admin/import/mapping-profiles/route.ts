@@ -49,7 +49,12 @@ export async function POST(req: NextRequest) {
   const userId = await requireAdmin();
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const body = await req.json();
+  let body: any;
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+  }
   const { id, name, source_system, description, entity_mappings, org_id } = body;
 
   if (!name || !source_system || !entity_mappings) {

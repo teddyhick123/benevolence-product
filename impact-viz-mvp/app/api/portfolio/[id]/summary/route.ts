@@ -71,7 +71,12 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
     return NextResponse.json({ summary: `AI service error: ${txt || res.statusText}` }, { status: 200 });
   }
 
-  const data = await res.json();
+  let data: any;
+  try {
+    data = await res.json();
+  } catch {
+    return NextResponse.json({ summary: 'AI service returned an unreadable response.' });
+  }
   const content = data?.choices?.[0]?.message?.content || 'No summary available.';
   return NextResponse.json({ summary: content });
 }

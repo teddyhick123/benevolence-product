@@ -79,3 +79,44 @@ Access the application at `http://localhost:3000`.
 1.  **Create an Account:** Navigate to your deployed application's URL and create a new user account via the sign-up page.
 2.  **Promote to Admin:** An existing administrator must promote the newly created user to an admin role within the admin panel.
 3.  **Load Demo Data (if not done):** If you haven't already, ensure demo data is loaded to populate the portfolio for the user. This step can also be performed after the user logs in if needed.
+
+## Deploying for a Client
+
+### Quick Start (Automated)
+
+Use the provisioning script to set up a new client deployment in minutes:
+
+```bash
+# Demo environment (uses your current Supabase project)
+pnpm provision --org-name "Ashford Foundation" --admin-email admin@ashford.org --mode demo
+
+# Production environment (creates a new Supabase project)
+SUPABASE_ACCESS_TOKEN=your_token pnpm provision \
+  --org-name "Ashford Foundation" \
+  --admin-email admin@ashford.org \
+  --mode production \
+  --send-invite
+```
+
+This generates:
+- `deployment-ashford-foundation.env` — all environment variables
+- `DEPLOYMENT_CHECKLIST-ashford-foundation.md` — step-by-step deployment guide
+
+### Client Handoff
+
+After deployment, package the codebase for client handoff:
+
+```bash
+pnpm handoff --org-name "Ashford Foundation" --slug ashford-foundation
+```
+
+This creates `handoff-ashford-foundation.zip` with full source code, migrations, and docs.
+
+### Updating Existing Clients
+
+When new migrations are available, apply them to a client deployment:
+
+```bash
+SUPABASE_URL=https://xxx.supabase.co SUPABASE_SERVICE_KEY=xxx \
+pnpm migrate-client --from 0062 --to latest
+```

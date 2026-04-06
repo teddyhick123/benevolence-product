@@ -12,6 +12,7 @@ const supabase = createClient(
 function HeaderContent() {
   const [user, setUser] = useState<any>(null);
   const [portfolioId, setPortfolioId] = useState<string | null>(null);
+  const [orgModules, setOrgModules] = useState<Record<string, boolean>>({});
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const searchParams = useSearchParams();
   const pathname = usePathname();
@@ -42,6 +43,28 @@ function HeaderContent() {
 
     if (user) {
       fetchPortfolio();
+    }
+  }, [user]);
+
+  // Fetch org modules for conditional nav links
+  useEffect(() => {
+    async function fetchOrg() {
+      try {
+        const res = await fetch('/api/org', { cache: 'no-store' });
+        if (res.ok) {
+          const data = await res.json();
+          const firstOrg = data?.organizations?.[0];
+          if (firstOrg?.modules) {
+            setOrgModules(firstOrg.modules);
+          }
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    if (user) {
+      fetchOrg();
     }
   }, [user]);
 
@@ -105,6 +128,24 @@ function HeaderContent() {
               >
                 Tax
               </Link>
+              {orgModules.donors && (
+                <Link
+                  href="/dashboard/donors"
+                  aria-current={pathname.startsWith('/dashboard/donors') ? 'page' : undefined}
+                  className="font-sans text-sm px-4 py-2 rounded-md border border-black/10 hover:bg-white shadow-sm hover:shadow transition-transform duration-200 hover:-translate-y-0.5 will-change-transform rm:transition-none rm:transform-none"
+                >
+                  Donors
+                </Link>
+              )}
+              {orgModules.compliance && (
+                <Link
+                  href="/dashboard/compliance"
+                  aria-current={pathname.startsWith('/dashboard/compliance') ? 'page' : undefined}
+                  className="font-sans text-sm px-4 py-2 rounded-md border border-black/10 hover:bg-white shadow-sm hover:shadow transition-transform duration-200 hover:-translate-y-0.5 will-change-transform rm:transition-none rm:transform-none"
+                >
+                  Compliance
+                </Link>
+              )}
               <Link
                 href="/profile"
                 aria-current={pathname === '/profile' ? 'page' : undefined}
@@ -168,6 +209,24 @@ function HeaderContent() {
             >
               Tax
             </Link>
+            {orgModules.donors && (
+              <Link
+                href="/dashboard/donors"
+                aria-current={pathname.startsWith('/dashboard/donors') ? 'page' : undefined}
+                className="block w-full text-left font-sans text-sm px-4 py-3 rounded-md border border-black/10 hover:bg-white shadow-sm hover:shadow transition-colors"
+              >
+                Donors
+              </Link>
+            )}
+            {orgModules.compliance && (
+              <Link
+                href="/dashboard/compliance"
+                aria-current={pathname.startsWith('/dashboard/compliance') ? 'page' : undefined}
+                className="block w-full text-left font-sans text-sm px-4 py-3 rounded-md border border-black/10 hover:bg-white shadow-sm hover:shadow transition-colors"
+              >
+                Compliance
+              </Link>
+            )}
             <Link
               href="/profile"
               aria-current={pathname === '/profile' ? 'page' : undefined}

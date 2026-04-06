@@ -37,27 +37,27 @@ export async function GET(req: Request): Promise<NextResponse> {
     .find((c) => c.startsWith('qb_oauth_nonce='))
     ?.split('=')[1];
 
-  let portfolioId: string;
+  let orgId: string;
   try {
     const decoded = JSON.parse(
       Buffer.from(stateParam, 'base64url').toString('utf-8')
-    ) as { portfolioId: string; userId: string; nonce?: string };
+    ) as { orgId: string; userId: string; nonce?: string };
 
     // Validate CSRF nonce
     if (!cookieNonce || !decoded.nonce || cookieNonce !== decoded.nonce) {
       return NextResponse.json({ error: 'Invalid state' }, { status: 400 });
     }
 
-    portfolioId = decoded.portfolioId;
+    orgId = decoded.orgId;
   } catch {
     return NextResponse.json({ error: 'Invalid state parameter' }, { status: 400 });
   }
 
-  // Confirm user is a member of this portfolio
+  // Confirm user is a member of this org
   const { data: membership } = await supabase
-    .from('portfolio_members')
+    .from('organization_members')
     .select('id')
-    .eq('portfolio_id', portfolioId)
+    .eq('org_id', orgId)
     .eq('user_id', user.id)
     .single();
 
@@ -96,14 +96,14 @@ export async function GET(req: Request): Promise<NextResponse> {
     .from('quickbooks_connections')
     .upsert(
       {
-        portfolio_id: portfolioId,
+        org_id: orgId,
         realm_id: realmId,
         access_token: tokens.access_token,
         refresh_token: tokens.refresh_token,
         token_expiry: tokenExpiry.toISOString(),
         connected_at: new Date().toISOString(),
       },
-      { onConflict: 'portfolio_id' }
+      { onConflict: 'org_id' }
     );
 
   if (upsertError) {
@@ -113,6 +113,7 @@ export async function GET(req: Request): Promise<NextResponse> {
 
   const settingsUrl = new URL('/dashboard/settings/integrations', url.origin);
   settingsUrl.searchParams.set('connected', '1');
+  settingsUrl.searchParams.set('org', orgId);
   const redirectResponse = NextResponse.redirect(settingsUrl.toString());
   // Clear the CSRF nonce cookie
   redirectResponse.headers.set(

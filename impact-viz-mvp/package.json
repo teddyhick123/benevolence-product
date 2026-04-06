@@ -11,7 +11,10 @@
     "vercel-build": "next build",
     "test": "vitest",
     "test:ui": "vitest --ui",
-    "test:run": "vitest run"
+    "test:run": "vitest run",
+    "provision": "ts-node scripts/provision-client.ts",
+    "handoff": "ts-node scripts/export-client-package.ts",
+    "migrate-client": "ts-node scripts/migrate-client.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.74.0",

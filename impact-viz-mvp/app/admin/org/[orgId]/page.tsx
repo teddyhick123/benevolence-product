@@ -1,6 +1,7 @@
 'use client';
 
 import { use, useEffect, useState } from 'react';
+import Link from 'next/link';
 import { Organization, OrgType, OrgRole } from '@/lib/types/org';
 
 const ORG_TYPES: { value: OrgType; label: string }[] = [
@@ -215,7 +216,7 @@ export default function OrgSettingsPage({ params }: { params: Promise<{ orgId: s
           <h1 className="text-2xl font-semibold">{org?.name || 'Organization'}</h1>
           <div className="text-sm text-neutral-500 mt-0.5">Organization Settings</div>
         </div>
-        <a href="/admin/org" className="text-sm text-neutral-500 hover:text-neutral-700">← All orgs</a>
+        <Link href="/admin/org" className="text-sm text-neutral-500 hover:text-neutral-700">← All orgs</Link>
       </div>
 
       {error && (

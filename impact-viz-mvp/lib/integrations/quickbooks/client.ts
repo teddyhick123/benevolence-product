@@ -46,7 +46,6 @@ interface OAuthClientStatic {
   };
 }
 
-// eslint-disable-next-line @typescript-eslint/no-require-imports
 const OAuthClient = require('intuit-oauth') as OAuthClientStatic;
 
 // ---------------------------------------------------------------------------
@@ -96,7 +95,6 @@ interface QBClientInstance {
   ): void;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-require-imports
 const QuickBooks = require('node-quickbooks') as new (
   clientId: string,
   clientSecret: string,

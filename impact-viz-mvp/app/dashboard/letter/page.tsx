@@ -318,7 +318,7 @@ function LetterPageContent() {
                 Dear Stakeholder,
               </p>
               <p>
-                I am pleased to present this comprehensive overview of your portfolio's performance and impact.
+                I am pleased to present this comprehensive overview of your portfolio&apos;s performance and impact.
                 {letterData?.portfolio.description && ` ${letterData.portfolio.description}`}
               </p>
               <p className="text-sm text-neutral-500 italic">

@@ -180,7 +180,7 @@ export default function InlineWidget({ widget, portfolioId }: InlineWidgetProps)
     return (
       <div className="my-4 p-4 bg-neutral-100 rounded-lg border border-neutral-200">
         <div className="text-sm text-neutral-600">
-          Widget type "{widget.type}" is not yet supported for inline display.
+          Widget type &ldquo;{widget.type}&rdquo; is not yet supported for inline display.
         </div>
         <div className="text-xs text-neutral-500 mt-1">
           Type: {widget.type} | Title: {widget.title}

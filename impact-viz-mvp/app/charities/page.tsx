@@ -394,7 +394,7 @@ export default function CharitiesPage() {
                     <div className="text-6xl mb-4">🎯</div>
                     <h3 className="text-xl font-semibold text-gray-900 mb-2">Your Portfolio is Empty</h3>
                     <p className="text-gray-600 mb-6">
-                      You haven't added any charities to your portfolio yet. Browse all charities to discover and add organizations.
+                      You haven&apos;t added any charities to your portfolio yet. Browse all charities to discover and add organizations.
                     </p>
                     <button
                       onClick={() => setViewMode('discovery')}

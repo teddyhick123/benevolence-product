@@ -22,7 +22,7 @@ export default function ScenarioBuilderPanel({
           🔬 Manual Scenario Analysis
         </h3>
         <p className="text-sm text-azure/90 mb-4">
-          Model "what-if" scenarios with full control over parameters. Compare different donation
+          Model &ldquo;what-if&rdquo; scenarios with full control over parameters. Compare different donation
           amounts, asset types, and timing strategies to find what works best for your situation.
         </p>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">

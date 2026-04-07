@@ -37,12 +37,12 @@ export default function ForgotPasswordPage() {
 
       {sent ? (
         <div className="rounded border bg-green-50 p-4 text-sm text-green-800">
-          Check your email — we've sent a password reset link to <strong>{email}</strong>.
+          Check your email — we&apos;ve sent a password reset link to <strong>{email}</strong>.
         </div>
       ) : (
         <form onSubmit={handleSubmit} className="space-y-3">
           <p className="text-sm text-neutral-600">
-            Enter your email address and we'll send you a link to reset your password.
+            Enter your email address and we&apos;ll send you a link to reset your password.
           </p>
           <input
             type="email"

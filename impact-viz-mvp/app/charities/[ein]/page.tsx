@@ -114,7 +114,7 @@ export default function CharityDetailPage() {
               {/* Mission Statement */}
               {charity.mission_statement && (
                 <p className="text-lg text-gray-700 italic max-w-3xl">
-                  "{charity.mission_statement}"
+                  &ldquo;{charity.mission_statement}&rdquo;
                 </p>
               )}
             </div>

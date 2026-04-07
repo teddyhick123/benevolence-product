@@ -164,7 +164,7 @@ function LoginPageContent() {
             <a href="/forgot-password" className="text-azure hover:underline">Forgot password?</a>
           </p>
           <p className="text-sm text-neutral-600">
-            Don't have an account?{' '}
+            Don&apos;t have an account?{' '}
             <button type="button" onClick={() => setMode('signup')} className="text-azure hover:underline font-medium">
               Create one
             </button>

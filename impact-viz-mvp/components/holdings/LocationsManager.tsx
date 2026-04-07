@@ -257,7 +257,7 @@ export default function LocationsManager({
           <div className="p-8 text-center text-sm text-neutral-500">
             <MapPin className="w-8 h-8 mx-auto text-neutral-400 mb-2" />
             <p>No additional locations yet.</p>
-            <p className="text-xs mt-1">Click "Add Location" to get started.</p>
+            <p className="text-xs mt-1">Click &ldquo;Add Location&rdquo; to get started.</p>
           </div>
         ) : (
           locations.map((location) => (

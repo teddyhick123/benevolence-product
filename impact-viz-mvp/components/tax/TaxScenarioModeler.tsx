@@ -170,7 +170,7 @@ export default function TaxScenarioModeler({
       <div className="bg-white rounded-xl border border-neutral-200 p-6">
         <h2 className="text-2xl font-bold text-neutral-900">Tax Scenario Modeler</h2>
         <p className="text-sm text-neutral-600 mt-1">
-          Explore "what-if" scenarios to optimize your charitable giving strategy
+          Explore &ldquo;what-if&rdquo; scenarios to optimize your charitable giving strategy
         </p>
       </div>
 

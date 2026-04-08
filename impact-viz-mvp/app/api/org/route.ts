@@ -83,7 +83,22 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: memberError.message }, { status: 500 });
     }
 
-    return NextResponse.json(org, { status: 201 });
+    // Auto-create a default portfolio so new users can reach the dashboard immediately
+    let portfolio_id: string | null = null;
+    const { data: portfolio, error: portfolioError } = await adminClient
+      .from('portfolios')
+      .insert({ name: name.trim(), base_currency: 'USD' })
+      .select('id')
+      .single();
+
+    if (!portfolioError && portfolio) {
+      portfolio_id = portfolio.id;
+      await adminClient
+        .from('portfolio_members')
+        .insert({ user_id: user.id, portfolio_id: portfolio.id, role: 'owner' });
+    }
+
+    return NextResponse.json({ ...org, portfolio_id }, { status: 201 });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }

@@ -6,11 +6,15 @@ import { rateLimitExceeded } from '@/lib/rate-limit-response';
 
 export async function POST(req: Request) {
   // Rate limit by IP to prevent brute force attacks
+  // Fail open if Redis is unavailable (e.g. Upstash not configured)
   const ip = getIP(req);
-  const { success, reset, remaining, limit } = await authLimiter.limit(ip);
-
-  if (!success) {
-    return rateLimitExceeded(reset, remaining, limit);
+  try {
+    const { success, reset, remaining, limit } = await authLimiter.limit(ip);
+    if (!success) {
+      return rateLimitExceeded(reset, remaining, limit);
+    }
+  } catch {
+    // Redis unavailable — allow request through
   }
 
   const body = await req.json().catch(() => ({}));

@@ -7,13 +7,18 @@
  *   npx ts-node scripts/provision-client.ts \
  *     --org-name "Foundation Name" \
  *     --admin-email admin@foundation.org \
+ *     --org-type private_foundation \
  *     --mode demo|production \
+ *     [--ein 12-3456789] \
  *     [--region us-east-1] \
  *     [--send-invite]
  *
  * Flags:
  *   --org-name      Display name of the organization (required)
  *   --admin-email   Email address for the admin user (required)
+ *   --org-type      Organization type: private_foundation | family_office | daf_sponsor |
+ *                   community_foundation | nonprofit | corporation | individual (required)
+ *   --ein           EIN / tax ID (optional)
  *   --mode          demo (uses current Supabase project) or production (creates new project)
  *   --region        AWS region for new Supabase project (default: us-east-1)
  *   --send-invite   Send an invite email rather than creating user with temp password
@@ -35,6 +40,12 @@ import * as fs from 'fs';
 // ---------------------------------------------------------------------------
 // CLI args
 // ---------------------------------------------------------------------------
+const VALID_ORG_TYPES = [
+  'private_foundation', 'family_office', 'daf_sponsor', 'community_foundation',
+  'nonprofit', 'corporation', 'individual',
+] as const;
+type OrgType = typeof VALID_ORG_TYPES[number];
+
 function printHelp(): void {
   console.log(`
 Benevolence Client Provisioning Script
@@ -43,13 +54,24 @@ Usage:
   npx ts-node scripts/provision-client.ts \\
     --org-name "Foundation Name" \\
     --admin-email admin@foundation.org \\
+    --org-type private_foundation \\
     --mode demo|production \\
+    [--ein 12-3456789] \\
     [--region us-east-1] \\
     [--send-invite]
 
 Options:
   --org-name      Display name of the organization (required)
   --admin-email   Email address for the admin user (required)
+  --org-type      Organization type (required):
+                    private_foundation  — 501(c)(3) grantmaking foundation
+                    family_office       — investment-focused family office
+                    daf_sponsor         — donor-advised fund sponsor
+                    community_foundation— community foundation
+                    nonprofit           — operating nonprofit
+                    corporation         — corporate giving program
+                    individual          — individual philanthropist
+  --ein           EIN / tax ID (optional, e.g. 12-3456789)
   --mode          demo  — use current Supabase project (default)
                   production — create a new Supabase project via Management API
   --region        AWS region for new project (default: us-east-1)
@@ -61,17 +83,20 @@ Environment variables required for --mode production:
   SUPABASE_ORG_ID         Supabase organization ID (find in dashboard URL)
 
 Examples:
-  # Demo environment
+  # Demo environment — private foundation
   npx ts-node scripts/provision-client.ts \\
     --org-name "Ashford Foundation" \\
     --admin-email admin@ashford.org \\
+    --org-type private_foundation \\
+    --ein 12-3456789 \\
     --mode demo
 
-  # Production with invite email
+  # Production — family office with invite email
   SUPABASE_ACCESS_TOKEN=sbp_xxx SUPABASE_ORG_ID=yyy \\
   npx ts-node scripts/provision-client.ts \\
-    --org-name "Ashford Foundation" \\
-    --admin-email admin@ashford.org \\
+    --org-name "Ashford Capital" \\
+    --admin-email admin@ashford.com \\
+    --org-type family_office \\
     --mode production \\
     --send-invite
 `);
@@ -80,6 +105,8 @@ Examples:
 function parseArgs(): {
   orgName: string;
   adminEmail: string;
+  orgType: OrgType;
+  ein: string | undefined;
   mode: 'demo' | 'production';
   region: string;
   sendInvite: boolean;
@@ -98,15 +125,21 @@ function parseArgs(): {
 
   const orgName = get('--org-name');
   const adminEmail = get('--admin-email');
+  const orgType = (get('--org-type') || 'private_foundation') as OrgType;
+  const ein = get('--ein');
   const mode = (get('--mode') || 'demo') as 'demo' | 'production';
   const region = get('--region') || 'us-east-1';
   const sendInvite = args.includes('--send-invite');
 
   if (!orgName) { console.error('Missing --org-name'); process.exit(1); }
   if (!adminEmail) { console.error('Missing --admin-email'); process.exit(1); }
+  if (!VALID_ORG_TYPES.includes(orgType as any)) {
+    console.error(`--org-type must be one of: ${VALID_ORG_TYPES.join(', ')}`);
+    process.exit(1);
+  }
   if (!['demo', 'production'].includes(mode)) { console.error('--mode must be demo or production'); process.exit(1); }
 
-  return { orgName, adminEmail, mode, region, sendInvite };
+  return { orgName, adminEmail, orgType, ein, mode, region, sendInvite };
 }
 
 // ---------------------------------------------------------------------------
@@ -209,14 +242,16 @@ async function createSupabaseProject(orgName: string, region: string): Promise<{
 // Main
 // ---------------------------------------------------------------------------
 async function main() {
-  const { orgName, adminEmail, mode, region, sendInvite } = parseArgs();
+  const { orgName, adminEmail, orgType, ein, mode, region, sendInvite } = parseArgs();
   const slug = orgName.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-');
 
   console.log(`\nProvisioning: ${orgName}`);
-  console.log(`Admin: ${adminEmail}`);
-  console.log(`Mode: ${mode}`);
-  if (sendInvite) console.log(`Send invite: yes\n`);
-  else console.log(`Send invite: no (temp password will be generated)\n`);
+  console.log(`Type:         ${orgType}`);
+  if (ein) console.log(`EIN:          ${ein}`);
+  console.log(`Admin:        ${adminEmail}`);
+  console.log(`Mode:         ${mode}`);
+  if (sendInvite) console.log(`Send invite:  yes\n`);
+  else console.log(`Send invite:  no (temp password will be generated)\n`);
 
   let supabaseUrl: string;
   let supabaseAnonKey: string;
@@ -239,36 +274,18 @@ async function main() {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 
-  // Create organization record
-  console.log('Creating organization record…');
-  const { data: org, error: orgError } = await adminClient
-    .from('organizations')
-    .insert({
-      name: orgName,
-      modules: { portfolio: true, tax: true, grants: true, compliance: false, donors: false, quickbooks: false },
-    })
-    .select()
-    .single();
-
-  if (orgError) throw new Error(`Failed to create org: ${orgError.message}`);
-  console.log(`  Org ID: ${org.id}`);
-
-  // Create admin user
+  // Step 1: Create auth user
   console.log('Creating admin user…');
   let userId: string | undefined;
   let tempPassword: string | undefined;
 
   if (sendInvite) {
-    // Send invite email — user sets their own password on first login
     const { data: inviteData, error: inviteError } = await adminClient.auth.admin.inviteUserByEmail(adminEmail);
     if (inviteError && !inviteError.message.includes('already been registered')) {
       throw new Error(`Failed to invite user: ${inviteError.message}`);
     }
-    if (inviteData?.user?.id) {
-      userId = inviteData.user.id;
-    }
+    if (inviteData?.user?.id) userId = inviteData.user.id;
   } else {
-    // Create user with a generated temporary password — no email sent
     tempPassword = generateTempPassword();
     const { data: createData, error: createError } = await adminClient.auth.admin.createUser({
       email: adminEmail,
@@ -278,9 +295,7 @@ async function main() {
     if (createError && !createError.message.includes('already been registered')) {
       throw new Error(`Failed to create user: ${createError.message}`);
     }
-    if (createData?.user?.id) {
-      userId = createData.user.id;
-    }
+    if (createData?.user?.id) userId = createData.user.id;
   }
 
   // Fall back to looking up existing user
@@ -293,12 +308,21 @@ async function main() {
   if (!userId) throw new Error('Could not determine admin user ID');
   console.log(`  User ID: ${userId}`);
 
-  // Add user as org owner
-  const { error: memberError } = await adminClient
-    .from('organization_members')
-    .insert({ org_id: org.id, user_id: userId, role: 'owner' });
+  // Step 2: Provision org via RPC (creates org + owner membership in one transaction,
+  //          picks correct default modules for the org type)
+  console.log('Provisioning organization…');
+  const { data: orgId, error: provisionError } = await adminClient
+    .rpc('provision_organization', {
+      p_name: orgName,
+      p_org_type: orgType,
+      p_owner_user_id: userId,
+      p_ein: ein ?? null,
+      p_modules: null,  // use org-type defaults
+    });
 
-  if (memberError) console.warn(`  Warning (member insert): ${memberError.message}`);
+  if (provisionError) throw new Error(`Failed to provision org: ${provisionError.message}`);
+  const orgIdStr = orgId as string;
+  console.log(`  Org ID: ${orgIdStr}`);
 
   // Write .env file
   const envFile = `deployment-${slug}.env`;
@@ -308,7 +332,7 @@ async function main() {
 NEXT_PUBLIC_SUPABASE_URL=${supabaseUrl}
 NEXT_PUBLIC_SUPABASE_ANON_KEY=${supabaseAnonKey}
 SUPABASE_SERVICE_ROLE=${supabaseServiceRoleKey}
-ORG_ID=${org.id}
+ORG_ID=${orgIdStr}
 
 # Add these as needed:
 # ANTHROPIC_API_KEY=
@@ -346,7 +370,7 @@ ORG_ID=${org.id}
   const checklistContent = `# Deployment Checklist: ${orgName}
 
 Generated: ${new Date().toISOString()}
-Org ID: ${org.id}
+Org ID: ${orgIdStr}
 
 ## Supabase Project
 - Project URL: ${supabaseUrl}
@@ -373,7 +397,7 @@ ${firstLoginSection}
   console.log(`Wrote ${checklistFile}`);
 
   console.log('\nDone! Summary:');
-  console.log(`  Org ID:       ${org.id}`);
+  console.log(`  Org ID:       ${orgIdStr}`);
   console.log(`  Admin User:   ${adminEmail} (${userId})`);
   console.log(`  Supabase URL: ${supabaseUrl}`);
   console.log(`  Env file:     ${envFile}`);

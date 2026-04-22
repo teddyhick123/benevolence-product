@@ -7,10 +7,10 @@
  *
  * Usage:
  *   SUPABASE_URL=https://xxx.supabase.co SUPABASE_SERVICE_KEY=xxx \
- *   npx ts-node scripts/migrate-client.ts --from 0058 --to latest
+ *   npx ts-node scripts/migrate-client.ts --from 0001 --to latest
  *
  * Or apply a specific migration:
- *   npx ts-node scripts/migrate-client.ts --file db/0063_qb_org_migration.sql
+ *   npx ts-node scripts/migrate-client.ts --file db/migrations/0006_holdings.sql
  *
  * Options:
  *   --from [migration_number]   Start from this migration number (inclusive)
@@ -52,7 +52,7 @@ Usage:
   npx ts-node scripts/migrate-client.ts --file db/0063_qb_org_migration.sql
 
 Options:
-  --from [num]          Start migration number (inclusive, e.g. 0058)
+  --from [num]          Start migration number (inclusive, e.g. 0001)
   --to   [num|latest]   End migration number (inclusive) or "latest"
   --file [path]         Apply a single migration file
   --dry-run             Print SQL without executing
@@ -194,7 +194,7 @@ async function main() {
 
   const scriptDir = path.dirname(__filename);
   const projectRoot = path.resolve(scriptDir, '..');
-  const dbDir = path.join(projectRoot, 'db');
+  const dbDir = path.join(projectRoot, 'db', 'migrations');
 
   let migrations: MigrationFile[];
 

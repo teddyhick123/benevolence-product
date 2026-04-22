@@ -16,7 +16,7 @@ export async function GET(
   const sb = await supabasePublic();
 
   const { data, error } = await sb
-    .from('donor_profiles')
+    .from('owner_tax_profiles')
     .select('*')
     .eq('portfolio_id', portfolio_id)
     .maybeSingle();
@@ -82,7 +82,7 @@ export async function POST(
 
   // Insert donor profile
   const { data: created, error: insertErr } = await sb
-    .from('donor_profiles')
+    .from('owner_tax_profiles')
     .insert({
       portfolio_id: portfolio_id,
       date_of_birth: validated.date_of_birth ?? null,
@@ -146,7 +146,7 @@ export async function PUT(
 
   // Update donor profile
   const { data: updated, error: updateErr } = await sb
-    .from('donor_profiles')
+    .from('owner_tax_profiles')
     .update(validated)
     .eq('portfolio_id', portfolio_id)
     .select()

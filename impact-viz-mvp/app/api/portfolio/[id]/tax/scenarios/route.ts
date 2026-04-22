@@ -69,7 +69,7 @@ export async function POST(
 
     // Fetch donor profile for age (QCD eligibility)
     const { data: donorProfile } = await sb
-      .from('donor_profiles')
+      .from('owner_tax_profiles')
       .select('*')
       .eq('portfolio_id', portfolio_id)
       .maybeSingle();

@@ -18,7 +18,7 @@ export async function GET(
   try {
     // Fetch donor profile
     const { data: donorProfile, error: donorError } = await sb
-      .from('donor_profiles')
+      .from('owner_tax_profiles')
       .select('*')
       .eq('portfolio_id', portfolio_id)
       .maybeSingle();

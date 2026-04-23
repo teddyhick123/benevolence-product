@@ -6,11 +6,12 @@ import { Organization, OrgType, OrgRole } from '@/lib/types/org';
 
 const ORG_TYPES: { value: OrgType; label: string }[] = [
   { value: 'private_foundation', label: 'Private Foundation' },
-  { value: 'daf', label: 'Donor-Advised Fund' },
+  { value: 'daf_sponsor', label: 'DAF Sponsor' },
   { value: 'community_foundation', label: 'Community Foundation' },
   { value: 'family_office', label: 'Family Office' },
-  { value: 'operating_nonprofit', label: 'Operating Nonprofit' },
-  { value: 'other', label: 'Other' },
+  { value: 'nonprofit', label: 'Nonprofit' },
+  { value: 'corporation', label: 'Corporation' },
+  { value: 'individual', label: 'Individual' },
 ];
 
 const ROLES: OrgRole[] = ['owner', 'admin', 'member', 'viewer'];

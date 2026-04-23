@@ -1,4 +1,11 @@
-export type OrgType = 'private_foundation' | 'daf' | 'community_foundation' | 'family_office' | 'operating_nonprofit' | 'other';
+export type OrgType =
+  | 'private_foundation'
+  | 'family_office'
+  | 'daf_sponsor'
+  | 'community_foundation'
+  | 'nonprofit'
+  | 'corporation'
+  | 'individual';
 export type OrgRole = 'owner' | 'admin' | 'member' | 'viewer';
 
 export interface OrgModules {

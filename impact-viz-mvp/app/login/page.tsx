@@ -22,7 +22,9 @@ function LoginPageContent() {
   const router = useRouter();
   const redirect = useMemo(() => sp.get('redirect') || '/welcome', [sp]);
 
-  const [mode, setMode] = useState<'signin' | 'signup'>('signin');
+  const [mode, setMode] = useState<'signin' | 'signup'>(
+    sp.get('signup') === '1' ? 'signup' : 'signin'
+  );
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [password2, setPassword2] = useState('');

@@ -20,20 +20,19 @@ const MODULES = [
 type ModuleKey = typeof MODULES[number]['key'];
 
 const ORG_TYPES: { value: OrgType; label: string }[] = [
-  { value: 'private_foundation',   label: 'Private Foundation' },
-  { value: 'family_office',        label: 'Family Office' },
-  { value: 'daf_sponsor',          label: 'DAF Sponsor' },
+  { value: 'private_foundation',   label: 'Family Foundation' },
+  { value: 'daf_sponsor',          label: 'Donor-Advised Fund' },
   { value: 'community_foundation', label: 'Community Foundation' },
   { value: 'nonprofit',            label: 'Nonprofit' },
   { value: 'individual',           label: 'Individual' },
 ];
 
 const MODULE_DEFAULTS: Record<string, Record<ModuleKey, boolean>> = {
-  private_foundation:   { tax: true,  donors: false, compliance: true,  quickbooks: false },
+  private_foundation:   { tax: true,  donors: false, compliance: false, quickbooks: false },
   family_office:        { tax: true,  donors: false, compliance: false, quickbooks: true  },
-  daf_sponsor:          { tax: true,  donors: true,  compliance: true,  quickbooks: false },
+  daf_sponsor:          { tax: true,  donors: false, compliance: false, quickbooks: false },
   community_foundation: { tax: false, donors: true,  compliance: true,  quickbooks: false },
-  nonprofit:            { tax: false, donors: true,  compliance: true,  quickbooks: true  },
+  nonprofit:            { tax: false, donors: true,  compliance: true,  quickbooks: false },
   corporation:          { tax: true,  donors: false, compliance: false, quickbooks: true  },
   individual:           { tax: true,  donors: false, compliance: false, quickbooks: false },
 };
@@ -47,7 +46,7 @@ function Bubble({ msg }: { msg: Message }) {
     return (
       <div className="flex justify-end">
         <div className="bg-azure text-white text-sm leading-relaxed px-4 py-2.5 max-w-[82%]"
-          style={{ borderRadius: '12px 2px 12px 12px' }}>
+          style={{ borderRadius: '12px 0 12px 12px' }}>
           {msg.text}
         </div>
       </div>
@@ -58,7 +57,7 @@ function Bubble({ msg }: { msg: Message }) {
       <div className="flex gap-3 items-start">
         <Avatar />
         <div className="text-sm leading-relaxed px-4 py-2.5 max-w-[82%] italic"
-          style={{ background: '#f0f7fb', border: '1px solid var(--color-azure-soft, #b8d0df)', borderRadius: '2px 12px 12px 12px', color: 'var(--color-azure-deep, #2f5c7a)', fontFamily: 'var(--font-serif)' }}>
+          style={{ background: '#f0f7fb', border: '1px solid var(--color-azure-soft, #b8d0df)', borderRadius: '0 12px 12px 12px', color: 'var(--color-azure-deep, #2f5c7a)', fontFamily: 'var(--font-serif)' }}>
           {msg.text}
         </div>
       </div>
@@ -68,7 +67,7 @@ function Bubble({ msg }: { msg: Message }) {
     <div className="flex gap-3 items-start">
       <Avatar />
       <div className="bg-creme-warm text-ink text-sm leading-relaxed px-4 py-2.5 max-w-[82%]"
-        style={{ borderRadius: '2px 12px 12px 12px' }}>
+        style={{ borderRadius: '0 12px 12px 12px' }}>
         {msg.text}
       </div>
     </div>
@@ -320,7 +319,7 @@ export default function SetupClient() {
           {/* Step: modules */}
           {step === 'modules' && (
             <div className="pl-11 flex flex-col gap-3">
-              <div className="grid grid-cols-2 gap-2 max-w-xs">
+              <div className="grid grid-cols-2 gap-2 max-w-xs" id="module-grid">
                 {MODULES.map(m => (
                   <div key={m.key} className="flex items-center gap-1.5">
                     <button
@@ -343,6 +342,11 @@ export default function SetupClient() {
                 <button onClick={handleProvision}
                   className="bg-azure text-white text-xs font-semibold px-5 py-2 rounded-full hover:bg-azure-deep transition-colors">
                   Looks good →
+                </button>
+                <button
+                  onClick={() => document.getElementById('module-grid')?.scrollIntoView({ behavior: 'smooth' })}
+                  className="bg-white text-azure border border-azure-soft text-xs font-semibold px-5 py-2 rounded-full hover:bg-[#f0f7fb] transition-colors">
+                  Customize
                 </button>
               </div>
               {error && <p className="text-xs text-rose-600 mt-1" role="alert">{error}</p>}

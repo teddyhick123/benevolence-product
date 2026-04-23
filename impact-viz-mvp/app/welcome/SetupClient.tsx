@@ -208,6 +208,11 @@ export default function SetupClient() {
   }
 
   async function handleProvision() {
+    if (!orgType) {
+      setError('Please select an organization type first.');
+      setStep('org_type');
+      return;
+    }
     setStep('provisioning');
     addMessage('bot', `All set. Creating your ${orgName} workspace now…`);
     setError(null);
@@ -268,6 +273,7 @@ export default function SetupClient() {
             <div className="flex flex-wrap gap-2 pl-11">
               {ORG_TYPES.map(t => (
                 <button key={t.value} onClick={() => handleOrgTypeSelect(t.value)}
+                  disabled={loadingHelp}
                   className={`${chipClass} ${chipDefault}`}>
                   {t.label}
                 </button>
@@ -313,6 +319,11 @@ export default function SetupClient() {
                 </button>
               </div>
               {error && <p className="text-xs text-rose-600" role="alert">{error}</p>}
+              <button
+                onClick={() => { setInputValue(''); handleEinSubmit(true); }}
+                className="text-xs text-ink-30 hover:text-ink-60 underline text-left w-fit">
+                Skip for now
+              </button>
             </div>
           )}
 
@@ -331,6 +342,7 @@ export default function SetupClient() {
                     <button
                       onClick={() => handleModuleHelp(m.key)}
                       disabled={loadingHelp}
+                      aria-label={`Learn about ${m.label}`}
                       className="text-ink-30 hover:text-azure text-xs leading-none"
                       title={`What is ${m.label}?`}>
                       ?
@@ -380,6 +392,7 @@ export default function SetupClient() {
             <button
               onClick={handleOrgNameSubmit}
               disabled={!inputValue.trim()}
+              aria-label="Send"
               className="bg-azure text-white text-sm font-semibold px-5 py-2 rounded-full hover:bg-azure-deep transition-colors disabled:opacity-50">
               →
             </button>

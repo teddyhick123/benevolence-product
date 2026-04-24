@@ -4,6 +4,8 @@ import { AIActionExecutor } from '@/lib/ai-action-executor';
 import { cookies } from 'next/headers';
 import { createServerClient } from '@supabase/ssr';
 import { aiRedoSchema } from '@/lib/schemas/ai';
+import { aiLimiter } from '@/lib/rate-limit';
+import { rateLimitExceeded } from '@/lib/rate-limit-response';
 
 export const runtime = 'nodejs';
 
@@ -45,6 +47,9 @@ export async function POST(req: NextRequest) {
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+
+    const { success, reset, remaining, limit } = await aiLimiter.limit(user.id);
+    if (!success) return rateLimitExceeded(reset, remaining, limit);
 
     // Parse and validate request
     let body;

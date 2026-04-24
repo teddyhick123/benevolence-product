@@ -6,6 +6,8 @@ import { createAdminClient } from '@/lib/supabase';
 import { createServerClient } from '@/lib/supabase';
 import { streamMigrationChat } from '@/lib/import/ai/chat';
 import type { ChatMessage } from '@/lib/import/ai/chat';
+import { aiLimiter } from '@/lib/rate-limit';
+import { rateLimitExceeded } from '@/lib/rate-limit-response';
 
 interface ErrorRow {
   validation_errors: Array<{ field: string; message: string; severity: string }> | null;
@@ -50,6 +52,13 @@ export async function POST(
   const userId = await requireAdmin();
   if (!userId) {
     return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
+  }
+
+  // Per-user rate limit on streaming AI
+  const { success, reset, remaining, limit } = await aiLimiter.limit(userId);
+  if (!success) {
+    const rl = rateLimitExceeded(reset, remaining, limit);
+    return new Response(await rl.text(), { status: 429, headers: { 'Content-Type': 'application/json' } });
   }
 
   const { id: importJobId } = await params;

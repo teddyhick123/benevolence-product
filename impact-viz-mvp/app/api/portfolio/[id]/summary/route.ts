@@ -1,8 +1,10 @@
 // app/api/portfolio/[id]/summary/route.ts
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseServerClient } from '@/lib/supabase';
+import { aiLimiter } from '@/lib/rate-limit';
+import { aiAuthRequired, rateLimitExceeded } from '@/lib/rate-limit-response';
 
-export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> }) {
+export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const { id: portfolio_id } = await ctx.params;
 
   if (!process.env.OPENAI_API_KEY) {
@@ -10,6 +12,14 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
   }
 
   const supabase = await createSupabaseServerClient();
+
+  // Auth check — no anonymous access to AI features
+  const { data: { user: authUser } } = await supabase.auth.getUser();
+  if (!authUser) return aiAuthRequired();
+
+  // Per-user rate limit
+  const { success, reset, remaining, limit } = await aiLimiter.limit(authUser.id);
+  if (!success) return rateLimitExceeded(reset, remaining, limit);
 
   // Get latest KPI values with targets from v_portfolio_kpi_latest
   // This view now includes target_value, target_date, and display_name from portfolio_metric_targets

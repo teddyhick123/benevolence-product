@@ -25,6 +25,16 @@ export const authLimiter = new Ratelimit({
   prefix: 'ratelimit:auth',
 });
 
+// Rate limiter for AI endpoints — keyed per user ID, not IP
+// Prevents runaway API spend from a single user/org
+// 30 requests per hour for expensive AI routes (OpenAI GPT, Claude streaming)
+export const aiLimiter = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(30, '1h'),
+  analytics: true,
+  prefix: 'ratelimit:ai',
+});
+
 /**
  * Extract IP address from request headers
  * Checks x-forwarded-for (Vercel), x-real-ip, and falls back to 'unknown'

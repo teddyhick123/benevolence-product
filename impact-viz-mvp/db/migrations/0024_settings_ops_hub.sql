@@ -1,6 +1,16 @@
 -- db/migrations/0024_settings_ops_hub.sql
 -- Settings & Ops Hub: org_invitations, org_audit_log, notification_prefs
 -- Depends on: 0001-0023
+-- Note: defines member_role_enum if not already present (supports projects
+--       set up from legacy scripts that may not have this type).
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'member_role_enum') THEN
+    CREATE TYPE member_role_enum AS ENUM ('owner', 'admin', 'member', 'viewer');
+  END IF;
+END
+$$;
 
 -- ---------------------------------------------------------------------------
 -- org_invitations

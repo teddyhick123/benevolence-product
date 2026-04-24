@@ -7,28 +7,39 @@ interface RouteParams {
   params: Promise<{ orgId: string }>;
 }
 
-// GET /api/org/[orgId]/members — list members
+// GET /api/org/[orgId]/members — list members with profile info
 export async function GET(_req: NextRequest, { params }: RouteParams) {
   try {
     const { orgId } = await params;
     const supabase = await createServerClient();
 
-    const { data: role } = await supabase.rpc('org_role', { p_org_id: orgId });
-    if (!role) {
-      return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
-    }
+    const { data: role } = await supabase.rpc('user_org_role', { p_org_id: orgId });
+    if (!role) return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
 
-    const { data, error } = await supabase
+    const adminClient = createAdminClient();
+    const { data, error } = await adminClient
       .from('organization_members')
-      .select('id, org_id, user_id, role, created_at')
+      .select(`
+        id, org_id, user_id, role, created_at,
+        profiles!user_id ( email, full_name, avatar_url )
+      `)
       .eq('org_id', orgId)
+      .is('deleted_at', null)
       .order('created_at', { ascending: true });
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-    return NextResponse.json({ members: data || [] });
+    const members = (data || []).map((m: any) => ({
+      id: m.id,
+      user_id: m.user_id,
+      role: m.role,
+      created_at: m.created_at,
+      email: m.profiles?.email || null,
+      full_name: m.profiles?.full_name || null,
+      avatar_url: m.profiles?.avatar_url || null,
+    }));
+
+    return NextResponse.json({ members, currentRole: role });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }

@@ -37,6 +37,21 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
+    // Write audit log
+    try {
+      const { data: { user: actor } } = await supabase.auth.getUser();
+      if (actor) {
+        const adminAudit = createAdminClient();
+        await adminAudit.from('org_audit_log').insert({
+          org_id: orgId,
+          actor_id: actor.id,
+          action: 'role_changed',
+          target_id: userId,
+          metadata: { role },
+        });
+      }
+    } catch { /* audit failure should not block response */ }
+
     return NextResponse.json(data);
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
@@ -64,6 +79,21 @@ export async function DELETE(_req: NextRequest, { params }: RouteParams) {
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
+
+    // Write audit log
+    try {
+      const { data: { user: actor } } = await supabase.auth.getUser();
+      if (actor) {
+        const adminAudit = createAdminClient();
+        await adminAudit.from('org_audit_log').insert({
+          org_id: orgId,
+          actor_id: actor.id,
+          action: 'member_removed',
+          target_id: userId,
+          metadata: {},
+        });
+      }
+    } catch { /* audit failure should not block response */ }
 
     return NextResponse.json({ success: true });
   } catch (err: any) {

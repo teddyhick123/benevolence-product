@@ -19,7 +19,7 @@ function HeaderContent() {
   const pathname = usePathname();
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => setUser(data.user ?? null));
+    supabase.auth.getUser().then(({ data }) => setUser(data.user ?? null)).catch(() => {});
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_evt, session) => {
       setUser(session?.user ?? null);
     });
@@ -168,6 +168,13 @@ function HeaderContent() {
               >
                 Integrations
               </Link>
+              <Link
+                href="/settings"
+                aria-current={pathname.startsWith('/settings') ? 'page' : undefined}
+                className={navLinkClass}
+              >
+                Settings
+              </Link>
 
               <Link
                 href="/profile"
@@ -257,6 +264,13 @@ function HeaderContent() {
               className={mobileNavLinkClass}
             >
               Integrations
+            </Link>
+            <Link
+              href="/settings"
+              aria-current={pathname.startsWith('/settings') ? 'page' : undefined}
+              className={mobileNavLinkClass}
+            >
+              Settings
             </Link>
             <Link
               href="/profile"

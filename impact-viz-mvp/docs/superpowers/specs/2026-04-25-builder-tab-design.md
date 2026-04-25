@@ -10,7 +10,7 @@ The Builder tab lives at `/settings/builder` inside the existing settings layout
 
 The chat runs against a new API route (`/api/org/[orgId]/builder/chat`) backed by Claude with streaming responses and tool use. Claude operates in two modes:
 
-- **Config tools** — Write directly to the DB. Changes are immediate and reversible.
+- **Config tools** — Write directly to the DB. Changes take effect immediately.
 - **Code proposal tool** — For anything beyond the config layer, Claude generates a code diff and writes it to `builder_proposals`. Client sees a "submitted for review" status card. Developer reviews and applies via `/admin/builder`.
 
 Claude's context bundle on each request includes:
@@ -85,7 +85,8 @@ CREATE TABLE builder_sessions (
   user_id     uuid NOT NULL REFERENCES auth.users(id),
   messages    jsonb NOT NULL DEFAULT '[]',
   created_at  timestamptz NOT NULL DEFAULT now(),
-  updated_at  timestamptz NOT NULL DEFAULT now()
+  updated_at  timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (org_id, user_id)
 );
 
 CREATE INDEX ON builder_sessions (org_id, updated_at DESC);
@@ -136,7 +137,7 @@ Edges connect each node to the org center. Hover tooltips show detail. No editin
 Streaming markdown chat interface. Message history persisted to `builder_sessions`.
 
 Inline result cards:
-- **Config success card** — "Dashboard layout updated — changes are live." with a checkmark and undo option (where reversible)
+- **Config success card** — "Dashboard layout updated — changes are live." with a checkmark
 - **Proposal card** — title, affected files list, status badge (Pending Review / Approved / Applied / Rejected), submitted date
 
 ### Admin Review Page (`/admin/builder`)
@@ -153,7 +154,7 @@ Proposal card:
 
 ## Codebase Index
 
-Built by `lib/builder/codebase-index.ts` at server startup. No LLM involved — pure static analysis:
+Built by `lib/builder/codebase-index.ts`, lazy-initialized on first request to the builder chat route and cached in a module-level singleton for the lifetime of the process. No LLM involved — pure static analysis:
 
 - **API routes:** Walk `app/api/` for `route.ts` files, extract HTTP methods and path
 - **DB tables:** Parse `db/migrations/*.sql` for `CREATE TABLE` statements, extract table name and columns

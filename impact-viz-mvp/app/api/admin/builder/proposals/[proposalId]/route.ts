@@ -47,7 +47,12 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
       .select('id, status, org_id')
       .single();
 
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (error) {
+      if (error.code === 'PGRST116') {
+        return NextResponse.json({ error: 'Proposal not found' }, { status: 404 });
+      }
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
     if (!data) return NextResponse.json({ error: 'Proposal not found' }, { status: 404 });
 
     return NextResponse.json({ proposal: data });

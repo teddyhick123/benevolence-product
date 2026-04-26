@@ -9,7 +9,7 @@ export default function Home() {
         </div>
         <nav className="flex items-center gap-8">
           <a href="#features" className="text-sm text-ink-60 hover:text-ink transition-colors">Platform</a>
-          <a href="#who" className="text-sm text-ink-60 hover:text-ink transition-colors">Who it's for</a>
+          <a href="#who" className="text-sm text-ink-60 hover:text-ink transition-colors">Who it&apos;s for</a>
           <a
             href="/login"
             className="text-sm font-medium px-5 py-2.5 rounded-[2px] border border-azure text-azure hover:bg-azure hover:text-white transition-colors"
@@ -179,8 +179,8 @@ export default function Home() {
         <div className="bg-azure-deep text-creme rounded-lg px-12 py-14 grid grid-cols-[1.3fr_1fr] gap-12 items-center">
           <div>
             <blockquote className="font-serif font-medium text-[22px] leading-[1.5] text-creme mb-6 italic">
-              "I can finally see our impact portfolio and our endowment in the
-              same window. That used to take three people and a spreadsheet."
+              &ldquo;I can finally see our impact portfolio and our endowment in the
+              same window. That used to take three people and a spreadsheet.&rdquo;
             </blockquote>
             <cite className="not-italic text-[11px] tracking-[0.12em] uppercase text-creme/60 font-sans">
               — Executive Director, $1.2B family foundation

@@ -2,6 +2,7 @@
 'use client';
 
 import { useEffect, useState, Suspense } from 'react';
+import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { createClient } from '@supabase/supabase-js';
 
@@ -93,7 +94,7 @@ function JoinContent() {
         <div className="max-w-md w-full bg-white rounded-lg p-8 shadow-sm text-center">
           <p className="text-lg font-semibold mb-2">Invalid Invitation</p>
           <p className="text-black/60 mb-6">{state.reason}</p>
-          <a href="/" className="text-azure text-sm underline">Go home</a>
+          <Link href="/" className="text-azure text-sm underline">Go home</Link>
         </div>
       </div>
     );

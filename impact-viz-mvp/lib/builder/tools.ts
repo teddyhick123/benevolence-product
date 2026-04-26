@@ -134,7 +134,7 @@ export async function executeTool(
       }
 
       case 'update_module_config': {
-        const module = toolInput.module as string;
+        const moduleKey = toolInput.module as string;
         const enabled = toolInput.enabled as boolean;
 
         const { data: org } = await supabase
@@ -143,7 +143,7 @@ export async function executeTool(
           .eq('id', orgId)
           .single();
 
-        const modules = { ...(org?.modules ?? {}), [module]: enabled };
+        const modules = { ...(org?.modules ?? {}), [moduleKey]: enabled };
 
         const { error } = await supabase
           .from('organizations')
@@ -154,7 +154,7 @@ export async function executeTool(
         return {
           type: 'config_success',
           tool: toolName,
-          message: `Module "${module}" ${enabled ? 'enabled' : 'disabled'}.`,
+          message: `Module "${moduleKey}" ${enabled ? 'enabled' : 'disabled'}.`,
         };
       }
 

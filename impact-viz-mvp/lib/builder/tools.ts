@@ -105,8 +105,12 @@ export async function executeTool(
     switch (toolName) {
       case 'update_org_branding': {
         const patch: Record<string, string> = {};
-        if (toolInput.logo_url) patch.logo_url = toolInput.logo_url as string;
-        if (toolInput.primary_color) patch.primary_color = toolInput.primary_color as string;
+        if (toolInput.logo_url !== undefined) patch.logo_url = toolInput.logo_url as string;
+        if (toolInput.primary_color !== undefined) patch.primary_color = toolInput.primary_color as string;
+
+        if (Object.keys(patch).length === 0) {
+          return { type: 'error', tool: toolName, message: 'No branding fields provided. Pass logo_url or primary_color.' };
+        }
 
         const { data: org } = await supabase
           .from('organizations')

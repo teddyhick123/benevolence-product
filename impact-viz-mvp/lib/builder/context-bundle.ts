@@ -38,6 +38,10 @@ export async function fetchOrgSnapshot(
       .eq('is_active', true),
   ]);
 
+  if (teamRes.error) console.warn('[Builder] teamCount query failed:', teamRes.error.message);
+  if (portfolioRes.error) console.warn('[Builder] portfolioCount query failed:', portfolioRes.error.message);
+  if (metricsRes.error) console.warn('[Builder] metricCount query failed:', metricsRes.error.message);
+
   if (orgRes.error || !orgRes.data) return null;
   const org = orgRes.data;
 

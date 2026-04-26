@@ -46,7 +46,7 @@ export default function SystemGraph({
     id: key,
     label: MODULE_LABELS[key],
     active: !!modules[key],
-    angle: (i / moduleKeys.length) * 360,
+    angle: 30 + (i / moduleKeys.length) * 360,
   }));
 
   const outerNodes: GraphNode[] = [

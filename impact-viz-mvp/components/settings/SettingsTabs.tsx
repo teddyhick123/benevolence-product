@@ -11,6 +11,7 @@ const TABS = [
   { href: '/settings/integrations',  label: 'Integrations' },
   { href: '/settings/audit',         label: 'Audit Log' },
   { href: '/settings/notifications', label: 'Notifications' },
+  { href: '/settings/builder',       label: 'Builder' },
 ];
 
 export default function SettingsTabs() {

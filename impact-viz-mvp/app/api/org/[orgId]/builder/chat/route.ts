@@ -37,8 +37,8 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
   }
 
   const body = await req.json().catch(() => ({}));
-  const userMessage: string = body.message || '';
-  if (!userMessage.trim()) {
+  const userMessage = body.message;
+  if (typeof userMessage !== 'string' || !userMessage.trim()) {
     return NextResponse.json({ error: 'Message is required' }, { status: 400 });
   }
 
@@ -96,37 +96,50 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
 
           let stopReason: string | null = null;
           const toolUseBlocks: Anthropic.ToolUseBlock[] = [];
+          const assistantContentBlocks: Array<{ type: 'text'; text: string } | Anthropic.ToolUseBlock> = [];
           let currentToolInput = '';
           let currentToolId = '';
           let currentToolName = '';
+          let currentBlockType: 'text' | 'tool_use' | null = null;
+          let currentBlockText = '';
 
           for await (const event of response) {
             if (event.type === 'content_block_start') {
               if (event.content_block.type === 'tool_use') {
+                currentBlockType = 'tool_use';
                 currentToolId = event.content_block.id;
                 currentToolName = event.content_block.name;
                 currentToolInput = '';
                 send({ type: 'tool_start', tool: currentToolName });
+              } else if (event.content_block.type === 'text') {
+                currentBlockType = 'text';
+                currentBlockText = '';
               }
             } else if (event.type === 'content_block_delta') {
               if (event.delta.type === 'text_delta') {
                 fullAssistantText += event.delta.text;
+                currentBlockText += event.delta.text;
                 send({ type: 'text', text: event.delta.text });
               } else if (event.delta.type === 'input_json_delta') {
                 currentToolInput += event.delta.partial_json;
               }
             } else if (event.type === 'content_block_stop') {
-              if (currentToolName) {
+              if (currentBlockType === 'tool_use' && currentToolName) {
                 let parsedInput: Record<string, unknown> = {};
                 try { parsedInput = JSON.parse(currentToolInput); } catch { /* ignore */ }
-                toolUseBlocks.push({
+                const toolBlock: Anthropic.ToolUseBlock = {
                   type: 'tool_use',
                   id: currentToolId,
                   name: currentToolName,
                   input: parsedInput,
-                });
+                };
+                toolUseBlocks.push(toolBlock);
+                assistantContentBlocks.push(toolBlock);
                 currentToolName = '';
+              } else if (currentBlockType === 'text') {
+                assistantContentBlocks.push({ type: 'text', text: currentBlockText });
               }
+              currentBlockType = null;
             } else if (event.type === 'message_delta') {
               stopReason = event.delta.stop_reason ?? null;
             }
@@ -171,12 +184,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
             ...currentMessages,
             {
               role: 'assistant' as const,
-              content: toolUseBlocks.map(t => ({
-                type: 'tool_use' as const,
-                id: t.id,
-                name: t.name,
-                input: t.input,
-              })),
+              content: assistantContentBlocks,
             },
             { role: 'user' as const, content: toolResults },
           ];

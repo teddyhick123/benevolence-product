@@ -26,7 +26,7 @@ interface ProposalMessage {
 
 type ChatMessage = TextMessage | ConfigResultMessage | ProposalMessage;
 
-interface StoredMessage {
+export interface StoredMessage {
   role: 'user' | 'assistant';
   content: string;
   timestamp: string;

@@ -1,13 +1,7 @@
 // components/settings/BuilderTab.tsx
 import SystemGraph from './SystemGraph';
-import BuilderChat from './BuilderChat';
+import BuilderChat, { StoredMessage } from './BuilderChat';
 import { OrgSnapshot } from '@/lib/builder/context-bundle';
-
-interface StoredMessage {
-  role: 'user' | 'assistant';
-  content: string;
-  timestamp: string;
-}
 
 interface BuilderTabProps {
   snapshot: OrgSnapshot;

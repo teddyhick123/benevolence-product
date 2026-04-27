@@ -21,7 +21,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     const { data, error } = await supabase
       .from('state_registrations')
       .select('*')
-      .eq('organization_id', orgId)
+      .eq('org_id', orgId)
       .order('state');
 
     if (error) {
@@ -34,7 +34,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
   }
 }
 
-// POST /api/org/[orgId]/compliance/state-registrations — upsert on org+state
+// POST /api/org/[orgId]/compliance/state-registrations — upsert on org+state+type
 export async function POST(req: NextRequest, { params }: RouteParams) {
   try {
     const { orgId } = await params;
@@ -47,9 +47,9 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
 
     const body = await req.json();
     const {
-      state, registration_number, registered_name, registration_date,
-      expiration_date, renewal_due_date, status, annual_report_due,
-      annual_report_filed, filing_fee, notes,
+      state, registration_number, registration_type, registration_date,
+      expiration_date, renewal_due_date, last_renewed_date, status,
+      exemption_basis, annual_fee, notes,
     } = body;
 
     if (!state) {
@@ -60,20 +60,20 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       .from('state_registrations')
       .upsert(
         {
-          organization_id: orgId,
+          org_id: orgId,
           state: state.toUpperCase(),
           registration_number: registration_number || null,
-          registered_name: registered_name || null,
+          registration_type: registration_type || 'charitable_solicitation',
           registration_date: registration_date || null,
           expiration_date: expiration_date || null,
           renewal_due_date: renewal_due_date || null,
-          status: status || 'pending',
-          annual_report_due: annual_report_due || null,
-          annual_report_filed: annual_report_filed || null,
-          filing_fee: filing_fee ?? null,
+          last_renewed_date: last_renewed_date || null,
+          status: status || 'active',
+          exemption_basis: exemption_basis || null,
+          annual_fee: annual_fee ?? null,
           notes: notes || null,
         },
-        { onConflict: 'organization_id,state' }
+        { onConflict: 'org_id,state,registration_type' }
       )
       .select()
       .single();

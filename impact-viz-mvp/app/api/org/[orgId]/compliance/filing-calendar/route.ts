@@ -7,7 +7,7 @@ interface RouteParams {
   params: Promise<{ orgId: string }>;
 }
 
-// GET /api/org/[orgId]/compliance/filing-calendar?days=90&status=upcoming
+// GET /api/org/[orgId]/compliance/filing-calendar?status=upcoming
 export async function GET(req: NextRequest, { params }: RouteParams) {
   try {
     const { orgId } = await params;
@@ -19,11 +19,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
     }
 
-    const days = searchParams.get('days') ? parseInt(searchParams.get('days')!) : 90;
     const statusFilter = searchParams.get('status');
-
-    const cutoffDate = new Date();
-    cutoffDate.setDate(cutoffDate.getDate() + days);
 
     let query = supabase
       .from('filing_calendar')
@@ -31,9 +27,6 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       .eq('org_id', orgId)
       .order('due_date');
 
-    if (days > 0) {
-      query = query.lte('due_date', cutoffDate.toISOString().split('T')[0]);
-    }
     if (statusFilter) query = query.eq('status', statusFilter);
 
     const { data, error } = await query;
@@ -129,6 +122,10 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     const updates: Record<string, any> = {};
     for (const field of allowedFields) {
       if (field in rest) updates[field] = rest[field];
+    }
+
+    if (Object.keys(updates).length === 0) {
+      return NextResponse.json({ error: 'No valid fields to update' }, { status: 400 });
     }
 
     const { data, error } = await supabase

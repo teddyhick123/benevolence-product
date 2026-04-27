@@ -57,20 +57,20 @@ export async function POST(req: Request): Promise<Response> {
 
   const rows = accounts.map((a) => ({
     org_id: orgId,
-    qb_account_id: a.Id,
-    name: a.Name,
-    type: a.AccountType,
-    subtype: a.AccountSubType ?? null,
+    qb_id: a.Id,
+    qb_name: a.Name,
+    qb_type: a.AccountType,
+    qb_subtype: a.AccountSubType ?? null,
     current_balance: a.CurrentBalance ?? 0,
     synced_at: now,
   }));
 
   const adminSupabase = createAdminClient();
 
-  // Upsert all accounts; conflict on (org_id, qb_account_id)
+  // Upsert all accounts; conflict on (org_id, qb_id)
   const { error: upsertError } = await adminSupabase
     .from('qb_accounts')
-    .upsert(rows, { onConflict: 'org_id,qb_account_id' });
+    .upsert(rows, { onConflict: 'org_id,qb_id' });
 
   if (upsertError) {
     console.error('[QB] qb_accounts upsert error:', upsertError);

@@ -34,10 +34,11 @@ export async function GET(req: Request): Promise<Response> {
   const adminSupabase = createAdminClient();
   const { data: accounts, error } = await adminSupabase
     .from('qb_accounts')
-    .select('id, qb_account_id, name, type, subtype, current_balance, synced_at')
+    .select('id, qb_id, qb_name, qb_type, qb_subtype, current_balance, synced_at')
     .eq('org_id', orgId)
-    .order('type')
-    .order('name');
+    .eq('is_active', true)
+    .order('qb_type')
+    .order('qb_name');
 
   if (error) {
     return Response.json({ error: 'Failed to fetch accounts' }, { status: 500 });

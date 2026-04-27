@@ -33,7 +33,7 @@ export async function GET(req: Request): Promise<Response> {
 
   const { data: connection } = await supabase
     .from('quickbooks_connections')
-    .select('realm_id, connected_at, last_sync_at, token_expiry')
+    .select('realm_id, created_at, last_sync_at, expires_at')
     .eq('org_id', orgId)
     .single();
 
@@ -41,15 +41,15 @@ export async function GET(req: Request): Promise<Response> {
     return Response.json({ connected: false });
   }
 
-  const tokenExpiry = new Date(connection.token_expiry as string);
+  const tokenExpiry = new Date(connection.expires_at as string);
   const isExpired = tokenExpiry <= new Date();
 
   return Response.json({
     connected: true,
     realm_id: connection.realm_id,
-    connected_at: connection.connected_at,
+    connected_at: connection.created_at,
     last_sync_at: connection.last_sync_at,
-    token_expiry: connection.token_expiry,
+    token_expiry: connection.expires_at,
     token_expired: isExpired,
   });
 }

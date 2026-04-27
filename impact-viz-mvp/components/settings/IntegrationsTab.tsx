@@ -46,7 +46,11 @@ interface IntegrationsTabProps {
 
 export default function IntegrationsTab({ qbConnected, orgId }: IntegrationsTabProps) {
   async function handleQbDisconnect() {
-    await fetch(`/api/integrations/quickbooks/disconnect`, { method: 'POST' });
+    await fetch(`/api/integrations/quickbooks/disconnect`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ org_id: orgId }),
+    });
     window.location.reload();
   }
 
@@ -56,7 +60,7 @@ export default function IntegrationsTab({ qbConnected, orgId }: IntegrationsTabP
         name="QuickBooks"
         description="Sync chart of accounts and generate journal entries for your accounting team."
         connected={qbConnected}
-        connectHref={`/api/integrations/quickbooks/connect?orgId=${orgId}`}
+        connectHref={`/api/integrations/quickbooks/connect?org_id=${orgId}`}
         onDisconnect={handleQbDisconnect}
       />
       <IntegrationCard

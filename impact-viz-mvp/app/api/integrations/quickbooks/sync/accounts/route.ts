@@ -26,13 +26,13 @@ export async function POST(req: Request): Promise<Response> {
 
   const { data: membership } = await supabase
     .from('organization_members')
-    .select('id')
+    .select('member_role')
     .eq('org_id', orgId)
     .eq('user_id', user.id)
     .single();
 
-  if (!membership) {
-    return Response.json({ error: 'Forbidden' }, { status: 403 });
+  if (!membership || !['owner', 'admin'].includes(membership.member_role as string)) {
+    return Response.json({ error: 'Admin access required' }, { status: 403 });
   }
 
   const qbResult = await getAuthenticatedQBClientByOrg(orgId);

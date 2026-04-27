@@ -7,7 +7,7 @@ interface RouteParams {
   params: Promise<{ orgId: string }>;
 }
 
-// GET /api/org/[orgId]/compliance/filing-calendar?days=90&status=pending
+// GET /api/org/[orgId]/compliance/filing-calendar?days=90&status=upcoming
 export async function GET(req: NextRequest, { params }: RouteParams) {
   try {
     const { orgId } = await params;
@@ -21,7 +21,6 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
 
     const days = searchParams.get('days') ? parseInt(searchParams.get('days')!) : 90;
     const statusFilter = searchParams.get('status');
-    const taxYear = searchParams.get('tax_year');
 
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() + days);
@@ -29,14 +28,13 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     let query = supabase
       .from('filing_calendar')
       .select('*')
-      .eq('organization_id', orgId)
+      .eq('org_id', orgId)
       .order('due_date');
 
     if (days > 0) {
       query = query.lte('due_date', cutoffDate.toISOString().split('T')[0]);
     }
     if (statusFilter) query = query.eq('status', statusFilter);
-    if (taxYear) query = query.eq('tax_year', parseInt(taxYear));
 
     const { data, error } = await query;
     if (error) {
@@ -61,24 +59,35 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     }
 
     const body = await req.json();
-    const { filing_type, tax_year, due_date, description, filing_jurisdiction, extension_due_date, reminder_days } = body;
+    const {
+      filing_type, title, due_date, description, jurisdiction,
+      extension_due_date, period_start, period_end, reminder_days,
+      is_recurring, recurrence_rule,
+    } = body;
 
-    if (!filing_type || !tax_year || !due_date) {
-      return NextResponse.json({ error: 'filing_type, tax_year, and due_date are required' }, { status: 400 });
+    if (!filing_type || !title || !due_date) {
+      return NextResponse.json(
+        { error: 'filing_type, title, and due_date are required' },
+        { status: 400 }
+      );
     }
 
     const { data, error } = await supabase
       .from('filing_calendar')
       .insert({
-        organization_id: orgId,
+        org_id: orgId,
         filing_type,
-        tax_year,
+        title,
         due_date,
         description: description || null,
-        filing_jurisdiction: filing_jurisdiction || 'federal',
+        jurisdiction: jurisdiction || 'federal',
         extension_due_date: extension_due_date || null,
+        period_start: period_start || null,
+        period_end: period_end || null,
         reminder_days: reminder_days || [30, 14, 7],
-        status: 'pending',
+        status: 'upcoming',
+        is_recurring: is_recurring || false,
+        recurrence_rule: recurrence_rule || null,
       })
       .select()
       .single();
@@ -112,9 +121,10 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     }
 
     const allowedFields = [
-      'filing_type', 'tax_year', 'due_date', 'status', 'description',
-      'filing_jurisdiction', 'extension_due_date', 'filed_date', 'filed_by',
-      'confirmation_number', 'notes', 'reminder_days',
+      'filing_type', 'title', 'due_date', 'status', 'description',
+      'jurisdiction', 'extension_due_date', 'period_start', 'period_end',
+      'completed_at', 'completed_by', 'filing_reference',
+      'notes', 'reminder_days', 'is_recurring', 'recurrence_rule',
     ];
     const updates: Record<string, any> = {};
     for (const field of allowedFields) {
@@ -125,7 +135,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
       .from('filing_calendar')
       .update(updates)
       .eq('id', id)
-      .eq('organization_id', orgId)
+      .eq('org_id', orgId)
       .select()
       .single();
 

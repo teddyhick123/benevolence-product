@@ -5552,23 +5552,23 @@ ${org?.name || 'The Organization'}`;
         InputValidator.validateUUID(args.organization_id, 'organization_id');
         if (args.filing_id) InputValidator.validateUUID(args.filing_id, 'filing_id');
         if (args.due_date) InputValidator.validateDateString(args.due_date, 'due_date');
-        if (args.filed_date) InputValidator.validateDateString(args.filed_date, 'filed_date');
-        if (args.extended_due_date) InputValidator.validateDateString(args.extended_due_date, 'extended_due_date');
+        if (args.extension_due_date) InputValidator.validateDateString(args.extension_due_date, 'extension_due_date');
         if (args.status) {
           InputValidator.validateEnum(args.status, 'status', [
-            'pending', 'in_progress', 'filed', 'filed_late', 'extended', 'overdue', 'not_required',
+            'upcoming', 'in_progress', 'filed', 'extended', 'overdue', 'waived', 'not_applicable',
           ] as const);
         }
 
         if (args.filing_id) {
           // Update existing
           const updateData: any = {};
-          const fields = ['status', 'filed_date', 'confirmation_number', 'extended_due_date', 'document_url', 'notes', 'description'];
+          const fields = ['status', 'filing_reference', 'extension_due_date', 'notes', 'description', 'completed_at'];
           for (const f of fields) {
             if (args[f] !== undefined) updateData[f] = args[f];
           }
-          if (args.status === 'filed' || args.status === 'filed_late') {
-            updateData.filed_by = userId;
+          if (args.status === 'filed') {
+            updateData.completed_by = userId;
+            if (!updateData.completed_at) updateData.completed_at = new Date().toISOString();
           }
 
           const { data, error } = await this.supabase
@@ -5587,8 +5587,8 @@ ${org?.name || 'The Organization'}`;
           };
         } else {
           // Create new
-          if (!args.filing_type || !args.tax_year || !args.due_date) {
-            throw new Error('filing_type, tax_year, and due_date are required to create a new filing');
+          if (!args.filing_type || !args.title || !args.due_date) {
+            throw new Error('filing_type, title, and due_date are required to create a new filing');
           }
 
           const { data, error } = await this.supabase
@@ -5596,12 +5596,12 @@ ${org?.name || 'The Organization'}`;
             .insert({
               org_id: args.organization_id,
               filing_type: args.filing_type,
-              tax_year: args.tax_year,
+              title: args.title || args.filing_type,
               jurisdiction: args.jurisdiction || 'federal',
               description: args.description || null,
               due_date: args.due_date,
-              extended_due_date: args.extended_due_date || null,
-              status: args.status || 'pending',
+              extension_due_date: args.extension_due_date || null,
+              status: args.status || 'upcoming',
             })
             .select()
             .single();
@@ -5838,10 +5838,10 @@ ${org?.name || 'The Organization'}`;
           .from('state_registrations')
           .select('*')
           .eq('org_id', args.organization_id)
-          .order('state_name');
+          .order('state');
 
         if (args.state_code) {
-          query = query.eq('state_code', args.state_code.toUpperCase());
+          query = query.eq('state', args.state_code.toUpperCase());
         }
         if (args.status_filter) {
           query = query.eq('status', args.status_filter);
@@ -5853,11 +5853,11 @@ ${org?.name || 'The Organization'}`;
         const registrations = data || [];
         const summary = {
           total: registrations.length,
-          registered: registrations.filter((r: any) => r.status === 'registered').length,
-          renewal_pending: registrations.filter((r: any) => r.status === 'renewal_pending').length,
-          renewal_overdue: registrations.filter((r: any) => r.status === 'renewal_overdue').length,
-          lapsed: registrations.filter((r: any) => r.status === 'lapsed').length,
+          active: registrations.filter((r: any) => r.status === 'active').length,
+          renewal_due: registrations.filter((r: any) => r.status === 'renewal_due').length,
+          expired: registrations.filter((r: any) => r.status === 'expired').length,
           exempt: registrations.filter((r: any) => r.status === 'exempt').length,
+          not_registered: registrations.filter((r: any) => r.status === 'not_registered').length,
         };
 
         return {

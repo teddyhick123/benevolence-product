@@ -1355,7 +1355,7 @@ export class ClaudePortfolioAssistant {
 
     // Call Claude with function calling (using filtered tools)
     const response = await this.anthropic.messages.create({
-      model: 'claude-sonnet-4-5-20250929',
+      model: 'claude-sonnet-4-6',
       max_tokens: 4096,
       system: systemPrompt,
       tools,
@@ -1420,7 +1420,7 @@ export class ClaudePortfolioAssistant {
 
       // Get final response with tool results (using same filtered tools)
       const finalResponse = await this.anthropic.messages.create({
-        model: 'claude-sonnet-4-5-20250929',
+        model: 'claude-sonnet-4-6',
         max_tokens: 4096,
         system: systemPrompt,
         tools,
@@ -1487,6 +1487,9 @@ export class ClaudePortfolioAssistant {
     'add_holding', 'update_holding', 'remove_holding',
     'add_metric_fact', 'delete_metric_fact',
     'add_widget', 'remove_widget',
+    'log_contribution_received', 'generate_receipt', 'generate_acknowledgment',
+    'track_filing_deadline', 'register_disqualified_person',
+    'assess_qualifying_distribution', 'log_expenditure_responsibility',
   ]);
 
   private async executeTool(

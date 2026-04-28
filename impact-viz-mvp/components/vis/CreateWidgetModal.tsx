@@ -170,6 +170,8 @@ export default function CreateWidgetModal({ portfolioId, holdingId, open, onClos
   const [mounted, setMounted] = React.useState(false);
   const [step, setStep] = React.useState<'select' | 'configure'>('select');
   const [selectedType, setSelectedType] = React.useState<string | null>(null);
+  const dialogRef = React.useRef<HTMLDivElement>(null);
+  const triggerRef = React.useRef<Element | null>(null);
 
   React.useEffect(() => {
     setMounted(true);
@@ -183,6 +185,35 @@ export default function CreateWidgetModal({ portfolioId, holdingId, open, onClos
       document.body.style.overflow = prev;
     };
   }, [open]);
+
+  // Focus management
+  React.useEffect(() => {
+    if (!mounted) return;
+    if (open) {
+      triggerRef.current = document.activeElement;
+      const first = dialogRef.current?.querySelector<HTMLElement>(
+        'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      );
+      first?.focus();
+    } else {
+      (triggerRef.current as HTMLElement | null)?.focus?.();
+    }
+  }, [open, mounted]);
+
+  function handleDialogKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
+    if (e.key !== 'Tab') return;
+    const focusable = dialogRef.current?.querySelectorAll<HTMLElement>(
+      'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    );
+    if (!focusable || focusable.length === 0) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (e.shiftKey) {
+      if (document.activeElement === first) { e.preventDefault(); last.focus(); }
+    } else {
+      if (document.activeElement === last) { e.preventDefault(); first.focus(); }
+    }
+  }
 
   React.useEffect(() => {
     if (open) {
@@ -212,16 +243,19 @@ export default function CreateWidgetModal({ portfolioId, holdingId, open, onClos
 
   return createPortal(
     <div
+      ref={dialogRef}
       className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
       role="dialog"
       aria-modal="true"
+      aria-labelledby="create-widget-title"
+      onKeyDown={handleDialogKeyDown}
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div className="w-full max-w-4xl max-h-[90vh] overflow-hidden rounded-3xl bg-white shadow-2xl">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-neutral-200">
           <div>
-            <h2 className="text-xl font-semibold text-neutral-900">
+            <h2 id="create-widget-title" className="text-xl font-semibold text-neutral-900">
               {editing ? 'Edit Widget' : step === 'select' ? 'Add Visualization' : 'Configure Widget'}
             </h2>
             <p className="text-sm text-neutral-600 mt-0.5">

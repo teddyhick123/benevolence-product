@@ -1,0 +1,46 @@
+Constituent ID,Constituent Name,Fund,Gift Date,Gift Amount,Payment Method,Gift Type,Fund Description,Appeal,Campaign,Acknowledgement Date,Receipt Amount,Receipt Date
+BW-10001,Year Up United,Brightwater Foundation General,03/15/2021,$25000.00,Wire Transfer,Grant,Brightwater Foundation,Annual Appeal 2021,Workforce 2021,03/20/2021,25000.00,03/20/2021
+BW-10002,Year Up United,Brightwater Foundation General,09/10/2021,18000.00,Check,Grant,Brightwater Foundation,Fall Appeal 2021,Workforce 2021,09/15/2021,18000.00,09/15/2021
+BW-10003,Year Up United,Brightwater Foundation General,2022-03-01,22000.00,Wire Transfer,Grant,Brightwater Foundation,Spring Appeal 2022,Workforce 2022,2022-03-07,22000.00,2022-03-07
+BW-10004,Year Up United,Brightwater Foundation General,08/22/2022,$20000.00,Wire Transfer,Grant,Brightwater Foundation,Fall Appeal 2022,Workforce 2022,08/28/2022,20000.00,08/28/2022
+BW-10005,Year Up United,Brightwater Foundation General,03/18/2023,25000.00,Wire Transfer,Grant,Brightwater Foundation,Spring Appeal 2023,Workforce 2023,,25000.00,03/25/2023
+BW-10006,College Track,Brightwater Foundation General,04/05/2021,15000.00,Check,Grant,Brightwater Foundation,Annual Appeal 2021,Education 2021,04/12/2021,15000.00,04/12/2021
+BW-10007,College Track,Brightwater Foundation General,10/14/2021,12000.00,Check,Grant,Brightwater Foundation,Fall Appeal 2021,Education 2021,,12000.00,10/22/2021
+BW-10008,College Track,Brightwater Foundation General,2022-05-20,$18000.00,Wire Transfer,Grant,Brightwater Foundation,Spring Appeal 2022,Education 2022,2022-05-27,18000.00,2022-05-27
+BW-10009,College Track,Brightwater Foundation General,11/08/2022,15000.00,Wire Transfer,Grant,Brightwater Foundation,Fall Appeal 2022,Education 2022,11/14/2022,15000.00,11/14/2022
+BW-10010,College Track,Brightwater Foundation General,04/02/2023,20000.00,Wire Transfer,Grant,Brightwater Foundation,Spring Appeal 2023,Education 2023,04/08/2023,20000.00,04/08/2023
+BW-10011,Per Scholas,Brightwater Foundation General,05/17/2021,10000.00,Wire Transfer,Grant,Brightwater Foundation,Annual Appeal 2021,Workforce 2021,05/22/2021,10000.00,05/22/2021
+BW-10012,Per Scholas,Brightwater Foundation General,2021-11-30,8000.00,Check,Grant,Brightwater Foundation,Fall Appeal 2021,Workforce 2021,2021-12-05,8000.00,2021-12-05
+BW-10013,Per Scholas,Brightwater Foundation General,06/10/2022,12000.00,Wire Transfer,Grant,Brightwater Foundation,Spring Appeal 2022,Workforce 2022,06/16/2022,12000.00,06/16/2022
+BW-10014,Per Scholas,Brightwater Foundation General,12/01/2022,$15000.00,Wire Transfer,Grant,Brightwater Foundation,Year-End 2022,Workforce 2022,12/07/2022,15000.00,12/07/2022
+BW-10015,Per Scholas,Brightwater Foundation General,05/20/2023,15000.00,Wire Transfer,Grant,Brightwater Foundation,Spring Appeal 2023,Workforce 2023,05/25/2023,15000.00,05/25/2023
+BW-10016,Bottom Line,Brightwater Foundation General,06/28/2021,8000.00,Check,Grant,Brightwater Foundation,Annual Appeal 2021,Education 2021,07/05/2021,8000.00,07/05/2021
+BW-10017,Bottom Line,Brightwater Foundation General,2022-01-15,10000.00,Wire Transfer,Grant,Brightwater Foundation,New Year Appeal 2022,Education 2022,2022-01-20,10000.00,2022-01-20
+BW-10018,Bottom Line,Brightwater Foundation General,07/14/2022,$10000.00,Wire Transfer,Grant,Brightwater Foundation,Mid-Year 2022,Education 2022,07/20/2022,10000.00,07/20/2022
+BW-10019,Bottom Line,Brightwater Foundation General,01/22/2023,12000.00,Check,Grant,Brightwater Foundation,New Year Appeal 2023,Education 2023,01/28/2023,12000.00,01/28/2023
+BW-20001,Margaret Chen,Brightwater Unrestricted,02/14/2022,5000.00,Credit Card,Individual Gift,Brightwater Foundation,Valentine's Day Appeal,Individual 2022,02/16/2022,5000.00,02/16/2022
+BW-20002,James Whitfield,Brightwater Unrestricted,2022-03-22,2500.00,Check,Individual Gift,Brightwater Foundation,Spring Appeal 2022,Individual 2022,2022-03-28,2500.00,2022-03-28
+BW-20003,Sarah Okonkwo,Brightwater Workforce Fund,04/30/2022,$10000.00,Wire Transfer,Major Gift,Brightwater Foundation,Major Donors 2022,Individual 2022,,10000.00,05/05/2022
+BW-20004,Robert Espinoza,Brightwater Unrestricted,07/04/2022,1000.00,Credit Card,Individual Gift,Brightwater Foundation,Independence Appeal,Individual 2022,07/06/2022,1000.00,07/06/2022
+BW-20005,Linda Yamamoto,Brightwater Education Fund,08/15/2022,7500.00,Wire Transfer,Individual Gift,Brightwater Foundation,Summer Appeal 2022,Individual 2022,08/19/2022,7500.00,08/19/2022
+BW-20006,David Kowalski,Brightwater Unrestricted,10/31/2022,500.00,Credit Card,Individual Gift,Brightwater Foundation,Fall Appeal 2022,Individual 2022,11/02/2022,500.00,11/02/2022
+BW-20007,Patricia Norris,Brightwater Workforce Fund,2022-11-28,$15000.00,Check,Major Gift,Brightwater Foundation,Year-End 2022,Individual 2022,2022-12-02,15000.00,2022-12-02
+BW-20008,Michael Oduya,Brightwater Unrestricted,12/15/2022,3000.00,Credit Card,Individual Gift,Brightwater Foundation,Year-End 2022,Individual 2022,12/18/2022,3000.00,12/18/2022
+BW-20009,Jennifer Holbrook,Brightwater Education Fund,01/10/2023,2000.00,Check,Individual Gift,Brightwater Foundation,New Year Appeal 2023,Individual 2023,01/14/2023,2000.00,01/14/2023
+BW-20010,Thomas Guerrero,Brightwater Workforce Fund,2023-03-05,5000.00,Wire Transfer,Individual Gift,Brightwater Foundation,Spring Appeal 2023,Individual 2023,2023-03-09,5000.00,2023-03-09
+BW-30001,JPMorgan Chase Foundation,Brightwater Corporate Partners,09/01/2021,$50000.00,Wire Transfer,Corporate Grant,Brightwater Foundation,Corporate Appeal 2021,Corporate 2021,09/08/2021,50000.00,09/08/2021
+BW-30002,BlackRock Charitable Foundation,Brightwater Corporate Partners,2021-10-15,25000.00,Wire Transfer,Corporate Grant,Brightwater Foundation,Corporate Appeal 2021,Corporate 2021,2021-10-22,25000.00,2021-10-22
+BW-30003,Vanguard Charitable,Brightwater Corporate Partners,03/31/2022,$30000.00,Wire Transfer,DAF Grant,Brightwater Foundation,Corporate Appeal 2022,Corporate 2022,04/04/2022,30000.00,04/04/2022
+BW-30004,JPMorgan Chase Foundation,Brightwater Corporate Partners,2022-09-15,50000.00,Wire Transfer,Corporate Grant,Brightwater Foundation,Corporate Appeal 2022,Corporate 2022,2022-09-22,50000.00,2022-09-22
+BW-30005,Fidelity Charitable,Brightwater Corporate Partners,11/20/2022,20000.00,Wire Transfer,DAF Grant,Brightwater Foundation,Year-End 2022,Corporate 2022,11/25/2022,20000.00,11/25/2022
+BW-20011,Angela Foster,Brightwater Unrestricted,2023-05-10,1500.00,Credit Card,Individual Gift,Brightwater Foundation,Spring Appeal 2023,Individual 2023,2023-05-13,1500.00,2023-05-13
+BW-20012,Carlos Mendoza,Brightwater Workforce Fund,06/01/2023,$10000.00,Wire Transfer,Major Gift,Brightwater Foundation,Mid-Year 2023,Individual 2023,06/06/2023,10000.00,06/06/2023
+BW-20013,Susan Park,Brightwater Education Fund,08/20/2023,4000.00,Check,Individual Gift,Brightwater Foundation,Summer Appeal 2023,Individual 2023,08/25/2023,4000.00,08/25/2023
+BW-20014,Kevin Abramowitz,Brightwater Unrestricted,2023-10-08,750.00,Credit Card,Individual Gift,Brightwater Foundation,Fall Appeal 2023,Individual 2023,,750.00,2023-10-12
+BW-20015,Maria Santos,Brightwater Workforce Fund,11/15/2023,8000.00,Wire Transfer,Individual Gift,Brightwater Foundation,Year-End 2023,Individual 2023,11/19/2023,8000.00,11/19/2023
+BW-20016,Carlos Mendoza,Brightwater Workforce Fund,11/17/2023,$10000.00,Wire Transfer,Major Gift,Brightwater Foundation,Mid-Year 2023,Individual 2023,11/22/2023,10000.00,11/22/2023
+BW-20017,Raymond Osei,Brightwater Unrestricted,12/01/2023,2500.00,Credit Card,Individual Gift,Brightwater Foundation,Year-End 2023,Individual 2023,12/04/2023,2500.00,12/04/2023
+BW-20018,Teresa Blanchard,Brightwater Education Fund,2024-02-14,3000.00,Check,Individual Gift,Brightwater Foundation,Valentine's Day 2024,Individual 2024,2024-02-18,3000.00,2024-02-18
+BW-20019,Nathan Osei,Brightwater Unrestricted,03/25/2024,500.00,Credit Card,Individual Gift,Brightwater Foundation,Spring Appeal 2024,Individual 2024,,500.00,03/30/2024
+BW-30006,Schwab Charitable,Brightwater Corporate Partners,2024-05-30,$35000.00,Wire Transfer,DAF Grant,Brightwater Foundation,Corporate Appeal 2024,Corporate 2024,2024-06-04,35000.00,2024-06-04
+BW-20020,Diane Calloway,Brightwater Workforce Fund,07/19/2024,6000.00,Wire Transfer,Individual Gift,Brightwater Foundation,Summer Appeal 2024,Individual 2024,07/23/2024,6000.00,07/23/2024

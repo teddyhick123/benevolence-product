@@ -38,7 +38,9 @@ function LoginPageContent() {
   const router = useRouter();
   const redirect = useMemo(() => sp.get('redirect') || '/welcome', [sp]);
 
-  const [mode, setMode] = useState<'signin' | 'signup'>('signin');
+  const [mode, setMode] = useState<'signin' | 'signup'>(
+    sp.get('signup') === '1' ? 'signup' : 'signin'
+  );
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [password2, setPassword2] = useState('');
@@ -160,21 +162,28 @@ function LoginPageContent() {
 
       {sessionChecked && (mode === 'signin' ? (
         <form onSubmit={onSignIn} className="space-y-3">
+          <label htmlFor="signin-email" className="sr-only">Email address</label>
           <input
+            id="signin-email"
             type="email" placeholder="you@company.com" className="w-full border border-black/10 rounded-2xl px-3 py-3 focus:outline-none focus:ring-2 focus:ring-azure/30"
             value={email} onChange={e=>setEmail(e.target.value)} required autoComplete="username email"
           />
+          <label htmlFor="signin-password" className="sr-only">Password</label>
           <input
+            id="signin-password"
             type="password" placeholder="Password" className="w-full border border-black/10 rounded-2xl px-3 py-3 focus:outline-none focus:ring-2 focus:ring-azure/30"
             value={password} onChange={e=>setPassword(e.target.value)} required autoComplete="current-password"
           />
-          {error && <p className="text-red-600 text-sm">{error}</p>}
-          {info && <p className="text-green-700 text-sm">{info}</p>}
+          {error && <p className="text-red-600 text-sm" role="alert">{error}</p>}
+          {info && <p className="text-green-700 text-sm" role="status">{info}</p>}
           <button disabled={busy} className="px-4 py-2 rounded bg-gradient-to-r from-azure via-azure/90 to-azure/70 text-white shadow-soft hover:opacity-90 disabled:opacity-50 transition-opacity">
             {busy ? 'Signing in…' : 'Sign in'}
           </button>
           <p className="text-sm text-neutral-600">
-            Don't have an account?{' '}
+            <a href="/forgot-password" className="text-azure hover:underline">Forgot password?</a>
+          </p>
+          <p className="text-sm text-neutral-600">
+            Don&apos;t have an account?{' '}
             <button type="button" onClick={() => setMode('signup')} className="text-azure hover:underline font-medium">
               Create one
             </button>
@@ -182,20 +191,26 @@ function LoginPageContent() {
         </form>
       ) : (
         <form onSubmit={onSignUp} className="space-y-3">
+          <label htmlFor="signup-email" className="sr-only">Email address</label>
           <input
+            id="signup-email"
             type="email" placeholder="you@company.com" className="w-full border border-black/10 rounded-2xl px-3 py-3 focus:outline-none focus:ring-2 focus:ring-azure/30"
             value={email} onChange={e=>setEmail(e.target.value)} required autoComplete="username email"
           />
+          <label htmlFor="signup-password" className="sr-only">Password</label>
           <input
+            id="signup-password"
             type="password" placeholder="Password (min 6 chars)" className="w-full border border-black/10 rounded-2xl px-3 py-3 focus:outline-none focus:ring-2 focus:ring-azure/30"
             value={password} onChange={e=>setPassword(e.target.value)} required autoComplete="new-password"
           />
+          <label htmlFor="signup-password2" className="sr-only">Confirm password</label>
           <input
+            id="signup-password2"
             type="password" placeholder="Confirm password" className="w-full border border-black/10 rounded-2xl px-3 py-3 focus:outline-none focus:ring-2 focus:ring-azure/30"
             value={password2} onChange={e=>setPassword2(e.target.value)} required autoComplete="new-password"
           />
-          {error && <p className="text-red-600 text-sm">{error}</p>}
-          {info && <p className="text-green-700 text-sm">{info}</p>}
+          {error && <p className="text-red-600 text-sm" role="alert">{error}</p>}
+          {info && <p className="text-green-700 text-sm" role="status">{info}</p>}
           <button disabled={busy} className="px-4 py-2 rounded bg-gradient-to-r from-azure via-azure/90 to-azure/70 text-white shadow-soft hover:opacity-90 disabled:opacity-50 transition-opacity">
             {busy ? 'Creating…' : 'Create account'}
           </button>

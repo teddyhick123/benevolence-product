@@ -3,7 +3,8 @@ import { createClient } from '@supabase/supabase-js';
 import { ClaudePortfolioAssistant } from '@/lib/claude-assistant';
 import { cookies } from 'next/headers';
 import { createServerClient } from '@supabase/ssr';
-import { aiAuthRequired } from '@/lib/rate-limit-response';
+import { aiAuthRequired, rateLimitExceeded } from '@/lib/rate-limit-response';
+import { aiLimiter } from '@/lib/rate-limit';
 import { aiChatRequestSchema } from '@/lib/schemas/ai';
 
 export const runtime = 'nodejs';
@@ -55,6 +56,12 @@ export async function POST(req: NextRequest) {
     // Block anonymous access to AI features
     if (!user) {
       return aiAuthRequired();
+    }
+
+    // Rate-limit per user: 30 requests/hour
+    const { success, reset, remaining, limit } = await aiLimiter.limit(user.id);
+    if (!success) {
+      return rateLimitExceeded(reset, remaining, limit);
     }
 
     // Parse and validate request body
@@ -180,6 +187,7 @@ export async function POST(req: NextRequest) {
       sessionId,
       message,
       conversationHistory: filteredHistory,
+      memberRole: membership?.role ?? 'viewer',
     });
 
     // Check if any widgets were created/displayed and fetch their full data

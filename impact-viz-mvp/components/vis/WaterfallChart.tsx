@@ -362,7 +362,7 @@ function WaterfallD3Chart({
 
   return (
     <div ref={containerRef} className="w-full h-full">
-      <svg ref={svgRef} className="w-full h-full" />
+      <svg ref={svgRef} className="w-full h-full" role="img" aria-label="Waterfall chart" />
     </div>
   );
 }

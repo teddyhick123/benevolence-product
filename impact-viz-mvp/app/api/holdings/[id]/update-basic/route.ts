@@ -1,8 +1,6 @@
 import { NextResponse } from 'next/server';
-import { createSupabaseServerClient } from '@/lib/supabase';
+import { createServerClient } from '@/lib/supabase';
 import { revalidatePath } from 'next/cache';
-
-const getSupabase = createSupabaseServerClient;
 
 function getValue(formData: FormData, key: string) {
   const val = formData.get(key);
@@ -19,12 +17,37 @@ function numOrNull(v: FormDataEntryValue | null) {
 
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id: holdingId } = await ctx.params;
-  const formData = await req.formData();
-  const supabase = await getSupabase();
+  const supabase = await createServerClient();
 
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const { data: holding } = await supabase
+    .from('holdings')
+    .select('id, portfolio_id')
+    .eq('id', holdingId)
+    .single();
+
+  if (!holding) {
+    return NextResponse.json({ error: 'Holding not found' }, { status: 404 });
+  }
+
+  const { data: membership } = await supabase
+    .from('portfolio_members')
+    .select('role')
+    .eq('portfolio_id', holding.portfolio_id)
+    .eq('user_id', user.id)
+    .maybeSingle();
+
+  if (!membership) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
+  const formData = await req.formData();
   const updates: any = {};
 
-  // Only include fields that are present in the form
   const name = getValue(formData, 'name');
   if (name !== undefined) updates.name = name;
 
@@ -46,10 +69,16 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   const theory_of_action = getValue(formData, 'theory_of_action');
   if (theory_of_action !== undefined) updates.theory_of_action = theory_of_action;
 
-  const funds_allocated = formData.has('funds_allocated') ? numOrNull(formData.get('funds_allocated')) : undefined;
+  const funds_allocated = formData.has('funds_allocated')
+    ? numOrNull(formData.get('funds_allocated'))
+    : undefined;
   if (funds_allocated !== undefined) updates.funds_allocated = funds_allocated;
 
-  const { error, data } = await supabase.from('holdings').update(updates).eq('id', holdingId).select();
+  const { error, data } = await supabase
+    .from('holdings')
+    .update(updates)
+    .eq('id', holdingId)
+    .select();
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });

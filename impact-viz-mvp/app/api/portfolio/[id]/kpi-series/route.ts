@@ -30,11 +30,6 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
 
   const { data: rows, error: qErr } = await query;
 
-  // Debug logging
-  console.log(`[kpi-series API] Query for metric "${metricCode}" on portfolio ${portfolio_id}: ${rows?.length || 0} rows`);
-  if (qErr) {
-    console.error('[kpi-series API] Query error:', qErr);
-  }
   if (qErr) {
     return NextResponse.json({ error: qErr.message }, { status: 500, headers: { 'Cache-Control': 'no-store' } });
   }

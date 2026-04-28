@@ -34,11 +34,16 @@ export async function GET(
     const validated = grantQuerySchema.parse(queryParams);
 
     // Verify user has access to this portfolio
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const { data: portfolioAccess } = await supabase
       .from('portfolio_members')
       .select('portfolio_id')
       .eq('portfolio_id', portfolioId)
-      .eq('user_id', (await supabase.auth.getUser()).data.user?.id)
+      .eq('user_id', user.id)
       .single();
 
     if (!portfolioAccess) {

@@ -149,10 +149,46 @@ export type PortfolioInvestmentSummary = {
  * IRR calculation requires dates and cash flows
  */
 export function calculateIRR(cashFlows: { date: string; amount: number }[]): number | null {
-  // TODO: Implement XIRR calculation
-  // This would use Newton-Raphson method or similar
-  // For now, return null
-  return null;
+  return calculateXIRR(cashFlows.map(cf => ({ date: new Date(cf.date), amount: cf.amount })));
+}
+
+/**
+ * Calculate XIRR using Newton-Raphson iteration.
+ * NPV(r) = sum of amount_i / (1 + r)^((date_i - date_0) / 365)
+ * Converges when |NPV| < 1e-7 or after 100 iterations.
+ */
+export function calculateXIRR(cashflows: Array<{ date: Date; amount: number }>): number | null {
+  if (cashflows.length < 2) return null;
+
+  const date0 = cashflows[0].date.getTime();
+
+  function npv(rate: number): number {
+    return cashflows.reduce((sum, cf) => {
+      const t = (cf.date.getTime() - date0) / (365 * 24 * 60 * 60 * 1000);
+      return sum + cf.amount / Math.pow(1 + rate, t);
+    }, 0);
+  }
+
+  function npvDerivative(rate: number): number {
+    return cashflows.reduce((sum, cf) => {
+      const t = (cf.date.getTime() - date0) / (365 * 24 * 60 * 60 * 1000);
+      if (t === 0) return sum;
+      return sum - t * cf.amount / Math.pow(1 + rate, t + 1);
+    }, 0);
+  }
+
+  let rate = 0.1; // initial guess
+  for (let i = 0; i < 100; i++) {
+    const n = npv(rate);
+    if (Math.abs(n) < 1e-7) return rate;
+    const d = npvDerivative(rate);
+    if (d === 0) return null;
+    const next = rate - n / d;
+    if (Math.abs(next - rate) < 1e-7) return next;
+    rate = next;
+    if (!isFinite(rate)) return null;
+  }
+  return null; // no convergence
 }
 
 /**

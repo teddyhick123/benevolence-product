@@ -195,6 +195,10 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
 
     if (insertError) {
       console.error('Failed to cache financial analysis:', insertError);
+      return NextResponse.json(
+        { error: 'Analysis generated but could not be saved. Please try again.' },
+        { status: 500 }
+      );
     }
 
     return NextResponse.json({

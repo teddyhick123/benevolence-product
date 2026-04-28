@@ -415,7 +415,7 @@ function BubbleChartD3({
 
   return (
     <div ref={containerRef} className="w-full h-full relative">
-      <svg ref={svgRef} className="w-full h-full" />
+      <svg ref={svgRef} className="w-full h-full" role="img" aria-label="Impact bubble chart" />
       <div
         ref={tooltipRef}
         className="absolute pointer-events-none opacity-0 bg-white rounded-lg shadow-lg border border-neutral-200 p-3 text-sm transition-opacity"

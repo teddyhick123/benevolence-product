@@ -1,10 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { createServerClient } from '@/lib/supabase';
 import { parseDocumentChunked, DocumentChunk } from '@/lib/document-parser';
 import { extractFactsFromText, ExtractedFact, ExtractionResult, getUniqueMetricCodes } from '@/lib/openai-extractor';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300; // 5 minutes for large file processing
+
+async function requireAdmin(): Promise<string | null> {
+  const supabase = await createServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) return null;
+
+  const { data: adminRow } = await supabase
+    .from('admins')
+    .select('user_id')
+    .eq('user_id', user.id)
+    .maybeSingle();
+
+  return adminRow ? user.id : null;
+}
 
 function supabaseService() {
   return createClient(
@@ -32,6 +50,11 @@ function deduplicateFacts(facts: ExtractedFact[]): ExtractedFact[] {
 }
 
 export async function POST(req: NextRequest) {
+  const userId = await requireAdmin();
+  if (!userId) {
+    return Response.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   const sb = supabaseService();
   let uploadId: string | undefined;
 

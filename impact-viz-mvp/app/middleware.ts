@@ -32,9 +32,29 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(url);
   }
 
+  // If user already has an org cookie, keep it
+  const existingOrgId = req.cookies.get('x-org-id')?.value;
+  if (!existingOrgId) {
+    // Look up org memberships; auto-select if exactly one
+    const { data: memberships } = await supabase
+      .from('organization_members')
+      .select('org_id')
+      .eq('user_id', user.id)
+      .limit(2);
+
+    if (memberships && memberships.length === 1) {
+      res.cookies.set('x-org-id', memberships[0].org_id, {
+        path: '/',
+        httpOnly: false,
+        sameSite: 'lax',
+        maxAge: 60 * 60 * 24 * 7, // 7 days
+      });
+    }
+  }
+
   return res;
 }
 
 export const config = {
-  matcher: ['/dashboard/:path*', '/admin/:path*', '/welcome'],
+  matcher: ['/dashboard/:path*', '/admin/:path*', '/welcome', '/settings/:path*'],
 };

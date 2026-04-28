@@ -349,7 +349,7 @@ function HorizontalTimeline({ events, showValues, onEventClick }: TimelineProps)
 
   return (
     <div ref={containerRef} className="w-full overflow-x-auto">
-      <svg ref={svgRef} />
+      <svg ref={svgRef} role="img" aria-label="Impact timeline chart" />
     </div>
   );
 }

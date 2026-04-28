@@ -1326,8 +1326,9 @@ export class ClaudePortfolioAssistant {
     message: string;
     orgId?: string;
     conversationHistory?: Array<{ role: 'user' | 'assistant'; content: string }>;
+    memberRole?: string;
   }) {
-    const { portfolioId, userId, sessionId, message, orgId, conversationHistory = [] } = params;
+    const { portfolioId, userId, sessionId, message, orgId, conversationHistory = [], memberRole } = params;
 
     // Initialize for organization if provided (enables module filtering)
     if (orgId) {
@@ -1395,7 +1396,8 @@ export class ClaudePortfolioAssistant {
             sessionId,
             batchId,
             i,
-            message
+            message,
+            memberRole
           );
 
           if (result.action) {
@@ -1481,6 +1483,12 @@ export class ClaudePortfolioAssistant {
   /**
    * Execute a tool/function call
    */
+  private readonly WRITE_TOOLS = new Set([
+    'add_holding', 'update_holding', 'remove_holding',
+    'add_metric_fact', 'delete_metric_fact',
+    'add_widget', 'remove_widget',
+  ]);
+
   private async executeTool(
     functionName: string,
     args: any,
@@ -1489,8 +1497,13 @@ export class ClaudePortfolioAssistant {
     sessionId: string,
     batchId: string,
     sequenceOrder: number,
-    userPrompt: string
+    userPrompt: string,
+    memberRole?: string
   ): Promise<ToolResult> {
+    if (this.WRITE_TOOLS.has(functionName) && memberRole === 'viewer') {
+      return { error: 'Viewers cannot perform write operations. Request a role upgrade from your org admin.' } as any;
+    }
+
     // Verify user has access to this portfolio
     await this.verifyPortfolioAccess(portfolioId, userId);
 
@@ -5875,7 +5888,7 @@ ${org?.name || 'The Organization'}`;
     ] = await Promise.all([
       this.supabase
         .from('portfolios')
-        .select('id, name, description')
+        .select('id, name, description, org_id')
         .eq('id', portfolioId)
         .single(),
       this.supabase
@@ -6040,6 +6053,91 @@ ${org?.name || 'The Organization'}`;
 
     metricsWithData.sort((a, b) => b.dataPoints - a.dataPoints);
 
+    // Fetch org-level context if this portfolio belongs to an org
+    let orgContext: {
+      name: string;
+      org_type: string;
+      modules: Record<string, boolean>;
+      otherPortfolioCount: number;
+      otherPortfolioValue: number;
+      donorCount: number | null;
+      donorGivingThisYear: number | null;
+      nextFiling: { description: string; due_date: string } | null;
+    } | null = null;
+
+    const orgId = (portfolio.data as any)?.org_id;
+    if (orgId) {
+      const currentYear = new Date().getFullYear();
+      const [orgRow, otherPortfolios, donorStats, nextFiling] = await Promise.all([
+        this.supabase
+          .from('organizations')
+          .select('name, org_type, modules')
+          .eq('id', orgId)
+          .single(),
+        this.supabase
+          .from('portfolios')
+          .select('id, name')
+          .eq('org_id', orgId)
+          .neq('id', portfolioId),
+        this.supabase
+          .from('donors')
+          .select('id', { count: 'exact', head: false })
+          .eq('organization_id', orgId)
+          .limit(1),
+        this.supabase
+          .from('filing_calendar')
+          .select('description, due_date, filing_type')
+          .eq('organization_id', orgId)
+          .eq('status', 'pending')
+          .gte('due_date', new Date().toISOString().slice(0, 10))
+          .order('due_date', { ascending: true })
+          .limit(1),
+      ]);
+
+      const modules: Record<string, boolean> = (orgRow.data as any)?.modules ?? {};
+
+      // Sum AUM across other portfolios
+      let otherPortfolioValue = 0;
+      if (otherPortfolios.data && otherPortfolios.data.length > 0) {
+        const otherIds = otherPortfolios.data.map((p: any) => p.id);
+        const { data: otherHoldings } = await this.supabase
+          .from('holdings')
+          .select('funds_allocated')
+          .in('portfolio_id', otherIds);
+        otherPortfolioValue = (otherHoldings || []).reduce(
+          (sum: number, h: any) => sum + (h.funds_allocated || 0), 0
+        );
+      }
+
+      // Donor giving this year (from tax_contributions)
+      let donorGivingThisYear: number | null = null;
+      if (modules.donors) {
+        const { data: givingData } = await this.supabase
+          .from('tax_contributions')
+          .select('amount_usd')
+          .eq('tax_year', currentYear)
+          .in('portfolio_id',
+            [portfolioId, ...(otherPortfolios.data?.map((p: any) => p.id) ?? [])]
+          );
+        if (givingData) {
+          donorGivingThisYear = givingData.reduce((sum: number, r: any) => sum + (r.amount_usd || 0), 0);
+        }
+      }
+
+      orgContext = {
+        name: (orgRow.data as any)?.name ?? 'Unknown Org',
+        org_type: (orgRow.data as any)?.org_type ?? '',
+        modules,
+        otherPortfolioCount: otherPortfolios.data?.length ?? 0,
+        otherPortfolioValue,
+        donorCount: modules.donors ? (donorStats.data?.length ?? 0) : null,
+        donorGivingThisYear: modules.donors ? donorGivingThisYear : null,
+        nextFiling: modules.compliance && nextFiling.data?.[0]
+          ? { description: nextFiling.data[0].description || nextFiling.data[0].filing_type, due_date: nextFiling.data[0].due_date }
+          : null,
+      };
+    }
+
     return {
       portfolio: portfolio.data,
       holdings: holdingsData,
@@ -6059,6 +6157,7 @@ ${org?.name || 'The Organization'}`;
       },
       kpiSnapshot,
       recentActions: recentActions.data || [],
+      orgContext,
     };
   }
 
@@ -6108,11 +6207,33 @@ ${org?.name || 'The Organization'}`;
       })
       .join('\n');
 
+    // Build org context block if available
+    const orgBlock = context.orgContext ? (() => {
+      const o = context.orgContext;
+      const lines = [
+        `Organization: ${o.name}${o.org_type ? ` (${o.org_type.replace(/_/g, ' ')})` : ''}`,
+      ];
+      if (o.otherPortfolioCount > 0) {
+        lines.push(
+          `Other portfolios in this org: ${o.otherPortfolioCount} with combined value ${formatCurrency(o.otherPortfolioValue)}`
+        );
+      }
+      if (o.donorCount !== null) {
+        lines.push(
+          `Donor base: ${o.donorCount} donors${o.donorGivingThisYear !== null ? `, ${formatCurrency(o.donorGivingThisYear)} given this year` : ''}`
+        );
+      }
+      if (o.nextFiling) {
+        lines.push(`Next filing: ${o.nextFiling.description} due ${o.nextFiling.due_date}`);
+      }
+      return `=== ORGANIZATION CONTEXT ===\n${lines.join('\n')}\n`;
+    })() : '';
+
     return `You are Ben, a friendly AI portfolio management assistant and data visualization expert. You help users manage their impact investment portfolio and create compelling visualizations.
 
 ⚠️ CRITICAL: You MUST use function calls to display visualizations. NEVER use markdown images, placeholders, or text descriptions as substitutes for actual widget displays. When users ask to see/show/display something, call the appropriate function (display_widget, create_portfolio_widget, etc).
 
-=== PORTFOLIO OVERVIEW ===
+${orgBlock}=== PORTFOLIO OVERVIEW ===
 ${context.portfolio?.name || 'Unnamed Portfolio'}
 ${context.portfolio?.description ? `Description: ${context.portfolio.description}` : ''}
 

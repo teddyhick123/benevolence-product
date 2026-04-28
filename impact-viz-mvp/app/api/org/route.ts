@@ -1,29 +1,22 @@
-import { NextRequest, NextResponse } from "next/server";
-import { createServerClient, createAdminClient } from "@/lib/supabase";
+import { NextRequest, NextResponse } from 'next/server';
+import { createServerClient, createAdminClient } from '@/lib/supabase';
 
-export const dynamic = "force-dynamic";
+export const dynamic = 'force-dynamic';
 
-// GET /api/org - List user's organizations
+// GET /api/org — list orgs the current user belongs to
 export async function GET() {
   try {
     const supabase = await createServerClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const { data: { user } } = await supabase.auth.getUser();
 
     if (!user) {
-      return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
 
     const { data, error } = await supabase
-      .from("organization_members")
-      .select(
-        `
-        role,
-        organizations (*)
-      `
-      )
-      .eq("user_id", user.id);
+      .from('organization_members')
+      .select(`role, organizations (*)`)
+      .eq('user_id', user.id);
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
@@ -40,67 +33,34 @@ export async function GET() {
   }
 }
 
-// POST /api/org - Create a new organization
+// POST /api/org — create a new organization
 export async function POST(req: NextRequest) {
   try {
     const supabase = await createServerClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const { data: { user } } = await supabase.auth.getUser();
 
     if (!user) {
-      return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
 
     const body = await req.json();
-    const { name, ein, website, description } = body;
+    const { name, ein, org_type, fiscal_year_end, state_of_incorporation } = body;
 
     if (!name?.trim()) {
-      return NextResponse.json({ error: "Name is required" }, { status: 400 });
+      return NextResponse.json({ error: 'Name is required' }, { status: 400 });
     }
 
-    // Use admin client to create org and add member in one transaction
     const adminClient = createAdminClient();
-
-    // Check if EIN already exists
-    if (ein) {
-      const { data: existingOrg } = await adminClient
-        .from("organizations")
-        .select("id")
-        .eq("ein", ein)
-        .single();
-
-      if (existingOrg) {
-        return NextResponse.json(
-          { error: "An organization with this EIN already exists" },
-          { status: 400 }
-        );
-      }
-    }
-
-    // Try to link to charities table by EIN
-    let charityId = null;
-    if (ein) {
-      const { data: charity } = await adminClient
-        .from("charities")
-        .select("id")
-        .eq("ein", ein)
-        .single();
-
-      if (charity) {
-        charityId = charity.id;
-      }
-    }
 
     // Create organization
     const { data: org, error: orgError } = await adminClient
-      .from("organizations")
+      .from('organizations')
       .insert({
         name: name.trim(),
         ein: ein?.trim() || null,
-        website: website?.trim() || null,
-        description: description?.trim() || null,
-        charity_id: charityId,
+        org_type: org_type || null,
+        fiscal_year_end: fiscal_year_end || null,
+        state_of_incorporation: state_of_incorporation?.trim() || null,
       })
       .select()
       .single();
@@ -109,22 +69,36 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: orgError.message }, { status: 500 });
     }
 
-    // Add creator as admin
+    // Add creator as owner
     const { error: memberError } = await adminClient
-      .from("organization_members")
+      .from('organization_members')
       .insert({
+        org_id: org.id,
         user_id: user.id,
-        organization_id: org.id,
-        role: "admin",
+        role: 'owner',
       });
 
     if (memberError) {
-      // Rollback org creation
-      await adminClient.from("organizations").delete().eq("id", org.id);
+      await adminClient.from('organizations').delete().eq('id', org.id);
       return NextResponse.json({ error: memberError.message }, { status: 500 });
     }
 
-    return NextResponse.json(org, { status: 201 });
+    // Auto-create a default portfolio so new users can reach the dashboard immediately
+    let portfolio_id: string | null = null;
+    const { data: portfolio, error: portfolioError } = await adminClient
+      .from('portfolios')
+      .insert({ name: name.trim(), base_currency: 'USD' })
+      .select('id')
+      .single();
+
+    if (!portfolioError && portfolio) {
+      portfolio_id = portfolio.id;
+      await adminClient
+        .from('portfolio_members')
+        .insert({ user_id: user.id, portfolio_id: portfolio.id, role: 'owner' });
+    }
+
+    return NextResponse.json({ ...org, portfolio_id }, { status: 201 });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }

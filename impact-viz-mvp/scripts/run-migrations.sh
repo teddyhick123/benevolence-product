@@ -1,78 +1,102 @@
-#!/bin/bash
-
+#!/usr/bin/env bash
 # =============================================================================
-# Run Database Migrations
-# =============================================================================
-# Usage: ./scripts/run-migrations.sh
+# scripts/run-migrations.sh
+# Apply all pending migrations to a Supabase project.
+# Wraps migrate-client.ts with sane defaults for new deployments.
 #
-# Runs all SQL migration files in /db/ directory in order.
-# Requires SUPABASE_DB_URL environment variable or Supabase CLI setup.
+# Usage:
+#   # Apply all migrations (new deployment)
+#   SUPABASE_URL=https://xxx.supabase.co \
+#   SUPABASE_ACCESS_TOKEN=sbp_xxx \
+#   ./scripts/run-migrations.sh
+#
+#   # Dry run (print SQL without executing)
+#   ./scripts/run-migrations.sh --dry-run
+#
+#   # Seed demo data after migrations (local dev only)
+#   ./scripts/run-migrations.sh --seed-demo
+#
+#   # Apply from a specific migration number
+#   ./scripts/run-migrations.sh --from 0010
 # =============================================================================
 
-set -e
+set -euo pipefail
 
-DB_DIR="./db"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+MIGRATIONS_DIR="$PROJECT_ROOT/db/migrations"
+DEMO_SEED="$PROJECT_ROOT/db/demo/seed_demo_org.sql"
 
-echo "=================================================="
-echo "  Running Database Migrations"
-echo "=================================================="
-echo ""
+DRY_RUN=false
+SEED_DEMO=false
+FROM_ARG=""
 
-# Check if db directory exists
-if [ ! -d "$DB_DIR" ]; then
-    echo "Error: $DB_DIR directory not found"
+# Parse flags
+for arg in "$@"; do
+  case "$arg" in
+    --dry-run)    DRY_RUN=true ;;
+    --seed-demo)  SEED_DEMO=true ;;
+    --from)       shift; FROM_ARG="$1" ;;
+    --from=*)     FROM_ARG="${arg#*=}" ;;
+    --help|-h)
+      sed -n '2,25p' "$0" | sed 's/^# \?//'
+      exit 0
+      ;;
+  esac
+done
+
+# Ensure required tools are available
+if ! command -v npx &>/dev/null; then
+  echo "Error: npx not found. Install Node.js first." >&2
+  exit 1
+fi
+
+# Validate required env (unless dry-run)
+if ! $DRY_RUN; then
+  if [ -z "${SUPABASE_URL:-}" ]; then
+    echo "Error: SUPABASE_URL is required." >&2
+    echo "  export SUPABASE_URL=https://your-ref.supabase.co" >&2
     exit 1
+  fi
+  if [ -z "${SUPABASE_ACCESS_TOKEN:-}" ] && [ -z "${SUPABASE_SERVICE_KEY:-}" ]; then
+    echo "Error: SUPABASE_ACCESS_TOKEN or SUPABASE_SERVICE_KEY is required." >&2
+    exit 1
+  fi
 fi
 
-# Get sorted list of SQL files
-migrations=$(ls -1 "$DB_DIR"/*.sql 2>/dev/null | sort)
-
-if [ -z "$migrations" ]; then
-    echo "No migration files found in $DB_DIR"
-    exit 0
+echo "========================================"
+echo "  Benevolence Migration Runner"
+echo "  Migrations: $MIGRATIONS_DIR"
+if ! $DRY_RUN; then
+  echo "  Target: ${SUPABASE_URL:-local}"
 fi
-
-echo "Found migrations:"
-echo "$migrations" | while read f; do echo "  - $(basename $f)"; done
+echo "========================================"
 echo ""
 
-# Check for Supabase CLI
-if command -v supabase &> /dev/null; then
-    echo "Using Supabase CLI..."
-    echo ""
+# Build migrate-client args
+MIGRATE_ARGS=""
+if $DRY_RUN; then
+  MIGRATE_ARGS="$MIGRATE_ARGS --dry-run"
+fi
+if [ -n "$FROM_ARG" ]; then
+  MIGRATE_ARGS="$MIGRATE_ARGS --from $FROM_ARG"
+fi
 
-    for file in $migrations; do
-        filename=$(basename "$file")
-        echo "Running: $filename"
-        supabase db execute --file "$file" 2>&1 || {
-            echo "Warning: Migration $filename may have already been applied or had an error"
-        }
-    done
-else
-    # Alternative: use psql if SUPABASE_DB_URL is set
-    if [ -n "$SUPABASE_DB_URL" ]; then
-        echo "Using psql with SUPABASE_DB_URL..."
-        echo ""
+# Run migrations
+npx ts-node "$SCRIPT_DIR/migrate-client.ts" --to latest $MIGRATE_ARGS
 
-        for file in $migrations; do
-            filename=$(basename "$file")
-            echo "Running: $filename"
-            psql "$SUPABASE_DB_URL" -f "$file" 2>&1 || {
-                echo "Warning: Migration $filename may have already been applied or had an error"
-            }
-        done
-    else
-        echo "Error: Neither Supabase CLI nor SUPABASE_DB_URL available"
-        echo ""
-        echo "Options:"
-        echo "1. Install Supabase CLI: npm install -g supabase"
-        echo "2. Set SUPABASE_DB_URL environment variable"
-        echo "3. Run migrations manually via Supabase Dashboard > SQL Editor"
-        exit 1
-    fi
+# Optionally seed demo data
+if $SEED_DEMO && ! $DRY_RUN; then
+  echo ""
+  echo "Seeding demo data…"
+  if [ -z "${DATABASE_URL:-}" ]; then
+    echo "Warning: DATABASE_URL not set — cannot seed demo data via psql."
+    echo "  Set DATABASE_URL=postgresql://... and re-run with --seed-demo"
+  else
+    psql "$DATABASE_URL" -f "$DEMO_SEED"
+    echo "Demo data seeded."
+  fi
 fi
 
 echo ""
-echo "=================================================="
-echo "  Migrations Complete"
-echo "=================================================="
+echo "Done."

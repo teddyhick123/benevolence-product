@@ -335,7 +335,7 @@ export default function ContributionTaxWizard({
                 {requiresAppraisal && (
                   <div className="bg-amber-50 border border-amber-200 rounded-md p-3 text-sm text-amber-800">
                     <strong>Qualified Appraisal Required:</strong> For non-cash contributions over $5,000,
-                    the IRS requires a qualified appraisal by an independent appraiser. You'll need to upload
+                    the IRS requires a qualified appraisal by an independent appraiser. You&apos;ll need to upload
                     this documentation later.
                   </div>
                 )}

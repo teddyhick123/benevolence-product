@@ -22,8 +22,8 @@ export const createPortfolioSchema = z.object({
  */
 export const inviteMemberSchema = z.object({
   email: z.string().email('Invalid email address'),
-  role: z.enum(['owner', 'editor', 'viewer'], {
-    errorMap: () => ({ message: 'Role must be owner, editor, or viewer' })
+  role: z.enum(['owner', 'admin', 'member', 'viewer'], {
+    errorMap: () => ({ message: 'Role must be owner, admin, member, or viewer' })
   }),
   message: z.string().max(500).optional().nullable(),
 });

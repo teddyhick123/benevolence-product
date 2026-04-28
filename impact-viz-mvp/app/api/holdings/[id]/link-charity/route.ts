@@ -18,6 +18,27 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    const { data: holding } = await sb
+      .from('holdings')
+      .select('portfolio_id')
+      .eq('id', holdingId)
+      .single();
+
+    if (!holding) {
+      return NextResponse.json({ error: 'Holding not found' }, { status: 404 });
+    }
+
+    const { data: membership } = await sb
+      .from('portfolio_members')
+      .select('role')
+      .eq('portfolio_id', holding.portfolio_id)
+      .eq('user_id', user.id)
+      .maybeSingle();
+
+    if (!membership) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
     const body = await req.json();
     const { ein, charity_id } = body;
 
@@ -127,6 +148,27 @@ export async function DELETE(req: Request, ctx: { params: Promise<{ id: string }
     const { data: { user } } = await sb.auth.getUser();
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { data: holding } = await sb
+      .from('holdings')
+      .select('portfolio_id')
+      .eq('id', holdingId)
+      .single();
+
+    if (!holding) {
+      return NextResponse.json({ error: 'Holding not found' }, { status: 404 });
+    }
+
+    const { data: membership } = await sb
+      .from('portfolio_members')
+      .select('role')
+      .eq('portfolio_id', holding.portfolio_id)
+      .eq('user_id', user.id)
+      .maybeSingle();
+
+    if (!membership) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
     const { error } = await sb

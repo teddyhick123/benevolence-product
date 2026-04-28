@@ -21,7 +21,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     const { data: donor, error } = await supabase
       .from('v_donor_summary')
       .select('*')
-      .eq('organization_id', orgId)
+      .eq('org_id', orgId)
       .eq('id', donorId)
       .single();
 
@@ -36,7 +36,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     const { data: contributions } = await supabase
       .from('contributions_received')
       .select('*')
-      .eq('organization_id', orgId)
+      .eq('org_id', orgId)
       .eq('donor_id', donorId)
       .order('contribution_date', { ascending: false });
 
@@ -44,7 +44,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     const { data: letters } = await supabase
       .from('acknowledgment_letters')
       .select('id, letter_type, status, subject, sent_via, sent_at, pdf_url, created_at')
-      .eq('organization_id', orgId)
+      .eq('org_id', orgId)
       .eq('donor_id', donorId)
       .order('created_at', { ascending: false });
 
@@ -67,11 +67,10 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
 
     const body = await req.json();
     const allowedFields = [
-      'donor_type', 'first_name', 'last_name', 'email', 'phone',
-      'organization_name', 'contact_name',
-      'address_line1', 'address_line2', 'city', 'state', 'postal_code', 'country',
-      'donor_tier', 'is_anonymous', 'communication_preference', 'do_not_contact',
-      'notes', 'tags',
+      'first_name', 'last_name', 'email', 'phone',
+      'organization_name', 'is_organization', 'preferred_name',
+      'address_line1', 'address_line2', 'city', 'state', 'zip', 'country',
+      'tier', 'recency_status', 'notes', 'tags',
     ];
 
     const updates: Record<string, any> = {};
@@ -83,7 +82,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
       .from('donors')
       .update(updates)
       .eq('id', donorId)
-      .eq('organization_id', orgId)
+      .eq('org_id', orgId)
       .select()
       .single();
 
@@ -112,7 +111,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
       .from('donors')
       .delete()
       .eq('id', donorId)
-      .eq('organization_id', orgId);
+      .eq('org_id', orgId);
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });

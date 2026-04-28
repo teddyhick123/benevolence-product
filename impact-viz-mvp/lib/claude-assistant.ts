@@ -5027,22 +5027,27 @@ With sincere thanks,
 ${org?.name || 'The Organization'}`;
 
         } else if (letterType === 'annual_summary') {
-          // Get annual summary
-          const { data: summary } = await this.supabase.rpc('get_donor_annual_summary', {
-            p_donor_id: args.donor_id,
-          });
+          const currentYear = new Date().getFullYear();
+          const { data: yearContribs } = await this.supabase
+            .from('contributions_received')
+            .select('amount, is_tax_deductible')
+            .eq('donor_id', args.donor_id)
+            .gte('contribution_date', `${currentYear}-01-01`)
+            .lte('contribution_date', `${currentYear}-12-31`);
 
-          const summaryData = summary?.[0] || { total_contributions: 0, contribution_count: 0, total_tax_deductible: 0 };
+          const contribs = yearContribs || [];
+          const totalContributions = contribs.reduce((s: number, c: any) => s + (c.amount || 0), 0);
+          const totalTaxDeductible = contribs.filter((c: any) => c.is_tax_deductible).reduce((s: number, c: any) => s + (c.amount || 0), 0);
 
-          subject = `Your ${new Date().getFullYear()} Giving Summary`;
+          subject = `Your ${currentYear} Giving Summary`;
           body = `Dear ${donorName},
 
 Thank you for your incredible generosity this year!
 
-Your ${new Date().getFullYear()} Giving Summary:
-- Total Contributions: $${Number(summaryData.total_contributions).toLocaleString()}
-- Number of Gifts: ${summaryData.contribution_count}
-- Total Tax-Deductible: $${Number(summaryData.total_tax_deductible).toLocaleString()}
+Your ${currentYear} Giving Summary:
+- Total Contributions: $${totalContributions.toLocaleString()}
+- Number of Gifts: ${contribs.length}
+- Total Tax-Deductible: $${totalTaxDeductible.toLocaleString()}
 
 ${args.custom_message || 'Your support has made a tremendous impact on our mission.'}
 
@@ -5169,18 +5174,6 @@ ${org?.name || 'The Organization'}`;
           result.contributions = contributions || [];
         }
 
-        // Include communications if requested
-        if (args.include_communications !== false) {
-          const { data: communications } = await this.supabase
-            .from('donor_communications')
-            .select('id, direction, comm_type, subject, summary, occurred_at, follow_up_required, follow_up_date')
-            .eq('donor_id', args.donor_id)
-            .order('occurred_at', { ascending: false })
-            .limit(20);
-
-          result.communications = communications || [];
-        }
-
         return {
           action: null,
           output: result,
@@ -5273,277 +5266,51 @@ ${org?.name || 'The Organization'}`;
 
       // ==================== COMPLIANCE & REGULATORY MODULE ====================
       case 'get_compliance_status': {
-        InputValidator.validateUUID(args.organization_id, 'organization_id');
-        if (args.portfolio_id) InputValidator.validateUUID(args.portfolio_id, 'portfolio_id');
-
-        const taxYear = args.tax_year || new Date().getFullYear();
-
-        const [dashboardRes, incidentsRes, deadlinesRes] = await Promise.all([
-          this.supabase
-            .from('v_compliance_dashboard')
-            .select('*')
-            .eq('org_id', args.organization_id)
-            .maybeSingle(),
-          this.supabase
-            .from('self_dealing_incidents')
-            .select('id, status, disqualified_person_name, transaction_type, amount, incident_date')
-            .eq('org_id', args.organization_id)
-            .in('status', ['flagged', 'confirmed'])
-            .order('created_at', { ascending: false })
-            .limit(5),
-          this.supabase
-            .from('v_upcoming_filing_deadlines')
-            .select('*')
-            .eq('org_id', args.organization_id)
-            .limit(5),
-        ]);
-
-        let payoutStatus = null;
-        if (args.portfolio_id) {
-          const { data } = await this.supabase
-            .from('v_payout_status')
-            .select('*')
-            .eq('portfolio_id', args.portfolio_id)
-            .eq('tax_year', taxYear)
-            .maybeSingle();
-          payoutStatus = data;
-        }
-
         return {
           action: null,
           output: {
-            dashboard: dashboardRes.data,
-            open_incidents: incidentsRes.data || [],
-            upcoming_deadlines: deadlinesRes.data || [],
-            payout_status: payoutStatus,
+            feature_not_available: true,
+            message: 'Advanced compliance dashboard (self-dealing incidents, payout status, upcoming deadlines) requires migrations not yet deployed. Use get_state_registration_status and track_filing_deadline for available compliance data.',
           },
         };
       }
 
       case 'calculate_payout_requirement': {
-        InputValidator.validateUUID(args.portfolio_id, 'portfolio_id');
-        const taxYear = args.tax_year || new Date().getFullYear();
-
-        const { data: payout, error } = await this.supabase
-          .from('payout_history')
-          .select('*')
-          .eq('portfolio_id', args.portfolio_id)
-          .eq('tax_year', taxYear)
-          .maybeSingle();
-
-        if (error) throw new Error(`Error fetching payout history: ${error.message}`);
-
-        const { data: payoutStatus } = await this.supabase
-          .from('v_payout_status')
-          .select('*')
-          .eq('portfolio_id', args.portfolio_id)
-          .eq('tax_year', taxYear)
-          .maybeSingle();
-
         return {
           action: null,
           output: {
-            tax_year: taxYear,
-            payout_history: payout,
-            payout_status: payoutStatus,
-            calculation_steps: payout ? {
-              net_value_non_charitable: payout.net_value_non_charitable,
-              pct_rate: '5%',
-              minimum_investment_return: payout.minimum_investment_return,
-              excise_tax_paid: payout.excise_tax_paid,
-              distributable_amount: payout.distributable_amount,
-            } : null,
+            feature_not_available: true,
+            message: 'Payout calculation requires payout_history and v_payout_status (not yet deployed in the clean migration set).',
           },
         };
       }
 
       case 'get_payout_forecast': {
-        InputValidator.validateUUID(args.portfolio_id, 'portfolio_id');
-        const taxYear = args.tax_year || new Date().getFullYear();
-        const includePending = args.include_pending !== false;
-
-        const { data: payout } = await this.supabase
-          .from('payout_history')
-          .select('distributable_amount, minimum_investment_return')
-          .eq('portfolio_id', args.portfolio_id)
-          .eq('tax_year', taxYear)
-          .maybeSingle();
-
-        const distributableAmount = payout?.distributable_amount ?? 0;
-
-        const { data: qdRows } = await this.supabase
-          .from('qualifying_distributions')
-          .select('qualifying_amount, category')
-          .eq('portfolio_id', args.portfolio_id)
-          .eq('tax_year', taxYear);
-
-        const distributionsToDate = (qdRows || []).reduce((sum: number, r: any) => sum + (r.qualifying_amount || 0), 0);
-
-        let pipelineTotal = 0;
-        let pipelinePayments: any[] = [];
-
-        if (includePending) {
-          const { data: holdings } = await this.supabase
-            .from('holdings')
-            .select('id')
-            .eq('portfolio_id', args.portfolio_id);
-
-          if (holdings && holdings.length > 0) {
-            const holdingIds = holdings.map((h: any) => h.id);
-            const { data: grants } = await this.supabase
-              .from('grant_details')
-              .select('id')
-              .in('holding_id', holdingIds);
-
-            if (grants && grants.length > 0) {
-              const grantIds = grants.map((g: any) => g.id);
-              const { data: payments } = await this.supabase
-                .from('grant_payments')
-                .select('id, amount, status, scheduled_date')
-                .in('grant_id', grantIds)
-                .in('status', ['approved', 'scheduled']);
-
-              pipelinePayments = payments || [];
-              pipelineTotal = pipelinePayments.reduce((sum: number, p: any) => sum + (p.amount || 0), 0);
-            }
-          }
-        }
-
-        const shortfall = Math.max(0, distributableAmount - distributionsToDate);
-        const shortfallAfterPipeline = Math.max(0, shortfall - pipelineTotal);
-        const yearEnd = new Date(`${taxYear}-12-31`);
-        const daysRemaining = Math.max(0, Math.floor((yearEnd.getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
-
         return {
           action: null,
           output: {
-            tax_year: taxYear,
-            distributable_amount: distributableAmount,
-            distributions_to_date: distributionsToDate,
-            pipeline_total: pipelineTotal,
-            pipeline_payments_count: pipelinePayments.length,
-            shortfall_before_pipeline: shortfall,
-            shortfall_after_pipeline: shortfallAfterPipeline,
-            on_track: shortfallAfterPipeline <= 0,
-            days_remaining: daysRemaining,
-            pct_complete: distributableAmount > 0
-              ? Math.min(100, Math.round((distributionsToDate / distributableAmount) * 1000) / 10)
-              : 100,
+            feature_not_available: true,
+            message: 'Payout forecast requires payout_history and qualifying_distributions tables (not yet deployed in the clean migration set).',
           },
         };
       }
 
       case 'screen_for_self_dealing': {
-        InputValidator.validateUUID(args.organization_id, 'organization_id');
-        InputValidator.validateString(args.counterparty_name, 'counterparty_name', { maxLength: 500 });
-        if (args.amount) InputValidator.validateNumber(args.amount, 'amount', { min: 0 });
-
-        // Search disqualified persons by name (case-insensitive partial match)
-        const { data: persons } = await this.supabase
-          .from('disqualified_persons')
-          .select('id, full_name, relationship_type, title_or_role, ein, is_active')
-          .eq('org_id', args.organization_id)
-          .eq('is_active', true);
-
-        const name = (args.counterparty_name || '').toLowerCase();
-        const ein = (args.counterparty_ein || '').replace(/-/g, '');
-
-        const matches = (persons || []).filter((p: any) => {
-          const nameMatch = p.full_name.toLowerCase().includes(name) || name.includes(p.full_name.toLowerCase());
-          const einMatch = ein && p.ein && p.ein.replace(/-/g, '') === ein;
-          return nameMatch || einMatch;
-        });
-
-        const riskLevel = matches.length === 0 ? 'none' : matches.some((m: any) =>
-          ['founder', 'substantial_contributor', 'foundation_manager'].includes(m.relationship_type)
-        ) ? 'high' : 'medium';
-
-        let incident = null;
-        if (args.create_incident_if_flagged && matches.length > 0) {
-          const matchedPerson = matches[0];
-          const { data: newIncident } = await this.supabase
-            .from('self_dealing_incidents')
-            .insert({
-              org_id: args.organization_id,
-              disqualified_person_id: matchedPerson.id,
-              disqualified_person_name: matchedPerson.full_name,
-              incident_date: args.incident_date || new Date().toISOString().split('T')[0],
-              transaction_type: args.transaction_type || 'sale_or_exchange',
-              amount: args.amount || null,
-              description: args.description || `Proposed ${args.transaction_type || 'transaction'} with ${args.counterparty_name}`,
-              status: 'flagged',
-              ai_flagged: true,
-              ai_flag_reasoning: `AI screening found name match with disqualified person ${matchedPerson.full_name} (${matchedPerson.relationship_type})`,
-            })
-            .select()
-            .single();
-          incident = newIncident;
-        }
-
         return {
           action: null,
           output: {
-            risk_level: riskLevel,
-            matches_found: matches.length,
-            matching_persons: matches,
-            recommendation: riskLevel === 'none'
-              ? 'No disqualified person match found. Transaction appears clear, but always consult legal counsel.'
-              : riskLevel === 'high'
-                ? 'HIGH RISK: Potential self-dealing with a principal disqualified person. Do not proceed without legal review. IRC §4941 excise taxes may apply.'
-                : 'MEDIUM RISK: Possible self-dealing with a related party. Review with legal counsel before proceeding.',
-            incident_created: incident,
+            feature_not_available: true,
+            message: 'Self-dealing screening requires the disqualified_persons and self_dealing_incidents migrations (not yet deployed). Please log incidents manually.',
           },
         };
       }
 
       case 'register_disqualified_person': {
-        InputValidator.validateUUID(args.organization_id, 'organization_id');
-        InputValidator.validateString(args.full_name, 'full_name', { maxLength: 500 });
-        InputValidator.validateEnum(args.relationship_type, 'relationship_type', [
-          'founder', 'substantial_contributor', 'foundation_manager', 'twenty_pct_owner',
-          'family_member', 'thirty_five_pct_owned_entity', 'government_official',
-        ] as const);
-        if (args.start_date) InputValidator.validateDateString(args.start_date, 'start_date');
-        if (args.related_to_person_id) InputValidator.validateUUID(args.related_to_person_id, 'related_to_person_id');
-
-        const { data, error } = await this.supabase
-          .from('disqualified_persons')
-          .insert({
-            org_id: args.organization_id,
-            full_name: args.full_name,
-            relationship_type: args.relationship_type,
-            title_or_role: args.title_or_role || null,
-            ein: args.ein || null,
-            ssn_last4: args.ssn_last4 || null,
-            related_to_person_id: args.related_to_person_id || null,
-            start_date: args.start_date || new Date().toISOString().split('T')[0],
-            notes: args.notes || null,
-          })
-          .select()
-          .single();
-
-        if (error) throw new Error(`Error registering disqualified person: ${error.message}`);
-
         return {
-          action: {
-            id: crypto.randomUUID(),
-            sessionId,
-            portfolioId,
-            userId,
-            actionType: 'create',
-            entityType: 'compliance_disqualified_person' as any,
-            entityId: data.id,
-            operationData: { table: 'disqualified_persons', after: data },
-            aiReasoning: `Registered ${data.full_name} as a disqualified person (${data.relationship_type})`,
-            userPrompt,
-            status: 'applied',
-            batchId,
-            sequenceOrder,
-          },
+          action: null,
           output: {
-            success: true,
-            person: data,
-            message: `${data.full_name} added to the §4946 disqualified persons registry as ${data.relationship_type.replace(/_/g, ' ')}`,
+            feature_not_available: true,
+            message: 'Disqualified person registry requires the disqualified_persons migration (not yet deployed). Please track manually.',
           },
         };
       }
@@ -5635,198 +5402,31 @@ ${org?.name || 'The Organization'}`;
       }
 
       case 'log_expenditure_responsibility': {
-        InputValidator.validateUUID(args.portfolio_id, 'portfolio_id');
-        if (args.grant_id) InputValidator.validateUUID(args.grant_id, 'grant_id');
-        if (args.er_record_id) InputValidator.validateUUID(args.er_record_id, 'er_record_id');
-        if (args.er_agreement_signed_date) InputValidator.validateDateString(args.er_agreement_signed_date, 'er_agreement_signed_date');
-        if (args.terminal_report_date) InputValidator.validateDateString(args.terminal_report_date, 'terminal_report_date');
-
-        if (args.er_record_id) {
-          // Update
-          const updateData: any = {};
-          const fields = [
-            'grantee_is_public_charity', 'grantee_ein', 'grantee_501c3_verified',
-            'er_agreement_signed_date', 'er_reports_required_count', 'er_reports_received_count',
-            'terminal_report_received', 'terminal_report_date', 'er_status', 'notes',
-          ];
-          for (const f of fields) {
-            if (args[f] !== undefined) updateData[f] = args[f];
-          }
-          if (args.grantee_501c3_verified) {
-            updateData.grantee_501c3_verified_at = new Date().toISOString();
-          }
-
-          const { data, error } = await this.supabase
-            .from('expenditure_responsibility_grants')
-            .update(updateData)
-            .eq('id', args.er_record_id)
-            .eq('portfolio_id', args.portfolio_id)
-            .select()
-            .single();
-
-          if (error) throw new Error(`Error updating ER record: ${error.message}`);
-
-          return {
-            action: null,
-            output: { success: true, action: 'updated', er_record: data },
-          };
-        } else {
-          if (!args.grant_id) throw new Error('grant_id is required to create an ER record');
-
-          const { data, error } = await this.supabase
-            .from('expenditure_responsibility_grants')
-            .insert({
-              portfolio_id: args.portfolio_id,
-              grant_id: args.grant_id,
-              grantee_is_public_charity: args.grantee_is_public_charity ?? false,
-              grantee_ein: args.grantee_ein || null,
-              grantee_501c3_verified: args.grantee_501c3_verified ?? false,
-              grantee_501c3_verified_at: args.grantee_501c3_verified ? new Date().toISOString() : null,
-              er_agreement_signed_date: args.er_agreement_signed_date || null,
-              er_reports_required_count: args.er_reports_required_count ?? 0,
-              er_reports_received_count: args.er_reports_received_count ?? 0,
-              terminal_report_received: args.terminal_report_received ?? false,
-              er_status: args.er_status || 'pending',
-            })
-            .select()
-            .single();
-
-          if (error) throw new Error(`Error creating ER record: ${error.message}`);
-
-          return {
-            action: {
-              id: crypto.randomUUID(),
-              sessionId,
-              portfolioId,
-              userId,
-              actionType: 'create',
-              entityType: 'compliance_er_grant' as any,
-              entityId: data.id,
-              operationData: { table: 'expenditure_responsibility_grants', after: data },
-              aiReasoning: 'Created expenditure responsibility tracking record',
-              userPrompt,
-              status: 'applied',
-              batchId,
-              sequenceOrder,
-            },
-            output: { success: true, action: 'created', er_record: data },
-          };
-        }
+        return {
+          action: null,
+          output: {
+            feature_not_available: true,
+            message: 'Expenditure responsibility tracking requires the expenditure_responsibility_grants migration (not yet deployed). Please track grant compliance manually.',
+          },
+        };
       }
 
       case 'assess_qualifying_distribution': {
-        InputValidator.validateUUID(args.portfolio_id, 'portfolio_id');
-        InputValidator.validateNumber(args.tax_year, 'tax_year', { min: 1990, max: 2100 });
-        InputValidator.validateNumber(args.gross_amount, 'gross_amount', { min: 0 });
-        InputValidator.validateNumber(args.qualifying_amount, 'qualifying_amount', { min: 0 });
-        InputValidator.validateDateString(args.distribution_date, 'distribution_date');
-        InputValidator.validateEnum(args.category, 'category', [
-          'grants_paid', 'grants_paid_er', 'program_expenses', 'admin_expenses',
-          'set_aside', 'program_related_investment', 'operating_foundation_expenditure',
-        ] as const);
-        if (args.grant_payment_id) InputValidator.validateUUID(args.grant_payment_id, 'grant_payment_id');
-        if (args.holding_id) InputValidator.validateUUID(args.holding_id, 'holding_id');
-        if (args.board_approval_date) InputValidator.validateDateString(args.board_approval_date, 'board_approval_date');
-
-        const { data, error } = await this.supabase
-          .from('qualifying_distributions')
-          .insert({
-            portfolio_id: args.portfolio_id,
-            tax_year: args.tax_year,
-            grant_payment_id: args.grant_payment_id || null,
-            holding_id: args.holding_id || null,
-            category: args.category,
-            description: args.description,
-            gross_amount: args.gross_amount,
-            qualifying_amount: args.qualifying_amount,
-            distribution_date: args.distribution_date,
-            approved_by_board: args.approved_by_board ?? false,
-            board_approval_date: args.board_approval_date || null,
-            notes: args.notes || null,
-          })
-          .select()
-          .single();
-
-        if (error) throw new Error(`Error recording qualifying distribution: ${error.message}`);
-
         return {
-          action: {
-            id: crypto.randomUUID(),
-            sessionId,
-            portfolioId,
-            userId,
-            actionType: 'create',
-            entityType: 'compliance_qualifying_distribution' as any,
-            entityId: data.id,
-            operationData: { table: 'qualifying_distributions', after: data },
-            aiReasoning: `Recorded $${args.qualifying_amount.toLocaleString()} qualifying distribution (${args.category})`,
-            userPrompt,
-            status: 'applied',
-            batchId,
-            sequenceOrder,
-          },
+          action: null,
           output: {
-            success: true,
-            distribution: data,
-            message: `$${args.qualifying_amount.toLocaleString()} qualifying distribution recorded for ${args.tax_year} (${args.category.replace(/_/g, ' ')})`,
+            feature_not_available: true,
+            message: 'Qualifying distribution tracking requires the qualifying_distributions and payout_history migrations (not yet deployed). Please track distributions manually.',
           },
         };
       }
 
       case 'get_990pf_export_data': {
-        InputValidator.validateUUID(args.portfolio_id, 'portfolio_id');
-        const taxYear = args.tax_year || new Date().getFullYear();
-
-        const [payoutRes, distributionsRes] = await Promise.all([
-          this.supabase
-            .from('payout_history')
-            .select('*')
-            .eq('portfolio_id', args.portfolio_id)
-            .eq('tax_year', taxYear)
-            .maybeSingle(),
-          this.supabase
-            .from('qualifying_distributions')
-            .select('*')
-            .eq('portfolio_id', args.portfolio_id)
-            .eq('tax_year', taxYear)
-            .order('distribution_date'),
-        ]);
-
-        const payout = payoutRes.data;
-        const distributions = distributionsRes.data || [];
-        const totalQualifying = distributions.reduce((s: number, d: any) => s + (d.qualifying_amount || 0), 0);
-
         return {
           action: null,
           output: {
-            tax_year: taxYear,
-            part_xi: {
-              description: 'Distributable Amount',
-              net_value_non_charitable: payout?.net_value_non_charitable,
-              minimum_investment_return: payout?.minimum_investment_return,
-              excise_tax_paid: payout?.excise_tax_paid,
-              distributable_amount: payout?.distributable_amount,
-              qualifying_distributions_total: totalQualifying,
-              carryover_from_prior_years: payout?.carryover_from_prior_years,
-              carryover_to_next_year: payout?.carryover_to_next_year,
-            },
-            part_xii: {
-              description: 'Qualifying Distributions',
-              grants_total: distributions.filter((d: any) => d.category === 'grants_paid').reduce((s: number, d: any) => s + d.qualifying_amount, 0),
-              program_expenses_total: distributions.filter((d: any) => d.category === 'program_expenses').reduce((s: number, d: any) => s + d.qualifying_amount, 0),
-              admin_qualifying_total: distributions.filter((d: any) => d.category === 'admin_expenses').reduce((s: number, d: any) => s + d.qualifying_amount, 0),
-              set_asides_total: distributions.filter((d: any) => d.category === 'set_aside').reduce((s: number, d: any) => s + d.qualifying_amount, 0),
-              total_qualifying_distributions: totalQualifying,
-              detail: distributions,
-            },
-            part_ii: {
-              description: 'Balance Sheet',
-              avg_fair_market_value: payout?.avg_fair_market_value,
-              investment_assets: payout?.investment_assets,
-              cash_and_equivalents: payout?.cash_and_equivalents,
-              net_value_non_charitable: payout?.net_value_non_charitable,
-            },
-            surplus_or_deficit: payout?.surplus_or_deficit,
+            feature_not_available: true,
+            message: '990-PF export requires the payout_history and qualifying_distributions migrations (not yet deployed). Please compile this data manually.',
           },
         };
       }

@@ -72,3 +72,26 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
+
+// DELETE /api/org/[orgId] — delete organization (admin only)
+export async function DELETE(_req: NextRequest, { params }: RouteParams) {
+  try {
+    const { orgId } = await params;
+    const supabase = await createServerClient();
+
+    const { data: isAdmin } = await supabase.rpc('is_org_admin', { p_org_id: orgId });
+    if (!isAdmin) {
+      return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
+    }
+
+    const { error } = await supabase.from('organizations').delete().eq('id', orgId);
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    return new NextResponse(null, { status: 204 });
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message }, { status: 500 });
+  }
+}

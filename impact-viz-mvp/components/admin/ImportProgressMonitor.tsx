@@ -132,10 +132,8 @@ export function ImportProgressMonitor({ importJobId, initialJob }: ImportProgres
   };
 
   const handleResume = async () => {
-    await fetch(`/api/admin/imports/${importJobId}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'resume' }),
+    await fetch(`/api/admin/imports/${importJobId}/resume`, {
+      method: 'POST',
     });
     pollJobStatus();
   };

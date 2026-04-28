@@ -7,15 +7,31 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
-async function postAuthDestination(fallback: string) {
+async function postAuthDestination(fallback: string, isNewUser: boolean = false) {
+  // New users always go to onboarding
+  if (isNewUser) {
+    return '/onboarding';
+  }
+
   try {
-    const r = await fetch('/api/admin/is_admin', { cache: 'no-store' });
-    if (r.ok) {
-      const j = await r.json();
-      if (j?.is_admin) return '/admin/console';
+    // Check if admin
+    const adminRes = await fetch('/api/admin/is_admin', { cache: 'no-store' });
+    if (adminRes.ok) {
+      const adminData = await adminRes.json();
+      if (adminData?.is_admin) return '/admin/console';
+    }
+
+    // Check onboarding status for existing users
+    const onboardingRes = await fetch('/api/onboarding/session', { cache: 'no-store' });
+    if (onboardingRes.ok) {
+      const onboardingData = await onboardingRes.json();
+      // If no session or session not completed, go to onboarding
+      if (!onboardingData.session || onboardingData.session.status !== 'completed') {
+        return '/onboarding';
+      }
     }
   } catch {}
-  return fallback; // usually '/welcome'
+  return fallback; // '/welcome' if onboarding completed
 }
 function LoginPageContent() {
   const sp = useSearchParams();
@@ -110,7 +126,8 @@ function LoginPageContent() {
         access_token: data.session.access_token,
         refresh_token: data.session.refresh_token,
       });
-      const dest = await postAuthDestination(redirect);
+      // New users go directly to onboarding
+      const dest = await postAuthDestination(redirect, true);
       router.replace(dest);
     } else {
       // If confirmations are ON, ask user to verify email:
@@ -123,7 +140,7 @@ function LoginPageContent() {
 
   return (
     <div className="mx-auto max-w-md p-6 space-y-5">
-      <h1 className="text-2xl font-semibold">Welcome to Benevolence</h1>
+      <h1 className="text-2xl font-semibold">Welcome to {process.env.NEXT_PUBLIC_APP_NAME || 'Impact Platform'}</h1>
 
       {existingUserEmail && (
         <div className="rounded border bg-yellow-50 p-3 text-sm">
@@ -131,7 +148,7 @@ function LoginPageContent() {
           <div className="mt-2 flex gap-2">
             <button
               className="px-3 py-1.5 rounded bg-gradient-to-r from-azure via-azure/90 to-azure/70 text-white shadow-soft hover:opacity-90 disabled:opacity-50 transition-opacity"
-              onClick={async () => { setBusy(true); try { await syncServerCookies(); const dest = await postAuthDestination(redirect); router.replace(dest); } finally { setBusy(false); } }}
+              onClick={async () => { setBusy(true); try { await syncServerCookies(); const dest = await postAuthDestination(redirect, false); router.replace(dest); } finally { setBusy(false); } }}
               disabled={busy}
             >Continue</button>
             <button

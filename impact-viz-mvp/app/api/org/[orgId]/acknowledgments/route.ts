@@ -23,9 +23,9 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       .from('acknowledgment_letters')
       .select(`
         *,
-        donors(id, first_name, last_name, organization_name, donor_type, email)
+        donors(id, first_name, last_name, organization_name, is_organization, email)
       `)
-      .eq('organization_id', orgId);
+      .eq('org_id', orgId);
 
     const donorId = searchParams.get('donor_id');
     const letterType = searchParams.get('letter_type');
@@ -76,7 +76,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       .from('donors')
       .select('*')
       .eq('id', donor_id)
-      .eq('organization_id', orgId)
+      .eq('org_id', orgId)
       .single();
 
     if (donorErr || !donor) {
@@ -89,10 +89,9 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       .eq('id', orgId)
       .single();
 
-    const donorName =
-      donor.donor_type === 'individual'
-        ? `${donor.first_name || ''} ${donor.last_name || ''}`.trim() || 'Donor'
-        : donor.organization_name || 'Donor';
+    const donorName = !donor.is_organization
+      ? `${donor.first_name || ''} ${donor.last_name || ''}`.trim() || 'Donor'
+      : donor.organization_name || 'Donor';
 
     const type = letter_type || 'receipt';
     let finalSubject = subject;
@@ -108,7 +107,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
           .from('contributions_received')
           .select('amount, contribution_date, is_tax_deductible')
           .eq('donor_id', donor_id)
-          .eq('organization_id', orgId)
+          .eq('org_id', orgId)
           .gte('contribution_date', `${year}-01-01`)
           .lte('contribution_date', `${year}-12-31`);
 
@@ -175,7 +174,7 @@ ${orgName}`;
 
 Thank you for your non-cash gift to ${orgName}. We have received the property described below.
 
-${custom_message || 'Please note that ${orgName} did not provide goods or services in exchange for this contribution. As a donor, you are responsible for obtaining a qualified appraisal for contributions of property valued over $5,000.'}${ein}
+${custom_message || `Please note that ${orgName} did not provide goods or services in exchange for this contribution. As a donor, you are responsible for obtaining a qualified appraisal for contributions of property valued over $5,000.`}${ein}
 
 With gratitude,
 ${orgName}`;
@@ -190,7 +189,7 @@ ${orgName}`;
     const { data: letter, error } = await supabase
       .from('acknowledgment_letters')
       .insert({
-        organization_id: orgId,
+        org_id: orgId,
         donor_id,
         contribution_id: contribution_id || null,
         letter_type: type,
@@ -211,7 +210,6 @@ ${orgName}`;
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    // Update contribution acknowledgment status
     if (contribution_id) {
       await supabase
         .from('contributions_received')

@@ -9,6 +9,7 @@
  */
 
 import crypto from 'crypto';
+import { branding } from '../config';
 
 export interface CPAShareLink {
   id: string;
@@ -186,7 +187,7 @@ ${link.permissions.download_turbotax ? '✓ TurboTax (TXF) export' : '✗ TurboT
 This link is secure and can only be accessed by you. If you have any questions, please contact the portfolio owner.
 
 Best regards,
-Benevolence Impact Viz`;
+${branding.appName}`;
 
   return { subject, body };
 }

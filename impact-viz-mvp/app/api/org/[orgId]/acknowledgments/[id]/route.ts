@@ -22,16 +22,14 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       .from('acknowledgment_letters')
       .select(`
         *,
-        donors(id, first_name, last_name, organization_name, donor_type, email, address_line1, city, state, postal_code)
+        donors(id, first_name, last_name, organization_name, is_organization, email, address_line1, city, state, zip),
+        contributions_received:contribution_id(id, amount, contribution_date, contribution_type)
       `)
       .eq('id', id)
-      .eq('organization_id', orgId)
+      .eq('org_id', orgId)
       .single();
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
-    if (!letter) {
+    if (error || !letter) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 });
     }
 
@@ -59,16 +57,35 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
       if (field in body) updates[field] = body[field];
     }
 
-    // When marking as sent, set sent_at if not provided
     if (updates.status === 'sent' && !updates.sent_at) {
       updates.sent_at = new Date().toISOString();
+    }
+
+    // When marked sent, update the linked contribution's acknowledgment status
+    if (updates.status === 'sent') {
+      const { data: existing } = await supabase
+        .from('acknowledgment_letters')
+        .select('contribution_id')
+        .eq('id', id)
+        .eq('org_id', orgId)
+        .single();
+
+      if (existing?.contribution_id) {
+        await supabase
+          .from('contributions_received')
+          .update({
+            acknowledgment_status: 'sent',
+            acknowledgment_sent_at: new Date().toISOString(),
+          })
+          .eq('id', existing.contribution_id);
+      }
     }
 
     const { data: letter, error } = await supabase
       .from('acknowledgment_letters')
       .update(updates)
       .eq('id', id)
-      .eq('organization_id', orgId)
+      .eq('org_id', orgId)
       .select()
       .single();
 
@@ -88,16 +105,27 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
     const { orgId, id } = await params;
     const supabase = await createServerClient();
 
-    const { data: isAdmin } = await supabase.rpc('is_org_admin', { p_org_id: orgId });
-    if (!isAdmin) {
-      return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
+    const { data: canEdit } = await supabase.rpc('can_edit_org', { p_org_id: orgId });
+    if (!canEdit) {
+      return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
+    }
+
+    const { data: existing } = await supabase
+      .from('acknowledgment_letters')
+      .select('status')
+      .eq('id', id)
+      .eq('org_id', orgId)
+      .single();
+
+    if (existing?.status !== 'draft') {
+      return NextResponse.json({ error: 'Only draft letters can be deleted' }, { status: 400 });
     }
 
     const { error } = await supabase
       .from('acknowledgment_letters')
       .delete()
       .eq('id', id)
-      .eq('organization_id', orgId);
+      .eq('org_id', orgId);
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });

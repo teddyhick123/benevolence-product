@@ -26,6 +26,7 @@ logs
 # Environment variables
 .env
 .env.*    # all env variants: .env.local, .env.development, etc.
+!.env.example  # template file should be tracked
 
 # Supabase
 supabase/.temp/

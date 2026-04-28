@@ -574,8 +574,9 @@ export class ClaudePortfolioAssistant {
     sessionId: string;
     message: string;
     conversationHistory?: Array<{ role: 'user' | 'assistant'; content: string }>;
+    memberRole?: string;
   }) {
-    const { portfolioId, userId, sessionId, message, conversationHistory = [] } = params;
+    const { portfolioId, userId, sessionId, message, conversationHistory = [], memberRole } = params;
 
     // Get portfolio context
     const context = await this.getPortfolioContext(portfolioId);
@@ -635,7 +636,8 @@ export class ClaudePortfolioAssistant {
             sessionId,
             batchId,
             i,
-            message
+            message,
+            memberRole
           );
 
           if (result.action) {
@@ -721,6 +723,12 @@ export class ClaudePortfolioAssistant {
   /**
    * Execute a tool/function call
    */
+  private readonly WRITE_TOOLS = new Set([
+    'add_holding', 'update_holding', 'remove_holding',
+    'add_metric_fact', 'delete_metric_fact',
+    'add_widget', 'remove_widget',
+  ]);
+
   private async executeTool(
     functionName: string,
     args: any,
@@ -729,8 +737,13 @@ export class ClaudePortfolioAssistant {
     sessionId: string,
     batchId: string,
     sequenceOrder: number,
-    userPrompt: string
+    userPrompt: string,
+    memberRole?: string
   ): Promise<ToolResult> {
+    if (this.WRITE_TOOLS.has(functionName) && memberRole === 'viewer') {
+      return { error: 'Viewers cannot perform write operations. Request a role upgrade from your org admin.' } as any;
+    }
+
     // Verify user has access to this portfolio
     await this.verifyPortfolioAccess(portfolioId, userId);
 

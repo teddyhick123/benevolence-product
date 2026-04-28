@@ -1,6 +1,5 @@
 'use client';
 // app/admin/imports/ImportDashboardClient.tsx
-// Client wrapper for the import dashboard (handles wizard modal)
 
 import { useState } from 'react';
 import Link from 'next/link';
@@ -15,9 +14,46 @@ interface Props {
 
 export function ImportDashboardClient({ initialJobs, portfolios }: Props) {
   const [showWizard, setShowWizard] = useState(false);
-  const [jobs] = useState<ImportJob[]>(initialJobs);
+  const [jobs, setJobs] = useState<ImportJob[]>(initialJobs);
+  const [actionInProgress, setActionInProgress] = useState<string | null>(null);
 
   const portfolioMap = Object.fromEntries(portfolios.map((p) => [p.id, p.name]));
+
+  async function handleResume(jobId: string) {
+    setActionInProgress(jobId);
+    try {
+      const res = await fetch(`/api/admin/imports/${jobId}/resume`, { method: 'POST' });
+      if (!res.ok) {
+        const err = await res.json();
+        alert(`Resume failed: ${err.error}`);
+        return;
+      }
+      const { job } = await res.json();
+      setJobs((prev) => prev.map((j) => (j.id === jobId ? job : j)));
+    } finally {
+      setActionInProgress(null);
+    }
+  }
+
+  async function handleRollback(jobId: string) {
+    if (!confirm('This will permanently delete all data loaded by this import. Continue?')) return;
+    setActionInProgress(jobId);
+    try {
+      const res = await fetch(`/api/admin/imports/${jobId}/rollback`, { method: 'POST' });
+      if (!res.ok) {
+        const err = await res.json();
+        alert(`Rollback failed: ${err.error}`);
+        return;
+      }
+      setJobs((prev) =>
+        prev.map((j) =>
+          j.id === jobId ? { ...j, status: 'rolled_back' as any } : j
+        )
+      );
+    } finally {
+      setActionInProgress(null);
+    }
+  }
 
   return (
     <>
@@ -87,13 +123,21 @@ export function ImportDashboardClient({ initialJobs, portfolios }: Props) {
                         View
                       </Link>
                       {job.status === 'paused' && (
-                        <button className="text-yellow-700 hover:underline text-xs">
-                          Resume
+                        <button
+                          onClick={() => handleResume(job.id)}
+                          disabled={actionInProgress === job.id}
+                          className="text-yellow-700 hover:underline text-xs disabled:opacity-50"
+                        >
+                          {actionInProgress === job.id ? 'Resuming…' : 'Resume'}
                         </button>
                       )}
                       {job.status === 'completed' && (
-                        <button className="text-orange-600 hover:underline text-xs">
-                          Rollback
+                        <button
+                          onClick={() => handleRollback(job.id)}
+                          disabled={actionInProgress === job.id}
+                          className="text-orange-600 hover:underline text-xs disabled:opacity-50"
+                        >
+                          {actionInProgress === job.id ? 'Rolling back…' : 'Rollback'}
                         </button>
                       )}
                     </div>

@@ -4722,7 +4722,7 @@ export class ClaudePortfolioAssistant {
             const { data } = await this.supabase
               .from('donors')
               .select('id')
-              .eq('organization_id', args.organization_id)
+              .eq('org_id', args.organization_id)
               .eq('email', args.donor_email)
               .maybeSingle();
             existingDonor = data;
@@ -4732,7 +4732,7 @@ export class ClaudePortfolioAssistant {
             const { data } = await this.supabase
               .from('donors')
               .select('id')
-              .eq('organization_id', args.organization_id)
+              .eq('org_id', args.organization_id)
               .eq('first_name', firstName)
               .eq('last_name', lastName)
               .maybeSingle();
@@ -4743,7 +4743,7 @@ export class ClaudePortfolioAssistant {
             const { data } = await this.supabase
               .from('donors')
               .select('id')
-              .eq('organization_id', args.organization_id)
+              .eq('org_id', args.organization_id)
               .eq('organization_name', orgName)
               .maybeSingle();
             existingDonor = data;
@@ -4756,13 +4756,12 @@ export class ClaudePortfolioAssistant {
             const { data: newDonor, error: donorError } = await this.supabase
               .from('donors')
               .insert({
-                organization_id: args.organization_id,
-                donor_type: donorType,
+                org_id: args.organization_id,
+                is_organization: isOrg,
                 first_name: firstName,
                 last_name: lastName,
                 organization_name: orgName,
                 email: args.donor_email || null,
-                created_by: userId,
               })
               .select('id')
               .single();
@@ -4776,7 +4775,7 @@ export class ClaudePortfolioAssistant {
         const { data: contribution, error: contribError } = await this.supabase
           .from('contributions_received')
           .insert({
-            organization_id: args.organization_id,
+            org_id: args.organization_id,
             donor_id: donorId || null,
             amount: args.amount,
             contribution_date: args.contribution_date || new Date().toISOString().split('T')[0],
@@ -4788,7 +4787,7 @@ export class ClaudePortfolioAssistant {
             notes: args.notes || null,
             created_by: userId,
           })
-          .select('*, donors(first_name, last_name, organization_name, donor_type)')
+          .select('*, donors(first_name, last_name, organization_name, is_organization)')
           .single();
 
         if (contribError) throw new Error(`Error creating contribution: ${contribError.message}`);
@@ -4816,7 +4815,7 @@ export class ClaudePortfolioAssistant {
         // Build donor display name
         const donor = contribution.donors;
         const donorName = donor
-          ? (donor.donor_type === 'individual'
+          ? (!donor.is_organization
               ? `${donor.first_name || ''} ${donor.last_name || ''}`.trim()
               : donor.organization_name)
           : 'Anonymous';
@@ -4844,7 +4843,7 @@ export class ClaudePortfolioAssistant {
           .from('contributions_received')
           .select(`
             *,
-            donors(first_name, last_name, organization_name, donor_type, email, address_line1, city, state, postal_code),
+            donors(first_name, last_name, organization_name, is_organization, email, address_line1, city, state, zip),
             organizations(name, ein, website)
           `)
           .eq('id', args.contribution_id)
@@ -4859,7 +4858,7 @@ export class ClaudePortfolioAssistant {
         let receiptNumber = contribution.receipt_number;
         if (!receiptNumber) {
           const { data: newReceiptNum } = await this.supabase.rpc('generate_receipt_number', {
-            p_org_id: contribution.organization_id,
+            p_org_id: contribution.org_id,
           });
           receiptNumber = newReceiptNum;
         }
@@ -4883,7 +4882,7 @@ export class ClaudePortfolioAssistant {
 
         // Create acknowledgment letter record for the receipt
         const donorName = donor
-          ? (donor.donor_type === 'individual'
+          ? (!donor.is_organization
               ? `${donor.first_name || ''} ${donor.last_name || ''}`.trim()
               : donor.organization_name)
           : 'Donor';
@@ -4911,7 +4910,7 @@ ${org?.name || 'The Organization'}`;
         const { data: letter } = await this.supabase
           .from('acknowledgment_letters')
           .insert({
-            organization_id: contribution.organization_id,
+            org_id: contribution.org_id,
             donor_id: contribution.donor_id,
             contribution_id: contribution.id,
             letter_type: 'tax_receipt',
@@ -4992,7 +4991,7 @@ ${org?.name || 'The Organization'}`;
           .eq('id', args.organization_id)
           .single();
 
-        const donorName = donor.donor_type === 'individual'
+        const donorName = !donor.is_organization
           ? `${donor.first_name || ''} ${donor.last_name || ''}`.trim()
           : donor.organization_name;
 
@@ -5076,7 +5075,7 @@ ${org?.name || 'The Organization'}`;
         const { data: letter, error: letterError } = await this.supabase
           .from('acknowledgment_letters')
           .insert({
-            organization_id: args.organization_id,
+            org_id: args.organization_id,
             donor_id: args.donor_id,
             contribution_id: args.contribution_id || null,
             letter_type: letterType,
@@ -5132,10 +5131,9 @@ ${org?.name || 'The Organization'}`;
             id: donor.donor_id,
             name: donor.display_name,
             email: donor.email,
-            type: donor.donor_type,
-            tier: donor.donor_tier,
+            type: donor.is_organization ? 'organization' : 'individual',
+            tier: donor.tier,
             status: donor.recency_status,
-            is_anonymous: donor.is_anonymous,
           },
           giving_stats: {
             total_lifetime: donor.total_lifetime_giving,
@@ -5216,7 +5214,7 @@ ${org?.name || 'The Organization'}`;
         let query = this.supabase
           .from('v_donor_summary')
           .select('*')
-          .eq('organization_id', args.organization_id);
+          .eq('org_id', args.organization_id);
 
         // Apply filters
         if (args.name) {
@@ -5226,10 +5224,10 @@ ${org?.name || 'The Organization'}`;
           query = query.ilike('email', `%${args.email}%`);
         }
         if (args.donor_type) {
-          query = query.eq('donor_type', args.donor_type);
+          query = query.eq('is_organization', args.donor_type !== 'individual');
         }
         if (args.donor_tier) {
-          query = query.eq('donor_tier', args.donor_tier);
+          query = query.eq('tier', args.donor_tier);
         }
         if (args.recency_status) {
           query = query.eq('recency_status', args.recency_status);
@@ -5284,19 +5282,19 @@ ${org?.name || 'The Organization'}`;
           this.supabase
             .from('v_compliance_dashboard')
             .select('*')
-            .eq('organization_id', args.organization_id)
+            .eq('org_id', args.organization_id)
             .maybeSingle(),
           this.supabase
             .from('self_dealing_incidents')
             .select('id, status, disqualified_person_name, transaction_type, amount, incident_date')
-            .eq('organization_id', args.organization_id)
+            .eq('org_id', args.organization_id)
             .in('status', ['flagged', 'confirmed'])
             .order('created_at', { ascending: false })
             .limit(5),
           this.supabase
             .from('v_upcoming_filing_deadlines')
             .select('*')
-            .eq('organization_id', args.organization_id)
+            .eq('org_id', args.organization_id)
             .limit(5),
         ]);
 
@@ -5444,7 +5442,7 @@ ${org?.name || 'The Organization'}`;
         const { data: persons } = await this.supabase
           .from('disqualified_persons')
           .select('id, full_name, relationship_type, title_or_role, ein, is_active')
-          .eq('organization_id', args.organization_id)
+          .eq('org_id', args.organization_id)
           .eq('is_active', true);
 
         const name = (args.counterparty_name || '').toLowerCase();
@@ -5466,7 +5464,7 @@ ${org?.name || 'The Organization'}`;
           const { data: newIncident } = await this.supabase
             .from('self_dealing_incidents')
             .insert({
-              organization_id: args.organization_id,
+              org_id: args.organization_id,
               disqualified_person_id: matchedPerson.id,
               disqualified_person_name: matchedPerson.full_name,
               incident_date: args.incident_date || new Date().toISOString().split('T')[0],
@@ -5511,7 +5509,7 @@ ${org?.name || 'The Organization'}`;
         const { data, error } = await this.supabase
           .from('disqualified_persons')
           .insert({
-            organization_id: args.organization_id,
+            org_id: args.organization_id,
             full_name: args.full_name,
             relationship_type: args.relationship_type,
             title_or_role: args.title_or_role || null,
@@ -5577,7 +5575,7 @@ ${org?.name || 'The Organization'}`;
             .from('filing_calendar')
             .update(updateData)
             .eq('id', args.filing_id)
-            .eq('organization_id', args.organization_id)
+            .eq('org_id', args.organization_id)
             .select()
             .single();
 
@@ -5596,7 +5594,7 @@ ${org?.name || 'The Organization'}`;
           const { data, error } = await this.supabase
             .from('filing_calendar')
             .insert({
-              organization_id: args.organization_id,
+              org_id: args.organization_id,
               filing_type: args.filing_type,
               tax_year: args.tax_year,
               jurisdiction: args.jurisdiction || 'federal',
@@ -5839,7 +5837,7 @@ ${org?.name || 'The Organization'}`;
         let query = this.supabase
           .from('state_registrations')
           .select('*')
-          .eq('organization_id', args.organization_id)
+          .eq('org_id', args.organization_id)
           .order('state_name');
 
         if (args.state_code) {

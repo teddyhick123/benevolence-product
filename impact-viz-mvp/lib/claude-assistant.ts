@@ -1285,7 +1285,7 @@ export class ClaudePortfolioAssistant {
   private enabledModules: ModuleId[] = ['core'];
   private moduleSystemPrompt: string = '';
 
-  constructor(supabaseServiceRole: string, anthropicApiKey: string) {
+  constructor(supabaseServiceRole: string, _anthropicApiKey?: string) {
     this.provider = createAIProvider();
     this.supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,

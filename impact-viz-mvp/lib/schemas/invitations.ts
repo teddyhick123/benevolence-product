@@ -9,8 +9,3 @@ export const createInvitationSchema = z.object({
   message: z.string().max(500).optional().nullable(),
 });
 
-export const acceptInvitationSchema = z.object({
-  token: z.string().min(1, 'Token is required'),
-});
-
-export type CreateInvitationInput = z.infer<typeof createInvitationSchema>;

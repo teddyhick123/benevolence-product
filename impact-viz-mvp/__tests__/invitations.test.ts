@@ -1,6 +1,6 @@
 // __tests__/invitations.test.ts
 import { describe, it, expect } from 'vitest';
-import { createInvitationSchema, acceptInvitationSchema } from '../lib/schemas/invitations';
+import { createInvitationSchema } from '../lib/schemas/invitations';
 import { inviteMemberSchema } from '../lib/schemas/admin';
 
 describe('createInvitationSchema', () => {
@@ -38,14 +38,3 @@ describe('inviteMemberSchema (fixed)', () => {
   });
 });
 
-describe('acceptInvitationSchema', () => {
-  it('accepts a valid token', () => {
-    const result = acceptInvitationSchema.safeParse({ token: 'abc123' });
-    expect(result.success).toBe(true);
-  });
-
-  it('rejects empty token', () => {
-    const result = acceptInvitationSchema.safeParse({ token: '' });
-    expect(result.success).toBe(false);
-  });
-});

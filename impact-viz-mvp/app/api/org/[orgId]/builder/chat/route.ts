@@ -87,7 +87,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
         let currentMessages = [...history];
 
         while (true) {
-          const stream = provider.createStream({
+          const aiStream = provider.createStream({
             model: AI_MODELS.assistant,
             maxTokens: 4096,
             system: systemPrompt,
@@ -104,7 +104,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
           let currentBlockType: 'text' | 'tool_use' | null = null;
           let currentBlockText = '';
 
-          for await (const chunk of stream) {
+          for await (const chunk of aiStream) {
             if (chunk.type === 'content_block_start') {
               if (chunk.blockType === 'tool_use') {
                 currentBlockType = 'tool_use';

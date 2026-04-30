@@ -6,9 +6,15 @@ import { createServerClient } from '@supabase/ssr';
 import { aiAuthRequired, rateLimitExceeded } from '@/lib/rate-limit-response';
 import { aiLimiter } from '@/lib/rate-limit';
 import { aiChatRequestSchema } from '@/lib/schemas/ai';
+import { Redis } from '@upstash/redis';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
+
+const redis = new Redis({
+  url: process.env.UPSTASH_REDIS_REST_URL!,
+  token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+});
 
 function supabaseService() {
   return createClient(
@@ -189,6 +195,12 @@ export async function POST(req: NextRequest) {
       conversationHistory: filteredHistory,
       memberRole: membership?.role ?? 'viewer',
     });
+
+    // Fire-and-forget per-org AI usage counter (keyed by orgId + month)
+    if (orgId) {
+      const month = new Date().toISOString().slice(0, 7); // YYYY-MM
+      redis.incr(`usage:ai:${orgId}:${month}`).catch(() => {});
+    }
 
     // Check if any widgets were created/displayed and fetch their full data
     // Note: Database returns snake_case field names

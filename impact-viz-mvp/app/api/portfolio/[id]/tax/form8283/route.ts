@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { supabasePublic } from '@/lib/supabase';
 import { generateForm8283PDF, type Form8283Contribution } from '@/lib/tax/form8283-generator';
+import { requirePortfolioAccess, isAccessDenied } from '@/lib/portfolio-auth';
 
 /**
  * GET /api/portfolio/[id]/tax/form8283?year=2024
@@ -11,6 +12,8 @@ export async function GET(
   ctx: { params: Promise<{ id: string }> }
 ) {
   const { id: portfolio_id } = await ctx.params;
+  const access = await requirePortfolioAccess(portfolio_id);
+  if (isAccessDenied(access)) return access.error;
   const url = new URL(req.url);
   const year = Number(url.searchParams.get('year') || new Date().getFullYear());
 

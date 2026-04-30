@@ -1,6 +1,7 @@
 // app/api/portfolio/[id]/letter/route.ts
 import { NextResponse } from 'next/server';
 import { createSupabaseServerClient } from '@/lib/supabase';
+import { requirePortfolioAccess, isAccessDenied } from '@/lib/portfolio-auth';
 
 function cacheHeaders() {
   return { 'Cache-Control': 'no-store' } as const;
@@ -8,6 +9,8 @@ function cacheHeaders() {
 
 export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id: portfolio_id } = await ctx.params;
+  const access = await requirePortfolioAccess(portfolio_id);
+  if (isAccessDenied(access)) return access.error;
   const sb = await createSupabaseServerClient();
 
   try {

@@ -1,9 +1,12 @@
 // app/api/portfolio/[id]/heat-map/route.ts
 import { NextResponse } from 'next/server';
 import { createSupabaseServerClient } from '@/lib/supabase';
+import { requirePortfolioAccess, isAccessDenied } from '@/lib/portfolio-auth';
 
 export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id: portfolioId } = await ctx.params;
+  const access = await requirePortfolioAccess(portfolioId);
+  if (isAccessDenied(access)) return access.error;
   const url = new URL(_req.url);
   const mode = (url.searchParams.get('mode') || 'temporal').trim();
   const window = (url.searchParams.get('window') || '12m').trim();

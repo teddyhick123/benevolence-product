@@ -10,14 +10,6 @@ export const uploadIngestSchema = z.object({
 });
 
 /**
- * Schema for portfolio creation
- */
-export const createPortfolioSchema = z.object({
-  name: z.string().min(1, 'Portfolio name is required').max(255, 'Name too long'),
-  description: z.string().max(1000).optional().nullable(),
-});
-
-/**
  * Schema for portfolio member invitation
  */
 export const inviteMemberSchema = z.object({
@@ -52,14 +44,14 @@ export const portfolioSettingsSchema = z.object({
  */
 export const addPortfolioMemberSchema = z.object({
   user_id: z.string().uuid().min(1, 'User ID required'),
-  role: z.enum(['viewer', 'editor', 'owner']),
+  role: z.enum(['owner', 'admin', 'member', 'viewer']),
 });
 
 /**
  * Schema for updating member role
  */
 export const updateMemberRoleSchema = z.object({
-  role: z.enum(['viewer', 'editor', 'owner']),
+  role: z.enum(['owner', 'admin', 'member', 'viewer']),
 });
 
 /**

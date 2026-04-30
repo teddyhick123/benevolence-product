@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { supabasePublic } from '@/lib/supabase';
+import { requirePortfolioAccess, isAccessDenied } from '@/lib/portfolio-auth';
 import * as XLSX from 'xlsx';
 import {
   CONTRIBUTION_TYPE_LABELS,
@@ -30,6 +31,8 @@ export async function GET(
   ctx: { params: Promise<{ id: string }> }
 ) {
   const { id: portfolioId } = await ctx.params;
+  const access = await requirePortfolioAccess(portfolioId);
+  if (isAccessDenied(access)) return access.error;
   const url = new URL(req.url);
   const year = Number(url.searchParams.get('year') || new Date().getFullYear());
   const format = url.searchParams.get('format') || 'json';

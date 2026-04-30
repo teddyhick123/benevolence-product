@@ -4,12 +4,15 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { createServerClient } from '@supabase/ssr';
+import { requirePortfolioAccess, isAccessDenied } from '@/lib/portfolio-auth';
 
 /** Returns settings for a portfolio: { show_map: boolean, widgets: string[] }
  * Defaults: show_map=true, widgets=['kpi_waci','sector_emissions']
  */
 export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id: portfolio_id } = await ctx.params;
+  const access = await requirePortfolioAccess(portfolio_id);
+  if (isAccessDenied(access)) return access.error;
 
   // SSR-bound Supabase client (reads auth cookies)
   const c = await cookies();

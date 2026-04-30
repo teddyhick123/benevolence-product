@@ -43,16 +43,21 @@ export class AnthropicProvider implements AIProvider {
   }
 
   async *createStream(config: AIRequestConfig): AsyncIterable<AIStreamChunk> {
-    const stream = await this.client.messages.create({
+    const stream = this.client.messages.stream({
       model: config.model,
       max_tokens: config.maxTokens ?? 4096,
       system: config.system,
       messages: config.messages.map(m => ({
         role: m.role,
-        content: typeof m.content === 'string' ? m.content : m.content as any,
+        content: typeof m.content === 'string'
+          ? m.content
+          : (m.content as AIContentBlock[]).map(block => {
+              if (block.type === 'text') return { type: 'text' as const, text: block.text };
+              if (block.type === 'tool_use') return { type: 'tool_use' as const, id: block.id, name: block.name, input: block.input };
+              return { type: 'tool_result' as const, tool_use_id: block.tool_use_id, content: block.content };
+            }),
       })),
       tools: config.tools as unknown as Anthropic.Tool[],
-      stream: true,
     });
 
     for await (const event of stream) {

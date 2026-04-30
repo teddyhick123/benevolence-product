@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { supabasePublic } from '@/lib/supabase';
+import { requirePortfolioAccess, isAccessDenied } from '@/lib/portfolio-auth';
 import { calculateAGILimits } from '@/lib/tax/agi-calculator';
 import { generateComplianceReport } from '@/lib/tax/substantiation-validator';
 import { summarizeCarryforwards, generateCarryforwardAlerts } from '@/lib/tax/carryforward-tracker';
@@ -13,6 +14,8 @@ export async function GET(
   ctx: { params: Promise<{ id: string }> }
 ) {
   const { id: portfolio_id } = await ctx.params;
+  const access = await requirePortfolioAccess(portfolio_id);
+  if (isAccessDenied(access)) return access.error;
   const url = new URL(req.url);
   const year = Number(url.searchParams.get('year') || new Date().getFullYear());
 

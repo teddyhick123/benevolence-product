@@ -86,3 +86,51 @@ export const TimeWindowHelper = {
     return new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
   },
 };
+
+/**
+ * AI Message - Represents a message in an AI conversation
+ */
+export interface AIMessage {
+  role: 'user' | 'assistant';
+  content: string | AIContentBlock[];
+}
+
+/**
+ * Content block types for AI messages
+ */
+export type AIContentBlock =
+  | { type: 'text'; text: string }
+  | { type: 'tool_use'; id: string; name: string; input: Record<string, unknown> }
+  | { type: 'tool_result'; tool_use_id: string; content: string };
+
+/**
+ * Tool definition for AI tool use
+ */
+export interface ToolDefinition {
+  name: string;
+  description: string;
+  input_schema: {
+    type: 'object';
+    properties: Record<string, unknown>;
+    required?: string[];
+  };
+}
+
+/**
+ * AI Response - Response from an AI provider
+ */
+export interface AIResponse {
+  content: AIContentBlock[];
+  stopReason: string | null;
+  model: string;
+}
+
+/**
+ * Stream chunk from an AI provider streaming response
+ */
+export type AIStreamChunk =
+  | { type: 'content_block_start'; blockType: 'text' | 'tool_use'; id?: string; name?: string }
+  | { type: 'text_delta'; text: string }
+  | { type: 'tool_input_delta'; partialJson: string }
+  | { type: 'content_block_stop' }
+  | { type: 'message_stop'; stopReason: string | null };

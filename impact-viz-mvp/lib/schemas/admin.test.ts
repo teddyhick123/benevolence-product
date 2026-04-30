@@ -163,7 +163,7 @@ describe('Admin Schemas', () => {
     it('should validate valid member addition', () => {
       const validData = {
         user_id: '550e8400-e29b-41d4-a716-446655440000',
-        role: 'editor' as const,
+        role: 'member' as const,
       };
 
       const result = addPortfolioMemberSchema.safeParse(validData);
@@ -182,7 +182,7 @@ describe('Admin Schemas', () => {
     it('should only allow valid roles', () => {
       const invalidData = {
         user_id: '550e8400-e29b-41d4-a716-446655440000',
-        role: 'admin',
+        role: 'editor',
       };
 
       const result = addPortfolioMemberSchema.safeParse(invalidData);
@@ -213,7 +213,7 @@ describe('Admin Schemas', () => {
   describe('updateMemberRoleSchema', () => {
     it('should validate role update', () => {
       const validData = {
-        role: 'editor' as const,
+        role: 'member' as const,
       };
 
       const result = updateMemberRoleSchema.safeParse(validData);

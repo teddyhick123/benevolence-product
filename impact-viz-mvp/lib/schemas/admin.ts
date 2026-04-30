@@ -52,14 +52,14 @@ export const portfolioSettingsSchema = z.object({
  */
 export const addPortfolioMemberSchema = z.object({
   user_id: z.string().uuid().min(1, 'User ID required'),
-  role: z.enum(['viewer', 'editor', 'owner']),
+  role: z.enum(['owner', 'admin', 'member', 'viewer']),
 });
 
 /**
  * Schema for updating member role
  */
 export const updateMemberRoleSchema = z.object({
-  role: z.enum(['viewer', 'editor', 'owner']),
+  role: z.enum(['owner', 'admin', 'member', 'viewer']),
 });
 
 /**

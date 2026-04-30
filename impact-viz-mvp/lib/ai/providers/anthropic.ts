@@ -10,7 +10,7 @@ export class AnthropicProvider implements AIProvider {
     this.client = new Anthropic({
       apiKey: apiKey ?? process.env.ANTHROPIC_API_KEY,
       // Required when running in jsdom test environments; production usage is server-side only
-      dangerouslyAllowBrowser: typeof window !== 'undefined',
+      dangerouslyAllowBrowser: process.env.NODE_ENV === 'test',
     });
   }
 
@@ -30,7 +30,7 @@ export class AnthropicProvider implements AIProvider {
               return { type: 'tool_result' as const, tool_use_id: block.tool_use_id, content: block.content };
             }),
       })),
-      tools: config.tools as unknown as Anthropic.Tool[],
+      ...(config.tools?.length ? { tools: config.tools as unknown as Anthropic.Tool[] } : {}),
     });
 
     const content: AIContentBlock[] = response.content.map(block => {
@@ -57,27 +57,31 @@ export class AnthropicProvider implements AIProvider {
               return { type: 'tool_result' as const, tool_use_id: block.tool_use_id, content: block.content };
             }),
       })),
-      tools: config.tools as unknown as Anthropic.Tool[],
+      ...(config.tools?.length ? { tools: config.tools as unknown as Anthropic.Tool[] } : {}),
     });
 
-    for await (const event of stream) {
-      if (event.type === 'content_block_start') {
-        if (event.content_block.type === 'tool_use') {
-          yield { type: 'content_block_start', blockType: 'tool_use', id: event.content_block.id, name: event.content_block.name };
-        } else if (event.content_block.type === 'text') {
-          yield { type: 'content_block_start', blockType: 'text' };
+    try {
+      for await (const event of stream) {
+        if (event.type === 'content_block_start') {
+          if (event.content_block.type === 'tool_use') {
+            yield { type: 'content_block_start', blockType: 'tool_use', id: event.content_block.id, name: event.content_block.name };
+          } else if (event.content_block.type === 'text') {
+            yield { type: 'content_block_start', blockType: 'text' };
+          }
+        } else if (event.type === 'content_block_delta') {
+          if (event.delta.type === 'text_delta') {
+            yield { type: 'text_delta', text: event.delta.text };
+          } else if (event.delta.type === 'input_json_delta') {
+            yield { type: 'tool_input_delta', partialJson: event.delta.partial_json };
+          }
+        } else if (event.type === 'content_block_stop') {
+          yield { type: 'content_block_stop' };
+        } else if (event.type === 'message_delta') {
+          yield { type: 'message_stop', stopReason: event.delta.stop_reason ?? null };
         }
-      } else if (event.type === 'content_block_delta') {
-        if (event.delta.type === 'text_delta') {
-          yield { type: 'text_delta', text: event.delta.text };
-        } else if (event.delta.type === 'input_json_delta') {
-          yield { type: 'tool_input_delta', partialJson: event.delta.partial_json };
-        }
-      } else if (event.type === 'content_block_stop') {
-        yield { type: 'content_block_stop' };
-      } else if (event.type === 'message_delta') {
-        yield { type: 'message_stop', stopReason: event.delta.stop_reason ?? null };
       }
+    } finally {
+      stream.controller.abort();
     }
   }
 }

@@ -1,6 +1,7 @@
 // app/api/portfolio/[id]/analytics/projections/route.ts
 import { NextResponse } from 'next/server';
 import { createSupabaseServerClient } from '@/lib/supabase';
+import { requirePortfolioAccess, isAccessDenied } from '@/lib/portfolio-auth';
 
 function cacheHeaders(isGet = false) {
   return isGet
@@ -97,6 +98,8 @@ function movingAverageProjection(values: number[], periodsAhead: number, windowS
 
 export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id: portfolio_id } = await ctx.params;
+  const access = await requirePortfolioAccess(portfolio_id);
+  if (isAccessDenied(access)) return access.error;
   const url = new URL(req.url);
 
   const metric_code = url.searchParams.get('metric_code');
@@ -230,6 +233,8 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
 
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id: portfolio_id } = await ctx.params;
+  const access = await requirePortfolioAccess(portfolio_id);
+  if (isAccessDenied(access)) return access.error;
   const sb = await createSb();
 
   const body = await req.json();

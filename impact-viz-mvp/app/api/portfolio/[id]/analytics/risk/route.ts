@@ -1,6 +1,7 @@
 // app/api/portfolio/[id]/analytics/risk/route.ts
 import { NextResponse } from 'next/server';
 import { createSupabaseServerClient } from '@/lib/supabase';
+import { requirePortfolioAccess, isAccessDenied } from '@/lib/portfolio-auth';
 
 function cacheHeaders(isGet = false) {
   return isGet
@@ -12,6 +13,8 @@ const createSb = createSupabaseServerClient;
 
 export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id: portfolio_id } = await ctx.params;
+  const access = await requirePortfolioAccess(portfolio_id);
+  if (isAccessDenied(access)) return access.error;
   const url = new URL(req.url);
 
   const risk_type = url.searchParams.get('risk_type') || 'all';
@@ -207,6 +210,8 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
 
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id: portfolio_id } = await ctx.params;
+  const access = await requirePortfolioAccess(portfolio_id);
+  if (isAccessDenied(access)) return access.error;
   const sb = await createSb();
 
   // Force regenerate snapshot

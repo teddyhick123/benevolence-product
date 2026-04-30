@@ -4,6 +4,7 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase';
 import type { BoardReportData } from '@/lib/pdf/board-report-generator';
+import { requirePortfolioAccess, isAccessDenied } from '@/lib/portfolio-auth';
 
 export async function GET(
   req: Request,
@@ -17,6 +18,8 @@ export async function GET(
   }
 
   const { id: portfolioId } = await ctx.params;
+  const access = await requirePortfolioAccess(portfolioId);
+  if (isAccessDenied(access)) return access.error;
   const url = new URL(req.url);
   const asOf = url.searchParams.get('as_of') ?? new Date().toISOString().slice(0, 10);
   const taxYear = Number(url.searchParams.get('year') ?? new Date().getFullYear());

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { supabasePublic } from '@/lib/supabase';
+import { requirePortfolioAccess, isAccessDenied } from '@/lib/portfolio-auth';
 
 function computeProgress(
   current: number | null | undefined,
@@ -22,6 +23,8 @@ function computeProgress(
 
 export async function GET(_: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id: portfolio_id } = await ctx.params; // <-- await params
+  const access = await requirePortfolioAccess(portfolio_id);
+  if (isAccessDenied(access)) return access.error;
   const sb = await supabasePublic();                  // <-- instantiate per request
 
   // 1) Fetch targets for this portfolio

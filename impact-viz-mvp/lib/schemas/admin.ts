@@ -10,14 +10,6 @@ export const uploadIngestSchema = z.object({
 });
 
 /**
- * Schema for portfolio creation
- */
-export const createPortfolioSchema = z.object({
-  name: z.string().min(1, 'Portfolio name is required').max(255, 'Name too long'),
-  description: z.string().max(1000).optional().nullable(),
-});
-
-/**
  * Schema for portfolio member invitation
  */
 export const inviteMemberSchema = z.object({

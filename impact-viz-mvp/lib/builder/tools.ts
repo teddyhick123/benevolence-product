@@ -1,6 +1,10 @@
 // lib/builder/tools.ts
 import { SupabaseClient } from '@supabase/supabase-js';
 import type { ToolDefinition } from '@/lib/ai/types';
+import { createAIProvider } from '@/lib/ai/factory';
+import { AI_MODELS } from '@/lib/ai/models';
+import { buildScaffoldContext, formatScaffoldContextForPrompt } from './scaffold-context';
+import { getCodebaseIndex, formatIndexForPrompt } from './codebase-index';
 
 // ─── Tool definitions ────────────────────────────────────────────────────────
 
@@ -141,14 +145,41 @@ export const BUILDER_TOOLS: ToolDefinition[] = [
       required: ['request_summary', 'files'],
     },
   },
+  {
+    name: 'scaffold_module',
+    description: 'Generate a complete new feature module from a plain-English description. Runs a three-phase process: planning (immediate), building (async background job), and review. Returns a plan card the admin must approve before building starts.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        description: {
+          type: 'string',
+          description: 'Plain-English description of the module e.g. "Add a volunteer tracking module with fields for hours logged, volunteer role, and org unit"',
+        },
+      },
+      required: ['description'],
+    },
+  },
 ];
 
 // ─── Tool executors ──────────────────────────────────────────────────────────
 
+export interface ScaffoldPlanContent {
+  moduleName: string;
+  moduleSlug: string;
+  moduleIcon: string;
+  tables: Array<{
+    name: string;
+    columns: Array<{ name: string; type: string; nullable: boolean }>;
+  }>;
+  files: Array<{ path: string; description: string }>;
+  registryEntry: string;
+  apiShape: string;
+}
+
 export type ToolResult =
   | { type: 'config_success'; tool: string; message: string }
   | { type: 'proposal_created'; proposalId: string; summary: string; fileCount: number }
-  | { type: 'scaffold_plan_ready'; proposalId: string; planContent: unknown }
+  | { type: 'scaffold_plan_ready'; proposalId: string; planContent: ScaffoldPlanContent }
   | { type: 'error'; tool: string; message: string };
 
 export async function executeTool(
@@ -339,6 +370,96 @@ export async function executeTool(
           proposalId: data.id,
           summary,
           fileCount: files.length,
+        };
+      }
+
+      case 'scaffold_module': {
+        const description = toolInput.description as string;
+
+        let indexStr = '';
+        try {
+          const index = getCodebaseIndex();
+          indexStr = formatIndexForPrompt(index);
+        } catch { /* proceed without index */ }
+
+        const scaffoldCtx = buildScaffoldContext(indexStr);
+        const contextPrompt = formatScaffoldContextForPrompt(scaffoldCtx);
+
+        const provider = createAIProvider();
+        const planningSystemPrompt = `You are a senior software engineer planning a new feature module for the Benevolence platform — a white-label philanthropic portfolio management system built with Next.js 15, TypeScript, Supabase (PostgreSQL + RLS), and Tailwind CSS.${contextPrompt}`;
+
+        const planningUserPrompt = `Admin request: "${description}"
+
+Based on the module templates and codebase conventions above, create a detailed implementation plan.
+
+Respond with ONLY a valid JSON object matching this exact schema (no markdown, no explanation):
+{
+  "moduleName": "Volunteer Tracking",
+  "moduleSlug": "volunteer_tracking",
+  "moduleIcon": "users",
+  "tables": [
+    {
+      "name": "volunteer_records",
+      "columns": [
+        { "name": "id", "type": "uuid", "nullable": false },
+        { "name": "organization_id", "type": "uuid", "nullable": false }
+      ]
+    }
+  ],
+  "files": [
+    { "path": "db/migrations/${scaffoldCtx.nextMigrationNumber}_volunteer_tracking.sql", "description": "Migration for volunteer_records table" },
+    { "path": "lib/modules/registry.ts", "description": "Add volunteer_tracking to MODULE_REGISTRY" },
+    { "path": "app/api/org/[orgId]/volunteer-tracking/route.ts", "description": "GET + POST API route" },
+    { "path": "components/volunteer-tracking/VolunteerTrackingList.tsx", "description": "List component" },
+    { "path": "app/dashboard/volunteer-tracking/page.tsx", "description": "Dashboard page" }
+  ],
+  "registryEntry": "volunteer_tracking: { id: 'volunteer_tracking', name: 'Volunteer Tracking', ... }",
+  "apiShape": "Fields: hours_logged (number), volunteer_role (string), org_unit (string)"
+}`;
+
+        const planResponse = await provider.createMessage({
+          model: AI_MODELS.scaffoldPlan,
+          maxTokens: 4096,
+          messages: [{ role: 'user', content: planningUserPrompt }],
+          system: planningSystemPrompt,
+        });
+
+        const textBlock = planResponse.content.find(b => b.type === 'text');
+        if (!textBlock || textBlock.type !== 'text') {
+          return { type: 'error', tool: toolName, message: 'Planning call returned no text.' };
+        }
+
+        let planContent: ScaffoldPlanContent;
+        try {
+          const raw = textBlock.text.replace(/^```json?\n?|```$/gm, '').trim();
+          planContent = JSON.parse(raw) as ScaffoldPlanContent;
+        } catch {
+          return { type: 'error', tool: toolName, message: `Failed to parse plan JSON: ${textBlock.text.slice(0, 200)}` };
+        }
+
+        const { data: proposal, error: proposalError } = await adminSupabase
+          .from('builder_proposals')
+          .insert({
+            org_id: orgId,
+            requested_by: userId,
+            request_text: requestText,
+            proposal_type: 'code',
+            status: 'pending',
+            phase: 'plan_ready',
+            plan_content: planContent,
+            generated_code: { files: [] },
+          })
+          .select('id')
+          .single();
+
+        if (proposalError || !proposal) {
+          return { type: 'error', tool: toolName, message: proposalError?.message ?? 'Failed to create proposal.' };
+        }
+
+        return {
+          type: 'scaffold_plan_ready',
+          proposalId: proposal.id,
+          planContent,
         };
       }
 

@@ -3,6 +3,10 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { CheckCircle, Clock, FileCode, AlertCircle, Send } from 'lucide-react';
+import PlanCard from './builder/PlanCard';
+import BuildProgressCard from './builder/BuildProgressCard';
+import ReviewReportCard from './builder/ReviewReportCard';
+import type { ScaffoldPlanContent } from '@/lib/builder/tools';
 
 interface TextMessage {
   type: 'text';
@@ -24,7 +28,27 @@ interface ProposalMessage {
   fileCount: number;
 }
 
-type ChatMessage = TextMessage | ConfigResultMessage | ProposalMessage;
+interface ScaffoldPlanMessage {
+  type: 'scaffold_plan';
+  proposalId: string;
+  planContent: ScaffoldPlanContent;
+}
+
+interface BuildProgressMessage {
+  type: 'build_progress';
+  proposalId: string;
+  plannedFiles: Array<{ path: string }>;
+}
+
+interface ReviewReportMessage {
+  type: 'review_report';
+  score: number;
+  findings: Array<{ severity: 'error' | 'warning' | 'info'; description: string }>;
+  proposalId: string;
+}
+
+type ChatMessage = TextMessage | ConfigResultMessage | ProposalMessage
+  | ScaffoldPlanMessage | BuildProgressMessage | ReviewReportMessage;
 
 export interface StoredMessage {
   role: 'user' | 'assistant';
@@ -124,6 +148,12 @@ export default function BuilderChat({ orgId, initialMessages }: BuilderChatProps
               summary: event.summary as string,
               fileCount: event.fileCount as number,
             });
+          } else if (event.type === 'scaffold_plan') {
+            pendingToolResults.push({
+              type: 'scaffold_plan',
+              proposalId: event.proposalId as string,
+              planContent: event.planContent as ScaffoldPlanContent,
+            });
           } else if (event.type === 'done') {
             if (accText) {
               setMessages(prev => [
@@ -222,6 +252,59 @@ export default function BuilderChat({ orgId, initialMessages }: BuilderChatProps
                     </span>
                   </div>
                 </div>
+              </div>
+            );
+          }
+
+          if (msg.type === 'scaffold_plan') {
+            return (
+              <div key={i} className="flex justify-start">
+                <PlanCard
+                  orgId={orgId}
+                  proposalId={msg.proposalId}
+                  planContent={msg.planContent}
+                  onApproved={() => {
+                    setMessages(prev => prev.map((m, idx) => idx === i
+                      ? { type: 'build_progress' as const, proposalId: msg.proposalId, plannedFiles: msg.planContent.files }
+                      : m
+                    ));
+                  }}
+                />
+              </div>
+            );
+          }
+
+          if (msg.type === 'build_progress') {
+            return (
+              <div key={i} className="flex justify-start">
+                <BuildProgressCard
+                  orgId={orgId}
+                  proposalId={msg.proposalId}
+                  plannedFiles={msg.plannedFiles}
+                  onComplete={(proposal) => {
+                    setMessages(prev => prev.map((m, idx) => idx === i
+                      ? {
+                          type: 'review_report' as const,
+                          score: proposal.review_report?.score ?? 0,
+                          findings: (proposal.review_report?.findings ?? []) as Array<{ severity: 'error' | 'warning' | 'info'; description: string }>,
+                          proposalId: msg.proposalId,
+                        }
+                      : m
+                    ));
+                  }}
+                />
+              </div>
+            );
+          }
+
+          if (msg.type === 'review_report') {
+            return (
+              <div key={i} className="flex justify-start">
+                <ReviewReportCard
+                  score={msg.score}
+                  findings={msg.findings}
+                  proposalId={msg.proposalId}
+                />
               </div>
             );
           }

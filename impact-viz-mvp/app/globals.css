@@ -3,10 +3,18 @@
 
 /* Tailwind v4 design tokens */
 @theme {
-  /* Colors */
-  --color-creme: #fffff9;
-  --color-azure: #5186a6;
-  --color-ink:   #0f172a;
+  /* Colors — primary palette */
+  --color-creme:      #fffff9;
+  --color-creme-warm: #f7f1e3;
+  --color-azure:      #5186a6;
+  --color-azure-deep: #2f5c7a;
+  --color-azure-soft: #b8d0df;
+  --color-coral:      #e07a5f;
+  --color-sunset:     #f4a261;
+  --color-ink:        #0f172a;
+  --color-ink-60:     rgba(15,23,42,0.6);
+  --color-ink-30:     rgba(15,23,42,0.3);
+  --color-ink-10:     rgba(15,23,42,0.1);
 
   /* Shadows */
   --shadow-soft: 0 4px 16px rgba(0,0,0,0.05);
@@ -53,5 +61,14 @@
 
   .animate-slide-up {
     animation: slide-up 0.3s ease-out;
+  }
+
+  @keyframes logo-bundle-pulse {
+    0%, 100% { stroke-dashoffset: 779; opacity: 0.15; }
+    50%       { stroke-dashoffset: 0;   opacity: 0.7;  }
+  }
+
+  .logo-bundle-pulse {
+    animation: logo-bundle-pulse 2.6s ease-in-out infinite;
   }
 }

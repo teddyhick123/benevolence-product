@@ -142,5 +142,5 @@ The existing `POST /api/org` route is left unchanged — it remains the path for
 
 - Data import during onboarding (CSV, QuickBooks) — user can do this after first login
 - Team invitations during onboarding — owner can invite members from the dashboard
-- EIN verification against IRS/ProPublica — field is collected but not validated at signup
+- EIN verification against IRS/ProPublica — format validation only (`XX-XXXXXXX` pattern, client-side). Live verification against ProPublica is a post-launch improvement.
 - Admin notification on new signup — can be added later as a webhook

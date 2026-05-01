@@ -1,70 +1,49 @@
-export default function TrefoilLoader({ className = "h-5 w-5" }: { className?: string }) {
+// Harmonograph bundle loader — 18 rotated copies of a 5-2-4 hypotrochoid,
+// pulsing in unison. Matches design position #5 ("Logo C: synchronized pulse").
+
+const PATH_LENGTH = 779;
+const N_PATHS = 18;
+const SPREAD_DEG = 37.4; // ±18.7° rotation spread across copies
+
+function buildHypotrochoidPath(): string {
+  // 5-2-4 hypotrochoid: R=5, r=2, d=4, scale=9.71 → path length ≈ 779
+  const scale = 9.71;
+  const steps = 720;
+  const parts: string[] = [];
+  for (let i = 0; i <= steps; i++) {
+    const t = (i / steps) * 4 * Math.PI;
+    const x = (3 * Math.cos(t) + 4 * Math.cos(1.5 * t)) * scale;
+    const y = (3 * Math.sin(t) - 4 * Math.sin(1.5 * t)) * scale;
+    parts.push(`${i === 0 ? 'M' : 'L'} ${x.toFixed(2)} ${y.toFixed(2)}`);
+  }
+  return parts.join(' ');
+}
+
+const BASE_PATH = buildHypotrochoidPath();
+
+const ANGLES = Array.from({ length: N_PATHS }, (_, i) =>
+  -SPREAD_DEG / 2 + (i / (N_PATHS - 1)) * SPREAD_DEG
+);
+
+export default function TrefoilLoader({ className = 'h-16 w-16' }: { className?: string }) {
   return (
     <svg
       className={className}
-      viewBox="0 0 100 100"
+      viewBox="-85 -85 170 170"
       xmlns="http://www.w3.org/2000/svg"
     >
-      <defs>
-        {/* Animated gradient that flows through the petals */}
-        <linearGradient id="petal-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="currentColor" stopOpacity="0.3">
-            <animate attributeName="offset" values="-0.5;1.5" dur="2s" repeatCount="indefinite" />
-          </stop>
-          <stop offset="50%" stopColor="currentColor" stopOpacity="1">
-            <animate attributeName="offset" values="0;2" dur="2s" repeatCount="indefinite" />
-          </stop>
-          <stop offset="100%" stopColor="currentColor" stopOpacity="0.3">
-            <animate attributeName="offset" values="0.5;2.5" dur="2s" repeatCount="indefinite" />
-          </stop>
-        </linearGradient>
-      </defs>
-
-      <g transform="translate(50, 50)">
-        {/* Top petal (0°) */}
+      {ANGLES.map((angle, i) => (
         <path
-          d="M 0,-15
-             C -12,-15 -20,-25 -20,-35
-             C -20,-45 -12,-50 0,-50
-             C 12,-50 20,-45 20,-35
-             C 20,-25 12,-15 0,-15 Z"
-          fill="url(#petal-gradient)"
-          opacity="0.9"
+          key={i}
+          className="logo-bundle-pulse"
+          d={BASE_PATH}
+          fill="none"
+          stroke="#5186A6"
+          strokeWidth="0.7"
+          strokeDasharray={`${PATH_LENGTH} ${PATH_LENGTH}`}
+          transform={`rotate(${angle.toFixed(2)})`}
         />
-
-        {/* Bottom left petal (120° rotation) */}
-        <path
-          d="M 0,-15
-             C -12,-15 -20,-25 -20,-35
-             C -20,-45 -12,-50 0,-50
-             C 12,-50 20,-45 20,-35
-             C 20,-25 12,-15 0,-15 Z"
-          fill="url(#petal-gradient)"
-          opacity="0.9"
-          transform="rotate(120)"
-        />
-
-        {/* Bottom right petal (240° rotation) */}
-        <path
-          d="M 0,-15
-             C -12,-15 -20,-25 -20,-35
-             C -20,-45 -12,-50 0,-50
-             C 12,-50 20,-45 20,-35
-             C 20,-25 12,-15 0,-15 Z"
-          fill="url(#petal-gradient)"
-          opacity="0.9"
-          transform="rotate(240)"
-        />
-
-        {/* Center circle */}
-        <circle
-          cx="0"
-          cy="0"
-          r="10"
-          fill="currentColor"
-          opacity="0.5"
-        />
-      </g>
+      ))}
     </svg>
   );
 }

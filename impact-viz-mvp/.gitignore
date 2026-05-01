@@ -43,3 +43,10 @@ Thumbs.db
 # Editor caches
 .vscode/
 .idea/
+
+# Tool output / plugin caches
+.superpowers/
+app/graphify-out/
+components/graphify-out/
+graphify-out/
+lib/graphify-out/

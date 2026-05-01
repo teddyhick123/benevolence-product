@@ -43,13 +43,13 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     // Fetch actual distributions from tax_contributions for the year
     const { data: contributions } = await supabase
       .from('tax_contributions')
-      .select('amount_usd, deductible_amount')
+      .select('fair_market_value, deductible_amount')
       .eq('portfolio_id', portfolioId)
       .eq('tax_year', year);
 
     const actualDistributions =
       pf990?.actual_payout ??
-      (contributions || []).reduce((s, c) => s + Number(c.amount_usd), 0);
+      (contributions || []).reduce((s, c) => s + Number(c.fair_market_value), 0);
 
     const netAssets = pf990?.fair_market_value_assets ?? null;
     const requiredPayout = pf990?.required_payout ?? (netAssets ? netAssets * 0.05 : null);

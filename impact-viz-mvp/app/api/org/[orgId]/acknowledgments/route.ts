@@ -191,17 +191,12 @@ ${orgName}`;
       .insert({
         org_id: orgId,
         donor_id,
-        contribution_id: contribution_id || null,
-        letter_type: type,
+        contribution_ids: contribution_id ? [contribution_id] : [],
         status: 'draft',
         subject: finalSubject,
         body: finalBody,
-        custom_message: custom_message || null,
-        org_name: org?.name || null,
-        org_ein: org?.ein || null,
-        sent_via: send_via || 'email',
-        tax_year: tax_year || null,
-        created_by: user?.id,
+        delivery_method: send_via || 'email',
+        sent_by: user?.id,
       })
       .select()
       .single();
@@ -213,7 +208,7 @@ ${orgName}`;
     if (contribution_id) {
       await supabase
         .from('contributions_received')
-        .update({ acknowledgment_status: 'draft' })
+        .update({ acknowledgment_sent: false })
         .eq('id', contribution_id);
     }
 

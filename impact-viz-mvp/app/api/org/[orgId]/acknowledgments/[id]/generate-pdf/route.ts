@@ -27,7 +27,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
         donors(first_name, last_name, organization_name, donor_type, address_line1, address_line2, city, state, postal_code, country)
       `)
       .eq('id', id)
-      .eq('organization_id', orgId)
+      .eq('org_id', orgId)
       .single();
 
     if (letterErr || !letter) {
@@ -51,18 +51,22 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: `Storage upload failed: ${uploadErr.message}` }, { status: 500 });
     }
 
-    const { data: { publicUrl } } = admin.storage
-      .from('documents')
-      .getPublicUrl(storagePath);
-
-    // Update letter record with PDF URL
+    // Store the path; generate a short-lived signed URL (never store public URLs for donor PII)
     await supabase
       .from('acknowledgment_letters')
-      .update({ pdf_url: publicUrl, pdf_storage_path: storagePath })
+      .update({ storage_path: storagePath, storage_bucket: 'documents' })
       .eq('id', id)
-      .eq('organization_id', orgId);
+      .eq('org_id', orgId);
 
-    return NextResponse.json({ pdf_url: publicUrl });
+    const { data: signedData, error: signErr } = await admin.storage
+      .from('documents')
+      .createSignedUrl(storagePath, 3600);
+
+    if (signErr || !signedData) {
+      return NextResponse.json({ error: 'Failed to create download URL' }, { status: 500 });
+    }
+
+    return NextResponse.json({ pdf_url: signedData.signedUrl });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }

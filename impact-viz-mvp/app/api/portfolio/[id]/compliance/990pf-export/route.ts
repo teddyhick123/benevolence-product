@@ -42,7 +42,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
         .maybeSingle(),
       supabase
         .from('tax_contributions')
-        .select('id, contribution_date, recipient_name, recipient_ein, recipient_type, amount_usd, contribution_type, property_description, deductible_amount')
+        .select('id, contribution_date, recipient_name, recipient_ein, contribution_type, fair_market_value, description_of_property, deductible_amount')
         .eq('portfolio_id', portfolioId)
         .eq('tax_year', year)
         .gte('contribution_date', `${year}-01-01`)
@@ -53,8 +53,8 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     const pf990 = pf990Res.data;
     const grants = grantsRes.data || [];
 
-    const totalQualifyingDistributions = grants.reduce((s, g) => s + Number(g.deductible_amount ?? g.amount_usd), 0);
-    const totalGrantAmount = grants.reduce((s, g) => s + Number(g.amount_usd), 0);
+    const totalQualifyingDistributions = grants.reduce((s, g) => s + Number(g.deductible_amount ?? g.fair_market_value), 0);
+    const totalGrantAmount = grants.reduce((s, g) => s + Number(g.fair_market_value), 0);
 
     const exportData = {
       portfolio: { id: portfolioId, name: portfolio.name },
@@ -90,10 +90,10 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
           recipient: g.recipient_name,
           recipient_ein: g.recipient_ein,
           recipient_type: g.recipient_type,
-          amount: g.amount_usd,
-          deductible_amount: g.deductible_amount ?? g.amount_usd,
+          amount: g.fair_market_value,
+          deductible_amount: g.deductible_amount ?? g.fair_market_value,
           type: g.contribution_type,
-          description: g.property_description,
+          description: g.description_of_property,
         })),
       },
     };

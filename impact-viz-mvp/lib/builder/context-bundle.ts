@@ -8,6 +8,7 @@ export interface OrgSnapshot {
   orgType: string;
   modules: Record<string, boolean>;
   branding: Record<string, string>;
+  aiInstructions: string | null;
   teamCount: number;
   portfolioCount: number;
   metricCount: number;
@@ -20,7 +21,7 @@ export async function fetchOrgSnapshot(
   const [orgRes, teamRes, portfolioRes, metricsRes] = await Promise.all([
     supabase
       .from('organizations')
-      .select('name, org_type, modules, branding')
+      .select('name, org_type, modules, branding, ai_instructions')
       .eq('id', orgId)
       .single(),
     supabase
@@ -51,6 +52,7 @@ export async function fetchOrgSnapshot(
     orgType: org.org_type,
     modules: (org.modules as Record<string, boolean>) || {},
     branding: (org.branding as Record<string, string>) || {},
+    aiInstructions: (org.ai_instructions as string | null) ?? null,
     teamCount: teamRes.count ?? 0,
     portfolioCount: portfolioRes.count ?? 0,
     metricCount: metricsRes.count ?? 0,

@@ -1,6 +1,8 @@
 // app/api/org/[orgId]/builder/chat/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import Anthropic from '@anthropic-ai/sdk';
+import { createAIProvider } from '@/lib/ai/factory';
+import { AI_MODELS } from '@/lib/ai/models';
+import type { AIStreamChunk, AIContentBlock } from '@/lib/ai/types';
 import { createServerClient, createAdminClient } from '@/lib/supabase';
 import { fetchOrgSnapshot, buildSystemPrompt } from '@/lib/builder/context-bundle';
 import { BUILDER_TOOLS, executeTool, ToolResult } from '@/lib/builder/tools';
@@ -58,7 +60,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
 
   const existingMessages: StoredMessage[] = (sessionRes.data?.messages as StoredMessage[]) || [];
 
-  const history: Anthropic.MessageParam[] = existingMessages
+  const history = existingMessages
     .slice(-20)
     .map(m => ({ role: m.role, content: m.content }));
 
@@ -72,7 +74,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
   }
   const systemPrompt = buildSystemPrompt(snapshot, indexAvailable);
 
-  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  const provider = createAIProvider();
 
   const stream = new ReadableStream({
     async start(controller) {
@@ -85,49 +87,46 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
         let currentMessages = [...history];
 
         while (true) {
-          const response = await anthropic.messages.create({
-            model: 'claude-sonnet-4-6',
-            max_tokens: 4096,
+          const aiStream = provider.createStream({
+            model: AI_MODELS.assistant,
+            maxTokens: 4096,
             system: systemPrompt,
-            tools: BUILDER_TOOLS,
+            tools: BUILDER_TOOLS as any,
             messages: currentMessages,
-            stream: true,
           });
 
           let stopReason: string | null = null;
-          const toolUseBlocks: Anthropic.ToolUseBlock[] = [];
-          const assistantContentBlocks: Array<{ type: 'text'; text: string } | Anthropic.ToolUseBlock> = [];
+          const toolUseBlocks: AIContentBlock[] = [];
+          const assistantContentBlocks: AIContentBlock[] = [];
           let currentToolInput = '';
           let currentToolId = '';
           let currentToolName = '';
           let currentBlockType: 'text' | 'tool_use' | null = null;
           let currentBlockText = '';
 
-          for await (const event of response) {
-            if (event.type === 'content_block_start') {
-              if (event.content_block.type === 'tool_use') {
+          for await (const chunk of aiStream) {
+            if (chunk.type === 'content_block_start') {
+              if (chunk.blockType === 'tool_use') {
                 currentBlockType = 'tool_use';
-                currentToolId = event.content_block.id;
-                currentToolName = event.content_block.name;
+                currentToolId = chunk.id ?? '';
+                currentToolName = chunk.name ?? '';
                 currentToolInput = '';
                 send({ type: 'tool_start', tool: currentToolName });
-              } else if (event.content_block.type === 'text') {
+              } else {
                 currentBlockType = 'text';
                 currentBlockText = '';
               }
-            } else if (event.type === 'content_block_delta') {
-              if (event.delta.type === 'text_delta') {
-                fullAssistantText += event.delta.text;
-                currentBlockText += event.delta.text;
-                send({ type: 'text', text: event.delta.text });
-              } else if (event.delta.type === 'input_json_delta') {
-                currentToolInput += event.delta.partial_json;
-              }
-            } else if (event.type === 'content_block_stop') {
+            } else if (chunk.type === 'text_delta') {
+              fullAssistantText += chunk.text;
+              currentBlockText += chunk.text;
+              send({ type: 'text', text: chunk.text });
+            } else if (chunk.type === 'tool_input_delta') {
+              currentToolInput += chunk.partialJson;
+            } else if (chunk.type === 'content_block_stop') {
               if (currentBlockType === 'tool_use' && currentToolName) {
                 let parsedInput: Record<string, unknown> = {};
                 try { parsedInput = JSON.parse(currentToolInput); } catch { /* ignore */ }
-                const toolBlock: Anthropic.ToolUseBlock = {
+                const toolBlock: AIContentBlock = {
                   type: 'tool_use',
                   id: currentToolId,
                   name: currentToolName,
@@ -140,8 +139,8 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
                 assistantContentBlocks.push({ type: 'text', text: currentBlockText });
               }
               currentBlockType = null;
-            } else if (event.type === 'message_delta') {
-              stopReason = event.delta.stop_reason ?? null;
+            } else if (chunk.type === 'message_stop') {
+              stopReason = chunk.stopReason;
             }
           }
 
@@ -149,9 +148,11 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
             break;
           }
 
-          const toolResults: Anthropic.ToolResultBlockParam[] = [];
+          const toolResults: Array<{ type: 'tool_result'; tool_use_id: string; content: string }> = [];
 
           for (const toolBlock of toolUseBlocks) {
+            if (toolBlock.type !== 'tool_use') continue;
+
             const result: ToolResult = await executeTool(
               toolBlock.name,
               toolBlock.input as Record<string, unknown>,
@@ -168,6 +169,12 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
                 proposalId: result.proposalId,
                 summary: result.summary,
                 fileCount: result.fileCount,
+              });
+            } else if (result.type === 'scaffold_plan_ready') {
+              send({
+                type: 'scaffold_plan',
+                proposalId: result.proposalId,
+                planContent: result.planContent,
               });
             } else {
               send({ type: 'tool_result', result });
@@ -186,7 +193,10 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
               role: 'assistant' as const,
               content: assistantContentBlocks,
             },
-            { role: 'user' as const, content: toolResults },
+            {
+              role: 'user' as const,
+              content: toolResults as AIContentBlock[],
+            },
           ];
         }
 

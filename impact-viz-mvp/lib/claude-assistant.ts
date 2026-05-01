@@ -8,6 +8,10 @@ import {
   getOrgEnabledModules,
   getSystemPromptForModules,
 } from './modules';
+import { createAIProvider } from '@/lib/ai/factory';
+import { AI_MODELS } from '@/lib/ai/models';
+import type { AIProvider } from '@/lib/ai/provider';
+import type { AIContentBlock, ToolDefinition } from '@/lib/ai/types';
 
 // AI Action types (same as ai-assistant.ts)
 export type AIAction = {
@@ -1275,13 +1279,14 @@ export const PORTFOLIO_TOOLS: Anthropic.Tool[] = [
  * When orgId is provided, tools are filtered based on the organization's enabled modules.
  */
 export class ClaudePortfolioAssistant {
-  private anthropic: Anthropic;
+  private provider: AIProvider;
+  private aiInstructions: string | null = null;
   private supabase: ReturnType<typeof createClient>;
   private enabledModules: ModuleId[] = ['core'];
   private moduleSystemPrompt: string = '';
 
-  constructor(supabaseServiceRole: string, anthropicApiKey: string) {
-    this.anthropic = new Anthropic({ apiKey: anthropicApiKey });
+  constructor(supabaseServiceRole: string, _anthropicApiKey?: string) {
+    this.provider = createAIProvider();
     this.supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       supabaseServiceRole,
@@ -1294,8 +1299,17 @@ export class ClaudePortfolioAssistant {
    * Call this before chat() when you want module-based tool filtering
    */
   async initializeForOrg(orgId: string): Promise<void> {
-    this.enabledModules = await getOrgEnabledModules(this.supabase, orgId);
+    const [enabledModules, orgRes] = await Promise.all([
+      getOrgEnabledModules(this.supabase, orgId),
+      this.supabase
+        .from('organizations')
+        .select('ai_instructions')
+        .eq('id', orgId)
+        .single(),
+    ]);
+    this.enabledModules = enabledModules;
     this.moduleSystemPrompt = getSystemPromptForModules(this.enabledModules);
+    this.aiInstructions = orgRes.data?.ai_instructions ?? null;
   }
 
   /**
@@ -1345,20 +1359,20 @@ export class ClaudePortfolioAssistant {
     const systemPrompt = this.buildSystemPrompt(context);
 
     // Convert conversation history to Claude format
-    const claudeMessages: Anthropic.MessageParam[] = [
+    const claudeMessages = [
       ...conversationHistory.map(msg => ({
         role: msg.role as 'user' | 'assistant',
         content: msg.content,
       })),
-      { role: 'user', content: message },
+      { role: 'user' as const, content: message },
     ];
 
     // Call Claude with function calling (using filtered tools)
-    const response = await this.anthropic.messages.create({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 4096,
+    const response = await this.provider.createMessage({
+      model: AI_MODELS.assistant,
+      maxTokens: 4096,
       system: systemPrompt,
-      tools,
+      tools: tools as unknown as ToolDefinition[],
       messages: claudeMessages,
     });
 
@@ -1369,10 +1383,10 @@ export class ClaudePortfolioAssistant {
 
     // Check for tool use in the response
     const toolUseBlocks = response.content.filter(
-      (block): block is Anthropic.ToolUseBlock => block.type === 'tool_use'
+      (block): block is AIContentBlock & { type: 'tool_use' } => block.type === 'tool_use'
     );
     const textBlocks = response.content.filter(
-      (block): block is Anthropic.TextBlock => block.type === 'text'
+      (block): block is AIContentBlock & { type: 'text' } => block.type === 'text'
     );
 
     // Collect any text from the initial response
@@ -1419,28 +1433,28 @@ export class ClaudePortfolioAssistant {
       }
 
       // Get final response with tool results (using same filtered tools)
-      const finalResponse = await this.anthropic.messages.create({
-        model: 'claude-sonnet-4-6',
-        max_tokens: 4096,
+      const finalResponse = await this.provider.createMessage({
+        model: AI_MODELS.assistant,
+        maxTokens: 4096,
         system: systemPrompt,
-        tools,
+        tools: tools as unknown as ToolDefinition[],
         messages: [
           ...claudeMessages,
-          { role: 'assistant', content: response.content },
+          { role: 'assistant' as const, content: response.content },
           {
-            role: 'user',
+            role: 'user' as const,
             content: toolResults.map(tr => ({
               type: 'tool_result' as const,
               tool_use_id: tr.tool_use_id,
               content: tr.content,
-            })),
+            })) as AIContentBlock[],
           },
         ],
       });
 
       // Extract text from final response
       const finalTextBlocks = finalResponse.content.filter(
-        (block): block is Anthropic.TextBlock => block.type === 'text'
+        (block): block is AIContentBlock & { type: 'text' } => block.type === 'text'
       );
       textContent = finalTextBlocks.map(b => b.text).join('');
 
@@ -5830,7 +5844,7 @@ ${org?.name || 'The Organization'}`;
       return `=== ORGANIZATION CONTEXT ===\n${lines.join('\n')}\n`;
     })() : '';
 
-    return `You are Ben, a friendly AI portfolio management assistant and data visualization expert. You help users manage their impact investment portfolio and create compelling visualizations.
+    const prompt = `You are Ben, a friendly AI portfolio management assistant and data visualization expert. You help users manage their impact investment portfolio and create compelling visualizations.
 
 ⚠️ CRITICAL: You MUST use function calls to display visualizations. NEVER use markdown images, placeholders, or text descriptions as substitutes for actual widget displays. When users ask to see/show/display something, call the appropriate function (display_widget, create_portfolio_widget, etc).
 
@@ -6018,5 +6032,11 @@ ${this.moduleSystemPrompt}
 • Create visualizations when asked
 • Ask for confirmation on deletes
 • When a metric doesn't exist, suggest available alternatives`;
+
+    if (this.aiInstructions) {
+      prompt += `\n\n## Org-Specific Instructions\n${this.aiInstructions}\n`;
+    }
+
+    return prompt;
   }
 }

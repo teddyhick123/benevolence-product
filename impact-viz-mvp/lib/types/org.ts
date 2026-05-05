@@ -111,23 +111,27 @@ export interface AcknowledgmentLetter {
 }
 
 export type FilingType = 'form_990pf' | 'form_990' | 'form_990ez' | 'state_registration' | 'state_filing' | 'form_8283' | 'other';
-export type FilingStatus = 'pending' | 'filed' | 'overdue' | 'n_a' | 'extension_filed';
+// Matches filing_calendar.status CHECK values in 0016_compliance.sql
+export type FilingStatus = 'upcoming' | 'in_progress' | 'filed' | 'extended' | 'overdue' | 'waived' | 'not_applicable';
 
 export interface FilingCalendarEntry {
   id: string;
-  organization_id: string;
+  org_id: string;
   filing_type: FilingType;
-  tax_year: number;
+  title: string;
   due_date: string;
   status: FilingStatus;
   description?: string;
-  filing_jurisdiction?: string;
+  jurisdiction?: string;
   extension_due_date?: string;
-  filed_date?: string;
-  filed_by?: string;
-  confirmation_number?: string;
+  period_start?: string;
+  period_end?: string;
+  completed_at?: string;
+  completed_by?: string;
+  filing_reference?: string;
   notes?: string;
   reminder_days?: number[];
+  is_recurring?: boolean;
   created_at: string;
   updated_at: string;
 }

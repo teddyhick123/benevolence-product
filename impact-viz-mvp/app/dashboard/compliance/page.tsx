@@ -13,11 +13,13 @@ const FILING_TYPE_LABELS: Record<string, string> = {
 };
 
 const STATUS_STYLES: Record<string, string> = {
-  pending: 'bg-yellow-100 text-yellow-800',
-  filed: 'bg-green-100 text-green-800',
-  overdue: 'bg-red-100 text-red-800',
-  n_a: 'bg-gray-100 text-gray-500',
-  extension_filed: 'bg-blue-100 text-blue-800',
+  upcoming:       'bg-yellow-100 text-yellow-800',
+  in_progress:    'bg-amber-100  text-amber-800',
+  filed:          'bg-green-100  text-green-800',
+  extended:       'bg-blue-100   text-blue-800',
+  overdue:        'bg-red-100    text-red-800',
+  waived:         'bg-gray-100   text-gray-500',
+  not_applicable: 'bg-gray-100   text-gray-500',
 };
 
 const currentYear = new Date().getFullYear();
@@ -171,14 +173,14 @@ export default function CompliancePage() {
                     <td className="px-6 py-3 text-gray-700">
                       {new Date(filing.due_date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
                     </td>
-                    <td className="px-6 py-3 text-gray-600 uppercase text-xs">{filing.filing_jurisdiction || 'Federal'}</td>
+                    <td className="px-6 py-3 text-gray-600 uppercase text-xs">{filing.jurisdiction || 'Federal'}</td>
                     <td className="px-6 py-3">
-                      <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_STYLES[filing.status] || STATUS_STYLES.pending}`}>
-                        {filing.status === 'n_a' ? 'N/A' : filing.status.replace('_', ' ')}
+                      <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_STYLES[filing.status] || 'bg-gray-100 text-gray-500'}`}>
+                        {filing.status.replace(/_/g, ' ')}
                       </span>
                     </td>
                     <td className="px-6 py-3 text-right">
-                      {filing.status === 'pending' || filing.status === 'overdue' ? (
+                      {filing.status === 'upcoming' || filing.status === 'overdue' ? (
                         <button
                           onClick={() => handleMarkFiled(filing.id)}
                           disabled={markingFiled === filing.id}
@@ -271,8 +273,11 @@ export default function CompliancePage() {
             ) : payoutData ? (
               <div className="space-y-3">
                 <div className="bg-gray-50 rounded-md p-4 text-sm space-y-2">
-                  <Row label="Net Assets (FMV)" value={payoutData.net_assets ? `$${Number(payoutData.net_assets).toLocaleString()}` : '—'} />
-                  <Row label="Required Payout (5%)" value={payoutData.required_payout ? `$${Number(payoutData.required_payout).toLocaleString()}` : '—'} />
+                  <Row
+                    label={payoutData.avg_fmv_used ? 'Avg. FMV of Assets (Part XIII)' : 'Year-End FMV of Assets'}
+                    value={payoutData.net_assets ? `$${Number(payoutData.net_assets).toLocaleString()}` : '—'}
+                  />
+                  <Row label="Required Payout (§4942)" value={payoutData.required_payout ? `$${Number(payoutData.required_payout).toLocaleString()}` : '—'} />
                   <Row label="Actual Distributions" value={`$${Number(payoutData.actual_distributions || 0).toLocaleString()}`} />
                 </div>
                 <div className={`rounded-md p-4 text-sm space-y-2 ${payoutData.surplus_or_deficit >= 0 ? 'bg-green-50' : 'bg-red-50'}`}>

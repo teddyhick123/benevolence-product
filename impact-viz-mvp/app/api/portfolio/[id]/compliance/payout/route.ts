@@ -51,14 +51,39 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       pf990?.actual_payout ??
       (contributions || []).reduce((s, c) => s + Number(c.fair_market_value), 0);
 
-    const netAssets = pf990?.fair_market_value_assets ?? null;
-    const requiredPayout = pf990?.required_payout ?? (netAssets ? netAssets * 0.05 : null);
-    const surplusOrDeficit =
-      pf990?.payout_deficit !== undefined && pf990?.payout_deficit !== null
-        ? -pf990.payout_deficit
-        : requiredPayout !== null
-          ? actualDistributions - requiredPayout
-          : null;
+    // IRS 990-PF Part XIII: Minimum Investment Return
+    // Step 1: Asset base — prefer average monthly FMV over year-end snapshot
+    const assetBase = pf990?.avg_fair_market_value ?? pf990?.fair_market_value_assets ?? null;
+
+    // Step 2: Net value of non-charitable-use assets (Part XIII lines 1–3)
+    const exemptUseAssets = Number(pf990?.exempt_use_assets ?? 0);
+    const acquisitionIndebtedness = Number(pf990?.acquisition_indebtedness ?? 0);
+    const netValueNonCharitable = assetBase !== null
+      ? Math.max(0, assetBase - exemptUseAssets - acquisitionIndebtedness)
+      : null;
+
+    // Step 3: Minimum Investment Return = 5% × net value of non-charitable-use assets
+    const mir = netValueNonCharitable !== null ? netValueNonCharitable * 0.05 : null;
+
+    // Step 4: Excise tax on net investment income (1.39% or stored rate)
+    const exciseTaxRate = pf990?.excise_tax_rate ?? 1.39;
+    const exciseTaxAmount = pf990?.excise_tax_amount != null
+      ? Number(pf990.excise_tax_amount)
+      : pf990?.net_investment_income
+        ? (Number(pf990.net_investment_income) * exciseTaxRate) / 100
+        : 0;
+
+    // Step 5: Distributable amount = MIR − excise tax (§4942 required distribution)
+    const distributableAmount = mir !== null ? Math.max(0, mir - exciseTaxAmount) : null;
+
+    // Use stored override if present (manually entered from filed form), else computed
+    const requiredPayout = pf990?.required_payout != null
+      ? Number(pf990.required_payout)
+      : distributableAmount;
+
+    const surplusOrDeficit = requiredPayout !== null
+      ? actualDistributions - requiredPayout
+      : null;
 
     const pctDistributed =
       requiredPayout && requiredPayout > 0
@@ -68,14 +93,17 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     return NextResponse.json({
       portfolio_id: portfolioId,
       tax_year: year,
-      net_assets: netAssets,
+      net_assets: assetBase,
+      avg_fmv_used: pf990?.avg_fair_market_value != null,
       required_payout: requiredPayout,
       actual_distributions: actualDistributions,
       surplus_or_deficit: surplusOrDeficit,
       pct_distributed: pctDistributed,
-      // Extra context
-      excise_tax_rate: pf990?.excise_tax_rate ?? 1.39,
-      excise_tax_amount: pf990?.excise_tax_amount ?? null,
+      // Part XIII breakdown
+      exempt_use_assets: exemptUseAssets,
+      acquisition_indebtedness: acquisitionIndebtedness,
+      excise_tax_rate: exciseTaxRate,
+      excise_tax_amount: exciseTaxAmount,
       has_self_dealing: pf990?.has_self_dealing ?? false,
       self_dealing_notes: pf990?.self_dealing_notes ?? null,
     });

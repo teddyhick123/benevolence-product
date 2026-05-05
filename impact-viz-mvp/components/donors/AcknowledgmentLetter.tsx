@@ -30,6 +30,8 @@ interface Props {
   contributionDate?: string;
   annualTotal?: number;
   year?: number;
+  isNonCash?: boolean;
+  propertyDescription?: string;
   onSuccess?: () => void;
   onCancel?: () => void;
 }
@@ -44,6 +46,8 @@ export default function AcknowledgmentLetter({
   contributionDate,
   annualTotal,
   year,
+  isNonCash = false,
+  propertyDescription,
   onSuccess,
   onCancel,
 }: Props) {
@@ -83,20 +87,30 @@ export default function AcknowledgmentLetter({
     });
 
     switch (selectedType) {
-      case 'thank_you':
+      case 'thank_you': {
+        // IRS Pub. 1771: written acknowledgment must describe non-cash property
+        // (not its value) and disclose any goods/services provided in exchange.
+        const giftDescription = isNonCash
+          ? (propertyDescription ? `your donation of ${propertyDescription}` : 'your non-cash contribution')
+          : `your generous gift${contributionAmount ? ` of ${formatCurrency(contributionAmount)}` : ''}`;
+        const dateClause = contributionDate ? ` received on ${formatDate(contributionDate)}` : '';
         return `${today}
 
 Dear ${donorName},
 
-On behalf of everyone at ${organization.name}, I want to express our heartfelt gratitude for your generous contribution${contributionAmount ? ` of ${formatCurrency(contributionAmount)}` : ''}${contributionDate ? ` on ${formatDate(contributionDate)}` : ''}.
+On behalf of everyone at ${organization.name}, I want to express our heartfelt gratitude for ${giftDescription}${dateClause}.
 
-Your support makes a meaningful difference in our ability to carry out our mission. Donors like you are the backbone of our organization, and we are deeply grateful for your trust and generosity.
+Your support makes a meaningful difference in our ability to carry out our mission. We are deeply grateful for your trust and generosity.
 
-Thank you for believing in our work and for being part of our community of supporters.
+${isNonCash ? 'Please retain this letter for your tax records. No value has been placed on the donated property — the IRS requires that you determine the fair market value of any non-cash contribution.' : 'Please retain this letter for your tax records.'}
+
+No goods or services were provided in exchange for this contribution.
 
 With sincere appreciation,
 
-${organization.name}`;
+${organization.name}
+${organization.ein ? `EIN: ${organization.ein}` : ''}`;
+      }
 
       case 'annual_summary':
         return `${today}
@@ -105,11 +119,13 @@ Dear ${donorName},
 
 As ${currentYear} comes to a close, we want to take a moment to thank you for your incredible generosity throughout the year.
 
-Your total contributions to ${organization.name} in ${currentYear}: ${annualTotal ? formatCurrency(annualTotal) : 'See attached statement'}
+Your total cash contributions to ${organization.name} in ${currentYear}: ${annualTotal ? formatCurrency(annualTotal) : 'See attached statement'}
+
+No goods or services were provided in exchange for these contributions.
 
 Your ongoing support has helped us achieve remarkable things this year. We are deeply grateful for your continued commitment to our mission.
 
-Thank you for being such an important part of our community. We look forward to continuing this journey together in the coming year.
+Please retain this letter as your written acknowledgment for tax purposes (IRS Pub. 1771).
 
 With warm regards,
 

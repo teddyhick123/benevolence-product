@@ -62,7 +62,7 @@ export default function DonorsPage() {
       setLoading(true);
       setError(null);
       try {
-        const qs = new URLSearchParams({ limit: '100' });
+        const qs = new URLSearchParams({ limit: '500' });
         if (search) qs.set('name', search);
         if (tierFilter) qs.set('donor_tier', tierFilter);
         if (recencyFilter) qs.set('recency_status', recencyFilter);

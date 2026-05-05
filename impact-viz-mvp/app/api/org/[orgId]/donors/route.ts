@@ -15,7 +15,10 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     const { searchParams } = new URL(req.url);
 
     const { data: role } = await supabase.rpc('org_role', { p_org_id: orgId });
-    if (!role) {
+    // Donor PII (email, phone, address) is restricted to member-and-above.
+    // Viewer role can read aggregate org data but not individual donor records.
+    const ALLOWED_ROLES = ['owner', 'admin', 'member'];
+    if (!role || !ALLOWED_ROLES.includes(role)) {
       return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
     }
 
@@ -29,7 +32,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     const recencyStatus = searchParams.get('recency_status');
     const minGiving = searchParams.get('min_lifetime_giving');
     const pendingAcks = searchParams.get('pending_acknowledgments');
-    const limit = Math.min(parseInt(searchParams.get('limit') || '50'), 100);
+    const limit = Math.min(parseInt(searchParams.get('limit') || '50'), 500);
     const offset = parseInt(searchParams.get('offset') || '0');
 
     if (name) query = query.ilike('display_name', `%${name}%`);

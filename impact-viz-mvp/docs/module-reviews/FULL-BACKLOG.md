@@ -179,13 +179,13 @@ _(H-S1, H-S2, H-S3 resolved in Sprint B wave 3 — see commit eb13d1c0)_
 
 | # | Severity | Issue | Location |
 |---|----------|-------|----------|
-| QB-B1 | P1 | No duplicate export guard — re-running export for the same year creates duplicate QB journal entries | `app/api/integrations/quickbooks/export/contributions/route.ts`, `app/api/integrations/quickbooks/export/grants/route.ts` |
-| QB-B2 | P1 | Grants exported by `total_committed` not disbursed amounts — double-counts multi-year grants on first export | QB grants export route |
-| QB-B3 | P1 | `refresh_expires_at` column defined in migration but never read — 101-day refresh token expiry goes undetected; UI can't distinguish "never connected" from "refresh token expired" | `lib/integrations/quickbooks/client.ts` |
-| QB-B4 | P1 | Dead `getAuthenticatedQBClient(portfolioId)` export queries by `portfolio_id` which no longer exists in canonical schema — always returns null; any caller using it will silently fail | `lib/integrations/quickbooks/client.ts:143-233` |
-| QB-B5 | P2 | `QBConnection` interface declares `org_id: string | null` but DB has `org_id NOT NULL` — false nullability in calling code | `lib/integrations/quickbooks/client.ts:116-117` |
-| QB-B6 | P2 | `status/route.ts` reads `connected_at` from DB but column does not exist in `0017_quickbooks.sql` — always returns `null` | `app/api/integrations/quickbooks/status/route.ts:36` |
-| QB-B7 | P2 | Hard 2,000-row limit silently truncates large exports with no warning | QB export routes |
+~~| QB-B1 | duplicate export guard |~~ _(resolved d380d8cc — duplicate DocNumber gracefully skipped)_
+~~| QB-B2 | grants exported by total_committed |~~ _(resolved d380d8cc — now uses funds_allocated)_
+~~| QB-B3 | refresh_expires_at never read |~~ _(resolved d380d8cc — checked before refresh; status route exposes needs_reconnect)_
+~~| QB-B4 | dead getAuthenticatedQBClient |~~ _(resolved d380d8cc — replaced with deprecation stub)_
+~~| QB-B5 | org_id nullability |~~ _(resolved d380d8cc — interface fixed)_
+~~| QB-B6 | connected_at column missing |~~ _(resolved d380d8cc — status route uses created_at)_
+~~| QB-B7 | 2000-row truncation silent |~~ _(resolved d380d8cc — warning returned in response)_
 | QB-B8 | P2 | 30-day token refresh window is too aggressive — access tokens expire in 1 hour; every request in the last month triggers a refresh | `lib/integrations/quickbooks/client.ts:178,248` |
 | QB-B9 | P2 | No mutex for concurrent token refresh — two simultaneous requests can both attempt refresh; Intuit invalidates old token on first use, second may write invalid data | `lib/integrations/quickbooks/client.ts` |
 
@@ -201,12 +201,12 @@ _(H-S1, H-S2, H-S3 resolved in Sprint B wave 3 — see commit eb13d1c0)_
 
 | # | Feature |
 |---|---------|
-| QB-F1 | Export deduplication guard (`qb_exported_at` + `qb_journal_entry_id` per contribution) |
+~~| QB-F1 | Export deduplication guard |~~ _(resolved d380d8cc)_
 | QB-F2 | QB Class / fund dimension support (required under ASC 958 for private foundations) |
 | QB-F3 | Encrypt tokens at rest (pgcrypto or Vault) |
-| QB-F4 | Disbursed vs committed distinction in grants export |
-| QB-F5 | `refresh_expires_at` check with re-auth prompt when refresh token is stale |
-| QB-F6 | Remove dead `getAuthenticatedQBClient(portfolioId)` function |
+~~| QB-F4 | Disbursed vs committed distinction in grants export |~~ _(resolved d380d8cc)_
+~~| QB-F5 | refresh_expires_at check |~~ _(resolved d380d8cc)_
+~~| QB-F6 | Remove dead getAuthenticatedQBClient |~~ _(resolved d380d8cc — deprecated stub)_
 | QB-F7 | Net asset class (restricted / unrestricted) tagging on journal entries |
 | QB-F8 | Sync history and conflict resolution UI |
 | QB-F9 | Token-expired warning that disables export buttons and prompts reconnect |
@@ -462,11 +462,11 @@ _(H-S1, H-S2, H-S3 resolved in Sprint B wave 3 — see commit eb13d1c0)_
 | Holdings | — | 5 | 6 | — | 11 |
 | Tax Center | — | 1 | 7 | — | 8 |
 | Compliance | — | — | 7 | — | 7 |
-| QuickBooks | — | 7 | 5 | — | 12 |
+| QuickBooks | — | 3 | 2 | — | 5 |
 | Donor CRM | — | — | 8 | — | 8 |
 | Charities | — | 3 | 11 | — | 14 |
 | AI Assistant | — | 9 | 11 | — | 20 |
 | Visualizations | — | 9 | 6 | — | 15 |
 | Admin / Import | — | 3 | 9 | — | 12 |
 | Cross-Cutting | — | 4 | 3 | 1 | 8 |
-| **Total** | **—** | **49** | **80** | **1** | **130** |
+| **Total** | **—** | **45** | **77** | **1** | **123** |

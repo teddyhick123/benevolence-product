@@ -12,7 +12,7 @@ import TaxExportPanel from '@/components/tax/TaxExportPanel';
 import TaxScenarioModeler from '@/components/tax/TaxScenarioModeler';
 import TaxOptimizationEngine from '@/components/tax/TaxOptimizationEngine';
 import TaxStrategyCenter from '@/components/tax/TaxStrategyCenter';
-// import CPACollaborationPortal from '@/components/tax/CPACollaborationPortal'; // Hidden - not ready yet
+import CPACollaborationPortal from '@/components/tax/CPACollaborationPortal';
 
 // Feature flag for unified Tax Strategy Center
 const USE_UNIFIED_TAX_TOOLS = true;
@@ -240,10 +240,12 @@ function TaxDashboard() {
           </>
         )}
 
-        {/* CPA Collaboration Portal - Hidden until ready */}
-        {/* <CPACollaborationPortal
-          portfolioId={portfolioId}
-        /> */}
+        {/* CPA Collaboration Portal */}
+        {portfolioId && (
+          <CPACollaborationPortal
+            portfolioId={portfolioId}
+          />
+        )}
 
         {/* Carryforward Summary */}
         {taxOverview?.carryforwardSummary && taxOverview.carryforwardSummary.totalAvailable > 0 && (

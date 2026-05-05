@@ -52,12 +52,7 @@ export async function POST(
       .eq('tax_year', year)
       .maybeSingle();
 
-    console.log(`[Scenarios] Fetching tax_year for portfolio ${portfolio_id}, year ${year}`);
-    console.log(`[Scenarios] Tax year data:`, taxYear);
-    console.log(`[Scenarios] Tax year error:`, taxYearError);
-
     if (!taxYear || !taxYear.adjusted_gross_income) {
-      console.log(`[Scenarios] AGI check failed - taxYear exists: ${!!taxYear}, AGI value: ${taxYear?.adjusted_gross_income}`);
       return NextResponse.json(
         {
           error: 'AGI not set',
@@ -106,7 +101,7 @@ export async function POST(
 
       return NextResponse.json(
         { data: result },
-        { headers: { 'Cache-Control': 'private, s-maxage=60' } }
+        { headers: { 'Cache-Control': 'no-store' } }
       );
     }
 
@@ -128,7 +123,7 @@ export async function POST(
 
       return NextResponse.json(
         { data: result },
-        { headers: { 'Cache-Control': 'private, s-maxage=60' } }
+        { headers: { 'Cache-Control': 'no-store' } }
       );
     }
 
@@ -151,7 +146,7 @@ export async function POST(
 
       return NextResponse.json(
         { data: result },
-        { headers: { 'Cache-Control': 'private, s-maxage=60' } }
+        { headers: { 'Cache-Control': 'no-store' } }
       );
     }
 
@@ -175,7 +170,7 @@ export async function POST(
 
       return NextResponse.json(
         { data: result },
-        { headers: { 'Cache-Control': 'private, s-maxage=60' } }
+        { headers: { 'Cache-Control': 'no-store' } }
       );
     }
 

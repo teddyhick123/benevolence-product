@@ -32,6 +32,9 @@ export interface Form8283Contribution {
   date_acquired?: string;
   how_acquired?: string; // Purchase, Gift, Inheritance, etc.
 
+  // Section routing
+  publicly_traded?: boolean; // Publicly traded securities always go to Section A (IRS instructions)
+
   // Appraisal (Section B only)
   requires_appraisal?: boolean;
   appraisal_date?: string;
@@ -57,9 +60,11 @@ export interface Form8283Options {
 export function generateForm8283PDF(options: Form8283Options): Uint8Array {
   const { tax_year, contributions, donor_name, donor_ssn } = options;
 
-  // Separate contributions into Section A and Section B
-  const sectionA = contributions.filter(c => c.fmv_at_donation <= 5000);
-  const sectionB = contributions.filter(c => c.fmv_at_donation > 5000);
+  // Separate contributions into Section A and Section B.
+  // Publicly traded securities always belong in Section A regardless of value
+  // (IRS Form 8283 instructions, Rev. Proc. 96-15).
+  const sectionA = contributions.filter(c => c.fmv_at_donation <= 5000 || c.publicly_traded === true);
+  const sectionB = contributions.filter(c => c.fmv_at_donation > 5000 && c.publicly_traded !== true);
 
   const doc = new jsPDF({
     orientation: 'portrait',

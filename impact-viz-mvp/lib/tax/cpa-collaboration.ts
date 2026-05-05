@@ -62,7 +62,7 @@ export function generateShareToken(): string {
 /**
  * Generate shareable URL for CPA access
  */
-export function generateCPAShareURL(shareToken: string, baseURL: string = 'https://app.benevolence.com'): string {
+export function generateCPAShareURL(shareToken: string, baseURL: string = process.env.NEXT_PUBLIC_APP_URL || 'https://app.benevolence.com'): string {
   return `${baseURL}/tax/cpa/${shareToken}`;
 }
 

@@ -140,7 +140,7 @@ export async function GET(
           complianceReport,
         },
       },
-      { headers: { 'Cache-Control': 'private, s-maxage=60' } }
+      { headers: { 'Cache-Control': 'no-store' } }
     );
   } catch (error) {
     console.error('Error fetching tax overview:', error);

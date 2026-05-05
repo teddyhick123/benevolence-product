@@ -9,7 +9,7 @@
  */
 
 import { calculateScenario, compareScenarios, analyzeBunchingStrategy, type ScenarioInput } from './scenario-calculator';
-import { getQCDLimit } from './constants';
+import { getQCDLimit, getStandardDeduction } from './constants';
 
 export interface PortfolioHolding {
   id: string;
@@ -230,20 +230,24 @@ function optimizeByAppreciation(
 }
 
 /**
- * Strategy 2: Maximize current year deduction without carryforward
+ * Strategy 2: Maximize current year deduction without carryforward.
+ * Considers both the 60% cash bucket and the 30% appreciated-assets bucket.
  */
 function maximizeCurrentYearDeduction(
   taxSituation: TaxSituation,
   holdings: PortfolioHolding[]
 ): OptimizationRecommendation | null {
+  const agiLimit60Pct = taxSituation.agi * 0.60;
   const agiLimit30Pct = taxSituation.agi * 0.30;
-  const remainingCapacity = agiLimit30Pct - taxSituation.existing_contributions_30_pct;
+  const cashCapacity = agiLimit60Pct - (taxSituation.existing_contributions_60_pct ?? 0);
+  const appreciatedCapacity = agiLimit30Pct - (taxSituation.existing_contributions_30_pct ?? 0);
+  const remainingCapacity = appreciatedCapacity;
 
-  if (remainingCapacity <= 0) {
+  if (remainingCapacity <= 0 && cashCapacity <= 0) {
     return null;
   }
 
-  // Find holdings that can fill remaining capacity
+  // Find holdings that can fill remaining appreciated-assets capacity
   const sortedHoldings = holdings
     .filter(h => h.fmv && h.fmv > 0)
     .sort((a, b) => {
@@ -287,13 +291,21 @@ function maximizeCurrentYearDeduction(
     totalTaxSavings += taxSavings;
   }
 
-  const utilizationPct = (totalAmount / agiLimit30Pct) * 100;
+  const utilizationPct = agiLimit30Pct > 0 ? (totalAmount / agiLimit30Pct) * 100 : 0;
 
   const rationale = [
     `Maximizes current year deduction without carryforward.`,
-    `Fills ${Math.round(utilizationPct)}% of your 30% AGI limit ($${agiLimit30Pct.toLocaleString()}).`,
-    `Donate exactly $${totalAmount.toLocaleString()} to use all available capacity.`,
+    `Fills ${Math.round(utilizationPct)}% of your 30% appreciated-assets limit ($${agiLimit30Pct.toLocaleString()}).`,
+    `Donate exactly $${totalAmount.toLocaleString()} in appreciated assets to use all available capacity.`,
   ];
+
+  // Surface the 60% cash bucket capacity if it exceeds the 30% bucket
+  if (cashCapacity > appreciatedCapacity) {
+    rationale.push(
+      `You also have $${Math.round(cashCapacity).toLocaleString()} of unused 60% cash AGI capacity — ` +
+      `cash donations to public charities could shelter an additional $${Math.round(cashCapacity - appreciatedCapacity).toLocaleString()} beyond appreciated-asset limits.`
+    );
+  }
 
   return {
     rank: 0,
@@ -464,7 +476,7 @@ function optimizeBunchingStrategy(
         deductible: amount,
         carryforward_used: 0,
         carryforward_generated: Math.max(bunchAmount - amount, 0),
-        tax_savings: Math.max(amount - 29200, 0) * 0.37, // Benefit over standard deduction
+        tax_savings: Math.max(amount - getStandardDeduction(yearNum, taxSituation.filing_status as any || 'married_joint'), 0) * 0.37,
       };
     } else {
       projection[`year_${year + 1}`] = {

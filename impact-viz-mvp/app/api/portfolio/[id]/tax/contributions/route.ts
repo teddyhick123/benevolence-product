@@ -62,7 +62,7 @@ export async function GET(
 
   return NextResponse.json(
     { data: enrichedData, count: enrichedData.length },
-    { headers: { 'Cache-Control': 'private, s-maxage=60' } }
+    { headers: { 'Cache-Control': 'no-store' } }
   );
 }
 

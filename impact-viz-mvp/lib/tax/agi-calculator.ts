@@ -59,6 +59,9 @@ export function determineAGILimitCategory(
 
   if (!isNonCash && !isFoundation) {
     return '60_cash'; // Cash to public charity
+  } else if (contributionType === 'conservation_easement' && !isFoundation) {
+    // IRC §170(b)(1)(E)(i): qualified conservation contributions to public charities = 50% limit
+    return '50_conservation';
   } else if (isNonCash && !isFoundation) {
     return '30_appreciated'; // Appreciated assets to public charity
   } else if (!isNonCash && isFoundation) {
@@ -74,6 +77,7 @@ export function determineAGILimitCategory(
 export function getAGILimitPercentage(category: AGILimitCategory): number {
   const percentages: Record<AGILimitCategory, number> = {
     '60_cash': 0.60,
+    '50_conservation': 0.50,
     '30_appreciated': 0.30,
     '30_foundation_cash': 0.30,
     '20_foundation_property': 0.20,
@@ -87,6 +91,7 @@ export function getAGILimitPercentage(category: AGILimitCategory): number {
 export function getAGILimitCategoryLabel(category: AGILimitCategory): string {
   const labels: Record<AGILimitCategory, string> = {
     '60_cash': 'Cash to Public Charities (60% limit)',
+    '50_conservation': 'Qualified Conservation Contributions (50% limit, IRC §170(b)(1)(E))',
     '30_appreciated': 'Appreciated Assets to Public Charities (30% limit)',
     '30_foundation_cash': 'Cash to Private Foundations (30% limit)',
     '20_foundation_property': 'Property to Private Foundations (20% limit)',
@@ -108,6 +113,7 @@ export function calculateAGILimits(
   // Initialize buckets
   const categories: AGILimitCategory[] = [
     '60_cash',
+    '50_conservation',
     '30_appreciated',
     '30_foundation_cash',
     '20_foundation_property',

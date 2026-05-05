@@ -29,6 +29,7 @@ export const contributionTypeSchema = z.enum([
 
 export const agiLimitCategorySchema = z.enum([
   '60_cash',
+  '50_conservation',
   '30_appreciated',
   '30_foundation_cash',
   '20_foundation_property',

@@ -30,6 +30,9 @@ export interface ScenarioInput {
   existing_contributions_30_pct?: number;
   existing_contributions_20_pct?: number;
 
+  // Tax year for limit lookups (defaults to current year)
+  tax_year?: number;
+
   // Multi-year analysis
   project_years?: number; // Default 1
   future_agi?: number[]; // AGI for next N years
@@ -177,8 +180,7 @@ export function calculateScenario(input: ScenarioInput): ScenarioResult {
   }
 
   // QCD recommendation with year-specific limit
-  const currentYear = new Date().getFullYear();
-  const qcdLimit = getQCDLimit(currentYear);
+  const qcdLimit = getQCDLimit(input.tax_year ?? new Date().getFullYear());
   if (input.age && input.age >= 70.5 && donation_amount <= qcdLimit) {
     recommendations.push(
       `💰 You're QCD eligible! Consider using a Qualified Charitable Distribution ` +

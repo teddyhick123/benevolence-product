@@ -57,12 +57,7 @@ export async function POST(
       .eq('tax_year', year)
       .maybeSingle();
 
-    console.log(`[Optimize] Fetching tax_year for portfolio ${portfolio_id}, year ${year}`);
-    console.log(`[Optimize] Tax year data:`, taxYear);
-    console.log(`[Optimize] Tax year error:`, taxYearError);
-
     if (!taxYear || !taxYear.adjusted_gross_income) {
-      console.log(`[Optimize] AGI check failed - taxYear exists: ${!!taxYear}, AGI value: ${taxYear?.adjusted_gross_income}`);
       return NextResponse.json(
         {
           error: 'AGI not set',
@@ -162,7 +157,7 @@ export async function POST(
           holdings_analyzed: portfolioHoldings.length,
         },
       },
-      { headers: { 'Cache-Control': 'private, s-maxage=60' } }
+      { headers: { 'Cache-Control': 'no-store' } }
     );
   } catch (error) {
     console.error('Optimization error:', error);

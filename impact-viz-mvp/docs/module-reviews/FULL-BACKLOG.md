@@ -12,6 +12,8 @@ Resolved in Sprint B wave 1 (2026-05-01): compliance payout `amount_usd`→`fair
 
 Resolved in Sprint B wave 2 (2026-05-04): charities full column reconciliation (C4/Ch-B1/Ch-B4), removed dead queries for non-existent tables (C5/Ch-B2/Ch-U6), replaced `portfolio_recommendations` with `portfolio_charities` junction table (C6/Ch-B3/Ch-F1/Ch-F2/Ch-F7), donor CRM acknowledgment write (Dr-B1), donor PDF signed URL (Dr-B2/Dr-F4).
 
+Resolved in Sprint B wave 3 (2026-05-05): IRS 990-PF Part XIII payout formula — exempt-use assets, acquisition indebtedness, excise-tax deduction, avg FMV (Cm-B2); filing status enum aligned to DB values, Mark-as-Filed button now shows on `upcoming`/`overdue` (Cm-B3).
+
 ---
 
 ## Dashboard
@@ -152,12 +154,10 @@ Resolved in Sprint B wave 2 (2026-05-04): charities full column reconciliation (
 
 ## Compliance
 
-### Bugs (P0–P1)
+### Bugs (P1)
 
 | # | Severity | Issue | Location |
 |---|----------|-------|----------|
-| Cm-B2 | P0 | 5% minimum distribution calculation (`netAssets * 0.05`) does not match IRS Form 990-PF Part XIII — missing monthly FMV averaging, exempt-use asset deduction, acquisition indebtedness deduction, excise tax deduction — material regulatory risk | `app/api/portfolio/[id]/compliance/payout/route.ts` |
-| Cm-B3 | P1 | Status enum three-way misaligned: DB defaults `'upcoming'`, TypeScript uses `'pending'/'n_a'/'extension_filed'`, UI only activates on `'pending'` or `'overdue'` — DB entries display with no style and "Mark as Filed" button doesn't appear | DB migration, `lib/types/org.ts:114`, `app/dashboard/compliance/page.tsx:15-21` |
 | Cm-B4 | P1 | `reminder_days` column stores preferences but drives zero behavior — no cron job, Edge Function, or email delivery exists | `db/migrations/0016_compliance.sql` |
 | Cm-B5 | P1 | State registrations UI does not render in compliance page — API exists, page doesn't surface it | `app/dashboard/compliance/page.tsx` |
 | Cm-B6 | P2 | No "Add Filing" UI despite POST endpoint existing | `app/dashboard/compliance/page.tsx` |
@@ -478,7 +478,7 @@ Resolved in Sprint B wave 2 (2026-05-04): charities full column reconciliation (
 | Dashboard | — | 8 | 7 | — | 15 |
 | Holdings | — | 9 | 8 | — | 17 |
 | Tax Center | 1 | 4 | 13 | — | 18 |
-| Compliance | 1 | 3 | 10 | — | 14 |
+| Compliance | — | 2 | 10 | — | 12 |
 | QuickBooks | — | 7 | 5 | — | 12 |
 | Donor CRM | — | 4 | 9 | — | 13 |
 | Charities | — | 3 | 11 | — | 14 |
@@ -486,4 +486,4 @@ Resolved in Sprint B wave 2 (2026-05-04): charities full column reconciliation (
 | Visualizations | — | 9 | 6 | — | 15 |
 | Admin / Import | — | 3 | 9 | — | 12 |
 | Cross-Cutting | — | 4 | 3 | 1 | 8 |
-| **Total** | **2** | **63** | **92** | **1** | **158** |
+| **Total** | **1** | **62** | **92** | **1** | **156** |

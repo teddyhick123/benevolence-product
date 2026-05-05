@@ -1,6 +1,6 @@
 # Benevolence — Full Issue Backlog
 
-Last updated: 2026-05-04 (post-charities reconciliation)
+Last updated: 2026-05-05 (post-tax-center Sprint B wave 3)
 Source: 10 individual module reviews in `docs/module-reviews/`
 Scope: All remaining bugs, UX gaps, missing features, security issues, and performance issues across all active modules.
 
@@ -12,7 +12,7 @@ Resolved in Sprint B wave 1 (2026-05-01): compliance payout `amount_usd`→`fair
 
 Resolved in Sprint B wave 2 (2026-05-04): charities full column reconciliation (C4/Ch-B1/Ch-B4), removed dead queries for non-existent tables (C5/Ch-B2/Ch-U6), replaced `portfolio_recommendations` with `portfolio_charities` junction table (C6/Ch-B3/Ch-F1/Ch-F2/Ch-F7), donor CRM acknowledgment write (Dr-B1), donor PDF signed URL (Dr-B2/Dr-F4).
 
-Resolved in Sprint B wave 3 (2026-05-05): IRS 990-PF Part XIII payout formula — exempt-use assets, acquisition indebtedness, excise-tax deduction, avg FMV (Cm-B2); filing status enum aligned to DB values, Mark-as-Filed button now shows on `upcoming`/`overdue` (Cm-B3).
+Resolved in Sprint B wave 3 (2026-05-05): IRS 990-PF Part XIII payout formula — exempt-use assets, acquisition indebtedness, excise-tax deduction, avg FMV (Cm-B2); filing status enum aligned to DB values, Mark-as-Filed button now shows on `upcoming`/`overdue` (Cm-B3); conservation easement 50% AGI limit + schema category (T-B1/T-F1); Form 8283 Section A/B routing for publicly traded securities (T-B2/T-F2); optimization engine 60% cash AGI bucket (T-B3/T-F3); CPA Collaboration Portal enabled (T-B5/T-F5/T-U4); hardcoded CPA base URL → env var (T-B6/T-F6); removed AGI console.log in production (T-B7); Cache-Control: no-store on all sensitive tax routes (T-B8); QCD limit uses scenario year not current year (T-B9); bunching strategy standard deduction no longer hardcoded (T-B10).
 
 ---
 
@@ -112,16 +112,7 @@ Resolved in Sprint B wave 3 (2026-05-05): IRS 990-PF Part XIII payout formula �
 
 | # | Severity | Issue | Location |
 |---|----------|-------|----------|
-| T-B1 | P0 | Conservation easement AGI limit wrong — `determineAGILimitCategory()` maps all non-cash to 30%; conservation easements should be 50% under IRC §170(b)(1)(E)) — can produce $400k+ errors in reported deduction | `lib/tax/agi-calculator.ts:57-68` |
-| T-B2 | P1 | Form 8283 routes ALL contributions >$5k to Section B; publicly traded securities belong in Section A regardless of value — CPAs will request unnecessary appraisals | `lib/tax/form8283-generator.ts:61-62` |
-| T-B3 | P1 | Optimization engine ignores the 60% cash AGI bucket — only models 30% bucket, leaving significant deduction capacity unmentioned | `lib/tax/optimization-engine.ts:166-167, 239-240` |
 | T-B4 | P1 | Short-term vs long-term capital gain distinction absent — all appreciated-asset deductions inflated for assets held <12 months | Tax calculation engine |
-| T-B5 | P1 | `CPACollaborationPortal` fully built but hard-commented out — `// import CPACollaborationPortal ... // Hidden - not ready yet` | `app/dashboard/tax/page.tsx:15` |
-| T-B6 | P2 | Hardcoded `app.benevolence.com` base URL in CPA share link generation | `lib/tax/cpa-collaboration.ts:64` |
-| T-B7 | P2 | `optimize/route.ts` and `scenarios/route.ts` emit raw AGI values to `console.log` in production | `app/api/portfolio/[id]/tax/optimize/route.ts`, `app/api/portfolio/[id]/tax/scenarios/route.ts` |
-| T-B8 | P2 | `s-maxage` cache header on sensitive routes allows CDN caching of AGI, contribution amounts, and deduction details | `app/api/portfolio/[id]/tax/overview/route.ts`, `app/api/portfolio/[id]/tax/contributions/route.ts` |
-| T-B9 | P2 | Scenario calculator uses `new Date().getFullYear()` for QCD limit — past/future tax year scenarios show wrong QCD limit | `lib/tax/scenario-calculator.ts:180-187` |
-| T-B10 | P2 | Bunching strategy projection hardcodes $29,200 MFJ standard deduction — overstates savings for 2025+ | `lib/tax/optimization-engine.ts:467` |
 
 ### UX Gaps (P2)
 
@@ -130,7 +121,6 @@ Resolved in Sprint B wave 3 (2026-05-05): IRS 990-PF Part XIII payout formula �
 | T-U1 | No multi-year carryforward visualization |
 | T-U2 | No side-by-side scenario comparison view |
 | T-U3 | Form 8283 PDF download not wired to a UI button |
-| T-U4 | CPA collaboration portal hidden (see T-B5) |
 | T-U5 | No "what-if" slider for donation amount adjustments |
 | T-U6 | Dashboard layout buries AGI Limit Visualizer below the contribution entry form |
 | T-U7 | Carryforward section hidden entirely when zero — no explanation for first-time users |
@@ -140,12 +130,7 @@ Resolved in Sprint B wave 3 (2026-05-05): IRS 990-PF Part XIII payout formula �
 
 | # | Feature |
 |---|---------|
-| T-F1 | Conservation easement 50% AGI category (add `50_conservation` to schema + calculator) |
-| T-F2 | Section A vs Section B Form 8283 routing fix (publicly traded securities to Section A) |
-| T-F3 | 60% cash AGI bucket in optimization engine |
 | T-F4 | Short-term / long-term holding period split in deduction estimates |
-| T-F5 | Uncomment and ship CPA Collaboration Portal |
-| T-F6 | Fix hardcoded CPA base URL to use `process.env.NEXT_PUBLIC_APP_URL` |
 | T-F7 | State tax deduction limits (California, NY non-conformity rules) |
 | T-F8 | AMT impact estimate |
 | T-F9 | OBBB 2026 universal deduction for non-itemizers is implemented but never called |
@@ -477,7 +462,7 @@ Resolved in Sprint B wave 3 (2026-05-05): IRS 990-PF Part XIII payout formula �
 |--------|----|----|----|----|-------|
 | Dashboard | — | 8 | 7 | — | 15 |
 | Holdings | — | 9 | 8 | — | 17 |
-| Tax Center | 1 | 4 | 13 | — | 18 |
+| Tax Center | — | 1 | 7 | — | 8 |
 | Compliance | — | 2 | 10 | — | 12 |
 | QuickBooks | — | 7 | 5 | — | 12 |
 | Donor CRM | — | 4 | 9 | — | 13 |
@@ -486,4 +471,4 @@ Resolved in Sprint B wave 3 (2026-05-05): IRS 990-PF Part XIII payout formula �
 | Visualizations | — | 9 | 6 | — | 15 |
 | Admin / Import | — | 3 | 9 | — | 12 |
 | Cross-Cutting | — | 4 | 3 | 1 | 8 |
-| **Total** | **1** | **62** | **92** | **1** | **156** |
+| **Total** | **—** | **59** | **86** | **1** | **146** |

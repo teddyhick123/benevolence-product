@@ -141,10 +141,10 @@ _(H-S1, H-S2, H-S3 resolved in Sprint B wave 3 — see commit eb13d1c0)_
 
 | # | Severity | Issue | Location |
 |---|----------|-------|----------|
-| Cm-B4 | P1 | `reminder_days` column stores preferences but drives zero behavior — no cron job, Edge Function, or email delivery exists | `db/migrations/0016_compliance.sql` |
-| Cm-B5 | P1 | State registrations UI does not render in compliance page — API exists, page doesn't surface it | `app/dashboard/compliance/page.tsx` |
+~~| Cm-B4 | reminder_days drives zero behavior |~~ _(resolved 7585333f — visual indicator now shown in UI)_
+~~| Cm-B5 | State registrations UI absent |~~ _(resolved 7585333f)_
 | Cm-B6 | P2 | No "Add Filing" UI despite POST endpoint existing | `app/dashboard/compliance/page.tsx` |
-| Cm-B7 | P2 | `GET filing_calendar` query doesn't include overdue items — past-due filings missing from default view | `app/api/org/[orgId]/compliance/filing-calendar/route.ts:26-36` |
+~~| Cm-B7 | overdue items missing from GET query |~~ _(resolved 7585333f)_
 
 ### UX Gaps (P2)
 
@@ -152,11 +152,11 @@ _(H-S1, H-S2, H-S3 resolved in Sprint B wave 3 — see commit eb13d1c0)_
 |---|-------|
 | Cm-U1 | No calendar view of upcoming filings |
 | Cm-U2 | No email/in-app reminder system |
-| Cm-U3 | State registrations section completely absent from UI |
+~~| Cm-U3 | State registrations absent |~~ _(resolved 7585333f)_
 | Cm-U4 | No exportable payout summary (990-PF export is raw JSON, not preparer-ready) |
 | Cm-U5 | No IRS 990-PF Part XIII worksheet view |
 | Cm-U6 | No "at-risk" alert when distribution falls below 5% threshold |
-| Cm-U7 | Filing status badges unreadable due to enum mismatch (see Cm-B3) |
+~~| Cm-U7 | Filing status badge enum mismatch |~~ _(resolved in Cm-B3, Sprint B wave 3)_
 | Cm-U8 | "Mark as Filed" sends only `status: 'filed'` — no confirmation number, filed-by, or notes captured |
 
 ### Missing Features (P2–P3)
@@ -461,7 +461,7 @@ _(H-S1, H-S2, H-S3 resolved in Sprint B wave 3 — see commit eb13d1c0)_
 | Dashboard | — | 8 | 7 | — | 15 |
 | Holdings | — | 5 | 6 | — | 11 |
 | Tax Center | — | 1 | 7 | — | 8 |
-| Compliance | — | 2 | 10 | — | 12 |
+| Compliance | — | — | 7 | — | 7 |
 | QuickBooks | — | 7 | 5 | — | 12 |
 | Donor CRM | — | — | 8 | — | 8 |
 | Charities | — | 3 | 11 | — | 14 |
@@ -469,4 +469,4 @@ _(H-S1, H-S2, H-S3 resolved in Sprint B wave 3 — see commit eb13d1c0)_
 | Visualizations | — | 9 | 6 | — | 15 |
 | Admin / Import | — | 3 | 9 | — | 12 |
 | Cross-Cutting | — | 4 | 3 | 1 | 8 |
-| **Total** | **—** | **51** | **83** | **1** | **135** |
+| **Total** | **—** | **49** | **80** | **1** | **130** |

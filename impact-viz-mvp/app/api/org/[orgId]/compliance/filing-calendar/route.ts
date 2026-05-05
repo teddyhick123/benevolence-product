@@ -20,14 +20,24 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     }
 
     const statusFilter = searchParams.get('status');
+    // days param: return filings due within N days ahead; always include overdue
+    const days = parseInt(searchParams.get('days') || '365');
+    const horizonDate = new Date();
+    horizonDate.setDate(horizonDate.getDate() + days);
 
     let query = supabase
       .from('filing_calendar')
       .select('*')
       .eq('org_id', orgId)
+      .lte('due_date', horizonDate.toISOString().slice(0, 10))
       .order('due_date');
 
-    if (statusFilter) query = query.eq('status', statusFilter);
+    if (statusFilter) {
+      query = query.eq('status', statusFilter);
+    } else {
+      // Exclude completed/waived/not_applicable by default; always show overdue
+      query = query.in('status', ['upcoming', 'in_progress', 'extended', 'overdue']);
+    }
 
     const { data, error } = await query;
     if (error) {

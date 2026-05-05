@@ -43,6 +43,13 @@ export default function CompliancePage() {
   const [payoutLoading, setPayoutLoading] = useState(false);
   const [payoutData, setPayoutData] = useState<any>(null);
 
+  // State registrations
+  const [stateRegs, setStateRegs] = useState<any[]>([]);
+  const [stateRegsLoading, setStateRegsLoading] = useState(false);
+  const [showAddReg, setShowAddReg] = useState(false);
+  const [addingReg, setAddingReg] = useState(false);
+  const [newReg, setNewReg] = useState({ state: '', registration_type: 'charitable_solicitation', status: 'active', expiration_date: '', notes: '' });
+
   // Load org + portfolio
   useEffect(() => {
     async function fetchContext() {
@@ -95,6 +102,39 @@ export default function CompliancePage() {
     }
     fetchPayout();
   }, [portfolioId, payoutYear]);
+
+  // Load state registrations when org loads
+  useEffect(() => {
+    if (!orgId) return;
+    setStateRegsLoading(true);
+    fetch(`/api/org/${orgId}/compliance/state-registrations`)
+      .then(r => r.ok ? r.json() : { data: [] })
+      .then(d => setStateRegs(d.data || []))
+      .finally(() => setStateRegsLoading(false));
+  }, [orgId]);
+
+  async function handleAddReg() {
+    if (!orgId || !newReg.state) return;
+    setAddingReg(true);
+    try {
+      const res = await fetch(`/api/org/${orgId}/compliance/state-registrations`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newReg),
+      });
+      if (res.ok) {
+        const d = await res.json();
+        setStateRegs(prev => {
+          const idx = prev.findIndex(r => r.id === d.data.id);
+          return idx >= 0 ? prev.map((r, i) => i === idx ? d.data : r) : [...prev, d.data];
+        });
+        setShowAddReg(false);
+        setNewReg({ state: '', registration_type: 'charitable_solicitation', status: 'active', expiration_date: '', notes: '' });
+      }
+    } finally {
+      setAddingReg(false);
+    }
+  }
 
   async function handleMarkFiled(filingId: string) {
     if (!orgId) return;
@@ -161,7 +201,12 @@ export default function CompliancePage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {filings.map(filing => (
+                {filings.map(filing => {
+                  const daysUntilDue = Math.ceil((new Date(filing.due_date).getTime() - Date.now()) / 86_400_000);
+                  const reminderDays: number[] = Array.isArray(filing.reminder_days) ? filing.reminder_days : [];
+                  const nearestReminder = reminderDays.filter(d => d >= daysUntilDue).sort((a, b) => a - b)[0];
+                  const showReminder = nearestReminder !== undefined && filing.status === 'upcoming';
+                  return (
                   <tr key={filing.id} className="hover:bg-gray-50">
                     <td className="px-6 py-3 font-medium text-gray-900">
                       {FILING_TYPE_LABELS[filing.filing_type] || filing.filing_type}
@@ -172,6 +217,12 @@ export default function CompliancePage() {
                     <td className="px-6 py-3 text-gray-600">{filing.tax_year}</td>
                     <td className="px-6 py-3 text-gray-700">
                       {new Date(filing.due_date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
+                      {showReminder && (
+                        <div className="mt-0.5 inline-flex items-center gap-1 text-xs text-amber-600 font-medium">
+                          <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M10 2a6 6 0 00-6 6v3.586l-.707.707A1 1 0 004 14h12a1 1 0 00.707-1.707L16 11.586V8a6 6 0 00-6-6zm0 16a2 2 0 002-2H8a2 2 0 002 2z"/></svg>
+                          {daysUntilDue <= 0 ? 'Past due' : `Reminder: ${daysUntilDue}d left`}
+                        </div>
+                      )}
                     </td>
                     <td className="px-6 py-3 text-gray-600 uppercase text-xs">{filing.jurisdiction || 'Federal'}</td>
                     <td className="px-6 py-3">
@@ -191,7 +242,8 @@ export default function CompliancePage() {
                       ) : null}
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           )}
@@ -306,6 +358,139 @@ export default function CompliancePage() {
             )}
           </section>
         </div>
+
+        {/* ─── Section 4: State Registrations ─── */}
+        <section className="bg-white rounded-lg border border-gray-200 p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="font-semibold text-gray-900">State Registrations</h2>
+              <p className="text-xs text-gray-500 mt-0.5">Charitable solicitation registrations by state</p>
+            </div>
+            <button
+              onClick={() => setShowAddReg(v => !v)}
+              className="px-3 py-1.5 text-sm bg-azure text-white rounded-md hover:bg-azure/90 transition-colors"
+            >
+              {showAddReg ? 'Cancel' : '+ Add Registration'}
+            </button>
+          </div>
+
+          {showAddReg && (
+            <div className="mb-4 p-4 bg-gray-50 rounded-lg border border-gray-200 space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">State *</label>
+                  <input
+                    type="text"
+                    maxLength={2}
+                    placeholder="CA"
+                    value={newReg.state}
+                    onChange={e => setNewReg(p => ({ ...p, state: e.target.value.toUpperCase() }))}
+                    className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-azure/40"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Type</label>
+                  <select
+                    value={newReg.registration_type}
+                    onChange={e => setNewReg(p => ({ ...p, registration_type: e.target.value }))}
+                    className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-azure/40"
+                  >
+                    <option value="charitable_solicitation">Charitable Solicitation</option>
+                    <option value="exemption">Exemption</option>
+                    <option value="annual_report">Annual Report</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Status</label>
+                  <select
+                    value={newReg.status}
+                    onChange={e => setNewReg(p => ({ ...p, status: e.target.value }))}
+                    className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-azure/40"
+                  >
+                    <option value="active">Active</option>
+                    <option value="pending">Pending</option>
+                    <option value="expired">Expired</option>
+                    <option value="exempt">Exempt</option>
+                    <option value="not_required">Not Required</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Expiration Date</label>
+                  <input
+                    type="date"
+                    value={newReg.expiration_date}
+                    onChange={e => setNewReg(p => ({ ...p, expiration_date: e.target.value }))}
+                    className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-azure/40"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Notes</label>
+                <input
+                  type="text"
+                  value={newReg.notes}
+                  onChange={e => setNewReg(p => ({ ...p, notes: e.target.value }))}
+                  className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-azure/40"
+                  placeholder="Optional notes"
+                />
+              </div>
+              <button
+                onClick={handleAddReg}
+                disabled={addingReg || !newReg.state}
+                className="px-4 py-2 text-sm bg-azure text-white rounded-md hover:bg-azure/90 disabled:opacity-50 transition-colors"
+              >
+                {addingReg ? 'Saving…' : 'Save Registration'}
+              </button>
+            </div>
+          )}
+
+          {stateRegsLoading ? (
+            <div className="text-center py-8 text-sm text-gray-400">Loading state registrations…</div>
+          ) : stateRegs.length === 0 ? (
+            <div className="text-center py-8 text-sm text-gray-400">No state registrations on file.</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-gray-200 text-left">
+                    <th className="pb-2 pr-4 font-medium text-gray-500 text-xs uppercase tracking-wide">State</th>
+                    <th className="pb-2 pr-4 font-medium text-gray-500 text-xs uppercase tracking-wide">Type</th>
+                    <th className="pb-2 pr-4 font-medium text-gray-500 text-xs uppercase tracking-wide">Status</th>
+                    <th className="pb-2 pr-4 font-medium text-gray-500 text-xs uppercase tracking-wide">Expires</th>
+                    <th className="pb-2 font-medium text-gray-500 text-xs uppercase tracking-wide">Notes</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {stateRegs.map((reg: any) => {
+                    const expDate = reg.expiration_date ? new Date(reg.expiration_date) : null;
+                    const isExpiringSoon = expDate && expDate.getTime() - Date.now() < 60 * 24 * 60 * 60 * 1000;
+                    const isExpired = expDate && expDate < new Date();
+                    return (
+                      <tr key={reg.id} className="hover:bg-gray-50">
+                        <td className="py-2.5 pr-4 font-semibold text-gray-900">{reg.state}</td>
+                        <td className="py-2.5 pr-4 text-gray-600 capitalize">{(reg.registration_type || '').replace(/_/g, ' ')}</td>
+                        <td className="py-2.5 pr-4">
+                          <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${
+                            reg.status === 'active' ? 'bg-green-100 text-green-800' :
+                            reg.status === 'expired' ? 'bg-red-100 text-red-800' :
+                            reg.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                            'bg-gray-100 text-gray-600'
+                          }`}>
+                            {reg.status || '—'}
+                          </span>
+                        </td>
+                        <td className={`py-2.5 pr-4 ${isExpired ? 'text-red-600 font-medium' : isExpiringSoon ? 'text-amber-600 font-medium' : 'text-gray-600'}`}>
+                          {expDate ? expDate.toLocaleDateString() : '—'}
+                        </td>
+                        <td className="py-2.5 text-gray-500 text-xs">{reg.notes || '—'}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
       </div>
     </div>
   );

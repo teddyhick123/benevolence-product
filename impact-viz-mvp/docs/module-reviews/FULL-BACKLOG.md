@@ -1,6 +1,6 @@
 # Benevolence — Full Issue Backlog
 
-Last updated: 2026-05-05 (post-tax-center Sprint B wave 3)
+Last updated: 2026-05-05 (post-donor/holdings Sprint B wave 4)
 Source: 10 individual module reviews in `docs/module-reviews/`
 Scope: All remaining bugs, UX gaps, missing features, security issues, and performance issues across all active modules.
 
@@ -69,7 +69,7 @@ _(H-S1, H-S2, H-S3 resolved in Sprint B wave 3 — see commit eb13d1c0)_
 
 | # | Issue | Location |
 |---|-------|----------|
-| H-B1 | No holdings list page — `app/dashboard/holdings/page.tsx` does not exist — no entry point to the module | `app/dashboard/holdings/` |
+~~| H-B1 | No holdings list page |~~ _(resolved 8c0903e5)_
 | H-B2 | `asset_type` and `status` fields on detail page are free-text inputs instead of selects constrained to DB enums | Holding detail form |
 | H-B3 | Edit forms hidden behind `<details>` that disappear once holding has basic info — no discoverable edit path for populated holdings | Holding detail UI |
 | H-B4 | `financial-profile/generate` silently uses OpenAI GPT-4o instead of Claude — requires separate API key, undocumented | `app/api/holdings/[id]/financial-profile/generate/route.ts` |
@@ -80,7 +80,7 @@ _(H-S1, H-S2, H-S3 resolved in Sprint B wave 3 — see commit eb13d1c0)_
 
 | # | Issue |
 |---|-------|
-| H-U1 | No entry point to Holdings module — no list page |
+~~| H-U1 | No entry point to Holdings module |~~ _(resolved 8c0903e5)_
 | H-U2 | Grant milestones UI absent — API exists (`milestones/route.ts`) but zero UI on detail page |
 | H-U3 | Report due dates have no UI despite `next_report_due` field on `grant_details` |
 | H-U4 | Grant period status (active/expired/pipeline) not shown anywhere in UI |
@@ -93,7 +93,7 @@ _(H-S1, H-S2, H-S3 resolved in Sprint B wave 3 — see commit eb13d1c0)_
 
 | # | Feature |
 |---|---------|
-| H-F1 | Holdings list page with search, filter by asset_type/status, sort |
+~~| H-F1 | Holdings list page |~~ _(resolved 8c0903e5)_
 | H-F2 | Grant milestone tracker UI on holding detail |
 | H-F3 | Report due date calendar / alerts |
 | H-F4 | Grant period status badge |
@@ -220,17 +220,17 @@ _(H-S1, H-S2, H-S3 resolved in Sprint B wave 3 — see commit eb13d1c0)_
 
 | # | Severity | Issue | Location |
 |---|----------|-------|----------|
-| Dr-B3 | P1 | "Add Donor" page doesn't exist — `/dashboard/donors/new` 404s — CRM is read-only for users not using ETL import | `app/dashboard/donors/new/` |
-| Dr-B4 | P1 | Non-cash donation acknowledgment template IRS non-compliant — missing property description, date received, no-goods-or-services disclaimer | `app/api/org/[orgId]/acknowledgments/route.ts:173-179` |
-| Dr-B5 | P1 | `org_role` returns truthy string for viewers — viewer-role users can access full donor PII (email, phone, address) | `app/api/org/[orgId]/donors/route.ts:17-19` |
-| Dr-B6 | P1 | Donor list hardcoded `limit: 100` with no pagination UI — orgs with 200+ donors silently lose records | `app/dashboard/donors/page.tsx:65`, `app/api/org/[orgId]/donors/route.ts:51` |
+~~| Dr-B3 | Add Donor page missing |~~ _(resolved 8c0903e5)_
+~~| Dr-B4 | Non-cash acknowledgment IRS non-compliant |~~ _(resolved 8c0903e5)_
+~~| Dr-B5 | viewer role donor PII exposure |~~ _(resolved 8c0903e5)_
+~~| Dr-B6 | hardcoded limit 100 |~~ _(resolved 8c0903e5)_
 | Dr-B7 | P2 | `DonorProfileForm` POSTs to `/api/portfolio/${portfolioId}/donor-profile` — route does not exist — always 404 | `components/tax/DonorProfileForm.tsx:62` |
 
 ### UX Gaps (P2)
 
 | # | Issue |
 |---|-------|
-| Dr-U1 | No "Add Donor" page (see Dr-B3) |
+~~| Dr-U1 | No "Add Donor" page |~~ _(resolved 8c0903e5)_
 | Dr-U2 | No gift entry UI — no way to record a donation in the app |
 | Dr-U3 | No pledge tracking UI despite DB supporting it |
 | Dr-U4 | Donor acknowledgment letter generator at `/dashboard/letter` is a portfolio narrative tool — not connected to Donor CRM |
@@ -459,14 +459,14 @@ _(H-S1, H-S2, H-S3 resolved in Sprint B wave 3 — see commit eb13d1c0)_
 | Module | P0 | P1 | P2 | P3 | Total |
 |--------|----|----|----|----|-------|
 | Dashboard | — | 8 | 7 | — | 15 |
-| Holdings | — | 6 | 8 | — | 14 |
+| Holdings | — | 5 | 6 | — | 11 |
 | Tax Center | — | 1 | 7 | — | 8 |
 | Compliance | — | 2 | 10 | — | 12 |
 | QuickBooks | — | 7 | 5 | — | 12 |
-| Donor CRM | — | 4 | 9 | — | 13 |
+| Donor CRM | — | — | 8 | — | 8 |
 | Charities | — | 3 | 11 | — | 14 |
 | AI Assistant | — | 9 | 11 | — | 20 |
 | Visualizations | — | 9 | 6 | — | 15 |
 | Admin / Import | — | 3 | 9 | — | 12 |
 | Cross-Cutting | — | 4 | 3 | 1 | 8 |
-| **Total** | **—** | **56** | **86** | **1** | **143** |
+| **Total** | **—** | **51** | **83** | **1** | **135** |

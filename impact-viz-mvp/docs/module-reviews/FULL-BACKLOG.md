@@ -1,6 +1,6 @@
 # Benevolence — Full Issue Backlog
 
-Last updated: 2026-05-04
+Last updated: 2026-05-04 (post-charities reconciliation)
 Source: 10 individual module reviews in `docs/module-reviews/`
 Scope: All remaining bugs, UX gaps, missing features, security issues, and performance issues across all active modules.
 
@@ -10,15 +10,7 @@ Resolved in Sprint A (2026-04-30): compliance org_id, compliance state-registrat
 
 Resolved in Sprint B wave 1 (2026-05-01): compliance payout `amount_usd`→`fair_market_value` (C1), 990pf-export same column fixes (C1), acknowledgment `contribution_id`→`contribution_ids` array + bad insert columns removed (C2), acknowledgment PDF `getPublicUrl`→`createSignedUrl` 1h TTL + `org_id` filter fix (C3).
 
----
-
-## CRITICAL (P0) — Fix Before Any Customer Demo
-
-| # | Module | Issue | File / Location |
-|---|--------|-------|-----------------|
-| C4 | Charities | Dozens of column mismatches between migration and API/components: `mission_statement` vs `mission`, `annual_revenue` vs `total_revenue`, `charity_navigator_rating` (JSONB) vs `(int)`, `contact_email` absent, etc. — all financial display shows N/A | `app/api/charities/**`, `components/charities/**` |
-| C5 | Charities | `charity_impact_stories`, `charity_activity_feed`, `charity_rating_cache` tables don't exist in any migration — detail page throws `42P01` on every load | `app/api/charities/[ein]/**` |
-| C6 | Charities | `add-to-portfolio` inserts `charity_id`, `organization_name`, `ein`, `interaction_status` — none exist in `portfolio_recommendations` — 500s on every call | `app/api/charities/[ein]/add-to-portfolio/route.ts` |
+Resolved in Sprint B wave 2 (2026-05-04): charities full column reconciliation (C4/Ch-B1/Ch-B4), removed dead queries for non-existent tables (C5/Ch-B2/Ch-U6), replaced `portfolio_recommendations` with `portfolio_charities` junction table (C6/Ch-B3/Ch-F1/Ch-F2/Ch-F7), donor CRM acknowledgment write (Dr-B1), donor PDF signed URL (Dr-B2/Dr-F4).
 
 ---
 
@@ -241,12 +233,10 @@ Resolved in Sprint B wave 1 (2026-05-01): compliance payout `amount_usd`→`fair
 
 ## Donor CRM
 
-### Bugs (P0–P1)
+### Bugs (P1)
 
 | # | Severity | Issue | Location |
 |---|----------|-------|----------|
-| Dr-B1 | P0 | `contribution_id` (singular) in acknowledgment API vs `contribution_ids` (array) in DB — acknowledgment writes fail | `app/api/org/[orgId]/acknowledgments/route.ts:67,195` |
-| Dr-B2 | P0 | Acknowledgment PDFs served with `getPublicUrl` — donor PII (address, gift amounts, EIN) publicly accessible via guessable paths | `app/api/org/[orgId]/acknowledgments/[id]/generate-pdf/route.ts:54` |
 | Dr-B3 | P1 | "Add Donor" page doesn't exist — `/dashboard/donors/new` 404s — CRM is read-only for users not using ETL import | `app/dashboard/donors/new/` |
 | Dr-B4 | P1 | Non-cash donation acknowledgment template IRS non-compliant — missing property description, date received, no-goods-or-services disclaimer | `app/api/org/[orgId]/acknowledgments/route.ts:173-179` |
 | Dr-B5 | P1 | `org_role` returns truthy string for viewers — viewer-role users can access full donor PII (email, phone, address) | `app/api/org/[orgId]/donors/route.ts:17-19` |
@@ -273,7 +263,6 @@ Resolved in Sprint B wave 1 (2026-05-01): compliance payout `amount_usd`→`fair
 | Dr-F1 | Add Donor page with full form validation |
 | Dr-F2 | Gift entry form (cash, non-cash, securities) |
 | Dr-F3 | Fix non-cash acknowledgment template for IRS compliance |
-| Dr-F4 | Fix PDF storage to use signed URLs (`createSignedUrl`) |
 | Dr-F5 | Real pagination — API must return total count with `{ count: 'exact' }` |
 | Dr-F6 | Pledge tracking + installment schedule UI |
 | Dr-F7 | Household / relationship grouping |
@@ -285,14 +274,10 @@ Resolved in Sprint B wave 1 (2026-05-01): compliance payout `amount_usd`→`fair
 
 ## Charities
 
-### Bugs (P0–P1)
+### Bugs (P1)
 
 | # | Severity | Issue | Location |
 |---|----------|-------|----------|
-| Ch-B1 | P0 | Dozens of column mismatches between `0010_charities_and_news.sql` and API/component code — all financial display shows $0/N/A, rating filter throws `42883` operator error | `app/api/charities/**`, `components/charities/**` |
-| Ch-B2 | P0 | `charity_impact_stories`, `charity_activity_feed`, `charity_rating_cache` tables don't exist — detail page throws `42P01` on every load | `app/api/charities/[ein]/route.ts:49-61` |
-| Ch-B3 | P0 | `add-to-portfolio` inserts columns that don't exist in `portfolio_recommendations` — always 500 | `app/api/charities/[ein]/add-to-portfolio/route.ts:143` |
-| Ch-B4 | P1 | Rating filter uses JSONB path syntax on `int` column (`charity_navigator_rating->score`) — query fails at runtime for any rating-filtered search | `app/api/charities/route.ts:77` |
 | Ch-B5 | P1 | Autocomplete endpoint exists but never called from search input — no autocomplete in UI | `app/api/charities/search/autocomplete/route.ts` |
 | Ch-B6 | P1 | Two Charity Navigator clients with different auth headers (`Subscription-Key` vs `Authorization: Bearer`) — one always 401 | `lib/services/charity-navigator.ts:74`, `lib/services/charity-ratings.ts:110` |
 | Ch-B7 | P1 | "My Portfolio" mode fetches `/api/portfolios` — no non-admin route exists for this path | `app/charities/page.tsx:70` |
@@ -309,7 +294,6 @@ Resolved in Sprint B wave 1 (2026-05-01): compliance payout `amount_usd`→`fair
 | Ch-U3 | No diligence notes — no way to record why a charity was chosen or rejected |
 | Ch-U4 | Autocomplete not wired to search input (see Ch-B5) |
 | Ch-U5 | Pagination broken beyond page 3 (see Ch-B9) |
-| Ch-U6 | Activity and Impact tabs throw errors (tables don't exist, see Ch-B2) |
 | Ch-U7 | Mission statement shown only on CSS hover — not accessible on touch devices |
 | Ch-U8 | No "similar charities" / related discovery |
 | Ch-U9 | No map view despite `latitude`/`longitude` being indexed |
@@ -318,13 +302,10 @@ Resolved in Sprint B wave 1 (2026-05-01): compliance payout `amount_usd`→`fair
 
 | # | Feature |
 |---|---------|
-| Ch-F1 | Schema reconciliation migration — align all column names with what API/components expect |
-| Ch-F2 | Create or redirect missing tables (`charity_activity_feed` → query `news_articles` instead) |
 | Ch-F3 | Wire autocomplete to search input with 300ms debounce |
 | Ch-F4 | Side-by-side charity comparison view |
 | Ch-F5 | Watchlist / save for later |
 | Ch-F6 | Diligence notes + decision log |
-| Ch-F7 | Fix `add-to-portfolio` — either add columns to `portfolio_recommendations` or create separate `portfolio_charities` table |
 | Ch-F8 | Multi-year financial trend from ProPublica filings |
 | Ch-F9 | Form 990 PDF links from ProPublica |
 
@@ -494,16 +475,15 @@ Resolved in Sprint B wave 1 (2026-05-01): compliance payout `amount_usd`→`fair
 
 | Module | P0 | P1 | P2 | P3 | Total |
 |--------|----|----|----|----|-------|
-| Critical (cross-module P0) | 6 | — | — | — | 6 |
 | Dashboard | — | 8 | 7 | — | 15 |
 | Holdings | — | 9 | 8 | — | 17 |
-| Tax Center | 1 | 4 | 5 | — | 10 |
-| Compliance | 2 | 5 | 8 | — | 15 |
-| QuickBooks | — | 9 | 10 | — | 19 |
-| Donor CRM | 2 | 5 | 8 | — | 15 |
-| Charities | 3 | 7 | 9 | — | 19 |
-| AI Assistant | — | 10 | 8 | — | 18 |
-| Visualizations | — | 9 | 6 | 6 | 21 |
-| Admin / Import | — | 6 | 8 | — | 14 |
-| Cross-Cutting | — | 4 | 2 | 1 | 7 |
-| **Total** | **14** | **76** | **79** | **7** | **176** |
+| Tax Center | 1 | 4 | 13 | — | 18 |
+| Compliance | 1 | 3 | 10 | — | 14 |
+| QuickBooks | — | 7 | 5 | — | 12 |
+| Donor CRM | — | 4 | 9 | — | 13 |
+| Charities | — | 3 | 11 | — | 14 |
+| AI Assistant | — | 9 | 11 | — | 20 |
+| Visualizations | — | 9 | 6 | — | 15 |
+| Admin / Import | — | 3 | 9 | — | 12 |
+| Cross-Cutting | — | 4 | 3 | 1 | 8 |
+| **Total** | **2** | **63** | **92** | **1** | **158** |

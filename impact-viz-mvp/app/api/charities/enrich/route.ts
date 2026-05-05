@@ -124,8 +124,8 @@ async function enrichCharity(
         updates.ratings_last_updated = new Date().toISOString();
 
         // Also update mission if available
-        if (cnRating.mission && !updates.mission_statement) {
-          updates.mission_statement = cnRating.mission;
+        if (cnRating.mission && !updates.mission) {
+          updates.mission = cnRating.mission;
         }
 
         // Update address if available

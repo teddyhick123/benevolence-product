@@ -44,49 +44,30 @@ export async function GET(
       );
     }
 
-    // Fetch impact stories (limit to 10 most recent)
-    const { data: impactStories } = await sb
-      .from('charity_impact_stories')
-      .select('*')
-      .eq('charity_id', charity.id)
-      .order('published_date', { ascending: false, nullsFirst: false })
-      .limit(10);
-
-    // Fetch recent activity (limit to 20 most recent)
-    const { data: recentActivity } = await sb
-      .from('charity_activity_feed')
-      .select('*')
-      .eq('charity_id', charity.id)
-      .order('published_date', { ascending: false, nullsFirst: false })
-      .limit(20);
-
     // If portfolio_id provided, check if this charity is in the portfolio
     let portfolioMetadata = null;
     if (portfolioId) {
-      // Check if user has access to this portfolio
       const { data: canView } = await sb.rpc('can_view_portfolio', {
         p_portfolio_id: portfolioId,
       });
 
       if (canView) {
-        // Get portfolio-specific recommendation data
-        const { data: recommendation } = await sb
-          .from('portfolio_recommendations')
-          .select('*')
+        const { data: entry } = await sb
+          .from('portfolio_charities')
+          .select('id, status, added_by, created_at, notes, min_investment, max_investment')
           .eq('portfolio_id', portfolioId)
-          .eq('charity_id', charity.id)
+          .eq('charity_ein', ein)
           .maybeSingle();
 
-        if (recommendation) {
+        if (entry) {
           portfolioMetadata = {
-            recommendation_id: recommendation.id,
-            interaction_status: recommendation.interaction_status,
-            recommended_by: recommendation.recommended_by,
-            recommended_at: recommendation.recommended_at,
-            min_investment: recommendation.min_investment,
-            max_investment: recommendation.max_investment,
-            order_index: recommendation.order_index,
-            status: recommendation.status,
+            entry_id: entry.id,
+            status: entry.status,
+            added_by: entry.added_by,
+            added_at: entry.created_at,
+            notes: entry.notes,
+            min_investment: entry.min_investment,
+            max_investment: entry.max_investment,
           };
         }
       }
@@ -96,8 +77,8 @@ export async function GET(
       {
         data: {
           ...charity,
-          impact_stories: impactStories || [],
-          recent_activity: recentActivity || [],
+          impact_stories: [],
+          recent_activity: [],
           portfolio_metadata: portfolioMetadata,
         },
       },
@@ -144,10 +125,7 @@ export async function PUT(
     // Update charity data
     const { data: charity, error } = await sb
       .from('charities')
-      .update({
-        ...body,
-        data_last_updated: new Date().toISOString(),
-      })
+      .update(body)
       .eq('ein', ein)
       .select()
       .single();

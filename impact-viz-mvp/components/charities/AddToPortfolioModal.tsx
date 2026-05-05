@@ -101,7 +101,6 @@ export default function AddToPortfolioModal({
           note: note || undefined,
           min_investment: minInvestment ? parseFloat(minInvestment) : undefined,
           max_investment: maxInvestment ? parseFloat(maxInvestment) : undefined,
-          interaction_status: 'new',
         }),
       });
 

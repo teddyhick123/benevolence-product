@@ -31,7 +31,7 @@ export async function GET(req: Request) {
     // Search by name, EIN, or location
     const { data: charities, error } = await sb
       .from('charities')
-      .select('id, ein, name, sector, city, state')
+      .select('id, ein, name, city, state')
       .eq('is_active', true)
       .or(
         `name.ilike.%${query}%,ein.ilike.%${query}%,city.ilike.%${query}%,state.ilike.%${query}%`
@@ -46,12 +46,10 @@ export async function GET(req: Request) {
       );
     }
 
-    // Format suggestions for autocomplete UI
     const suggestions = charities?.map((charity) => ({
       id: charity.id,
       ein: charity.ein,
       name: charity.name,
-      sector: charity.sector,
       location: [charity.city, charity.state].filter(Boolean).join(', '),
     })) || [];
 

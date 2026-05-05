@@ -59,43 +59,33 @@ export async function GET(req: Request) {
     }
 
     // Apply filters
-    if (sector) {
-      query = query.eq('sector', sector);
-    }
-
     if (state) {
       query = query.eq('state', state);
     }
 
-    if (impactFocus && impactFocus.length > 0) {
-      // Filter where impact_focus array contains any of the requested values
-      query = query.overlaps('impact_focus', impactFocus);
-    }
-
-    // Rating filter (extract score from JSONB)
+    // Rating filter on charity_navigator_score (simple numeric column)
     if (minRating) {
-      query = query.gte('charity_navigator_rating->score', parseInt(minRating));
+      query = query.gte('charity_navigator_score', parseInt(minRating));
     }
     if (maxRating) {
-      query = query.lte('charity_navigator_rating->score', parseInt(maxRating));
+      query = query.lte('charity_navigator_score', parseInt(maxRating));
     }
 
     // Revenue filters
     if (minRevenue) {
-      query = query.gte('annual_revenue', parseFloat(minRevenue));
+      query = query.gte('total_revenue', parseFloat(minRevenue));
     }
     if (maxRevenue) {
-      query = query.lte('annual_revenue', parseFloat(maxRevenue));
+      query = query.lte('total_revenue', parseFloat(maxRevenue));
     }
 
     // Sorting
     switch (sortBy) {
       case 'rating':
-        // Sort by Charity Navigator score descending (nulls last)
-        query = query.order('charity_navigator_rating->score', { ascending: false, nullsFirst: false });
+        query = query.order('charity_navigator_score', { ascending: false, nullsFirst: false });
         break;
       case 'revenue':
-        query = query.order('annual_revenue', { ascending: false, nullsFirst: false });
+        query = query.order('total_revenue', { ascending: false, nullsFirst: false });
         break;
       case 'name':
         query = query.order('name', { ascending: true });
@@ -169,19 +159,17 @@ async function getPortfolioCharities(
     );
   }
 
-  // Get charities linked to this portfolio via portfolio_recommendations
-  // Join with charities table to get full charity data
   const offset = (page - 1) * limit;
 
   const { data, error, count } = await sb
-    .from('portfolio_recommendations')
+    .from('portfolio_charities')
     .select(`
-      *,
+      id, status, added_by, created_at, notes, min_investment, max_investment,
       charity:charities(*)
     `, { count: 'exact' })
     .eq('portfolio_id', portfolioId)
     .eq('status', 'active')
-    .order('recommended_at', { ascending: false })
+    .order('created_at', { ascending: false })
     .range(offset, offset + limit - 1);
 
   if (error) {
@@ -192,18 +180,16 @@ async function getPortfolioCharities(
     );
   }
 
-  // Transform data to include both recommendation metadata and charity data
   const charities = data?.map((rec: any) => ({
     ...rec.charity,
-    // Include portfolio-specific metadata
     portfolio_metadata: {
-      recommendation_id: rec.id,
-      interaction_status: rec.interaction_status,
-      recommended_by: rec.recommended_by,
-      recommended_at: rec.recommended_at,
+      entry_id: rec.id,
+      status: rec.status,
+      added_by: rec.added_by,
+      added_at: rec.created_at,
+      notes: rec.notes,
       min_investment: rec.min_investment,
       max_investment: rec.max_investment,
-      order_index: rec.order_index,
     },
   }));
 
@@ -238,27 +224,20 @@ export async function POST(req: Request) {
     const {
       ein,
       name,
-      legal_name,
       website,
-      sector,
       ntee_code,
-      impact_focus,
-      street_address,
+      address_line1,
       city,
       state,
-      zip_code,
+      zip,
       country,
-      mission_statement,
-      description,
-      annual_revenue,
-      annual_expenses,
-      assets,
-      program_expense_ratio,
-      contact_email,
-      contact_phone,
-      contact_name,
-      irs_deductibility_status,
-      data_source,
+      mission,
+      total_revenue,
+      total_expenses,
+      net_assets,
+      email,
+      phone,
+      deductibility_code,
     } = body;
 
     // Validate required fields
@@ -289,27 +268,20 @@ export async function POST(req: Request) {
       .insert({
         ein,
         name,
-        legal_name,
         website,
-        sector,
         ntee_code,
-        impact_focus,
-        street_address,
+        address_line1,
         city,
         state,
-        zip_code,
-        country: country || 'United States',
-        mission_statement,
-        description,
-        annual_revenue,
-        annual_expenses,
-        assets,
-        program_expense_ratio,
-        contact_email,
-        contact_phone,
-        contact_name,
-        irs_deductibility_status,
-        data_source: data_source || 'manual',
+        zip,
+        country: country || 'US',
+        mission,
+        total_revenue,
+        total_expenses,
+        net_assets,
+        email,
+        phone,
+        deductibility_code,
       })
       .select()
       .single();

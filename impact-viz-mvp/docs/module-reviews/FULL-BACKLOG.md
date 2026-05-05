@@ -1,6 +1,6 @@
 # Benevolence — Full Issue Backlog
 
-Last updated: 2026-04-30
+Last updated: 2026-05-04
 Source: 10 individual module reviews in `docs/module-reviews/`
 Scope: All remaining bugs, UX gaps, missing features, security issues, and performance issues across all active modules.
 
@@ -8,15 +8,14 @@ Severity legend: **P0** = production-blocking / data integrity / security · **P
 
 Resolved in Sprint A (2026-04-30): compliance org_id, compliance state-registrations columns, QB schema/connect/disconnect/role-checks, donor CRM org_id + v_donor_summary view, holdings update-basic + link-charity auth, AI chat rate limiting + viewer write guard, admin import commit + resume/rollback buttons.
 
+Resolved in Sprint B wave 1 (2026-05-01): compliance payout `amount_usd`→`fair_market_value` (C1), 990pf-export same column fixes (C1), acknowledgment `contribution_id`→`contribution_ids` array + bad insert columns removed (C2), acknowledgment PDF `getPublicUrl`→`createSignedUrl` 1h TTL + `org_id` filter fix (C3).
+
 ---
 
 ## CRITICAL (P0) — Fix Before Any Customer Demo
 
 | # | Module | Issue | File / Location |
 |---|--------|-------|-----------------|
-| C1 | Compliance | Payout routes reference `amount_usd`, `property_description`, `recipient_type` — none exist in DB — payout always shows $0 | `app/api/portfolio/[id]/compliance/payout/route.ts`, `app/api/portfolio/[id]/compliance/990pf-export/route.ts` |
-| C2 | Donor CRM | `contribution_id` (singular) in acknowledgment API vs `contribution_ids` (array) in DB — acknowledgment writes fail | `app/api/org/[orgId]/acknowledgments/route.ts` |
-| C3 | Donor CRM | Acknowledgment PDFs stored with `getPublicUrl` — donor PII letters are publicly accessible without auth | `app/api/org/[orgId]/acknowledgments/[id]/generate-pdf/route.ts:54` |
 | C4 | Charities | Dozens of column mismatches between migration and API/components: `mission_statement` vs `mission`, `annual_revenue` vs `total_revenue`, `charity_navigator_rating` (JSONB) vs `(int)`, `contact_email` absent, etc. — all financial display shows N/A | `app/api/charities/**`, `components/charities/**` |
 | C5 | Charities | `charity_impact_stories`, `charity_activity_feed`, `charity_rating_cache` tables don't exist in any migration — detail page throws `42P01` on every load | `app/api/charities/[ein]/**` |
 | C6 | Charities | `add-to-portfolio` inserts `charity_id`, `organization_name`, `ein`, `interaction_status` — none exist in `portfolio_recommendations` — 500s on every call | `app/api/charities/[ein]/add-to-portfolio/route.ts` |
@@ -165,7 +164,6 @@ Resolved in Sprint A (2026-04-30): compliance org_id, compliance state-registrat
 
 | # | Severity | Issue | Location |
 |---|----------|-------|----------|
-| Cm-B1 | P0 | Payout and 990-PF export routes reference `amount_usd`, `property_description`, `recipient_type` — none exist in `tax_contributions` — payout always shows $0 | `app/api/portfolio/[id]/compliance/payout/route.ts`, `app/api/portfolio/[id]/compliance/990pf-export/route.ts` |
 | Cm-B2 | P0 | 5% minimum distribution calculation (`netAssets * 0.05`) does not match IRS Form 990-PF Part XIII — missing monthly FMV averaging, exempt-use asset deduction, acquisition indebtedness deduction, excise tax deduction — material regulatory risk | `app/api/portfolio/[id]/compliance/payout/route.ts` |
 | Cm-B3 | P1 | Status enum three-way misaligned: DB defaults `'upcoming'`, TypeScript uses `'pending'/'n_a'/'extension_filed'`, UI only activates on `'pending'` or `'overdue'` — DB entries display with no style and "Mark as Filed" button doesn't appear | DB migration, `lib/types/org.ts:114`, `app/dashboard/compliance/page.tsx:15-21` |
 | Cm-B4 | P1 | `reminder_days` column stores preferences but drives zero behavior — no cron job, Edge Function, or email delivery exists | `db/migrations/0016_compliance.sql` |

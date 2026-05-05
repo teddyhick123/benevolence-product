@@ -112,9 +112,9 @@ export default function CharityDetailPage() {
               </div>
 
               {/* Mission Statement */}
-              {charity.mission_statement && (
+              {charity.mission && (
                 <p className="text-lg text-gray-700 italic max-w-3xl">
-                  &ldquo;{charity.mission_statement}&rdquo;
+                  &ldquo;{charity.mission}&rdquo;
                 </p>
               )}
             </div>

@@ -12,7 +12,7 @@ Resolved in Sprint B wave 1 (2026-05-01): compliance payout `amount_usd`→`fair
 
 Resolved in Sprint B wave 2 (2026-05-04): charities full column reconciliation (C4/Ch-B1/Ch-B4), removed dead queries for non-existent tables (C5/Ch-B2/Ch-U6), replaced `portfolio_recommendations` with `portfolio_charities` junction table (C6/Ch-B3/Ch-F1/Ch-F2/Ch-F7), donor CRM acknowledgment write (Dr-B1), donor PDF signed URL (Dr-B2/Dr-F4).
 
-Resolved in Sprint B wave 3 (2026-05-05): IRS 990-PF Part XIII payout formula — exempt-use assets, acquisition indebtedness, excise-tax deduction, avg FMV (Cm-B2); filing status enum aligned to DB values, Mark-as-Filed button now shows on `upcoming`/`overdue` (Cm-B3); conservation easement 50% AGI limit + schema category (T-B1/T-F1); Form 8283 Section A/B routing for publicly traded securities (T-B2/T-F2); optimization engine 60% cash AGI bucket (T-B3/T-F3); CPA Collaboration Portal enabled (T-B5/T-F5/T-U4); hardcoded CPA base URL → env var (T-B6/T-F6); removed AGI console.log in production (T-B7); Cache-Control: no-store on all sensitive tax routes (T-B8); QCD limit uses scenario year not current year (T-B9); bunching strategy standard deduction no longer hardcoded (T-B10).
+Resolved in Sprint B wave 3 (2026-05-05): IRS 990-PF Part XIII payout formula — exempt-use assets, acquisition indebtedness, excise-tax deduction, avg FMV (Cm-B2); filing status enum aligned to DB values, Mark-as-Filed button now shows on `upcoming`/`overdue` (Cm-B3); conservation easement 50% AGI limit + schema category (T-B1/T-F1); Form 8283 Section A/B routing for publicly traded securities (T-B2/T-F2); optimization engine 60% cash AGI bucket (T-B3/T-F3); CPA Collaboration Portal enabled (T-B5/T-F5/T-U4); hardcoded CPA base URL → env var (T-B6/T-F6); removed AGI console.log in production (T-B7); Cache-Control: no-store on all sensitive tax routes (T-B8); QCD limit uses scenario year not current year (T-B9); bunching strategy standard deduction no longer hardcoded (T-B10); holdings GET auth check + no-store cache header (H-S1); deleteFact holding_id scope guard (H-S2); asset_type/status enum validation in server actions (H-S3).
 
 ---
 
@@ -63,9 +63,7 @@ Resolved in Sprint B wave 3 (2026-05-05): IRS 990-PF Part XIII payout formula �
 
 | # | Severity | Issue | Location |
 |---|----------|-------|----------|
-| H-S1 | P1 | `supabasePublic()` (anonymous client, bypasses RLS) used in GET `/api/portfolio/[id]/holdings/` — if RLS has any gap, holdings are readable by unauthenticated requests | `app/api/portfolio/[id]/holdings/route.ts:14` |
-| H-S2 | P1 | `deleteFact` server action has no `holding_id` scope guard — can delete facts from any holding by supplying a tampered `fact_id` | `app/dashboard/holdings/[holdingId]/page.tsx:583` |
-| H-S3 | P1 | No Zod validation in server actions — `asset_type`, `status`, `funds_allocated` accept any value bypassing enum constraints | `app/dashboard/holdings/[holdingId]/page.tsx` server actions |
+_(H-S1, H-S2, H-S3 resolved in Sprint B wave 3 — see commit eb13d1c0)_
 
 ### Bugs (P1)
 
@@ -461,7 +459,7 @@ Resolved in Sprint B wave 3 (2026-05-05): IRS 990-PF Part XIII payout formula �
 | Module | P0 | P1 | P2 | P3 | Total |
 |--------|----|----|----|----|-------|
 | Dashboard | — | 8 | 7 | — | 15 |
-| Holdings | — | 9 | 8 | — | 17 |
+| Holdings | — | 6 | 8 | — | 14 |
 | Tax Center | — | 1 | 7 | — | 8 |
 | Compliance | — | 2 | 10 | — | 12 |
 | QuickBooks | — | 7 | 5 | — | 12 |
@@ -471,4 +469,4 @@ Resolved in Sprint B wave 3 (2026-05-05): IRS 990-PF Part XIII payout formula �
 | Visualizations | — | 9 | 6 | — | 15 |
 | Admin / Import | — | 3 | 9 | — | 12 |
 | Cross-Cutting | — | 4 | 3 | 1 | 8 |
-| **Total** | **—** | **59** | **86** | **1** | **146** |
+| **Total** | **—** | **56** | **86** | **1** | **143** |

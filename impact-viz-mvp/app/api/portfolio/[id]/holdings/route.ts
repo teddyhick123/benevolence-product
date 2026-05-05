@@ -12,6 +12,13 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
   const offset = Math.max(0, Number.isFinite(rawOffset) ? rawOffset : 0);
 
   const sb = await supabasePublic();
+
+  // Explicit auth check — RLS blocks unauthenticated reads, but we should return
+  // a clear 401 rather than an empty 200 for unauthenticated requests.
+  const { data: { user } } = await sb.auth.getUser();
+  if (!user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401, headers: { 'Cache-Control': 'no-store' } });
+  }
   const { data, error, count } = await sb
     .from('v_holdings')
     .select(`
@@ -40,7 +47,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
     data: data ?? [],
     count: count ?? 0,
     nextOffset: (count ?? 0) > offset + limit ? offset + limit : null,
-  }, { headers: { 'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=60' } });
+  }, { headers: { 'Cache-Control': 'no-store' } });
 }
 
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {

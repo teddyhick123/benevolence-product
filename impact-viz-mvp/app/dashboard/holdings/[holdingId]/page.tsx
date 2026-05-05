@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation';
 import { createSupabaseServerClient } from '@/lib/supabase';
+import { assetTypeSchema } from '@/lib/schemas/portfolio';
 import React from 'react';
 import { revalidatePath } from 'next/cache';
 import HoldingHeader from '@/components/HoldingHeader';
@@ -246,7 +247,11 @@ async function updateHoldingBasics(formData: FormData) {
   if (name !== undefined) updates.name = name;
 
   const asset_type = getValue(formData, 'asset_type');
-  if (asset_type !== undefined) updates.asset_type = asset_type;
+  if (asset_type !== undefined) {
+    const parsed = assetTypeSchema.nullable().safeParse(asset_type || null);
+    if (!parsed.success) throw new Error(`Invalid asset_type: ${asset_type}`);
+    updates.asset_type = parsed.data;
+  }
 
   const sector = getValue(formData, 'sector');
   if (sector !== undefined) updates.sector = sector;
@@ -255,7 +260,13 @@ async function updateHoldingBasics(formData: FormData) {
   if (description !== undefined) updates.description = description;
 
   const status = getValue(formData, 'status');
-  if (status !== undefined) updates.status = status;
+  if (status !== undefined) {
+    const VALID_STATUSES = ['Active', 'Pipeline', 'Exited', 'On Hold'] as const;
+    if (status !== null && !VALID_STATUSES.includes(status as any)) {
+      throw new Error(`Invalid status: ${status}`);
+    }
+    updates.status = status;
+  }
 
   const as_of = getValue(formData, 'as_of');
   if (as_of !== undefined) updates.as_of = as_of;
@@ -623,7 +634,8 @@ async function deleteFact(formData: FormData) {
   const { error } = await supabase
     .from('metric_facts')
     .delete()
-    .eq('id', factId);
+    .eq('id', factId)
+    .eq('holding_id', holdingId);
 
   if (error) {
     console.error('deleteFact error:', error);

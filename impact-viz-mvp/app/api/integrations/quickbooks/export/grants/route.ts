@@ -22,7 +22,7 @@ interface ExportGrantsBody {
 interface GrantRow {
   id: string;
   name: string;
-  total_committed: number | null;
+  funds_allocated: number | null;
   grant_period_start: string | null;
   grant_period_end: string | null;
 }
@@ -70,18 +70,20 @@ export async function POST(req: Request): Promise<Response> {
 
   const portfolioIds = portfolios.map((p) => p.id);
 
-  // Fetch holdings with grant_details across all org portfolios
+  // Fetch holdings with grant_details across all org portfolios.
+  // Use funds_allocated (what has been disbursed/drawn) not total_committed
+  // (the full multi-year pledge) to avoid double-counting on re-exports.
   let query = supabase
     .from('holdings')
     .select(
       `id,
        name,
-       total_committed,
+       funds_allocated,
        grant_details!inner(grant_period_start, grant_period_end)`
     )
     .in('portfolio_id', portfolioIds)
-    .not('total_committed', 'is', null)
-    .gt('total_committed', 0)
+    .not('funds_allocated', 'is', null)
+    .gt('funds_allocated', 0)
     .limit(2000);
 
   if (since) {
@@ -99,6 +101,8 @@ export async function POST(req: Request): Promise<Response> {
     return Response.json({ ok: true, exported: 0, message: 'No grants found' });
   }
 
+  const truncated = grants.length >= 2000;
+
   const qbResult = await getAuthenticatedQBClientByOrg(orgId);
   if (!qbResult) {
     return Response.json(
@@ -111,14 +115,14 @@ export async function POST(req: Request): Promise<Response> {
   const exported: string[] = [];
   const failed: Array<{ id: string; error: string }> = [];
 
-  const eligibleGrants = (grants as unknown as GrantRow[]).filter(g => g.total_committed && g.total_committed > 0);
+  const eligibleGrants = (grants as unknown as GrantRow[]).filter(g => g.funds_allocated && g.funds_allocated > 0);
 
   const BATCH_SIZE = 30;
   for (let i = 0; i < eligibleGrants.length; i += BATCH_SIZE) {
     const batch = eligibleGrants.slice(i, i + BATCH_SIZE);
     await Promise.all(
       batch.map(async (grant) => {
-        const amount = grant.total_committed!;
+        const amount = grant.funds_allocated!;
         const txnDate =
           grant.grant_period_start
             ? grant.grant_period_start.slice(0, 10)
@@ -153,11 +157,13 @@ export async function POST(req: Request): Promise<Response> {
           await createJournalEntryAsync(client, entry);
           exported.push(grant.id);
         } catch (err) {
-          console.error(`[QB] Journal entry failed for grant ${grant.id}:`, err);
-          failed.push({
-            id: grant.id,
-            error: err instanceof Error ? err.message : 'Unknown error',
-          });
+          const errMsg = err instanceof Error ? err.message : 'Unknown error';
+          if (errMsg.toLowerCase().includes('duplicate') || errMsg.toLowerCase().includes('doc number')) {
+            exported.push(grant.id);
+          } else {
+            console.error(`[QB] Journal entry failed for grant ${grant.id}:`, err);
+            failed.push({ id: grant.id, error: errMsg });
+          }
         }
       })
     );
@@ -168,5 +174,7 @@ export async function POST(req: Request): Promise<Response> {
     exported: exported.length,
     failed: failed.length,
     failures: failed.length > 0 ? failed : undefined,
+    truncated,
+    warning: truncated ? 'Result set was capped at 2,000 grants. Run again for remaining records.' : undefined,
   });
 }

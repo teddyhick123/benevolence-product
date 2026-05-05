@@ -92,6 +92,8 @@ export async function POST(req: Request): Promise<Response> {
     return Response.json({ ok: true, exported: 0, message: 'No contributions found for this year' });
   }
 
+  const truncated = contributions.length >= 2000;
+
   const qbResult = await getAuthenticatedQBClientByOrg(orgId);
   if (!qbResult) {
     return Response.json(
@@ -144,11 +146,15 @@ export async function POST(req: Request): Promise<Response> {
           await createJournalEntryAsync(client, entry);
           exported.push(contribution.id);
         } catch (err) {
-          console.error(`[QB] Journal entry failed for contribution ${contribution.id}:`, err);
-          failed.push({
-            id: contribution.id,
-            error: err instanceof Error ? err.message : 'Unknown error',
-          });
+          const errMsg = err instanceof Error ? err.message : 'Unknown error';
+          // QB returns a duplicate DocNumber error when the entry already exists.
+          // Treat this as a non-fatal skip rather than a failure.
+          if (errMsg.toLowerCase().includes('duplicate') || errMsg.toLowerCase().includes('doc number')) {
+            exported.push(contribution.id);
+          } else {
+            console.error(`[QB] Journal entry failed for contribution ${contribution.id}:`, err);
+            failed.push({ id: contribution.id, error: errMsg });
+          }
         }
       })
     );
@@ -159,5 +165,7 @@ export async function POST(req: Request): Promise<Response> {
     exported: exported.length,
     failed: failed.length,
     failures: failed.length > 0 ? failed : undefined,
+    truncated,
+    warning: truncated ? 'Result set was capped at 2,000 contributions. Run again for remaining records.' : undefined,
   });
 }

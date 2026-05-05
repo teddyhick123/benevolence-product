@@ -114,13 +114,13 @@ const QuickBooks = require('node-quickbooks') as new (
 
 export interface QBConnection {
   id: string;
-  portfolio_id: string | null;
-  org_id: string | null;
+  org_id: string;
   realm_id: string;
   access_token: string;
   refresh_token: string;
-  token_expiry: string;
-  connected_at: string;
+  expires_at: string;
+  refresh_expires_at: string | null;
+  created_at: string;
   last_sync_at: string | null;
 }
 
@@ -140,15 +140,10 @@ export function createOAuthClient(): OAuthClientInstance {
   });
 }
 
-export async function getQBConnection(portfolioId: string): Promise<QBConnection | null> {
-  const supabase = createAdminClient();
-  const { data, error } = await supabase
-    .from('quickbooks_connections')
-    .select('*')
-    .eq('portfolio_id', portfolioId)
-    .single();
-  if (error || !data) return null;
-  return data as QBConnection;
+/** @deprecated QB connections are org-scoped — use getQBConnectionByOrg instead */
+export async function getQBConnection(_portfolioId: string): Promise<QBConnection | null> {
+  console.warn('[QB] getQBConnection(portfolioId) is deprecated; QB is org-scoped. Use getQBConnectionByOrg(orgId).');
+  return null;
 }
 
 export async function getQBConnectionByOrg(orgId: string): Promise<QBConnection | null> {
@@ -163,73 +158,14 @@ export async function getQBConnectionByOrg(orgId: string): Promise<QBConnection 
 }
 
 /**
- * Returns an authenticated node-quickbooks client for the given portfolio.
- * Auto-refreshes the OAuth token if it will expire within 30 days and
- * persists updated tokens back to the database.
+ * @deprecated QB connections are org-scoped since the schema migration.
+ * This function always returns null. Use getAuthenticatedQBClientByOrg(orgId) instead.
  */
 export async function getAuthenticatedQBClient(
-  portfolioId: string
+  _portfolioId: string
 ): Promise<{ client: QBClientInstance; connection: QBConnection } | null> {
-  const supabase = createAdminClient();
-  let connection = await getQBConnection(portfolioId);
-  if (!connection) return null;
-
-  const tokenExpiry = new Date(connection.token_expiry);
-  const thirtyDaysFromNow = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
-
-  // Refresh if expired or within 30-day window
-  if (tokenExpiry <= thirtyDaysFromNow) {
-    try {
-      const oauthClient = createOAuthClient();
-      oauthClient.setToken({
-        access_token: connection.access_token,
-        refresh_token: connection.refresh_token,
-        expires_in: Math.max(
-          0,
-          Math.floor((tokenExpiry.getTime() - Date.now()) / 1000)
-        ),
-      });
-
-      const authResponse = await oauthClient.refresh();
-      const newTokens = authResponse.getJson();
-      const newExpiry = new Date(
-        Date.now() + (newTokens.expires_in ?? 3600) * 1000
-      );
-
-      const { data: updated } = await supabase
-        .from('quickbooks_connections')
-        .update({
-          access_token: newTokens.access_token,
-          refresh_token: newTokens.refresh_token,
-          token_expiry: newExpiry.toISOString(),
-        })
-        .eq('portfolio_id', portfolioId)
-        .select()
-        .single();
-
-      if (updated) connection = updated as QBConnection;
-    } catch (err) {
-      console.error('[QB] Token refresh failed:', err);
-      return null;
-    }
-  }
-
-  const useSandbox = process.env.QB_ENVIRONMENT !== 'production';
-
-  const client = new QuickBooks(
-    process.env.QB_CLIENT_ID!,
-    process.env.QB_CLIENT_SECRET!,
-    connection.access_token,
-    false,          // no token secret (OAuth 2.0)
-    connection.realm_id,
-    useSandbox,
-    false,          // debug
-    null,           // use latest minor version
-    '2.0',          // OAuth version
-    connection.refresh_token
-  );
-
-  return { client, connection };
+  console.warn('[QB] getAuthenticatedQBClient(portfolioId) is deprecated — QB is org-scoped. Use getAuthenticatedQBClientByOrg(orgId).');
+  return null;
 }
 
 /**
@@ -244,7 +180,13 @@ export async function getAuthenticatedQBClientByOrg(
   let connection = await getQBConnectionByOrg(orgId);
   if (!connection) return null;
 
-  const tokenExpiry = new Date(connection.token_expiry);
+  // Check if refresh token itself has expired (101-day QuickBooks limit)
+  if (connection.refresh_expires_at && new Date(connection.refresh_expires_at) <= new Date()) {
+    console.warn('[QB] Refresh token expired for org', orgId, '— user must reconnect');
+    return null;
+  }
+
+  const tokenExpiry = new Date(connection.expires_at);
   const thirtyDaysFromNow = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
 
   if (tokenExpiry <= thirtyDaysFromNow) {
@@ -264,13 +206,16 @@ export async function getAuthenticatedQBClientByOrg(
       const newExpiry = new Date(
         Date.now() + (newTokens.expires_in ?? 3600) * 1000
       );
+      // QB refresh tokens have a 101-day lifetime; update expiry on each successful refresh
+      const newRefreshExpiry = new Date(Date.now() + 101 * 24 * 60 * 60 * 1000);
 
       const { data: updated } = await supabase
         .from('quickbooks_connections')
         .update({
           access_token: newTokens.access_token,
           refresh_token: newTokens.refresh_token,
-          token_expiry: newExpiry.toISOString(),
+          expires_at: newExpiry.toISOString(),
+          refresh_expires_at: newRefreshExpiry.toISOString(),
         })
         .eq('org_id', orgId)
         .select()

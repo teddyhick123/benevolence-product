@@ -1,6 +1,6 @@
 # Benevolence — Full Issue Backlog
 
-Last updated: 2026-05-05 (post-Sprint B wave 6 — Charities P1s + Dashboard holdings auth verified)
+Last updated: 2026-05-06 (post-Sprint B wave 7 — Admin rollback/mapping, onboarding org types, letter label)
 Source: 10 individual module reviews in `docs/module-reviews/`
 Scope: All remaining bugs, UX gaps, missing features, security issues, and performance issues across all active modules.
 
@@ -13,6 +13,8 @@ Resolved in Sprint B wave 1 (2026-05-01): compliance payout `amount_usd`→`fair
 Resolved in Sprint B wave 2 (2026-05-04): charities full column reconciliation (C4/Ch-B1/Ch-B4), removed dead queries for non-existent tables (C5/Ch-B2/Ch-U6), replaced `portfolio_recommendations` with `portfolio_charities` junction table (C6/Ch-B3/Ch-F1/Ch-F2/Ch-F7), donor CRM acknowledgment write (Dr-B1), donor PDF signed URL (Dr-B2/Dr-F4).
 
 Resolved in Sprint B wave 3 (2026-05-05): IRS 990-PF Part XIII payout formula — exempt-use assets, acquisition indebtedness, excise-tax deduction, avg FMV (Cm-B2); filing status enum aligned to DB values, Mark-as-Filed button now shows on `upcoming`/`overdue` (Cm-B3); conservation easement 50% AGI limit + schema category (T-B1/T-F1); Form 8283 Section A/B routing for publicly traded securities (T-B2/T-F2); optimization engine 60% cash AGI bucket (T-B3/T-F3); CPA Collaboration Portal enabled (T-B5/T-F5/T-U4); hardcoded CPA base URL → env var (T-B6/T-F6); removed AGI console.log in production (T-B7); Cache-Control: no-store on all sensitive tax routes (T-B8); QCD limit uses scenario year not current year (T-B9); bunching strategy standard deduction no longer hardcoded (T-B10); holdings GET auth check + no-store cache header (H-S1); deleteFact holding_id scope guard (H-S2); asset_type/status enum validation in server actions (H-S3).
+
+Resolved in Sprint B wave 7 (2026-05-06): Adm-B1 AI mapping now passes up to 5 actual staging rows as sample_records; Adm-B2 rollback replaced .limit(5000) with full paginated fetch; X3 family_office added to onboarding PersonaSelector, org_type values aligned to DB enum across PersonaSelector/QuickIntakeForm/intake Zod schema; X4 dashboard "AI Interface" label renamed to "Portfolio Letter".
 
 Resolved in Sprint B wave 6 (2026-05-05): Ch-B5 autocomplete wired to search input with 300ms debounce and outside-click dismiss; Ch-B6 Charity Navigator client aligned to `Subscription-Key` header at `api.data.charitynavigator.org/v2`; Ch-B7 `fetchDefaultPortfolio` fixed to use `/api/me`; D-B3/D-B7 verified already resolved (explicit `getUser()` auth gate present in holdings GET route).
 
@@ -396,8 +398,8 @@ _(H-S1, H-S2, H-S3 resolved in Sprint B wave 3 — see commit eb13d1c0)_
 
 | # | Severity | Issue | Location |
 |---|----------|-------|----------|
-| Adm-B1 | P1 | AI mapping assist always sends `sample_records: []` — AI never sees actual CSV values, only column names — degrades mapping accuracy for ambiguous fields | `app/admin/imports/[id]/mapping/MappingPageClient.tsx:93` |
-| Adm-B2 | P1 | Rollback has hard `.limit(5000)` audit log cap — silently leaves production data behind on imports > 5,000 rows | `lib/import/rollback.ts:83` |
+~~| Adm-B1 | AI mapping assist always sends `sample_records: []` |~~ _(resolved Sprint B wave 7 — page.tsx fetches 5 staging rows, client passes them to mapping-assist API)_
+~~| Adm-B2 | Rollback hard `.limit(5000)` cap |~~ _(resolved Sprint B wave 7 — replaced with paginated loop, no upper cap)_
 | Adm-B3 | P1 | Three different admin authorization patterns across 25+ routes (Pattern A: `admins` table lookup; Pattern B: `is_admin` RPC; Pattern C: `is_super_admin` profile flag) — inconsistent, may diverge | All admin routes |
 | Adm-B4 | P2 | AI fix suggestion ("Apply Fix" per row in error browser) shows a `proposed_value` with confidence but no Accept button — workflow for accepting a suggestion is unclear | `components/admin/ImportErrorsTable.tsx` |
 | Adm-B5 | P2 | Staging tables hold donor PII indefinitely — no TTL, cleanup job, or documented data retention policy | `staging_import_*` tables |
@@ -435,8 +437,8 @@ _(H-S1, H-S2, H-S3 resolved in Sprint B wave 3 — see commit eb13d1c0)_
 |---|----------|-------|
 | X1 | P1 | Module gating is cosmetic — nav links and pages don't check `org_has_module()` — Tax, Compliance, Donors always visible regardless of enabled modules |
 | X2 | P1 | Multi-entity UX is "first org/first portfolio wins" throughout — `/api/me` picks first portfolio; donors and compliance fetch first org; family offices managing multiple entities are not served |
-| X3 | P1 | `family_office` org type missing from onboarding flow — stated target persona cannot self-onboard as the correct type |
-| X4 | P1 | Letter generator (`/dashboard/letter`) named and placed misleadingly — it generates portfolio narrative letters, not donor acknowledgments — creates user confusion |
+~~| X3 | `family_office` missing from onboarding |~~ _(resolved Sprint B wave 7 — persona card added, org_type enum values aligned across full stack)_
+~~| X4 | Letter generator label misleading |~~ _(resolved Sprint B wave 7 — renamed to "Portfolio Letter" on dashboard)_
 | X5 | P2 | Three inconsistent admin authorization patterns across routes (see Adm-B3) |
 | X6 | P2 | No task / workflow / approval system — `reminder_days` and notification preferences exist in schema but drive zero behavior |
 | X7 | P2 | No grant lifecycle management (intake → review → approval → payment → reporting → closeout) |
@@ -471,6 +473,6 @@ _(H-S1, H-S2, H-S3 resolved in Sprint B wave 3 — see commit eb13d1c0)_
 | Charities | — | — | 11 | — | 11 |
 | AI Assistant | — | 4 | 9 | — | 13 |
 | Visualizations | — | 5 | 6 | — | 11 |
-| Admin / Import | — | 3 | 9 | — | 12 |
-| Cross-Cutting | — | 4 | 3 | 1 | 8 |
-| **Total** | **—** | **21** | **74** | **1** | **96** |
+| Admin / Import | — | 1 | 9 | — | 10 |
+| Cross-Cutting | — | 2 | 3 | 1 | 6 |
+| **Total** | **—** | **17** | **74** | **1** | **92** |

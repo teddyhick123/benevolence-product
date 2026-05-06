@@ -86,6 +86,12 @@ export interface YearProjection {
   tax_savings: number;
 }
 
+function capGainsRate(holding: PortfolioHolding): number {
+  if (!holding.acquisition_date) return 0.20;
+  const held = Date.now() - new Date(holding.acquisition_date).getTime();
+  return held < 365 * 24 * 60 * 60 * 1000 ? 0.37 : 0.20;
+}
+
 /**
  * Main optimization function
  */
@@ -174,6 +180,7 @@ function optimizeByAppreciation(
   let totalAmount = 0;
   let totalTaxSavings = 0;
   let totalCapGains = 0;
+  let totalCapGainsTaxSaved = 0;
 
   const targetAmount = Math.min(donationGoal || remainingCapacity, remainingCapacity);
 
@@ -183,7 +190,7 @@ function optimizeByAppreciation(
     const amountToDonate = Math.min(holding.fmv!, targetAmount - totalAmount);
     const proportionalCostBasis = (holding.cost_basis! / holding.fmv!) * amountToDonate;
     const capitalGain = amountToDonate - proportionalCostBasis;
-    const capitalGainsTaxSaved = capitalGain * 0.20;
+    const capitalGainsTaxSaved = capitalGain * capGainsRate(holding);
     const deductionValue = amountToDonate * 0.37;
     const taxSavings = capitalGainsTaxSaved + deductionValue;
 
@@ -204,12 +211,14 @@ function optimizeByAppreciation(
     totalAmount += amountToDonate;
     totalTaxSavings += taxSavings;
     totalCapGains += capitalGain;
+    totalCapGainsTaxSaved += capitalGainsTaxSaved;
   }
 
+  const capGainsPct = totalTaxSavings > 0 ? Math.round((totalCapGainsTaxSaved / totalTaxSavings) * 100) : 0;
   const rationale = [
     `Prioritizes holdings with highest appreciation to maximize capital gains tax savings.`,
-    `Avoids $${Math.round(totalCapGains).toLocaleString()} in capital gains (saves $${Math.round(totalCapGains * 0.20).toLocaleString()} in tax).`,
-    `Total tax benefit: $${Math.round(totalTaxSavings).toLocaleString()} (${Math.round((totalCapGains * 0.20) / totalTaxSavings * 100)}% from capital gains savings).`,
+    `Avoids $${Math.round(totalCapGains).toLocaleString()} in capital gains (saves $${Math.round(totalCapGainsTaxSaved).toLocaleString()} in tax).`,
+    `Total tax benefit: $${Math.round(totalTaxSavings).toLocaleString()} (${capGainsPct}% from capital gains savings).`,
   ];
 
   const warnings: string[] = [];
@@ -269,7 +278,7 @@ function maximizeCurrentYearDeduction(
     const costBasis = holding.cost_basis || amountToDonate;
     const proportionalCostBasis = (costBasis / holding.fmv!) * amountToDonate;
     const capitalGain = amountToDonate - proportionalCostBasis;
-    const capitalGainsTaxSaved = capitalGain * 0.20;
+    const capitalGainsTaxSaved = capitalGain * capGainsRate(holding);
     const deductionValue = amountToDonate * 0.37;
     const taxSavings = capitalGainsTaxSaved + deductionValue;
 
@@ -362,7 +371,7 @@ function optimizeSpreadStrategy(
         const costBasis = holding.cost_basis || amountForThisHolding;
         const proportionalCostBasis = (costBasis / (holding.fmv || amountForThisHolding)) * amountForThisHolding;
         const capitalGain = amountForThisHolding - proportionalCostBasis;
-        const taxSavings = (capitalGain * 0.20) + (amountForThisHolding * 0.37);
+        const taxSavings = (capitalGain * capGainsRate(holding)) + (amountForThisHolding * 0.37);
 
         recommendations.push({
           holding_id: holding.id,

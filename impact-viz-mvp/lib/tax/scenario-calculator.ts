@@ -22,6 +22,7 @@ export interface ScenarioInput {
   donation_amount: number;
   donation_type: 'cash' | 'stock' | 'real_estate' | 'pe_vc' | 'other_property' | 'conservation_easement';
   cost_basis?: number; // For appreciated assets
+  holding_period?: 'short' | 'long'; // 'short' = held < 12 months; affects deductible basis and cap gains rate
   agi_limit_percentage?: number; // Override auto-detection
 
   // Existing contributions this year
@@ -57,7 +58,7 @@ export interface ScenarioResult {
 
   // Tax savings
   capital_gains_avoided?: number;
-  capital_gains_tax_saved?: number; // At 20% LTCG rate
+  capital_gains_tax_saved?: number; // At 20% LTCG or 37% STCG rate depending on holding_period
   deduction_value: number; // At 37% marginal rate
   total_tax_savings: number;
 
@@ -89,6 +90,7 @@ export function calculateScenario(input: ScenarioInput): ScenarioResult {
     donation_amount,
     donation_type,
     cost_basis = 0,
+    holding_period = 'long',
     project_years = 1,
     future_agi = [],
   } = input;
@@ -98,18 +100,27 @@ export function calculateScenario(input: ScenarioInput): ScenarioResult {
   const agiLimitCategory = `${agiLimitPercentage}%` as '60%' | '50%' | '30%' | '20%';
   const agiLimitAmount = agi * (agiLimitPercentage / 100);
 
-  // Calculate deductible amount (capped at AGI limit)
-  const deductibleThisYear = Math.min(donation_amount, agiLimitAmount);
-  const excessCarryforward = Math.max(donation_amount - agiLimitAmount, 0);
-  const withinAGILimit = donation_amount <= agiLimitAmount;
-  const utilizationPercentage = (donation_amount / agiLimitAmount) * 100;
-
-  // Calculate tax savings
+  // Short-term capital gain property: IRS limits deductible amount to cost basis (not FMV).
+  // Long-term capital gain property: deductible at FMV (full donation_amount).
   const isAppreciatedAsset = ['stock', 'real_estate', 'pe_vc', 'other_property'].includes(donation_type);
+  const isShortTerm = isAppreciatedAsset && holding_period === 'short';
+  const deductibleBase = isShortTerm && cost_basis > 0
+    ? Math.min(donation_amount, cost_basis)
+    : donation_amount;
+
+  // Calculate deductible amount (capped at AGI limit)
+  const deductibleThisYear = Math.min(deductibleBase, agiLimitAmount);
+  const excessCarryforward = Math.max(deductibleBase - agiLimitAmount, 0);
+  const withinAGILimit = deductibleBase <= agiLimitAmount;
+  const utilizationPercentage = (deductibleBase / agiLimitAmount) * 100;
+
+  // Calculate capital gains avoided and tax rate
   const capitalGainsAvoided = isAppreciatedAsset && cost_basis >= 0
     ? Math.max(donation_amount - cost_basis, 0)
     : 0;
-  const capitalGainsTaxSaved = capitalGainsAvoided * 0.20; // 20% LTCG rate
+  // Short-term gains taxed at ordinary income rate; long-term at LTCG rate
+  const capitalGainsTaxRate = isShortTerm ? 0.37 : 0.20;
+  const capitalGainsTaxSaved = capitalGainsAvoided * capitalGainsTaxRate;
 
   const deductionValue = deductibleThisYear * 0.37; // 37% marginal rate assumption
   const totalTaxSavings = capitalGainsTaxSaved + deductionValue;
@@ -320,6 +331,7 @@ export function calculateOptimalDonation(input: {
   donation_type: string;
   cost_basis?: number;
   existing_contributions_in_category?: number;
+  holding_period?: 'short' | 'long';
 }): {
   optimal_amount: number;
   agi_limit: number;
@@ -339,7 +351,8 @@ export function calculateOptimalDonation(input: {
   const capitalGainsAvoided = isAppreciatedAsset && costBasis > 0 && optimalAmount > 0
     ? Math.max(optimalAmount - costBasis, 0)
     : 0;
-  const capitalGainsTaxSaved = capitalGainsAvoided * 0.20; // 20% LTCG rate
+  const capitalGainsTaxRate = isAppreciatedAsset && input.holding_period === 'short' ? 0.37 : 0.20;
+  const capitalGainsTaxSaved = capitalGainsAvoided * capitalGainsTaxRate;
   const deductionValue = optimalAmount * 0.37;
   const taxSavingsAtOptimal = capitalGainsTaxSaved + deductionValue;
 

@@ -29,6 +29,7 @@ export default function ReportUploader({
   const [stagedFacts, setStagedFacts] = useState<StagedFact[]>([]);
   const [showReview, setShowReview] = useState(false);
   const [aiMode, setAiMode] = useState(true);
+  const [factError, setFactError] = useState<string | null>(null);
 
   // 200MB limit (handled in chunks on server)
   const MAX_FILE_SIZE = 200 * 1024 * 1024;
@@ -46,21 +47,42 @@ export default function ReportUploader({
   async function approveFact(factId: string) {
     try {
       const res = await fetch(`/api/admin/staged-facts/${factId}/approve`, { method: 'POST' });
-      if (res.ok) setStagedFacts((prev) => prev.filter((f) => f.id !== factId));
-    } catch {}
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.error || `Approve failed (${res.status})`);
+      }
+      setStagedFacts((prev) => prev.filter((f) => f.id !== factId));
+      setFactError(null);
+    } catch (err: any) {
+      setFactError(err.message || 'Failed to approve fact');
+    }
   }
 
   async function rejectFact(factId: string) {
     try {
       const res = await fetch(`/api/admin/staged-facts/${factId}`, { method: 'DELETE' });
-      if (res.ok) setStagedFacts((prev) => prev.filter((f) => f.id !== factId));
-    } catch {}
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.error || `Reject failed (${res.status})`);
+      }
+      setStagedFacts((prev) => prev.filter((f) => f.id !== factId));
+      setFactError(null);
+    } catch (err: any) {
+      setFactError(err.message || 'Failed to reject fact');
+    }
   }
 
   async function approveAll() {
+    setFactError(null);
+    const errors: string[] = [];
     for (const fact of stagedFacts) {
-      await approveFact(fact.id);
+      try {
+        await approveFact(fact.id);
+      } catch (err: any) {
+        errors.push(`${fact.metric_code}: ${err.message}`);
+      }
     }
+    if (errors.length) setFactError(`Some facts failed: ${errors.join('; ')}`);
   }
 
   async function onSubmit(e: React.FormEvent) {
@@ -217,6 +239,12 @@ export default function ReportUploader({
               Upload Another
             </button>
           </div>
+
+          {factError && (
+            <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+              {factError}
+            </div>
+          )}
 
           {showReview && stagedFacts.length > 0 && (
             <div className="rounded-xl border border-neutral-200 bg-white p-4">

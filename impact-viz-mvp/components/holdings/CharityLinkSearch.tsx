@@ -36,6 +36,7 @@ export default function CharityLinkSearch({
   const [searching, setSearching] = useState(false);
   const [linking, setLinking] = useState(false);
   const [unlinking, setUnlinking] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [showResults, setShowResults] = useState(false);
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -84,20 +85,23 @@ export default function CharityLinkSearch({
 
   const handleLink = async (ein: string) => {
     setLinking(true);
+    setActionError(null);
     try {
       const res = await fetch(`/api/holdings/${holdingId}/link-charity`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ein }),
       });
-      if (res.ok) {
-        setQuery('');
-        setResults([]);
-        setShowResults(false);
-        onLinked?.();
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.error || `Link failed (${res.status})`);
       }
-    } catch {
-      // Link failed
+      setQuery('');
+      setResults([]);
+      setShowResults(false);
+      onLinked?.();
+    } catch (err: any) {
+      setActionError(err.message || 'Failed to link charity');
     } finally {
       setLinking(false);
     }
@@ -105,15 +109,18 @@ export default function CharityLinkSearch({
 
   const handleUnlink = async () => {
     setUnlinking(true);
+    setActionError(null);
     try {
       const res = await fetch(`/api/holdings/${holdingId}/link-charity`, {
         method: 'DELETE',
       });
-      if (res.ok) {
-        onLinked?.();
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.error || `Unlink failed (${res.status})`);
       }
-    } catch {
-      // Unlink failed
+      onLinked?.();
+    } catch (err: any) {
+      setActionError(err.message || 'Failed to unlink charity');
     } finally {
       setUnlinking(false);
     }
@@ -130,6 +137,12 @@ export default function CharityLinkSearch({
   // If already linked, show the linked charity with unlink option
   if (linkedCharity) {
     return (
+      <div className="space-y-2">
+        {actionError && (
+          <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+            {actionError}
+          </div>
+        )}
       <div className="flex items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50/50 px-4 py-3">
         <div className="flex items-center gap-3 min-w-0">
           <div className="flex-shrink-0 w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center">
@@ -153,12 +166,18 @@ export default function CharityLinkSearch({
           {unlinking ? 'Unlinking...' : 'Unlink'}
         </button>
       </div>
+      </div>
     );
   }
 
   // Search UI
   return (
     <div ref={containerRef} className="relative">
+      {actionError && (
+        <div className="mb-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          {actionError}
+        </div>
+      )}
       <div className="flex items-center gap-2">
         <div className="relative flex-1">
           <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">

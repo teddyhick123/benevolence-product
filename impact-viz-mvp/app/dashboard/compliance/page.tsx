@@ -45,6 +45,11 @@ export default function CompliancePage() {
   const [payoutLoading, setPayoutLoading] = useState(false);
   const [payoutData, setPayoutData] = useState<any>(null);
 
+  // Add Filing form
+  const [showAddFiling, setShowAddFiling] = useState(false);
+  const [addingFiling, setAddingFiling] = useState(false);
+  const [newFiling, setNewFiling] = useState({ filing_type: 'form_990pf', title: '', due_date: '', description: '', jurisdiction: '' });
+
   // State registrations
   const [stateRegs, setStateRegs] = useState<any[]>([]);
   const [stateRegsLoading, setStateRegsLoading] = useState(false);
@@ -158,6 +163,26 @@ export default function CompliancePage() {
     }
   }
 
+  async function handleAddFiling() {
+    if (!orgId || !newFiling.filing_type || !newFiling.title || !newFiling.due_date) return;
+    setAddingFiling(true);
+    try {
+      const res = await fetch(`/api/org/${orgId}/compliance/filing-calendar`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newFiling),
+      });
+      if (res.ok) {
+        const d = await res.json();
+        setFilings(prev => [...prev, d.data].sort((a, b) => a.due_date.localeCompare(b.due_date)));
+        setShowAddFiling(false);
+        setNewFiling({ filing_type: 'form_990pf', title: '', due_date: '', description: '', jurisdiction: '' });
+      }
+    } finally {
+      setAddingFiling(false);
+    }
+  }
+
   async function handle990Export() {
     if (!portfolioId) return;
     setExportLoading(true);
@@ -195,10 +220,93 @@ export default function CompliancePage() {
 
         {/* ─── Section 1: Filing Calendar ─── */}
         <section className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-100">
-            <h2 className="font-semibold text-gray-900">Filing Calendar</h2>
-            <p className="text-xs text-gray-500 mt-0.5">Upcoming filings in the next 12 months</p>
+          <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+            <div>
+              <h2 className="font-semibold text-gray-900">Filing Calendar</h2>
+              <p className="text-xs text-gray-500 mt-0.5">Upcoming filings in the next 12 months</p>
+            </div>
+            <button
+              onClick={() => setShowAddFiling(v => !v)}
+              className="px-3 py-1.5 text-xs font-medium bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors"
+            >
+              + Add Filing
+            </button>
           </div>
+
+          {/* Add Filing Form */}
+          {showAddFiling && (
+            <div className="px-6 py-4 bg-gray-50 border-b border-gray-100">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Filing Type</label>
+                  <select
+                    value={newFiling.filing_type}
+                    onChange={e => setNewFiling(f => ({ ...f, filing_type: e.target.value }))}
+                    className="w-full text-sm px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  >
+                    {Object.entries(FILING_TYPE_LABELS).map(([k, v]) => (
+                      <option key={k} value={k}>{v}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Title <span className="text-red-500">*</span></label>
+                  <input
+                    type="text"
+                    value={newFiling.title}
+                    onChange={e => setNewFiling(f => ({ ...f, title: e.target.value }))}
+                    placeholder="e.g. Form 990-PF — FY 2025"
+                    className="w-full text-sm px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Due Date <span className="text-red-500">*</span></label>
+                  <input
+                    type="date"
+                    value={newFiling.due_date}
+                    onChange={e => setNewFiling(f => ({ ...f, due_date: e.target.value }))}
+                    className="w-full text-sm px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Jurisdiction</label>
+                  <input
+                    type="text"
+                    value={newFiling.jurisdiction}
+                    onChange={e => setNewFiling(f => ({ ...f, jurisdiction: e.target.value }))}
+                    placeholder="e.g. CA, Federal"
+                    className="w-full text-sm px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+              </div>
+              <div className="mb-3">
+                <label className="block text-xs font-medium text-gray-700 mb-1">Description</label>
+                <input
+                  type="text"
+                  value={newFiling.description}
+                  onChange={e => setNewFiling(f => ({ ...f, description: e.target.value }))}
+                  placeholder="Optional notes"
+                  className="w-full text-sm px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+              <div className="flex gap-2 justify-end">
+                <button
+                  onClick={() => setShowAddFiling(false)}
+                  className="px-3 py-1.5 text-xs text-gray-600 hover:text-gray-800"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleAddFiling}
+                  disabled={addingFiling || !newFiling.title || !newFiling.due_date}
+                  className="px-4 py-1.5 text-xs font-medium bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+                >
+                  {addingFiling ? 'Saving…' : 'Save Filing'}
+                </button>
+              </div>
+            </div>
+          )}
+
           {filingsLoading ? (
             <div className="p-8 text-center text-gray-400">Loading filings…</div>
           ) : filings.length === 0 ? (

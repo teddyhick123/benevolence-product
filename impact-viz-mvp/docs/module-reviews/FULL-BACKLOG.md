@@ -157,7 +157,7 @@ _(H-S1, H-S2, H-S3 resolved in Sprint B wave 3 — see commit eb13d1c0)_
 |---|----------|-------|----------|
 ~~| Cm-B4 | reminder_days drives zero behavior |~~ _(resolved 7585333f — visual indicator now shown in UI)_
 ~~| Cm-B5 | State registrations UI absent |~~ _(resolved 7585333f)_
-| Cm-B6 | P2 | No "Add Filing" UI despite POST endpoint existing | `app/dashboard/compliance/page.tsx` |
+~~| Cm-B6 | P2 | No "Add Filing" UI despite POST endpoint existing |~~ _(resolved — "+ Add Filing" button in section header reveals inline form with filing_type, title, due_date, jurisdiction, description)_
 ~~| Cm-B7 | overdue items missing from GET query |~~ _(resolved 7585333f)_
 
 ### UX Gaps (P2)

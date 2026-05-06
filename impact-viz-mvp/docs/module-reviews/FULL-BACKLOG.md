@@ -447,7 +447,7 @@ _(H-S1, H-S2, H-S3 resolved in Sprint B wave 3 — see commit eb13d1c0)_
 | X2 | P1 | Multi-entity UX is "first org/first portfolio wins" throughout — `/api/me` picks first portfolio; donors and compliance fetch first org; family offices managing multiple entities are not served |
 ~~| X3 | `family_office` missing from onboarding |~~ _(resolved Sprint B wave 7 — persona card added, org_type enum values aligned across full stack)_
 ~~| X4 | Letter generator label misleading |~~ _(resolved Sprint B wave 7 — renamed to "Portfolio Letter" on dashboard)_
-| X5 | P2 | Three inconsistent admin authorization patterns across routes (see Adm-B3) |
+~~| X5 | P2 | Three inconsistent admin authorization patterns |~~ _(verified resolved — Adm-B3 consolidated all /api/admin/* routes; ai/chat was last holdout using raw `admins` table, now uses `is_admin()` RPC)_
 | X6 | P2 | No task / workflow / approval system — `reminder_days` and notification preferences exist in schema but drive zero behavior |
 | X7 | P2 | No grant lifecycle management (intake → review → approval → payment → reporting → closeout) |
 | X8 | P3 | No board portal — no structured quarterly reporting pathway for foundations |

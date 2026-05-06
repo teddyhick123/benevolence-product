@@ -3,8 +3,9 @@
 // Handles the OAuth redirect from Intuit, exchanges code for tokens, and stores them.
 
 import { NextResponse } from 'next/server';
-import { createServerClient, createAdminClient } from '@/lib/supabase';
+import { createServerClient } from '@/lib/supabase';
 import { createOAuthClient } from '@/lib/integrations/quickbooks/client';
+import { encryptToken } from '@/lib/integrations/quickbooks/token-crypto';
 
 export async function GET(req: Request): Promise<NextResponse> {
   const supabase = await createServerClient();
@@ -53,15 +54,15 @@ export async function GET(req: Request): Promise<NextResponse> {
     return NextResponse.json({ error: 'Invalid state parameter' }, { status: 400 });
   }
 
-  // Confirm user is a member of this org
+  // Confirm user is an admin or owner of this org (mirrors connect route check)
   const { data: membership } = await supabase
     .from('organization_members')
-    .select('id')
+    .select('member_role')
     .eq('org_id', orgId)
     .eq('user_id', user.id)
     .single();
 
-  if (!membership) {
+  if (!membership || !['owner', 'admin'].includes(membership.member_role as string)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
@@ -90,16 +91,14 @@ export async function GET(req: Request): Promise<NextResponse> {
 
   const tokenExpiry = new Date(Date.now() + (tokens.expires_in ?? 3600) * 1000);
 
-  // Use admin client to upsert — RLS would block the write if the connection doesn't exist yet
-  const adminSupabase = createAdminClient();
-  const { error: upsertError } = await adminSupabase
+  const { error: upsertError } = await supabase
     .from('quickbooks_connections')
     .upsert(
       {
         org_id: orgId,
         realm_id: realmId,
-        access_token: tokens.access_token,
-        refresh_token: tokens.refresh_token,
+        access_token: encryptToken(tokens.access_token),
+        refresh_token: encryptToken(tokens.refresh_token),
         token_expiry: tokenExpiry.toISOString(),
         connected_at: new Date().toISOString(),
       },

@@ -3,8 +3,9 @@
 // Body: { org_id: string }
 // Revokes the QB OAuth token and removes the stored connection record.
 
-import { createServerClient, createAdminClient } from '@/lib/supabase';
+import { createServerClient } from '@/lib/supabase';
 import { createOAuthClient } from '@/lib/integrations/quickbooks/client';
+import { decryptToken, isEncrypted } from '@/lib/integrations/quickbooks/token-crypto';
 
 export async function POST(req: Request): Promise<Response> {
   const supabase = await createServerClient();
@@ -33,9 +34,8 @@ export async function POST(req: Request): Promise<Response> {
     return Response.json({ error: 'Admin access required' }, { status: 403 });
   }
 
-  // Fetch the stored connection
-  const adminSupabase = createAdminClient();
-  const { data: connection } = await adminSupabase
+  // Fetch the stored connection (RLS allows org admin to read their own connection)
+  const { data: connection } = await supabase
     .from('quickbooks_connections')
     .select('access_token, refresh_token')
     .eq('org_id', orgId)
@@ -44,27 +44,22 @@ export async function POST(req: Request): Promise<Response> {
   // Best-effort token revocation — don't fail the whole request if this errors
   if (connection) {
     try {
+      const rawAccess = connection.access_token as string;
+      const rawRefresh = connection.refresh_token as string;
+      const accessToken = isEncrypted(rawAccess) ? decryptToken(rawAccess) : rawAccess;
+      const refreshToken = isEncrypted(rawRefresh) ? decryptToken(rawRefresh) : rawRefresh;
       const oauthClient = createOAuthClient();
-      oauthClient.setToken({
-        access_token: connection.access_token as string,
-        refresh_token: connection.refresh_token as string,
-      });
-      await oauthClient.revoke({ token: connection.refresh_token as string });
+      oauthClient.setToken({ access_token: accessToken, refresh_token: refreshToken });
+      await oauthClient.revoke({ token: refreshToken });
     } catch (err) {
       console.warn('[QB] Token revocation error (ignored):', err);
     }
   }
 
-  // Remove the connection record and all synced accounts
+  // Remove the connection record and all synced accounts (RLS enforces org scope)
   await Promise.all([
-    adminSupabase
-      .from('quickbooks_connections')
-      .delete()
-      .eq('org_id', orgId),
-    adminSupabase
-      .from('qb_accounts')
-      .delete()
-      .eq('org_id', orgId),
+    supabase.from('quickbooks_connections').delete().eq('org_id', orgId),
+    supabase.from('qb_accounts').delete().eq('org_id', orgId),
   ]);
 
   return Response.json({ ok: true });

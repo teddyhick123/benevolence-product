@@ -3,7 +3,7 @@
 // Body: { org_id: string }
 // Fetches the Chart of Accounts from QuickBooks and upserts into qb_accounts.
 
-import { createServerClient, createAdminClient } from '@/lib/supabase';
+import { createServerClient } from '@/lib/supabase';
 import {
   getAuthenticatedQBClientByOrg,
   findAccountsAsync,
@@ -65,10 +65,9 @@ export async function POST(req: Request): Promise<Response> {
     synced_at: now,
   }));
 
-  const adminSupabase = createAdminClient();
-
   // Upsert all accounts; conflict on (org_id, qb_id)
-  const { error: upsertError } = await adminSupabase
+  // RLS policy "qb_accounts: org admins can manage" enforces org scope at DB level
+  const { error: upsertError } = await supabase
     .from('qb_accounts')
     .upsert(rows, { onConflict: 'org_id,qb_id' });
 
@@ -78,7 +77,7 @@ export async function POST(req: Request): Promise<Response> {
   }
 
   // Update last_sync_at on the connection record
-  await adminSupabase
+  await supabase
     .from('quickbooks_connections')
     .update({ last_sync_at: now })
     .eq('org_id', orgId);

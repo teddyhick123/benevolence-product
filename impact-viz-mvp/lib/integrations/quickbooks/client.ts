@@ -2,6 +2,7 @@
 // Authenticated QuickBooks Online client factory with automatic token refresh.
 
 import { createAdminClient } from '@/lib/supabase';
+import { encryptToken, decryptToken, isEncrypted } from './token-crypto';
 
 // ---------------------------------------------------------------------------
 // Minimal type declarations for the third-party packages
@@ -180,6 +181,14 @@ export async function getAuthenticatedQBClientByOrg(
   let connection = await getQBConnectionByOrg(orgId);
   if (!connection) return null;
 
+  // Decrypt tokens — stored encrypted (isEncrypted guard for legacy plaintext rows)
+  const accessToken = isEncrypted(connection.access_token)
+    ? decryptToken(connection.access_token)
+    : connection.access_token;
+  const refreshToken = isEncrypted(connection.refresh_token)
+    ? decryptToken(connection.refresh_token)
+    : connection.refresh_token;
+
   // Check if refresh token itself has expired (101-day QuickBooks limit)
   if (connection.refresh_expires_at && new Date(connection.refresh_expires_at) <= new Date()) {
     console.warn('[QB] Refresh token expired for org', orgId, '— user must reconnect');
@@ -189,12 +198,15 @@ export async function getAuthenticatedQBClientByOrg(
   const tokenExpiry = new Date(connection.expires_at);
   const thirtyDaysFromNow = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
 
+  let currentAccessToken = accessToken;
+  let currentRefreshToken = refreshToken;
+
   if (tokenExpiry <= thirtyDaysFromNow) {
     try {
       const oauthClient = createOAuthClient();
       oauthClient.setToken({
-        access_token: connection.access_token,
-        refresh_token: connection.refresh_token,
+        access_token: accessToken,
+        refresh_token: refreshToken,
         expires_in: Math.max(
           0,
           Math.floor((tokenExpiry.getTime() - Date.now()) / 1000)
@@ -209,19 +221,18 @@ export async function getAuthenticatedQBClientByOrg(
       // QB refresh tokens have a 101-day lifetime; update expiry on each successful refresh
       const newRefreshExpiry = new Date(Date.now() + 101 * 24 * 60 * 60 * 1000);
 
-      const { data: updated } = await supabase
+      currentAccessToken = newTokens.access_token;
+      currentRefreshToken = newTokens.refresh_token;
+
+      await supabase
         .from('quickbooks_connections')
         .update({
-          access_token: newTokens.access_token,
-          refresh_token: newTokens.refresh_token,
+          access_token: encryptToken(newTokens.access_token),
+          refresh_token: encryptToken(newTokens.refresh_token),
           expires_at: newExpiry.toISOString(),
           refresh_expires_at: newRefreshExpiry.toISOString(),
         })
-        .eq('org_id', orgId)
-        .select()
-        .single();
-
-      if (updated) connection = updated as QBConnection;
+        .eq('org_id', orgId);
     } catch (err) {
       console.error('[QB] Token refresh failed:', err);
       return null;
@@ -233,14 +244,14 @@ export async function getAuthenticatedQBClientByOrg(
   const client = new QuickBooks(
     process.env.QB_CLIENT_ID!,
     process.env.QB_CLIENT_SECRET!,
-    connection.access_token,
+    currentAccessToken,
     false,
     connection.realm_id,
     useSandbox,
     false,
     null,
     '2.0',
-    connection.refresh_token
+    currentRefreshToken
   );
 
   return { client, connection };

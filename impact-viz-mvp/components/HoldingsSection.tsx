@@ -3,23 +3,16 @@
 'use client';
 
 import * as React from 'react';
-import useSWR from 'swr';
 import SectionHeader from '@/components/SectionHeader';
 import HoldingsTable from '@/components/HoldingsTable';
 import EditHoldingsModal, { HoldingInput } from '@/components/EditHoldingsModal';
 import { AssetType } from '@/lib/schemas/portfolio';
-
-const fetcher = (url: string) => fetch(url, { cache: 'no-store' }).then(r => r.json());
+import { useHoldings } from '@/lib/hooks/useHoldings';
 
 export type HoldingRow = any;
 
 export default function HoldingsSection({ portfolioId, canEdit = false }: { portfolioId: string; canEdit?: boolean }) {
-  const { data, error, isLoading, mutate } = useSWR<{ data: HoldingRow[]; count: number; nextOffset: number | null }>(
-    `/api/portfolio/${encodeURIComponent(portfolioId)}/holdings?limit=100`,
-    fetcher
-  );
-
-  const rows = data?.data ?? [];
+  const { holdings: rows, error, isLoading, mutate } = useHoldings(portfolioId);
   const [open, setOpen] = React.useState(false);
   const [editing, setEditing] = React.useState<HoldingInput | null>(null);
   const [selectedAssetType, setSelectedAssetType] = React.useState<AssetType | 'all'>('all');

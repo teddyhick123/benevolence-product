@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { ASSET_TYPE_COLORS, ASSET_TYPE_LABELS, AssetType } from '@/lib/schemas/portfolio';
 import HoldingsPieWidget from '@/components/vis/HoldingsPieWidget';
 import AISummaryCard from '@/components/AISummaryCard';
+import { useHoldings } from '@/lib/hooks/useHoldings';
 
 type AssetTypeBreakdown = {
   asset_type: AssetType;
@@ -35,97 +36,46 @@ export default function AllAssetsOverview({
   grantSummary,
   donationSummary,
 }: Props) {
-  const [data, setData] = useState<AllAssetsData | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { holdings, isLoading } = useHoldings(portfolioId);
 
-  useEffect(() => {
-    let mounted = true;
+  const data = React.useMemo<AllAssetsData | null>(() => {
+    if (isLoading) return null;
+    const breakdownMap = new Map<AssetType, { total_value: number; holdings_count: number }>();
+    let totalValue = 0;
+    let totalHoldings = 0;
+    let activeHoldings = 0;
 
-    // Fetch holdings data to calculate accurate breakdown
-    const fetchAndCalculateData = async () => {
-      try {
-        setLoading(true);
-
-        // Fetch all holdings for this portfolio
-        const response = await fetch(`/api/portfolio/${portfolioId}/holdings?limit=1000`, {
-          cache: 'no-store',
-        });
-
-        if (!response.ok) {
-          throw new Error('Failed to fetch holdings');
-        }
-
-        const result = await response.json();
-        const holdings = result.data || [];
-
-        // Calculate breakdown by asset type
-        const breakdownMap = new Map<AssetType, { total_value: number; holdings_count: number }>();
-        let totalValue = 0;
-        let totalHoldings = 0;
-        let activeHoldings = 0;
-
-        holdings.forEach((holding: any) => {
-          const assetType = holding.asset_type as AssetType;
-          const value = Number(holding.funds_allocated || holding.nav || 0);
-          const isActive = holding.status === 'Active';
-
-          totalValue += value;
-          totalHoldings++;
-          if (isActive) activeHoldings++;
-
-          if (assetType) {
-            const current = breakdownMap.get(assetType) || { total_value: 0, holdings_count: 0 };
-            breakdownMap.set(assetType, {
-              total_value: current.total_value + value,
-              holdings_count: current.holdings_count + 1,
-            });
-          }
-        });
-
-        // Convert map to array and calculate percentages
-        const breakdown: AssetTypeBreakdown[] = [];
-        breakdownMap.forEach((value, assetType) => {
-          breakdown.push({
-            asset_type: assetType,
-            total_value: value.total_value,
-            holdings_count: value.holdings_count,
-            percentage: totalValue > 0 ? (value.total_value / totalValue) * 100 : 0,
-          });
-        });
-
-        // Sort by value descending
-        breakdown.sort((a, b) => b.total_value - a.total_value);
-
-        const avgSize = totalHoldings > 0 ? totalValue / totalHoldings : 0;
-
-        if (mounted) {
-          setData({
-            total_value: totalValue,
-            total_holdings: totalHoldings,
-            asset_types_count: breakdown.length,
-            active_holdings: activeHoldings,
-            average_size: avgSize,
-            last_updated: new Date().toISOString(),
-            asset_type_breakdown: breakdown,
-          });
-          setLoading(false);
-        }
-      } catch (error) {
-        console.error('Error fetching holdings data:', error);
-        if (mounted) {
-          setLoading(false);
-        }
+    holdings.forEach((holding: any) => {
+      const assetType = holding.asset_type as AssetType;
+      const value = Number(holding.funds_allocated || holding.nav || 0);
+      const isActive = holding.status === 'Active';
+      totalValue += value;
+      totalHoldings++;
+      if (isActive) activeHoldings++;
+      if (assetType) {
+        const current = breakdownMap.get(assetType) || { total_value: 0, holdings_count: 0 };
+        breakdownMap.set(assetType, { total_value: current.total_value + value, holdings_count: current.holdings_count + 1 });
       }
+    });
+
+    const breakdown: AssetTypeBreakdown[] = [];
+    breakdownMap.forEach((value, assetType) => {
+      breakdown.push({ asset_type: assetType, total_value: value.total_value, holdings_count: value.holdings_count, percentage: totalValue > 0 ? (value.total_value / totalValue) * 100 : 0 });
+    });
+    breakdown.sort((a, b) => b.total_value - a.total_value);
+
+    return {
+      total_value: totalValue,
+      total_holdings: totalHoldings,
+      asset_types_count: breakdown.length,
+      active_holdings: activeHoldings,
+      average_size: totalHoldings > 0 ? totalValue / totalHoldings : 0,
+      last_updated: new Date().toISOString(),
+      asset_type_breakdown: breakdown,
     };
+  }, [holdings, isLoading]);
 
-    fetchAndCalculateData();
-
-    return () => {
-      mounted = false;
-    };
-  }, [portfolioId]);
-
-  if (loading || !data) {
+  if (isLoading || !data) {
     return (
       <div className="rounded-2xl bg-white border border-black/5 shadow-soft p-6 text-sm text-neutral-500">
         Loading portfolio overview...

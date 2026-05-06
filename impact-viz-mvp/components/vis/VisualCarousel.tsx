@@ -1,5 +1,6 @@
 'use client';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useHoldings } from '@/lib/hooks/useHoldings';
 import dynamic from 'next/dynamic';
 import KpiTrend from '@/components/vis/KpiTrend';
 import SectorEmissionsBar from '@/components/vis/SectorEmissionsBar';
@@ -115,68 +116,60 @@ function HoldingsPieAutoRenderer({
   title?: string | null;
   config?: any;
 }) {
-  const [loading, setLoading] = React.useState(true);
-  const [error, setError] = React.useState<string | null>(null);
-  const [data, setData] = React.useState<Array<{ label: string; value: number }>>([]);
-
   const size = Number(config?.size ?? 320);
   const innerRadius = Number(config?.innerRadius ?? 48);
   const showLegend = config?.showLegend ?? true;
   const legendMaxHeight = Number(config?.legendMaxHeight ?? 240);
 
-  // mapping config (in case API field names differ)
   const nameField: string = String(config?.nameField ?? 'name');
   const valueFieldPrimary: string = String(config?.valueFieldPrimary ?? 'funds_allocated');
   const valueFieldFallback: string = String(config?.valueFieldFallback ?? 'nav');
-  const endpoint: string =
-    config?.endpoint ?? `/api/portfolio/${encodeURIComponent(portfolioId)}/holdings`;
+  const customEndpoint: string | undefined = config?.endpoint;
+
+  // Use shared SWR hook when no custom endpoint — deduplicates across components
+  const { holdings: sharedRows, isLoading: sharedLoading, error: sharedError } = useHoldings(portfolioId);
+
+  // Custom endpoint path (rare override case)
+  const [customRows, setCustomRows] = React.useState<any[]>([]);
+  const [customLoading, setCustomLoading] = React.useState(false);
+  const [customError, setCustomError] = React.useState<string | null>(null);
 
   React.useEffect(() => {
+    if (!customEndpoint) return;
     let alive = true;
-    (async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        const res = await fetch(endpoint, { cache: 'no-store' });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const json = await res.json();
+    setCustomLoading(true);
+    setCustomError(null);
+    fetch(customEndpoint, { cache: 'no-store' })
+      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+      .then(json => { if (alive) { setCustomRows(Array.isArray(json?.data) ? json.data : Array.isArray(json) ? json : []); } })
+      .catch(err => { if (alive) setCustomError(err?.message ?? 'Failed to load'); })
+      .finally(() => { if (alive) setCustomLoading(false); });
+    return () => { alive = false; };
+  }, [customEndpoint]);
 
-        const rows: any[] = Array.isArray(json?.data) ? json.data : Array.isArray(json) ? json : [];
-        const m = new Map<string, number>();
+  const loading = customEndpoint ? customLoading : sharedLoading;
+  const error = customEndpoint ? customError : (sharedError ? (sharedError as any)?.message ?? 'Failed to load holdings' : null);
+  const rows: any[] = customEndpoint ? customRows : sharedRows;
 
-        const getName = (r: any) =>
-          r?.[nameField] ?? r?.holding_name ?? r?.investees?.[0]?.display_name ?? '—';
-
-        const getVal = (r: any) => {
-          const primary = Number(r?.[valueFieldPrimary]);
-          if (Number.isFinite(primary) && primary > 0) return primary;
-          const fallback = Number(r?.[valueFieldFallback]);
-          if (Number.isFinite(fallback) && fallback > 0) return fallback;
-          return 0;
-        };
-
-        for (const r of rows) {
-          const label = String(getName(r));
-          const v = getVal(r);
-          if (!Number.isFinite(v) || v <= 0) continue;
-          m.set(label, (m.get(label) ?? 0) + v);
-        }
-
-        const pieData = Array.from(m.entries())
-          .map(([label, value]) => ({ label, value }))
-          .sort((a, b) => b.value - a.value);
-
-        if (alive) setData(pieData);
-      } catch (err: any) {
-        if (alive) setError(err?.message ?? 'Failed to load holdings');
-      } finally {
-        if (alive) setLoading(false);
-      }
-    })();
-    return () => {
-      alive = false;
+  const data = React.useMemo(() => {
+    const getName = (r: any) =>
+      r?.[nameField] ?? r?.holding_name ?? r?.investees?.[0]?.display_name ?? '—';
+    const getVal = (r: any) => {
+      const primary = Number(r?.[valueFieldPrimary]);
+      if (Number.isFinite(primary) && primary > 0) return primary;
+      const fallback = Number(r?.[valueFieldFallback]);
+      if (Number.isFinite(fallback) && fallback > 0) return fallback;
+      return 0;
     };
-  }, [endpoint, nameField, valueFieldPrimary, valueFieldFallback, portfolioId]);
+    const m = new Map<string, number>();
+    for (const r of rows) {
+      const label = String(getName(r));
+      const v = getVal(r);
+      if (!Number.isFinite(v) || v <= 0) continue;
+      m.set(label, (m.get(label) ?? 0) + v);
+    }
+    return Array.from(m.entries()).map(([label, value]) => ({ label, value })).sort((a, b) => b.value - a.value);
+  }, [rows, nameField, valueFieldPrimary, valueFieldFallback]);
 
   if (loading) {
     return (

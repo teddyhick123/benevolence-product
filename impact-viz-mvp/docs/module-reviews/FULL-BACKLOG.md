@@ -1,6 +1,8 @@
 # Benevolence — Full Issue Backlog
 
-Last updated: 2026-05-06 (post-Sprint B wave 11 — AI-S2/S3 session-scoped client + initiated_by audit column)
+Last updated: 2026-05-06 (post-Sprint C P1+P2 sweep — X1/X2/Cm-B6/Ch-B8/Ch-B9/Ch-B10/QB-B8/QB-B9/AI-B7/AI-B8/AI-S4/Adm-B4/Adm-B5/X5 resolved; P1 backlog cleared)
+
+Resolved in Sprint C (2026-05-06): X1 module gating on tax/donors/compliance pages; X2 multi-org switcher + org-cookie helpers; Cm-B6 Add Filing UI; Ch-B8 search debouncing; Ch-B9 pagination window; Ch-B10 charity rate limiting; QB-B8 refresh window 30d→5min; QB-B9 concurrent refresh mutex; AI-B7 prod error sanitization; AI-B8 token usage logging (migration 0030 + Anthropic provider + chat route); AI-S4 prompt injection guard; Adm-B4 AI suggestion Accept button + PATCH endpoint; Adm-B5 staging PII cleanup (migration 0031 + commit trigger); X5 ai/chat admin RPC aligned; Dr-B7 verified resolved.
 Source: 10 individual module reviews in `docs/module-reviews/`
 Scope: All remaining bugs, UX gaps, missing features, security issues, and performance issues across all active modules.
 

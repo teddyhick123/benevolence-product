@@ -1,8 +1,9 @@
 "use client";
 import Link from "next/link";
-import { useEffect, useState, Suspense } from "react";
+import { useEffect, useState, useRef, Suspense } from "react";
 import { useSearchParams, usePathname } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
+import { pickActiveOrg, setActiveOrgId } from "@/lib/org-cookie";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -14,7 +15,10 @@ function HeaderContent() {
   const [portfolioId, setPortfolioId] = useState<string | null>(null);
   const [orgName, setOrgName] = useState<string | null>(null);
   const [orgModules, setOrgModules] = useState<Record<string, boolean>>({});
+  const [allOrgs, setAllOrgs] = useState<Array<{ id: string; name: string }>>([]);
+  const [orgSwitcherOpen, setOrgSwitcherOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const orgSwitcherRef = useRef<HTMLDivElement>(null);
   const searchParams = useSearchParams();
   const pathname = usePathname();
 
@@ -54,13 +58,11 @@ function HeaderContent() {
         const res = await fetch('/api/org', { cache: 'no-store' });
         if (res.ok) {
           const data = await res.json();
-          const firstOrg = data?.organizations?.[0];
-          if (firstOrg?.modules) {
-            setOrgModules(firstOrg.modules);
-          }
-          if (firstOrg?.name) {
-            setOrgName(firstOrg.name);
-          }
+          const orgs: Array<{ id: string; name: string; modules?: Record<string, boolean> }> = data?.organizations ?? [];
+          setAllOrgs(orgs);
+          const activeOrg = pickActiveOrg(orgs);
+          if (activeOrg?.modules) setOrgModules(activeOrg.modules);
+          if (activeOrg?.name) setOrgName(activeOrg.name);
         }
       } catch {
         // ignore
@@ -71,6 +73,23 @@ function HeaderContent() {
       fetchOrg();
     }
   }, [user]);
+
+  // Outside-click dismiss for org switcher
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (orgSwitcherRef.current && !orgSwitcherRef.current.contains(e.target as Node)) {
+        setOrgSwitcherOpen(false);
+      }
+    }
+    if (orgSwitcherOpen) document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [orgSwitcherOpen]);
+
+  function switchOrg(orgId: string) {
+    setActiveOrgId(orgId);
+    setOrgSwitcherOpen(false);
+    window.location.reload();
+  }
 
   // Get current portfolio ID: URL param > fetched from user > default
   const urlPortfolioId = searchParams.get('portfolio_id');
@@ -97,13 +116,40 @@ function HeaderContent() {
   return (
     <header className="w-full sticky top-0 z-40 bg-creme/90 backdrop-blur-md border-b border-black/5">
       <div className="w-full px-4 md:px-6 lg:px-8 py-2 md:py-3 flex items-center justify-between">
-        {/* Left: brand (B.) + org name */}
-        <Link href="/" className="inline-flex items-center gap-2 group transition-transform duration-200 hover:-translate-y-0.5 will-change-transform rm:transition-none rm:transform-none">
-          <span className="font-serif text-2xl leading-none text-azure group-hover:opacity-90">B.</span>
+        {/* Left: brand (B.) + org name / switcher */}
+        <div className="flex items-center gap-2">
+          <Link href="/" className="inline-flex items-center gap-2 group transition-transform duration-200 hover:-translate-y-0.5 will-change-transform rm:transition-none rm:transform-none">
+            <span className="font-serif text-2xl leading-none text-azure group-hover:opacity-90">B.</span>
+          </Link>
           {orgName && (
-            <span className="hidden sm:block font-sans text-xs text-black/40 leading-none">{orgName}</span>
+            allOrgs.length > 1 ? (
+              <div ref={orgSwitcherRef} className="relative hidden sm:block">
+                <button
+                  onClick={() => setOrgSwitcherOpen(v => !v)}
+                  className="flex items-center gap-1 font-sans text-xs text-black/50 hover:text-black/70 transition-colors"
+                >
+                  <span>{orgName}</span>
+                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                </button>
+                {orgSwitcherOpen && (
+                  <div className="absolute top-full left-0 mt-1 min-w-[160px] bg-white border border-black/10 rounded-lg shadow-soft z-50 py-1">
+                    {allOrgs.map(org => (
+                      <button
+                        key={org.id}
+                        onClick={() => switchOrg(org.id)}
+                        className="block w-full text-left px-3 py-2 text-xs hover:bg-black/5 text-neutral-700"
+                      >
+                        {org.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <span className="hidden sm:block font-sans text-xs text-black/40 leading-none">{orgName}</span>
+            )
           )}
-        </Link>
+        </div>
 
         {/* Right: auth-aware nav */}
         {!user ? (

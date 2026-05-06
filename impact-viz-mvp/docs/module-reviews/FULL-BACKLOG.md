@@ -1,6 +1,6 @@
 # Benevolence — Full Issue Backlog
 
-Last updated: 2026-05-06 (post-Sprint B wave 8 — AI multi-turn tool loop, consolidated admin auth)
+Last updated: 2026-05-06 (post-Sprint B wave 11 — AI-S2/S3 session-scoped client + initiated_by audit column)
 Source: 10 individual module reviews in `docs/module-reviews/`
 Scope: All remaining bugs, UX gaps, missing features, security issues, and performance issues across all active modules.
 
@@ -13,6 +13,12 @@ Resolved in Sprint B wave 1 (2026-05-01): compliance payout `amount_usd`→`fair
 Resolved in Sprint B wave 2 (2026-05-04): charities full column reconciliation (C4/Ch-B1/Ch-B4), removed dead queries for non-existent tables (C5/Ch-B2/Ch-U6), replaced `portfolio_recommendations` with `portfolio_charities` junction table (C6/Ch-B3/Ch-F1/Ch-F2/Ch-F7), donor CRM acknowledgment write (Dr-B1), donor PDF signed URL (Dr-B2/Dr-F4).
 
 Resolved in Sprint B wave 3 (2026-05-05): IRS 990-PF Part XIII payout formula — exempt-use assets, acquisition indebtedness, excise-tax deduction, avg FMV (Cm-B2); filing status enum aligned to DB values, Mark-as-Filed button now shows on `upcoming`/`overdue` (Cm-B3); conservation easement 50% AGI limit + schema category (T-B1/T-F1); Form 8283 Section A/B routing for publicly traded securities (T-B2/T-F2); optimization engine 60% cash AGI bucket (T-B3/T-F3); CPA Collaboration Portal enabled (T-B5/T-F5/T-U4); hardcoded CPA base URL → env var (T-B6/T-F6); removed AGI console.log in production (T-B7); Cache-Control: no-store on all sensitive tax routes (T-B8); QCD limit uses scenario year not current year (T-B9); bunching strategy standard deduction no longer hardcoded (T-B10); holdings GET auth check + no-store cache header (H-S1); deleteFact holding_id scope guard (H-S2); asset_type/status enum validation in server actions (H-S3).
+
+Resolved in Sprint B wave 11 (2026-05-06): AI-S2 initiated_by column (migration 0029) on ai_actions, set to 'ai' by executor; AI-S3 ClaudePortfolioAssistant now takes session-scoped client — all AI tool calls respect RLS.
+
+Resolved in Sprint B wave 10 (2026-05-06): QB-S1 AES-256-GCM token encryption via token-crypto.ts; QB-S2 createAdminClient replaced with session client in callback/disconnect/sync-accounts (RLS now enforced); QB-S3 verified resolved (export routes already cross-check admin membership); D-B1 consolidated triple holdings fetch to single SWR-cached useHoldings() hook.
+
+Resolved in Sprint B wave 9 (2026-05-06): T-B4 short-term cap gains uses 37% ordinary-income rate + deduction capped at cost basis; H-B3 edit forms no longer hidden once holding has basic fields set.
 
 Resolved in Sprint B wave 8 (2026-05-06): AI-B4 multi-turn tool execution loop — replaced two-pass approach with while-loop (max 5 turns), tool calls in final response are now executed instead of silently dropped; Adm-B3 admin auth consolidated — created lib/admin-auth.ts with canonical requireAdmin() using is_admin() RPC, removed 25 duplicate inline functions that queried admins table directly.
 
@@ -201,9 +207,9 @@ _(H-S1, H-S2, H-S3 resolved in Sprint B wave 3 — see commit eb13d1c0)_
 
 | # | Severity | Issue |
 |---|----------|-------|
-| QB-S1 | P1 | Access tokens and refresh tokens stored as plaintext `TEXT` in Postgres — if DB is compromised all QB tokens are directly readable |
-| QB-S2 | P1 | `createAdminClient()` used in QB routes — bypasses all RLS for privileged QB operations |
-| QB-S3 | P1 | `org_id` in export/sync routes taken from request body without cross-checking against session org — viewer in multiple orgs could trigger admin actions for another org they belong to |
+~~| QB-S1 | P1 | Tokens plaintext in Postgres |~~ _(resolved — AES-256-GCM via QB_TOKEN_ENCRYPTION_KEY, isEncrypted() guard for legacy rows)_
+~~| QB-S2 | P1 | `createAdminClient()` in QB routes |~~ _(resolved — callback/disconnect/sync-accounts use session client; RLS enforces org scope)_
+~~| QB-S3 | P1 | `org_id` from body without session cross-check |~~ _(verified resolved — both export routes check organization_members admin role before acting)_
 
 ### Missing Features (P2–P3)
 
@@ -211,7 +217,7 @@ _(H-S1, H-S2, H-S3 resolved in Sprint B wave 3 — see commit eb13d1c0)_
 |---|---------|
 ~~| QB-F1 | Export deduplication guard |~~ _(resolved d380d8cc)_
 | QB-F2 | QB Class / fund dimension support (required under ASC 958 for private foundations) |
-| QB-F3 | Encrypt tokens at rest (pgcrypto or Vault) |
+~~| QB-F3 | Encrypt tokens at rest |~~ _(resolved — AES-256-GCM, see QB-S1)_
 ~~| QB-F4 | Disbursed vs committed distinction in grants export |~~ _(resolved d380d8cc)_
 ~~| QB-F5 | refresh_expires_at check |~~ _(resolved d380d8cc)_
 ~~| QB-F6 | Remove dead getAuthenticatedQBClient |~~ _(resolved d380d8cc — deprecated stub)_
@@ -322,8 +328,8 @@ _(H-S1, H-S2, H-S3 resolved in Sprint B wave 3 — see commit eb13d1c0)_
 | # | Severity | Issue |
 |---|----------|-------|
 ~~| AI-S1 | `update_holding` has no field allowlist |~~ _(resolved Sprint B wave 5 — see AI-B3)_
-| AI-S2 | P1 | No audit trail attribute distinguishing AI-initiated changes from user edits in `ai_actions` |
-| AI-S3 | P1 | Service-role Supabase client used for all AI tool execution — bypasses all RLS |
+~~| AI-S2 | P1 | No audit trail attribute |~~ _(resolved — migration 0029 adds initiated_by column with 'ai' default; ai-action-executor sets it on every insert)_
+~~| AI-S3 | P1 | Service-role client for AI tools |~~ _(resolved — ClaudePortfolioAssistant now accepts session client; chat route passes user supabase; all tool calls run through RLS)_
 | AI-S4 | P2 | No prompt injection guard on user-provided text that becomes part of AI system prompt context |
 ~~| AI-S5 | Unbounded conversation history |~~ _(resolved Sprint B wave 5 — D-B5 history capped at 20 messages)_
 
@@ -437,7 +443,7 @@ _(H-S1, H-S2, H-S3 resolved in Sprint B wave 3 — see commit eb13d1c0)_
 
 | # | Severity | Issue |
 |---|----------|-------|
-| X1 | P1 | Module gating is cosmetic — nav links and pages don't check `org_has_module()` — Tax, Compliance, Donors always visible regardless of enabled modules |
+~~| X1 | P1 | Module gating cosmetic |~~ _(resolved — Tax nav link now wrapped with orgModules.tax guard; tax/donors/compliance pages show "not enabled" UI when module flag is false)_
 | X2 | P1 | Multi-entity UX is "first org/first portfolio wins" throughout — `/api/me` picks first portfolio; donors and compliance fetch first org; family offices managing multiple entities are not served |
 ~~| X3 | `family_office` missing from onboarding |~~ _(resolved Sprint B wave 7 — persona card added, org_type enum values aligned across full stack)_
 ~~| X4 | Letter generator label misleading |~~ _(resolved Sprint B wave 7 — renamed to "Portfolio Letter" on dashboard)_

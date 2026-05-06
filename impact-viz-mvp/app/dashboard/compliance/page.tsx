@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { pickActiveOrg } from '@/lib/org-cookie';
 
 const FILING_TYPE_LABELS: Record<string, string> = {
   form_990pf: 'Form 990-PF',
@@ -60,7 +61,7 @@ export default function CompliancePage() {
       ]);
       if (orgRes.ok) {
         const d = await orgRes.json();
-        const org = d.organizations?.[0];
+        const org = pickActiveOrg(d.organizations ?? []);
         setOrgId(org?.id || null);
         setModuleEnabled(!!org?.modules?.compliance);
       }

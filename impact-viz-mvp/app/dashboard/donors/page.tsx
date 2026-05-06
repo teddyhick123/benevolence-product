@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { pickActiveOrg } from '@/lib/org-cookie';
 
 const TIER_LABELS: Record<string, string> = {
   major: 'Major',
@@ -45,10 +46,10 @@ export default function DonorsPage() {
         const res = await fetch('/api/org');
         if (res.ok) {
           const data = await res.json();
-          const firstOrg = data.organizations?.[0];
-          if (firstOrg) {
-            setOrgId(firstOrg.id);
-            setModuleEnabled(!!firstOrg.modules?.donors);
+          const activeOrg = pickActiveOrg(data.organizations ?? []);
+          if (activeOrg) {
+            setOrgId(activeOrg.id);
+            setModuleEnabled(!!activeOrg.modules?.donors);
           }
         }
       } catch {

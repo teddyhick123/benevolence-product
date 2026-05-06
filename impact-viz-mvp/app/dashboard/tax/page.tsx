@@ -17,6 +17,7 @@ import CPACollaborationPortal from '@/components/tax/CPACollaborationPortal';
 // Feature flag for unified Tax Strategy Center
 const USE_UNIFIED_TAX_TOOLS = true;
 import { calculateAGILimits } from '@/lib/tax/agi-calculator';
+import { pickActiveOrg } from '@/lib/org-cookie';
 import type { AGILimits } from '@/lib/tax/agi-calculator';
 
 function TaxDashboard() {
@@ -49,8 +50,8 @@ function TaxDashboard() {
         }
         if (orgRes.ok) {
           const json = await orgRes.json();
-          const firstOrg = json.organizations?.[0];
-          setModuleEnabled(firstOrg ? !!firstOrg.modules?.tax : true);
+          const activeOrg = pickActiveOrg(json.organizations ?? []);
+          setModuleEnabled(activeOrg ? !!activeOrg.modules?.tax : true);
         }
       } catch (err) {
         console.error('Error fetching profile:', err);

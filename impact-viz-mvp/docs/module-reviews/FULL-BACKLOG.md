@@ -321,7 +321,7 @@ _(H-S1, H-S2, H-S3 resolved in Sprint B wave 3 — see commit eb13d1c0)_
 ~~| AI-B5 | Letter generation uses OpenAI GPT-4o |~~ _(resolved Sprint B wave 5 — switched to claude-sonnet-4-6)_
 ~~| AI-B6 | display_widget records spurious create action |~~ _(resolved Sprint B wave 5 — no action recorded for display-only op)_
 ~~| AI-B7 | P2 | Error messages may leak internal details in production |~~ _(resolved — production returns generic message; full error logged server-side and exposed only in dev)_
-| AI-B8 | P2 | No AI usage logging — no table recording token consumption, model calls, or estimated cost per user/org/session | Platform-wide |
+~~| AI-B8 | P2 | No AI usage logging |~~ _(resolved — migration 0030 adds `ai_usage_log` table; Anthropic provider surfaces per-turn usage; claude-assistant accumulates across multi-turn; chat route logs input/output tokens + model fire-and-forget)_
 
 ### Trust & Safety (P1)
 

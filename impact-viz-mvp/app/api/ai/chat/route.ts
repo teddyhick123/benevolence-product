@@ -211,6 +211,23 @@ export async function POST(req: NextRequest) {
       redis.incr(`usage:ai:${orgId}:${month}`).catch(() => {});
     }
 
+    // Fire-and-forget: log token usage for cost visibility
+    if (result.usage && (result.usage.inputTokens > 0 || result.usage.outputTokens > 0)) {
+      supabaseService()
+        .from('ai_usage_log')
+        .insert({
+          user_id: user.id,
+          org_id: orgId ?? null,
+          portfolio_id: portfolioId,
+          session_id: sessionId,
+          model: result.usage.model,
+          input_tokens: result.usage.inputTokens,
+          output_tokens: result.usage.outputTokens,
+        })
+        .then()
+        .catch((err) => console.error('[ai/chat] usage log insert failed:', err));
+    }
+
     // Check if any widgets were created/displayed and fetch their full data
     // Note: Database returns snake_case field names
     const widgetActions = result.actions.filter(

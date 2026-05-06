@@ -123,6 +123,7 @@ export interface AIResponse {
   content: AIContentBlock[];
   stopReason: string | null;
   model: string;
+  usage?: { inputTokens: number; outputTokens: number };
 }
 
 /**

@@ -39,7 +39,12 @@ export class AnthropicProvider implements AIProvider {
       return { type: 'text', text: '' };
     });
 
-    return { content, stopReason: response.stop_reason ?? null, model: response.model };
+    return {
+      content,
+      stopReason: response.stop_reason ?? null,
+      model: response.model,
+      usage: { inputTokens: response.usage.input_tokens, outputTokens: response.usage.output_tokens },
+    };
   }
 
   async *createStream(config: AIRequestConfig): AsyncIterable<AIStreamChunk> {

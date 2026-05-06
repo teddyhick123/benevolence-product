@@ -1372,6 +1372,9 @@ export class ClaudePortfolioAssistant {
     const batchId = crypto.randomUUID();
     let sequenceCounter = 0;
     const MAX_TURNS = 5;
+    let totalInputTokens = 0;
+    let totalOutputTokens = 0;
+    let lastModel = AI_MODELS.assistant;
 
     for (let turn = 0; turn < MAX_TURNS; turn++) {
       const response = await this.provider.createMessage({
@@ -1381,6 +1384,13 @@ export class ClaudePortfolioAssistant {
         tools: tools as unknown as ToolDefinition[],
         messages: currentMessages,
       });
+
+      // Accumulate token usage across turns
+      if (response.usage) {
+        totalInputTokens += response.usage.inputTokens;
+        totalOutputTokens += response.usage.outputTokens;
+      }
+      if (response.model) lastModel = response.model;
 
       // Collect text from this turn
       const textBlocks = response.content.filter(
@@ -1450,6 +1460,7 @@ export class ClaudePortfolioAssistant {
       actions,
       toolCalls: allToolCalls,
       toolResults: allToolResults,
+      usage: { inputTokens: totalInputTokens, outputTokens: totalOutputTokens, model: lastModel },
     };
   }
 

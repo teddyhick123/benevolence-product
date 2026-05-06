@@ -89,18 +89,36 @@ export class AIActionExecutor {
       changes: Record<string, any>;
     }
   ): Promise<{ action: AIAction; output: any }> {
-    // Get current state for undo
+    // Get current state and verify ownership
     const { data: before } = await this.supabase
       .from('holdings')
       .select('*')
       .eq('id', args.holding_id)
+      .eq('portfolio_id', portfolioId)
       .single();
+
+    if (!before) throw new Error('Holding not found in this portfolio');
+
+    // Strip internal fields — only allow user-facing columns
+    const ALLOWED_FIELDS = new Set([
+      'name', 'sector', 'country', 'funds_allocated', 'status', 'description',
+      'asset_type', 'ein', 'ticker', 'cusip', 'isin', 'website',
+      'address_line1', 'address_line2', 'city', 'state', 'zip',
+      'latitude', 'longitude', 'amount_invested', 'current_value', 'currency',
+      'investment_date', 'exit_date', 'committed_date',
+      'impact_score', 'focus_area', 'tags', 'notes',
+    ]);
+    const safeChanges = Object.fromEntries(
+      Object.entries(args.changes).filter(([k]) => ALLOWED_FIELDS.has(k))
+    );
+    if (Object.keys(safeChanges).length === 0) throw new Error('No valid fields to update');
 
     // Update the holding
     const { data: after, error } = await (this.supabase
       .from('holdings') as any)
-      .update(args.changes)
+      .update(safeChanges)
       .eq('id', args.holding_id)
+      .eq('portfolio_id', portfolioId)
       .select()
       .single();
 
@@ -151,18 +169,22 @@ export class AIActionExecutor {
       reason?: string;
     }
   ): Promise<{ action: AIAction; output: any }> {
-    // Get current state for undo
+    // Get current state and verify ownership
     const { data: before } = await this.supabase
       .from('holdings')
       .select('*')
       .eq('id', args.holding_id)
+      .eq('portfolio_id', portfolioId)
       .single();
+
+    if (!before) throw new Error('Holding not found in this portfolio');
 
     // Delete the holding
     const { error } = await this.supabase
       .from('holdings')
       .delete()
-      .eq('id', args.holding_id);
+      .eq('id', args.holding_id)
+      .eq('portfolio_id', portfolioId);
 
     if (error) throw error;
 

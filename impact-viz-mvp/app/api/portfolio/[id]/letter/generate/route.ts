@@ -1,11 +1,11 @@
 // app/api/portfolio/[id]/letter/generate/route.ts
 import { NextResponse } from 'next/server';
 import { createSupabaseServerClient } from '@/lib/supabase';
-import OpenAI from 'openai';
+import Anthropic from '@anthropic-ai/sdk';
 import { aiAuthRequired } from '@/lib/rate-limit-response';
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
+const anthropic = new Anthropic({
+  apiKey: process.env.ANTHROPIC_API_KEY,
 });
 
 /**
@@ -189,13 +189,11 @@ ${(holdings || []).slice(0, 10).map((h: any) => {
 ${totalHoldings > 10 ? `... and ${totalHoldings - 10} more holdings` : ''}
 `;
 
-    // 6. Generate letter content using OpenAI
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4o',
-      messages: [
-        {
-          role: 'system',
-          content: `You are a portfolio manager who crafts compelling letters on the state of impact investments and charitable contributions from portfolio data.
+    // 6. Generate letter content using Claude
+    const completion = await anthropic.messages.create({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 2000,
+      system: `You are a portfolio manager who crafts compelling letters on the state of impact investments and charitable contributions from portfolio data.
 
 WRITING STYLE:
 - Balance clear communication of information with a compelling style
@@ -216,19 +214,16 @@ STRUCTURE (without headers):
 INTEGRATION OF VISUALIZATIONS:
 - Reference that "the dashboard shows" or "as illustrated in the portfolio overview" when mentioning data trends
 - Mention that specific metrics "can be explored in detail on the holdings pages"
-- Suggest that stakeholders "review the visualization tools to track progress over time"
-`,
-        },
+- Suggest that stakeholders "review the visualization tools to track progress over time"`,
+      messages: [
         {
           role: 'user',
           content: `Generate a portfolio letter based on the following data:\n\n${portfolioContext}`,
         },
       ],
-      temperature: 0.7,
-      max_tokens: 2000,
     });
 
-    const generatedLetter = completion.choices[0]?.message?.content || '';
+    const generatedLetter = (completion.content[0] as { type: string; text: string })?.text || '';
     const generatedAt = new Date().toISOString();
 
     // 7. Get current max version for this portfolio

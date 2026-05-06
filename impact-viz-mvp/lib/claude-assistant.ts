@@ -1594,11 +1594,14 @@ export class ClaudePortfolioAssistant {
         );
 
       case 'list_holdings': {
-        const { data } = await this.supabase
+        let holdingsQuery = this.supabase
           .from('holdings')
           .select('*')
-          .eq('portfolio_id', portfolioId)
-          .eq('status', args.status || 'Active');
+          .eq('portfolio_id', portfolioId);
+        if (args.status) {
+          holdingsQuery = holdingsQuery.eq('status', args.status);
+        }
+        const { data } = await holdingsQuery;
 
         return {
           action: null,
@@ -1938,31 +1941,9 @@ export class ClaudePortfolioAssistant {
           throw new Error(`Widget with ID ${args.widget_id} not found`);
         }
 
-        const { data: action } = await this.supabase
-          .from('ai_actions')
-          .insert({
-            session_id: sessionId,
-            portfolio_id: portfolioId,
-            user_id: userId,
-            action_type: 'create',
-            entity_type: 'widget',
-            entity_id: widget.id,
-            operation_data: {
-              table: portfolioWidget ? 'widgets' : 'holding_widgets',
-              after: widget,
-              display_only: true,
-            },
-            ai_reasoning: `Displaying existing widget: "${widget.title}"`,
-            user_prompt: userPrompt,
-            status: 'applied',
-            batch_id: batchId,
-            sequence_order: sequenceOrder,
-          })
-          .select()
-          .single();
-
+        // display_widget is read-only — no action record needed
         return {
-          action: action as AIAction,
+          action: null,
           output: { widget, displayed: true },
         };
       }

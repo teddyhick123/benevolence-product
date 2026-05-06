@@ -45,12 +45,16 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
   // Collect timeline events from multiple sources
   const events: any[] = [];
 
-  // 1. Events from events table (if it exists and has investee_id)
-  const { data: dbEvents } = await supabase
-    .from('events')
-    .select('*')
-    .order('event_date', { ascending: false })
-    .limit(500);
+  // 1. Events from events table — filtered by investee_ids belonging to this portfolio
+  const portfolioInvesteeIds = Array.from(investeeToHolding.keys());
+  const { data: dbEvents } = portfolioInvesteeIds.length > 0
+    ? await supabase
+        .from('events')
+        .select('*')
+        .in('investee_id', portfolioInvesteeIds)
+        .order('event_date', { ascending: false })
+        .limit(500)
+    : { data: [] };
 
   if (dbEvents) {
     for (const evt of dbEvents) {

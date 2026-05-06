@@ -200,8 +200,8 @@ _(H-S1, H-S2, H-S3 resolved in Sprint B wave 3 — see commit eb13d1c0)_
 ~~| QB-B5 | org_id nullability |~~ _(resolved d380d8cc — interface fixed)_
 ~~| QB-B6 | connected_at column missing |~~ _(resolved d380d8cc — status route uses created_at)_
 ~~| QB-B7 | 2000-row truncation silent |~~ _(resolved d380d8cc — warning returned in response)_
-| QB-B8 | P2 | 30-day token refresh window is too aggressive — access tokens expire in 1 hour; every request in the last month triggers a refresh | `lib/integrations/quickbooks/client.ts:178,248` |
-| QB-B9 | P2 | No mutex for concurrent token refresh — two simultaneous requests can both attempt refresh; Intuit invalidates old token on first use, second may write invalid data | `lib/integrations/quickbooks/client.ts` |
+~~| QB-B8 | P2 | 30-day token refresh window too aggressive |~~ _(resolved — refresh window reduced to 5 minutes; access tokens live ~1 hour)_
+~~| QB-B9 | P2 | No mutex for concurrent token refresh |~~ _(resolved — in-process `refreshLocks` Map serializes refresh per org; second caller waits then re-reads DB)_
 
 ### Security (P1)
 
@@ -238,7 +238,7 @@ _(H-S1, H-S2, H-S3 resolved in Sprint B wave 3 — see commit eb13d1c0)_
 ~~| Dr-B4 | Non-cash acknowledgment IRS non-compliant |~~ _(resolved 8c0903e5)_
 ~~| Dr-B5 | viewer role donor PII exposure |~~ _(resolved 8c0903e5)_
 ~~| Dr-B6 | hardcoded limit 100 |~~ _(resolved 8c0903e5)_
-| Dr-B7 | P2 | `DonorProfileForm` POSTs to `/api/portfolio/${portfolioId}/donor-profile` — route does not exist — always 404 | `components/tax/DonorProfileForm.tsx:62` |
+~~| Dr-B7 | P2 | `DonorProfileForm` POSTs to `/api/portfolio/${portfolioId}/donor-profile` — route does not exist — always 404 |~~ _(verified resolved — route exists at `app/api/portfolio/[id]/donor-profile/route.ts`)_
 
 ### UX Gaps (P2)
 
@@ -278,8 +278,8 @@ _(H-S1, H-S2, H-S3 resolved in Sprint B wave 3 — see commit eb13d1c0)_
 ~~| Ch-B5 | Autocomplete endpoint never called from search input |~~ _(resolved Sprint B wave 6 — debounced autocomplete dropdown wired to search input)_
 ~~| Ch-B6 | Two Charity Navigator clients with different auth headers |~~ _(resolved Sprint B wave 6 — `charity-ratings.ts` aligned to `Subscription-Key` at `api.data.charitynavigator.org/v2`)_
 ~~| Ch-B7 | "My Portfolio" fetches non-existent `/api/portfolios` route |~~ _(resolved Sprint B wave 6 — uses `/api/me` + `recommended_portfolio_id`)_
-| Ch-B8 | P2 | No debouncing on search input — every keystroke fires against 2M-row table | Charity search component |
-| Ch-B9 | P2 | Pagination broken for pages 4+ — only shows `[1][2][3]...[last]` with no current-page window | `app/charities/page.tsx:323` |
+~~| Ch-B8 | P2 | No debouncing on search input |~~ _(resolved — `debouncedQuery` state (300ms) gates the main charity fetch; keystrokes only update local state)_
+~~| Ch-B9 | P2 | Pagination broken for pages 4+ |~~ _(resolved — sliding window ±2 around current page with leading/trailing ellipsis and always-visible first/last)_
 | Ch-B10 | P2 | No rate limiting on `/api/charities` or `/api/charities/[ein]` — 2M-row table with no throttling | Charity routes |
 
 ### UX Gaps (P2)
@@ -320,7 +320,7 @@ _(H-S1, H-S2, H-S3 resolved in Sprint B wave 3 — see commit eb13d1c0)_
 ~~| AI-B4 | Single-level tool execution loop |~~ _(resolved Sprint B wave 8 — multi-turn loop, max 5 turns)_
 ~~| AI-B5 | Letter generation uses OpenAI GPT-4o |~~ _(resolved Sprint B wave 5 — switched to claude-sonnet-4-6)_
 ~~| AI-B6 | display_widget records spurious create action |~~ _(resolved Sprint B wave 5 — no action recorded for display-only op)_
-| AI-B7 | P2 | Error messages in production may leak internal details (table names, SQL fragments) from Supabase/SDK errors | `app/api/ai/chat/route.ts:242-248` |
+~~| AI-B7 | P2 | Error messages may leak internal details in production |~~ _(resolved — production returns generic message; full error logged server-side and exposed only in dev)_
 | AI-B8 | P2 | No AI usage logging — no table recording token consumption, model calls, or estimated cost per user/org/session | Platform-wide |
 
 ### Trust & Safety (P1)

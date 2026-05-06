@@ -288,10 +288,12 @@ export async function POST(req: NextRequest) {
     });
 
   } catch (error: any) {
+    const isDev = process.env.NODE_ENV === 'development';
+    console.error('[ai/chat]', error);
     return NextResponse.json(
       {
-        error: error.message || 'AI chat failed',
-        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined,
+        error: isDev ? (error.message || 'AI chat failed') : 'An error occurred. Please try again.',
+        ...(isDev && { stack: error.stack }),
       },
       { status: 500 }
     );

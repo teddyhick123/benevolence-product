@@ -4,6 +4,10 @@
 import { createAdminClient } from '@/lib/supabase';
 import { encryptToken, decryptToken, isEncrypted } from './token-crypto';
 
+// In-process mutex: prevents concurrent token refreshes for the same org from
+// racing each other (Intuit invalidates the old token on first refresh use).
+const refreshLocks = new Map<string, Promise<void>>();
+
 // ---------------------------------------------------------------------------
 // Minimal type declarations for the third-party packages
 // ---------------------------------------------------------------------------
@@ -171,7 +175,7 @@ export async function getAuthenticatedQBClient(
 
 /**
  * Returns an authenticated node-quickbooks client for the given org.
- * Auto-refreshes the OAuth token if it will expire within 30 days and
+ * Auto-refreshes the OAuth token if it will expire within 5 minutes and
  * persists updated tokens back to the database.
  */
 export async function getAuthenticatedQBClientByOrg(
@@ -196,46 +200,67 @@ export async function getAuthenticatedQBClientByOrg(
   }
 
   const tokenExpiry = new Date(connection.expires_at);
-  const thirtyDaysFromNow = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+  // Refresh if expiring within 5 minutes (access tokens live ~1 hour)
+  const fiveMinutesFromNow = new Date(Date.now() + 5 * 60 * 1000);
 
   let currentAccessToken = accessToken;
   let currentRefreshToken = refreshToken;
 
-  if (tokenExpiry <= thirtyDaysFromNow) {
-    try {
-      const oauthClient = createOAuthClient();
-      oauthClient.setToken({
-        access_token: accessToken,
-        refresh_token: refreshToken,
-        expires_in: Math.max(
-          0,
-          Math.floor((tokenExpiry.getTime() - Date.now()) / 1000)
-        ),
-      });
+  if (tokenExpiry <= fiveMinutesFromNow) {
+    // Serialize concurrent refresh attempts: if another request is already
+    // refreshing this org's token, wait for it and re-read the connection.
+    if (refreshLocks.has(orgId)) {
+      await refreshLocks.get(orgId);
+      connection = (await getQBConnectionByOrg(orgId))!;
+      currentAccessToken = isEncrypted(connection.access_token)
+        ? decryptToken(connection.access_token) : connection.access_token;
+      currentRefreshToken = isEncrypted(connection.refresh_token)
+        ? decryptToken(connection.refresh_token) : connection.refresh_token;
+    } else {
+      let resolveLock!: () => void;
+      const lock = new Promise<void>(r => { resolveLock = r; });
+      refreshLocks.set(orgId, lock);
 
-      const authResponse = await oauthClient.refresh();
-      const newTokens = authResponse.getJson();
-      const newExpiry = new Date(
-        Date.now() + (newTokens.expires_in ?? 3600) * 1000
-      );
-      // QB refresh tokens have a 101-day lifetime; update expiry on each successful refresh
-      const newRefreshExpiry = new Date(Date.now() + 101 * 24 * 60 * 60 * 1000);
+      try {
+        const oauthClient = createOAuthClient();
+        oauthClient.setToken({
+          access_token: accessToken,
+          refresh_token: refreshToken,
+          expires_in: Math.max(
+            0,
+            Math.floor((tokenExpiry.getTime() - Date.now()) / 1000)
+          ),
+        });
 
-      currentAccessToken = newTokens.access_token;
-      currentRefreshToken = newTokens.refresh_token;
+        const authResponse = await oauthClient.refresh();
+        const newTokens = authResponse.getJson();
+        const newExpiry = new Date(
+          Date.now() + (newTokens.expires_in ?? 3600) * 1000
+        );
+        // QB refresh tokens have a 101-day lifetime; update expiry on each successful refresh
+        const newRefreshExpiry = new Date(Date.now() + 101 * 24 * 60 * 60 * 1000);
 
-      await supabase
-        .from('quickbooks_connections')
-        .update({
-          access_token: encryptToken(newTokens.access_token),
-          refresh_token: encryptToken(newTokens.refresh_token),
-          expires_at: newExpiry.toISOString(),
-          refresh_expires_at: newRefreshExpiry.toISOString(),
-        })
-        .eq('org_id', orgId);
-    } catch (err) {
-      console.error('[QB] Token refresh failed:', err);
-      return null;
+        currentAccessToken = newTokens.access_token;
+        currentRefreshToken = newTokens.refresh_token;
+
+        await supabase
+          .from('quickbooks_connections')
+          .update({
+            access_token: encryptToken(newTokens.access_token),
+            refresh_token: encryptToken(newTokens.refresh_token),
+            expires_at: newExpiry.toISOString(),
+            refresh_expires_at: newRefreshExpiry.toISOString(),
+          })
+          .eq('org_id', orgId);
+      } catch (err) {
+        console.error('[QB] Token refresh failed:', err);
+        refreshLocks.delete(orgId);
+        resolveLock();
+        return null;
+      }
+
+      refreshLocks.delete(orgId);
+      resolveLock();
     }
   }
 

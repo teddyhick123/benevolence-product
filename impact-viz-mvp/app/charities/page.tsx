@@ -68,10 +68,11 @@ export default function CharitiesPage() {
     }
   }, [viewMode]);
 
-  // Fetch charities when view, search, filters, or page changes
+  // Fetch charities when view, debounced search, filters, or page changes
   useEffect(() => {
     fetchCharities();
-  }, [viewMode, searchQuery, filters, sortBy, page, portfolioId]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewMode, debouncedQuery, filters, sortBy, page, portfolioId]);
 
   const fetchDefaultPortfolio = async () => {
     try {
@@ -86,6 +87,16 @@ export default function CharitiesPage() {
       // silent
     }
   };
+
+  // Debounced search query for main charity fetch (avoids hitting DB on every keystroke)
+  const [debouncedQuery, setDebouncedQuery] = useState('');
+  const searchDebounceRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    searchDebounceRef.current = setTimeout(() => setDebouncedQuery(searchQuery), 300);
+    return () => { if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current); };
+  }, [searchQuery]);
 
   // Autocomplete: debounced fetch on searchQuery change
   useEffect(() => {
@@ -132,8 +143,8 @@ export default function CharitiesPage() {
       const params = new URLSearchParams();
 
       // Search query
-      if (searchQuery) {
-        params.append('q', searchQuery);
+      if (debouncedQuery) {
+        params.append('q', debouncedQuery);
       }
 
       // Filters
@@ -386,44 +397,36 @@ export default function CharitiesPage() {
                       Previous
                     </button>
 
-                    {/* On mobile, show fewer page numbers */}
-                    {[...Array(Math.min(3, totalPages))].map((_, i) => {
-                      const pageNum = i + 1;
-                      return (
-                        <button
-                          key={pageNum}
-                          onClick={() => setPage(pageNum)}
-                          className={`hidden sm:block px-4 py-2 rounded-md ${
-                            page === pageNum
-                              ? 'bg-azure text-white'
-                              : 'border border-gray-300 hover:bg-gray-50'
-                          }`}
-                        >
-                          {pageNum}
-                        </button>
+                    {/* Desktop: windowed page numbers */}
+                    {(() => {
+                      const delta = 2;
+                      const left = Math.max(1, page - delta);
+                      const right = Math.min(totalPages, page + delta);
+                      const pages: (number | '...')[] = [];
+                      if (left > 1) { pages.push(1); if (left > 2) pages.push('...'); }
+                      for (let p = left; p <= right; p++) pages.push(p);
+                      if (right < totalPages) { if (right < totalPages - 1) pages.push('...'); pages.push(totalPages); }
+                      return pages.map((p, i) =>
+                        p === '...' ? (
+                          <span key={`ellipsis-${i}`} className="hidden sm:block px-2 py-2 text-gray-500">…</span>
+                        ) : (
+                          <button
+                            key={p}
+                            onClick={() => setPage(p as number)}
+                            className={`hidden sm:block px-4 py-2 rounded-md ${
+                              page === p ? 'bg-azure text-white' : 'border border-gray-300 hover:bg-gray-50'
+                            }`}
+                          >
+                            {p}
+                          </button>
+                        )
                       );
-                    })}
+                    })()}
 
                     {/* Mobile: show current page indicator */}
                     <span className="sm:hidden px-3 py-2 text-sm text-gray-600">
                       Page {page} of {totalPages}
                     </span>
-
-                    {totalPages > 3 && (
-                      <>
-                        <span className="hidden sm:block px-2 py-2">...</span>
-                        <button
-                          onClick={() => setPage(totalPages)}
-                          className={`hidden sm:block px-4 py-2 rounded-md ${
-                            page === totalPages
-                              ? 'bg-azure text-white'
-                              : 'border border-gray-300 hover:bg-gray-50'
-                          }`}
-                        >
-                          {totalPages}
-                        </button>
-                      </>
-                    )}
 
                     <button
                       onClick={() => setPage(Math.min(totalPages, page + 1))}

@@ -21,6 +21,7 @@ export type KpiRow = {
   target_date?: string | null;
   progress_percentage?: number | null;
   notes?: string | null;
+  delta?: number | null;        // % change vs previous period
   // Legacy fields for backward compatibility
   label?: string;
   as_of?: string | null;
@@ -224,6 +225,7 @@ function KpiCarousel({
               value={k.value ?? undefined}
               lastUpdated={k.as_of || k.period_end || undefined}
               format={determineFormat(k)}
+              delta={k.delta ?? undefined}
               canEdit={canEdit}
               onEdit={() => onEdit(k)}
               footnote={k.notes ?? undefined}
@@ -279,6 +281,7 @@ function KpiCarousel({
                 value={k.value ?? undefined}
                 lastUpdated={k.as_of || k.period_end || undefined}
                 format={determineFormat(k)}
+                delta={k.delta ?? undefined}
                 canEdit={canEdit}
                 onEdit={() => onEdit(k)}
                 footnote={k.notes ?? undefined}

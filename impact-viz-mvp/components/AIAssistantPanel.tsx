@@ -133,7 +133,8 @@ Just ask me anything, and I'll help you out! If you don't like a change I make, 
         body: JSON.stringify({
           portfolioId,
           message: input,
-          conversationHistory: messages.map((m) => ({
+          // Cap history at 20 most-recent messages to prevent payload overload
+          conversationHistory: messages.slice(-20).map((m) => ({
             role: m.role,
             content: m.content,
           })),

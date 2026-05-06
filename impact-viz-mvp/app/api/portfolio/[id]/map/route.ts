@@ -195,7 +195,6 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
     points,
     count: points.length,
     portfolio_id_echo: portfolio_id,
-    auth_user_id: authUserId,
   } as any;
 
   if (debug) {

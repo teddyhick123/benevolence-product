@@ -57,7 +57,22 @@ export default async function Dashboard({ searchParams }: { searchParams?: Promi
   const portfolioId = urlPortfolio || me?.recommended_portfolio_id || '';
 
   if (!portfolioId) {
-    return <div className="p-6">No portfolio selected.</div>;
+    return (
+      <div className="min-h-screen flex items-center justify-center p-6">
+        <div className="text-center max-w-sm">
+          <div className="text-2xl font-semibold text-neutral-900 mb-2">No portfolio yet</div>
+          <p className="text-neutral-500 text-sm mb-6">
+            Create your first portfolio to start tracking impact, KPIs, and holdings.
+          </p>
+          <a
+            href="/onboarding"
+            className="inline-flex items-center gap-2 rounded-2xl bg-azure text-white px-5 py-2.5 text-sm font-medium shadow-sm hover:bg-azure/90 transition-colors"
+          >
+            Get started
+          </a>
+        </div>
+      </div>
+    );
   }
 
   // Parallelize all fetches for better performance

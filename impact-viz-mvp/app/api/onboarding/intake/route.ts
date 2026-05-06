@@ -18,7 +18,7 @@ function supabaseService() {
 // Validation schema for quick intake
 const quickIntakeSchema = z.object({
   sessionId: z.string().uuid(),
-  org_type: z.enum(['foundation', 'daf', 'nonprofit', 'impact_investor']),
+  org_type: z.enum(['private_foundation', 'family_office', 'daf_sponsor', 'nonprofit']),
   org_name: z.string().min(1).max(200),
   org_size: z.enum(['solo', 'small', 'medium', 'large']),
   primary_focus: z.array(z.string()).optional(),

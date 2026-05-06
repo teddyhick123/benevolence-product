@@ -1,8 +1,7 @@
 'use client';
 
-import { BuildingOffice2Icon, UserGroupIcon, HeartIcon, ChartBarIcon } from '@heroicons/react/24/outline';
-
-type OrgType = 'foundation' | 'daf' | 'nonprofit' | 'impact_investor';
+import { BuildingOffice2Icon, UserGroupIcon, HeartIcon, BriefcaseIcon } from '@heroicons/react/24/outline';
+import type { OrgType } from '@/lib/types/org';
 
 interface PersonaOption {
   id: OrgType;
@@ -14,14 +13,21 @@ interface PersonaOption {
 
 const PERSONAS: PersonaOption[] = [
   {
-    id: 'foundation',
-    name: 'Foundation',
+    id: 'private_foundation',
+    name: 'Private Foundation',
     description: 'Private or family foundation managing grants and impact',
     icon: BuildingOffice2Icon,
     examples: ['Family Foundation', 'Private Foundation', 'Corporate Foundation'],
   },
   {
-    id: 'daf',
+    id: 'family_office',
+    name: 'Family Office',
+    description: 'Family office managing philanthropic investments and giving',
+    icon: BriefcaseIcon,
+    examples: ['Single Family Office', 'Multi-Family Office', 'Wealth Management'],
+  },
+  {
+    id: 'daf_sponsor',
     name: 'Donor-Advised Fund',
     description: 'DAF sponsor or account holder managing contributions',
     icon: HeartIcon,
@@ -34,17 +40,10 @@ const PERSONAS: PersonaOption[] = [
     icon: UserGroupIcon,
     examples: ['501(c)(3)', 'Charity', 'Social Enterprise'],
   },
-  {
-    id: 'impact_investor',
-    name: 'Impact Investor',
-    description: 'Impact investor tracking portfolio metrics and returns',
-    icon: ChartBarIcon,
-    examples: ['Impact Fund', 'Social Impact', 'ESG Portfolio'],
-  },
 ];
 
 interface PersonaSelectorProps {
-  value?: OrgType;
+  value?: OrgType | string;
   onChange: (value: OrgType) => void;
 }
 

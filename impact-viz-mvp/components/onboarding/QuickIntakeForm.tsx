@@ -2,8 +2,7 @@
 
 import { useState } from 'react';
 import PersonaSelector from './PersonaSelector';
-
-type OrgType = 'foundation' | 'daf' | 'nonprofit' | 'impact_investor';
+import type { OrgType } from '@/lib/types/org';
 type OrgSize = 'solo' | 'small' | 'medium' | 'large';
 
 export interface QuickIntakeData {

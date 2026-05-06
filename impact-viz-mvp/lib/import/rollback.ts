@@ -71,21 +71,29 @@ export async function rollbackImport(
       tablesToRevert = PHASE_TABLES[scope];
     }
 
-    // Fetch audit entries in reverse chronological order (limit to prevent OOM)
-    const { data: auditEntries, error: auditError } = await supabase
-      .from('import_audit_log')
-      .select('*')
-      .eq('import_job_id', importJobId)
-      .in('operation', ['insert', 'update'])
-      .in('table_name', tablesToRevert)
-      .order('created_at', { ascending: false })
-      .limit(5000);
+    // Fetch all audit entries with pagination to avoid hard row limits
+    const PAGE_SIZE = 1000;
+    let offset = 0;
+    const entries: AuditLogRow[] = [];
+    while (true) {
+      const { data: batch, error: auditError } = await supabase
+        .from('import_audit_log')
+        .select('*')
+        .eq('import_job_id', importJobId)
+        .in('operation', ['insert', 'update'])
+        .in('table_name', tablesToRevert)
+        .order('created_at', { ascending: false })
+        .range(offset, offset + PAGE_SIZE - 1);
 
-    if (auditError) {
-      throw new Error(`Failed to fetch audit log: ${auditError.message}`);
+      if (auditError) {
+        throw new Error(`Failed to fetch audit log: ${auditError.message}`);
+      }
+
+      const page = (batch ?? []) as AuditLogRow[];
+      entries.push(...page);
+      if (page.length < PAGE_SIZE) break;
+      offset += PAGE_SIZE;
     }
-
-    const entries = (auditEntries ?? []) as AuditLogRow[];
 
     // Group entries by table and operation for bulk processing
     const insertsByTable = new Map<string, AuditLogRow[]>();

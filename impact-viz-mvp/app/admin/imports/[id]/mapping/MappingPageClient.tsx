@@ -10,6 +10,7 @@ import type { MappingAssistResult } from '@/lib/import/ai/mapping-assist';
 interface StagingPreview {
   entity: string;
   sourceFields: string[];
+  sampleRecords: Record<string, unknown>[];
   rowCount: number;
 }
 
@@ -89,7 +90,7 @@ export function MappingPageClient({ job, mappingProfile, stagingPreviews }: Mapp
           source_system: job.source_type,
           entity_type: entityType,
           source_fields: preview.sourceFields,
-          sample_records: [],
+          sample_records: preview.sampleRecords,
           existing_mapping: currentProfile.entity_mappings[entityType] ?? undefined,
         }),
       });

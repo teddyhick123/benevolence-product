@@ -90,7 +90,7 @@ export default async function MappingPage({
         .from(table)
         .select('raw_data')
         .eq('import_job_id', id)
-        .limit(1);
+        .limit(5);
 
       const { count } = await adminSupabase
         .from(table)
@@ -99,8 +99,9 @@ export default async function MappingPage({
 
       const sourceFields =
         sampleRows?.[0]?.raw_data ? Object.keys(sampleRows[0].raw_data as Record<string, unknown>) : [];
+      const sampleRecords = (sampleRows ?? []).map((r) => r.raw_data as Record<string, unknown>);
 
-      return { entity, sourceFields, rowCount: count ?? 0 };
+      return { entity, sourceFields, sampleRecords, rowCount: count ?? 0 };
     })
   );
 

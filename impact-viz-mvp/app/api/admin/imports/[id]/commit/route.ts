@@ -77,6 +77,9 @@ export async function POST(
     return NextResponse.json({ error: updateError.message }, { status: 500 });
   }
 
+  // Fire-and-forget: clean up staging PII from jobs older than 30 days
+  supabase.rpc('cleanup_staging_pii', { retention_days: 30 }).then().catch(() => {});
+
   return NextResponse.json(
     {
       job: updated as ImportJob,

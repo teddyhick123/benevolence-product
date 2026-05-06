@@ -32,6 +32,7 @@ export type AIAction = {
   status: 'applied' | 'undone' | 'redone';
   batchId?: string;
   sequenceOrder?: number;
+  initiatedBy?: 'ai' | 'user' | 'import' | 'system';
 };
 
 // Tool execution result types
@@ -1285,13 +1286,9 @@ export class ClaudePortfolioAssistant {
   private enabledModules: ModuleId[] = ['core'];
   private moduleSystemPrompt: string = '';
 
-  constructor(supabaseServiceRole: string, _anthropicApiKey?: string) {
+  constructor(supabaseClient: ReturnType<typeof createClient>, _anthropicApiKey?: string) {
     this.provider = createAIProvider();
-    this.supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      supabaseServiceRole,
-      { auth: { persistSession: false } }
-    );
+    this.supabase = supabaseClient;
   }
 
   /**

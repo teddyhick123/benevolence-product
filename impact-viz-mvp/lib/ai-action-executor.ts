@@ -62,6 +62,7 @@ export class AIActionExecutor {
         ai_reasoning: `Created holding "${args.name}"`,
         user_prompt: userPrompt,
         status: 'applied',
+        initiated_by: 'ai',
         batch_id: batchId,
         sequence_order: sequenceOrder,
       } as any)
@@ -142,6 +143,7 @@ export class AIActionExecutor {
         ai_reasoning: `Updated holding "${before?.name}"`,
         user_prompt: userPrompt,
         status: 'applied',
+        initiated_by: 'ai',
         batch_id: batchId,
         sequence_order: sequenceOrder,
       })
@@ -205,6 +207,7 @@ export class AIActionExecutor {
         ai_reasoning: args.reason || `Deleted holding "${before?.name}"`,
         user_prompt: userPrompt,
         status: 'applied',
+        initiated_by: 'ai',
         batch_id: batchId,
         sequence_order: sequenceOrder,
       })
@@ -271,6 +274,7 @@ export class AIActionExecutor {
         ai_reasoning: `Added ${args.metric_code} metric: ${args.value}`,
         user_prompt: userPrompt,
         status: 'applied',
+        initiated_by: 'ai',
         batch_id: batchId,
         sequence_order: sequenceOrder,
       })
@@ -342,6 +346,7 @@ export class AIActionExecutor {
         ai_reasoning: `Created ${args.type} widget: "${args.title}"`,
         user_prompt: userPrompt,
         status: 'applied',
+        initiated_by: 'ai',
         batch_id: batchId,
         sequence_order: sequenceOrder,
       })
@@ -412,6 +417,7 @@ export class AIActionExecutor {
         ai_reasoning: `Created ${args.type} widget: "${args.title}"`,
         user_prompt: userPrompt,
         status: 'applied',
+        initiated_by: 'ai',
         batch_id: batchId,
         sequence_order: sequenceOrder,
       })
@@ -484,6 +490,7 @@ export class AIActionExecutor {
         ai_reasoning: `Added location: "${args.name}"`,
         user_prompt: userPrompt,
         status: 'applied',
+        initiated_by: 'ai',
         batch_id: batchId,
         sequence_order: sequenceOrder,
       })

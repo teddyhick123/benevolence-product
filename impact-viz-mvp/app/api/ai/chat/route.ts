@@ -177,8 +177,8 @@ export async function POST(req: NextRequest) {
       })
       .eq('id', sessionId);
 
-    // Initialize Claude AI assistant
-    const assistant = new ClaudePortfolioAssistant(SUPABASE_SERVICE_ROLE, ANTHROPIC_API_KEY);
+    // Initialize Claude AI assistant with session-scoped client — RLS enforces org/portfolio scope on all tool calls
+    const assistant = new ClaudePortfolioAssistant(supabase as any, ANTHROPIC_API_KEY);
 
     // Filter conversation history to only include user/assistant messages (Claude doesn't accept system in messages array)
     const filteredHistory = (conversationHistory || [])

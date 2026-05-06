@@ -4,6 +4,7 @@
 
 import { createAdminClient, createServerClient } from '@/lib/supabase';
 import { parseFlexibleDate } from '@/lib/import/utils/date-parser';
+import { requireAdmin } from '@/lib/admin-auth';
 
 type FixType = 'normalize_ein' | 'parse_date' | 'strip_currency' | 'map_gift_type';
 
@@ -66,16 +67,6 @@ function applyFix(fix: FixType, field: string, row: Record<string, unknown>): un
     default:
       return null;
   }
-}
-
-async function requireAdmin(): Promise<string | null> {
-  const supabase = await createServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return null;
-  const { data: isAdmin } = await supabase.rpc('is_admin');
-  return isAdmin ? user.id : null;
 }
 
 export async function POST(

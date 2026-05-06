@@ -1358,8 +1358,8 @@ export class ClaudePortfolioAssistant {
     // Build system prompt with module-specific additions
     const systemPrompt = this.buildSystemPrompt(context);
 
-    // Convert conversation history to Claude format
-    const claudeMessages = [
+    // Build mutable message history for multi-turn tool execution
+    const currentMessages: AIMessage[] = [
       ...conversationHistory.map(msg => ({
         role: msg.role as 'user' | 'assistant',
         content: msg.content,
@@ -1367,114 +1367,92 @@ export class ClaudePortfolioAssistant {
       { role: 'user' as const, content: message },
     ];
 
-    // Call Claude with function calling (using filtered tools)
-    const response = await this.provider.createMessage({
-      model: AI_MODELS.assistant,
-      maxTokens: 4096,
-      system: systemPrompt,
-      tools: tools as unknown as ToolDefinition[],
-      messages: claudeMessages,
-    });
-
-    // Process the response
+    // Multi-turn tool execution loop — continues until end_turn or max 5 iterations
     const actions: AIAction[] = [];
-    const toolResults: Array<{ tool_use_id: string; content: string }> = [];
+    const allToolCalls: Array<{ id: string; type: string; function: { name: string; arguments: string } }> = [];
+    const allToolResults: Array<{ tool_use_id: string; content: string }> = [];
     let textContent = '';
+    const batchId = crypto.randomUUID();
+    let sequenceCounter = 0;
+    const MAX_TURNS = 5;
 
-    // Check for tool use in the response
-    const toolUseBlocks = response.content.filter(
-      (block): block is AIContentBlock & { type: 'tool_use' } => block.type === 'tool_use'
-    );
-    const textBlocks = response.content.filter(
-      (block): block is AIContentBlock & { type: 'text' } => block.type === 'text'
-    );
-
-    // Collect any text from the initial response
-    textContent = textBlocks.map(b => b.text).join('');
-
-    if (toolUseBlocks.length > 0) {
-      const batchId = crypto.randomUUID();
-
-      // Execute each tool call
-      for (let i = 0; i < toolUseBlocks.length; i++) {
-        const toolUse = toolUseBlocks[i];
-        const functionName = toolUse.name;
-        const functionArgs = toolUse.input as Record<string, any>;
-
-        try {
-          const result = await this.executeTool(
-            functionName,
-            functionArgs,
-            portfolioId,
-            userId,
-            sessionId,
-            batchId,
-            i,
-            message,
-            memberRole
-          );
-
-          if (result.action) {
-            actions.push(result.action);
-          }
-          if (result.additionalActions) {
-            actions.push(...result.additionalActions);
-          }
-          toolResults.push({
-            tool_use_id: toolUse.id,
-            content: JSON.stringify(result.output),
-          });
-        } catch (error) {
-          toolResults.push({
-            tool_use_id: toolUse.id,
-            content: JSON.stringify({ error: (error as Error).message }),
-          });
-        }
-      }
-
-      // Get final response with tool results (using same filtered tools)
-      const finalResponse = await this.provider.createMessage({
+    for (let turn = 0; turn < MAX_TURNS; turn++) {
+      const response = await this.provider.createMessage({
         model: AI_MODELS.assistant,
         maxTokens: 4096,
         system: systemPrompt,
         tools: tools as unknown as ToolDefinition[],
-        messages: [
-          ...claudeMessages,
-          { role: 'assistant' as const, content: response.content },
-          {
-            role: 'user' as const,
-            content: toolResults.map(tr => ({
-              type: 'tool_result' as const,
-              tool_use_id: tr.tool_use_id,
-              content: tr.content,
-            })) as AIContentBlock[],
-          },
-        ],
+        messages: currentMessages,
       });
 
-      // Extract text from final response
-      const finalTextBlocks = finalResponse.content.filter(
+      // Collect text from this turn
+      const textBlocks = response.content.filter(
         (block): block is AIContentBlock & { type: 'text' } => block.type === 'text'
       );
-      textContent = finalTextBlocks.map(b => b.text).join('');
+      const turnText = textBlocks.map(b => b.text).join('');
+      if (turnText) textContent = turnText;
 
-      return {
-        message: textContent,
-        actions,
-        toolCalls: toolUseBlocks.map(t => ({
-          id: t.id,
+      // Check for tool use
+      const toolUseBlocks = response.content.filter(
+        (block): block is AIContentBlock & { type: 'tool_use' } => block.type === 'tool_use'
+      );
+
+      // No tool use or end_turn — we're done
+      if (toolUseBlocks.length === 0 || response.stopReason !== 'tool_use') {
+        break;
+      }
+
+      // Execute tools for this turn
+      const turnToolResults: Array<{ tool_use_id: string; content: string }> = [];
+      for (const toolUse of toolUseBlocks) {
+        allToolCalls.push({
+          id: toolUse.id,
           type: 'function',
-          function: { name: t.name, arguments: JSON.stringify(t.input) },
-        })),
-        toolResults,
-      };
+          function: { name: toolUse.name, arguments: JSON.stringify(toolUse.input) },
+        });
+        try {
+          const result = await this.executeTool(
+            toolUse.name,
+            toolUse.input as Record<string, any>,
+            portfolioId,
+            userId,
+            sessionId,
+            batchId,
+            sequenceCounter++,
+            message,
+            memberRole
+          );
+          if (result.action) actions.push(result.action);
+          if (result.additionalActions) actions.push(...result.additionalActions);
+          const toolResult = { tool_use_id: toolUse.id, content: JSON.stringify(result.output) };
+          turnToolResults.push(toolResult);
+          allToolResults.push(toolResult);
+        } catch (error) {
+          const toolResult = { tool_use_id: toolUse.id, content: JSON.stringify({ error: (error as Error).message }) };
+          turnToolResults.push(toolResult);
+          allToolResults.push(toolResult);
+        }
+      }
+
+      // Extend message history for next turn
+      currentMessages.push(
+        { role: 'assistant' as const, content: response.content },
+        {
+          role: 'user' as const,
+          content: turnToolResults.map(tr => ({
+            type: 'tool_result' as const,
+            tool_use_id: tr.tool_use_id,
+            content: tr.content,
+          })) as AIContentBlock[],
+        }
+      );
     }
 
     return {
       message: textContent,
-      actions: [],
-      toolCalls: [],
-      toolResults: [],
+      actions,
+      toolCalls: allToolCalls,
+      toolResults: allToolResults,
     };
   }
 

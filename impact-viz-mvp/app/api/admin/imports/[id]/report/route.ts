@@ -6,16 +6,7 @@ import { createAdminClient, createServerClient } from '@/lib/supabase';
 import { generateMigrationReport } from '@/lib/import/ai/generate-report';
 import type { ReportParams, EntityStats } from '@/lib/import/ai/generate-report';
 import { calculateHealthScore } from '@/lib/pdf/migration-report-generator';
-
-async function requireAdmin(): Promise<string | null> {
-  const supabase = await createServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return null;
-  const { data: isAdmin } = await supabase.rpc('is_admin');
-  return isAdmin ? user.id : null;
-}
+import { requireAdmin } from '@/lib/admin-auth';
 
 type StagingRow = Record<string, unknown>;
 

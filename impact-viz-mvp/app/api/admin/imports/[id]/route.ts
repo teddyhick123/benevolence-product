@@ -3,23 +3,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient, createServerClient } from '@/lib/supabase';
-
-async function requireAdmin(): Promise<string | null> {
-  const supabase = await createServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) return null;
-
-  const { data: adminRow } = await supabase
-    .from('admins')
-    .select('user_id')
-    .eq('user_id', user.id)
-    .maybeSingle();
-
-  return adminRow ? user.id : null;
-}
+import { requireAdmin } from '@/lib/admin-auth';
 
 type StagingTable =
   | 'staging_import_holdings'

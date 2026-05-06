@@ -1,19 +1,13 @@
 // app/api/admin/kpis/[kpiId]/route.ts
 import { NextResponse } from 'next/server';
-import { createSupabaseServerClient } from '@/lib/supabase';
+import { createServerClient } from '@/lib/supabase';
+import { requireAdmin } from '@/lib/admin-auth';
 import { adminUpdateKpiSchema } from '@/lib/schemas/admin';
 
 function toNumber(value: any): number | null {
   if (value === null || value === undefined || value === '') return null;
   const n = Number(value);
   return Number.isFinite(n) ? n : null;
-}
-
-async function requireAdmin() {
-  const supabase = await createSupabaseServerClient();
-  const { data: isAdmin, error } = await supabase.rpc('is_admin');
-  if (error || !isAdmin) return { supabase: null as any, error: 'not authorized' };
-  return { supabase, error: null };
 }
 
 // Method override support via form POST
@@ -60,8 +54,9 @@ export async function PUT(req: Request, ctx: { params: Promise<{ kpiId: string }
 
   const fields = validation.data;
 
-  const { supabase, error: adminErr } = await requireAdmin();
-  if (adminErr) return NextResponse.json({ error: adminErr }, { status: 403 });
+  const userId = await requireAdmin();
+  if (!userId) return NextResponse.json({ error: 'not authorized' }, { status: 403 });
+  const supabase = await createServerClient();
 
   const { error } = await supabase.from('portfolio_metric_targets').update(fields).eq('id', kpiId);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -74,8 +69,9 @@ export async function PUT(req: Request, ctx: { params: Promise<{ kpiId: string }
 
 export async function DELETE(_req: Request, ctx: { params: Promise<{ kpiId: string }> }) {
   const { kpiId } = await ctx.params;
-  const { supabase, error: adminErr } = await requireAdmin();
-  if (adminErr) return NextResponse.json({ error: adminErr }, { status: 403 });
+  const userId = await requireAdmin();
+  if (!userId) return NextResponse.json({ error: 'not authorized' }, { status: 403 });
+  const supabase = await createServerClient();
 
   const { error } = await supabase.from('portfolio_metric_targets').delete().eq('id', kpiId);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

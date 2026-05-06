@@ -8,6 +8,7 @@ import { streamMigrationChat } from '@/lib/import/ai/chat';
 import type { ChatMessage } from '@/lib/import/ai/chat';
 import { aiLimiter } from '@/lib/rate-limit';
 import { rateLimitExceeded } from '@/lib/rate-limit-response';
+import { requireAdmin } from '@/lib/admin-auth';
 
 interface ErrorRow {
   validation_errors: Array<{ field: string; message: string; severity: string }> | null;
@@ -33,16 +34,6 @@ function buildErrorSummary(rows: ErrorRow[]): ErrorEntry[] {
   return Object.values(counts)
     .sort((a, b) => b.count - a.count)
     .slice(0, 15);
-}
-
-async function requireAdmin(): Promise<string | null> {
-  const supabase = await createServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return null;
-  const { data: isAdmin } = await supabase.rpc('is_admin');
-  return isAdmin ? user.id : null;
 }
 
 export async function POST(

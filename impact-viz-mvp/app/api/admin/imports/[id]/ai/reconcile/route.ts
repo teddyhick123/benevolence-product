@@ -6,23 +6,7 @@ import { createAdminClient, createServerClient } from '@/lib/supabase';
 import { generateReconciliationReport } from '@/lib/import/reconciler';
 import { analyzeReconciliation } from '@/lib/import/ai/reconcile';
 import type { ReconciliationReport } from '@/lib/import/reconciler';
-
-async function requireAdmin(): Promise<string | null> {
-  const supabase = await createServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) return null;
-
-  const { data: adminRow } = await supabase
-    .from('admins')
-    .select('user_id')
-    .eq('user_id', user.id)
-    .maybeSingle();
-
-  return adminRow ? user.id : null;
-}
+import { requireAdmin } from '@/lib/admin-auth';
 
 export async function POST(
   _req: NextRequest,

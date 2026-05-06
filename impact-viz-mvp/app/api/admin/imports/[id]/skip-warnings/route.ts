@@ -3,6 +3,7 @@
 // Marks all rows with only warnings (no errors) as valid
 
 import { createAdminClient, createServerClient } from '@/lib/supabase';
+import { requireAdmin } from '@/lib/admin-auth';
 
 const STAGING_TABLES = [
   'staging_import_holdings',
@@ -11,16 +12,6 @@ const STAGING_TABLES = [
   'staging_import_metrics',
   'staging_import_users',
 ];
-
-async function requireAdmin(): Promise<string | null> {
-  const supabase = await createServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return null;
-  const { data: isAdmin } = await supabase.rpc('is_admin');
-  return isAdmin ? user.id : null;
-}
 
 export async function POST(
   _req: Request,

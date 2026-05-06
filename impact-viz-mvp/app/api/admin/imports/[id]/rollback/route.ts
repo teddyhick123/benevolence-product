@@ -6,23 +6,7 @@ import { createAdminClient, createServerClient } from '@/lib/supabase';
 import { rollbackImport } from '@/lib/import/rollback';
 import type { RollbackScope } from '@/lib/import/rollback';
 import type { ImportJob } from '@/lib/import/types';
-
-async function requireAdmin(): Promise<string | null> {
-  const supabase = await createServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) return null;
-
-  const { data: adminRow } = await supabase
-    .from('admins')
-    .select('user_id')
-    .eq('user_id', user.id)
-    .maybeSingle();
-
-  return adminRow ? user.id : null;
-}
+import { requireAdmin } from '@/lib/admin-auth';
 
 const VALID_STATUSES = ['completed', 'paused', 'failed'];
 const VALID_SCOPES: RollbackScope[] = ['full', 'investees', 'holdings', 'users', 'contributions', 'metrics'];

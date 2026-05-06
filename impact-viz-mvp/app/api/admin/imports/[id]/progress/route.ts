@@ -4,25 +4,9 @@
 
 import { ImportProgressEmitter } from '@/lib/import/progress-emitter';
 import { createServerClient } from '@/lib/supabase';
+import { requireAdmin } from '@/lib/admin-auth';
 
 export const dynamic = 'force-dynamic';
-
-async function requireAdmin(): Promise<string | null> {
-  const supabase = await createServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) return null;
-
-  const { data: adminRow } = await supabase
-    .from('admins')
-    .select('user_id')
-    .eq('user_id', user.id)
-    .maybeSingle();
-
-  return adminRow ? user.id : null;
-}
 
 export async function GET(
   _req: Request,

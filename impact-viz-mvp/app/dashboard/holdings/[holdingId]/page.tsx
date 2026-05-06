@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation';
 import { createSupabaseServerClient } from '@/lib/supabase';
-import { assetTypeSchema } from '@/lib/schemas/portfolio';
+import { assetTypeSchema, ASSET_TYPE_LABELS } from '@/lib/schemas/portfolio';
 import React from 'react';
 import { revalidatePath } from 'next/cache';
 import HoldingHeader from '@/components/HoldingHeader';
@@ -261,11 +261,11 @@ async function updateHoldingBasics(formData: FormData) {
 
   const status = getValue(formData, 'status');
   if (status !== undefined) {
-    const VALID_STATUSES = ['Active', 'Pipeline', 'Exited', 'On Hold'] as const;
-    if (status !== null && !VALID_STATUSES.includes(status as any)) {
+    const VALID_STATUSES = ['active', 'pending', 'committed', 'exited', 'written_off'] as const;
+    if (status !== null && status !== '' && !VALID_STATUSES.includes(status as any)) {
       throw new Error(`Invalid status: ${status}`);
     }
-    updates.status = status;
+    updates.status = status || null;
   }
 
   const as_of = getValue(formData, 'as_of');
@@ -902,12 +902,16 @@ export default async function HoldingMiniDashboard({
 
           <label className="block">
             <span className="text-xs font-medium text-neutral-700">Asset Class</span>
-            <input
+            <select
               name="asset_type"
               defaultValue={holding.asset_type ?? ''}
-              className="mt-1.5 w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-              placeholder="e.g., Equity, Debt"
-            />
+              className="mt-1.5 w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white"
+            >
+              <option value="">— select —</option>
+              {Object.entries(ASSET_TYPE_LABELS).map(([value, label]) => (
+                <option key={value} value={value}>{label}</option>
+              ))}
+            </select>
           </label>
 
           <label className="block">
@@ -934,12 +938,18 @@ export default async function HoldingMiniDashboard({
 
           <label className="block">
             <span className="text-xs font-medium text-neutral-700">Status</span>
-            <input
+            <select
               name="status"
               defaultValue={holding.status ?? ''}
-              className="mt-1.5 w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-              placeholder="e.g., Active, Exited"
-            />
+              className="mt-1.5 w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white"
+            >
+              <option value="">— select —</option>
+              <option value="active">Active</option>
+              <option value="pending">Pending</option>
+              <option value="committed">Committed</option>
+              <option value="exited">Exited</option>
+              <option value="written_off">Written Off</option>
+            </select>
           </label>
 
           <label className="block">

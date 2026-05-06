@@ -2,12 +2,10 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase';
 import { getOrganization } from '@/lib/services/propublica';
-import OpenAI from 'openai';
+import Anthropic from '@anthropic-ai/sdk';
 import { aiAuthRequired } from '@/lib/rate-limit-response';
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 /**
  * GET /api/holdings/[id]/financial-profile/generate
@@ -135,24 +133,20 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     // Build context for OpenAI
     const financialContext = buildFinancialContext(charity, filings);
 
-    // Generate analysis
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4o',
+    // Generate analysis using Claude
+    const msg = await anthropic.messages.create({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 1500,
+      system: FINANCIAL_ANALYSIS_SYSTEM_PROMPT,
       messages: [
-        {
-          role: 'system',
-          content: FINANCIAL_ANALYSIS_SYSTEM_PROMPT,
-        },
         {
           role: 'user',
           content: `Analyze the financial health of the following nonprofit organization:\n\n${financialContext}`,
         },
       ],
-      temperature: 0.5,
-      max_tokens: 1500,
     });
 
-    const analysisContent = completion.choices[0]?.message?.content || '';
+    const analysisContent = (msg.content[0] as { type: string; text: string })?.text || '';
     const generatedAt = new Date().toISOString();
 
     // Get current max version

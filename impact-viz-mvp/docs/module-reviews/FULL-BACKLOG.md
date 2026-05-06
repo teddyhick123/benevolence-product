@@ -409,7 +409,7 @@ _(H-S1, H-S2, H-S3 resolved in Sprint B wave 3 — see commit eb13d1c0)_
 ~~| Adm-B1 | AI mapping assist always sends `sample_records: []` |~~ _(resolved Sprint B wave 7 — page.tsx fetches 5 staging rows, client passes them to mapping-assist API)_
 ~~| Adm-B2 | Rollback hard `.limit(5000)` cap |~~ _(resolved Sprint B wave 7 — replaced with paginated loop, no upper cap)_
 ~~| Adm-B3 | Three different admin auth patterns |~~ _(resolved Sprint B wave 8 — lib/admin-auth.ts created; all Pattern A routes now use requireAdmin() from shared helper)_
-| Adm-B4 | P2 | AI fix suggestion ("Apply Fix" per row in error browser) shows a `proposed_value` with confidence but no Accept button — workflow for accepting a suggestion is unclear | `components/admin/ImportErrorsTable.tsx` |
+~~| Adm-B4 | P2 | AI fix suggestion has no Accept button |~~ _(resolved — PATCH /api/admin/imports/[id]/errors endpoint writes proposed_value into transformed_data and clears the field's error; UI shows Accept → ✓ Accepted)_
 | Adm-B5 | P2 | Staging tables hold donor PII indefinitely — no TTL, cleanup job, or documented data retention policy | `staging_import_*` tables |
 | Adm-B6 | P2 | `blackbaud_api` and `direct_db` source types declared in schema but never implemented — always requires CSV export | `lib/import/job-queue.ts` |
 

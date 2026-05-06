@@ -54,6 +54,9 @@ export function ImportErrorsTable({ importJobId }: ImportErrorsTableProps) {
   // AI fix state: rowId → suggestions
   const [aiFixMap, setAiFixMap] = useState<Record<string, AISuggestion[]>>({});
   const [loadingAIFor, setLoadingAIFor] = useState<Set<string>>(new Set());
+  // rowId:field → accepted state
+  const [acceptedKeys, setAcceptedKeys] = useState<Set<string>>(new Set());
+  const [acceptingKey, setAcceptingKey] = useState<string | null>(null);
 
   const fetchErrors = useCallback(async () => {
     setLoading(true);
@@ -114,6 +117,36 @@ export function ImportErrorsTable({ importJobId }: ImportErrorsTableProps) {
         next.delete(row.id);
         return next;
       });
+    }
+  };
+
+  const acceptSuggestion = async (
+    row: ErrorRow,
+    suggestion: AISuggestion,
+    stagingTable: string
+  ) => {
+    const key = `${row.id}:${suggestion.field}`;
+    setAcceptingKey(key);
+    try {
+      const res = await fetch(`/api/admin/imports/${importJobId}/errors`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          staging_table: stagingTable,
+          row_id: row.id,
+          field: suggestion.field,
+          proposed_value: suggestion.proposed_value,
+        }),
+      });
+      if (res.ok) {
+        setAcceptedKeys((prev) => new Set(prev).add(key));
+        // Refresh table to reflect updated status
+        await fetchErrors();
+      }
+    } catch {
+      // silently fail
+    } finally {
+      setAcceptingKey(null);
     }
   };
 
@@ -365,16 +398,34 @@ export function ImportErrorsTable({ importJobId }: ImportErrorsTableProps) {
                             )}
                           </>
                         )}
-                        {aiSug && (
-                          <div className="text-xs">
-                            <span className="text-green-700 font-medium">
-                              → {String(aiSug.proposed_value ?? '—')}
-                            </span>
-                            <span className="ml-1 text-neutral-400">
-                              ({Math.round(aiSug.confidence * 100)}%)
-                            </span>
-                          </div>
-                        )}
+                        {aiSug && (() => {
+                          const key = `${row.id}:${aiSug.field}`;
+                          const accepted = acceptedKeys.has(key);
+                          const accepting = acceptingKey === key;
+                          return (
+                            <div className="text-xs space-y-1">
+                              <div className="flex items-center gap-1 flex-wrap">
+                                <span className="text-green-700 font-medium">
+                                  → {String(aiSug.proposed_value ?? '—')}
+                                </span>
+                                <span className="text-neutral-400">
+                                  ({Math.round(aiSug.confidence * 100)}%)
+                                </span>
+                              </div>
+                              {accepted ? (
+                                <span className="text-green-600 font-medium">✓ Accepted</span>
+                              ) : (
+                                <button
+                                  onClick={() => acceptSuggestion(row, aiSug, STAGING_TABLE[entity])}
+                                  disabled={accepting}
+                                  className="px-2 py-0.5 rounded border border-green-300 bg-green-50 text-green-700 hover:bg-green-100 disabled:opacity-50 transition-colors whitespace-nowrap"
+                                >
+                                  {accepting ? 'Applying…' : 'Accept'}
+                                </button>
+                              )}
+                            </div>
+                          );
+                        })()}
                       </td>
                     </tr>
                   );

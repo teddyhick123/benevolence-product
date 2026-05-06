@@ -330,7 +330,7 @@ _(H-S1, H-S2, H-S3 resolved in Sprint B wave 3 — see commit eb13d1c0)_
 ~~| AI-S1 | `update_holding` has no field allowlist |~~ _(resolved Sprint B wave 5 — see AI-B3)_
 ~~| AI-S2 | P1 | No audit trail attribute |~~ _(resolved — migration 0029 adds initiated_by column with 'ai' default; ai-action-executor sets it on every insert)_
 ~~| AI-S3 | P1 | Service-role client for AI tools |~~ _(resolved — ClaudePortfolioAssistant now accepts session client; chat route passes user supabase; all tool calls run through RLS)_
-| AI-S4 | P2 | No prompt injection guard on user-provided text that becomes part of AI system prompt context |
+~~| AI-S4 | P2 | No prompt injection guard |~~ _(resolved — `lib/ai/prompt-guard.ts` pattern-matches injection attempts; chat route rejects with 400 before message reaches Claude)_
 ~~| AI-S5 | Unbounded conversation history |~~ _(resolved Sprint B wave 5 — D-B5 history capped at 20 messages)_
 
 ### UX Gaps (P2)

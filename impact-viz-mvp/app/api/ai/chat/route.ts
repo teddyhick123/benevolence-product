@@ -6,6 +6,7 @@ import { createServerClient } from '@supabase/ssr';
 import { aiAuthRequired, rateLimitExceeded } from '@/lib/rate-limit-response';
 import { aiLimiter } from '@/lib/rate-limit';
 import { aiChatRequestSchema } from '@/lib/schemas/ai';
+import { containsInjection } from '@/lib/ai/prompt-guard';
 import { Redis } from '@upstash/redis';
 
 export const runtime = 'nodejs';
@@ -93,6 +94,14 @@ export async function POST(req: NextRequest) {
     }
 
     const { portfolioId, message, conversationHistory } = validation.data;
+
+    // Reject prompt injection attempts in user messages
+    if (containsInjection(message)) {
+      return NextResponse.json(
+        { error: 'Message rejected: contains disallowed content.' },
+        { status: 400 }
+      );
+    }
 
     // Verify user has access to portfolio (check membership or admin status)
     const { data: membership } = await supabase

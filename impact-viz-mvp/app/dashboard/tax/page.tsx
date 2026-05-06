@@ -26,6 +26,7 @@ function TaxDashboard() {
     Number(searchParams.get('year')) || currentYear
   );
   const [portfolioId, setPortfolioId] = useState<string | null>(null);
+  const [moduleEnabled, setModuleEnabled] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(true);
   const [showWizard, setShowWizard] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -34,14 +35,22 @@ function TaxDashboard() {
   const [taxOverview, setTaxOverview] = useState<any>(null);
   const [agiLimits, setAgiLimits] = useState<AGILimits | null>(null);
 
-  // Fetch user's portfolio ID
+  // Fetch user's portfolio ID and check module access
   useEffect(() => {
     async function fetchProfile() {
       try {
-        const res = await fetch('/api/me');
-        if (res.ok) {
-          const json = await res.json();
+        const [meRes, orgRes] = await Promise.all([
+          fetch('/api/me'),
+          fetch('/api/org'),
+        ]);
+        if (meRes.ok) {
+          const json = await meRes.json();
           setPortfolioId(json.portfolio_id || json.recommended_portfolio_id);
+        }
+        if (orgRes.ok) {
+          const json = await orgRes.json();
+          const firstOrg = json.organizations?.[0];
+          setModuleEnabled(firstOrg ? !!firstOrg.modules?.tax : true);
         }
       } catch (err) {
         console.error('Error fetching profile:', err);
@@ -97,6 +106,17 @@ function TaxDashboard() {
               <div key={i} className="h-64 bg-gray-200 rounded-lg"></div>
             ))}
           </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (moduleEnabled === false) {
+    return (
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex items-center justify-center min-h-[60vh]">
+        <div className="text-center max-w-sm">
+          <h2 className="text-xl font-semibold text-gray-800 mb-2">Tax Optimization not enabled</h2>
+          <p className="text-sm text-gray-500">The Tax Optimization module is not enabled for your organization. Contact your administrator to enable it.</p>
         </div>
       </div>
     );

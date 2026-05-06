@@ -27,6 +27,7 @@ const currentYear = new Date().getFullYear();
 export default function CompliancePage() {
   const [orgId, setOrgId] = useState<string | null>(null);
   const [portfolioId, setPortfolioId] = useState<string | null>(null);
+  const [moduleEnabled, setModuleEnabled] = useState<boolean | null>(null);
 
   // Filing calendar
   const [filings, setFilings] = useState<any[]>([]);
@@ -59,7 +60,9 @@ export default function CompliancePage() {
       ]);
       if (orgRes.ok) {
         const d = await orgRes.json();
-        setOrgId(d.organizations?.[0]?.id || null);
+        const org = d.organizations?.[0];
+        setOrgId(org?.id || null);
+        setModuleEnabled(!!org?.modules?.compliance);
       }
       if (meRes.ok) {
         const d = await meRes.json();
@@ -167,6 +170,17 @@ export default function CompliancePage() {
   }
 
   const yearOptions = Array.from({ length: 6 }, (_, i) => currentYear - 1 - i);
+
+  if (moduleEnabled === false) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center max-w-sm">
+          <h2 className="text-xl font-semibold text-gray-800 mb-2">Compliance not enabled</h2>
+          <p className="text-sm text-gray-500">The Compliance module is not enabled for your organization. Contact your administrator to enable it.</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">

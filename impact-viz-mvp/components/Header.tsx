@@ -134,13 +134,15 @@ function HeaderContent() {
               </Link>
 
               {/* Operations group */}
-              <Link
-                href={taxHref}
-                aria-current={pathname.startsWith('/dashboard/tax') ? 'page' : undefined}
-                className={navLinkClass}
-              >
-                Tax
-              </Link>
+              {orgModules.tax && (
+                <Link
+                  href={taxHref}
+                  aria-current={pathname.startsWith('/dashboard/tax') ? 'page' : undefined}
+                  className={navLinkClass}
+                >
+                  Tax
+                </Link>
+              )}
               {orgModules.donors && (
                 <Link
                   href="/dashboard/donors"
@@ -233,13 +235,15 @@ function HeaderContent() {
             >
               Charities
             </Link>
-            <Link
-              href={taxHref}
-              aria-current={pathname.startsWith('/dashboard/tax') ? 'page' : undefined}
-              className={mobileNavLinkClass}
-            >
-              Tax
-            </Link>
+            {orgModules.tax && (
+              <Link
+                href={taxHref}
+                aria-current={pathname.startsWith('/dashboard/tax') ? 'page' : undefined}
+                className={mobileNavLinkClass}
+              >
+                Tax
+              </Link>
+            )}
             {orgModules.donors && (
               <Link
                 href="/dashboard/donors"

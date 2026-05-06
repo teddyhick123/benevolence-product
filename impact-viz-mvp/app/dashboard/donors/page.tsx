@@ -28,6 +28,7 @@ const RECENCY_COLORS: Record<string, string> = {
 
 export default function DonorsPage() {
   const [orgId, setOrgId] = useState<string | null>(null);
+  const [moduleEnabled, setModuleEnabled] = useState<boolean | null>(null);
   const [donors, setDonors] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -45,7 +46,10 @@ export default function DonorsPage() {
         if (res.ok) {
           const data = await res.json();
           const firstOrg = data.organizations?.[0];
-          if (firstOrg) setOrgId(firstOrg.id);
+          if (firstOrg) {
+            setOrgId(firstOrg.id);
+            setModuleEnabled(!!firstOrg.modules?.donors);
+          }
         }
       } catch {
         setError('Failed to load organization');
@@ -80,6 +84,17 @@ export default function DonorsPage() {
 
     fetchDonors();
   }, [orgId, search, tierFilter, recencyFilter]);
+
+  if (moduleEnabled === false) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center max-w-sm">
+          <h2 className="text-xl font-semibold text-gray-800 mb-2">Donor Management not enabled</h2>
+          <p className="text-sm text-gray-500">The Donor Management module is not enabled for your organization. Contact your administrator to enable it.</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">

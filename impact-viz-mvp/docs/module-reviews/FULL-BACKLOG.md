@@ -1,6 +1,6 @@
 # Benevolence — Full Issue Backlog
 
-Last updated: 2026-05-06 (post-Sprint B wave 7 — Admin rollback/mapping, onboarding org types, letter label)
+Last updated: 2026-05-06 (post-Sprint B wave 8 — AI multi-turn tool loop, consolidated admin auth)
 Source: 10 individual module reviews in `docs/module-reviews/`
 Scope: All remaining bugs, UX gaps, missing features, security issues, and performance issues across all active modules.
 
@@ -13,6 +13,8 @@ Resolved in Sprint B wave 1 (2026-05-01): compliance payout `amount_usd`→`fair
 Resolved in Sprint B wave 2 (2026-05-04): charities full column reconciliation (C4/Ch-B1/Ch-B4), removed dead queries for non-existent tables (C5/Ch-B2/Ch-U6), replaced `portfolio_recommendations` with `portfolio_charities` junction table (C6/Ch-B3/Ch-F1/Ch-F2/Ch-F7), donor CRM acknowledgment write (Dr-B1), donor PDF signed URL (Dr-B2/Dr-F4).
 
 Resolved in Sprint B wave 3 (2026-05-05): IRS 990-PF Part XIII payout formula — exempt-use assets, acquisition indebtedness, excise-tax deduction, avg FMV (Cm-B2); filing status enum aligned to DB values, Mark-as-Filed button now shows on `upcoming`/`overdue` (Cm-B3); conservation easement 50% AGI limit + schema category (T-B1/T-F1); Form 8283 Section A/B routing for publicly traded securities (T-B2/T-F2); optimization engine 60% cash AGI bucket (T-B3/T-F3); CPA Collaboration Portal enabled (T-B5/T-F5/T-U4); hardcoded CPA base URL → env var (T-B6/T-F6); removed AGI console.log in production (T-B7); Cache-Control: no-store on all sensitive tax routes (T-B8); QCD limit uses scenario year not current year (T-B9); bunching strategy standard deduction no longer hardcoded (T-B10); holdings GET auth check + no-store cache header (H-S1); deleteFact holding_id scope guard (H-S2); asset_type/status enum validation in server actions (H-S3).
+
+Resolved in Sprint B wave 8 (2026-05-06): AI-B4 multi-turn tool execution loop — replaced two-pass approach with while-loop (max 5 turns), tool calls in final response are now executed instead of silently dropped; Adm-B3 admin auth consolidated — created lib/admin-auth.ts with canonical requireAdmin() using is_admin() RPC, removed 25 duplicate inline functions that queried admins table directly.
 
 Resolved in Sprint B wave 7 (2026-05-06): Adm-B1 AI mapping now passes up to 5 actual staging rows as sample_records; Adm-B2 rollback replaced .limit(5000) with full paginated fetch; X3 family_office added to onboarding PersonaSelector, org_type values aligned to DB enum across PersonaSelector/QuickIntakeForm/intake Zod schema; X4 dashboard "AI Interface" label renamed to "Portfolio Letter".
 
@@ -309,7 +311,7 @@ _(H-S1, H-S2, H-S3 resolved in Sprint B wave 3 — see commit eb13d1c0)_
 ~~| AI-B1 | list_holdings status default |~~ _(resolved Sprint B wave 5 — status filter only applied when explicitly provided)_
 ~~| AI-B2 | update/delete holding portfolio ownership unverified |~~ _(resolved Sprint B wave 5 — portfolio_id scope guard added to both queries)_
 ~~| AI-B3 | update_holding no field allowlist |~~ _(resolved Sprint B wave 5 — allowlist of 27 safe columns enforced)_
-| AI-B4 | P1 | Single-level tool execution loop — nested tool use blocks in final response are silently ignored; complex multi-step requests produce incomplete responses | `lib/claude-assistant.ts:620-694` |
+~~| AI-B4 | Single-level tool execution loop |~~ _(resolved Sprint B wave 8 — multi-turn loop, max 5 turns)_
 ~~| AI-B5 | Letter generation uses OpenAI GPT-4o |~~ _(resolved Sprint B wave 5 — switched to claude-sonnet-4-6)_
 ~~| AI-B6 | display_widget records spurious create action |~~ _(resolved Sprint B wave 5 — no action recorded for display-only op)_
 | AI-B7 | P2 | Error messages in production may leak internal details (table names, SQL fragments) from Supabase/SDK errors | `app/api/ai/chat/route.ts:242-248` |
@@ -400,7 +402,7 @@ _(H-S1, H-S2, H-S3 resolved in Sprint B wave 3 — see commit eb13d1c0)_
 |---|----------|-------|----------|
 ~~| Adm-B1 | AI mapping assist always sends `sample_records: []` |~~ _(resolved Sprint B wave 7 — page.tsx fetches 5 staging rows, client passes them to mapping-assist API)_
 ~~| Adm-B2 | Rollback hard `.limit(5000)` cap |~~ _(resolved Sprint B wave 7 — replaced with paginated loop, no upper cap)_
-| Adm-B3 | P1 | Three different admin authorization patterns across 25+ routes (Pattern A: `admins` table lookup; Pattern B: `is_admin` RPC; Pattern C: `is_super_admin` profile flag) — inconsistent, may diverge | All admin routes |
+~~| Adm-B3 | Three different admin auth patterns |~~ _(resolved Sprint B wave 8 — lib/admin-auth.ts created; all Pattern A routes now use requireAdmin() from shared helper)_
 | Adm-B4 | P2 | AI fix suggestion ("Apply Fix" per row in error browser) shows a `proposed_value` with confidence but no Accept button — workflow for accepting a suggestion is unclear | `components/admin/ImportErrorsTable.tsx` |
 | Adm-B5 | P2 | Staging tables hold donor PII indefinitely — no TTL, cleanup job, or documented data retention policy | `staging_import_*` tables |
 | Adm-B6 | P2 | `blackbaud_api` and `direct_db` source types declared in schema but never implemented — always requires CSV export | `lib/import/job-queue.ts` |
@@ -471,8 +473,8 @@ _(H-S1, H-S2, H-S3 resolved in Sprint B wave 3 — see commit eb13d1c0)_
 | QuickBooks | — | 3 | 2 | — | 5 |
 | Donor CRM | — | — | 8 | — | 8 |
 | Charities | — | — | 11 | — | 11 |
-| AI Assistant | — | 4 | 9 | — | 13 |
+| AI Assistant | — | 3 | 9 | — | 12 |
 | Visualizations | — | 5 | 6 | — | 11 |
-| Admin / Import | — | 1 | 9 | — | 10 |
+| Admin / Import | — | — | 9 | — | 9 |
 | Cross-Cutting | — | 2 | 3 | 1 | 6 |
-| **Total** | **—** | **17** | **74** | **1** | **92** |
+| **Total** | **—** | **15** | **74** | **1** | **90** |

@@ -80,7 +80,7 @@ const RATINGS_CONFIG = {
   CACHE_DURATION_MS: 30 * 24 * 60 * 60 * 1000,
 
   // API endpoints
-  CHARITY_NAVIGATOR_API: 'https://api.charitynavigator.org/v2',
+  CHARITY_NAVIGATOR_API: 'https://api.data.charitynavigator.org/v2',
   CANDID_API: 'https://api.candid.org/v1',
 
   // Fallback to use when APIs are unavailable
@@ -107,7 +107,7 @@ async function fetchCharityNavigatorRating(ein: string): Promise<CharityRatingsD
       `${RATINGS_CONFIG.CHARITY_NAVIGATOR_API}/Organizations?ein=${cleanEin}`,
       {
         headers: {
-          'Authorization': `Bearer ${apiKey}`,
+          'Subscription-Key': apiKey,
           'Content-Type': 'application/json',
         },
       }

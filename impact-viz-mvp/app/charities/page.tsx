@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Search, ChevronDown, SlidersHorizontal } from 'lucide-react';
 import CharityCard from '@/components/charities/CharityCard';
@@ -55,6 +55,12 @@ export default function CharitiesPage() {
   // Mobile filter sidebar
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
 
+  // Autocomplete
+  const [suggestions, setSuggestions] = useState<{ id: string; ein: string; name: string; location: string }[]>([]);
+  const [suggestionsVisible, setSuggestionsVisible] = useState(false);
+  const autocompleteDebounceRef = useRef<NodeJS.Timeout | null>(null);
+  const searchContainerRef = useRef<HTMLDivElement>(null);
+
   // Fetch user's default portfolio for "My Portfolio" view
   useEffect(() => {
     if (viewMode === 'portfolio') {
@@ -69,17 +75,56 @@ export default function CharitiesPage() {
 
   const fetchDefaultPortfolio = async () => {
     try {
-      const response = await fetch('/api/portfolios');
+      const response = await fetch('/api/me');
       if (response.ok) {
         const data = await response.json();
-        if (data.data && data.data.length > 0) {
-          setPortfolioId(data.data[0].id);
+        if (data.recommended_portfolio_id) {
+          setPortfolioId(data.recommended_portfolio_id);
         }
       }
-    } catch (err) {
-      console.error('Error fetching portfolio:', err);
+    } catch {
+      // silent
     }
   };
+
+  // Autocomplete: debounced fetch on searchQuery change
+  useEffect(() => {
+    if (autocompleteDebounceRef.current) clearTimeout(autocompleteDebounceRef.current);
+
+    if (searchQuery.length < 2) {
+      setSuggestions([]);
+      setSuggestionsVisible(false);
+      return;
+    }
+
+    autocompleteDebounceRef.current = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/charities/search/autocomplete?q=${encodeURIComponent(searchQuery)}&limit=8`);
+        if (res.ok) {
+          const data = await res.json();
+          setSuggestions(data.suggestions || []);
+          setSuggestionsVisible(true);
+        }
+      } catch {
+        // silent
+      }
+    }, 300);
+
+    return () => {
+      if (autocompleteDebounceRef.current) clearTimeout(autocompleteDebounceRef.current);
+    };
+  }, [searchQuery]);
+
+  // Close autocomplete on outside click
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (searchContainerRef.current && !searchContainerRef.current.contains(e.target as Node)) {
+        setSuggestionsVisible(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const fetchCharities = async () => {
     setIsLoading(true);
@@ -212,15 +257,37 @@ export default function CharitiesPage() {
 
           {/* Search Bar */}
           <form onSubmit={handleSearch} className="flex flex-col sm:flex-row gap-3">
-            <div className="flex-1 relative">
+            <div ref={searchContainerRef} className="flex-1 relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
               <input
                 type="text"
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
+                onFocus={() => suggestions.length > 0 && setSuggestionsVisible(true)}
+                onKeyDown={(e) => e.key === 'Escape' && setSuggestionsVisible(false)}
                 placeholder="Search by name, EIN, or location..."
                 className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-azure focus:border-azure"
               />
+              {suggestionsVisible && suggestions.length > 0 && (
+                <div className="absolute z-50 top-full mt-1 w-full bg-white rounded-lg border border-gray-200 shadow-lg max-h-72 overflow-y-auto">
+                  {suggestions.map((s) => (
+                    <button
+                      key={s.id}
+                      type="button"
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        setSearchQuery(s.name);
+                        setSuggestionsVisible(false);
+                        setPage(1);
+                      }}
+                      className="w-full px-4 py-2.5 text-left hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-b-0"
+                    >
+                      <p className="text-sm font-medium text-gray-900 truncate">{s.name}</p>
+                      <p className="text-xs text-gray-500">EIN: {s.ein}{s.location ? ` · ${s.location}` : ''}</p>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
             <div className="flex gap-2">
               {/* Mobile Filter Toggle */}

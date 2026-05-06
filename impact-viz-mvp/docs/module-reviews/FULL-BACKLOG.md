@@ -1,6 +1,6 @@
 # Benevolence — Full Issue Backlog
 
-Last updated: 2026-05-05 (post-Sprint B wave 5 — AI, Visualizations, Dashboard, Holdings P1s)
+Last updated: 2026-05-05 (post-Sprint B wave 6 — Charities P1s + Dashboard holdings auth verified)
 Source: 10 individual module reviews in `docs/module-reviews/`
 Scope: All remaining bugs, UX gaps, missing features, security issues, and performance issues across all active modules.
 
@@ -14,6 +14,8 @@ Resolved in Sprint B wave 2 (2026-05-04): charities full column reconciliation (
 
 Resolved in Sprint B wave 3 (2026-05-05): IRS 990-PF Part XIII payout formula — exempt-use assets, acquisition indebtedness, excise-tax deduction, avg FMV (Cm-B2); filing status enum aligned to DB values, Mark-as-Filed button now shows on `upcoming`/`overdue` (Cm-B3); conservation easement 50% AGI limit + schema category (T-B1/T-F1); Form 8283 Section A/B routing for publicly traded securities (T-B2/T-F2); optimization engine 60% cash AGI bucket (T-B3/T-F3); CPA Collaboration Portal enabled (T-B5/T-F5/T-U4); hardcoded CPA base URL → env var (T-B6/T-F6); removed AGI console.log in production (T-B7); Cache-Control: no-store on all sensitive tax routes (T-B8); QCD limit uses scenario year not current year (T-B9); bunching strategy standard deduction no longer hardcoded (T-B10); holdings GET auth check + no-store cache header (H-S1); deleteFact holding_id scope guard (H-S2); asset_type/status enum validation in server actions (H-S3).
 
+Resolved in Sprint B wave 6 (2026-05-05): Ch-B5 autocomplete wired to search input with 300ms debounce and outside-click dismiss; Ch-B6 Charity Navigator client aligned to `Subscription-Key` header at `api.data.charitynavigator.org/v2`; Ch-B7 `fetchDefaultPortfolio` fixed to use `/api/me`; D-B3/D-B7 verified already resolved (explicit `getUser()` auth gate present in holdings GET route).
+
 Resolved in Sprint B wave 5 (2026-05-05): AI-B1 list_holdings status default removed; AI-B2/AI-B3 update/delete holding portfolio ownership + field allowlist; AI-B5 letter/generate switched to Claude; AI-B6 display_widget spurious create action removed; Vis-B2 timeline events filtered by portfolio investee_ids; Vis-B3 InlineWidget + registry.ts register all 14 widget types; Vis-B8/B9 KpiTrend/RadialProgress console.log spam removed; D-B2 KPI delta computed from metric_facts and passed to KpiCard; D-B4 summary route switched to Claude Haiku — no longer requires OPENAI_API_KEY; D-B5 AIAssistantPanel history capped at 20 messages; D-B6 auth_user_id removed from map route response; D-B8 empty portfolio state replaced with CTA; H-B2 asset_type/status changed from free-text inputs to selects with DB enum values; H-B4 financial-profile generate switched to Claude; H-B5/H-B6 ReportUploader/CharityLinkSearch errors now surfaced to user.
 
 ---
@@ -26,11 +28,11 @@ Resolved in Sprint B wave 5 (2026-05-05): AI-B1 list_holdings status default rem
 |---|-------|----------|
 | D-B1 | Triple holdings fetch: `AllAssetsOverview`, `HoldingsSection`, `HoldingsPieAutoRenderer` all independently hit the same holdings endpoint with different `limit` values — pie chart and table can show inconsistent totals | `components/AllAssetsOverview.tsx`, `components/HoldingsSection.tsx`, `components/vis/VisualCarousel.tsx` |
 ~~| D-B2 | KPI delta prop always `undefined` — trend arrows never render despite being wired up |~~ _(resolved Sprint B wave 5 — delta computed from metric_facts, passed to KpiCard)_
-| D-B3 | `supabasePublic()` used in GET holdings route — no explicit auth gate before querying | `app/api/portfolio/[id]/holdings/route.ts:14` |
+~~| D-B3 | `supabasePublic()` used in GET holdings route — no explicit auth gate before querying |~~ _(verified resolved — explicit `getUser()` + 401 guard present at line 18)_
 ~~| D-B4 | OpenAI summary card dead if `OPENAI_API_KEY` is absent |~~ _(resolved Sprint B wave 5 — switched to Claude Haiku)_
 ~~| D-B5 | `AIAssistantPanel` sends unbounded conversation history to API |~~ _(resolved Sprint B wave 5 — capped at 20 messages)_
 ~~| D-B6 | Map route leaks `auth_user_id` in response body |~~ _(resolved Sprint B wave 5)_
-| D-B7 | Holdings GET route has no explicit auth gate — relies entirely on RLS with no `getUser()` call | `app/api/portfolio/[id]/holdings/route.ts` |
+~~| D-B7 | Holdings GET route has no explicit auth gate |~~ _(verified resolved — same as D-B3)_
 ~~| D-B8 | "No portfolio selected" state shows bare `<div>` with no CTA |~~ _(resolved Sprint B wave 5 — CTA pointing to /onboarding)_
 
 ### UX Gaps (P2)
@@ -263,9 +265,9 @@ _(H-S1, H-S2, H-S3 resolved in Sprint B wave 3 — see commit eb13d1c0)_
 
 | # | Severity | Issue | Location |
 |---|----------|-------|----------|
-| Ch-B5 | P1 | Autocomplete endpoint exists but never called from search input — no autocomplete in UI | `app/api/charities/search/autocomplete/route.ts` |
-| Ch-B6 | P1 | Two Charity Navigator clients with different auth headers (`Subscription-Key` vs `Authorization: Bearer`) — one always 401 | `lib/services/charity-navigator.ts:74`, `lib/services/charity-ratings.ts:110` |
-| Ch-B7 | P1 | "My Portfolio" mode fetches `/api/portfolios` — no non-admin route exists for this path | `app/charities/page.tsx:70` |
+~~| Ch-B5 | Autocomplete endpoint never called from search input |~~ _(resolved Sprint B wave 6 — debounced autocomplete dropdown wired to search input)_
+~~| Ch-B6 | Two Charity Navigator clients with different auth headers |~~ _(resolved Sprint B wave 6 — `charity-ratings.ts` aligned to `Subscription-Key` at `api.data.charitynavigator.org/v2`)_
+~~| Ch-B7 | "My Portfolio" fetches non-existent `/api/portfolios` route |~~ _(resolved Sprint B wave 6 — uses `/api/me` + `recommended_portfolio_id`)_
 | Ch-B8 | P2 | No debouncing on search input — every keystroke fires against 2M-row table | Charity search component |
 | Ch-B9 | P2 | Pagination broken for pages 4+ — only shows `[1][2][3]...[last]` with no current-page window | `app/charities/page.tsx:323` |
 | Ch-B10 | P2 | No rate limiting on `/api/charities` or `/api/charities/[ein]` — 2M-row table with no throttling | Charity routes |
@@ -460,15 +462,15 @@ _(H-S1, H-S2, H-S3 resolved in Sprint B wave 3 — see commit eb13d1c0)_
 
 | Module | P0 | P1 | P2 | P3 | Total |
 |--------|----|----|----|----|-------|
-| Dashboard | — | 2 | 6 | — | 8 |
+| Dashboard | — | — | 6 | — | 6 |
 | Holdings | — | 1 | 6 | — | 7 |
 | Tax Center | — | 1 | 7 | — | 8 |
 | Compliance | — | — | 7 | — | 7 |
 | QuickBooks | — | 3 | 2 | — | 5 |
 | Donor CRM | — | — | 8 | — | 8 |
-| Charities | — | 3 | 11 | — | 14 |
+| Charities | — | — | 11 | — | 11 |
 | AI Assistant | — | 4 | 9 | — | 13 |
 | Visualizations | — | 5 | 6 | — | 11 |
 | Admin / Import | — | 3 | 9 | — | 12 |
 | Cross-Cutting | — | 4 | 3 | 1 | 8 |
-| **Total** | **—** | **26** | **74** | **1** | **101** |
+| **Total** | **—** | **21** | **74** | **1** | **96** |

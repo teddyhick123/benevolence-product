@@ -1,5 +1,7 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { supabasePublic } from '@/lib/supabase';
+import { charitiesLimiter, getIP } from '@/lib/rate-limit';
+import { rateLimitExceeded } from '@/lib/rate-limit-response';
 
 /**
  * GET /api/charities/[ein]
@@ -12,9 +14,15 @@ import { supabasePublic } from '@/lib/supabase';
  * - Portfolio-specific metadata (if user has this charity in their portfolio)
  */
 export async function GET(
-  req: Request,
+  req: NextRequest,
   { params }: { params: Promise<{ ein: string }> }
 ) {
+  if (process.env.UPSTASH_REDIS_REST_URL) {
+    const ip = getIP(req);
+    const { success, reset, remaining, limit } = await charitiesLimiter.limit(ip);
+    if (!success) return rateLimitExceeded(reset, remaining, limit);
+  }
+
   const sb = await supabasePublic();
   const { ein } = await params;
   const url = new URL(req.url);

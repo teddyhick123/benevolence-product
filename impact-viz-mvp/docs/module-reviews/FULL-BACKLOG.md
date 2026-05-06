@@ -280,7 +280,7 @@ _(H-S1, H-S2, H-S3 resolved in Sprint B wave 3 — see commit eb13d1c0)_
 ~~| Ch-B7 | "My Portfolio" fetches non-existent `/api/portfolios` route |~~ _(resolved Sprint B wave 6 — uses `/api/me` + `recommended_portfolio_id`)_
 ~~| Ch-B8 | P2 | No debouncing on search input |~~ _(resolved — `debouncedQuery` state (300ms) gates the main charity fetch; keystrokes only update local state)_
 ~~| Ch-B9 | P2 | Pagination broken for pages 4+ |~~ _(resolved — sliding window ±2 around current page with leading/trailing ellipsis and always-visible first/last)_
-| Ch-B10 | P2 | No rate limiting on `/api/charities` or `/api/charities/[ein]` — 2M-row table with no throttling | Charity routes |
+~~| Ch-B10 | P2 | No rate limiting on `/api/charities` or `/api/charities/[ein]` |~~ _(resolved — `charitiesLimiter` (120 req/min per IP, sliding window) applied to both routes; graceful skip when Redis not configured)_
 
 ### UX Gaps (P2)
 

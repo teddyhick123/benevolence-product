@@ -1,5 +1,7 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { supabasePublic } from '@/lib/supabase';
+import { charitiesLimiter, getIP } from '@/lib/rate-limit';
+import { rateLimitExceeded } from '@/lib/rate-limit-response';
 
 /**
  * GET /api/charities
@@ -19,7 +21,15 @@ import { supabasePublic } from '@/lib/supabase';
  * - limit: Results per page (default: 20, max: 100)
  * - portfolio_id: If provided, only show charities in this portfolio
  */
-export async function GET(req: Request) {
+export async function GET(req: NextRequest) {
+  // Rate-limit per IP — protects 2M-row table from scraping
+  // Skip gracefully if Redis is not configured (local dev)
+  if (process.env.UPSTASH_REDIS_REST_URL) {
+    const ip = getIP(req);
+    const { success, reset, remaining, limit } = await charitiesLimiter.limit(ip);
+    if (!success) return rateLimitExceeded(reset, remaining, limit);
+  }
+
   const sb = await supabasePublic();
   const url = new URL(req.url);
 

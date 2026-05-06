@@ -35,6 +35,15 @@ export const aiLimiter = new Ratelimit({
   prefix: 'ratelimit:ai',
 });
 
+// Rate limiter for charity search — keyed per IP
+// 120 requests per minute protects the 2M-row charities table from scraping
+export const charitiesLimiter = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(120, '1m'),
+  analytics: true,
+  prefix: 'ratelimit:charities',
+});
+
 /**
  * Extract IP address from request headers
  * Checks x-forwarded-for (Vercel), x-real-ip, and falls back to 'unknown'

@@ -1,6 +1,6 @@
 # Benevolence — Full Issue Backlog
 
-Last updated: 2026-05-05 (post-donor/holdings Sprint B wave 4)
+Last updated: 2026-05-05 (post-Sprint B wave 5 — AI, Visualizations, Dashboard, Holdings P1s)
 Source: 10 individual module reviews in `docs/module-reviews/`
 Scope: All remaining bugs, UX gaps, missing features, security issues, and performance issues across all active modules.
 
@@ -14,6 +14,8 @@ Resolved in Sprint B wave 2 (2026-05-04): charities full column reconciliation (
 
 Resolved in Sprint B wave 3 (2026-05-05): IRS 990-PF Part XIII payout formula — exempt-use assets, acquisition indebtedness, excise-tax deduction, avg FMV (Cm-B2); filing status enum aligned to DB values, Mark-as-Filed button now shows on `upcoming`/`overdue` (Cm-B3); conservation easement 50% AGI limit + schema category (T-B1/T-F1); Form 8283 Section A/B routing for publicly traded securities (T-B2/T-F2); optimization engine 60% cash AGI bucket (T-B3/T-F3); CPA Collaboration Portal enabled (T-B5/T-F5/T-U4); hardcoded CPA base URL → env var (T-B6/T-F6); removed AGI console.log in production (T-B7); Cache-Control: no-store on all sensitive tax routes (T-B8); QCD limit uses scenario year not current year (T-B9); bunching strategy standard deduction no longer hardcoded (T-B10); holdings GET auth check + no-store cache header (H-S1); deleteFact holding_id scope guard (H-S2); asset_type/status enum validation in server actions (H-S3).
 
+Resolved in Sprint B wave 5 (2026-05-05): AI-B1 list_holdings status default removed; AI-B2/AI-B3 update/delete holding portfolio ownership + field allowlist; AI-B5 letter/generate switched to Claude; AI-B6 display_widget spurious create action removed; Vis-B2 timeline events filtered by portfolio investee_ids; Vis-B3 InlineWidget + registry.ts register all 14 widget types; Vis-B8/B9 KpiTrend/RadialProgress console.log spam removed; D-B2 KPI delta computed from metric_facts and passed to KpiCard; D-B4 summary route switched to Claude Haiku — no longer requires OPENAI_API_KEY; D-B5 AIAssistantPanel history capped at 20 messages; D-B6 auth_user_id removed from map route response; D-B8 empty portfolio state replaced with CTA; H-B2 asset_type/status changed from free-text inputs to selects with DB enum values; H-B4 financial-profile generate switched to Claude; H-B5/H-B6 ReportUploader/CharityLinkSearch errors now surfaced to user.
+
 ---
 
 ## Dashboard
@@ -23,13 +25,13 @@ Resolved in Sprint B wave 3 (2026-05-05): IRS 990-PF Part XIII payout formula �
 | # | Issue | Location |
 |---|-------|----------|
 | D-B1 | Triple holdings fetch: `AllAssetsOverview`, `HoldingsSection`, `HoldingsPieAutoRenderer` all independently hit the same holdings endpoint with different `limit` values — pie chart and table can show inconsistent totals | `components/AllAssetsOverview.tsx`, `components/HoldingsSection.tsx`, `components/vis/VisualCarousel.tsx` |
-| D-B2 | KPI delta prop always `undefined` — trend arrows never render despite being wired up | `components/KpiSection.tsx`, `components/KpiCard.tsx` |
+~~| D-B2 | KPI delta prop always `undefined` — trend arrows never render despite being wired up |~~ _(resolved Sprint B wave 5 — delta computed from metric_facts, passed to KpiCard)_
 | D-B3 | `supabasePublic()` used in GET holdings route — no explicit auth gate before querying | `app/api/portfolio/[id]/holdings/route.ts:14` |
-| D-B4 | OpenAI summary card dead if `OPENAI_API_KEY` is absent — `AISummaryCard` shows blank with no fallback | `app/api/portfolio/[id]/summary/route.ts`, `components/AISummaryCard.tsx` |
-| D-B5 | `AIAssistantPanel` sends unbounded conversation history to API — will exceed payload limits after ~50 messages | `components/AIAssistantPanel.tsx:136-139` |
-| D-B6 | Map route leaks `auth_user_id` in response body | `app/api/portfolio/[id]/map/route.ts:198` |
+~~| D-B4 | OpenAI summary card dead if `OPENAI_API_KEY` is absent |~~ _(resolved Sprint B wave 5 — switched to Claude Haiku)_
+~~| D-B5 | `AIAssistantPanel` sends unbounded conversation history to API |~~ _(resolved Sprint B wave 5 — capped at 20 messages)_
+~~| D-B6 | Map route leaks `auth_user_id` in response body |~~ _(resolved Sprint B wave 5)_
 | D-B7 | Holdings GET route has no explicit auth gate — relies entirely on RLS with no `getUser()` call | `app/api/portfolio/[id]/holdings/route.ts` |
-| D-B8 | "No portfolio selected" state shows bare `<div>` with no CTA or guidance for new users | `app/dashboard/page.tsx:60` |
+~~| D-B8 | "No portfolio selected" state shows bare `<div>` with no CTA |~~ _(resolved Sprint B wave 5 — CTA pointing to /onboarding)_
 
 ### UX Gaps (P2)
 
@@ -51,7 +53,7 @@ Resolved in Sprint B wave 3 (2026-05-05): IRS 990-PF Part XIII payout formula �
 | D-F2 | Board report CTA from dashboard |
 | D-F3 | 5% payout gauge widget (once compliance payout calc is fixed) |
 | D-F4 | Fix triple-fetch — consolidate to single SWR-cached holdings call |
-| D-F5 | Trend arrows — compute and pass delta prop in KpiSection |
+~~| D-F5 | Trend arrows — compute and pass delta prop in KpiSection |~~ _(resolved Sprint B wave 5)_
 | D-F6 | Multi-portfolio switcher in dashboard header |
 | D-F7 | Module gating enforcement — show/hide nav links based on actual `org_has_module()` result |
 
@@ -70,11 +72,11 @@ _(H-S1, H-S2, H-S3 resolved in Sprint B wave 3 — see commit eb13d1c0)_
 | # | Issue | Location |
 |---|-------|----------|
 ~~| H-B1 | No holdings list page |~~ _(resolved 8c0903e5)_
-| H-B2 | `asset_type` and `status` fields on detail page are free-text inputs instead of selects constrained to DB enums | Holding detail form |
+~~| H-B2 | `asset_type` and `status` free-text inputs instead of selects |~~ _(resolved Sprint B wave 5 — replaced with selects constrained to DB enum values)_
 | H-B3 | Edit forms hidden behind `<details>` that disappear once holding has basic info — no discoverable edit path for populated holdings | Holding detail UI |
-| H-B4 | `financial-profile/generate` silently uses OpenAI GPT-4o instead of Claude — requires separate API key, undocumented | `app/api/holdings/[id]/financial-profile/generate/route.ts` |
-| H-B5 | `approveAll()` in `ReportUploader` processes staged facts serially with empty catch blocks — silent failures | `components/holdings/ReportUploader.tsx` |
-| H-B6 | `ReportUploader`, `CharityLinkSearch` have empty `catch {}` blocks on link/unlink/approve/reject — users can't tell if operations succeeded | `components/holdings/ReportUploader.tsx`, `components/holdings/CharityLinkSearch.tsx` |
+~~| H-B4 | `financial-profile/generate` uses OpenAI GPT-4o |~~ _(resolved Sprint B wave 5 — switched to Claude claude-sonnet-4-6)_
+~~| H-B5 | `approveAll()` silent failures in `ReportUploader` |~~ _(resolved Sprint B wave 5 — errors surfaced to user)_
+~~| H-B6 | `ReportUploader`/`CharityLinkSearch` empty catch blocks |~~ _(resolved Sprint B wave 5 — errors surfaced to user)_
 
 ### UX Gaps (P2)
 
@@ -300,12 +302,12 @@ _(H-S1, H-S2, H-S3 resolved in Sprint B wave 3 — see commit eb13d1c0)_
 
 | # | Severity | Issue | Location |
 |---|----------|-------|----------|
-| AI-B1 | P1 | `list_holdings` defaults `status` to `'Active'` when not provided — "list all holdings" silently misses Exited and Pipeline holdings | `lib/claude-assistant.ts` — `list_holdings` tool |
-| AI-B2 | P1 | `update_holding` and `delete_holding` don't verify the holding belongs to the current portfolio — service-role client bypasses RLS | `lib/claude-assistant.ts`, `lib/ai-action-executor.ts` |
-| AI-B3 | P1 | `update_holding` accepts `Record<string,any>` changes with no allowlist — could overwrite `portfolio_id`, `created_at`, or other internal fields | `lib/ai-action-executor.ts:100-106` |
+~~| AI-B1 | list_holdings status default |~~ _(resolved Sprint B wave 5 — status filter only applied when explicitly provided)_
+~~| AI-B2 | update/delete holding portfolio ownership unverified |~~ _(resolved Sprint B wave 5 — portfolio_id scope guard added to both queries)_
+~~| AI-B3 | update_holding no field allowlist |~~ _(resolved Sprint B wave 5 — allowlist of 27 safe columns enforced)_
 | AI-B4 | P1 | Single-level tool execution loop — nested tool use blocks in final response are silently ignored; complex multi-step requests produce incomplete responses | `lib/claude-assistant.ts:620-694` |
-| AI-B5 | P1 | Letter generation uses OpenAI GPT-4o not Claude — requires separate `OPENAI_API_KEY`, creates inconsistent experience | `app/api/portfolio/[id]/letter/generate/route.ts:193` |
-| AI-B6 | P1 | `display_widget` records a `create` action for a display-only operation — pollutes undo history with non-mutating events | `lib/claude-assistant.ts:1151-1172` |
+~~| AI-B5 | Letter generation uses OpenAI GPT-4o |~~ _(resolved Sprint B wave 5 — switched to claude-sonnet-4-6)_
+~~| AI-B6 | display_widget records spurious create action |~~ _(resolved Sprint B wave 5 — no action recorded for display-only op)_
 | AI-B7 | P2 | Error messages in production may leak internal details (table names, SQL fragments) from Supabase/SDK errors | `app/api/ai/chat/route.ts:242-248` |
 | AI-B8 | P2 | No AI usage logging — no table recording token consumption, model calls, or estimated cost per user/org/session | Platform-wide |
 
@@ -313,11 +315,11 @@ _(H-S1, H-S2, H-S3 resolved in Sprint B wave 3 — see commit eb13d1c0)_
 
 | # | Severity | Issue |
 |---|----------|-------|
-| AI-S1 | P1 | `update_holding` has no field allowlist — arbitrary column overwrite possible via chat |
+~~| AI-S1 | `update_holding` has no field allowlist |~~ _(resolved Sprint B wave 5 — see AI-B3)_
 | AI-S2 | P1 | No audit trail attribute distinguishing AI-initiated changes from user edits in `ai_actions` |
 | AI-S3 | P1 | Service-role Supabase client used for all AI tool execution — bypasses all RLS |
 | AI-S4 | P2 | No prompt injection guard on user-provided text that becomes part of AI system prompt context |
-| AI-S5 | P2 | Unbounded conversation history — content from early messages can influence later tool calls |
+~~| AI-S5 | Unbounded conversation history |~~ _(resolved Sprint B wave 5 — D-B5 history capped at 20 messages)_
 
 ### UX Gaps (P2)
 
@@ -335,13 +337,13 @@ _(H-S1, H-S2, H-S3 resolved in Sprint B wave 3 — see commit eb13d1c0)_
 
 | # | Feature |
 |---|---------|
-| AI-F1 | Allowlist enforcement on `update_holding` fields |
+~~| AI-F1 | Allowlist enforcement on `update_holding` fields |~~ _(resolved Sprint B wave 5)_
 | AI-F2 | Streaming responses (SSE or ReadableStream) |
 | AI-F3 | Persist conversation history across page reloads |
 | AI-F4 | Portfolio-aware contextual suggested prompts |
 | AI-F5 | Donor CRM tool coverage (`find_donor`, `log_gift`, `generate_acknowledgment`) |
 | AI-F6 | Tax center tool coverage (`estimate_deduction`, `run_optimization`) |
-| AI-F7 | Multi-turn tool execution loop (while stop_reason !== 'end_turn') |
+~~| AI-F7 | Multi-turn tool execution loop |~~ _(see AI-B4 — still open)_
 | AI-F8 | Per-org AI usage tracking for billing and abuse detection |
 
 ---
@@ -353,14 +355,14 @@ _(H-S1, H-S2, H-S3 resolved in Sprint B wave 3 — see commit eb13d1c0)_
 | # | Issue | Location |
 |---|-------|----------|
 | Vis-B1 | Waterfall "impact" mode uses `funds_allocated` — identical to "funding" mode — produces misleading board presentations showing funding data labeled as impact | `app/api/portfolio/[id]/waterfall/route.ts:89-148` |
-| Vis-B2 | Timeline API events query has no `portfolio_id` filter — `from('events').select('*')` returns all events across all orgs — data isolation issue + performance | `app/api/portfolio/[id]/timeline/route.ts:46` |
-| Vis-B3 | Widget type registry (`components/vis/registry.ts`) exports only 3 types; carousel runtime supports 14 — any code importing the registry misses 11 types | `components/vis/registry.ts` |
+~~| Vis-B2 | Timeline events no portfolio_id filter |~~ _(resolved Sprint B wave 5 — filtered by portfolio's investee_ids)_
+~~| Vis-B3 | Widget registry exports only 3 of 14 types |~~ _(resolved Sprint B wave 5 — InlineWidget + registry.ts updated to all 14 types)_
 | Vis-B4 | Drag-to-reorder in `EditWidgetsModal` only swaps two positions — dragging item 1 to slot 5 moves item 5 to slot 1, items 2–4 don't shift | `components/vis/EditWidgetsModal.tsx` |
 | Vis-B5 | `ImpactBubbleChart` tooltip uses `event.pageX`/`event.pageY` (absolute) but tooltip is `position: absolute` inside container — tooltip appears offset on any scrolled page | `components/vis/ImpactBubbleChart.tsx:351-353` |
 | Vis-B6 | `ImpactTimeline` horizontal mode has no ResizeObserver — SVG width set once on mount, breaks on window resize | `components/vis/ImpactTimeline.tsx:250` |
 | Vis-B7 | N+1 query in waterfall `metric` mode — one sequential DB query per holding | `app/api/portfolio/[id]/waterfall/route.ts:196-217` |
-| Vis-B8 | `KpiTrend` production `console.log` spam — 3–4 logs per widget render including emoji characters, leaks metric codes to browser console | `components/vis/KpiTrend.tsx:37-49` |
-| Vis-B9 | `RadialProgress` production `console.log` spam — same issue | `components/vis/RadialProgress.tsx:78-99` |
+~~| Vis-B8 | `KpiTrend` production console.log spam |~~ _(resolved Sprint B wave 5)_
+~~| Vis-B9 | `RadialProgress` production console.log spam |~~ _(resolved Sprint B wave 5)_
 
 ### UX Gaps (P2)
 
@@ -458,15 +460,15 @@ _(H-S1, H-S2, H-S3 resolved in Sprint B wave 3 — see commit eb13d1c0)_
 
 | Module | P0 | P1 | P2 | P3 | Total |
 |--------|----|----|----|----|-------|
-| Dashboard | — | 8 | 7 | — | 15 |
-| Holdings | — | 5 | 6 | — | 11 |
+| Dashboard | — | 2 | 6 | — | 8 |
+| Holdings | — | 1 | 6 | — | 7 |
 | Tax Center | — | 1 | 7 | — | 8 |
 | Compliance | — | — | 7 | — | 7 |
 | QuickBooks | — | 3 | 2 | — | 5 |
 | Donor CRM | — | — | 8 | — | 8 |
 | Charities | — | 3 | 11 | — | 14 |
-| AI Assistant | — | 9 | 11 | — | 20 |
-| Visualizations | — | 9 | 6 | — | 15 |
+| AI Assistant | — | 4 | 9 | — | 13 |
+| Visualizations | — | 5 | 6 | — | 11 |
 | Admin / Import | — | 3 | 9 | — | 12 |
 | Cross-Cutting | — | 4 | 3 | 1 | 8 |
-| **Total** | **—** | **45** | **77** | **1** | **123** |
+| **Total** | **—** | **26** | **74** | **1** | **101** |

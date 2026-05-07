@@ -7,6 +7,22 @@ import { ArrowLeft, Star, MapPin, ChevronDown } from 'lucide-react';
 import CharityDetailTabs from '@/components/charities/CharityDetailTabs';
 import AddToPortfolioModal from '@/components/charities/AddToPortfolioModal';
 
+const WATCHLIST_KEY = 'charity_watchlist';
+
+type WatchItem = { ein: string; name: string };
+
+function getWatchlist(): WatchItem[] {
+  try { return JSON.parse(localStorage.getItem(WATCHLIST_KEY) || '[]'); } catch { return []; }
+}
+
+function toggleWatchlist(ein: string, name: string): boolean {
+  const list = getWatchlist();
+  const idx = list.findIndex(w => w.ein === ein);
+  if (idx >= 0) { list.splice(idx, 1); } else { list.push({ ein, name }); }
+  localStorage.setItem(WATCHLIST_KEY, JSON.stringify(list));
+  return idx < 0; // true = now watched
+}
+
 export default function CharityDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -15,12 +31,14 @@ export default function CharityDetailPage() {
   const [charity, setCharity] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isWatched, setIsWatched] = useState(false);
 
   const [addToPortfolioModal, setAddToPortfolioModal] = useState(false);
 
   useEffect(() => {
     if (ein) {
       fetchCharityDetails();
+      setIsWatched(getWatchlist().some(w => w.ein === ein));
     }
   }, [ein]);
 
@@ -135,13 +153,19 @@ export default function CharityDetailPage() {
               )}
 
               {/* Add to Portfolio Button */}
-              <div className="relative">
+              <div className="relative flex flex-col items-end gap-2">
                 <button
                   onClick={() => setAddToPortfolioModal(true)}
                   className="px-6 py-3 bg-azure text-white font-medium rounded-lg hover:bg-azure/90 transition-colors flex items-center gap-2"
                 >
                   Add to Portfolio
                   <ChevronDown className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => setIsWatched(toggleWatchlist(ein, charity.name))}
+                  className={`text-sm px-4 py-2 rounded-lg border transition-colors ${isWatched ? 'border-amber-300 text-amber-700 bg-amber-50 hover:bg-amber-100' : 'border-gray-300 text-gray-600 hover:bg-gray-50'}`}
+                >
+                  {isWatched ? '★ Saved' : '☆ Save for Later'}
                 </button>
               </div>
             </div>

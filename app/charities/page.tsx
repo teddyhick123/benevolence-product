@@ -7,7 +7,7 @@ import CharityCard from '@/components/charities/CharityCard';
 import CharityFilterSidebar from '@/components/charities/CharityFilterSidebar';
 import AddToPortfolioModal from '@/components/charities/AddToPortfolioModal';
 
-type ViewMode = 'discovery' | 'portfolio';
+type ViewMode = 'discovery' | 'portfolio' | 'saved';
 
 interface FilterState {
   sector?: string;
@@ -52,6 +52,9 @@ export default function CharitiesPage() {
     charityEin: '',
   });
 
+  // Saved watchlist
+  const [savedItems, setSavedItems] = useState<{ ein: string; name: string }[]>([]);
+
   // Mobile filter sidebar
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
 
@@ -65,6 +68,11 @@ export default function CharitiesPage() {
   useEffect(() => {
     if (viewMode === 'portfolio') {
       fetchDefaultPortfolio();
+    }
+    if (viewMode === 'saved') {
+      try {
+        setSavedItems(JSON.parse(localStorage.getItem('charity_watchlist') || '[]'));
+      } catch { setSavedItems([]); }
     }
   }, [viewMode]);
 
@@ -263,6 +271,19 @@ export default function CharitiesPage() {
               >
                 My Portfolio
               </button>
+              <button
+                onClick={() => {
+                  setViewMode('saved');
+                  setPage(1);
+                }}
+                className={`flex-1 sm:flex-none px-3 sm:px-4 py-2 rounded-lg font-medium text-sm sm:text-base transition-colors ${
+                  viewMode === 'saved'
+                    ? 'bg-amber-500 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                ★ Saved
+              </button>
             </div>
           </div>
 
@@ -362,8 +383,32 @@ export default function CharitiesPage() {
               </p>
             </div>
 
-            {/* Charities Grid */}
-            {isLoading ? (
+            {/* Saved watchlist view */}
+            {viewMode === 'saved' ? (
+              savedItems.length === 0 ? (
+                <div className="text-center py-16 bg-white rounded-lg border border-gray-200">
+                  <div className="text-5xl mb-3">☆</div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">No saved charities</h3>
+                  <p className="text-sm text-gray-500 mb-4">Click "Save for Later" on any charity detail page to bookmark it here.</p>
+                  <button onClick={() => setViewMode('discovery')} className="px-4 py-2 bg-azure text-white rounded-lg text-sm font-medium">
+                    Discover Charities
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {savedItems.map(item => (
+                    <a key={item.ein} href={`/charities/${item.ein}`}
+                      className="flex items-center justify-between bg-white border border-gray-200 rounded-lg px-4 py-3 hover:border-azure/40 hover:shadow-sm transition-all">
+                      <div>
+                        <p className="text-sm font-medium text-gray-900">{item.name}</p>
+                        <p className="text-xs text-gray-400">EIN {item.ein}</p>
+                      </div>
+                      <span className="text-amber-500 text-lg">★</span>
+                    </a>
+                  ))}
+                </div>
+              )
+            ) : isLoading ? (
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
                 {[...Array(6)].map((_, i) => (
                   <div key={i} className="bg-white border border-gray-200 rounded-lg p-4 animate-pulse">

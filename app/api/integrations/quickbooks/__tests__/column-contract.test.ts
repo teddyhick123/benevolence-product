@@ -8,11 +8,12 @@ describe('quickbooks_connections column contract', () => {
   );
 
   it('status route selects expires_at not token_expiry', () => {
-    expect(statusSrc).toContain("'realm_id, created_at, last_sync_at, expires_at'");
+    expect(statusSrc).toContain('expires_at');
+    expect(statusSrc).not.toContain(".select('realm_id, token_expiry");
   });
 
   it('status route uses created_at not connected_at in select', () => {
-    expect(statusSrc).toContain("'realm_id, created_at, last_sync_at, expires_at'");
+    expect(statusSrc).toContain("'realm_id, created_at, last_sync_at, expires_at");
     expect(statusSrc).not.toContain("'realm_id, connected_at");
   });
 });

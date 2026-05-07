@@ -316,7 +316,7 @@ export default function VisualCarousel({ items, portfolioId, initialId, autoPlay
 
   return (
     <div
-      className="card p-4 space-y-3 min-w-0 w-full select-none overflow-hidden h-[500px] flex flex-col"
+      className="card p-4 space-y-3 min-w-0 w-full select-none overflow-hidden min-h-[400px] flex flex-col"
       role="region"
       aria-label="Portfolio visualizations carousel"
       onMouseEnter={() => setPaused(true)}

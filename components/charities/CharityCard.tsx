@@ -74,8 +74,8 @@ export default function CharityCard({
           )}
         </div>
 
-        {/* Mission (visible on hover) */}
-        {isHovered && charity.mission && (
+        {/* Mission */}
+        {charity.mission && (
           <p className="text-sm text-gray-600 line-clamp-2 mb-2 italic">
             {charity.mission}
           </p>

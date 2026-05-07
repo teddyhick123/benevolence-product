@@ -168,7 +168,16 @@ export function NewImportWizard({ portfolios, onClose }: NewImportWizardProps) {
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-2">Upload CSV Files</label>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-sm font-medium">Upload CSV Files</label>
+                  <a
+                    href="/api/admin/import/templates"
+                    download
+                    className="text-xs text-azure hover:underline"
+                  >
+                    Download sample templates
+                  </a>
+                </div>
                 <div className="space-y-2">
                   {FILE_SLOTS.map(({ key, label }) => (
                     <div key={key} className="flex items-center gap-3">
@@ -184,6 +193,14 @@ export function NewImportWizard({ portfolios, onClose }: NewImportWizardProps) {
                           onChange={handleFileChange(key)}
                         />
                       </label>
+                      <a
+                        href={`/api/admin/import/templates/${key}`}
+                        download={key}
+                        className="text-neutral-400 hover:text-azure text-xs shrink-0"
+                        title={`Download ${label} template`}
+                      >
+                        sample
+                      </a>
                       {files[key] && (
                         <button
                           onClick={() => setFiles((prev) => { const next = { ...prev }; delete next[key]; return next; })}

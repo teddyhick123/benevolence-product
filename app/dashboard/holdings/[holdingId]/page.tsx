@@ -859,6 +859,21 @@ export default async function HoldingMiniDashboard({
     holding.status
   );
 
+  // Derive grant period status from latest metric fact
+  const latestFact = facts[0];
+  let grantPeriodStatus: 'Active' | 'Expired' | 'Pipeline' | null = null;
+  if (latestFact?.period_end) {
+    const now = new Date();
+    const end = new Date(latestFact.period_end);
+    if (end < now) {
+      grantPeriodStatus = 'Expired';
+    } else if (latestFact.period_start && new Date(latestFact.period_start) > now) {
+      grantPeriodStatus = 'Pipeline';
+    } else {
+      grantPeriodStatus = 'Active';
+    }
+  }
+
   return (
     <div className="space-y-8">
       {/* Breadcrumb */}
@@ -881,6 +896,7 @@ export default async function HoldingMiniDashboard({
         funds={funds}
         contributionCount={totalContributions > 0 ? contributions.length : undefined}
         isManualFunds={totalContributions === 0 && holding.funds_allocated != null}
+        grantPeriodStatus={grantPeriodStatus}
       />
 
       {/* Organization Submitted Metrics */}

@@ -176,6 +176,22 @@ function TaxDashboard() {
         <div className="bg-azure/10 border border-azure/20 rounded-lg p-4 text-sm text-azure">
           <span className="font-medium">Note:</span> {TAX_DISCLAIMER_SHORT}
         </div>
+
+        {/* Year-end giving deadline */}
+        {selectedYear === currentYear && (() => {
+          const dec31 = new Date(currentYear, 11, 31);
+          const daysLeft = Math.ceil((dec31.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
+          if (daysLeft <= 0) return null;
+          const urgent = daysLeft <= 30;
+          return (
+            <div className={`flex items-center gap-3 rounded-lg border p-4 text-sm ${urgent ? 'bg-amber-50 border-amber-200 text-amber-800' : 'bg-green-50 border-green-200 text-green-800'}`}>
+              <span className="text-base leading-none">📅</span>
+              <span>
+                <span className="font-medium">{daysLeft} {daysLeft === 1 ? 'day' : 'days'} left</span> to make tax-deductible contributions before December 31, {currentYear}.
+              </span>
+            </div>
+          );
+        })()}
       </div>
 
       {/* Main Content */}

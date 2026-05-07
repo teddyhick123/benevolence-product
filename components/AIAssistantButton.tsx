@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { usePathname } from 'next/navigation';
 import { ChatBubbleLeftRightIcon } from '@heroicons/react/24/outline';
 import AIAssistantPanel from './AIAssistantPanel';
 
@@ -10,6 +11,7 @@ type Props = {
 
 export default function AIAssistantButton({ portfolioId }: Props) {
   const [isOpen, setIsOpen] = useState(false);
+  const pathname = usePathname();
 
   // Prevent body scroll when mobile panel is open
   useEffect(() => {
@@ -50,7 +52,7 @@ export default function AIAssistantButton({ portfolioId }: Props) {
 
           {/* Panel */}
           <div className="fixed inset-0 sm:inset-auto sm:bottom-6 sm:right-6 z-50 sm:w-96 sm:h-[600px] sm:shadow-2xl sm:rounded-lg">
-            <AIAssistantPanel portfolioId={portfolioId} onClose={() => setIsOpen(false)} />
+            <AIAssistantPanel portfolioId={portfolioId} currentPage={pathname} onClose={() => setIsOpen(false)} />
           </div>
         </>
       )}

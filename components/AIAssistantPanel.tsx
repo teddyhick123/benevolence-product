@@ -42,8 +42,40 @@ type AIAction = {
 
 type Props = {
   portfolioId: string;
+  currentPage?: string | null;
   onClose?: () => void;
 };
+
+function SaveWidgetButton({ portfolioId, widget }: { portfolioId: string; widget: WidgetData }) {
+  const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/portfolio/${encodeURIComponent(portfolioId)}/widgets/save-preview`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: widget.type, title: widget.title, config: widget.config }),
+      });
+      if (res.ok) setSaved(true);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (saved) return <p className="text-xs text-green-600 mt-1 text-right">Saved to dashboard ✓</p>;
+
+  return (
+    <button
+      onClick={save}
+      disabled={saving}
+      className="mt-1 text-xs text-azure hover:underline disabled:opacity-50 w-full text-right"
+    >
+      {saving ? 'Saving…' : '+ Save to Dashboard'}
+    </button>
+  );
+}
 
 const SUGGESTED_PROMPTS = [
   'Summarize my portfolio performance',
@@ -53,7 +85,7 @@ const SUGGESTED_PROMPTS = [
   'Draft a board update for this quarter',
 ];
 
-export default function AIAssistantPanel({ portfolioId, onClose }: Props) {
+export default function AIAssistantPanel({ portfolioId, currentPage, onClose }: Props) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -161,6 +193,7 @@ Just ask me anything, and I'll help you out! If you don't like a change I make, 
         body: JSON.stringify({
           portfolioId,
           message: input,
+          currentPage: currentPage ?? null,
           // Cap history at 20 most-recent messages to prevent payload overload
           conversationHistory: messages.slice(-20).map((m) => ({
             role: m.role,
@@ -362,11 +395,15 @@ Just ask me anything, and I'll help you out! If you don't like a change I make, 
             {msg.widgets && msg.widgets.length > 0 && !msg.content_blocks && (
               <div className="w-full mt-2 space-y-2">
                 {msg.widgets.map((widget, widgetIdx) => (
-                  <InlineWidget
-                    key={`widget-${idx}-${widgetIdx}`}
-                    widget={widget}
-                    portfolioId={portfolioId}
-                  />
+                  <div key={`widget-${idx}-${widgetIdx}`} className="relative">
+                    <InlineWidget
+                      widget={widget}
+                      portfolioId={portfolioId}
+                    />
+                    {widget.is_preview && (
+                      <SaveWidgetButton portfolioId={portfolioId} widget={widget} />
+                    )}
+                  </div>
                 ))}
               </div>
             )}

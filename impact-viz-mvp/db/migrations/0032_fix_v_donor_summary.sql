@@ -1,5 +1,5 @@
 -- =============================================================================
--- 0024_fix_v_donor_summary.sql
+-- 0032_fix_v_donor_summary.sql
 -- Rebuild v_donor_summary with correct column aliases used by API routes.
 -- Fixes: display_name, total_lifetime_giving, computed_tier, has_pending_acknowledgments
 -- Depends on: 0014_donors.sql

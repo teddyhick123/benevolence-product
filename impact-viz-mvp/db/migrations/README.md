@@ -1,7 +1,7 @@
 # Database Migrations
 
-Clean-room rework of the schema. Replaces 74 ad-hoc legacy files with 23 ordered
-migrations organized by dependency layer.
+Single source of truth for the schema. 36 ordered, idempotent migrations replace
+the ad-hoc legacy files and the stale consolidated module files.
 
 ## Running migrations
 
@@ -24,11 +24,11 @@ psql $DATABASE_URL -f db/demo/seed_demo_org.sql
 | 0002_organizations | Foundation | Organizations, members, invitations — root tenant |
 | 0003_profiles | Foundation | User profiles, auto-created on signup |
 | 0004_portfolios | Foundation | Portfolios, portfolio members, membership⊆org trigger |
-| 0005_uploads_and_staging | Foundation | File uploads, staging tables |
+| 0005_uploads_and_staging | Foundation | File uploads, staging tables for import |
 | 0006_holdings | Investment | Universal asset table, holding_facts, widgets |
 | 0007_investment_tracking | Investment | Valuations, transactions, co-investors |
 | 0008_metrics_and_kpis | Investment | KPI definitions, metric facts, recommendations |
-| 0009_grants | Investment | Grant management and reporting |
+| 0009_grants | Investment | Grant management, milestones, payments, workflows |
 | 0010_charities_and_news | Reference | Charity lookup DB, news article cache |
 | 0011_reports | Reports | Generated portfolio reports |
 | 0012_owner_tax_profile | Tax | Portfolio owner's personal tax data (NOT the donor CRM) |
@@ -38,11 +38,24 @@ psql $DATABASE_URL -f db/demo/seed_demo_org.sql
 | 0016_compliance | Compliance | Filing calendar, state registrations |
 | 0017_quickbooks | QuickBooks | QB OAuth tokens, accounts, transactions |
 | 0018_import_system | Import | Import jobs, mapping profiles, FK back-refs |
-| 0019_portfolio_summary_views | Views | Materialized views, financial analysis cache |
-| 0020_ai_portfolio_manager | AI | Conversation threads, action log |
+| 0019_portfolio_summary_views | Views | Portfolio summary and holdings enriched views |
+| 0020_ai_portfolio_manager | AI (legacy) | Legacy AI conversation tables (ai_conversations, ai_messages, ai_action_log) |
 | 0021_composite_indexes | Performance | Cross-table query indexes |
-| 0022_module_enforcement | Admin | Module flags validation, module definitions |
+| 0022_module_enforcement | Admin | Module flags validation, module_definitions table |
 | 0023_admin_superuser_policies | Admin | App admin policies, org type defaults, provision RPC |
+| 0024_settings_ops_hub | Settings | org_invitations, org_audit_log, notification_prefs |
+| 0025_builder | Builder | Portfolio builder tables |
+| 0026_builder_enhancement | Builder | Builder enhancements |
+| 0027_portfolio_charities | Charities | Portfolio-level charity links |
+| 0028_foundation_payout | Foundation | Foundation payout tracking |
+| 0029_ai_action_source | AI | Source tracking on ai_actions |
+| 0030_ai_usage_log | AI | Token usage log per AI chat call (cost visibility) |
+| 0031_staging_cleanup | Admin | `cleanup_staging_pii()` function (SECURITY DEFINER) |
+| 0032_fix_v_donor_summary | Fix | Rebuild v_donor_summary with correct column aliases |
+| 0033_ai_sessions | AI | ai_sessions, ai_actions, portfolio_recommendations (undo/redo) |
+| 0034_onboarding | Onboarding | Onboarding sessions, profiles, recommendations, analytics |
+| 0035_analytics_module | Analytics | Benchmarks, projections cache, risk snapshots, insights |
+| 0036_seeds | Seeds | Module definitions and preset bundles |
 
 ## Architecture decisions
 
@@ -76,6 +89,16 @@ not a 403 — consistent with PostgREST behavior.
 One QB connection per org. `quickbooks_connections` and `qb_accounts` have
 `org_id NOT NULL` and no `portfolio_id` column. QB transactions can optionally
 link to individual holdings via `holding_id`.
+
+### AI tables: active vs legacy
+- **Active**: `ai_sessions` + `ai_actions` (0033) — used by all app code.
+- **Legacy**: `ai_conversations` + `ai_messages` + `ai_action_log` (0020) —
+  original schema, preserved for data migration continuity only.
+
+### Seeds are migrations (0036)
+Module definitions and presets live in 0036_seeds.sql so they run in the same
+pipeline as schema changes. All inserts use `ON CONFLICT DO UPDATE` for
+idempotency.
 
 ### Demo data is separate
 Never committed to `db/migrations/`. Lives in `db/demo/`. The migration runner

@@ -299,6 +299,23 @@ export default function QuickBooksSettings({ orgId }: Props) {
         ) : (
           /* ---- Connected state ---- */
           <div className="space-y-5">
+            {/* Token-expired warning */}
+            {status?.token_expired && (
+              <div className="flex items-start gap-3 rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800">
+                <span className="mt-0.5 text-base leading-none">⚠️</span>
+                <div className="flex-1">
+                  <p className="font-medium">QuickBooks token has expired.</p>
+                  <p className="text-xs mt-0.5">Exports are disabled until you reconnect. Click "Reconnect" to authorize again.</p>
+                </div>
+                <button
+                  onClick={handleConnect}
+                  disabled={actionLoading}
+                  className="shrink-0 rounded-md bg-amber-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-amber-700 disabled:opacity-50"
+                >
+                  Reconnect
+                </button>
+              </div>
+            )}
             {/* Meta */}
             <div className="grid grid-cols-2 gap-3 text-xs">
               <div>
@@ -344,7 +361,8 @@ export default function QuickBooksSettings({ orgId }: Props) {
               </div>
               <button
                 onClick={handleSyncAccounts}
-                disabled={actionLoading}
+                disabled={actionLoading || !!status?.token_expired}
+                title={status?.token_expired ? 'Reconnect QuickBooks to enable sync' : undefined}
                 className="rounded-lg border border-indigo-200 bg-white px-3 py-1.5 text-xs font-medium text-indigo-700 hover:bg-indigo-50 disabled:opacity-50"
               >
                 Sync Accounts
@@ -418,7 +436,8 @@ export default function QuickBooksSettings({ orgId }: Props) {
                   </select>
                   <button
                     onClick={handleExportContributions}
-                    disabled={actionLoading}
+                    disabled={actionLoading || !!status?.token_expired}
+                    title={status?.token_expired ? 'Reconnect QuickBooks to enable export' : undefined}
                     className="rounded-lg border border-indigo-200 bg-white px-3 py-1.5 text-xs font-medium text-indigo-700 hover:bg-indigo-50 disabled:opacity-50"
                   >
                     Export
@@ -437,7 +456,8 @@ export default function QuickBooksSettings({ orgId }: Props) {
               </div>
               <button
                 onClick={handleExportGrants}
-                disabled={actionLoading}
+                disabled={actionLoading || !!status?.token_expired}
+                title={status?.token_expired ? 'Reconnect QuickBooks to enable export' : undefined}
                 className="rounded-lg border border-indigo-200 bg-white px-3 py-1.5 text-xs font-medium text-indigo-700 hover:bg-indigo-50 disabled:opacity-50"
               >
                 Export Grants

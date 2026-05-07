@@ -177,6 +177,13 @@ function TaxDashboard() {
           <span className="font-medium">Note:</span> {TAX_DISCLAIMER_SHORT}
         </div>
 
+        {/* OBBB 2026 universal deduction notice */}
+        {selectedYear >= 2026 && (
+          <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 text-sm text-purple-800">
+            <span className="font-medium">New for {selectedYear} (OBBB Act):</span> Non-itemizers may deduct up to <span className="font-semibold">$1,000 single / $2,000 married filing jointly</span> in charitable contributions above the 0.5% AGI floor — even when taking the standard deduction. Does not apply to DAFs or private foundations. Consult your CPA to confirm eligibility.
+          </div>
+        )}
+
         {/* Year-end giving deadline */}
         {selectedYear === currentYear && (() => {
           const dec31 = new Date(currentYear, 11, 31);

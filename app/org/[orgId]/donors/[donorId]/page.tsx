@@ -53,6 +53,9 @@ export default function DonorDetailPage() {
   const [showReceiptModal, setShowReceiptModal] = useState(false);
   const [showAckModal, setShowAckModal] = useState(false);
   const [selectedContribution, setSelectedContribution] = useState<Contribution | null>(null);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editFields, setEditFields] = useState<Partial<Donor>>({});
+  const [editSaving, setEditSaving] = useState(false);
 
   useEffect(() => {
     async function fetchData() {
@@ -163,7 +166,7 @@ export default function DonorDetailPage() {
       <DonorDetail
         organizationId={organizationId}
         donorId={donorId}
-        onEdit={() => router.push(`/org/${organizationId}/donors/${donorId}/edit`)}
+        onEdit={() => { setEditFields({ ...donor }); setShowEditModal(true); }}
       />
 
       {/* Contribution Form Modal */}
@@ -234,6 +237,77 @@ export default function DonorDetailPage() {
                 onCancel={() => setShowAckModal(false)}
               />
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Donor Modal */}
+      {showEditModal && donor && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b flex items-center justify-between">
+              <h2 className="text-xl font-semibold">Edit Donor</h2>
+              <button onClick={() => setShowEditModal(false)} className="text-gray-400 hover:text-gray-600">✕</button>
+            </div>
+            <form
+              className="p-6 space-y-4"
+              onSubmit={async (e) => {
+                e.preventDefault();
+                setEditSaving(true);
+                try {
+                  const res = await fetch(`/api/org/${organizationId}/donors/${donorId}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(editFields),
+                  });
+                  if (res.ok) { setShowEditModal(false); window.location.reload(); }
+                } finally { setEditSaving(false); }
+              }}
+            >
+              {donor.donor_type === 'individual' ? (
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">First Name</label>
+                    <input type="text" value={editFields.first_name ?? ''} onChange={e => setEditFields(p => ({ ...p, first_name: e.target.value }))} className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-azure focus:border-transparent" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Last Name</label>
+                    <input type="text" value={editFields.last_name ?? ''} onChange={e => setEditFields(p => ({ ...p, last_name: e.target.value }))} className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-azure focus:border-transparent" />
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Organization Name</label>
+                  <input type="text" value={editFields.organization_name ?? ''} onChange={e => setEditFields(p => ({ ...p, organization_name: e.target.value }))} className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-azure focus:border-transparent" />
+                </div>
+              )}
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Email</label>
+                <input type="email" value={editFields.email ?? ''} onChange={e => setEditFields(p => ({ ...p, email: e.target.value }))} className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-azure focus:border-transparent" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Address</label>
+                <input type="text" value={editFields.address_line1 ?? ''} onChange={e => setEditFields(p => ({ ...p, address_line1: e.target.value }))} placeholder="Street address" className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-azure focus:border-transparent" />
+              </div>
+              <div className="grid grid-cols-3 gap-3">
+                <div className="col-span-1">
+                  <label className="block text-xs font-medium text-gray-700 mb-1">City</label>
+                  <input type="text" value={editFields.city ?? ''} onChange={e => setEditFields(p => ({ ...p, city: e.target.value }))} className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-azure focus:border-transparent" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">State</label>
+                  <input type="text" value={editFields.state ?? ''} onChange={e => setEditFields(p => ({ ...p, state: e.target.value }))} maxLength={2} className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-azure focus:border-transparent" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">ZIP</label>
+                  <input type="text" value={editFields.postal_code ?? ''} onChange={e => setEditFields(p => ({ ...p, postal_code: e.target.value }))} className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-azure focus:border-transparent" />
+                </div>
+              </div>
+              <div className="flex justify-end gap-3 pt-2">
+                <button type="button" onClick={() => setShowEditModal(false)} className="px-4 py-2 text-sm text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50">Cancel</button>
+                <button type="submit" disabled={editSaving} className="px-4 py-2 text-sm bg-azure text-white rounded-lg hover:bg-azure/90 disabled:opacity-50 font-medium">{editSaving ? 'Saving…' : 'Save Changes'}</button>
+              </div>
+            </form>
           </div>
         </div>
       )}

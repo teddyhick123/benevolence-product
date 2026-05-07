@@ -267,6 +267,7 @@ export default function VisualCarousel({ items, portfolioId, initialId, autoPlay
 
   const [index, setIndex] = useState(startIndex === -1 ? 0 : startIndex);
   const [isPaused, setPaused] = useState(false);
+  const [userPaused, setUserPaused] = useState(false);
   const wrap = useCallback((n: number) => (n + items.length) % items.length, [items.length]);
   const go = useCallback((n: number) => {
     const next = wrap(n);
@@ -276,12 +277,12 @@ export default function VisualCarousel({ items, portfolioId, initialId, autoPlay
   const prev = useCallback(() => go(index - 1), [go, index]);
   const next = useCallback(() => go(index + 1), [go, index]);
 
-  // Autoplay with hover/focus pause
+  // Autoplay with hover/focus pause + user-controlled persistent pause
   useEffect(() => {
-    if (!hasItems || autoPlayMs <= 0 || isPaused) return;
+    if (!hasItems || autoPlayMs <= 0 || isPaused || userPaused) return;
     const t = setInterval(next, autoPlayMs);
     return () => clearInterval(t);
-  }, [hasItems, autoPlayMs, isPaused, next]);
+  }, [hasItems, autoPlayMs, isPaused, userPaused, next]);
 
   // Touch swipe
   const touchStartX = useRef<number | null>(null);
@@ -346,6 +347,17 @@ export default function VisualCarousel({ items, portfolioId, initialId, autoPlay
           >
             ▶
           </button>
+          {autoPlayMs > 0 && (
+            <button
+              type="button"
+              onClick={() => setUserPaused(p => !p)}
+              aria-label={userPaused ? 'Resume slideshow' : 'Pause slideshow'}
+              title={userPaused ? 'Resume slideshow' : 'Pause slideshow'}
+              className="px-2 py-1 rounded-2xl border border-black/10 hover:bg-white shadow-sm text-xs text-neutral-500 transition-transform duration-200 hover:-translate-y-0.5 will-change-transform rm:transition-none rm:transform-none"
+            >
+              {userPaused ? '▶︎' : '⏸'}
+            </button>
+          )}
         </div>
       </div>
 

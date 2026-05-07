@@ -41,10 +41,12 @@ function IntegrationCard({ name, description, connected, connectHref, onDisconne
 
 interface IntegrationsTabProps {
   qbConnected: boolean;
+  qbTokenExpired?: boolean;
+  qbNeedsReconnect?: boolean;
   orgId: string;
 }
 
-export default function IntegrationsTab({ qbConnected, orgId }: IntegrationsTabProps) {
+export default function IntegrationsTab({ qbConnected, qbTokenExpired, qbNeedsReconnect, orgId }: IntegrationsTabProps) {
   async function handleQbDisconnect() {
     await fetch(`/api/integrations/quickbooks/disconnect`, {
       method: 'POST',
@@ -56,6 +58,23 @@ export default function IntegrationsTab({ qbConnected, orgId }: IntegrationsTabP
 
   return (
     <div className="space-y-3 max-w-2xl">
+      {qbConnected && (qbNeedsReconnect || qbTokenExpired) && (
+        <div className={`flex items-start gap-3 rounded-lg border p-4 text-sm ${qbNeedsReconnect ? 'bg-red-50 border-red-200 text-red-800' : 'bg-amber-50 border-amber-200 text-amber-800'}`}>
+          <span className="text-base leading-none mt-0.5">⚠️</span>
+          <div className="flex-1">
+            <strong>{qbNeedsReconnect ? 'QuickBooks connection expired.' : 'QuickBooks access token expired.'}</strong>{' '}
+            {qbNeedsReconnect
+              ? 'Your refresh token has expired. Export buttons are disabled until you reconnect.'
+              : 'Your access token needs renewal. Disconnect and reconnect to restore sync.'}
+          </div>
+          <a
+            href={`/api/integrations/quickbooks/connect?org_id=${orgId}`}
+            className={`shrink-0 text-xs font-medium px-3 py-1.5 rounded border ${qbNeedsReconnect ? 'border-red-300 hover:bg-red-100' : 'border-amber-300 hover:bg-amber-100'}`}
+          >
+            Reconnect
+          </a>
+        </div>
+      )}
       <IntegrationCard
         name="QuickBooks"
         description="Sync chart of accounts and generate journal entries for your accounting team."

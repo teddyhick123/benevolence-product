@@ -269,29 +269,40 @@ function TaxDashboard() {
         )}
 
         {/* Carryforward Summary */}
-        {taxOverview?.carryforwardSummary && taxOverview.carryforwardSummary.totalAvailable > 0 && (
-          <div className="border border-gray-200 rounded-lg p-6">
-            <h2 className="text-xl font-bold text-gray-900 mb-4">Carryforwards</h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <div className="text-sm text-gray-600 mb-1">Total Available</div>
-                <div className="text-2xl font-bold text-gray-900">
-                  ${taxOverview.carryforwardSummary.totalAvailable.toLocaleString()}
-                </div>
-              </div>
-              {taxOverview.carryforwardSummary.expiringSoon.length > 0 && (
+        {taxOverview !== null && (
+          taxOverview?.carryforwardSummary && taxOverview.carryforwardSummary.totalAvailable > 0 ? (
+            <div className="border border-gray-200 rounded-lg p-6">
+              <h2 className="text-xl font-bold text-gray-900 mb-4">Carryforwards</h2>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
-                  <div className="text-sm text-gray-600 mb-1">Expiring Soon</div>
-                  <div className="text-2xl font-bold text-red-600">
-                    {taxOverview.carryforwardSummary.expiringSoon.length}
-                  </div>
-                  <div className="text-xs text-gray-500 mt-1">
-                    Within 2 years
+                  <div className="text-sm text-gray-600 mb-1">Total Available</div>
+                  <div className="text-2xl font-bold text-gray-900">
+                    ${taxOverview.carryforwardSummary.totalAvailable.toLocaleString()}
                   </div>
                 </div>
-              )}
+                {taxOverview.carryforwardSummary.expiringSoon.length > 0 && (
+                  <div>
+                    <div className="text-sm text-gray-600 mb-1">Expiring Soon</div>
+                    <div className="text-2xl font-bold text-red-600">
+                      {taxOverview.carryforwardSummary.expiringSoon.length}
+                    </div>
+                    <div className="text-xs text-gray-500 mt-1">
+                      Within 2 years
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="border border-gray-200 rounded-lg p-6 bg-gray-50">
+              <h2 className="text-xl font-bold text-gray-900 mb-2">Carryforwards</h2>
+              <p className="text-sm text-gray-600">
+                No carryforward deductions yet. When your charitable contributions exceed your AGI
+                limits in a given year, the unused deduction carries forward for up to 5 years — and
+                will appear here automatically.
+              </p>
+            </div>
+          )
         )}
 
         {/* Alerts */}

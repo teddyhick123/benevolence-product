@@ -461,6 +461,14 @@ export default function CompliancePage() {
               <div className="text-center text-gray-400 py-8 text-sm">Loading payout data…</div>
             ) : payoutData ? (
               <div className="space-y-3">
+                {payoutData.surplus_or_deficit !== null && payoutData.surplus_or_deficit < 0 && (
+                  <div className="flex items-start gap-3 bg-red-50 border border-red-200 rounded-md p-3 text-sm text-red-800">
+                    <span className="text-base leading-none mt-0.5">⚠️</span>
+                    <div>
+                      <strong>At-Risk: Distribution below 5% threshold.</strong> Your foundation must distribute at least 5% of net assets annually under IRC §4942. The current shortfall of ${Math.abs(Number(payoutData.surplus_or_deficit)).toLocaleString()} must be made up before year-end to avoid excise taxes.
+                    </div>
+                  </div>
+                )}
                 <div className="bg-gray-50 rounded-md p-4 text-sm space-y-2">
                   <Row
                     label={payoutData.avg_fmv_used ? 'Avg. FMV of Assets (Part XIII)' : 'Year-End FMV of Assets'}

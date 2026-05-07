@@ -11,9 +11,13 @@ export default async function IntegrationsPage() {
   const adminClient = createAdminClient();
   const { data: qbConn } = await adminClient
     .from('quickbooks_connections')
-    .select('id')
+    .select('id, expires_at, refresh_expires_at')
     .eq('org_id', orgId)
     .maybeSingle();
 
-  return <IntegrationsTab qbConnected={!!qbConn} orgId={orgId} />;
+  const now = new Date();
+  const qbTokenExpired = qbConn?.expires_at ? new Date(qbConn.expires_at) <= now : false;
+  const qbNeedsReconnect = qbConn?.refresh_expires_at ? new Date(qbConn.refresh_expires_at) <= now : false;
+
+  return <IntegrationsTab qbConnected={!!qbConn} qbTokenExpired={qbTokenExpired} qbNeedsReconnect={qbNeedsReconnect} orgId={orgId} />;
 }

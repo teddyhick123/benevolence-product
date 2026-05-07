@@ -96,7 +96,7 @@ export default function PaymentSchedule({ portfolioId }: Props) {
             grant_details(id)
           `)
           .eq('portfolio_id', portfolioId)
-          .in('asset_type', ['foundation_grant', 'daf_grant'])
+          .in('asset_type', ['foundation_grant', 'daf_grant', 'pri', 'mri'])
           .order('name');
 
         const processedHoldings = (holdingsData || []).map((h: any) => ({

@@ -95,6 +95,8 @@ export const INVESTMENT_ASSET_TYPES: AssetType[] = [
 export const GRANT_ASSET_TYPES: AssetType[] = [
   'foundation_grant',
   'daf_grant',
+  'pri',
+  'mri',
 ];
 
 /**

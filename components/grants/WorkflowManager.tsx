@@ -133,7 +133,7 @@ export default function WorkflowManager({ portfolioId }: Props) {
           .from('holdings')
           .select('id, name')
           .eq('portfolio_id', portfolioId)
-          .in('asset_type', ['foundation_grant', 'daf_grant'])
+          .in('asset_type', ['foundation_grant', 'daf_grant', 'pri', 'mri'])
           .order('name');
 
         setHoldings(holdingsData || []);

@@ -96,7 +96,7 @@ export async function POST(
     }
 
     // Verify this is a grant asset type
-    if (!['foundation_grant', 'daf_grant'].includes(holding.asset_type)) {
+    if (!['foundation_grant', 'daf_grant', 'pri', 'mri'].includes(holding.asset_type)) {
       return NextResponse.json(
         { error: 'Grant details can only be added to grant holdings' },
         { status: 400 }

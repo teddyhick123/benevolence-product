@@ -136,6 +136,10 @@ export default function FilingCalendar({ orgId }: Props) {
             className={`px-3 py-1.5 text-sm ${viewMode === 'list' ? 'bg-azure text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>
             List
           </button>
+          <button onClick={() => setViewMode('calendar')}
+            className={`px-3 py-1.5 text-sm border-l border-gray-300 ${viewMode === 'calendar' ? 'bg-azure text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>
+            Timeline
+          </button>
         </div>
         <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
           className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm bg-white text-gray-700">
@@ -158,6 +162,40 @@ export default function FilingCalendar({ orgId }: Props) {
         </div>
       ) : filings.length === 0 ? (
         <div className="text-center py-10 text-gray-400 text-sm">No filings found.</div>
+      ) : viewMode === 'calendar' ? (
+        /* Timeline view — filings grouped by month */
+        <div className="space-y-6">
+          {(() => {
+            const byMonth: Record<string, typeof filings> = {};
+            filings.forEach(f => {
+              const d = new Date(f.extended_due_date || f.due_date);
+              const key = isNaN(d.getTime()) ? 'Unknown' : d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+              byMonth[key] = [...(byMonth[key] || []), f];
+            });
+            return Object.entries(byMonth).map(([month, mFilings]) => (
+              <div key={month}>
+                <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">{month}</h4>
+                <div className="border-l-2 border-azure/20 pl-4 space-y-2">
+                  {mFilings.map(f => (
+                    <div key={f.id} className="flex items-start gap-3">
+                      <div className={`mt-0.5 text-xs font-medium w-6 text-right shrink-0 ${f.status === 'filed' ? 'text-green-600' : f.urgency === 'critical' ? 'text-red-600' : 'text-gray-500'}`}>
+                        {new Date(f.extended_due_date || f.due_date).getDate()}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-sm font-medium text-gray-900">{FILING_TYPE_LABELS[f.filing_type] || f.filing_type}</span>
+                          <span className={`text-xs px-1.5 py-0.5 rounded-full ${STATUS_COLORS[f.status] || 'bg-gray-100 text-gray-600'}`}>{f.status.replace(/_/g, ' ')}</span>
+                          {getUrgencyBadge(f.days_until_due, f.status)}
+                        </div>
+                        {f.jurisdiction !== 'federal' && <span className="text-xs text-gray-400">{f.jurisdiction.toUpperCase()}</span>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ));
+          })()}
+        </div>
       ) : (
         <div className="space-y-2">
           {filings.map(f => (

@@ -39,6 +39,10 @@ export default function DonorsPage() {
   const [tierFilter, setTierFilter] = useState('');
   const [recencyFilter, setRecencyFilter] = useState('');
 
+  // Sorting
+  const [sortKey, setSortKey] = useState<string>('total_lifetime_giving');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+
   // Fetch current org
   useEffect(() => {
     async function fetchOrg() {
@@ -85,6 +89,28 @@ export default function DonorsPage() {
 
     fetchDonors();
   }, [orgId, search, tierFilter, recencyFilter]);
+
+  function toggleSort(key: string) {
+    if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    else { setSortKey(key); setSortDir('asc'); }
+  }
+
+  const sortedDonors = [...donors].sort((a, b) => {
+    let av = a[sortKey];
+    let bv = b[sortKey];
+    if (sortKey === 'display_name') {
+      av = a.is_anonymous ? 'Anonymous' : (a.display_name || '');
+      bv = b.is_anonymous ? 'Anonymous' : (b.display_name || '');
+    }
+    if (typeof av === 'number' && typeof bv === 'number') return sortDir === 'asc' ? av - bv : bv - av;
+    return sortDir === 'asc'
+      ? String(av ?? '').localeCompare(String(bv ?? ''))
+      : String(bv ?? '').localeCompare(String(av ?? ''));
+  });
+
+  const SortIcon = ({ col }: { col: string }) => sortKey !== col ? null : (
+    <span className="ml-1">{sortDir === 'asc' ? '↑' : '↓'}</span>
+  );
 
   if (moduleEnabled === false) {
     return (
@@ -159,16 +185,25 @@ export default function DonorsPage() {
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Name</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Type</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Tier</th>
-                  <th className="text-right px-4 py-3 font-medium text-gray-600">Lifetime Giving</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Recency</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Last Gift</th>
+                  {[
+                    { key: 'display_name', label: 'Name', align: 'left' },
+                    { key: 'donor_type', label: 'Type', align: 'left' },
+                    { key: 'computed_tier', label: 'Tier', align: 'left' },
+                    { key: 'total_lifetime_giving', label: 'Lifetime Giving', align: 'right' },
+                    { key: 'recency_status', label: 'Recency', align: 'left' },
+                    { key: 'last_gift_date', label: 'Last Gift', align: 'left' },
+                  ].map(({ key, label, align }) => (
+                    <th key={key}
+                      className={`text-${align} px-4 py-3 font-medium text-gray-600 cursor-pointer select-none hover:text-gray-900`}
+                      onClick={() => toggleSort(key)}
+                    >
+                      {label}<SortIcon col={key} />
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {donors.map(donor => (
+                {sortedDonors.map(donor => (
                   <tr
                     key={donor.id}
                     className="hover:bg-gray-50 cursor-pointer transition-colors"

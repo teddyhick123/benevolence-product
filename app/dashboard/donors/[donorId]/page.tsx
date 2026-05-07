@@ -27,6 +27,9 @@ export default function DonorProfilePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [generatingPdf, setGeneratingPdf] = useState<string | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editFields, setEditFields] = useState<Record<string, string>>({});
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     async function fetchOrg() {
@@ -60,6 +63,37 @@ export default function DonorProfilePage() {
 
     fetchDonor();
   }, [orgId, donorId]);
+
+  function startEdit() {
+    setEditFields({
+      first_name: donor.first_name || '',
+      last_name: donor.last_name || '',
+      email: donor.email || '',
+      phone: donor.phone || '',
+      notes: donor.notes || '',
+    });
+    setIsEditing(true);
+  }
+
+  async function handleSave() {
+    if (!orgId) return;
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/org/${orgId}/donors/${donorId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editFields),
+      });
+      if (!res.ok) throw new Error('Failed to save');
+      const data = await res.json();
+      setDonor((prev: any) => ({ ...prev, ...data.donor }));
+      setIsEditing(false);
+    } catch {
+      // leave form open so user can retry
+    } finally {
+      setSaving(false);
+    }
+  }
 
   async function handleGeneratePdf(letterId: string) {
     if (!orgId) return;
@@ -112,20 +146,68 @@ export default function DonorProfilePage() {
         {/* Donor Header */}
         <div className="bg-white rounded-lg border border-gray-200 p-6 mb-6">
           <div className="flex items-start justify-between">
-            <div>
+            <div className="flex-1">
               <h1 className="text-2xl font-bold text-gray-900">{displayName}</h1>
               <p className="text-sm text-gray-500 mt-1 capitalize">{donor.donor_type}</p>
-              {donor.email && <p className="text-sm text-gray-600 mt-1">{donor.email}</p>}
-              {donor.phone && <p className="text-sm text-gray-600">{donor.phone}</p>}
+              {!isEditing && donor.email && <p className="text-sm text-gray-600 mt-1">{donor.email}</p>}
+              {!isEditing && donor.phone && <p className="text-sm text-gray-600">{donor.phone}</p>}
             </div>
-            <div className="text-right">
-              <div className="text-2xl font-bold text-indigo-600">
-                ${Number(donor.total_lifetime_giving || 0).toLocaleString()}
+            <div className="flex flex-col items-end gap-3">
+              <div className="text-right">
+                <div className="text-2xl font-bold text-indigo-600">
+                  ${Number(donor.total_lifetime_giving || 0).toLocaleString()}
+                </div>
+                <div className="text-xs text-gray-500">Lifetime Giving</div>
+                <div className="text-sm text-gray-600 mt-1">{donor.total_gift_count || 0} gifts</div>
               </div>
-              <div className="text-xs text-gray-500">Lifetime Giving</div>
-              <div className="text-sm text-gray-600 mt-1">{donor.total_gift_count || 0} gifts</div>
+              {!isEditing && (
+                <button onClick={startEdit}
+                  className="px-3 py-1.5 text-xs font-medium border border-gray-300 rounded-md text-gray-600 hover:bg-gray-50 transition-colors">
+                  Edit
+                </button>
+              )}
             </div>
           </div>
+
+          {isEditing && (
+            <div className="mt-4 pt-4 border-t border-gray-100 grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {[
+                { key: 'first_name', label: 'First Name' },
+                { key: 'last_name', label: 'Last Name' },
+                { key: 'email', label: 'Email', type: 'email' },
+                { key: 'phone', label: 'Phone', type: 'tel' },
+              ].map(({ key, label, type = 'text' }) => (
+                <div key={key}>
+                  <label className="block text-xs text-gray-500 mb-1">{label}</label>
+                  <input
+                    type={type}
+                    value={editFields[key] || ''}
+                    onChange={e => setEditFields(f => ({ ...f, [key]: e.target.value }))}
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+              ))}
+              <div className="sm:col-span-2">
+                <label className="block text-xs text-gray-500 mb-1">Notes</label>
+                <textarea
+                  rows={2}
+                  value={editFields.notes || ''}
+                  onChange={e => setEditFields(f => ({ ...f, notes: e.target.value }))}
+                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
+                />
+              </div>
+              <div className="sm:col-span-2 flex gap-2 justify-end">
+                <button onClick={() => setIsEditing(false)}
+                  className="px-3 py-1.5 text-xs text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50">
+                  Cancel
+                </button>
+                <button onClick={handleSave} disabled={saving}
+                  className="px-3 py-1.5 text-xs font-medium bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50">
+                  {saving ? 'Saving…' : 'Save'}
+                </button>
+              </div>
+            </div>
+          )}
 
           <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-4 pt-4 border-t border-gray-100">
             <div>

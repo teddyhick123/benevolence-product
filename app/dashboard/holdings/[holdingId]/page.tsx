@@ -861,6 +861,13 @@ export default async function HoldingMiniDashboard({
 
   return (
     <div className="space-y-8">
+      {/* Breadcrumb */}
+      <nav className="flex items-center gap-2 text-sm text-neutral-500">
+        <a href="/dashboard/holdings" className="hover:text-neutral-800 transition-colors">Holdings</a>
+        <span>/</span>
+        <span className="text-neutral-900 font-medium truncate">{holding.name}</span>
+      </nav>
+
       {/* Header */}
       <HoldingHeader
         holdingId={holding.id}

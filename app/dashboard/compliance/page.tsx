@@ -45,6 +45,10 @@ export default function CompliancePage() {
   const [payoutLoading, setPayoutLoading] = useState(false);
   const [payoutData, setPayoutData] = useState<any>(null);
 
+  // Mark as Filed modal
+  const [filingToMark, setFilingToMark] = useState<any | null>(null);
+  const [markFiledFields, setMarkFiledFields] = useState({ filing_reference: '', completed_by: '', notes: '' });
+
   // Add Filing form
   const [showAddFiling, setShowAddFiling] = useState(false);
   const [addingFiling, setAddingFiling] = useState(false);
@@ -145,21 +149,32 @@ export default function CompliancePage() {
     }
   }
 
-  async function handleMarkFiled(filingId: string) {
-    if (!orgId) return;
-    setMarkingFiled(filingId);
+  async function handleMarkFiled() {
+    if (!orgId || !filingToMark) return;
+    setMarkingFiled(filingToMark.id);
     try {
+      const body: Record<string, any> = {
+        id: filingToMark.id,
+        status: 'filed',
+        completed_at: new Date().toISOString(),
+      };
+      if (markFiledFields.filing_reference.trim()) body.filing_reference = markFiledFields.filing_reference.trim();
+      if (markFiledFields.completed_by.trim()) body.completed_by = markFiledFields.completed_by.trim();
+      if (markFiledFields.notes.trim()) body.notes = markFiledFields.notes.trim();
+
       const res = await fetch(`/api/org/${orgId}/compliance/filing-calendar`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: filingId, status: 'filed', filed_date: new Date().toISOString().split('T')[0] }),
+        body: JSON.stringify(body),
       });
       if (res.ok) {
         const d = await res.json();
-        setFilings(prev => prev.map(f => f.id === filingId ? d.data : f));
+        setFilings(prev => prev.map(f => f.id === filingToMark.id ? d.data : f));
       }
     } finally {
       setMarkingFiled(null);
+      setFilingToMark(null);
+      setMarkFiledFields({ filing_reference: '', completed_by: '', notes: '' });
     }
   }
 
@@ -356,11 +371,10 @@ export default function CompliancePage() {
                     <td className="px-6 py-3 text-right">
                       {filing.status === 'upcoming' || filing.status === 'overdue' ? (
                         <button
-                          onClick={() => handleMarkFiled(filing.id)}
-                          disabled={markingFiled === filing.id}
-                          className="text-xs px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50 transition-colors"
+                          onClick={() => { setFilingToMark(filing); setMarkFiledFields({ filing_reference: '', completed_by: '', notes: '' }); }}
+                          className="text-xs px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
                         >
-                          {markingFiled === filing.id ? 'Saving…' : 'Mark as Filed'}
+                          Mark as Filed
                         </button>
                       ) : null}
                     </td>
@@ -615,6 +629,65 @@ export default function CompliancePage() {
           )}
         </section>
       </div>
+
+      {/* Mark as Filed modal */}
+      {filingToMark && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl max-w-md w-full shadow-xl p-6 space-y-4">
+            <h3 className="text-lg font-semibold text-gray-900">Mark as Filed</h3>
+            <p className="text-sm text-gray-600">{filingToMark.title}</p>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Confirmation / Reference Number</label>
+                <input
+                  type="text"
+                  value={markFiledFields.filing_reference}
+                  onChange={e => setMarkFiledFields(p => ({ ...p, filing_reference: e.target.value }))}
+                  placeholder="e.g. IRS-2026-XXXXX"
+                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Filed by</label>
+                <input
+                  type="text"
+                  value={markFiledFields.completed_by}
+                  onChange={e => setMarkFiledFields(p => ({ ...p, completed_by: e.target.value }))}
+                  placeholder="Name or role"
+                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Notes <span className="text-gray-400">(optional)</span></label>
+                <textarea
+                  value={markFiledFields.notes}
+                  onChange={e => setMarkFiledFields(p => ({ ...p, notes: e.target.value }))}
+                  rows={2}
+                  placeholder="Any additional notes"
+                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent resize-none"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 pt-2">
+              <button
+                onClick={() => { setFilingToMark(null); setMarkFiledFields({ filing_reference: '', completed_by: '', notes: '' }); }}
+                className="px-4 py-2 text-sm text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleMarkFiled}
+                disabled={markingFiled === filingToMark.id}
+                className="px-4 py-2 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 font-medium"
+              >
+                {markingFiled === filingToMark.id ? 'Saving…' : 'Confirm Filed'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

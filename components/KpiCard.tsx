@@ -127,7 +127,9 @@ export default function KpiCard({
       {/* Footnote / last updated */}
       {footnote && !loading && <div className="text-xs text-neutral-500">{footnote}</div>}
       {lastUpdated && !loading && (
-        <div className="text-xs text-neutral-400">Updated {lastUpdated}</div>
+        <div className="text-xs text-neutral-400">
+          Updated {(() => { const d = new Date(lastUpdated); return isNaN(d.getTime()) ? lastUpdated : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); })()}
+        </div>
       )}
     </div>
   );

@@ -37,7 +37,7 @@ export default function DonorList({ organizationId, onDonorSelect }: Props) {
   const [pendingFilter, setPendingFilter] = useState('');
 
   // Sorting
-  const [sortField, setSortField] = useState<'total_lifetime_giving' | 'last_gift_date' | 'gift_count'>('total_lifetime_giving');
+  const [sortField, setSortField] = useState<'display_name' | 'total_lifetime_giving' | 'last_gift_date' | 'gift_count'>('total_lifetime_giving');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
 
   const fetchDonors = useCallback(async () => {
@@ -139,7 +139,7 @@ export default function DonorList({ organizationId, onDonorSelect }: Props) {
       setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
     } else {
       setSortField(field);
-      setSortDir('desc');
+      setSortDir(field === 'display_name' ? 'asc' : 'desc');
     }
   };
 
@@ -258,8 +258,11 @@ export default function DonorList({ organizationId, onDonorSelect }: Props) {
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Donor
+                  <th
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                    onClick={() => handleSort('display_name')}
+                  >
+                    Donor {sortField === 'display_name' && (sortDir === 'asc' ? '↑' : '↓')}
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Type

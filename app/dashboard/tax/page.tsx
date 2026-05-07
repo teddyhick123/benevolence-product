@@ -187,6 +187,9 @@ function TaxDashboard() {
           onSave={handleProfileSave}
         />
 
+        {/* AGI Limits Visualization — shown early so users understand deduction headroom before entering contributions */}
+        {agiLimits && <AGILimitVisualizer limits={agiLimits} />}
+
         {/* Holdings Importer */}
         <HoldingsImporter
           portfolioId={portfolioId}
@@ -219,9 +222,6 @@ function TaxDashboard() {
             </div>
           </div>
         )}
-
-        {/* AGI Limits Visualization */}
-        {agiLimits && <AGILimitVisualizer limits={agiLimits} />}
 
         {/* Contributions List */}
         <ContributionsList

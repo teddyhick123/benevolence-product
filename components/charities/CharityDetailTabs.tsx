@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { DollarSign, TrendingUp, Heart, Activity, Mail, Phone, Globe, MapPin } from 'lucide-react';
+import { DollarSign, TrendingUp, Heart, Activity, Mail, Phone, Globe, MapPin, ExternalLink } from 'lucide-react';
 
 interface CharityData {
   id: string;
@@ -252,6 +252,38 @@ export default function CharityDetailTabs({ charity }: CharityDetailTabsProps) {
                 </div>
               </div>
             </div>
+
+            {/* Public Filings & Records */}
+            {charity.ein && (() => {
+              const einClean = charity.ein.replace(/-/g, '');
+              const propublicaUrl = `https://projects.propublica.org/nonprofits/organizations/${einClean}`;
+              return (
+                <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 space-y-3">
+                  <h3 className="text-sm font-semibold text-gray-700">Public Filings &amp; Records</h3>
+                  <div className="space-y-2">
+                    <a
+                      href={propublicaUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 text-sm text-blue-600 hover:underline"
+                    >
+                      <ExternalLink className="w-4 h-4 flex-shrink-0" />
+                      ProPublica Nonprofit Explorer — Form 990 filings
+                    </a>
+                    <a
+                      href="https://www.irs.gov/charities-non-profits/tax-exempt-organization-search"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 text-sm text-blue-600 hover:underline"
+                    >
+                      <ExternalLink className="w-4 h-4 flex-shrink-0" />
+                      IRS Tax Exempt Organization Search
+                    </a>
+                  </div>
+                  <p className="text-xs text-gray-400">Form 990 documents are public records filed annually with the IRS.</p>
+                </div>
+              );
+            })()}
           </div>
         )}
 

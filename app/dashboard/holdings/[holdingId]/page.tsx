@@ -883,8 +883,7 @@ export default async function HoldingMiniDashboard({
         linkedOrg={linkedOrg}
       />
 
-      {!hasBasicInfo && (
-        <details className="mt-3 rounded-xl border border-neutral-200 bg-white shadow-sm p-5 open:shadow-md transition-shadow">
+      <details className="mt-3 rounded-xl border border-neutral-200 bg-white shadow-sm p-5 open:shadow-md transition-shadow">
         <summary className="cursor-pointer text-sm font-semibold text-neutral-800 hover:text-neutral-900">Edit Basic Information</summary>
         <form action={updateHoldingBasics} className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
           <input type="hidden" name="holding_id" value={holding.id} />
@@ -991,10 +990,8 @@ export default async function HoldingMiniDashboard({
           </div>
         </form>
       </details>
-      )}
 
-      {!hasBasicInfo && (
-        <details className="rounded-xl border border-neutral-200 bg-white shadow-sm p-5 open:shadow-md transition-shadow">
+      <details className="rounded-xl border border-neutral-200 bg-white shadow-sm p-5 open:shadow-md transition-shadow">
         <summary className="cursor-pointer text-sm font-semibold text-neutral-800 hover:text-neutral-900">Edit Location</summary>
         <form action={updateHoldingLocation} className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-3">
           <input type="hidden" name="holding_id" value={holding.id} />
@@ -1036,7 +1033,6 @@ export default async function HoldingMiniDashboard({
           </div>
         </form>
       </details>
-      )}
 
       {/* Primary Contact + Analytics Carousel */}
       <section className="grid grid-cols-1 lg:grid-cols-3 gap-4">

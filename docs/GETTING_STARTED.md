@@ -16,8 +16,8 @@ Before you begin, ensure you have the following installed and configured:
 
 1.  **Clone the repository:**
     ```bash
-    git clone https://github.com/teddyhick123/Benevolence.git
-    cd Benevolence/impact-viz-mvp
+    git clone https://github.com/teddyhick123/benevolence-product.git
+    cd benevolence-product
     ```
 
 2.  **Install dependencies:**
@@ -27,7 +27,7 @@ Before you begin, ensure you have the following installed and configured:
 
 ## Environment Variables
 
-Create a `.env` file in the root of the `impact-viz-mvp` directory and populate it with the following variables.
+Create a `.env` file in the root of the `benevolence-product` directory and populate it with the following variables.
 
 | Name                             | Required | Description                                                                    |
 | -------------------------------- | -------- | ------------------------------------------------------------------------------ |

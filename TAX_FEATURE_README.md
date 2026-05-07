@@ -288,7 +288,7 @@ console.log('Total carryforward:', limits.totalCarryforward);
 ## File Structure
 
 ```
-impact-viz-mvp/
+benevolence-product/
 ├── db/
 │   └── 0013_tax_tracking.sql              # Database migration
 ├── lib/

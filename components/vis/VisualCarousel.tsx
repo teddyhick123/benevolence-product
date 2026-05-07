@@ -365,8 +365,7 @@ export default function VisualCarousel({ items, portfolioId, initialId, autoPlay
       <CarouselSlides index={index}>
         {items.map((it, i) => (
           <div key={it.id} className="w-full h-full flex items-center justify-center min-w-0">
-            {/* Only mount neighbors for perf */}
-            {Math.abs(i - index) <= 1 || Math.abs(i - index) >= items.length - 1 ? (() => {
+            {(() => {
               // Prefer new registry-based rendering when type is provided
               if (it.type) {
                 const Comp = REGISTRY[it.type];
@@ -386,7 +385,7 @@ export default function VisualCarousel({ items, portfolioId, initialId, autoPlay
                 return <SectorEmissionsBar portfolioId={portfolioId} title={it.title ?? it.label} config={(it as any).config || {}} />;
               }
               return <div className="card p-4 text-sm text-neutral-600">Unknown widget: {it.label}</div>;
-            })() : null}
+            })()}
           </div>
         ))}
       </CarouselSlides>

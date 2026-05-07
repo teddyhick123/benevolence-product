@@ -147,6 +147,16 @@ type HoldingLocationRow = {
   tags: string[];
 };
 
+async function fetchGrantDetails(holdingId: string): Promise<{ next_report_due?: string | null } | null> {
+  const supabase = await getSupabase();
+  const { data } = await supabase
+    .from('grant_details')
+    .select('next_report_due')
+    .eq('holding_id', holdingId)
+    .maybeSingle();
+  return data ?? null;
+}
+
 async function fetchLocations(portfolioId: string, holdingId: string): Promise<HoldingLocationRow[]> {
   const supabase = await getSupabase();
   const { data, error } = await supabase
@@ -776,13 +786,14 @@ export default async function HoldingMiniDashboard({
 
   const portfolioId = String(holding.portfolio_id);
 
-  const [facts, contributions, metricNames, locations, orgSubmittedFacts, linkedOrg] = await Promise.all([
+  const [facts, contributions, metricNames, locations, orgSubmittedFacts, linkedOrg, grantDetails] = await Promise.all([
     fetchFacts(holdingId),
     fetchContributions(portfolioId, holdingId),
     fetchMetricNames(portfolioId),
     fetchLocations(portfolioId, holdingId),
     fetchOrgSubmittedFacts(holdingId),
     fetchLinkedOrg(holdingId),
+    fetchGrantDetails(holdingId),
   ]);
 
   const latestMetrics = latestByMetric(facts);
@@ -898,6 +909,25 @@ export default async function HoldingMiniDashboard({
         isManualFunds={totalContributions === 0 && holding.funds_allocated != null}
         grantPeriodStatus={grantPeriodStatus}
       />
+
+      {/* Report due date callout */}
+      {grantDetails?.next_report_due && (() => {
+        const due = new Date(grantDetails.next_report_due!);
+        const now = new Date();
+        const daysLeft = Math.ceil((due.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+        const overdue = daysLeft < 0;
+        const urgent = daysLeft >= 0 && daysLeft <= 30;
+        return (
+          <div className={`flex items-center gap-3 rounded-lg border px-4 py-3 text-sm ${overdue ? 'bg-red-50 border-red-200 text-red-800' : urgent ? 'bg-amber-50 border-amber-200 text-amber-800' : 'bg-blue-50 border-blue-200 text-blue-800'}`}>
+            <span className="text-base leading-none">📋</span>
+            <span>
+              <span className="font-medium">Next report due:</span>{' '}
+              {due.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+              {overdue ? ` — ${Math.abs(daysLeft)} days overdue` : daysLeft === 0 ? ' — due today' : ` — ${daysLeft} days remaining`}
+            </span>
+          </div>
+        );
+      })()}
 
       {/* Organization Submitted Metrics */}
       <OrgSubmittedMetrics

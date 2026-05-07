@@ -8,6 +8,7 @@ import { headers } from 'next/headers';
 import AIAssistantButton from '@/components/AIAssistantButton';
 import PortfolioSummarySection from '@/components/PortfolioSummarySection';
 import GrantsList from '@/components/grants/GrantsList';
+import PayoutMiniGauge from '@/components/compliance/PayoutMiniGauge';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -163,6 +164,10 @@ export default async function Dashboard({ searchParams }: { searchParams?: Promi
       <Reveal delay={75}>
         {/* Provide portfolio KPI sums as an optimization/hint; KpiSection can fall back to its own fetch if not used */}
         <KpiSection {...({ portfolioId, canEdit, initialSums: kpiSums, mode: 'portfolio-sum' } as any)} />
+      </Reveal>
+
+      <Reveal delay={125}>
+        <PayoutMiniGauge portfolioId={portfolioId} />
       </Reveal>
 
       <Reveal delay={150}>

@@ -661,6 +661,83 @@ export default function CompliancePage() {
             </div>
           )}
         </section>
+
+        {/* ─── Annual Foundation Checklist ─── */}
+        <section className="bg-white rounded-lg border border-gray-200 p-6">
+          <details>
+            <summary className="cursor-pointer flex items-center justify-between">
+              <div>
+                <h2 className="font-semibold text-gray-900 inline">Annual Foundation Checklist</h2>
+                <p className="text-xs text-gray-500 mt-0.5">Standard private foundation obligations — click to expand</p>
+              </div>
+            </summary>
+
+            <div className="mt-5 space-y-4">
+              {[
+                {
+                  category: 'Federal Tax Filings',
+                  items: [
+                    { label: 'Form 990-PF', detail: 'Annual return — due May 15 (or Nov 15 with extension)', required: true },
+                    { label: 'Form 8868', detail: '6-month extension request — due May 15', required: false },
+                    { label: 'Form 4720', detail: 'Excise tax return if any self-dealing, excess holdings, or taxable expenditures occurred', required: false },
+                  ],
+                },
+                {
+                  category: 'Distribution Requirements',
+                  items: [
+                    { label: '5% Minimum Distribution', detail: 'Must distribute at least 5% of net assets (IRC §4942) by year-end', required: true },
+                    { label: 'Qualifying Distributions', detail: 'Grants, reasonable admin expenses, and program-related investments', required: true },
+                  ],
+                },
+                {
+                  category: 'Governance',
+                  items: [
+                    { label: 'Board Meeting Minutes', detail: 'Document all board actions, grant approvals, and investment decisions', required: true },
+                    { label: 'Conflict of Interest Review', detail: 'Annual disclosure from all board members and officers', required: true },
+                    { label: 'Investment Policy Statement', detail: 'Review and reaffirm annually', required: false },
+                  ],
+                },
+                {
+                  category: 'State Compliance',
+                  items: [
+                    { label: 'State Charitable Registration', detail: 'Renewal varies by state — check your jurisdiction', required: true },
+                    { label: 'State Annual Report', detail: 'Corporate/nonprofit annual report with Secretary of State', required: true },
+                  ],
+                },
+                {
+                  category: 'Prohibited Activities (IRC §4941–4945)',
+                  items: [
+                    { label: 'Self-Dealing Prohibition', detail: 'No financial transactions between foundation and disqualified persons', required: true },
+                    { label: 'Excess Business Holdings', detail: 'Foundation + disqualified persons cannot hold >20% of a business', required: true },
+                    { label: 'Jeopardizing Investments', detail: 'Avoid speculative investments that jeopardize the charitable purpose', required: true },
+                    { label: 'Taxable Expenditures', detail: 'Grants must include expenditure responsibility or be to public charities', required: true },
+                  ],
+                },
+              ].map(({ category, items }) => (
+                <div key={category}>
+                  <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">{category}</h3>
+                  <div className="space-y-1.5">
+                    {items.map(({ label, detail, required }) => (
+                      <div key={label} className="flex items-start gap-2.5">
+                        <span className={`mt-0.5 shrink-0 text-xs font-medium px-1.5 py-0.5 rounded ${required ? 'bg-red-50 text-red-700' : 'bg-gray-100 text-gray-500'}`}>
+                          {required ? 'Required' : 'Optional'}
+                        </span>
+                        <div>
+                          <span className="text-sm font-medium text-gray-800">{label}</span>
+                          <span className="text-sm text-gray-500"> — {detail}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+
+              <p className="text-xs text-gray-400 pt-2 border-t border-gray-100">
+                This checklist is a general reference. Consult your legal and tax advisors for requirements specific to your foundation.
+              </p>
+            </div>
+          </details>
+        </section>
       </div>
 
       {/* Mark as Filed modal */}

@@ -30,6 +30,10 @@ export default function DonorProfilePage() {
   const [isEditing, setIsEditing] = useState(false);
   const [editFields, setEditFields] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
+  const [showGiftForm, setShowGiftForm] = useState(false);
+  const [giftFields, setGiftFields] = useState({ amount: '', date: new Date().toISOString().split('T')[0], type: 'cash', notes: '' });
+  const [giftSaving, setGiftSaving] = useState(false);
+  const [giftError, setGiftError] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchOrg() {
@@ -109,6 +113,42 @@ export default function DonorProfilePage() {
       // silently fail
     } finally {
       setGeneratingPdf(null);
+    }
+  }
+
+  async function handleLogGift() {
+    if (!orgId || !giftFields.amount) return;
+    setGiftSaving(true);
+    setGiftError(null);
+    try {
+      const res = await fetch(`/api/org/${orgId}/contributions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          donor_id: donorId,
+          amount: parseFloat(giftFields.amount),
+          contribution_date: giftFields.date,
+          contribution_type: giftFields.type,
+          notes: giftFields.notes || undefined,
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Failed to log gift');
+      }
+      // Refetch donor to update lifetime giving stats
+      const donorRes = await fetch(`/api/org/${orgId}/donors/${donorId}`);
+      if (donorRes.ok) {
+        const data = await donorRes.json();
+        setDonor(data.donor);
+        setContributions(data.contributions || []);
+      }
+      setShowGiftForm(false);
+      setGiftFields({ amount: '', date: new Date().toISOString().split('T')[0], type: 'cash', notes: '' });
+    } catch (err: any) {
+      setGiftError(err.message);
+    } finally {
+      setGiftSaving(false);
     }
   }
 
@@ -235,9 +275,79 @@ export default function DonorProfilePage() {
 
         {/* Contribution History */}
         <div className="bg-white rounded-lg border border-gray-200 mb-6">
-          <div className="px-6 py-4 border-b border-gray-100">
+          <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
             <h2 className="font-semibold text-gray-900">Contribution History</h2>
+            <button
+              onClick={() => { setShowGiftForm(v => !v); setGiftError(null); }}
+              className="px-3 py-1.5 text-xs font-medium bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors"
+            >
+              {showGiftForm ? 'Cancel' : '+ Log Gift'}
+            </button>
           </div>
+          {showGiftForm && (
+            <div className="px-6 py-4 border-b border-gray-100 bg-gray-50">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Amount ($) *</label>
+                  <input
+                    type="number"
+                    min="0.01"
+                    step="0.01"
+                    value={giftFields.amount}
+                    onChange={e => setGiftFields(f => ({ ...f, amount: e.target.value }))}
+                    placeholder="0.00"
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Date</label>
+                  <input
+                    type="date"
+                    value={giftFields.date}
+                    onChange={e => setGiftFields(f => ({ ...f, date: e.target.value }))}
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Type</label>
+                  <select
+                    value={giftFields.type}
+                    onChange={e => setGiftFields(f => ({ ...f, type: e.target.value }))}
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  >
+                    <option value="cash">Cash</option>
+                    <option value="non_cash">Non-Cash</option>
+                    <option value="securities">Securities</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Notes</label>
+                  <textarea
+                    rows={2}
+                    value={giftFields.notes}
+                    onChange={e => setGiftFields(f => ({ ...f, notes: e.target.value }))}
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
+                  />
+                </div>
+              </div>
+              {giftError && <p className="text-xs text-red-600 mt-2">{giftError}</p>}
+              <div className="flex gap-2 justify-end mt-3">
+                <button
+                  onClick={() => { setShowGiftForm(false); setGiftError(null); }}
+                  className="px-3 py-1.5 text-xs text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleLogGift}
+                  disabled={giftSaving || !giftFields.amount}
+                  className="px-3 py-1.5 text-xs font-medium bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50"
+                >
+                  {giftSaving ? 'Saving…' : 'Log Gift'}
+                </button>
+              </div>
+            </div>
+          )}
           {contributions.length === 0 ? (
             <div className="px-6 py-8 text-center text-gray-400 text-sm">No contributions recorded.</div>
           ) : (

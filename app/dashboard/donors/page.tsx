@@ -31,6 +31,7 @@ export default function DonorsPage() {
   const [orgId, setOrgId] = useState<string | null>(null);
   const [moduleEnabled, setModuleEnabled] = useState<boolean | null>(null);
   const [donors, setDonors] = useState<any[]>([]);
+  const [total, setTotal] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -80,6 +81,7 @@ export default function DonorsPage() {
         if (!res.ok) throw new Error('Failed to load donors');
         const data = await res.json();
         setDonors(data.donors || []);
+        setTotal(data.total ?? data.donors?.length ?? 0);
       } catch (err: any) {
         setError(err.message);
       } finally {
@@ -130,7 +132,7 @@ export default function DonorsPage() {
         <div className="mb-6 flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Donors</h1>
-            <p className="text-sm text-gray-500 mt-1">{donors.length} total records</p>
+            <p className="text-sm text-gray-500 mt-1">{`${total !== null ? total.toLocaleString() : donors.length} total records`}</p>
           </div>
           <a
             href={orgId ? `/dashboard/donors/new?org=${orgId}` : '#'}

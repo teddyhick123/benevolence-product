@@ -24,7 +24,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
 
     let query = supabase
       .from('v_donor_summary')
-      .select('*')
+      .select('*', { count: 'exact' })
       .eq('org_id', orgId);
 
     const name = searchParams.get('name');
@@ -41,7 +41,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     if (minGiving) query = query.gte('total_lifetime_giving', parseFloat(minGiving));
     if (pendingAcks === 'true') query = query.eq('has_pending_acknowledgments', true);
 
-    const { data: donors, error } = await query
+    const { data: donors, count, error } = await query
       .order('total_lifetime_giving', { ascending: false })
       .range(offset, offset + limit - 1);
 
@@ -49,7 +49,11 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ donors, count: donors?.length || 0 });
+    return NextResponse.json({
+      donors,
+      total: count ?? donors?.length ?? 0,
+      count: donors?.length || 0,
+    });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }

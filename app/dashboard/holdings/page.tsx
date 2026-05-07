@@ -42,6 +42,27 @@ export default function HoldingsPage() {
   });
 
   const onAdd = () => { setEditing(null); setModalOpen(true); };
+
+  const exportCsv = () => {
+    const headers = ['Name', 'Asset Type', 'Sector', 'Status', 'Funds Allocated', 'As Of'];
+    const csvRows = [
+      headers.join(','),
+      ...filteredRows.map(r => [
+        JSON.stringify(r.name ?? r.holding_name ?? ''),
+        JSON.stringify(r.asset_type ?? ''),
+        JSON.stringify(r.sector ?? ''),
+        JSON.stringify(r.status ?? ''),
+        r.funds ?? r.funds_allocated ?? '',
+        r.asOfRaw ?? r.as_of ?? '',
+      ].join(',')),
+    ];
+    const blob = new Blob([csvRows.join('\n')], { type: 'text/csv' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `holdings-${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  };
   const onEditRow = (row: any) => {
     setEditing({
       id: row.id,
@@ -65,17 +86,30 @@ export default function HoldingsPage() {
             {isLoading ? 'Loading…' : `${rows.length} holding${rows.length !== 1 ? 's' : ''}`}
           </p>
         </div>
-        {canEdit && (
-          <button
-            onClick={onAdd}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-azure text-white text-sm font-medium hover:bg-azure/90 transition-colors"
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-            </svg>
-            Add Holding
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {rows.length > 0 && (
+            <button
+              onClick={exportCsv}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-300 text-gray-700 text-sm font-medium hover:bg-gray-50 transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              Export CSV
+            </button>
+          )}
+          {canEdit && (
+            <button
+              onClick={onAdd}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-azure text-white text-sm font-medium hover:bg-azure/90 transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+              </svg>
+              Add Holding
+            </button>
+          )}
+        </div>
       </div>
 
       {isLoading ? (

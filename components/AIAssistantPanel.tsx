@@ -45,13 +45,24 @@ type Props = {
   onClose?: () => void;
 };
 
+const SUGGESTED_PROMPTS = [
+  'Summarize my portfolio performance',
+  'Which holdings need attention?',
+  'Show me my 5% payout status',
+  'What are my top impact metrics?',
+  'Draft a board update for this quarter',
+];
+
 export default function AIAssistantPanel({ portfolioId, onClose }: Props) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [loadingStatus, setLoadingStatus] = useState('Thinking…');
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [recentActions, setRecentActions] = useState<AIAction[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const loadingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Audio recording
   const { state: recordingState, error: recordingError, startRecording, stopRecording, cancelRecording } = useAudioRecorder();
@@ -113,6 +124,13 @@ Just ask me anything, and I'll help you out! If you don't like a change I make, 
     }
   };
 
+  const cancelRequest = () => {
+    abortControllerRef.current?.abort();
+    if (loadingTimerRef.current) clearTimeout(loadingTimerRef.current);
+    setIsLoading(false);
+    setLoadingStatus('Thinking…');
+  };
+
   const sendMessage = async () => {
     if (!input.trim() || isLoading) return;
 
@@ -125,6 +143,16 @@ Just ask me anything, and I'll help you out! If you don't like a change I make, 
     setMessages((prev) => [...prev, userMessage]);
     setInput('');
     setIsLoading(true);
+    setLoadingStatus('Thinking…');
+
+    const ac = new AbortController();
+    abortControllerRef.current = ac;
+
+    // Cycle status messages to hint at tool calling
+    loadingTimerRef.current = setTimeout(() => {
+      setLoadingStatus('Calling tools…');
+      loadingTimerRef.current = setTimeout(() => setLoadingStatus('Generating response…'), 6000);
+    }, 4000);
 
     try {
       const res = await fetch('/api/ai/chat', {
@@ -139,6 +167,7 @@ Just ask me anything, and I'll help you out! If you don't like a change I make, 
             content: m.content,
           })),
         }),
+        signal: ac.signal,
       });
 
       const data = await res.json();
@@ -167,6 +196,7 @@ Just ask me anything, and I'll help you out! If you don't like a change I make, 
         loadActions();
       }
     } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') return;
       const errorMessage = err instanceof Error ? err.message : 'Unknown error';
       setMessages((prev) => [
         ...prev,
@@ -177,7 +207,9 @@ Just ask me anything, and I'll help you out! If you don't like a change I make, 
         },
       ]);
     } finally {
+      if (loadingTimerRef.current) clearTimeout(loadingTimerRef.current);
       setIsLoading(false);
+      setLoadingStatus('Thinking…');
     }
   };
 
@@ -342,10 +374,17 @@ Just ask me anything, and I'll help you out! If you don't like a change I make, 
         ))}
 
         {isLoading && (
-          <div className="flex justify-start">
-            <div className="bg-neutral-100 rounded-lg px-4 py-3">
-              <TrefoilLoader className="h-6 w-6 text-azure" />
+          <div className="flex justify-start items-center gap-3">
+            <div className="bg-neutral-100 rounded-lg px-4 py-3 flex items-center gap-2">
+              <TrefoilLoader className="h-5 w-5 text-azure" />
+              <span className="text-xs text-neutral-500">{loadingStatus}</span>
             </div>
+            <button
+              onClick={cancelRequest}
+              className="text-xs text-neutral-400 hover:text-red-500 transition-colors"
+            >
+              Cancel
+            </button>
           </div>
         )}
 
@@ -390,6 +429,21 @@ Just ask me anything, and I'll help you out! If you don't like a change I make, 
 
       {/* Input */}
       <div className="border-t border-neutral-200 p-4">
+        {/* Suggested prompts — only shown when conversation is empty */}
+        {messages.length <= 1 && !isLoading && (
+          <div className="flex flex-wrap gap-1.5 mb-3">
+            {SUGGESTED_PROMPTS.map((p) => (
+              <button
+                key={p}
+                type="button"
+                onClick={() => { setInput(p); }}
+                className="text-xs px-2.5 py-1 rounded-full border border-azure/30 text-azure hover:bg-azure/5 transition-colors"
+              >
+                {p}
+              </button>
+            ))}
+          </div>
+        )}
         {recordingError && (
           <div className="mb-2 text-xs text-red-600 bg-red-50 px-3 py-2 rounded">
             {recordingError}

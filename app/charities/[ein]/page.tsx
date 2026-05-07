@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, Star, MapPin, ChevronDown } from 'lucide-react';
@@ -8,6 +8,7 @@ import CharityDetailTabs from '@/components/charities/CharityDetailTabs';
 import AddToPortfolioModal from '@/components/charities/AddToPortfolioModal';
 
 const WATCHLIST_KEY = 'charity_watchlist';
+const NOTES_KEY = (ein: string) => `charity_notes_${ein}`;
 
 type WatchItem = { ein: string; name: string };
 
@@ -32,6 +33,8 @@ export default function CharityDetailPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isWatched, setIsWatched] = useState(false);
+  const [notes, setNotes] = useState('');
+  const notesSaveRef = useRef<NodeJS.Timeout | null>(null);
 
   const [addToPortfolioModal, setAddToPortfolioModal] = useState(false);
 
@@ -39,8 +42,17 @@ export default function CharityDetailPage() {
     if (ein) {
       fetchCharityDetails();
       setIsWatched(getWatchlist().some(w => w.ein === ein));
+      setNotes(localStorage.getItem(NOTES_KEY(ein)) || '');
     }
   }, [ein]);
+
+  function handleNotesChange(val: string) {
+    setNotes(val);
+    if (notesSaveRef.current) clearTimeout(notesSaveRef.current);
+    notesSaveRef.current = setTimeout(() => {
+      localStorage.setItem(NOTES_KEY(ein), val);
+    }, 400);
+  }
 
   const fetchCharityDetails = async () => {
     setIsLoading(true);
@@ -176,6 +188,21 @@ export default function CharityDetailPage() {
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <CharityDetailTabs charity={charity} />
+      </div>
+
+      {/* Research Notes */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-8">
+        <div className="bg-white border border-gray-200 rounded-lg p-5">
+          <h2 className="text-sm font-semibold text-gray-900 mb-2">My Research Notes</h2>
+          <textarea
+            rows={4}
+            value={notes}
+            onChange={e => handleNotesChange(e.target.value)}
+            placeholder="Record why you're considering this charity, concerns, questions to follow up on…"
+            className="w-full px-3 py-2 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-azure resize-none"
+          />
+          <p className="text-xs text-gray-400 mt-1">Saved locally in your browser — not shared with others.</p>
+        </div>
       </div>
 
       {/* Add to Portfolio Modal */}

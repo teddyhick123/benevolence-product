@@ -239,15 +239,24 @@ interface TimelineProps {
 function HorizontalTimeline({ events, showValues, onEventClick }: TimelineProps) {
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const [containerWidth, setContainerWidth] = useState(0);
 
   useEffect(() => {
-    if (!svgRef.current || !containerRef.current || events.length === 0) return;
+    const el = containerRef.current;
+    if (!el) return;
+    setContainerWidth(el.clientWidth);
+    const obs = new ResizeObserver(entries => {
+      setContainerWidth(entries[0].contentRect.width);
+    });
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, []);
 
-    const container = containerRef.current;
+  useEffect(() => {
+    if (!svgRef.current || !containerRef.current || events.length === 0 || containerWidth === 0) return;
+
     const svg = d3.select(svgRef.current);
     svg.selectAll('*').remove();
-
-    const containerWidth = container.clientWidth;
     const margin = { top: 60, right: 40, bottom: 40, left: 40 };
     const width = Math.max(containerWidth - margin.left - margin.right, 600);
     const height = 200;
@@ -345,7 +354,7 @@ function HorizontalTimeline({ events, showValues, onEventClick }: TimelineProps)
       }
     });
 
-  }, [events, showValues, onEventClick]);
+  }, [events, showValues, onEventClick, containerWidth]);
 
   return (
     <div ref={containerRef} className="w-full overflow-x-auto">

@@ -246,22 +246,64 @@ export default function EditWidgetsModal({ portfolioId, holdingId, open, onClose
       return;
     }
 
-    const widgetA = widgets[fromIdx];
-    const widgetB = widgets[toIdx];
+    // Compute new order: remove dragged, insert at target index
+    const newOrder = [...widgets];
+    const [removed] = newOrder.splice(fromIdx, 1);
+    newOrder.splice(toIdx, 0, removed);
 
-    // Optimistically update UI
-    const optimisticData = widgets.map(w => {
-      if (w.id === widgetA.id) return { ...w, position: widgetB.position };
-      if (w.id === widgetB.id) return { ...w, position: widgetA.position };
-      return w;
-    });
+    // Each slot in the new order gets the position value from the original slot
+    const optimisticData = newOrder.map((w, i) => ({ ...w, position: widgets[i].position }));
 
     mutate({ data: optimisticData }, false);
     setError(null);
     setDraggedWidget(null);
 
+    const baseUrl = holdingId
+      ? `/api/holdings/${encodeURIComponent(holdingId)}/widgets`
+      : `/api/portfolio/${encodeURIComponent(portfolioId)}/widgets`;
+
+    const tempPosition = 999999;
+    const dragged = widgets[fromIdx];
+
     try {
-      await reorderWidgets(widgetA, widgetB);
+      // Step 1: Park dragged widget at temp position to free its slot
+      const r0 = await fetch(`${baseUrl}/${encodeURIComponent(dragged.id)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ position: tempPosition }),
+      });
+      if (!r0.ok) throw new Error('Failed to reorder widgets');
+
+      if (fromIdx < toIdx) {
+        // Drag DOWN: shift [fromIdx+1..toIdx] each one position toward fromIdx
+        for (let i = fromIdx + 1; i <= toIdx; i++) {
+          const r = await fetch(`${baseUrl}/${encodeURIComponent(widgets[i].id)}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ position: widgets[i - 1].position }),
+          });
+          if (!r.ok) throw new Error('Failed to reorder widgets');
+        }
+      } else {
+        // Drag UP: shift [toIdx..fromIdx-1] each one position toward fromIdx
+        for (let i = fromIdx - 1; i >= toIdx; i--) {
+          const r = await fetch(`${baseUrl}/${encodeURIComponent(widgets[i].id)}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ position: widgets[i + 1].position }),
+          });
+          if (!r.ok) throw new Error('Failed to reorder widgets');
+        }
+      }
+
+      // Step final: Place dragged at target position
+      const rFinal = await fetch(`${baseUrl}/${encodeURIComponent(dragged.id)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ position: widgets[toIdx].position }),
+      });
+      if (!rFinal.ok) throw new Error('Failed to reorder widgets');
+
       await mutate();
       onChanged?.();
     } catch (e: any) {

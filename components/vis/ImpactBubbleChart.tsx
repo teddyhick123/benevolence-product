@@ -337,6 +337,9 @@ function BubbleChartD3({
           .attr('fill-opacity', 1)
           .attr('stroke-width', 3);
 
+        const containerEl = (containerRef as { current: HTMLDivElement | null }).current;
+        const rect = containerEl?.getBoundingClientRect() ?? { left: 0, top: 0 };
+
         tooltip
           .style('opacity', 1)
           .html(`
@@ -349,8 +352,8 @@ function BubbleChartD3({
               ${d.colorValue !== undefined && d.colorMetric ? `<div><span class="text-neutral-500">${d.colorMetric}:</span> ${d.colorValue.toLocaleString()}</div>` : ''}
             </div>
           `)
-          .style('left', (event.pageX + 10) + 'px')
-          .style('top', (event.pageY - 10) + 'px');
+          .style('left', (event.clientX - rect.left + 10) + 'px')
+          .style('top', (event.clientY - rect.top - 10) + 'px');
       })
       .on('mouseout', function() {
         d3.select(this)

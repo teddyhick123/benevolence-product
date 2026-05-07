@@ -90,18 +90,13 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
     );
 
   } else if (mode === 'impact') {
-    // Impact accumulation waterfall
-    // Start: 0 (baseline)
-    // Each holding: Impact contribution (positive)
-    // End: Total impact
-
-    // For simplicity, use funds_allocated as a proxy for impact
-    // In a real scenario, you'd use actual impact metrics
+    // Impact accumulation waterfall — queries actual metric_facts, not funds_allocated.
+    // Uses metricCode param if provided, otherwise picks the most prevalent metric.
     let holdingsQuery = supabase
       .from('holdings')
-      .select('id, name, funds_allocated')
+      .select('id, name')
       .eq('portfolio_id', portfolioId)
-      .order('funds_allocated', { ascending: false, nullsFirst: false });
+      .order('name');
 
     if (holdingId) {
       holdingsQuery = holdingsQuery.eq('id', holdingId);
@@ -116,38 +111,80 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
       );
     }
 
-    const waterfallData = [
+    const holdingIds = holdings.map(h => h.id);
+
+    // Determine which metric to use
+    let targetMetric = metricCode;
+    if (!targetMetric) {
+      const { data: allCodes } = await supabase
+        .from('metric_facts')
+        .select('metric_code')
+        .in('holding_id', holdingIds);
+
+      if (allCodes && allCodes.length > 0) {
+        const counts = new Map<string, number>();
+        for (const row of allCodes) {
+          counts.set(row.metric_code, (counts.get(row.metric_code) || 0) + 1);
+        }
+        targetMetric = [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+      }
+    }
+
+    if (!targetMetric) {
+      return NextResponse.json(
+        { data: [], message: 'No impact metric data available for this portfolio' },
+        { headers: { 'Cache-Control': 'no-store' } }
+      );
+    }
+
+    // Batch-fetch latest value per holding for the chosen metric
+    const { data: metricRows } = await supabase
+      .from('metric_facts')
+      .select('holding_id, value')
+      .in('holding_id', holdingIds)
+      .eq('metric_code', targetMetric)
+      .order('period_end', { ascending: false });
+
+    const latestByHolding = new Map<string, number>();
+    for (const row of (metricRows || [])) {
+      if (!latestByHolding.has(row.holding_id)) {
+        latestByHolding.set(row.holding_id, Number(row.value) || 0);
+      }
+    }
+
+    const waterfallData: { label: string; value: number; isTotal: boolean; type: string; metric?: string }[] = [
       {
         label: 'Baseline',
         value: 0,
         isTotal: true,
-        type: 'start'
+        type: 'start',
+        metric: targetMetric,
       }
     ];
 
     let totalImpact = 0;
-    holdings.forEach(h => {
-      const impact = Number(h.funds_allocated) || 0;
-      if (impact > 0) {
+    for (const h of holdings) {
+      const impact = latestByHolding.get(h.id) ?? 0;
+      if (impact !== 0) {
         waterfallData.push({
           label: h.name,
           value: impact,
           isTotal: false,
-          type: 'increase'
+          type: impact >= 0 ? 'increase' : 'decrease',
         });
         totalImpact += impact;
       }
-    });
+    }
 
     waterfallData.push({
-      label: 'Total Impact',
+      label: `Total ${targetMetric}`,
       value: totalImpact,
       isTotal: true,
-      type: 'total'
+      type: 'total',
     });
 
     return NextResponse.json(
-      { data: waterfallData },
+      { data: waterfallData, metric: targetMetric },
       { headers: { 'Cache-Control': 'no-store' } }
     );
 
@@ -195,27 +232,32 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
 
     let totalMetric = 0;
 
-    // Get latest metric value for each holding
-    for (const holding of holdings) {
-      const { data: metrics } = await supabase
-        .from('metric_facts')
-        .select('value')
-        .eq('holding_id', holding.id)
-        .eq('metric_code', metricCode)
-        .order('period_end', { ascending: false })
-        .limit(1);
+    // Batch-fetch latest value per holding (avoids N+1)
+    const holdingIds = holdings.map(h => h.id);
+    const { data: allMetricRows } = await supabase
+      .from('metric_facts')
+      .select('holding_id, value')
+      .in('holding_id', holdingIds)
+      .eq('metric_code', metricCode)
+      .order('period_end', { ascending: false });
 
-      if (metrics && metrics.length > 0) {
-        const value = Number(metrics[0].value) || 0;
-        if (value !== 0) {
-          waterfallData.push({
-            label: holding.name,
-            value,
-            isTotal: false,
-            type: value >= 0 ? 'increase' : 'decrease'
-          });
-          totalMetric += value;
-        }
+    const latestByHolding = new Map<string, number>();
+    for (const row of (allMetricRows || [])) {
+      if (!latestByHolding.has(row.holding_id)) {
+        latestByHolding.set(row.holding_id, Number(row.value) || 0);
+      }
+    }
+
+    for (const holding of holdings) {
+      const value = latestByHolding.get(holding.id) ?? 0;
+      if (value !== 0) {
+        waterfallData.push({
+          label: holding.name,
+          value,
+          isTotal: false,
+          type: value >= 0 ? 'increase' : 'decrease'
+        });
+        totalMetric += value;
       }
     }
 

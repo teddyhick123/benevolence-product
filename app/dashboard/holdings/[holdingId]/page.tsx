@@ -14,6 +14,7 @@ import LocationsManagerWrapper from '@/components/holdings/LocationsManagerWrapp
 import FinancialProfileSection from '@/components/holdings/FinancialProfileSection';
 import ReportUploader from '@/components/holdings/ReportUploader';
 import OrgSubmittedMetrics from '@/components/holdings/OrgSubmittedMetrics';
+import GrantMilestonesWidget from '@/components/holdings/GrantMilestonesWidget';
 import { geocodeLocation } from '@/lib/services/google-maps';
 
 type HoldingRow = {
@@ -928,6 +929,9 @@ export default async function HoldingMiniDashboard({
           </div>
         );
       })()}
+
+      {/* Grant Milestones */}
+      <GrantMilestonesWidget portfolioId={portfolioId} holdingId={holdingId} />
 
       {/* Organization Submitted Metrics */}
       <OrgSubmittedMetrics

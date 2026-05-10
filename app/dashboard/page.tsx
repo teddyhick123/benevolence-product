@@ -1,5 +1,5 @@
 import { createSupabaseServerClient } from '@/lib/supabase';
-import KpiSection from '@/components/KpiSection';
+import DashboardKpiWithFilter from '@/components/DashboardKpiWithFilter';
 import HoldingsSection from '@/components/HoldingsSection';
 import WidgetsSection from '@/components/vis/WidgetsSection';
 import MapSection from '@/components/MapSection';
@@ -163,7 +163,7 @@ export default async function Dashboard({ searchParams }: { searchParams?: Promi
 
       <Reveal delay={75}>
         {/* Provide portfolio KPI sums as an optimization/hint; KpiSection can fall back to its own fetch if not used */}
-        <KpiSection {...({ portfolioId, canEdit, initialSums: kpiSums, mode: 'portfolio-sum' } as any)} />
+        <DashboardKpiWithFilter portfolioId={portfolioId} canEdit={canEdit} initialSums={kpiSums} />
       </Reveal>
 
       <Reveal delay={125}>

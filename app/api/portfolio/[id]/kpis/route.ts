@@ -13,35 +13,110 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
   const url = new URL(req.url);
   const offset = Number(url.searchParams.get('offset') ?? '0') || 0;
   const limit = Math.min(Number(url.searchParams.get('limit') ?? '50') || 50, 200);
+  const asOf = url.searchParams.get('as_of'); // e.g. "2025-12-31"
 
   const sb = await createSb();
 
-  // Query latest KPI values and all metric_facts periods in parallel
-  const [latestResult, factsResult] = await Promise.all([
-    sb
-      .from('v_portfolio_kpi_latest')
-      .select('*', { count: 'exact' })
+  let metrics: any[] | null = null;
+  let error: any = null;
+  let count: number | null = null;
+  let allFacts: any[] | null = null;
+
+  if (asOf) {
+    // --- as_of path: query metric_facts directly up to the given date ---
+
+    // Step 1: get holding IDs for this portfolio
+    const { data: holdingsData } = await sb
+      .from('holdings')
+      .select('id')
       .eq('portfolio_id', portfolio_id)
-      .order('metric_code', { ascending: true })
-      .range(offset, offset + limit - 1),
-    // Get recent metric_facts to compute previous-period delta
-    // Supabase table metric_facts joined via holdings; use a view-friendly query
-    sb
+      .is('deleted_at', null);
+
+    const holdingIds = (holdingsData ?? []).map((h: any) => h.id);
+
+    if (holdingIds.length === 0) {
+      return NextResponse.json({ data: [], count: 0, nextOffset: null }, { headers: cacheHeaders() });
+    }
+
+    // Step 2: fetch metric_facts on or before as_of
+    const { data: factsData } = await sb
       .from('metric_facts')
       .select('metric_code, value, period_end, holding_id')
-      .in(
-        'holding_id',
-        sb
-          .from('holdings')
-          .select('id')
-          .eq('portfolio_id', portfolio_id)
-          .is('deleted_at', null) as any
-      )
-      .order('period_end', { ascending: false })
-      .limit(2000),
-  ]);
+      .in('holding_id', holdingIds)
+      .lte('period_end', asOf)
+      .order('period_end', { ascending: false });
 
-  const { data: metrics, error, count } = latestResult;
+    allFacts = factsData ?? [];
+
+    // Step 3: for each metric_code, find the latest period_end <= as_of, sum values at that period
+    const latestPeriodByCode = new Map<string, string>();
+    for (const f of allFacts) {
+      if (!latestPeriodByCode.has(f.metric_code)) {
+        latestPeriodByCode.set(f.metric_code, f.period_end);
+      }
+    }
+
+    const sumByCode = new Map<string, number>();
+    for (const f of allFacts) {
+      if (f.period_end === latestPeriodByCode.get(f.metric_code)) {
+        sumByCode.set(f.metric_code, (sumByCode.get(f.metric_code) ?? 0) + Number(f.value));
+      }
+    }
+
+    // Step 4: get metric names
+    const metricCodes = [...latestPeriodByCode.keys()];
+
+    if (metricCodes.length === 0) {
+      return NextResponse.json({ data: [], count: 0, nextOffset: null }, { headers: cacheHeaders() });
+    }
+
+    const { data: metricsData } = await sb
+      .from('metrics')
+      .select('code, name, unit')
+      .in('code', metricCodes);
+
+    const metricMeta = new Map((metricsData ?? []).map((m: any) => [m.code, m]));
+
+    metrics = metricCodes.map(code => ({
+      metric_code: code,
+      portfolio_id: portfolio_id,
+      metric_name: metricMeta.get(code)?.name ?? code,
+      unit: metricMeta.get(code)?.unit ?? null,
+      total_value: sumByCode.get(code) ?? 0,
+      latest_date: latestPeriodByCode.get(code) ?? null,
+    }));
+
+    count = metrics.length;
+  } else {
+    // --- default path: use v_portfolio_kpi_latest view ---
+    const [latestResult, factsResult] = await Promise.all([
+      sb
+        .from('v_portfolio_kpi_latest')
+        .select('*', { count: 'exact' })
+        .eq('portfolio_id', portfolio_id)
+        .order('metric_code', { ascending: true })
+        .range(offset, offset + limit - 1),
+      // Get recent metric_facts to compute previous-period delta
+      sb
+        .from('metric_facts')
+        .select('metric_code, value, period_end, holding_id')
+        .in(
+          'holding_id',
+          sb
+            .from('holdings')
+            .select('id')
+            .eq('portfolio_id', portfolio_id)
+            .is('deleted_at', null) as any
+        )
+        .order('period_end', { ascending: false })
+        .limit(2000),
+    ]);
+
+    metrics = latestResult.data;
+    error = latestResult.error;
+    count = latestResult.count;
+    allFacts = factsResult.data;
+  }
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500, headers: cacheHeaders() });
@@ -56,9 +131,9 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
     if (m.metric_code) latestByCode.set(m.metric_code, m.latest_date ?? '');
   }
 
-  if (factsResult.data) {
+  if (allFacts) {
     const accumPrev: Record<string, { period: string; sum: number }> = {};
-    for (const f of factsResult.data as any[]) {
+    for (const f of allFacts as any[]) {
       const latestPeriod = latestByCode.get(f.metric_code);
       if (!latestPeriod || f.period_end >= latestPeriod) continue;
       if (!accumPrev[f.metric_code] || f.period_end > accumPrev[f.metric_code].period) {

@@ -27,13 +27,24 @@ export type KpiRow = {
   as_of?: string | null;
 };
 
-export default function KpiSection({ portfolioId, canEdit = false, initialSums, mode }: { portfolioId: string; canEdit?: boolean; initialSums?: Array<{ metric_code: string; total_value: number | null; latest_period: string | null }>; mode?: 'portfolio-sum' | 'raw'; }) {
+export default function KpiSection({ portfolioId, canEdit = false, initialSums, mode, asOf }: {
+  portfolioId: string;
+  canEdit?: boolean;
+  initialSums?: Array<{ metric_code: string; total_value: number | null; latest_period: string | null }>;
+  mode?: 'portfolio-sum' | 'raw';
+  asOf?: string;
+}) {
+  const apiUrl = asOf
+    ? `/api/portfolio/${encodeURIComponent(portfolioId)}/kpis?as_of=${asOf}`
+    : `/api/portfolio/${encodeURIComponent(portfolioId)}/kpis`;
+
   const { data, error, isLoading, mutate } = useSWR<{ data: KpiRow[]; count: number; nextOffset: number | null }>(
-    `/api/portfolio/${encodeURIComponent(portfolioId)}/kpis`,
+    apiUrl,  // SWR key changes when asOf changes → triggers refetch
     fetcher
   );
 
-  const usePortfolioSums = mode === 'portfolio-sum' && Array.isArray(initialSums) && initialSums.length > 0;
+  // When asOf is set, ignore initialSums (they're always "latest")
+  const usePortfolioSums = !asOf && mode === 'portfolio-sum' && Array.isArray(initialSums) && initialSums.length > 0;
 
   const rows = data?.data ?? [];
   const nameByCode = new Map<string, string>();

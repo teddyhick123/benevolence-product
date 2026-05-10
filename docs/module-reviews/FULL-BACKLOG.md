@@ -1,6 +1,6 @@
 # Benevolence — Open Backlog
 
-**Status:** Backlog reconciled 2026-05-10 after Sprint E session (Dr-U2, H-F8, Cm-F6, Cm-F7, Ch-U3, Ch-F6, Ch-F9, Dr-F5, D-F7, Adm-U2, Adm-U3, Adm-U4 resolved).
+**Status:** Backlog reconciled 2026-05-10 after Sprint E session (Dr-U2, H-F8, Cm-F6, Cm-F7, Ch-U3, Ch-F6, Ch-F9, Dr-F5, D-F7, Adm-U2, Adm-U3, Adm-U4, Vis-B7, QB-F8 resolved).
 
 For resolved-issue history, see `git log docs/module-reviews/FULL-BACKLOG.md` and individual `*-review.md` files in this directory.
 
@@ -158,12 +158,6 @@ For resolved-issue history, see `git log docs/module-reviews/FULL-BACKLOG.md` an
 
 ## Visualizations / Widgets
 
-### Bugs (P1 — correctness)
-
-| # | Issue | Location |
-|---|-------|----------|
-| Vis-B7 | N+1 query in waterfall `metric` mode — one sequential DB query per holding | `app/api/portfolio/[id]/waterfall/route.ts` metric section |
-
 ### UX Gaps (P2)
 
 | # | Issue |
@@ -239,22 +233,12 @@ For resolved-issue history, see `git log docs/module-reviews/FULL-BACKLOG.md` an
 | Holdings          | — |  4 | — |  4 |
 | Tax Center        | — |  5 | — |  5 |
 | Compliance        | — |  4 | — |  4 |
-| QuickBooks        | — |  4 | — |  4 |
+| QuickBooks        | — |  3 | — |  3 |
 | Donor CRM         | — |  7 | — |  7 |
 | Charities         | — |  5 | — |  5 |
 | AI Assistant      | — |  8 | — |  8 |
-| Visualizations    | 1 |  2 | 6 |  9 |
+| Visualizations    | — |  2 | 6 |  8 |
 | Admin / Import    | — |  8 | — |  8 |
 | Cross-Cutting     | — |  2 | 1 |  3 |
-| **Total**         | **1** | **51** | **7** | **59** |
+| **Total**         | **—** | **50** | **7** | **57** |
 
----
-
-## Quick-Win Candidates (bounded, < 1 hour each)
-
-These items are self-contained enough for rapid subagent dispatch:
-
-| # | Item | What to build |
-|---|------|---------------|
-| Vis-B7 | Waterfall N+1 fix | Rewrite metric mode in `app/api/portfolio/[id]/waterfall/route.ts` to batch-fetch all holdings in one query |
-| QB-F8 | Sync history UI | Add a `SyncHistoryTable` component to QuickBooks settings showing last N sync events from a `qb_sync_log` table (if it exists) |

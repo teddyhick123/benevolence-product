@@ -173,6 +173,7 @@ Just ask me anything, and I'll help you out! If you don't like a change I make, 
     };
 
     setMessages((prev) => [...prev, userMessage]);
+    const sentInput = input;
     setInput('');
     setIsLoading(true);
     setLoadingStatus('Thinking…');
@@ -180,21 +181,23 @@ Just ask me anything, and I'll help you out! If you don't like a change I make, 
     const ac = new AbortController();
     abortControllerRef.current = ac;
 
-    // Cycle status messages to hint at tool calling
-    loadingTimerRef.current = setTimeout(() => {
-      setLoadingStatus('Calling tools…');
-      loadingTimerRef.current = setTimeout(() => setLoadingStatus('Generating response…'), 6000);
-    }, 4000);
+    // Add a placeholder assistant message that we'll update as chunks arrive
+    const placeholderId = Date.now().toString();
+    setMessages((prev) => [...prev, {
+      role: 'assistant' as const,
+      content: '',
+      timestamp: new Date().toISOString(),
+      _streamId: placeholderId,
+    } as any]);
 
     try {
-      const res = await fetch('/api/ai/chat', {
+      const res = await fetch('/api/ai/chat/stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           portfolioId,
-          message: input,
+          message: sentInput,
           currentPage: currentPage ?? null,
-          // Cap history at 20 most-recent messages to prevent payload overload
           conversationHistory: messages.slice(-20).map((m) => ({
             role: m.role,
             content: m.content,
@@ -203,42 +206,74 @@ Just ask me anything, and I'll help you out! If you don't like a change I make, 
         signal: ac.signal,
       });
 
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || 'Failed to send message');
+      if (!res.ok || !res.body) {
+        throw new Error('Stream request failed');
       }
 
-      if (data.message) {
-        const assistantMessage: Message = {
-          role: 'assistant',
-          content: data.message,
-          timestamp: new Date().toISOString(),
-          content_blocks: data.content_blocks,
-          widgets: data.widgets,
-        };
-        setMessages((prev) => [...prev, assistantMessage]);
-      }
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let accumulatedText = '';
 
-      if (data.sessionId) {
-        setSessionId(data.sessionId);
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const lines = decoder.decode(value, { stream: true }).split('\n').filter(Boolean);
+        for (const line of lines) {
+          let event: any;
+          try {
+            event = JSON.parse(line);
+          } catch {
+            // Skip malformed lines
+            continue;
+          }
+
+          if (event.type === 'text_delta') {
+            accumulatedText += event.text;
+            // Update the placeholder message in state
+            setMessages((prev) => prev.map((m: any) =>
+              m._streamId === placeholderId
+                ? { ...m, content: accumulatedText }
+                : m
+            ));
+          } else if (event.type === 'status') {
+            setLoadingStatus(event.text);
+          } else if (event.type === 'done') {
+            // Replace placeholder with final message
+            setMessages((prev) => prev.map((m: any) =>
+              m._streamId === placeholderId
+                ? { ...m, content: event.message || accumulatedText, _streamId: undefined }
+                : m
+            ));
+          } else if (event.type === 'meta') {
+            if (event.sessionId) setSessionId(event.sessionId);
+            if (event.widgets?.length > 0) {
+              setMessages((prev) => prev.map((m: any, i: number) =>
+                i === prev.length - 1 ? { ...m, widgets: event.widgets } : m
+              ));
+            }
+          } else if (event.type === 'error') {
+            throw new Error(event.error);
+          }
+        }
       }
 
       // Reload actions if any were created
-      if (data.actions && data.actions.length > 0) {
-        loadActions();
-      }
+      loadActions();
+
     } catch (err) {
-      if (err instanceof Error && err.name === 'AbortError') return;
+      if (err instanceof Error && err.name === 'AbortError') {
+        // Remove the placeholder message on cancel
+        setMessages((prev) => prev.filter((m: any) => m._streamId !== placeholderId));
+        return;
+      }
       const errorMessage = err instanceof Error ? err.message : 'Unknown error';
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: 'assistant',
-          content: `Sorry, I encountered an error: ${errorMessage}. Please try again.`,
-          timestamp: new Date().toISOString(),
-        },
-      ]);
+      // Replace placeholder with error message
+      setMessages((prev) => prev.map((m: any) =>
+        m._streamId === placeholderId
+          ? { role: 'assistant' as const, content: `Sorry, I encountered an error: ${errorMessage}. Please try again.`, timestamp: new Date().toISOString() }
+          : m
+      ));
     } finally {
       if (loadingTimerRef.current) clearTimeout(loadingTimerRef.current);
       setIsLoading(false);

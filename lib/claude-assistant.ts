@@ -1465,6 +1465,155 @@ export class ClaudePortfolioAssistant {
   }
 
   /**
+   * Process a user message and stream the AI response as NDJSON events.
+   * Mirrors the multi-turn tool-calling loop in chat() but yields text deltas
+   * to the client as they arrive so users see partial responses immediately.
+   *
+   * Event types yielded (each line is a JSON string + '\n'):
+   *   { type: 'text_delta', text: string }
+   *   { type: 'status', text: string }
+   *   { type: 'done', message, actions, toolResults, usage }
+   */
+  async *chatStream(params: {
+    portfolioId: string;
+    userId: string;
+    sessionId: string;
+    message: string;
+    orgId?: string;
+    conversationHistory?: Array<{ role: 'user' | 'assistant'; content: string }>;
+    memberRole?: string;
+  }): AsyncGenerator<string> {
+    const { portfolioId, userId, sessionId, message, orgId, conversationHistory = [], memberRole } = params;
+
+    if (orgId) await this.initializeForOrg(orgId);
+    const tools = this.getFilteredTools();
+    const context = await this.getPortfolioContext(portfolioId);
+    const systemPrompt = this.buildSystemPrompt(context);
+
+    const currentMessages: AIMessage[] = [
+      ...conversationHistory.map(msg => ({ role: msg.role as 'user' | 'assistant', content: msg.content })),
+      { role: 'user' as const, content: message },
+    ];
+
+    const actions: AIAction[] = [];
+    let textContent = '';
+    const batchId = crypto.randomUUID();
+    let sequenceCounter = 0;
+    const MAX_TURNS = 5;
+    let totalInputTokens = 0;
+    let totalOutputTokens = 0;
+    let lastModel = AI_MODELS.assistant;
+
+    for (let turn = 0; turn < MAX_TURNS; turn++) {
+      let turnTextContent = '';
+      const toolUseBlocks: Array<{ id: string; name: string; input: Record<string, any> }> = [];
+      let stopReason: string | null = null;
+
+      // Use createStream so text tokens arrive as they're generated
+      const stream = this.provider.createStream({
+        model: AI_MODELS.assistant,
+        maxTokens: 4096,
+        system: systemPrompt,
+        tools: tools as unknown as ToolDefinition[],
+        messages: currentMessages,
+      });
+
+      let currentToolId: string | null = null;
+      let currentToolName: string | null = null;
+      let currentToolInputJson = '';
+
+      for await (const chunk of stream) {
+        if (chunk.type === 'content_block_start') {
+          if (chunk.blockType === 'tool_use') {
+            currentToolId = chunk.id ?? null;
+            currentToolName = chunk.name ?? null;
+            currentToolInputJson = '';
+            // Yield status update when entering tool calling
+            if (actions.length === 0 && toolUseBlocks.length === 0) {
+              yield JSON.stringify({ type: 'status', text: 'Calling tools…' }) + '\n';
+            }
+          }
+        } else if (chunk.type === 'text_delta') {
+          turnTextContent += chunk.text;
+          // Stream text deltas to client immediately
+          yield JSON.stringify({ type: 'text_delta', text: chunk.text }) + '\n';
+        } else if (chunk.type === 'tool_input_delta') {
+          currentToolInputJson += chunk.partialJson;
+        } else if (chunk.type === 'content_block_stop') {
+          if (currentToolId && currentToolName) {
+            let input: Record<string, any> = {};
+            try { input = JSON.parse(currentToolInputJson); } catch {}
+            toolUseBlocks.push({ id: currentToolId, name: currentToolName, input });
+            currentToolId = null;
+            currentToolName = null;
+            currentToolInputJson = '';
+          }
+        } else if (chunk.type === 'message_stop') {
+          stopReason = chunk.stopReason;
+        }
+      }
+
+      if (turnTextContent) textContent = turnTextContent;
+
+      // No tools or not tool_use stop — done
+      if (toolUseBlocks.length === 0 || stopReason !== 'tool_use') {
+        break;
+      }
+
+      // Yield status before executing tools
+      yield JSON.stringify({ type: 'status', text: 'Processing results…' }) + '\n';
+
+      // Execute tools (same logic as chat())
+      const turnToolResults: Array<{ tool_use_id: string; content: string }> = [];
+      for (const toolUse of toolUseBlocks) {
+        try {
+          const result = await this.executeTool(
+            toolUse.name,
+            toolUse.input,
+            portfolioId,
+            userId,
+            sessionId,
+            batchId,
+            sequenceCounter++,
+            message,
+            memberRole
+          );
+          if (result.action) actions.push(result.action);
+          if (result.additionalActions) actions.push(...result.additionalActions);
+          const toolContent = typeof result.output === 'string'
+            ? result.output
+            : JSON.stringify(result.output);
+          turnToolResults.push({ tool_use_id: toolUse.id, content: toolContent });
+        } catch (err) {
+          turnToolResults.push({ tool_use_id: toolUse.id, content: `Error: ${err instanceof Error ? err.message : String(err)}` });
+        }
+      }
+
+      // Append assistant message (with tool calls) + tool results to history
+      currentMessages.push({
+        role: 'assistant',
+        content: [
+          ...(turnTextContent ? [{ type: 'text' as const, text: turnTextContent }] : []),
+          ...toolUseBlocks.map(t => ({ type: 'tool_use' as const, id: t.id, name: t.name, input: t.input })),
+        ],
+      });
+      currentMessages.push({
+        role: 'user',
+        content: turnToolResults.map(r => ({ type: 'tool_result' as const, tool_use_id: r.tool_use_id, content: r.content })),
+      });
+    }
+
+    // Yield the done event with all metadata
+    yield JSON.stringify({
+      type: 'done',
+      message: textContent,
+      actions,
+      toolResults: [],
+      usage: { inputTokens: totalInputTokens, outputTokens: totalOutputTokens, model: lastModel },
+    }) + '\n';
+  }
+
+  /**
    * Verify user has access to portfolio
    */
   private async verifyPortfolioAccess(portfolioId: string, userId: string): Promise<void> {

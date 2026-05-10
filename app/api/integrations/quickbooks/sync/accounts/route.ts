@@ -73,6 +73,12 @@ export async function POST(req: Request): Promise<Response> {
 
   if (upsertError) {
     console.error('[QB] qb_accounts upsert error:', upsertError);
+    await supabase.from('qb_sync_log').insert({
+      org_id: orgId,
+      event_type: 'accounts_sync',
+      status: 'error',
+      error_msg: upsertError.message,
+    });
     return Response.json({ error: 'Failed to store accounts' }, { status: 500 });
   }
 
@@ -81,6 +87,13 @@ export async function POST(req: Request): Promise<Response> {
     .from('quickbooks_connections')
     .update({ last_sync_at: now })
     .eq('org_id', orgId);
+
+  await supabase.from('qb_sync_log').insert({
+    org_id: orgId,
+    event_type: 'accounts_sync',
+    status: 'success',
+    record_count: rows.length,
+  });
 
   return Response.json({ ok: true, synced: rows.length });
 }

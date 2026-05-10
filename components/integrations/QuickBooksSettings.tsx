@@ -21,6 +21,15 @@ interface QBAccount {
   type: string;
 }
 
+interface SyncLogEntry {
+  id: string;
+  event_type: string;
+  status: string;
+  record_count: number | null;
+  error_msg: string | null;
+  created_at: string;
+}
+
 interface Props {
   orgId: string;
 }
@@ -31,6 +40,7 @@ const YEAR_OPTIONS = Array.from({ length: 5 }, (_, i) => currentYear - i);
 export default function QuickBooksSettings({ orgId }: Props) {
   const [status, setStatus] = useState<QBStatus | null>(null);
   const [accounts, setAccounts] = useState<QBAccount[]>([]);
+  const [syncLog, setSyncLog] = useState<SyncLogEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(
@@ -59,9 +69,22 @@ export default function QuickBooksSettings({ orgId }: Props) {
     }
   }, [orgId]);
 
+  const fetchSyncLog = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/integrations/quickbooks/sync-log?org_id=${orgId}&limit=10`);
+      if (res.ok) {
+        const d = await res.json() as { log: SyncLogEntry[] };
+        setSyncLog(d.log ?? []);
+      }
+    } catch { /* non-critical */ }
+  }, [orgId]);
+
   useEffect(() => {
     void fetchStatus().then((s) => {
-      if (s?.connected) void loadAccounts();
+      if (s?.connected) {
+        void loadAccounts();
+        void fetchSyncLog();
+      }
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -124,8 +147,10 @@ export default function QuickBooksSettings({ orgId }: Props) {
         await fetchStatus();
         // Refresh account list for dropdowns
         await loadAccounts();
+        await fetchSyncLog();
       } else {
         showMsg('error', d.error ?? 'Sync failed.');
+        await fetchSyncLog();
       }
     } finally {
       setActionLoading(false);
@@ -473,6 +498,65 @@ export default function QuickBooksSettings({ orgId }: Props) {
               >
                 Disconnect QuickBooks
               </button>
+            </div>
+
+            {/* Sync History */}
+            <div className="pt-2">
+              <p className="mb-2 text-xs font-semibold text-gray-700">Sync History</p>
+              {syncLog.length === 0 ? (
+                <p className="text-xs text-gray-400">No sync events yet.</p>
+              ) : (
+                <div className="overflow-x-auto rounded-lg border border-gray-100">
+                  <table className="w-full text-xs text-gray-700">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-3 py-2 text-left font-medium text-gray-500">Date / Time</th>
+                        <th className="px-3 py-2 text-left font-medium text-gray-500">Event</th>
+                        <th className="px-3 py-2 text-left font-medium text-gray-500">Status</th>
+                        <th className="px-3 py-2 text-left font-medium text-gray-500">Records</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100 bg-white">
+                      {syncLog.map((entry) => {
+                        const eventLabel: Record<string, string> = {
+                          accounts_sync: 'Accounts Sync',
+                          contributions_export: 'Contributions Export',
+                          grants_export: 'Grants Export',
+                        };
+                        return (
+                          <tr key={entry.id}>
+                            <td className="whitespace-nowrap px-3 py-2 text-gray-600">
+                              {new Date(entry.created_at).toLocaleString()}
+                            </td>
+                            <td className="px-3 py-2">
+                              {eventLabel[entry.event_type] ?? entry.event_type}
+                            </td>
+                            <td className="px-3 py-2">
+                              {entry.status === 'success' ? (
+                                <span className="inline-flex items-center rounded-full bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700">
+                                  Success
+                                </span>
+                              ) : (
+                                <div>
+                                  <span className="inline-flex items-center rounded-full bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700">
+                                    Error
+                                  </span>
+                                  {entry.error_msg && (
+                                    <p className="mt-0.5 text-gray-400">{entry.error_msg}</p>
+                                  )}
+                                </div>
+                              )}
+                            </td>
+                            <td className="px-3 py-2 text-gray-600">
+                              {entry.record_count ?? '—'}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           </div>
         )}

@@ -1,6 +1,6 @@
 # Benevolence — Open Backlog
 
-**Status:** Backlog reconciled 2026-05-07 after Sprint C + Sprint D sessions.
+**Status:** Backlog reconciled 2026-05-10 after Sprint E session (Dr-U2, H-F8, Cm-F6, Cm-F7, Ch-U3, Ch-F6, Ch-F9, Dr-F5, D-F7, Adm-U2, Adm-U3, Adm-U4 resolved).
 
 For resolved-issue history, see `git log docs/module-reviews/FULL-BACKLOG.md` and individual `*-review.md` files in this directory.
 
@@ -22,7 +22,6 @@ For resolved-issue history, see `git log docs/module-reviews/FULL-BACKLOG.md` an
 |---|---------|
 | D-F1 | Date-range / fiscal-year filter on all KPI cards |
 | D-F6 | Multi-portfolio switcher in dashboard header |
-| D-F7 | Module gating enforcement on dashboard nav links via `org_has_module()` |
 
 ---
 
@@ -41,7 +40,6 @@ For resolved-issue history, see `git log docs/module-reviews/FULL-BACKLOG.md` an
 | H-F5 | Impact KPI trend chart on holding detail |
 | H-F6 | Bulk import of holdings from CSV |
 | H-F7 | Holding export to PDF / board report inclusion |
-| H-F8 | PRIs and MRIs should be allowed to have `grant_details` (currently blocked by `asset_type` guard) |
 
 ---
 
@@ -80,8 +78,6 @@ For resolved-issue history, see `git log docs/module-reviews/FULL-BACKLOG.md` an
 |---|---------|
 | Cm-F3 | Nightly cron to auto-mark overdue filings + email reminders |
 | Cm-F5 | Document attachment to filings |
-| Cm-F6 | Auto-seed filing calendar on org creation (990-PF May 15, Form 8868 Nov 15) |
-| Cm-F7 | Annual filing checklist generator |
 
 ---
 
@@ -104,7 +100,6 @@ For resolved-issue history, see `git log docs/module-reviews/FULL-BACKLOG.md` an
 
 | # | Issue |
 |---|-------|
-| Dr-U2 | No gift entry UI — no way to record a donation in the app |
 | Dr-U3 | No pledge tracking UI despite DB supporting it |
 | Dr-U4 | Donor acknowledgment letter generator at `/dashboard/letter` is a portfolio narrative tool — not connected to Donor CRM |
 
@@ -112,8 +107,6 @@ For resolved-issue history, see `git log docs/module-reviews/FULL-BACKLOG.md` an
 
 | # | Feature |
 |---|---------|
-| Dr-F2 | Gift entry form (cash, non-cash, securities) |
-| Dr-F5 | Real pagination — API must return total count with `{ count: 'exact' }` |
 | Dr-F6 | Pledge tracking + installment schedule UI |
 | Dr-F7 | Household / relationship grouping |
 | Dr-F8 | LYBUNT / SYBUNT queries and segmentation |
@@ -129,7 +122,6 @@ For resolved-issue history, see `git log docs/module-reviews/FULL-BACKLOG.md` an
 | # | Issue |
 |---|-------|
 | Ch-U1 | No side-by-side charity comparison view |
-| Ch-U3 | No diligence notes — no way to record why a charity was chosen or rejected |
 | Ch-U8 | No "similar charities" / related discovery |
 | Ch-U9 | No map view despite `latitude`/`longitude` being indexed |
 
@@ -138,9 +130,7 @@ For resolved-issue history, see `git log docs/module-reviews/FULL-BACKLOG.md` an
 | # | Feature |
 |---|---------|
 | Ch-F4 | Side-by-side charity comparison view |
-| Ch-F6 | Diligence notes + decision log |
 | Ch-F8 | Multi-year financial trend from ProPublica filings |
-| Ch-F9 | Form 990 PDF links from ProPublica |
 
 ---
 
@@ -202,14 +192,6 @@ For resolved-issue history, see `git log docs/module-reviews/FULL-BACKLOG.md` an
 |---|-------|----------|
 | Adm-B6 | `blackbaud_api` and `direct_db` source types declared in schema but never implemented — always requires CSV export | `lib/import/job-queue.ts` |
 
-### UX Gaps (P2)
-
-| # | Issue |
-|---|-------|
-| Adm-U2 | No progress bar or row-count update during commit |
-| Adm-U3 | No post-import validation report (how many rows written, warnings, duplicates) |
-| Adm-U4 | No audit log viewer in UI |
-
 ### Missing Blackbaud Entity Coverage (P2)
 
 | # | Entity Type |
@@ -253,18 +235,18 @@ For resolved-issue history, see `git log docs/module-reviews/FULL-BACKLOG.md` an
 
 | Module | P1 (correctness) | P2 | P3 | Total |
 |--------|------------------|----|----|-------|
-| Dashboard         | — |  3 | — |  3 |
-| Holdings          | — |  5 | — |  5 |
+| Dashboard         | — |  2 | — |  2 |
+| Holdings          | — |  4 | — |  4 |
 | Tax Center        | — |  5 | — |  5 |
-| Compliance        | — |  6 | — |  6 |
+| Compliance        | — |  4 | — |  4 |
 | QuickBooks        | — |  4 | — |  4 |
-| Donor CRM         | — | 10 | — | 10 |
-| Charities         | — |  8 | — |  8 |
+| Donor CRM         | — |  7 | — |  7 |
+| Charities         | — |  5 | — |  5 |
 | AI Assistant      | — |  8 | — |  8 |
 | Visualizations    | 1 |  2 | 6 |  9 |
-| Admin / Import    | — | 11 | — | 11 |
+| Admin / Import    | — |  8 | — |  8 |
 | Cross-Cutting     | — |  2 | 1 |  3 |
-| **Total**         | **1** | **64** | **7** | **72** |
+| **Total**         | **1** | **51** | **7** | **59** |
 
 ---
 
@@ -274,12 +256,5 @@ These items are self-contained enough for rapid subagent dispatch:
 
 | # | Item | What to build |
 |---|------|---------------|
-| Dr-F5 | Donor pagination count | Add `{ count: 'exact' }` to `app/api/org/[orgId]/donors/route.ts`; return `total` in response; show count in UI |
-| Ch-U3/Ch-F6 | Charity diligence notes | localStorage textarea on `app/charities/[ein]/page.tsx` — auto-saves note keyed by EIN |
-| Ch-F9 | Form 990 PDF links | Check if `filing_url` / ProPublica link exists in charity DB; surface in `CharityDetailTabs` |
 | Vis-B7 | Waterfall N+1 fix | Rewrite metric mode in `app/api/portfolio/[id]/waterfall/route.ts` to batch-fetch all holdings in one query |
-| Cm-F6 | Auto-seed filings | On org creation (`app/api/org/route.ts` POST), insert 990-PF (May 15) and Form 8868 (Nov 15) into `filing_calendar` for current year |
-| Cm-F7 | Filing checklist | In `app/dashboard/compliance/page.tsx`, add a collapsed "Annual Checklist" section listing standard foundation obligations |
 | QB-F8 | Sync history UI | Add a `SyncHistoryTable` component to QuickBooks settings showing last N sync events from a `qb_sync_log` table (if it exists) |
-| Adm-U4 | Audit log viewer | Add an `/app/dashboard/admin/audit-log/page.tsx` that reads from `audit_log` table and shows a searchable table |
-| D-F7 | Nav module gating | In the dashboard sidebar/nav, check active org modules and disable/hide links for unsubscribed modules |

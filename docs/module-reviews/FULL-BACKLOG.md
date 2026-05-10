@@ -89,7 +89,6 @@ For resolved-issue history, see `git log docs/module-reviews/FULL-BACKLOG.md` an
 |---|---------|
 | QB-F2 | QB Class / fund dimension support (required under ASC 958 for private foundations) |
 | QB-F7 | Net asset class (restricted / unrestricted) tagging on journal entries |
-| QB-F8 | Sync history and conflict resolution UI |
 | QB-F10 | Background job for scheduled sync (`sync_interval_hours` column exists but drives nothing) |
 
 ---

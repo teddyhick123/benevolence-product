@@ -166,7 +166,7 @@ function HeaderContent() {
               {/* Portfolio group */}
               <Link
                 href={dashboardHref}
-                aria-current={pathname.startsWith('/dashboard') && !pathname.startsWith('/dashboard/tax') && !pathname.startsWith('/dashboard/donors') && !pathname.startsWith('/dashboard/compliance') && !pathname.startsWith('/dashboard/settings') ? 'page' : undefined}
+                aria-current={pathname.startsWith('/dashboard') && !pathname.startsWith('/dashboard/tax') && !pathname.startsWith('/dashboard/donors') && !pathname.startsWith('/dashboard/pledges') && !pathname.startsWith('/dashboard/compliance') && !pathname.startsWith('/dashboard/settings') ? 'page' : undefined}
                 className={navLinkClass}
               >
                 Dashboard
@@ -196,6 +196,15 @@ function HeaderContent() {
                   className={navLinkClass}
                 >
                   Donors
+                </Link>
+              )}
+              {orgModules.donors && orgModules.pledges && (
+                <Link
+                  href="/dashboard/pledges"
+                  aria-current={pathname.startsWith('/dashboard/pledges') ? 'page' : undefined}
+                  className={navLinkClass}
+                >
+                  Pledges
                 </Link>
               )}
               {orgModules.compliance && (
@@ -269,7 +278,7 @@ function HeaderContent() {
           <nav className="px-4 py-3 space-y-2">
             <Link
               href={dashboardHref}
-              aria-current={pathname.startsWith('/dashboard') && !pathname.startsWith('/dashboard/tax') && !pathname.startsWith('/dashboard/donors') && !pathname.startsWith('/dashboard/compliance') && !pathname.startsWith('/dashboard/settings') ? 'page' : undefined}
+              aria-current={pathname.startsWith('/dashboard') && !pathname.startsWith('/dashboard/tax') && !pathname.startsWith('/dashboard/donors') && !pathname.startsWith('/dashboard/pledges') && !pathname.startsWith('/dashboard/compliance') && !pathname.startsWith('/dashboard/settings') ? 'page' : undefined}
               className={mobileNavLinkClass}
             >
               Dashboard
@@ -297,6 +306,15 @@ function HeaderContent() {
                 className={mobileNavLinkClass}
               >
                 Donors
+              </Link>
+            )}
+            {orgModules.donors && orgModules.pledges && (
+              <Link
+                href="/dashboard/pledges"
+                aria-current={pathname.startsWith('/dashboard/pledges') ? 'page' : undefined}
+                className={mobileNavLinkClass}
+              >
+                Pledges
               </Link>
             )}
             {orgModules.compliance && (

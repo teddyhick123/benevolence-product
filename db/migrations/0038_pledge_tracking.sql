@@ -234,7 +234,7 @@ SELECT
   p.created_at,
   p.updated_at,
   CASE
-    WHEN d.donor_type != 'individual'
+    WHEN d.is_organization
       THEN COALESCE(d.organization_name, 'Unknown Organization')
     ELSE NULLIF(TRIM(COALESCE(d.first_name,'') || ' ' || COALESCE(d.last_name,'')), '')
   END AS donor_name,

@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
+import PledgeCreateModal from '@/components/pledges/PledgeCreateModal';
+import PledgeDetailPanel from '@/components/pledges/PledgeDetailPanel';
 
 const LETTER_TYPE_LABELS: Record<string, string> = {
   year_end: 'Year-End',
@@ -34,13 +36,29 @@ export default function DonorProfilePage() {
   const [giftFields, setGiftFields] = useState({ amount: '', date: new Date().toISOString().split('T')[0], type: 'cash', notes: '' });
   const [giftSaving, setGiftSaving] = useState(false);
   const [giftError, setGiftError] = useState<string | null>(null);
+  const [pledges, setPledges]                   = useState<any[]>([]);
+  const [pledgesEnabled, setPledgesEnabled]     = useState(false);
+  const [showPledgeCreate, setShowPledgeCreate] = useState(false);
+  const [selectedPledgeId, setSelectedPledgeId] = useState<string | null>(null);
+  const [pledgesLoading, setPledgesLoading]     = useState(false);
 
   useEffect(() => {
     async function fetchOrg() {
       const res = await fetch('/api/org');
       if (res.ok) {
         const data = await res.json();
-        setOrgId(data.organizations?.[0]?.id || null);
+        const oid = data.organizations?.[0]?.id || null;
+        setOrgId(oid);
+        const pledgesOn = !!(data.organizations?.[0]?.modules?.pledges);
+        setPledgesEnabled(pledgesOn);
+        if (pledgesOn && oid && donorId) {
+          setPledgesLoading(true);
+          fetch(`/api/org/${oid}/pledges?donor_id=${donorId}&status=all`)
+            .then(r => r.json())
+            .then(d => setPledges(d.pledges ?? []))
+            .catch(() => {})
+            .finally(() => setPledgesLoading(false));
+        }
       }
     }
     fetchOrg();
@@ -385,6 +403,78 @@ export default function DonorProfilePage() {
             </table>
           )}
         </div>
+
+        {/* Pledges */}
+        {pledgesEnabled && (
+          <div className="bg-white rounded-lg border border-gray-200 mb-6">
+            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+              <h2 className="font-semibold text-gray-900">Pledges</h2>
+              <button
+                onClick={() => setShowPledgeCreate(true)}
+                className="px-3 py-1.5 text-xs font-medium bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors">
+                + New Pledge
+              </button>
+            </div>
+            {pledgesLoading ? (
+              <div className="px-6 py-6 text-center text-gray-400 text-sm">Loading…</div>
+            ) : pledges.length === 0 ? (
+              <div className="px-6 py-6 text-center text-gray-400 text-sm">No pledges recorded.</div>
+            ) : (
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="text-left px-6 py-3 font-medium text-gray-600">Total</th>
+                    <th className="text-left px-6 py-3 font-medium text-gray-600">Received</th>
+                    <th className="text-left px-6 py-3 font-medium text-gray-600">Next Due</th>
+                    <th className="text-left px-6 py-3 font-medium text-gray-600">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {pledges.map((p: any) => (
+                    <tr key={p.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => setSelectedPledgeId(p.id)}>
+                      <td className="px-6 py-3 font-medium text-gray-900">${Number(p.total_amount).toLocaleString()}</td>
+                      <td className="px-6 py-3 text-green-700">${Number(p.received).toLocaleString()}</td>
+                      <td className="px-6 py-3 text-gray-600">{p.next_due_date ?? '—'}</td>
+                      <td className="px-6 py-3">
+                        <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${
+                          p.pipeline_status === 'overdue'   ? 'bg-red-100 text-red-800' :
+                          p.pipeline_status === 'due_soon'  ? 'bg-amber-100 text-amber-800' :
+                          p.pipeline_status === 'fulfilled' ? 'bg-indigo-100 text-indigo-800' :
+                          'bg-green-100 text-green-800'
+                        }`}>{p.pipeline_status?.replace('_',' ')}</span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        )}
+
+        {showPledgeCreate && orgId && (
+          <PledgeCreateModal
+            orgId={orgId}
+            prefillDonorId={donorId}
+            prefillDonorName={displayName}
+            onClose={() => setShowPledgeCreate(false)}
+            onCreated={() => {
+              setShowPledgeCreate(false);
+              fetch(`/api/org/${orgId}/pledges?donor_id=${donorId}&status=all`)
+                .then(r => r.json()).then(d => setPledges(d.pledges ?? [])).catch(() => {});
+            }}
+          />
+        )}
+        {selectedPledgeId && orgId && (
+          <PledgeDetailPanel
+            orgId={orgId}
+            pledgeId={selectedPledgeId}
+            onClose={() => setSelectedPledgeId(null)}
+            onChanged={() => {
+              fetch(`/api/org/${orgId}/pledges?donor_id=${donorId}&status=all`)
+                .then(r => r.json()).then(d => setPledges(d.pledges ?? [])).catch(() => {});
+            }}
+          />
+        )}
 
         {/* Acknowledgment Letters */}
         <div className="bg-white rounded-lg border border-gray-200">

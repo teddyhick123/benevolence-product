@@ -62,6 +62,8 @@ export function generateSchedule(input: ScheduleInput): ScheduledInstallment[] {
   if (!totalAmount || totalAmount <= 0) throw new Error('totalAmount must be greater than zero');
   if (!startDate) throw new Error('startDate is required');
   if (endDate && endDate < startDate) throw new Error('endDate must be on or after startDate');
+  if (installmentCount !== undefined && !Number.isInteger(installmentCount))
+    throw new Error('installmentCount must be an integer');
 
   if (frequency === 'custom') return [];
   if (frequency === 'one_time') {

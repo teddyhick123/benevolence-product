@@ -42,9 +42,18 @@ describe('generateSchedule', () => {
     expect(result[1].due_date).toBe('2026-02-28');
   });
 
-  it('installmentCount override ignores endDate', () => {
+  it('installmentCount override ignores endDate and produces correct dates', () => {
     const result = generateSchedule({ totalAmount: 600, startDate: '2026-01-01', frequency: 'monthly', installmentCount: 3 });
     expect(result).toHaveLength(3);
+    expect(result.map(r => r.due_date)).toEqual(['2026-01-01','2026-02-01','2026-03-01']);
+    expect(result.every(r => r.amount === 200)).toBe(true);
+  });
+
+  it('leap year — Jan 31 annual goes to Jan 31 (leap year passes through)', () => {
+    const result = generateSchedule({ totalAmount: 200, startDate: '2028-01-31', endDate: '2029-01-31', frequency: 'annually' });
+    expect(result).toHaveLength(2);
+    expect(result[0].due_date).toBe('2028-01-31');
+    expect(result[1].due_date).toBe('2029-01-31');
   });
 
   it('custom returns empty array', () => {

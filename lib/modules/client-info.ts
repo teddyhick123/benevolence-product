@@ -63,6 +63,15 @@ export const MODULE_INFO: Record<ModuleId, ModuleInfo> = {
     routes: ['/dashboard/donors', '/dashboard/donors/receipts', '/dashboard/donors/acknowledgments'],
     isCore: false,
   },
+  pledge_tracking: {
+    id: 'pledge_tracking',
+    name: 'Pledge Tracking',
+    description: 'Track donor commitments, installment schedules, and pledge fulfillment',
+    icon: 'calendar-check',
+    routes: ['/dashboard/pledges'],
+    dependencies: ['donor_management'],
+    isCore: false,
+  },
   external_data: {
     id: 'external_data',
     name: 'External Data',

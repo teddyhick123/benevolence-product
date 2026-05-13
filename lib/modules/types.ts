@@ -15,6 +15,7 @@ export type ModuleId =
   | 'tax_optimization'
   | 'grant_management'
   | 'donor_management'
+  | 'pledge_tracking'
   | 'external_data'
   | 'analytics'
   | 'compliance_regulatory';
@@ -29,6 +30,7 @@ export const ALL_MODULE_IDS: readonly ModuleId[] = [
   'tax_optimization',
   'grant_management',
   'donor_management',
+  'pledge_tracking',
   'external_data',
   'analytics',
   'compliance_regulatory',

@@ -271,6 +271,21 @@ Receipts must include required IRS information:
 `,
   },
 
+  pledge_tracking: {
+    id: 'pledge_tracking',
+    name: 'Pledge Tracking',
+    description: 'Track donor commitments, installment schedules, and pledge fulfillment',
+    isCore: false,
+    icon: 'calendar-check',
+    dependencies: ['donor_management'],
+    tools: [],
+    tables: ['pledges', 'pledge_installments', 'pledge_events'],
+    routes: ['/dashboard/pledges'],
+    systemPromptAddition: `
+Pledge tracking is enabled. Pledge AI tools are not available in this release.
+`,
+  },
+
   external_data: {
     id: 'external_data',
     name: 'External Data',

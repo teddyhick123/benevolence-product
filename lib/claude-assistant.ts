@@ -2038,10 +2038,9 @@ export class PortfolioAssistant {
         }
 
         if (includeKpis) {
-          const { data: kpis } = await this.supabase
-            .from('portfolio_metric_targets')
-            .select('metric_code, target_value, display_name')
-            .eq('portfolio_id', portfolioId);
+          const { data: metrics } = await this.supabase
+            .from('metrics')
+            .select('code, name, unit');
 
           const { data: facts } = await this.supabase
             .from('metric_facts')
@@ -2056,15 +2055,21 @@ export class PortfolioAssistant {
             totals[fact.metric_code].value += fact.value || 0;
           });
 
-          summary.kpi_performance = (kpis || []).map((kpi: any) => {
-            const current = totals[kpi.metric_code]?.value || 0;
-            const target = kpi.target_value;
+          const metricDefs = metrics || [];
+          const metricCodes = new Set([
+            ...Object.keys(totals),
+            ...metricDefs.map((metric: any) => metric.code),
+          ]);
+
+          summary.kpi_performance = Array.from(metricCodes).map((metricCode: string) => {
+            const metric = metricDefs.find((m: any) => m.code === metricCode);
+            const current = totals[metricCode]?.value || 0;
             return {
-              metric: kpi.display_name || kpi.metric_code,
+              metric: metric?.name || metricCode,
               current,
-              target,
-              percent_complete: target ? Math.round((current / target) * 100) : null,
-              unit: totals[kpi.metric_code]?.unit || null,
+              target: null,
+              percent_complete: null,
+              unit: totals[metricCode]?.unit || metric?.unit || null,
             };
           });
         }
@@ -2078,7 +2083,7 @@ export class PortfolioAssistant {
       case 'get_holding_details': {
         const { data } = await this.supabase
           .from('holdings')
-          .select('*, metric_facts(*), holding_widgets(*), charities(*)')
+          .select('*, metric_facts(*), holding_widgets(*)')
           .eq('id', args.holding_id)
           .single();
 
@@ -2091,32 +2096,33 @@ export class PortfolioAssistant {
       case 'list_widgets': {
         const limit = args.limit || 50;
         const { data } = await this.supabase
-          .from('widgets')
-          .select('*')
+          .from('holding_widgets')
+          .select('id, widget_type, config, position, is_active, created_at')
           .eq('portfolio_id', portfolioId)
-          .order('position', { ascending: true })
+          .eq('is_active', true)
+          .order('created_at', { ascending: true })
           .limit(limit);
 
         return {
           action: null,
-          output: { widgets: data || [], count: data?.length || 0 },
+          output: {
+            widgets: (data || []).map((w: any) => ({
+              ...w,
+              type: w.widget_type,
+              title: w.config?.title || w.widget_type,
+            })),
+            count: data?.length || 0,
+          },
         };
       }
 
       case 'display_widget': {
-        const { data: portfolioWidget } = await this.supabase
-          .from('widgets')
-          .select('*')
-          .eq('id', args.widget_id)
-          .maybeSingle();
-
-        const { data: holdingWidget } = await this.supabase
+        const { data: widget } = await this.supabase
           .from('holding_widgets')
-          .select('*')
+          .select('id, widget_type, config, position, is_active, portfolio_id')
           .eq('id', args.widget_id)
+          .eq('is_active', true)
           .maybeSingle();
-
-        const widget = portfolioWidget || holdingWidget;
 
         if (!widget) {
           throw new Error(`Widget with ID ${args.widget_id} not found`);
@@ -2125,7 +2131,14 @@ export class PortfolioAssistant {
         // display_widget is read-only — no action record needed
         return {
           action: null,
-          output: { widget, displayed: true },
+          output: {
+            widget: {
+              ...widget,
+              type: widget.widget_type,
+              title: widget.config?.title || widget.widget_type,
+            },
+            displayed: true,
+          },
         };
       }
 
@@ -2149,7 +2162,7 @@ export class PortfolioAssistant {
           entity_type: 'widget',
           entity_id: widgetPreview.id,
           operation_data: {
-            table: 'widgets',
+            table: 'holding_widgets',
             after: widgetPreview,
             is_preview: true,
           },
@@ -2223,7 +2236,7 @@ export class PortfolioAssistant {
             entity_type: 'widget',
             entity_id: widgetPreview.id,
             operation_data: {
-              table: 'widgets',
+              table: 'holding_widgets',
               after: widgetPreview,
               is_preview: true,
             },
@@ -2397,7 +2410,7 @@ export class PortfolioAssistant {
               entity_type: 'widget',
               entity_id: widgetPreview.id,
               operation_data: {
-                table: 'widgets',
+                table: 'holding_widgets',
                 after: widgetPreview,
                 is_preview: true,
               },
@@ -2509,7 +2522,7 @@ export class PortfolioAssistant {
               entity_type: 'widget',
               entity_id: comparisonWidgetPreview.id,
               operation_data: {
-                table: 'widgets',
+                table: 'holding_widgets',
                 after: comparisonWidgetPreview,
                 is_preview: true,
               },
@@ -2646,7 +2659,7 @@ export class PortfolioAssistant {
           entity_type: 'widget',
           entity_id: widgetPreview.id,
           operation_data: {
-            table: 'widgets',
+            table: 'holding_widgets',
             after: widgetPreview,
             is_preview: true,
           },
@@ -2687,13 +2700,21 @@ export class PortfolioAssistant {
 
         const { data: holdingData } = await this.supabase
           .from('holdings')
-          .select('*, charities(*)')
+          .select('*')
           .eq('id', args.holding_id)
           .single();
 
         if (!holdingData) {
           throw new Error(`Holding ${args.holding_id} not found`);
         }
+
+        const { data: charity } = holdingData.ein
+          ? await this.supabase
+              .from('charities')
+              .select('ein, name, mission, website, city, state, country, total_revenue, total_expenses, net_assets, charity_navigator_rating, charity_navigator_score')
+              .eq('ein', holdingData.ein)
+              .maybeSingle()
+          : { data: null };
 
         let metricFactsQuery = this.supabase
           .from('metric_facts')
@@ -2748,21 +2769,17 @@ export class PortfolioAssistant {
         }
 
         // Extract charity context
-        const charity = holdingData.charities;
         const charityContext = charity ? {
           name: charity.name,
-          legal_name: charity.legal_name,
           ein: charity.ein,
-          mission: charity.mission_statement,
-          description: charity.description,
-          sector: charity.sector,
+          mission: charity.mission,
           website: charity.website,
           location: [charity.city, charity.state, charity.country].filter(Boolean).join(', '),
-          annual_revenue: charity.annual_revenue,
-          annual_expenses: charity.annual_expenses,
-          program_expense_ratio: charity.program_expense_ratio,
+          annual_revenue: charity.total_revenue,
+          annual_expenses: charity.total_expenses,
+          net_assets: charity.net_assets,
           charity_navigator_rating: charity.charity_navigator_rating,
-          impact_focus: charity.impact_focus,
+          charity_navigator_score: charity.charity_navigator_score,
         } : null;
 
         // Add overview section
@@ -2785,11 +2802,11 @@ export class PortfolioAssistant {
           if (charityContext?.annual_revenue) {
             financialText += `- **Annual Revenue:** $${charityContext.annual_revenue.toLocaleString()}\n`;
           }
-          if (charityContext?.program_expense_ratio) {
-            financialText += `- **Program Expense Ratio:** ${(charityContext.program_expense_ratio * 100).toFixed(1)}%\n`;
-          }
           if (charityContext?.charity_navigator_rating) {
             financialText += `- **Charity Navigator Rating:** ${charityContext.charity_navigator_rating}/4 stars\n`;
+          }
+          if (charityContext?.charity_navigator_score) {
+            financialText += `- **Charity Navigator Score:** ${charityContext.charity_navigator_score}\n`;
           }
           contentBlocks.push({ type: 'text', content: financialText });
         }
@@ -2846,7 +2863,7 @@ export class PortfolioAssistant {
                   entity_type: 'widget',
                   entity_id: widgetPreview.id,
                   operation_data: {
-                    table: 'widgets',
+                    table: 'holding_widgets',
                     after: widgetPreview,
                     is_preview: true,
                   },
@@ -3051,7 +3068,7 @@ export class PortfolioAssistant {
                 entity_type: 'widget',
                 entity_id: widgetPreview.id,
                 operation_data: {
-                  table: 'widgets',
+                  table: 'holding_widgets',
                   after: widgetPreview,
                   is_preview: true,
                 },
@@ -3142,7 +3159,7 @@ export class PortfolioAssistant {
               entity_type: 'widget',
               entity_id: widgetPreview.id,
               operation_data: {
-                table: 'widgets',
+                table: 'holding_widgets',
                 after: widgetPreview,
                 is_preview: true,
               },
@@ -3230,7 +3247,7 @@ export class PortfolioAssistant {
                   entity_type: 'widget',
                   entity_id: widgetPreview.id,
                   operation_data: {
-                    table: 'widgets',
+                    table: 'holding_widgets',
                     after: widgetPreview,
                     is_preview: true,
                   },
@@ -3266,68 +3283,23 @@ export class PortfolioAssistant {
       }
 
       case 'save_report_template': {
-        InputValidator.validateString(args.name, 'name', { maxLength: 200 });
-        InputValidator.validateEnum(args.scope, 'scope', ['portfolio', 'holding', 'sector'] as const);
-
-        if (!args.name) {
-          throw new ValidationError('name is required');
-        }
-        if (!args.scope) {
-          throw new ValidationError('scope is required');
-        }
-        if (!args.config) {
-          throw new ValidationError('config is required');
-        }
-
-        const { data: template, error } = await this.supabase
-          .from('report_templates')
-          .insert({
-            portfolio_id: portfolioId,
-            name: args.name,
-            scope: args.scope,
-            config: args.config,
-            is_default: args.is_default || false,
-          })
-          .select()
-          .single();
-
-        if (error) {
-          throw new Error(`Failed to save template: ${error.message}`);
-        }
-
         return {
           action: null,
           output: {
-            success: true,
-            template: template,
-            message: `Report template "${args.name}" saved successfully.`,
+            feature_not_available: true,
+            message: 'Report template storage requires a report_templates migration that is not deployed in the active schema.',
           },
         };
       }
 
       case 'list_report_templates': {
-        let query = this.supabase
-          .from('report_templates')
-          .select('id, name, scope, config, is_default, created_at')
-          .eq('portfolio_id', portfolioId)
-          .order('created_at', { ascending: false });
-
-        if (args.scope) {
-          InputValidator.validateEnum(args.scope, 'scope', ['portfolio', 'holding', 'sector'] as const);
-          query = query.eq('scope', args.scope);
-        }
-
-        const { data: templates, error } = await query;
-
-        if (error) {
-          throw new Error(`Failed to list templates: ${error.message}`);
-        }
-
         return {
           action: null,
           output: {
-            templates: templates || [],
-            count: templates?.length || 0,
+            feature_not_available: true,
+            templates: [],
+            count: 0,
+            message: 'Report template storage requires a report_templates migration that is not deployed in the active schema.',
           },
         };
       }
@@ -3367,7 +3339,7 @@ export class PortfolioAssistant {
               .select(`
                 id,
                 holding_id,
-                holdings(name),
+                holdings!inner(name, portfolio_id),
                 metric_code,
                 value,
                 unit,
@@ -3375,7 +3347,7 @@ export class PortfolioAssistant {
                 period_end,
                 created_at
               `)
-              .eq('portfolio_id', portfolioId);
+              .eq('holdings.portfolio_id', portfolioId);
 
             if (holdingId) {
               query = query.eq('holding_id', holdingId);
@@ -3408,7 +3380,7 @@ export class PortfolioAssistant {
 
           case 'contributions': {
             const { data: contributions, error } = await this.supabase
-              .from('contributions')
+              .from('tax_contributions')
               .select('*')
               .eq('portfolio_id', portfolioId)
               .order('contribution_date', { ascending: false });
@@ -3489,13 +3461,13 @@ export class PortfolioAssistant {
         if (holdingId && !ein) {
           const { data: holding, error } = await this.supabase
             .from('holdings')
-            .select('name, charity_id, charities(ein)')
+            .select('name, ein')
             .eq('id', holdingId)
             .single();
 
           if (error) throw new Error(`Holding not found: ${error.message}`);
           holdingName = holding?.name || '';
-          targetEin = (holding as any)?.charities?.ein;
+          targetEin = holding?.ein;
         }
 
         if (!targetEin) {
@@ -3514,18 +3486,28 @@ export class PortfolioAssistant {
           refreshed_at: new Date().toISOString(),
         };
 
-        // Try to fetch from charity_ratings cache or external API
-        const { data: cachedRating } = await this.supabase
-          .from('charity_ratings')
-          .select('*')
+        const { data: charity } = await this.supabase
+          .from('charities')
+          .select('ein, name, charity_navigator_score, charity_navigator_rating, give_well_top_charity, candid_seal, propublica_score, total_revenue, total_expenses, net_assets')
           .eq('ein', targetEin)
           .maybeSingle();
 
-        if (cachedRating) {
-          charityData.ratings = cachedRating;
+        if (charity) {
+          charityData.ratings = {
+            charity_navigator_score: charity.charity_navigator_score,
+            charity_navigator_rating: charity.charity_navigator_rating,
+            give_well_top_charity: charity.give_well_top_charity,
+            candid_seal: charity.candid_seal,
+            propublica_score: charity.propublica_score,
+          };
+          charityData.financials = {
+            total_revenue: charity.total_revenue,
+            total_expenses: charity.total_expenses,
+            net_assets: charity.net_assets,
+          };
           charityData.source = 'cache';
         } else {
-          charityData.message = 'No cached data found. External API call would be made here.';
+          charityData.message = 'No charity data found for this EIN.';
           charityData.source = 'none';
         }
 
@@ -3557,7 +3539,7 @@ export class PortfolioAssistant {
         // Search for similar charities in the charities table
         let query = this.supabase
           .from('charities')
-          .select('ein, name, city, state, ntee_code, total_revenue, rating_overall')
+          .select('ein, name, city, state, ntee_code, total_revenue, charity_navigator_rating')
           .limit(limit);
 
         if (sector) {
@@ -3587,20 +3569,11 @@ export class PortfolioAssistant {
         if (holdingId && !ein) {
           const { data: holding } = await this.supabase
             .from('holdings')
-            .select('charity_id, charities(ein, name, total_revenue, total_expenses, total_assets)')
+            .select('ein')
             .eq('id', holdingId)
             .single();
 
-          if ((holding as any)?.charities) {
-            return {
-              action: null,
-              output: {
-                source: 'database',
-                financials: (holding as any).charities,
-              },
-            };
-          }
-          targetEin = (holding as any)?.charities?.ein;
+          targetEin = holding?.ein;
         }
 
         if (targetEin) {
@@ -3620,10 +3593,9 @@ export class PortfolioAssistant {
                   name: charity.name,
                   total_revenue: charity.total_revenue,
                   total_expenses: charity.total_expenses,
-                  total_assets: charity.total_assets,
-                  program_expense_ratio: charity.program_expense_ratio,
-                  admin_expense_ratio: charity.admin_expense_ratio,
-                  fundraising_expense_ratio: charity.fundraising_expense_ratio,
+                  net_assets: charity.net_assets,
+                  charity_navigator_score: charity.charity_navigator_score,
+                  charity_navigator_rating: charity.charity_navigator_rating,
                 },
               },
             };
@@ -3646,13 +3618,13 @@ export class PortfolioAssistant {
 
         // Get tax profile for context
         const { data: taxProfile } = await this.supabase
-          .from('tax_profiles')
-          .select('*')
+          .from('owner_tax_profiles')
+          .select('agi')
           .eq('portfolio_id', portfolioId)
           .maybeSingle();
 
-        const agi = taxProfile?.estimated_agi || 500000; // Default if no profile
-        const taxBracket = taxProfile?.marginal_rate || 0.37;
+        const agi = taxProfile?.agi || 500000; // Default if no profile
+        const taxBracket = 0.37;
 
         let result: any = {
           scenario_type: scenarioType,
@@ -3747,11 +3719,11 @@ export class PortfolioAssistant {
         let agi = args.agi;
         if (!agi) {
           const { data: taxProfile } = await this.supabase
-            .from('tax_profiles')
-            .select('estimated_agi')
+            .from('owner_tax_profiles')
+            .select('agi')
             .eq('portfolio_id', portfolioId)
             .maybeSingle();
-          agi = taxProfile?.estimated_agi || 500000;
+          agi = taxProfile?.agi || 500000;
         }
 
         // Determine AGI limit based on asset and recipient type
@@ -3792,25 +3764,24 @@ export class PortfolioAssistant {
       case 'get_carryforward': {
         const taxYear = args.tax_year || new Date().getFullYear();
 
-        // Query carryforward data from contributions
+        // Query carryforward data from tax_contributions
         const { data: contributions } = await this.supabase
-          .from('contributions')
+          .from('tax_contributions')
           .select('*')
           .eq('portfolio_id', portfolioId)
-          .not('carryforward_amount', 'is', null)
-          .gt('carryforward_amount', 0);
+          .eq('is_carryforward', true);
 
         const carryforwards = (contributions || [])
           .filter((c: any) => {
-            const contribYear = new Date(c.contribution_date).getFullYear();
+            const contribYear = c.carryforward_year || new Date(c.contribution_date).getFullYear();
             const yearsAgo = taxYear - contribYear;
             return yearsAgo > 0 && yearsAgo <= 5; // Within 5-year window
           })
           .map((c: any) => ({
             contribution_date: c.contribution_date,
-            original_amount: c.amount,
-            carryforward_amount: c.carryforward_amount,
-            years_remaining: 5 - (taxYear - new Date(c.contribution_date).getFullYear()),
+            original_amount: c.fair_market_value,
+            carryforward_amount: c.deductible_amount || c.fair_market_value,
+            years_remaining: 5 - (taxYear - (c.carryforward_year || new Date(c.contribution_date).getFullYear())),
           }));
 
         const totalCarryforward = carryforwards.reduce(
@@ -3841,8 +3812,8 @@ export class PortfolioAssistant {
         // Get historical data
         let query = this.supabase
           .from('metric_facts')
-          .select('value, period_start, period_end')
-          .eq('portfolio_id', portfolioId)
+          .select('value, period_start, period_end, holdings!inner(portfolio_id)')
+          .eq('holdings.portfolio_id', portfolioId)
           .eq('metric_code', metricCode)
           .order('period_start', { ascending: true });
 
@@ -4066,792 +4037,22 @@ export class PortfolioAssistant {
       }
 
       // ==================== GRANT MANAGEMENT MODULE ====================
-      case 'start_due_diligence': {
-        InputValidator.validateUUID(args.holding_id, 'holding_id');
-        if (args.template_id) InputValidator.validateUUID(args.template_id, 'template_id');
-        if (args.due_date) InputValidator.validateDateString(args.due_date, 'due_date');
-        if (args.assigned_to) InputValidator.validateUUID(args.assigned_to, 'assigned_to');
-
-        // Get or use default due diligence template
-        let template;
-        if (args.template_id) {
-          const { data, error } = await this.supabase
-            .from('workflow_templates')
-            .select('*')
-            .eq('id', args.template_id)
-            .single();
-          if (error) throw new Error(`Template not found: ${error.message}`);
-          template = data;
-        } else {
-          // Use system default due diligence template
-          const { data, error } = await this.supabase
-            .from('workflow_templates')
-            .select('*')
-            .eq('workflow_type', 'due_diligence')
-            .eq('is_system', true)
-            .limit(1)
-            .single();
-          if (error) {
-            return {
-              action: null,
-              output: {
-                error: 'No due diligence template found. Please create one first.',
-                success: false,
-              },
-            };
-          }
-          template = data;
-        }
-
-        // Get grant_id from holding
-        const { data: grant, error: grantError } = await this.supabase
-          .from('grant_details')
-          .select('id')
-          .eq('holding_id', args.holding_id)
-          .maybeSingle();
-
-        if (grantError) throw new Error(`Error finding grant: ${grantError.message}`);
-
-        // If no grant details exist, create them
-        let grantId = grant?.id;
-        if (!grantId) {
-          const { data: newGrant, error: createError } = await this.supabase
-            .from('grant_details')
-            .insert({ holding_id: args.holding_id })
-            .select('id')
-            .single();
-          if (createError) throw new Error(`Error creating grant details: ${createError.message}`);
-          grantId = newGrant.id;
-        }
-
-        // Get holding name for workflow naming
-        const { data: holding } = await this.supabase
-          .from('holdings')
-          .select('name')
-          .eq('id', args.holding_id)
-          .single();
-
-        // Create workflow instance
-        const { data: workflow, error: wfError } = await this.supabase
-          .from('workflow_instances')
-          .insert({
-            template_id: template.id,
-            grant_id: grantId,
-            portfolio_id: portfolioId,
-            name: `Due Diligence - ${holding?.name || args.holding_id}`,
-            due_date: args.due_date || null,
-            started_by: userId,
-            status: 'active',
-          })
-          .select()
-          .single();
-
-        if (wfError) throw new Error(`Error creating workflow: ${wfError.message}`);
-
-        // Calculate task due dates based on estimated days
-        const calculateTaskDueDate = (workflowDueDate: string | null, estimatedDays: number, stepIndex: number): string | null => {
-          if (!workflowDueDate) return null;
-          const dueDate = new Date(workflowDueDate);
-          // Work backwards from due date, earlier steps get earlier dates
-          const totalSteps = template.steps.length;
-          const daysBeforeDue = Math.max(0, ((totalSteps - stepIndex) / totalSteps) * 14); // Spread over 2 weeks before due
-          dueDate.setDate(dueDate.getDate() - daysBeforeDue);
-          return dueDate.toISOString().split('T')[0];
-        };
-
-        // Create tasks from template steps
-        const tasks = template.steps.map((step: any, index: number) => ({
-          workflow_id: workflow.id,
-          step_id: step.id,
-          name: step.name,
-          description: step.description,
-          sequence_order: step.order || index + 1,
-          is_required: step.required !== false,
-          assigned_to: args.assigned_to || null,
-          due_date: calculateTaskDueDate(args.due_date, step.estimated_days || 1, index),
-          status: 'pending',
-        }));
-
-        const { error: taskError } = await this.supabase
-          .from('workflow_tasks')
-          .insert(tasks);
-
-        if (taskError) throw new Error(`Error creating tasks: ${taskError.message}`);
-
-        return {
-          action: null,
-          output: {
-            success: true,
-            workflow_id: workflow.id,
-            workflow_name: workflow.name,
-            template_used: template.name,
-            tasks_created: tasks.length,
-            due_date: args.due_date || 'Not set',
-            message: `Started due diligence workflow "${workflow.name}" with ${tasks.length} tasks`,
-          },
-        };
-      }
-
-      case 'get_workflow_status': {
-        InputValidator.validateUUID(args.holding_id, 'holding_id');
-        if (args.workflow_id) InputValidator.validateUUID(args.workflow_id, 'workflow_id');
-
-        // Get grant_id from holding
-        const { data: grant } = await this.supabase
-          .from('grant_details')
-          .select('id')
-          .eq('holding_id', args.holding_id)
-          .maybeSingle();
-
-        if (!grant) {
-          return {
-            action: null,
-            output: {
-              workflows: [],
-              message: 'No grant details found for this holding',
-            },
-          };
-        }
-
-        // Build workflow query
-        let workflowQuery = this.supabase
-          .from('workflow_instances')
-          .select(`
-            id,
-            name,
-            status,
-            due_date,
-            started_at,
-            completed_at,
-            notes,
-            workflow_templates(name, workflow_type),
-            workflow_tasks(
-              id,
-              name,
-              description,
-              status,
-              is_required,
-              due_date,
-              outcome,
-              outcome_notes,
-              completed_at,
-              sequence_order
-            )
-          `)
-          .eq('grant_id', grant.id)
-          .order('started_at', { ascending: false });
-
-        if (args.workflow_id) {
-          workflowQuery = workflowQuery.eq('id', args.workflow_id);
-        }
-
-        if (!args.include_completed) {
-          workflowQuery = workflowQuery.eq('status', 'active');
-        }
-
-        const { data: workflows, error } = await workflowQuery;
-
-        if (error) throw new Error(`Error fetching workflows: ${error.message}`);
-
-        // Calculate completion stats for each workflow
-        const workflowsWithStats = (workflows || []).map((wf: any) => {
-          const tasks = wf.workflow_tasks || [];
-          const completedTasks = tasks.filter((t: any) => t.status === 'completed').length;
-          const requiredTasks = tasks.filter((t: any) => t.is_required).length;
-          const completedRequired = tasks.filter((t: any) => t.is_required && t.status === 'completed').length;
-
-          return {
-            ...wf,
-            template_name: wf.workflow_templates?.name,
-            workflow_type: wf.workflow_templates?.workflow_type,
-            tasks_total: tasks.length,
-            tasks_completed: completedTasks,
-            tasks_pending: tasks.filter((t: any) => t.status === 'pending').length,
-            tasks_in_progress: tasks.filter((t: any) => t.status === 'in_progress').length,
-            required_tasks: requiredTasks,
-            required_completed: completedRequired,
-            completion_percentage: tasks.length > 0 ? Math.round((completedTasks / tasks.length) * 100) : 0,
-            workflow_tasks: tasks.sort((a: any, b: any) => a.sequence_order - b.sequence_order),
-          };
-        });
-
-        return {
-          action: null,
-          output: {
-            workflows: workflowsWithStats,
-            total_workflows: workflowsWithStats.length,
-          },
-        };
-      }
-
-      case 'complete_workflow_task': {
-        InputValidator.validateUUID(args.task_id, 'task_id');
-        InputValidator.validateEnum(args.outcome, 'outcome', ['pass', 'fail', 'conditional', 'n/a'] as const);
-
-        // Update the task
-        const { data: task, error } = await this.supabase
-          .from('workflow_tasks')
-          .update({
-            status: 'completed',
-            outcome: args.outcome,
-            outcome_notes: args.notes || null,
-            completed_at: new Date().toISOString(),
-            completed_by: userId,
-          })
-          .eq('id', args.task_id)
-          .select('*, workflow_instances(id, name, grant_id)')
-          .single();
-
-        if (error) throw new Error(`Error completing task: ${error.message}`);
-
-        // Check if all required tasks are completed
-        const { data: remainingTasks } = await this.supabase
-          .from('workflow_tasks')
-          .select('id, status, is_required')
-          .eq('workflow_id', (task as any).workflow_instances.id)
-          .eq('is_required', true)
-          .neq('status', 'completed');
-
-        const allRequiredComplete = !remainingTasks || remainingTasks.length === 0;
-
-        // If all required tasks complete, mark workflow as completed
-        if (allRequiredComplete) {
-          await this.supabase
-            .from('workflow_instances')
-            .update({
-              status: 'completed',
-              completed_at: new Date().toISOString(),
-            })
-            .eq('id', (task as any).workflow_instances.id);
-        }
-
-        return {
-          action: null,
-          output: {
-            success: true,
-            task_id: args.task_id,
-            task_name: task.name,
-            outcome: args.outcome,
-            workflow_completed: allRequiredComplete,
-            message: allRequiredComplete
-              ? `Task "${task.name}" completed. All required tasks done - workflow marked as completed.`
-              : `Task "${task.name}" marked as ${args.outcome}`,
-          },
-        };
-      }
-
-      case 'track_milestone': {
-        InputValidator.validateUUID(args.holding_id, 'holding_id');
-        if (args.milestone_id) InputValidator.validateUUID(args.milestone_id, 'milestone_id');
-        if (args.due_date) InputValidator.validateDateString(args.due_date, 'due_date');
-        if (args.status) {
-          InputValidator.validateEnum(args.status, 'status', ['pending', 'in_progress', 'completed', 'overdue', 'cancelled'] as const);
-        }
-
-        // Get grant_id from holding
-        const { data: grant, error: grantError } = await this.supabase
-          .from('grant_details')
-          .select('id')
-          .eq('holding_id', args.holding_id)
-          .maybeSingle();
-
-        if (grantError) throw new Error(`Error finding grant: ${grantError.message}`);
-
-        // If no grant details exist, create them
-        let grantId = grant?.id;
-        if (!grantId) {
-          const { data: newGrant, error: createError } = await this.supabase
-            .from('grant_details')
-            .insert({ holding_id: args.holding_id })
-            .select('id')
-            .single();
-          if (createError) throw new Error(`Error creating grant details: ${createError.message}`);
-          grantId = newGrant.id;
-        }
-
-        if (args.milestone_id) {
-          // Update existing milestone
-          const updateData: any = {};
-          if (args.name) updateData.milestone_name = args.name;
-          if (args.description) updateData.description = args.description;
-          if (args.due_date) updateData.due_date = args.due_date;
-          if (args.status) updateData.status = args.status;
-          if (args.notes) updateData.notes = args.notes;
-          if (args.status === 'completed') {
-            updateData.completed_date = new Date().toISOString().split('T')[0];
-          }
-
-          const { data: milestone, error } = await this.supabase
-            .from('grant_milestones')
-            .update(updateData)
-            .eq('id', args.milestone_id)
-            .select()
-            .single();
-
-          if (error) throw new Error(`Error updating milestone: ${error.message}`);
-
-          return {
-            action: null,
-            output: {
-              success: true,
-              action: 'updated',
-              milestone: milestone,
-              message: `Milestone "${milestone.milestone_name}" updated`,
-            },
-          };
-        } else {
-          // Create new milestone
-          if (!args.name) {
-            throw new ValidationError('name is required when creating a new milestone');
-          }
-
-          const { data: milestone, error } = await this.supabase
-            .from('grant_milestones')
-            .insert({
-              grant_id: grantId,
-              milestone_name: args.name,
-              description: args.description || null,
-              due_date: args.due_date || null,
-              status: args.status || 'pending',
-              notes: args.notes || null,
-            })
-            .select()
-            .single();
-
-          if (error) throw new Error(`Error creating milestone: ${error.message}`);
-
-          return {
-            action: null,
-            output: {
-              success: true,
-              action: 'created',
-              milestone: milestone,
-              message: `New milestone "${args.name}" created`,
-            },
-          };
-        }
-      }
-
-      case 'schedule_reminder': {
-        InputValidator.validateUUID(args.portfolio_id, 'portfolio_id');
-        if (args.holding_id) InputValidator.validateUUID(args.holding_id, 'holding_id');
-        InputValidator.validateDateString(args.due_date, 'due_date');
-        if (args.reminder_type) {
-          InputValidator.validateEnum(args.reminder_type, 'reminder_type', [
-            'report_due', 'milestone_due', 'payment_due', 'renewal', 'follow_up', 'site_visit', 'custom'
-          ] as const);
-        }
-
-        // Calculate reminder times based on days_before
-        const remindDaysBefore = args.remind_days_before || [7, 3, 1];
-        const dueDate = new Date(args.due_date);
-        const remindAt = remindDaysBefore.map((days: number) => {
-          const reminderDate = new Date(dueDate);
-          reminderDate.setDate(reminderDate.getDate() - days);
-          reminderDate.setHours(9, 0, 0, 0); // 9 AM
-          return reminderDate.toISOString();
-        });
-
-        // Get entity info if holding_id provided
-        let entityType = null;
-        let entityId = null;
-        if (args.holding_id) {
-          const { data: grant } = await this.supabase
-            .from('grant_details')
-            .select('id')
-            .eq('holding_id', args.holding_id)
-            .maybeSingle();
-          if (grant) {
-            entityType = 'grant';
-            entityId = grant.id;
-          }
-        }
-
-        const { data: reminder, error } = await this.supabase
-          .from('reminders')
-          .insert({
-            portfolio_id: args.portfolio_id,
-            reminder_type: args.reminder_type || 'custom',
-            entity_type: entityType,
-            entity_id: entityId,
-            title: args.title,
-            description: args.description || null,
-            due_date: args.due_date,
-            remind_at: remindAt,
-            notify_users: [userId],
-            created_by: userId,
-            status: 'pending',
-          })
-          .select()
-          .single();
-
-        if (error) throw new Error(`Error creating reminder: ${error.message}`);
-
-        return {
-          action: null,
-          output: {
-            success: true,
-            reminder_id: reminder.id,
-            title: args.title,
-            due_date: args.due_date,
-            reminder_dates: remindAt.map((r: string) => r.split('T')[0]),
-            message: `Reminder "${args.title}" scheduled for ${args.due_date} with ${remindAt.length} notifications`,
-          },
-        };
-      }
-
-      case 'get_upcoming_deadlines': {
-        InputValidator.validateUUID(args.portfolio_id, 'portfolio_id');
-        const daysAhead = args.days_ahead || 30;
-
-        // Use the database function for comprehensive deadline view
-        const { data: deadlines, error } = await this.supabase
-          .rpc('get_upcoming_deadlines', {
-            p_portfolio_id: args.portfolio_id,
-            p_days_ahead: daysAhead,
-          });
-
-        if (error) throw new Error(`Error fetching deadlines: ${error.message}`);
-
-        // Filter by types if specified
-        let filteredDeadlines = deadlines || [];
-        if (args.include_types && args.include_types.length > 0) {
-          const typeMapping: Record<string, string[]> = {
-            reports: ['report'],
-            milestones: ['milestone'],
-            payments: ['payment'],
-            renewals: ['renewal'],
-            tasks: ['workflow_task'],
-          };
-          const allowedTypes = args.include_types.flatMap((t: string) => typeMapping[t] || [t]);
-          filteredDeadlines = filteredDeadlines.filter((d: any) => allowedTypes.includes(d.deadline_type));
-        }
-
-        // Group by priority
-        const overdue = filteredDeadlines.filter((d: any) => d.priority === 'overdue');
-        const urgent = filteredDeadlines.filter((d: any) => d.priority === 'urgent');
-        const normal = filteredDeadlines.filter((d: any) => d.priority === 'normal');
-
-        return {
-          action: null,
-          output: {
-            days_ahead: daysAhead,
-            total_deadlines: filteredDeadlines.length,
-            overdue: {
-              count: overdue.length,
-              items: overdue,
-            },
-            urgent: {
-              count: urgent.length,
-              items: urgent,
-            },
-            upcoming: {
-              count: normal.length,
-              items: normal,
-            },
-            all_deadlines: filteredDeadlines,
-          },
-        };
-      }
-
-      case 'log_grant_communication': {
-        InputValidator.validateUUID(args.holding_id, 'holding_id');
-        InputValidator.validateEnum(args.direction, 'direction', ['inbound', 'outbound'] as const);
-        InputValidator.validateEnum(args.comm_type, 'comm_type', [
-          'email', 'phone', 'meeting', 'site_visit', 'letter', 'portal_message', 'other'
-        ] as const);
-        if (args.follow_up_date) InputValidator.validateDateString(args.follow_up_date, 'follow_up_date');
-
-        // Get grant_id from holding
-        const { data: grant, error: grantError } = await this.supabase
-          .from('grant_details')
-          .select('id')
-          .eq('holding_id', args.holding_id)
-          .maybeSingle();
-
-        if (grantError) throw new Error(`Error finding grant: ${grantError.message}`);
-
-        // If no grant details exist, create them
-        let grantId = grant?.id;
-        if (!grantId) {
-          const { data: newGrant, error: createError } = await this.supabase
-            .from('grant_details')
-            .insert({ holding_id: args.holding_id })
-            .select('id')
-            .single();
-          if (createError) throw new Error(`Error creating grant details: ${createError.message}`);
-          grantId = newGrant.id;
-        }
-
-        const { data: communication, error } = await this.supabase
-          .from('grant_communications')
-          .insert({
-            grant_id: grantId,
-            direction: args.direction,
-            comm_type: args.comm_type,
-            subject: args.subject || null,
-            summary: args.summary,
-            contact_name: args.contact_name || null,
-            contact_email: args.contact_email || null,
-            occurred_at: new Date().toISOString(),
-            logged_by: userId,
-            follow_up_required: args.follow_up_required || false,
-            follow_up_date: args.follow_up_date || null,
-            follow_up_notes: args.follow_up_notes || null,
-          })
-          .select()
-          .single();
-
-        if (error) throw new Error(`Error logging communication: ${error.message}`);
-
-        // If follow-up required, create a reminder
-        if (args.follow_up_required && args.follow_up_date) {
-          await this.supabase
-            .from('reminders')
-            .insert({
-              portfolio_id: portfolioId,
-              reminder_type: 'follow_up',
-              entity_type: 'grant_communication',
-              entity_id: communication.id,
-              title: `Follow up: ${args.subject || 'Communication with grantee'}`,
-              description: args.follow_up_notes || `Follow up on ${args.comm_type} from ${new Date().toLocaleDateString()}`,
-              due_date: args.follow_up_date,
-              remind_at: [new Date(args.follow_up_date).toISOString()],
-              notify_users: [userId],
-              created_by: userId,
-              status: 'pending',
-            });
-        }
-
-        return {
-          action: null,
-          output: {
-            success: true,
-            communication_id: communication.id,
-            type: args.comm_type,
-            direction: args.direction,
-            follow_up_scheduled: args.follow_up_required && args.follow_up_date ? args.follow_up_date : null,
-            message: `${args.direction === 'inbound' ? 'Incoming' : 'Outgoing'} ${args.comm_type} logged successfully`,
-          },
-        };
-      }
-
-      case 'get_grant_health': {
-        InputValidator.validateUUID(args.portfolio_id, 'portfolio_id');
-        if (args.holding_id) InputValidator.validateUUID(args.holding_id, 'holding_id');
-
-        // Use the v_grant_health view
-        let query = this.supabase
-          .from('v_grant_health')
-          .select('*')
-          .eq('portfolio_id', args.portfolio_id);
-
-        if (args.holding_id) {
-          query = query.eq('holding_id', args.holding_id);
-        }
-
-        const { data: healthData, error } = await query;
-
-        if (error) throw new Error(`Error fetching grant health: ${error.message}`);
-
-        if (!healthData || healthData.length === 0) {
-          return {
-            action: null,
-            output: {
-              grants: [],
-              message: 'No grants found in this portfolio',
-            },
-          };
-        }
-
-        // Calculate portfolio-level stats
-        const highRisk = healthData.filter((g: any) => g.risk_level === 'high');
-        const mediumRisk = healthData.filter((g: any) => g.risk_level === 'medium');
-        const avgHealthScore = healthData.reduce((sum: number, g: any) => sum + (g.health_score || 0), 0) / healthData.length;
-        const totalDisbursed = healthData.reduce((sum: number, g: any) => sum + (g.total_disbursed || 0), 0);
-        const totalScheduled = healthData.reduce((sum: number, g: any) => sum + (g.total_scheduled || 0), 0);
-
-        const result: any = {
-          summary: {
-            total_grants: healthData.length,
-            average_health_score: Math.round(avgHealthScore),
-            high_risk_count: highRisk.length,
-            medium_risk_count: mediumRisk.length,
-            low_risk_count: healthData.length - highRisk.length - mediumRisk.length,
-            total_disbursed: totalDisbursed,
-            total_scheduled: totalScheduled,
-            disbursement_rate: totalScheduled > 0 ? Math.round((totalDisbursed / totalScheduled) * 100) : 0,
-          },
-        };
-
-        if (args.include_details !== false) {
-          result.grants = healthData.map((g: any) => ({
-            holding_id: g.holding_id,
-            grant_name: g.grant_name,
-            grant_type: g.grant_type,
-            health_score: g.health_score,
-            risk_level: g.risk_level,
-            funds_allocated: g.funds_allocated,
-            total_disbursed: g.total_disbursed,
-            payments_pending: g.payments_pending,
-            milestones: {
-              total: g.total_milestones,
-              completed: g.milestones_completed,
-              overdue: g.milestones_overdue,
-            },
-            reports: {
-              total: g.total_reports,
-              submitted: g.reports_submitted,
-              overdue: g.reports_overdue,
-            },
-            active_workflows: g.active_workflows,
-            workflow_tasks_pending: g.workflow_tasks_pending,
-            period_start: g.grant_period_start,
-            period_end: g.grant_period_end,
-          }));
-
-          // Highlight attention needed
-          result.attention_needed = [];
-          if (highRisk.length > 0) {
-            result.attention_needed.push({
-              type: 'high_risk_grants',
-              count: highRisk.length,
-              grants: highRisk.map((g: any) => g.grant_name),
-            });
-          }
-          const overdueReports = healthData.filter((g: any) => g.reports_overdue > 0);
-          if (overdueReports.length > 0) {
-            result.attention_needed.push({
-              type: 'overdue_reports',
-              count: overdueReports.reduce((sum: number, g: any) => sum + g.reports_overdue, 0),
-              grants: overdueReports.map((g: any) => g.grant_name),
-            });
-          }
-          const overdueMilestones = healthData.filter((g: any) => g.milestones_overdue > 0);
-          if (overdueMilestones.length > 0) {
-            result.attention_needed.push({
-              type: 'overdue_milestones',
-              count: overdueMilestones.reduce((sum: number, g: any) => sum + g.milestones_overdue, 0),
-              grants: overdueMilestones.map((g: any) => g.grant_name),
-            });
-          }
-        }
-
-        return { action: null, output: result };
-      }
-
+      case 'start_due_diligence':
+      case 'get_workflow_status':
+      case 'complete_workflow_task':
+      case 'track_milestone':
+      case 'schedule_reminder':
+      case 'get_upcoming_deadlines':
+      case 'log_grant_communication':
+      case 'get_grant_health':
       case 'record_grant_payment': {
-        InputValidator.validateUUID(args.holding_id, 'holding_id');
-        if (args.payment_id) InputValidator.validateUUID(args.payment_id, 'payment_id');
-        if (args.amount) InputValidator.validateNumber(args.amount, 'amount', { min: 0 });
-        if (args.scheduled_date) InputValidator.validateDateString(args.scheduled_date, 'scheduled_date');
-        if (args.actual_date) InputValidator.validateDateString(args.actual_date, 'actual_date');
-        if (args.status) {
-          InputValidator.validateEnum(args.status, 'status', [
-            'scheduled', 'approved', 'processing', 'completed', 'cancelled'
-          ] as const);
-        }
-        if (args.payment_method) {
-          InputValidator.validateEnum(args.payment_method, 'payment_method', ['check', 'wire', 'ach'] as const);
-        }
-
-        // Get grant_id from holding
-        const { data: grant, error: grantError } = await this.supabase
-          .from('grant_details')
-          .select('id')
-          .eq('holding_id', args.holding_id)
-          .maybeSingle();
-
-        if (grantError) throw new Error(`Error finding grant: ${grantError.message}`);
-
-        // If no grant details exist, create them
-        let grantId = grant?.id;
-        if (!grantId) {
-          const { data: newGrant, error: createError } = await this.supabase
-            .from('grant_details')
-            .insert({ holding_id: args.holding_id })
-            .select('id')
-            .single();
-          if (createError) throw new Error(`Error creating grant details: ${createError.message}`);
-          grantId = newGrant.id;
-        }
-
-        if (args.payment_id) {
-          // Update existing payment
-          const updateData: any = {};
-          if (args.amount !== undefined) updateData.amount = args.amount;
-          if (args.scheduled_date) updateData.scheduled_date = args.scheduled_date;
-          if (args.actual_date) updateData.actual_date = args.actual_date;
-          if (args.status) updateData.status = args.status;
-          if (args.payment_method) updateData.payment_method = args.payment_method;
-          if (args.notes) updateData.notes = args.notes;
-
-          // If marking as approved, record approval info
-          if (args.status === 'approved') {
-            updateData.approved_by = userId;
-            updateData.approved_at = new Date().toISOString();
-          }
-
-          const { data: payment, error } = await this.supabase
-            .from('grant_payments')
-            .update(updateData)
-            .eq('id', args.payment_id)
-            .select()
-            .single();
-
-          if (error) throw new Error(`Error updating payment: ${error.message}`);
-
-          return {
-            action: null,
-            output: {
-              success: true,
-              action: 'updated',
-              payment: payment,
-              message: `Payment #${payment.payment_number} updated to ${args.status || 'current status'}`,
-            },
-          };
-        } else {
-          // Create new payment - determine payment number
-          const { data: existingPayments } = await this.supabase
-            .from('grant_payments')
-            .select('payment_number')
-            .eq('grant_id', grantId)
-            .order('payment_number', { ascending: false })
-            .limit(1);
-
-          const nextPaymentNumber = ((existingPayments || [])[0]?.payment_number || 0) + 1;
-
-          if (!args.amount) {
-            throw new ValidationError('amount is required when creating a new payment');
-          }
-
-          const { data: payment, error } = await this.supabase
-            .from('grant_payments')
-            .insert({
-              grant_id: grantId,
-              payment_number: nextPaymentNumber,
-              amount: args.amount,
-              scheduled_date: args.scheduled_date || null,
-              actual_date: args.actual_date || null,
-              status: args.status || 'scheduled',
-              payment_method: args.payment_method || null,
-              notes: args.notes || null,
-            })
-            .select()
-            .single();
-
-          if (error) throw new Error(`Error creating payment: ${error.message}`);
-
-          return {
-            action: null,
-            output: {
-              success: true,
-              action: 'created',
-              payment: payment,
-              message: `Payment #${nextPaymentNumber} for $${args.amount.toLocaleString()} created`,
-            },
-          };
-        }
+        return {
+          action: null,
+          output: {
+            feature_not_available: true,
+            message: 'Grant lifecycle workflow tools require grant_details, workflow, milestone, reminder, communication, payment, and grant health migrations that are not deployed in the active schema.',
+          },
+        };
       }
 
       // ==================== DONOR MANAGEMENT MODULE ====================
@@ -5694,7 +4895,6 @@ ${org?.name || 'The Organization'}`;
       holdings,
       metrics,
       portfolioWidgets,
-      kpiDefs,
       metricFacts,
       recentActions
     ] = await Promise.all([
@@ -5712,14 +4912,11 @@ ${org?.name || 'The Organization'}`;
         .from('metrics')
         .select('code, name, unit'),
       this.supabase
-        .from('widgets')
-        .select('id, type, title')
+        .from('holding_widgets')
+        .select('id, widget_type, config')
         .eq('portfolio_id', portfolioId)
-        .order('position', { ascending: true }),
-      this.supabase
-        .from('portfolio_metric_targets')
-        .select('metric_code, target_value, display_name, target_date')
-        .eq('portfolio_id', portfolioId),
+        .eq('is_active', true)
+        .order('created_at', { ascending: true }),
       this.supabase
         .from('metric_facts')
         .select('metric_code, value, unit, period_end, holdings!inner(portfolio_id)')
@@ -5735,8 +4932,8 @@ ${org?.name || 'The Organization'}`;
     ]);
 
     const holdingsData = holdings.data || [];
-    const kpiDefsData = kpiDefs.data || [];
     const factsData = metricFacts.data || [];
+    const metricDefsData = metrics.data || [];
 
     const totalAUM = holdingsData.reduce((sum: number, h: any) => sum + (h.funds_allocated || 0), 0);
     const totalNAV = holdingsData.reduce((sum: number, h: any) => sum + (h.nav || 0), 0);
@@ -5793,26 +4990,23 @@ ${org?.name || 'The Organization'}`;
       };
     });
 
-    kpiDefsData.forEach((kpi: any) => {
-      const metricCode: string = kpi.metric_code;
+    metricDefsData.forEach((metric: any) => {
+      const metricCode: string = metric.code;
       const latest = latestByMetric[metricCode];
       const latestValue = latest?.value ?? null;
-      const target = kpi.target_value;
 
       kpiSnapshot.push({
         metricCode,
-        displayName: kpi.display_name || metricCode,
+        displayName: metric.name || metricCode,
         latestValue,
-        target,
-        unit: latest?.unit ?? null,
-        percentComplete: target && latestValue !== null
-          ? Math.round((latestValue / target) * 100)
-          : null,
+        target: null,
+        unit: latest?.unit ?? metric.unit ?? null,
+        percentComplete: null,
       });
     });
 
     Object.keys(latestByMetric).forEach((code: string) => {
-      if (!kpiDefsData.some((k: any) => k.metric_code === code)) {
+      if (!metricDefsData.some((metric: any) => metric.code === code)) {
         kpiSnapshot.push({
           metricCode: code,
           displayName: code,
@@ -5849,12 +5043,11 @@ ${org?.name || 'The Organization'}`;
     Object.keys(latestByMetric).forEach((code) => {
       const stats = metricStats[code] || { count: 0, periods: [] };
       const sortedPeriods = stats.periods.sort();
-      const kpiDef = kpiDefsData.find((k: any) => k.metric_code === code);
-      const metricDef = (metrics.data || []).find((m: any) => m.code === code);
+      const metricDef = metricDefsData.find((m: any) => m.code === code);
 
       metricsWithData.push({
         code,
-        displayName: kpiDef?.display_name || metricDef?.name || code,
+        displayName: metricDef?.name || code,
         latestValue: latestByMetric[code].value,
         unit: latestByMetric[code].unit || metricDef?.unit || null,
         dataPoints: stats.count,
@@ -5920,18 +5113,18 @@ ${org?.name || 'The Organization'}`;
         );
       }
 
-      // Donor giving this year (from tax_contributions)
+      // Donor giving this year (from donor CRM contributions)
       let donorGivingThisYear: number | null = null;
       if (modules.donors) {
         const { data: givingData } = await this.supabase
-          .from('tax_contributions')
-          .select('amount_usd')
-          .eq('tax_year', currentYear)
-          .in('portfolio_id',
-            [portfolioId, ...(otherPortfolios.data?.map((p: any) => p.id) ?? [])]
-          );
+          .from('contributions_received')
+          .select('amount')
+          .eq('org_id', orgId)
+          .gte('contribution_date', `${currentYear}-01-01`)
+          .lte('contribution_date', `${currentYear}-12-31`)
+          .eq('is_pledge', false);
         if (givingData) {
-          donorGivingThisYear = givingData.reduce((sum: number, r: any) => sum + (r.amount_usd || 0), 0);
+          donorGivingThisYear = givingData.reduce((sum: number, r: any) => sum + (r.amount || 0), 0);
         }
       }
 
@@ -5952,12 +5145,13 @@ ${org?.name || 'The Organization'}`;
     return {
       portfolio: portfolio.data,
       holdings: holdingsData,
-      availableMetrics: [
-        ...(metrics.data || []),
-        ...kpiDefsData.map((k: any) => ({ code: k.metric_code }))
-      ],
+      availableMetrics: metricDefsData,
       metricsWithData,
-      widgets: portfolioWidgets.data || [],
+      widgets: (portfolioWidgets.data || []).map((w: any) => ({
+        ...w,
+        type: w.widget_type,
+        title: w.config?.title || w.widget_type,
+      })),
       summary: {
         totalHoldings: holdingsData.length,
         activeHoldings: statusBreakdown['Active'] || 0,

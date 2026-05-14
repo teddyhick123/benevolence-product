@@ -24,9 +24,9 @@ function walkDir(dir: string, extensions: string[] = ['.ts', '.tsx']): string[] 
   return files;
 }
 
-function readAllSources(dirs: string[]): string {
+function readAllSources(dirs: string[], extensions: string[] = ['.ts', '.tsx']): string {
   const files = dirs
-    .flatMap(dir => walkDir(dir))
+    .flatMap(dir => walkDir(dir, extensions))
     .filter(f => {
       try {
         statSync(f);
@@ -53,6 +53,17 @@ const appSrc = readAllSources([
   'components',
 ]);
 
+const migrationsSrc = readAllSources(['db/migrations'], ['.sql']);
+const agentDocsSrc = ['CLAUDE.md', 'AGENTS.md']
+  .map(file => {
+    try {
+      return readFileSync(file, 'utf-8');
+    } catch {
+      return '';
+    }
+  })
+  .join('\n');
+
 describe('Schema contract: RPC function names', () => {
   it('no calls to non-existent org_role RPC', () => {
     expect(appSrc).not.toMatch(/rpc\(['"]org_role['"]/);
@@ -64,6 +75,37 @@ describe('Schema contract: RPC function names', () => {
 
   it('no calls to org_has_module with p_module_id (should be p_module)', () => {
     expect(appSrc).not.toMatch(/p_module_id:/);
+  });
+});
+
+describe('Schema contract: module storage', () => {
+  it('application code does not use removed organization_modules table', () => {
+    expect(appSrc).not.toMatch(/from\(['"]organization_modules['"]/);
+  });
+
+  it('seed migration does not insert into removed modules table', () => {
+    expect(migrationsSrc).not.toMatch(/INSERT\s+INTO\s+public\.modules/i);
+  });
+
+  it('agent docs do not describe organization_modules as active storage', () => {
+    expect(agentDocsSrc).not.toMatch(/organization_modules` table tracks/i);
+  });
+});
+
+describe('Schema contract: organization membership columns', () => {
+  it('organization_members selects use org_id, not organization_id', () => {
+    expect(appSrc).not.toMatch(/from\(['"]organization_members['"]\)[\s\S]{0,160}\.select\(\s*['"`][^'"`]*organization_id/);
+  });
+});
+
+describe('Schema contract: pledge payment accounting', () => {
+  it('created payment contributions are donor gifts, not pledge placeholders', () => {
+    expect(migrationsSrc).not.toMatch(/p_pledge_id,\s*p_installment_id,\s*true/);
+  });
+
+  it('pledge schedule validation does not allow cent drift', () => {
+    expect(appSrc).not.toMatch(/Installment amounts must sum to total_amount[\s\S]{0,160}<\s*0\.02/);
+    expect(migrationsSrc).not.toMatch(/ABS\(v_inst_sum - p_total_amount\)\s*>\s*0\.01/);
   });
 });
 

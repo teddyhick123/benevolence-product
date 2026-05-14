@@ -17,6 +17,100 @@ import {
 // Import Anthropic types
 import type Anthropic from '@anthropic-ai/sdk';
 
+const MODULE_TO_DB_SLUG: Record<ModuleId, string> = {
+  core: 'portfolio',
+  impact_tracking: 'impact_tracking',
+  reporting: 'reports',
+  tax_optimization: 'tax',
+  grant_management: 'grant_management',
+  donor_management: 'donors',
+  pledge_tracking: 'pledges',
+  external_data: 'external_data',
+  analytics: 'analytics',
+  compliance_regulatory: 'compliance',
+};
+
+const DB_SLUG_TO_MODULE: Record<string, ModuleId> = {
+  portfolio: 'core',
+  core: 'core',
+  impact_tracking: 'impact_tracking',
+  reports: 'reporting',
+  reporting: 'reporting',
+  tax: 'tax_optimization',
+  tax_optimization: 'tax_optimization',
+  grant_management: 'grant_management',
+  donors: 'donor_management',
+  donor_management: 'donor_management',
+  pledges: 'pledge_tracking',
+  pledge_tracking: 'pledge_tracking',
+  external_data: 'external_data',
+  analytics: 'analytics',
+  compliance: 'compliance_regulatory',
+  compliance_regulatory: 'compliance_regulatory',
+};
+
+function toDbSlug(moduleId: ModuleId): string {
+  return MODULE_TO_DB_SLUG[moduleId] ?? moduleId;
+}
+
+function fromDbSlug(slug: string): ModuleId | null {
+  return DB_SLUG_TO_MODULE[slug] ?? null;
+}
+
+async function getOrgModulesJson(
+  supabase: SupabaseClient,
+  orgId: string
+): Promise<{ modules: Record<string, unknown>; error?: string }> {
+  const { data, error } = await supabase
+    .from('organizations')
+    .select('modules')
+    .eq('id', orgId)
+    .single();
+
+  if (error) {
+    return { modules: { portfolio: true }, error: error.message };
+  }
+
+  return {
+    modules: {
+      portfolio: true,
+      ...((data?.modules as Record<string, unknown> | null) ?? {}),
+    },
+  };
+}
+
+function enabledModuleIdsFromJson(modulesJson: Record<string, unknown>): ModuleId[] {
+  const modules: ModuleId[] = ['core'];
+
+  Object.entries(modulesJson).forEach(([slug, enabled]) => {
+    if (enabled !== true) return;
+    const moduleId = fromDbSlug(slug);
+    if (moduleId && MODULE_REGISTRY[moduleId] && !modules.includes(moduleId)) {
+      modules.push(moduleId);
+    }
+  });
+
+  return modules;
+}
+
+async function updateOrgModulesJson(
+  supabase: SupabaseClient,
+  orgId: string,
+  modules: Record<string, unknown>
+): Promise<{ success: boolean; error?: string }> {
+  const nextModules = { ...modules, portfolio: true };
+  const { error } = await supabase
+    .from('organizations')
+    .update({ modules: nextModules })
+    .eq('id', orgId);
+
+  if (error) {
+    return { success: false, error: error.message };
+  }
+
+  return { success: true };
+}
+
 /**
  * Filter tools array based on enabled modules
  */
@@ -35,33 +129,14 @@ export async function getOrgEnabledModules(
   supabase: SupabaseClient,
   orgId: string
 ): Promise<ModuleId[]> {
-  // Core is always enabled
-  const modules: ModuleId[] = ['core'];
-
   try {
-    const { data, error } = await supabase
-      .from('organization_modules')
-      .select('module_id')
-      .eq('organization_id', orgId);
-
-    if (error) {
-      console.error('Error fetching org modules:', error);
-      return modules;
-    }
-
-    if (data) {
-      data.forEach((row: { module_id: string }) => {
-        const moduleId = row.module_id as ModuleId;
-        if (MODULE_REGISTRY[moduleId] && !modules.includes(moduleId)) {
-          modules.push(moduleId);
-        }
-      });
-    }
+    const { modules, error } = await getOrgModulesJson(supabase, orgId);
+    if (error) console.error('Error fetching org modules:', error);
+    return enabledModuleIdsFromJson(modules);
   } catch (err) {
     console.error('Error in getOrgEnabledModules:', err);
+    return ['core'];
   }
-
-  return modules;
 }
 
 /**
@@ -75,13 +150,13 @@ export async function enableModule(
   userId: string,
   config: Record<string, unknown> = {}
 ): Promise<{ success: boolean; error?: string; enabledModules?: ModuleId[] }> {
-  const module = MODULE_REGISTRY[moduleId];
+  const moduleDefinition = MODULE_REGISTRY[moduleId];
 
-  if (!module) {
+  if (!moduleDefinition) {
     return { success: false, error: `Unknown module: ${moduleId}` };
   }
 
-  if (module.isCore) {
+  if (moduleDefinition.isCore) {
     return { success: false, error: 'Core module is always enabled' };
   }
 
@@ -90,25 +165,18 @@ export async function enableModule(
   const enabledModules: ModuleId[] = [];
 
   try {
+    void userId;
+    void config;
+    const { modules, error } = await getOrgModulesJson(supabase, orgId);
+    if (error) return { success: false, error };
+
     for (const modId of modulesToEnable) {
-      const { error } = await supabase
-        .from('organization_modules')
-        .upsert({
-          organization_id: orgId,
-          module_id: modId,
-          enabled_by: userId,
-          config: modId === moduleId ? config : {},
-        }, {
-          onConflict: 'organization_id,module_id',
-        });
-
-      if (error) {
-        console.error(`Error enabling module ${modId}:`, error);
-        return { success: false, error: error.message };
-      }
-
+      modules[toDbSlug(modId)] = true;
       enabledModules.push(modId);
     }
+
+    const result = await updateOrgModulesJson(supabase, orgId, modules);
+    if (!result.success) return result;
 
     return { success: true, enabledModules };
   } catch (err) {
@@ -126,13 +194,13 @@ export async function disableModule(
   orgId: string,
   moduleId: ModuleId
 ): Promise<{ success: boolean; error?: string }> {
-  const module = MODULE_REGISTRY[moduleId];
+  const moduleDefinition = MODULE_REGISTRY[moduleId];
 
-  if (!module) {
+  if (!moduleDefinition) {
     return { success: false, error: `Unknown module: ${moduleId}` };
   }
 
-  if (module.isCore) {
+  if (moduleDefinition.isCore) {
     return { success: false, error: 'Core module cannot be disabled' };
   }
 
@@ -152,17 +220,10 @@ export async function disableModule(
   }
 
   try {
-    const { error } = await supabase
-      .from('organization_modules')
-      .delete()
-      .eq('organization_id', orgId)
-      .eq('module_id', moduleId);
-
-    if (error) {
-      return { success: false, error: error.message };
-    }
-
-    return { success: true };
+    const { modules, error } = await getOrgModulesJson(supabase, orgId);
+    if (error) return { success: false, error };
+    modules[toDbSlug(moduleId)] = false;
+    return updateOrgModulesJson(supabase, orgId, modules);
   } catch (err) {
     const error = err instanceof Error ? err.message : 'Unknown error';
     return { success: false, error };
@@ -192,25 +253,22 @@ export async function applyModulePreset(
 
     const moduleIds = preset.module_ids as ModuleId[];
 
-    // Clear existing modules (except core)
-    await supabase
-      .from('organization_modules')
-      .delete()
-      .eq('organization_id', orgId);
+    void userId;
 
-    // Enable all preset modules
+    // Replace enabled modules with the preset plus dependencies.
+    const modulesJson: Record<string, unknown> = { portfolio: true };
     const enabledModules: ModuleId[] = [];
 
     for (const moduleId of moduleIds) {
-      const result = await enableModule(supabase, orgId, moduleId, userId);
-      if (result.success && result.enabledModules) {
-        result.enabledModules.forEach(m => {
-          if (!enabledModules.includes(m)) {
-            enabledModules.push(m);
-          }
-        });
-      }
+      const moduleSet = [moduleId, ...getRequiredModules(moduleId)];
+      moduleSet.forEach(m => {
+        modulesJson[toDbSlug(m)] = true;
+        if (!enabledModules.includes(m)) enabledModules.push(m);
+      });
     }
+
+    const result = await updateOrgModulesJson(supabase, orgId, modulesJson);
+    if (!result.success) return result;
 
     return { success: true, enabledModules };
   } catch (err) {
@@ -263,20 +321,16 @@ export async function orgHasModule(
   orgId: string,
   moduleId: ModuleId
 ): Promise<boolean> {
-  const module = MODULE_REGISTRY[moduleId];
+  const moduleDefinition = MODULE_REGISTRY[moduleId];
 
   // Core is always enabled
-  if (module?.isCore) {
+  if (moduleDefinition?.isCore) {
     return true;
   }
 
   try {
     const { data, error } = await supabase
-      .from('organization_modules')
-      .select('module_id')
-      .eq('organization_id', orgId)
-      .eq('module_id', moduleId)
-      .maybeSingle();
+      .rpc('org_has_module', { p_org_id: orgId, p_module: moduleId });
 
     if (error) {
       console.error('Error checking module:', error);
@@ -298,22 +352,10 @@ export async function getModuleConfig(
   orgId: string,
   moduleId: ModuleId
 ): Promise<Record<string, unknown> | null> {
-  try {
-    const { data, error } = await supabase
-      .from('organization_modules')
-      .select('config')
-      .eq('organization_id', orgId)
-      .eq('module_id', moduleId)
-      .maybeSingle();
-
-    if (error || !data) {
-      return null;
-    }
-
-    return data.config as Record<string, unknown>;
-  } catch {
-    return null;
-  }
+  void supabase;
+  void orgId;
+  void moduleId;
+  return null;
 }
 
 /**
@@ -325,20 +367,9 @@ export async function updateModuleConfig(
   moduleId: ModuleId,
   config: Record<string, unknown>
 ): Promise<{ success: boolean; error?: string }> {
-  try {
-    const { error } = await supabase
-      .from('organization_modules')
-      .update({ config })
-      .eq('organization_id', orgId)
-      .eq('module_id', moduleId);
-
-    if (error) {
-      return { success: false, error: error.message };
-    }
-
-    return { success: true };
-  } catch (err) {
-    const error = err instanceof Error ? err.message : 'Unknown error';
-    return { success: false, error };
-  }
+  void supabase;
+  void orgId;
+  void moduleId;
+  void config;
+  return { success: false, error: 'Module-specific config is not supported by the current organizations.modules schema' };
 }

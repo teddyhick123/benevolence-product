@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
       .insert({
         name: name.trim(),
         ein: ein?.trim() || null,
-        org_type: org_type || null,
+        org_type: org_type || 'private_foundation',
         org_type_config: {
           fiscal_year_end: fiscal_year_end || null,
           state_of_incorporation: state_of_incorporation?.trim() || null,
@@ -90,7 +90,12 @@ export async function POST(req: NextRequest) {
     let portfolio_id: string | null = null;
     const { data: portfolio, error: portfolioError } = await adminClient
       .from('portfolios')
-      .insert({ name: name.trim(), base_currency: 'USD' })
+      .insert({
+        org_id: org.id,
+        owner_id: user.id,
+        name: name.trim(),
+        settings: { base_currency: 'USD' },
+      })
       .select('id')
       .single();
 

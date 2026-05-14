@@ -234,7 +234,7 @@ export default function PledgeCreateModal({ orgId, prefillDonorId, prefillDonorN
                 </div>
               )}
               {frequency === 'custom' && (
-                <p className="text-xs text-neutral-500">You'll add installments manually in the next step.</p>
+                <p className="text-xs text-neutral-500">You&apos;ll add installments manually in the next step.</p>
               )}
             </>
           )}

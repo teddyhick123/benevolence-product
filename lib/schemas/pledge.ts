@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+const toCents = (amount: number) => Math.round(amount * 100);
+
 export const InstallmentInputSchema = z.object({
   due_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'due_date must be YYYY-MM-DD'),
   amount: z.number().positive('amount must be positive'),
@@ -22,7 +24,7 @@ export const CreatePledgeSchema = z.object({
   notes: z.string().optional(),
   installments: z.array(InstallmentInputSchema).min(1, 'at least one installment required'),
 }).refine(
-  data => Math.abs(data.installments.reduce((s, i) => s + i.amount, 0) - data.total_amount) < 0.02,
+  data => data.installments.reduce((s, i) => s + toCents(i.amount), 0) === toCents(data.total_amount),
   { message: 'Installment amounts must sum to total_amount', path: ['installments'] }
 );
 

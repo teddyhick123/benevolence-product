@@ -15,9 +15,9 @@ export interface Organization {
 
 export interface OrganizationMember {
   user_id: string;
-  organization_id: string;
+  org_id: string;
   role: OrgRole;
-  added_at: string;
+  created_at: string;
   profiles?: { display_name?: string | null } | null;
 }
 
@@ -111,12 +111,12 @@ export async function getOrganizationMembers(
     .from('organization_members')
     .select(`
       user_id,
-      organization_id,
+      org_id,
       role,
-      added_at,
+      created_at,
       profiles:user_id (display_name)
     `)
-    .eq('organization_id', orgId)
+    .eq('org_id', orgId)
     .order('role', { ascending: true });
 
   if (error) {

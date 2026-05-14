@@ -132,7 +132,7 @@ export default function ContributionForm({ organizationId, preselectedDonorId, o
           amount: parseFloat(amount),
           contribution_date: contributionDate,
           gift_type: contributionType,
-          designation: designation || null,
+          fund_designation: designation || null,
           is_restricted: isRestricted,
           quid_pro_quo_value: quidProQuo ? parseFloat(quidProQuo) : 0,
           campaign: campaign || null,

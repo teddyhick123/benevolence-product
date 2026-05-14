@@ -10,7 +10,6 @@
  */
 
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
-import { createBrowserClient } from '@/lib/supabase-browser';
 import type { ModuleId } from '@/lib/modules/types';
 import { MODULE_INFO, getModuleDependencies, canDisableModuleClient, getRouteModule } from '@/lib/modules/client-info';
 
@@ -40,7 +39,6 @@ export function ModuleProvider({ children, orgId }: ModuleProviderProps) {
   const [enabledModules, setEnabledModules] = useState<ModuleId[]>(['core']);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const supabase = createBrowserClient();
 
   const fetchModules = useCallback(async () => {
     if (!orgId) {
@@ -52,33 +50,21 @@ export function ModuleProvider({ children, orgId }: ModuleProviderProps) {
     setError(null);
 
     try {
-      const { data, error: fetchError } = await supabase
-        .from('organization_modules')
-        .select('module_id')
-        .eq('organization_id', orgId);
+      const res = await fetch(`/api/org/${orgId}/modules`, { cache: 'no-store' });
+      const data = await res.json();
 
-      if (fetchError) {
-        setError(fetchError.message);
+      if (!res.ok) {
+        setError(data.error ?? 'Failed to load modules');
         return;
       }
 
-      const modules: ModuleId[] = ['core'];
-      if (data) {
-        data.forEach((row: { module_id: string }) => {
-          const moduleId = row.module_id as ModuleId;
-          if (MODULE_INFO[moduleId] && !modules.includes(moduleId)) {
-            modules.push(moduleId);
-          }
-        });
-      }
-
-      setEnabledModules(modules);
+      setEnabledModules(data.enabledModules ?? ['core']);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load modules');
     } finally {
       setLoading(false);
     }
-  }, [orgId, supabase]);
+  }, [orgId]);
 
   useEffect(() => {
     fetchModules();
@@ -103,29 +89,15 @@ export function ModuleProvider({ children, orgId }: ModuleProviderProps) {
 
   const enableModule = useCallback(async (moduleId: ModuleId): Promise<{ success: boolean; error?: string }> => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        return { success: false, error: 'Not authenticated' };
-      }
+      const res = await fetch(`/api/org/${orgId}/modules`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'enable', moduleId }),
+      });
+      const data = await res.json();
 
-      // Get dependencies from shared helper (single source of truth)
-      const dependencies = getModuleDependencies(moduleId);
-      const modulesToEnable = [moduleId, ...dependencies];
-
-      for (const modId of modulesToEnable) {
-        const { error: insertError } = await supabase
-          .from('organization_modules')
-          .upsert({
-            organization_id: orgId,
-            module_id: modId,
-            enabled_by: user.id,
-          }, {
-            onConflict: 'organization_id,module_id',
-          });
-
-        if (insertError) {
-          return { success: false, error: insertError.message };
-        }
+      if (!res.ok) {
+        return { success: false, error: data.error ?? 'Failed to enable module' };
       }
 
       await fetchModules();
@@ -133,7 +105,7 @@ export function ModuleProvider({ children, orgId }: ModuleProviderProps) {
     } catch (err) {
       return { success: false, error: err instanceof Error ? err.message : 'Unknown error' };
     }
-  }, [orgId, supabase, fetchModules]);
+  }, [orgId, fetchModules]);
 
   const disableModule = useCallback(async (moduleId: ModuleId): Promise<{ success: boolean; error?: string }> => {
     // Use shared helper for dependency checking (single source of truth)
@@ -147,14 +119,15 @@ export function ModuleProvider({ children, orgId }: ModuleProviderProps) {
     }
 
     try {
-      const { error: deleteError } = await supabase
-        .from('organization_modules')
-        .delete()
-        .eq('organization_id', orgId)
-        .eq('module_id', moduleId);
+      const res = await fetch(`/api/org/${orgId}/modules`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'disable', moduleId }),
+      });
+      const data = await res.json();
 
-      if (deleteError) {
-        return { success: false, error: deleteError.message };
+      if (!res.ok) {
+        return { success: false, error: data.error ?? 'Failed to disable module' };
       }
 
       await fetchModules();
@@ -162,7 +135,7 @@ export function ModuleProvider({ children, orgId }: ModuleProviderProps) {
     } catch (err) {
       return { success: false, error: err instanceof Error ? err.message : 'Unknown error' };
     }
-  }, [orgId, supabase, enabledModules, fetchModules]);
+  }, [orgId, enabledModules, fetchModules]);
 
   const value: ModuleContextType = {
     enabledModules,

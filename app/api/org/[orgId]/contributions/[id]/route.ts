@@ -13,7 +13,7 @@ function normalizeContribution(row: any) {
     organization_id: row.org_id,
     designation: row.fund_designation,
     restriction_description: row.restriction_purpose,
-    receipt_status: row.acknowledgment_sent ? "sent" : "pending",
+    receipt_status: row.receipt_status ?? (row.acknowledgment_sent ? "sent" : "pending"),
     acknowledgment_status: row.acknowledgment_sent ? "sent" : "pending",
   };
 }

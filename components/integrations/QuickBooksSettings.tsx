@@ -330,7 +330,7 @@ export default function QuickBooksSettings({ orgId }: Props) {
                 <span className="mt-0.5 text-base leading-none">⚠️</span>
                 <div className="flex-1">
                   <p className="font-medium">QuickBooks token has expired.</p>
-                  <p className="text-xs mt-0.5">Exports are disabled until you reconnect. Click "Reconnect" to authorize again.</p>
+                  <p className="text-xs mt-0.5">Exports are disabled until you reconnect. Click &quot;Reconnect&quot; to authorize again.</p>
                 </div>
                 <button
                   onClick={handleConnect}

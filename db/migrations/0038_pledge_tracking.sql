@@ -401,6 +401,8 @@ DECLARE
   v_pledge_id  uuid;
   v_inst       jsonb;
   v_inst_sum   numeric := 0;
+  v_inst_sum_cents bigint := 0;
+  v_total_cents bigint;
   v_inst_count int;
   v_actor      uuid;
 BEGIN
@@ -421,9 +423,11 @@ BEGIN
     IF (v_inst->>'amount')::numeric <= 0 THEN RAISE EXCEPTION 'Installment amount must be greater than zero'; END IF;
     IF (v_inst->>'due_date') IS NULL       THEN RAISE EXCEPTION 'Installment due_date is required'; END IF;
     v_inst_sum := v_inst_sum + (v_inst->>'amount')::numeric;
+    v_inst_sum_cents := v_inst_sum_cents + ROUND((v_inst->>'amount')::numeric * 100);
   END LOOP;
 
-  IF ABS(v_inst_sum - p_total_amount) > 0.01 THEN
+  v_total_cents := ROUND(p_total_amount * 100);
+  IF v_inst_sum_cents != v_total_cents THEN
     RAISE EXCEPTION 'Installment sum (%) does not equal pledge total (%)', v_inst_sum, p_total_amount;
   END IF;
 
@@ -505,7 +509,7 @@ BEGIN
       ) VALUES (
         p_org_id, v_pledge.donor_id, v_inst.amount, v_pledge.currency,
         COALESCE(p_paid_at::date, CURRENT_DATE), 'pledge',
-        p_pledge_id, p_installment_id, true
+        p_pledge_id, p_installment_id, false
       ) RETURNING id INTO v_contrib_id;
     ELSIF p_contribution_id IS NOT NULL THEN
       IF NOT EXISTS (

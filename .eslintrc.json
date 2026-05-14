@@ -12,6 +12,8 @@
     "node_modules/",
     ".next/",
     "out/",
-    "public/"
+    "public/",
+    "templates/module/",
+    ".claude/"
   ]
 }

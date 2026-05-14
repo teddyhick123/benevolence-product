@@ -38,7 +38,7 @@ export async function GET() {
   // Fetch org membership
   const { data: orgMembership } = await supabase
     .from('organization_members')
-    .select('organization_id')
+    .select('org_id')
     .eq('user_id', user.id)
     .maybeSingle();
 
@@ -81,7 +81,7 @@ export async function GET() {
     // keep the explicit field as well for newer callers
     recommended_portfolio_id,
     // org membership
-    organization_id: orgMembership?.organization_id ?? null,
+    organization_id: orgMembership?.org_id ?? null,
     error: null,
   }, { headers: { 'Cache-Control': 'no-store' } });
 }

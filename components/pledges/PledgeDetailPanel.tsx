@@ -161,13 +161,13 @@ export default function PledgeDetailPanel({ orgId, pledgeId, onClose, onChanged 
                           <div className="grid grid-cols-2 gap-2">
                             <div>
                               <label className="text-xs text-neutral-500 mb-1 block">Paid date</label>
-                              <input type="date" value={payForm.paidAt}
+                              <input type="date" value={payForm?.paidAt ?? ''}
                                 onChange={e => setPayForm(f => f ? { ...f, paidAt: e.target.value } : f)}
                                 className="w-full px-2 py-1.5 text-xs border border-neutral-300 rounded focus:ring-1 focus:ring-azure focus:outline-none" />
                             </div>
                             <div>
                               <label className="text-xs text-neutral-500 mb-1 block">Reference (optional)</label>
-                              <input value={payForm.payRef}
+                              <input value={payForm?.payRef ?? ''}
                                 onChange={e => setPayForm(f => f ? { ...f, payRef: e.target.value } : f)}
                                 className="w-full px-2 py-1.5 text-xs border border-neutral-300 rounded focus:ring-1 focus:ring-azure focus:outline-none" />
                             </div>
@@ -175,7 +175,7 @@ export default function PledgeDetailPanel({ orgId, pledgeId, onClose, onChanged 
                           <div className="flex gap-2 justify-end">
                             <button onClick={() => setPayForm(null)} className="text-xs text-neutral-500 hover:text-neutral-700">Cancel</button>
                             <button
-                              onClick={() => doAction(inst.id, 'mark_paid', { paid_at: payForm.paidAt ? new Date(payForm.paidAt).toISOString() : undefined, payment_ref: payForm.payRef || undefined, create_contribution: true })}
+                              onClick={() => doAction(inst.id, 'mark_paid', { paid_at: payForm?.paidAt ? new Date(payForm.paidAt).toISOString() : undefined, payment_ref: payForm?.payRef || undefined, create_contribution: true })}
                               disabled={!!isActing}
                               className="px-3 py-1 text-xs font-medium bg-azure text-white rounded hover:bg-azure/90 disabled:opacity-50">
                               {isActing ? 'Saving…' : 'Confirm Payment'}

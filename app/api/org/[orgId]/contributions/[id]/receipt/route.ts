@@ -110,6 +110,9 @@ ${org?.name || "The Organization"}`;
       .update({
         acknowledgment_sent: !!(send_immediately && donor?.email),
         acknowledged_at: new Date().toISOString(),
+        receipt_status: send_immediately && donor?.email ? "sent" : "generated",
+        receipt_generated_at: new Date().toISOString(),
+        receipt_sent_at: send_immediately && donor?.email ? new Date().toISOString() : null,
       })
       .eq("id", id)
       .eq("org_id", orgId);

@@ -141,13 +141,13 @@ export async function POST(req: NextRequest) {
       // Check if user has an organization membership
       const { data: userOrg } = await sb
         .from('organization_members')
-        .select('organization_id')
+        .select('org_id')
         .eq('user_id', user.id)
         .limit(1)
         .maybeSingle();
 
-      if (userOrg?.organization_id) {
-        orgId = userOrg.organization_id;
+      if (userOrg?.org_id) {
+        orgId = userOrg.org_id;
       }
     }
 

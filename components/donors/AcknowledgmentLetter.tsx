@@ -7,7 +7,7 @@ type Donor = {
   first_name: string | null;
   last_name: string | null;
   organization_name: string | null;
-  donor_type: string;
+  is_organization: boolean;
   email: string | null;
   address_line1: string | null;
   city: string | null;
@@ -58,7 +58,7 @@ export default function AcknowledgmentLetter({
   const [sendImmediately, setSendImmediately] = useState(false);
   const [previewMode, setPreviewMode] = useState(true);
 
-  const donorName = donor.donor_type === 'individual'
+  const donorName = !donor.is_organization
     ? `${donor.first_name || ''} ${donor.last_name || ''}`.trim() || 'Valued Donor'
     : donor.organization_name || 'Valued Donor';
 
@@ -331,7 +331,7 @@ ${organization.name}`;
 
         {!donor.email && (
           <p className="text-sm text-amber-600 p-3 bg-amber-50 rounded-lg">
-            No email address on file for this donor. The letter will be created but you'll need to send it manually or add an email address.
+            No email address on file for this donor. The letter will be created but you&apos;ll need to send it manually or add an email address.
           </p>
         )}
       </div>

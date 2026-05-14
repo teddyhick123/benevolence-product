@@ -6,7 +6,7 @@ type Contribution = {
   id: string;
   amount: number;
   contribution_date: string;
-  contribution_type: string;
+  gift_type: string;
   quid_pro_quo_value: number;
   tax_deductible_amount: number;
   receipt_number: string | null;
@@ -16,7 +16,7 @@ type Contribution = {
     first_name: string | null;
     last_name: string | null;
     organization_name: string | null;
-    donor_type: string;
+    is_organization: boolean;
     email: string | null;
     address_line1: string | null;
     city: string | null;
@@ -46,7 +46,7 @@ export default function ReceiptGenerator({ organizationId, contribution, organiz
 
   const donor = contribution.donors;
   const donorName = donor
-    ? donor.donor_type === 'individual'
+    ? !donor.is_organization
       ? `${donor.first_name || ''} ${donor.last_name || ''}`.trim() || 'Donor'
       : donor.organization_name || 'Donor'
     : 'Donor';
@@ -64,7 +64,7 @@ This letter serves as your official receipt for tax purposes.
 Contribution Details:
 - Date: ${new Date(contribution.contribution_date).toLocaleDateString()}
 - Amount: $${contribution.amount.toLocaleString()}
-- Type: ${contribution.contribution_type.replace('_', ' ')}
+- Type: ${contribution.gift_type.replace('_', ' ')}
 ${contribution.receipt_number ? `- Receipt Number: ${contribution.receipt_number}` : ''}
 ${contribution.designation ? `- Designation: ${contribution.designation}` : ''}
 
@@ -210,7 +210,7 @@ ${organization.name}`;
 
           {!donor?.email && (
             <p className="text-sm text-amber-600 p-3 bg-amber-50 rounded-lg">
-              No email address on file for this donor. The receipt will be generated but you'll need to send it manually.
+              No email address on file for this donor. The receipt will be generated but you&apos;ll need to send it manually.
             </p>
           )}
         </div>

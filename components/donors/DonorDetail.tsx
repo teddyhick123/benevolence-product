@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase-browser';
 
 type Donor = {
   id: string;
-  donor_type: string;
+  is_organization: boolean;
   first_name: string | null;
   last_name: string | null;
   email: string | null;
@@ -36,7 +36,7 @@ type Contribution = {
   id: string;
   contribution_date: string;
   amount: number;
-  contribution_type: string;
+  gift_type: string;
   designation: string | null;
   receipt_status: string;
   receipt_number: string | null;
@@ -183,7 +183,7 @@ export default function DonorDetail({ organizationId, donorId, onEdit }: Props) 
     );
   }
 
-  const displayName = donor.donor_type === 'individual'
+  const displayName = !donor.is_organization
     ? `${donor.first_name || ''} ${donor.last_name || ''}`.trim() || 'Unknown'
     : donor.organization_name || 'Unknown';
 
@@ -207,7 +207,7 @@ export default function DonorDetail({ organizationId, donorId, onEdit }: Props) 
                 {recencyStatus}
               </span>
               <span className="px-2 py-0.5 rounded text-xs bg-gray-100 text-gray-700 capitalize">
-                {donor.donor_type}
+                {donor.is_organization ? 'Organization' : 'Individual'}
               </span>
             </div>
           </div>
@@ -335,7 +335,7 @@ export default function DonorDetail({ organizationId, donorId, onEdit }: Props) 
                     <tr key={contrib.id} className="hover:bg-gray-50">
                       <td className="px-4 py-3 text-sm">{formatDate(contrib.contribution_date)}</td>
                       <td className="px-4 py-3 text-sm text-right font-medium">{formatCurrency(contrib.amount)}</td>
-                      <td className="px-4 py-3 text-sm capitalize">{contrib.contribution_type.replace('_', ' ')}</td>
+                      <td className="px-4 py-3 text-sm capitalize">{contrib.gift_type.replace('_', ' ')}</td>
                       <td className="px-4 py-3 text-sm text-gray-600">{contrib.designation || '-'}</td>
                       <td className="px-4 py-3 text-sm">
                         {contrib.receipt_number ? (

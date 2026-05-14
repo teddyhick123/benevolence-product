@@ -18,7 +18,7 @@ type ReceiptData = {
     first_name: string | null;
     last_name: string | null;
     organization_name: string | null;
-    donor_type: string;
+    is_organization: boolean;
     email: string | null;
   } | null;
 };
@@ -53,7 +53,7 @@ export default function ReceiptsPage() {
               first_name,
               last_name,
               organization_name,
-              donor_type,
+              is_organization,
               email
             )
           `)
@@ -61,7 +61,7 @@ export default function ReceiptsPage() {
           .gte('amount', 250) // IRS threshold
           .order('contribution_date', { ascending: false });
 
-        if (!error) setReceipts(data || []);
+        if (!error) setReceipts((data as unknown as ReceiptData[]) || []);
       } catch (err) {
         console.error('Error fetching receipts:', err);
       } finally {
@@ -91,7 +91,7 @@ export default function ReceiptsPage() {
 
   const getDonorName = (donor: ReceiptData['donors']) => {
     if (!donor) return 'Unknown';
-    if (donor.donor_type === 'individual') {
+    if (!donor.is_organization) {
       return `${donor.first_name || ''} ${donor.last_name || ''}`.trim() || 'Unknown';
     }
     return donor.organization_name || 'Unknown';

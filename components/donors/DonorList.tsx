@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase-browser';
 
 type DonorSummary = {
   donor_id: string;
-  donor_type: string;
+  is_organization: boolean;
   display_name: string;
   email: string | null;
   is_anonymous: boolean;
@@ -47,7 +47,7 @@ export default function DonorList({ organizationId, onDonorSelect }: Props) {
       const { data, error } = await supabase
         .from('v_donor_summary')
         .select('*')
-        .eq('organization_id', organizationId)
+        .eq('org_id', organizationId)
         .order(sortField, { ascending: sortDir === 'asc' });
 
       if (error) throw error;
@@ -76,7 +76,7 @@ export default function DonorList({ organizationId, onDonorSelect }: Props) {
     }
 
     if (donorTypeFilter) {
-      filtered = filtered.filter(d => d.donor_type === donorTypeFilter);
+      filtered = filtered.filter(d => donorTypeFilter === 'individual' ? !d.is_organization : d.is_organization);
     }
 
     if (tierFilter) {
@@ -318,7 +318,7 @@ export default function DonorList({ organizationId, onDonorSelect }: Props) {
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <span className="text-sm text-gray-600 capitalize">{donor.donor_type}</span>
+                      <span className="text-sm text-gray-600 capitalize">{donor.is_organization ? 'Organization' : 'Individual'}</span>
                     </td>
                     <td className="px-6 py-4">
                       <span className={`px-2 py-0.5 rounded text-xs font-medium capitalize ${getTierBadge(donor.donor_tier)}`}>

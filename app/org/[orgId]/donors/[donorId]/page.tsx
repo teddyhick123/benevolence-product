@@ -13,7 +13,7 @@ type Donor = {
   first_name: string | null;
   last_name: string | null;
   organization_name: string | null;
-  donor_type: string;
+  is_organization: boolean;
   email: string | null;
   address_line1: string | null;
   city: string | null;
@@ -31,7 +31,7 @@ type Contribution = {
   id: string;
   amount: number;
   contribution_date: string;
-  contribution_type: string;
+  gift_type: string;
   quid_pro_quo_value: number;
   tax_deductible_amount: number;
   receipt_number: string | null;
@@ -127,7 +127,7 @@ export default function DonorDetailPage() {
     );
   }
 
-  const displayName = donor.donor_type === 'individual'
+  const displayName = !donor.is_organization
     ? `${donor.first_name || ''} ${donor.last_name || ''}`.trim() || 'Unknown'
     : donor.organization_name || 'Unknown';
 
@@ -264,7 +264,7 @@ export default function DonorDetailPage() {
                 } finally { setEditSaving(false); }
               }}
             >
-              {donor.donor_type === 'individual' ? (
+              {!donor.is_organization ? (
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-medium text-gray-700 mb-1">First Name</label>

@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase-browser';
 
 type Donor = {
   id: string;
-  donor_type: string;
+  is_organization: boolean;
   first_name: string | null;
   last_name: string | null;
   organization_name: string | null;
@@ -54,8 +54,8 @@ export default function ContributionForm({ organizationId, preselectedDonorId, o
       const supabase = createClient();
       const { data } = await supabase
         .from('donors')
-        .select('id, donor_type, first_name, last_name, organization_name, email')
-        .eq('organization_id', organizationId)
+        .select('id, is_organization, first_name, last_name, organization_name, email')
+        .eq('org_id', organizationId)
         .order('last_name', { ascending: true });
 
       setDonors(data || []);
@@ -72,7 +72,7 @@ export default function ContributionForm({ organizationId, preselectedDonorId, o
   }, [organizationId, preselectedDonorId]);
 
   const getDonorDisplayName = (donor: Donor) => {
-    if (donor.donor_type === 'individual') {
+    if (!donor.is_organization) {
       return `${donor.first_name || ''} ${donor.last_name || ''}`.trim() || 'Unknown';
     }
     return donor.organization_name || 'Unknown';
@@ -104,13 +104,13 @@ export default function ContributionForm({ organizationId, preselectedDonorId, o
 
       // Create new donor if needed
       if (createNewDonor) {
-        const isOrg = ['foundation', 'corporation', 'government'].includes(newDonorType);
+        const isOrg = newDonorType !== 'individual';
 
         const { data: newDonor, error: donorError } = await supabase
           .from('donors')
           .insert({
-            organization_id: organizationId,
-            donor_type: newDonorType,
+            org_id: organizationId,
+            is_organization: isOrg,
             first_name: isOrg ? null : newDonorFirstName || null,
             last_name: isOrg ? null : newDonorLastName || null,
             organization_name: isOrg ? newDonorOrgName || null : null,
@@ -127,11 +127,11 @@ export default function ContributionForm({ organizationId, preselectedDonorId, o
       const { data: contribution, error: contribError } = await supabase
         .from('contributions_received')
         .insert({
-          organization_id: organizationId,
+          org_id: organizationId,
           donor_id: finalDonorId || null,
           amount: parseFloat(amount),
           contribution_date: contributionDate,
-          contribution_type: contributionType,
+          gift_type: contributionType,
           designation: designation || null,
           is_restricted: isRestricted,
           quid_pro_quo_value: quidProQuo ? parseFloat(quidProQuo) : 0,

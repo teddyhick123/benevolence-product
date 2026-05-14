@@ -4,6 +4,19 @@ A modular, white-label platform for philanthropic organizations. Clone this temp
 
 **Branding**: All branding is configured in `/lib/config/branding.ts` and environment variables. See `.env.example`.
 
+## Database Schema Canon
+
+**`db/migrations` is the single source of truth.** Any SQL outside that directory is stale and must not be treated as authoritative. When in doubt about a table name, column name, or function, read the relevant migration file — do not guess.
+
+Key invariants that differ from older patterns or documentation you may encounter elsewhere:
+- All org-scoped tables use **`org_id`** (not `organization_id`) as the FK column name.
+- The `organization_members` table uses **`org_id`** (not `organization_id`).
+- The RLS helper for membership is **`can_view_org(p_org_id)`** (not `is_org_member`).
+- The role lookup function is **`user_org_role(p_org_id)`** (not `org_role`).
+- The app-level admin check is **`is_app_admin()`** (not `is_admin`).
+- The `organization_modules` table does **not** exist. Module state lives in `organizations.modules` JSONB checked via `org_has_module(p_org_id, p_module)` — parameter is `p_module`, not `p_module_id`.
+- Module slugs in the database: `portfolio`, `donors`, `pledges`, `tax`, `compliance`, `reports`, `grant_management`, `impact_tracking`, `analytics`, `external_data`, `quickbooks`, `import`, `ai_assistant`. Use these exact slugs with `org_has_module` unless an alias is defined in the function body (aliases: `pledge_tracking→pledges`, `donor_management→donors`, `tax_optimization→tax`, `compliance_regulatory→compliance`, `reporting→reports`, `core→portfolio`).
+
 ## Documentation
 
 | Document | Purpose |
@@ -24,7 +37,7 @@ A modular, white-label platform for philanthropic organizations. Clone this temp
 | AI Tool Executors | `/lib/claude-assistant.ts` (lines 1290-5511) |
 | AI Validators | `/lib/ai/validators.ts` |
 | AI Types | `/lib/ai/types.ts` |
-| Database Migrations | `/db/NNNN_description.sql` |
+| Database Migrations | `/db/migrations/NNNN_description.sql` |
 | API Routes | `/app/api/**/*.ts` |
 | Components | `/components/**/*.tsx` |
 | Module Context | `/contexts/ModuleContext.tsx` |
@@ -133,7 +146,7 @@ You can help with new module functionality. Available actions include:
 
 ### Step 2: Create Database Migration
 
-Create `/db/NNNN_new_module.sql`:
+Create `/db/migrations/NNNN_new_module.sql`:
 
 ```sql
 -- Migration: New Module Name
@@ -142,8 +155,8 @@ Create `/db/NNNN_new_module.sql`:
 
 -- 1. CREATE TABLES
 CREATE TABLE IF NOT EXISTS public.new_module_table (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  organization_id UUID NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
+  id         UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id     UUID        NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
   -- Fields here
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -151,20 +164,21 @@ CREATE TABLE IF NOT EXISTS public.new_module_table (
 
 -- 2. CREATE INDEXES
 CREATE INDEX IF NOT EXISTS idx_new_module_table_org_id
-  ON public.new_module_table(organization_id);
+  ON public.new_module_table(org_id);
 
 -- 3. ENABLE RLS
 ALTER TABLE public.new_module_table ENABLE ROW LEVEL SECURITY;
 
 -- 4. CREATE RLS POLICIES
+-- Use can_view_org (member read) and is_org_admin (write). NOT is_org_member — that function does not exist.
 CREATE POLICY "new_module_table_read" ON public.new_module_table
   FOR SELECT TO authenticated
-  USING (public.is_org_member(organization_id));
+  USING (public.can_view_org(org_id));
 
 CREATE POLICY "new_module_table_write" ON public.new_module_table
   FOR ALL TO authenticated
-  USING (public.is_org_admin(organization_id))
-  WITH CHECK (public.is_org_admin(organization_id));
+  USING (public.is_org_admin(org_id))
+  WITH CHECK (public.is_org_admin(org_id));
 
 CREATE POLICY "new_module_table_service" ON public.new_module_table
   FOR ALL TO service_role
@@ -284,7 +298,7 @@ export async function GET(
     const sb = supabaseService();
     const { data: hasModule } = await sb.rpc('org_has_module', {
       p_org_id: orgId,
-      p_module_id: 'new_module'
+      p_module: 'new_module',   // parameter is p_module, NOT p_module_id
     });
     if (!hasModule) {
       return NextResponse.json({ error: 'Module not enabled' }, { status: 403 });
@@ -294,7 +308,7 @@ export async function GET(
     const { data, error } = await sb
       .from('new_module_table')
       .select('*')
-      .eq('organization_id', orgId);
+      .eq('org_id', orgId);
 
     if (error) throw error;
 
@@ -367,7 +381,7 @@ export default async function NewModulePage() {
   // Get user's org
   const { data: membership } = await supabase
     .from('organization_members')
-    .select('organization_id')
+    .select('org_id')
     .eq('user_id', user.id)
     .single();
 
@@ -376,7 +390,7 @@ export default async function NewModulePage() {
   return (
     <div className="p-6">
       <h1 className="text-2xl font-semibold mb-6">New Module</h1>
-      <NewModuleList orgId={membership.organization_id} />
+      <NewModuleList orgId={membership.org_id} />
     </div>
   );
 }
@@ -413,18 +427,30 @@ const { data: { user } } = await supabase.auth.getUser();
 ### Database RLS Functions
 
 ```sql
--- Check if user is member of organization
-public.is_org_member(org_id UUID) RETURNS BOOLEAN
+-- Check if current user can VIEW the org (member or higher)
+public.can_view_org(p_org_id UUID) RETURNS BOOLEAN
 
--- Check if user is admin of organization
-public.is_org_admin(org_id UUID) RETURNS BOOLEAN
+-- Check if current user can EDIT the org (admin or higher)
+public.can_edit_org(p_org_id UUID) RETURNS BOOLEAN
 
--- Check if organization has module enabled
-public.org_has_module(p_org_id UUID, p_module_id TEXT) RETURNS BOOLEAN
+-- Check if current user is an admin of the org
+public.is_org_admin(p_org_id UUID) RETURNS BOOLEAN
 
--- Get user's role in organization
-public.org_role(org_id UUID) RETURNS TEXT
+-- Check if current user is the platform-level app admin
+public.is_app_admin() RETURNS BOOLEAN
+
+-- Get current user's role in org ('owner' | 'admin' | 'member' | 'viewer')
+public.user_org_role(p_org_id UUID) RETURNS TEXT
+
+-- Check if role is >= a minimum level
+public.org_role_gte(p_org_id UUID, p_min_role TEXT) RETURNS BOOLEAN
+
+-- Check if organization has module enabled (checks organizations.modules JSONB)
+-- Parameter is p_module, NOT p_module_id
+public.org_has_module(p_org_id UUID, p_module TEXT) RETURNS BOOLEAN
 ```
+
+> **Note:** `is_org_member`, `org_role`, and `is_admin` do **not** exist. Use `can_view_org`, `user_org_role`, and `is_app_admin` respectively.
 
 ### API Response Patterns
 
@@ -468,25 +494,25 @@ return NextResponse.json(
 
 ### Common Columns
 ```sql
-id UUID PRIMARY KEY DEFAULT gen_random_uuid()
-organization_id UUID REFERENCES public.organizations(id)
-portfolio_id UUID REFERENCES public.portfolios(id)
+id         UUID        PRIMARY KEY DEFAULT gen_random_uuid()
+org_id     UUID        REFERENCES public.organizations(id)   -- NOT organization_id
+portfolio_id UUID      REFERENCES public.portfolios(id)
 created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 ```
 
 ### RLS Pattern
 ```sql
--- Read: members can read
+-- Read: members can read (use can_view_org, NOT is_org_member — that function does not exist)
 CREATE POLICY "table_read" ON public.table_name
   FOR SELECT TO authenticated
-  USING (public.is_org_member(organization_id));
+  USING (public.can_view_org(org_id));
 
 -- Write: admins can write
 CREATE POLICY "table_write" ON public.table_name
   FOR ALL TO authenticated
-  USING (public.is_org_admin(organization_id))
-  WITH CHECK (public.is_org_admin(organization_id));
+  USING (public.is_org_admin(org_id))
+  WITH CHECK (public.is_org_admin(org_id));
 
 -- Service role: full access
 CREATE POLICY "table_service" ON public.table_name

@@ -57,7 +57,7 @@ export default function ReceiptsPage() {
               email
             )
           `)
-          .eq('organization_id', organizationId)
+          .eq('org_id', organizationId)
           .gte('amount', 250) // IRS threshold
           .order('contribution_date', { ascending: false });
 

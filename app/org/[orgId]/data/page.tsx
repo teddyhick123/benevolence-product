@@ -40,7 +40,7 @@ async function loadDataPageData(orgId: string) {
         portfolio_id
       )
     `)
-    .eq("organization_id", orgId)
+    .eq("org_id", orgId)
     .not("verified_at", "is", null);
 
   // Load pending staging facts

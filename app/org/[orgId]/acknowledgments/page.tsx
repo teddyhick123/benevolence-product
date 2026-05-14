@@ -61,7 +61,7 @@ export default function AcknowledgmentsPage() {
               contribution_date
             )
           `)
-          .eq('organization_id', organizationId)
+          .eq('org_id', organizationId)
           .order('created_at', { ascending: false });
 
         if (!error) setAcknowledgments(data || []);

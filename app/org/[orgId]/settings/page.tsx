@@ -44,7 +44,7 @@ async function loadSettingsData(orgId: string) {
   const { data: holdingLinks } = await supabase
     .from("organization_holdings")
     .select(`
-      organization_id,
+      org_id,
       holding_id,
       verified_at,
       verified_by,
@@ -56,7 +56,7 @@ async function loadSettingsData(orgId: string) {
         portfolios (name)
       )
     `)
-    .eq("organization_id", orgId);
+    .eq("org_id", orgId);
 
   return {
     error: null,

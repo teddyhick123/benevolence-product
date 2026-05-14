@@ -33,12 +33,12 @@ async function loadMembersData(orgId: string) {
     .from("organization_members")
     .select(`
       user_id,
-      organization_id,
+      org_id,
       role,
-      added_at,
+      created_at,
       profiles:user_id (display_name)
     `)
-    .eq("organization_id", orgId)
+    .eq("org_id", orgId)
     .order("role", { ascending: true });
 
   if (membersError) {

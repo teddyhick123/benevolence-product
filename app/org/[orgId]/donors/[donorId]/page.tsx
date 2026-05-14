@@ -68,7 +68,7 @@ export default function DonorDetailPage() {
             .from('donors')
             .select('*')
             .eq('id', donorId)
-            .eq('organization_id', organizationId)
+            .eq('org_id', organizationId)
             .single(),
           supabase
             .from('organizations')

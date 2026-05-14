@@ -1,25 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
-import OpenAI from 'openai';
 import { cookies } from 'next/headers';
 import { createServerClient } from '@supabase/ssr';
 import { aiAuthRequired } from '@/lib/rate-limit-response';
+import { transcribeAudio } from '@/lib/ai/transcription';
 
 export const runtime = 'nodejs';
 export const maxDuration = 30;
 
 /**
  * POST /api/ai/transcribe
- * Transcribe audio to text using OpenAI Whisper
+ * Transcribe audio to text using the configured transcription provider.
  * REQUIRES AUTHENTICATION - No anonymous AI access allowed
  */
 export async function POST(req: NextRequest) {
   try {
-    // Verify env vars
-    const { OPENAI_API_KEY } = process.env;
-    if (!OPENAI_API_KEY) {
-      return NextResponse.json({ error: 'Missing OPENAI_API_KEY' }, { status: 500 });
-    }
-
     // Get authenticated user
     const cookieStore = await cookies();
     const supabase = createServerClient(
@@ -55,19 +49,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'No audio file provided' }, { status: 400 });
     }
 
-    // Initialize OpenAI
-    const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
-
-    // Convert File to the format Whisper expects
-    const transcription = await openai.audio.transcriptions.create({
-      file: audioFile,
-      model: 'whisper-1',
-      language: 'en', // Can make this configurable
-      response_format: 'json',
-    });
+    const text = await transcribeAudio(audioFile);
 
     return NextResponse.json({
-      text: transcription.text,
+      text,
       success: true,
     });
 

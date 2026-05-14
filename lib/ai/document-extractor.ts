@@ -1,4 +1,5 @@
-import OpenAI from 'openai';
+import { AI_MODELS } from '@/lib/ai/models';
+import { generateText } from '@/lib/ai/text';
 
 export type ExtractedFact = {
   metric_code: string;
@@ -130,7 +131,7 @@ Be conservative and only extract information that is clearly stated in the docum
 }
 
 /**
- * Extract structured KPI facts from document text using OpenAI
+ * Extract structured KPI facts from document text using the configured AI provider.
  */
 export async function extractFactsFromText(
   text: string,
@@ -140,13 +141,6 @@ export async function extractFactsFromText(
     holdingName?: string;
   }
 ): Promise<ExtractionResult> {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) {
-    throw new Error('OPENAI_API_KEY environment variable is not set');
-  }
-
-  const openai = new OpenAI({ apiKey });
-
   // Build the system prompt based on mode
   const systemPrompt = buildSystemPrompt(options?.restrictedMetrics);
 
@@ -160,30 +154,27 @@ export async function extractFactsFromText(
   userPrompt += `Document text:\n${text.slice(0, 15000)}`; // Limit to ~15k chars to stay within token limits
 
   try {
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt },
-      ],
+    const content = await generateText({
+      model: AI_MODELS.assistant,
+      system: systemPrompt,
+      prompt: userPrompt,
       temperature: 0,
-      response_format: { type: 'json_object' },
+      maxTokens: 4096,
     });
 
-    const content = completion.choices[0]?.message?.content;
     if (!content) {
-      throw new Error('OpenAI returned empty response');
+      throw new Error('AI provider returned empty response');
     }
 
     let result: any;
     try {
       result = JSON.parse(content);
     } catch (e) {
-      throw new Error(`OpenAI did not return valid JSON: ${content}`);
+      throw new Error(`AI provider did not return valid JSON: ${content}`);
     }
 
     if (!result || !Array.isArray(result.facts)) {
-      throw new Error('OpenAI response missing "facts" array');
+      throw new Error('AI provider response missing "facts" array');
     }
 
     // Validate and filter facts
@@ -251,9 +242,6 @@ export async function extractFactsFromText(
       summary: result.summary || undefined,
     };
   } catch (error) {
-    if (error instanceof OpenAI.APIError) {
-      throw new Error(`OpenAI API error: ${error.message}`);
-    }
     throw error;
   }
 }

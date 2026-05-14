@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient, createAdminClient } from "@/lib/supabase";
 import { parseDocumentChunked } from "@/lib/document-parser";
-import { extractFactsFromText } from "@/lib/openai-extractor";
+import { extractFactsFromText } from "@/lib/ai/document-extractor";
 
 export const runtime = "nodejs";
 export const maxDuration = 300; // 5 minutes for large file processing

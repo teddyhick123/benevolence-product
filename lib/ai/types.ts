@@ -27,6 +27,7 @@ export type AIAction = {
   status: 'applied' | 'undone' | 'redone';
   batchId?: string;
   sequenceOrder?: number;
+  initiatedBy?: 'ai' | 'user' | 'import' | 'system';
 };
 
 /**

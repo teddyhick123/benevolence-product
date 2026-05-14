@@ -1,11 +1,10 @@
 // app/api/portfolio/[id]/summary/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseServerClient } from '@/lib/supabase';
-import Anthropic from '@anthropic-ai/sdk';
 import { aiLimiter } from '@/lib/rate-limit';
 import { aiAuthRequired, rateLimitExceeded } from '@/lib/rate-limit-response';
-
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+import { AI_MODELS } from '@/lib/ai/models';
+import { generateText } from '@/lib/ai/text';
 
 export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const { id: portfolio_id } = await ctx.params;
@@ -56,14 +55,13 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
   const systemPrompt = `You are a concise portfolio analyst. Produce a short, plain-English summary (<120 words) of this portfolio's recent activity and progress vs. targets. Be specific but neutral, and include 1–2 concrete highlights and any material gaps vs. goals.`;
 
   try {
-    const msg = await anthropic.messages.create({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 256,
+    const content = await generateText({
+      model: AI_MODELS.assistant,
+      maxTokens: 256,
       system: systemPrompt,
-      messages: [{ role: 'user', content: lines.join('\n') }],
+      prompt: lines.join('\n'),
     });
-    const content = (msg.content[0] as { type: string; text: string })?.text || 'No summary available.';
-    return NextResponse.json({ summary: content });
+    return NextResponse.json({ summary: content || 'No summary available.' });
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Unknown error';
     return NextResponse.json({ summary: `AI summary unavailable: ${msg}` }, { status: 200 });

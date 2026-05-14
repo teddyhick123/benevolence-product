@@ -336,7 +336,7 @@ Just ask me anything, and I'll help you out! If you don't like a change I make, 
         setIsTranscribing(true);
         const audioBlob = await stopRecording();
 
-        // Send to Whisper API
+        // Send to transcription API
         const formData = new FormData();
         formData.append('audio', audioBlob, 'recording.webm');
 

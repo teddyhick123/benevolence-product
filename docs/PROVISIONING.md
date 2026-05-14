@@ -15,7 +15,7 @@ Each client gets:
 - GitHub account with access to template repo
 - Supabase account (client pays for their project)
 - Vercel account (client pays for their deployment)
-- Anthropic API key (client provides or you manage)
+- AI provider API key (client provides or you manage; Anthropic is the default provider)
 
 ---
 
@@ -92,7 +92,8 @@ NEXT_PUBLIC_SUPABASE_URL="https://xxx.supabase.co"
 NEXT_PUBLIC_SUPABASE_ANON_KEY="eyJ..."
 SUPABASE_SERVICE_ROLE="eyJ..."
 
-# Anthropic
+# AI provider
+AI_PROVIDER="anthropic"
 ANTHROPIC_API_KEY="sk-ant-..."
 
 # Optional integrations
@@ -177,7 +178,7 @@ SELECT
 
 ## Step 7: Customize for Client
 
-Use Claude Code or Constructor Mode to customize based on client requirements:
+Use the configured coding agent or Constructor Mode to customize based on client requirements:
 
 ### Common Customizations
 - Custom fields on entities
@@ -253,6 +254,6 @@ supabase db push
 - Verify user has correct organization membership
 
 ### AI Not Working
-- Verify ANTHROPIC_API_KEY is set
+- Verify `AI_PROVIDER` is set correctly and the matching provider API key is configured
 - Check Vercel function logs for errors
 - Verify module tools are enabled for organization

@@ -36,8 +36,8 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'sessionId required' }, { status: 400 });
     }
 
-    const { ANTHROPIC_API_KEY, SUPABASE_SERVICE_ROLE } = process.env;
-    if (!ANTHROPIC_API_KEY || !SUPABASE_SERVICE_ROLE) {
+    const { SUPABASE_SERVICE_ROLE } = process.env;
+    if (!SUPABASE_SERVICE_ROLE) {
       return NextResponse.json(
         { error: 'Missing required environment variables' },
         { status: 500 }
@@ -108,7 +108,7 @@ export async function GET(req: NextRequest) {
     }
 
     // Generate recommendations
-    const assistant = new OnboardingAssistant(SUPABASE_SERVICE_ROLE, ANTHROPIC_API_KEY);
+    const assistant = new OnboardingAssistant(SUPABASE_SERVICE_ROLE);
     const { recommendations, excluded } = await assistant.generateRecommendations(sessionId);
 
     // Update analytics

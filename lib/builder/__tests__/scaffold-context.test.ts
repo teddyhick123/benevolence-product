@@ -32,6 +32,13 @@ describe('buildScaffoldContext', () => {
     const ctx = buildScaffoldContext('test-index');
     expect(ctx.nextMigrationNumber).toMatch(/^\d{4}$/);
   });
+
+  it('uses provider-neutral agent instruction naming', async () => {
+    const { buildScaffoldContext } = await import('../scaffold-context');
+    const ctx = buildScaffoldContext('test-index');
+    expect(ctx).toHaveProperty('agentInstructionsExcerpt');
+    expect(ctx).not.toHaveProperty('claudeMdExcerpt');
+  });
 });
 
 describe('formatScaffoldContextForPrompt', () => {

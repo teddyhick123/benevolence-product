@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { createServerClient } from '@/lib/supabase';
 import { parseDocument } from '@/lib/document-parser';
-import { extractFactsFromText, getUniqueMetricCodes } from '@/lib/openai-extractor';
+import { extractFactsFromText, getUniqueMetricCodes } from '@/lib/ai/document-extractor';
 import { uploadIngestSchema } from '@/lib/schemas/admin';
 import { requireAdmin } from '@/lib/admin-auth';
 
@@ -92,7 +92,7 @@ export async function POST(req: NextRequest) {
       throw new Error('No text content extracted from document');
     }
 
-    // 5. Extract facts using OpenAI
+    // 5. Extract facts using the configured AI provider
     const extractionOptions = {
       restrictedMetrics: upload.ai_mode ? undefined : upload.selected_metrics,
       holdingId: upload.holding_id,

@@ -9,7 +9,7 @@ Before you begin, ensure you have the following installed and configured:
 *   **Node.js:** Version 18 or higher.
 *   **pnpm:** A fast, reliable, and disk-efficient package manager. Install with `npm install -g pnpm`.
 *   **Supabase Account:** A Supabase project is required for the database, authentication, and storage.
-*   **Anthropic API Key:** Required for the AI Assistant features. Obtain an API key from [Anthropic](https://console.anthropic.com/).
+*   **AI Provider API Key:** Required for AI assistant features. The default provider is Anthropic, configured with `ANTHROPIC_API_KEY`; provider selection is controlled by `AI_PROVIDER`.
 *   **QuickBooks Developer Account (Optional):** If you plan to use the QuickBooks integration, you'll need a developer account to register your application and obtain client ID and secret.
 
 ## Clone and Install
@@ -34,7 +34,8 @@ Create a `.env` file in the root of the `benevolence-product` directory and popu
 | `NEXT_PUBLIC_SUPABASE_URL`       | Yes      | Your Supabase project URL (e.g., `https://abcdefghjklmno.supabase.co`)         |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY`  | Yes      | Your Supabase anon/public key                                                  |
 | `SUPABASE_SERVICE_ROLE_KEY`      | Yes      | Your Supabase service role key (for server-side operations)                     |
-| `ANTHROPIC_API_KEY`              | Yes      | Your Anthropic Claude API key                                                  |
+| `AI_PROVIDER`                    | No       | AI provider to use. Defaults to `anthropic`                                    |
+| `ANTHROPIC_API_KEY`              | Yes*     | Required when `AI_PROVIDER=anthropic`                                          |
 | `QB_CLIENT_ID`                   | No       | QuickBooks app client ID (for integration)                                    |
 | `QB_CLIENT_SECRET`               | No       | QuickBooks app client secret (for integration)                                |
 | `QB_REDIRECT_URI`                | No       | OAuth callback URL (e.g., `https://yourdomain.com/api/integrations/quickbooks/callback`) |

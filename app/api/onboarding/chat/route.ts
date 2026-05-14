@@ -28,9 +28,9 @@ const chatSchema = z.object({
  */
 export async function POST(req: NextRequest) {
   try {
-    // Check API key
-    const { ANTHROPIC_API_KEY, SUPABASE_SERVICE_ROLE } = process.env;
-    if (!ANTHROPIC_API_KEY || !SUPABASE_SERVICE_ROLE) {
+    // Check required service role; provider-specific API keys are checked by the provider.
+    const { SUPABASE_SERVICE_ROLE } = process.env;
+    if (!SUPABASE_SERVICE_ROLE) {
       return NextResponse.json(
         { error: 'Missing required environment variables' },
         { status: 500 }
@@ -117,7 +117,7 @@ export async function POST(req: NextRequest) {
       .eq('id', sessionId);
 
     // Initialize assistant and process message
-    const assistant = new OnboardingAssistant(SUPABASE_SERVICE_ROLE, ANTHROPIC_API_KEY);
+    const assistant = new OnboardingAssistant(SUPABASE_SERVICE_ROLE);
 
     const conversationHistory = (session.messages || []).map((m: any) => ({
       role: m.role as 'user' | 'assistant',

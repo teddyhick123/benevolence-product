@@ -5,14 +5,15 @@ import * as path from 'path';
 const PROJECT_ROOT = path.resolve(process.cwd());
 const TEMPLATES_DIR = path.join(PROJECT_ROOT, 'templates/module');
 const MIGRATIONS_DIR = path.join(PROJECT_ROOT, 'db/migrations');
-const CLAUDE_MD_PATH = path.join(PROJECT_ROOT, 'CLAUDE.md');
+const AGENTS_MD_PATH = path.join(PROJECT_ROOT, 'AGENTS.md');
+const LEGACY_CLAUDE_MD_PATH = path.join(PROJECT_ROOT, 'CLAUDE.md');
 const DONORS_ROUTE_PATH = path.join(PROJECT_ROOT, 'app/api/org/[orgId]/donors/route.ts');
 const DONORS_COMPONENT_PATH = path.join(PROJECT_ROOT, 'components/donors/DonorList.tsx');
 
 export interface ScaffoldContext {
   templateFiles: Array<{ name: string; content: string }>;
   exampleModule: string;
-  claudeMdExcerpt: string;
+  agentInstructionsExcerpt: string;
   nextMigrationNumber: string;
   codebaseIndex: string;
 }
@@ -21,7 +22,7 @@ export function buildScaffoldContext(codebaseIndex: string): ScaffoldContext {
   return {
     templateFiles: readTemplateFiles(),
     exampleModule: buildDonorsExample(),
-    claudeMdExcerpt: extractClaudeMdExcerpt(),
+    agentInstructionsExcerpt: extractAgentInstructionsExcerpt(),
     nextMigrationNumber: getNextMigrationNumber(),
     codebaseIndex,
   };
@@ -55,9 +56,10 @@ function buildDonorsExample(): string {
   return `### Example: donors module API route (app/api/org/[orgId]/donors/route.ts)\n\`\`\`typescript\n${routeContent}\n\`\`\`\n\n### Example: DonorList component (components/donors/DonorList.tsx)\n\`\`\`typescript\n${componentContent}\n\`\`\`\n`;
 }
 
-function extractClaudeMdExcerpt(): string {
-  if (!fs.existsSync(CLAUDE_MD_PATH)) return '(CLAUDE.md not found)';
-  const full = fs.readFileSync(CLAUDE_MD_PATH, 'utf-8');
+function extractAgentInstructionsExcerpt(): string {
+  const instructionsPath = fs.existsSync(AGENTS_MD_PATH) ? AGENTS_MD_PATH : LEGACY_CLAUDE_MD_PATH;
+  if (!fs.existsSync(instructionsPath)) return '(agent instructions not found)';
+  const full = fs.readFileSync(instructionsPath, 'utf-8');
   const startMarker = '## Key Patterns';
   const endMarker = '## Getting Help';
   const start = full.indexOf(startMarker);
@@ -88,8 +90,8 @@ export function formatScaffoldContextForPrompt(ctx: ScaffoldContext): string {
   out += '\n### Worked Example — donors module\n';
   out += ctx.exampleModule;
 
-  out += '\n### Codebase Conventions (from CLAUDE.md)\n';
-  out += ctx.claudeMdExcerpt;
+  out += '\n### Codebase Conventions (from agent instructions)\n';
+  out += ctx.agentInstructionsExcerpt;
 
   out += `\n\n### Next available migration number: ${ctx.nextMigrationNumber}\n`;
   out += `Use this exact number (zero-padded to 4 digits) for the migration filename.\n`;

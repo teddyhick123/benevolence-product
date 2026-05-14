@@ -1,12 +1,9 @@
 // app/api/portfolio/[id]/letter/generate/route.ts
 import { NextResponse } from 'next/server';
 import { createSupabaseServerClient } from '@/lib/supabase';
-import Anthropic from '@anthropic-ai/sdk';
 import { aiAuthRequired } from '@/lib/rate-limit-response';
-
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-});
+import { AI_MODELS } from '@/lib/ai/models';
+import { generateText } from '@/lib/ai/text';
 
 /**
  * GET /api/portfolio/[id]/letter/generate
@@ -165,7 +162,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     const totalFundsAllocated = (holdings || []).reduce((sum: number, h: any) => sum + (h.funds_allocated || 0), 0);
     const totalNAV = totalFundsAllocated;
 
-    // 5. Build context for OpenAI
+    // 5. Build context for the AI provider
     const portfolioContext = `
 Portfolio: ${portfolio.name}
 
@@ -189,10 +186,10 @@ ${(holdings || []).slice(0, 10).map((h: any) => {
 ${totalHoldings > 10 ? `... and ${totalHoldings - 10} more holdings` : ''}
 `;
 
-    // 6. Generate letter content using Claude
-    const completion = await anthropic.messages.create({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 2000,
+    // 6. Generate letter content using the configured AI provider
+    const generatedLetter = await generateText({
+      model: AI_MODELS.assistant,
+      maxTokens: 2000,
       system: `You are a portfolio manager who crafts compelling letters on the state of impact investments and charitable contributions from portfolio data.
 
 WRITING STYLE:
@@ -215,15 +212,9 @@ INTEGRATION OF VISUALIZATIONS:
 - Reference that "the dashboard shows" or "as illustrated in the portfolio overview" when mentioning data trends
 - Mention that specific metrics "can be explored in detail on the holdings pages"
 - Suggest that stakeholders "review the visualization tools to track progress over time"`,
-      messages: [
-        {
-          role: 'user',
-          content: `Generate a portfolio letter based on the following data:\n\n${portfolioContext}`,
-        },
-      ],
+      prompt: `Generate a portfolio letter based on the following data:\n\n${portfolioContext}`,
     });
 
-    const generatedLetter = (completion.content[0] as { type: string; text: string })?.text || '';
     const generatedAt = new Date().toISOString();
 
     // 7. Get current max version for this portfolio

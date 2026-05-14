@@ -27,7 +27,7 @@ export const authLimiter = new Ratelimit({
 
 // Rate limiter for AI endpoints — keyed per user ID, not IP
 // Prevents runaway API spend from a single user/org
-// 30 requests per hour for expensive AI routes (OpenAI GPT, Claude streaming)
+// 30 requests per hour for expensive AI provider routes
 export const aiLimiter = new Ratelimit({
   redis,
   limiter: Ratelimit.slidingWindow(30, '1h'),

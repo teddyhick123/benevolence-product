@@ -2,18 +2,22 @@
 /**
  * OnboardingAssistant
  *
- * AI-powered assistant for guiding new users through onboarding.
+ * Provider-neutral AI assistant for guiding new users through onboarding.
  * Uses conversational discovery to understand pain points, goals, and workflows,
  * then generates tailored module recommendations.
  *
  * Personality: "Ben" - warm, curious, conversational
  */
 
-import Anthropic from '@anthropic-ai/sdk';
 import { createClient } from '@supabase/supabase-js';
 import type { ModuleId } from './modules/registry';
 import { MODULE_REGISTRY } from './modules/registry';
 import { branding } from './config';
+import { createAIProvider } from '@/lib/ai/factory';
+import { AI_MODELS } from '@/lib/ai/models';
+import type { AIContentBlock, AIMessage, ToolDefinition } from '@/lib/ai/types';
+import type { AIProvider } from '@/lib/ai/provider';
+import { extractText } from '@/lib/ai/text';
 
 // Types for onboarding data structures
 export type OrgType = 'foundation' | 'daf' | 'nonprofit' | 'impact_investor';
@@ -91,7 +95,7 @@ const PAIN_POINT_MODULE_MAP: Record<string, ModuleId[]> = {
 };
 
 // Onboarding-specific tools for the AI
-const ONBOARDING_TOOLS: Anthropic.Tool[] = [
+const ONBOARDING_TOOLS: ToolDefinition[] = [
   {
     name: 'extract_pain_point',
     description: 'Record a pain point mentioned by the user. Use when user describes frustrations, time-consuming tasks, or challenges.',
@@ -344,11 +348,11 @@ When you detect pain points, map them to relevant modules:
  * OnboardingAssistant class for handling onboarding conversations
  */
 export class OnboardingAssistant {
-  private anthropic: Anthropic;
+  private provider: AIProvider;
   private supabase: ReturnType<typeof createClient>;
 
-  constructor(supabaseServiceRole: string, anthropicApiKey: string) {
-    this.anthropic = new Anthropic({ apiKey: anthropicApiKey });
+  constructor(supabaseServiceRole: string, _apiKey?: string) {
+    this.provider = createAIProvider();
     this.supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       supabaseServiceRole,
@@ -384,8 +388,7 @@ export class OnboardingAssistant {
     // Build system prompt
     const systemPrompt = buildOnboardingSystemPrompt(quickIntake, conversationState);
 
-    // Convert conversation history to Claude format
-    const claudeMessages: Anthropic.MessageParam[] = [
+    const aiMessages: AIMessage[] = [
       ...conversationHistory.map(msg => ({
         role: msg.role as 'user' | 'assistant',
         content: msg.content,
@@ -393,13 +396,12 @@ export class OnboardingAssistant {
       { role: 'user', content: message },
     ];
 
-    // Call Claude
-    const response = await this.anthropic.messages.create({
-      model: 'claude-sonnet-4-5-20250929',
-      max_tokens: 2048,
+    const response = await this.provider.createMessage({
+      model: AI_MODELS.assistant,
+      maxTokens: 2048,
       system: systemPrompt,
       tools: ONBOARDING_TOOLS,
-      messages: claudeMessages,
+      messages: aiMessages,
     });
 
     // Process the response
@@ -418,17 +420,12 @@ export class OnboardingAssistant {
     };
 
     const toolResults: Array<{ tool_use_id: string; content: string }> = [];
-    let textContent = '';
+    let textContent = extractText(response);
 
     // Check for tool use
     const toolUseBlocks = response.content.filter(
-      (block): block is Anthropic.ToolUseBlock => block.type === 'tool_use'
+      (block): block is AIContentBlock & { type: 'tool_use' } => block.type === 'tool_use'
     );
-    const textBlocks = response.content.filter(
-      (block): block is Anthropic.TextBlock => block.type === 'text'
-    );
-
-    textContent = textBlocks.map(b => b.text).join('');
 
     // Process tool calls
     if (toolUseBlocks.length > 0) {
@@ -516,13 +513,13 @@ export class OnboardingAssistant {
       }
 
       // Get final response with tool results
-      const finalResponse = await this.anthropic.messages.create({
-        model: 'claude-sonnet-4-5-20250929',
-        max_tokens: 2048,
+      const finalResponse = await this.provider.createMessage({
+        model: AI_MODELS.assistant,
+        maxTokens: 2048,
         system: systemPrompt,
         tools: ONBOARDING_TOOLS,
         messages: [
-          ...claudeMessages,
+          ...aiMessages,
           { role: 'assistant', content: response.content },
           {
             role: 'user',
@@ -535,10 +532,7 @@ export class OnboardingAssistant {
         ],
       });
 
-      const finalTextBlocks = finalResponse.content.filter(
-        (block): block is Anthropic.TextBlock => block.type === 'text'
-      );
-      textContent = finalTextBlocks.map(b => b.text).join('');
+      textContent = extractText(finalResponse);
 
       // If still no text after tool processing, provide a fallback
       if (!textContent.trim()) {

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import Anthropic from '@anthropic-ai/sdk';
 import { createServerClient } from '@/lib/supabase';
+import { AI_MODELS } from '@/lib/ai/models';
+import { generateText } from '@/lib/ai/text';
 
 export const dynamic = 'force-dynamic';
 
@@ -54,24 +55,12 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (!apiKey) {
-      return NextResponse.json({ error: 'AI not configured' }, { status: 500 });
-    }
-
-    const client = new Anthropic({ apiKey });
     const prompt = buildPrompt(question as QuestionType, context ?? {});
-
-    const message = await client.messages.create({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 150,
-      messages: [{ role: 'user', content: prompt }],
+    const answer = await generateText({
+      model: AI_MODELS.assistant,
+      maxTokens: 150,
+      prompt,
     });
-
-    const answer = message.content
-      .filter((b) => b.type === 'text')
-      .map((b) => (b as { type: 'text'; text: string }).text)
-      .join('');
 
     return NextResponse.json({ answer });
   } catch (err: any) {

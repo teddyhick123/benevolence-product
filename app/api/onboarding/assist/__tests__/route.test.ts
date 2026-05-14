@@ -1,18 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-vi.mock('@anthropic-ai/sdk', () => {
-  const mockCreate = vi.fn().mockResolvedValue({
-    content: [{ type: 'text', text: 'This is a helpful explanation.' }],
-  });
-
-  class MockAnthropic {
-    messages = { create: mockCreate };
-  }
-
-  return {
-    default: MockAnthropic,
-  };
-});
+vi.mock('@/lib/ai/factory', () => ({
+  createAIProvider: vi.fn(() => ({
+    createMessage: vi.fn().mockResolvedValue({
+      content: [{ type: 'text', text: 'This is a helpful explanation.' }],
+      stopReason: null,
+      model: 'test-model',
+    }),
+  })),
+}));
 
 vi.mock('@/lib/supabase', () => ({
   createServerClient: vi.fn(() => ({
@@ -25,7 +21,7 @@ vi.mock('@/lib/supabase', () => ({
 }));
 
 beforeEach(() => {
-  process.env.ANTHROPIC_API_KEY = 'test-key-123';
+  process.env.AI_PROVIDER = 'test';
 });
 
 describe('POST /api/onboarding/assist', () => {

@@ -1,6 +1,6 @@
 // @ts-nocheck - Supabase generated types are incorrect for this file
 import { createClient } from '@supabase/supabase-js';
-import { AIAction } from './ai-assistant';
+import type { AIAction } from './ai/types';
 
 type SupabaseClient = ReturnType<typeof createClient>;
 

@@ -15,6 +15,7 @@ export interface AIRequestConfig {
   messages: AIMessage[];
   tools?: ToolDefinition[];
   maxTokens?: number;
+  temperature?: number;
 }
 
 /**

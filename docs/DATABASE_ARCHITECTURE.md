@@ -259,7 +259,8 @@ db/
 - [ ] `NEXT_PUBLIC_SUPABASE_URL`
 - [ ] `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 - [ ] `SUPABASE_SERVICE_ROLE`
-- [ ] `ANTHROPIC_API_KEY`
+- [ ] `AI_PROVIDER`
+- [ ] Provider API key, such as `ANTHROPIC_API_KEY` when `AI_PROVIDER=anthropic`
 - [ ] Branding variables
 
 ### Post-Setup

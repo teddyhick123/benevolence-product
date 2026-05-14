@@ -1,11 +1,9 @@
 // lib/import/ai/client.ts
-// Anthropic client wrapper for the import AI services
+// Provider-neutral client wrapper for import AI services.
 
-import Anthropic from '@anthropic-ai/sdk';
-
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-});
+import { AI_MODELS } from '@/lib/ai/models';
+import { createAIProvider } from '@/lib/ai/factory';
+import { extractText } from '@/lib/ai/text';
 
 export interface AICallOptions {
   model?: string;
@@ -18,17 +16,18 @@ export async function callAI(
   userPrompt: string,
   options?: AICallOptions
 ): Promise<string> {
-  const message = await anthropic.messages.create({
-    model: options?.model ?? 'claude-haiku-4-5',
-    max_tokens: options?.maxTokens ?? 4096,
+  const provider = createAIProvider();
+  const response = await provider.createMessage({
+    model: options?.model ?? AI_MODELS.assistant,
+    maxTokens: options?.maxTokens ?? 4096,
     temperature: options?.temperature ?? 0.1,
     system: systemPrompt,
     messages: [{ role: 'user', content: userPrompt }],
   });
 
-  const content = message.content[0];
-  if (content.type !== 'text') throw new Error('Unexpected response type from AI');
-  return content.text;
+  const content = extractText(response);
+  if (!content) throw new Error('Unexpected empty response from AI provider');
+  return content;
 }
 
 export async function callAIStreaming(
@@ -37,16 +36,18 @@ export async function callAIStreaming(
   onChunk: (text: string) => void,
   options?: AICallOptions
 ): Promise<void> {
-  const stream = anthropic.messages.stream({
-    model: options?.model ?? 'claude-haiku-4-5',
-    max_tokens: options?.maxTokens ?? 4096,
+  const provider = createAIProvider();
+  const stream = provider.createStream({
+    model: options?.model ?? AI_MODELS.assistant,
+    maxTokens: options?.maxTokens ?? 4096,
+    temperature: options?.temperature ?? 0.1,
     system: systemPrompt,
     messages: [{ role: 'user', content: userPrompt }],
   });
 
   for await (const chunk of stream) {
-    if (chunk.type === 'content_block_delta' && chunk.delta.type === 'text_delta') {
-      onChunk(chunk.delta.text);
+    if (chunk.type === 'text_delta') {
+      onChunk(chunk.text);
     }
   }
 }

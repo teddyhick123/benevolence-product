@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { createServerClient } from '@/lib/supabase';
 import { parseDocumentChunked, DocumentChunk } from '@/lib/document-parser';
-import { extractFactsFromText, ExtractedFact, ExtractionResult, getUniqueMetricCodes } from '@/lib/openai-extractor';
+import { extractFactsFromText, ExtractedFact, ExtractionResult, getUniqueMetricCodes } from '@/lib/ai/document-extractor';
 import { requireAdmin } from '@/lib/admin-auth';
 
 export const runtime = 'nodejs';
@@ -47,14 +47,10 @@ export async function POST(req: NextRequest) {
     const {
       NEXT_PUBLIC_SUPABASE_URL,
       SUPABASE_SERVICE_ROLE,
-      OPENAI_API_KEY,
     } = process.env as Record<string, string | undefined>;
 
     if (!NEXT_PUBLIC_SUPABASE_URL || !SUPABASE_SERVICE_ROLE) {
       return NextResponse.json({ error: 'Missing required env vars' }, { status: 500 });
-    }
-    if (!OPENAI_API_KEY) {
-      return NextResponse.json({ error: 'OpenAI API key not configured' }, { status: 500 });
     }
 
     // --- 1) read multipart form ---

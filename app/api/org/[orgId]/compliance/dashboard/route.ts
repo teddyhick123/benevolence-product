@@ -56,7 +56,7 @@ export async function GET(
     // Check module enabled
     const { data: hasModule } = await sb.rpc('org_has_module', {
       p_org_id: orgId,
-      p_module_id: 'compliance_regulatory',
+      p_module: 'compliance_regulatory',
     });
     if (!hasModule) return NextResponse.json({ error: 'Module not enabled' }, { status: 403 });
 

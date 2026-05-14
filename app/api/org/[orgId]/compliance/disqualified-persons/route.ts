@@ -50,7 +50,7 @@ export async function GET(
     const { data: membership } = await sb
       .from('organization_members')
       .select('role')
-      .eq('organization_id', orgId)
+      .eq('org_id', orgId)
       .eq('user_id', user.id)
       .maybeSingle();
     if (!membership) return NextResponse.json({ error: 'Access denied' }, { status: 403 });
@@ -58,7 +58,7 @@ export async function GET(
     let query = sb
       .from('disqualified_persons')
       .select('*')
-      .eq('organization_id', orgId)
+      .eq('org_id', orgId)
       .order('full_name');
 
     if (activeOnly) {
@@ -98,7 +98,7 @@ export async function POST(
     const { data: membership } = await sb
       .from('organization_members')
       .select('role')
-      .eq('organization_id', orgId)
+      .eq('org_id', orgId)
       .eq('user_id', user.id)
       .maybeSingle();
     if (!membership || membership.role !== 'admin') {
@@ -114,7 +114,7 @@ export async function POST(
 
     const { data, error } = await sb
       .from('disqualified_persons')
-      .insert({ organization_id: orgId, full_name, relationship_type, ...rest })
+      .insert({ org_id: orgId, full_name, relationship_type, ...rest })
       .select()
       .single();
 
@@ -149,7 +149,7 @@ export async function DELETE(
     const { data: membership } = await sb
       .from('organization_members')
       .select('role')
-      .eq('organization_id', orgId)
+      .eq('org_id', orgId)
       .eq('user_id', user.id)
       .maybeSingle();
     if (!membership || membership.role !== 'admin') {
@@ -160,7 +160,7 @@ export async function DELETE(
       .from('disqualified_persons')
       .update({ end_date: new Date().toISOString().split('T')[0] })
       .eq('id', id)
-      .eq('organization_id', orgId)
+      .eq('org_id', orgId)
       .select()
       .single();
 

@@ -48,7 +48,7 @@ export async function GET(
     const { data: membership } = await sb
       .from('organization_members')
       .select('role')
-      .eq('organization_id', orgId)
+      .eq('org_id', orgId)
       .eq('user_id', user.id)
       .maybeSingle();
     if (!membership) return NextResponse.json({ error: 'Access denied' }, { status: 403 });
@@ -62,15 +62,15 @@ export async function GET(
 
     // Fetch in parallel
     const [dashboardRes, deadlinesRes, incidentsRes, profileRes] = await Promise.all([
-      sb.from('v_compliance_dashboard').select('*').eq('organization_id', orgId).maybeSingle(),
-      sb.from('v_upcoming_filing_deadlines').select('*').eq('organization_id', orgId).limit(5),
+      sb.from('v_compliance_dashboard').select('*').eq('org_id', orgId).maybeSingle(),
+      sb.from('v_upcoming_filing_deadlines').select('*').eq('org_id', orgId).limit(5),
       sb.from('self_dealing_incidents')
         .select('*')
-        .eq('organization_id', orgId)
+        .eq('org_id', orgId)
         .in('status', ['flagged', 'confirmed'])
         .order('created_at', { ascending: false })
         .limit(5),
-      sb.from('compliance_profiles').select('*').eq('organization_id', orgId).maybeSingle(),
+      sb.from('compliance_profiles').select('*').eq('org_id', orgId).maybeSingle(),
     ]);
 
     return NextResponse.json({

@@ -67,7 +67,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     const { data: holdingLink } = await supabase
       .from("organization_holdings")
       .select("verified_at, holdings(portfolio_id)")
-      .eq("organization_id", orgId)
+      .eq("org_id", orgId)
       .eq("holding_id", holding_id)
       .single();
 

@@ -22,7 +22,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
     const { error } = await supabase
       .from("organization_holdings")
       .delete()
-      .eq("organization_id", orgId)
+      .eq("org_id", orgId)
       .eq("holding_id", holdingId);
 
     if (error) {

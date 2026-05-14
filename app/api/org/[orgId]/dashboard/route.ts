@@ -85,7 +85,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     const { count: holdingsCount } = await adminClient
       .from("organization_holdings")
       .select("*", { count: "exact", head: true })
-      .eq("organization_id", orgId)
+      .eq("org_id", orgId)
       .not("verified_at", "is", null);
 
     stats.linked_holdings = holdingsCount || 0;
@@ -143,7 +143,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       const { data: orgHoldings } = await adminClient
         .from("organization_holdings")
         .select("holding_id")
-        .eq("organization_id", orgId)
+        .eq("org_id", orgId)
         .not("verified_at", "is", null);
 
       const holdingIds = orgHoldings?.map((h) => h.holding_id) || [];

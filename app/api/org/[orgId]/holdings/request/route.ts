@@ -41,8 +41,8 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     // Check if link already exists
     const { data: existingLink } = await supabase
       .from("organization_holdings")
-      .select("organization_id, verified_at")
-      .eq("organization_id", orgId)
+      .select("org_id, verified_at")
+      .eq("org_id", orgId)
       .eq("holding_id", holding_id)
       .single();
 
@@ -63,7 +63,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     const { data: link, error: linkError } = await adminClient
       .from("organization_holdings")
       .insert({
-        organization_id: orgId,
+        org_id: orgId,
         holding_id,
         verified_at: null,
         verified_by: null,

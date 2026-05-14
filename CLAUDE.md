@@ -34,8 +34,8 @@ Key invariants that differ from older patterns or documentation you may encounte
 | Module Types | `/lib/modules/types.ts` |
 | Module Client Info | `/lib/modules/client-info.ts` |
 | Module Registry | `/lib/modules/registry.ts` |
-| AI Tool Definitions | `/lib/claude-assistant.ts` (lines 139-1074) |
-| AI Tool Executors | `/lib/claude-assistant.ts` (lines 1290-5511) |
+| AI Assistant Entry | `/lib/ai/portfolio-assistant.ts` |
+| AI Tool Definitions/Executors | `/lib/claude-assistant.ts` (legacy filename, provider-neutral implementation) |
 | AI Validators | `/lib/ai/validators.ts` |
 | AI Types | `/lib/ai/types.ts` |
 | Database Migrations | `/db/migrations/NNNN_description.sql` |
@@ -198,7 +198,7 @@ CREATE TRIGGER set_new_module_table_updated_at
 
 ### Step 3: Add AI Tools
 
-Add tool definitions to `/lib/claude-assistant.ts` after the comment for your module:
+Add provider-neutral tool definitions to `/lib/claude-assistant.ts` after the comment for your module:
 
 ```typescript
 // ==================== NEW MODULE ====================
@@ -629,6 +629,6 @@ When creating a new module, verify:
 ## Getting Help
 
 - Module system: `/lib/modules/registry.ts`
-- AI patterns: `/lib/claude-assistant.ts`
+- AI patterns: `/lib/ai/portfolio-assistant.ts`, `/lib/claude-assistant.ts`
 - Database patterns: Check similar migrations in `/db/`
 - Component patterns: Check similar components in `/components/`

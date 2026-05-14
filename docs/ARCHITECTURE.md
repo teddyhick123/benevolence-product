@@ -19,8 +19,8 @@ This is a white-label platform for impact portfolio management. Organizations ca
 ├─────────────────────────────────────────────────────────────────────┤
 │                          AI LAYER                                    │
 ├─────────────────────────────────────────────────────────────────────┤
-│  ClaudePortfolioAssistant                                           │
-│  ├── Tool Definitions (Anthropic format)                            │
+│  PortfolioAssistant                                                 │
+│  ├── Tool Definitions (provider-neutral schema)                     │
 │  ├── Tool Executors (business logic)                                │
 │  ├── Module Filtering (context-aware tools)                         │
 │  └── Action Tracking (undo/redo)                                    │
@@ -122,7 +122,7 @@ Each module is defined in the registry with:
 
 ## AI System Architecture
 
-### ClaudePortfolioAssistant
+### PortfolioAssistant
 
 The main AI assistant class provides:
 
@@ -134,8 +134,8 @@ The main AI assistant class provides:
 ### Tool Pattern
 
 ```typescript
-// Tool definition (Anthropic format)
-const tool: Anthropic.Tool = {
+// Tool definition (provider-neutral format)
+const tool: ToolDefinition = {
   name: 'tool_name',
   description: 'What the tool does',
   input_schema: {
@@ -185,7 +185,7 @@ User Message
          │
          ▼
 ┌──────────────────┐
-│ Claude API       │
+│ AI Provider      │
 │ (with tools)     │
 └────────┬─────────┘
          │

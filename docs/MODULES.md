@@ -5,7 +5,7 @@
 The module system enables organizations to customize their platform experience by enabling/disabling feature sets. Each module encapsulates:
 
 - **Database tables**: Schema and RLS policies
-- **AI tools**: Claude assistant capabilities
+- **AI tools**: Provider-neutral assistant capabilities
 - **API routes**: REST endpoints
 - **UI components**: React components and pages
 - **System prompts**: AI context for the module
@@ -214,8 +214,8 @@ getSystemPromptForModules(enabledModules: ModuleId[]): string
 // Check route accessibility
 isRouteAccessible(route: string, enabledModules: ModuleId[]): boolean
 
-// Filter Anthropic tools
-filterToolsForOrg(allTools: Anthropic.Tool[], enabledModules: ModuleId[]): Anthropic.Tool[]
+// Filter AI tools
+filterToolsForOrg(allTools: ToolDefinition[], enabledModules: ModuleId[]): ToolDefinition[]
 
 // Get org's enabled modules
 getOrgEnabledModules(supabase: SupabaseClient, orgId: string): Promise<ModuleId[]>

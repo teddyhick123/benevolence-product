@@ -6,6 +6,7 @@ describe('claude-assistant donor executor column contract', () => {
 
   it('does not reference donor.donor_type (use is_organization)', () => {
     expect(src).not.toMatch(/donor\.donor_type/);
+    expect(src).not.toMatch(/\bd\.donor_type\b/);
   });
 
   it('does not use postal_code (column is zip)', () => {

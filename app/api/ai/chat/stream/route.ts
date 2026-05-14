@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { ClaudePortfolioAssistant } from '@/lib/claude-assistant';
+import { PortfolioAssistant } from '@/lib/ai/portfolio-assistant';
 import { cookies } from 'next/headers';
 import { createServerClient } from '@supabase/ssr';
 import { aiAuthRequired, rateLimitExceeded } from '@/lib/rate-limit-response';
@@ -32,10 +32,10 @@ function supabaseService() {
  */
 export async function POST(req: NextRequest) {
   // Verify env vars
-  const { NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE, ANTHROPIC_API_KEY } = process.env;
-  if (!NEXT_PUBLIC_SUPABASE_URL || !SUPABASE_SERVICE_ROLE || !ANTHROPIC_API_KEY) {
+  const { NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE } = process.env;
+  if (!NEXT_PUBLIC_SUPABASE_URL || !SUPABASE_SERVICE_ROLE) {
     return new Response(
-      JSON.stringify({ type: 'error', error: 'Missing required env vars (ANTHROPIC_API_KEY required)' }) + '\n',
+      JSON.stringify({ type: 'error', error: 'Missing required env vars' }) + '\n',
       { status: 500, headers: { 'Content-Type': 'text/event-stream' } }
     );
   }
@@ -176,8 +176,8 @@ export async function POST(req: NextRequest) {
     })
     .eq('id', sessionId);
 
-  // Initialize Claude AI assistant
-  const assistant = new ClaudePortfolioAssistant(supabase as any, ANTHROPIC_API_KEY);
+  // Initialize AI assistant
+  const assistant = new PortfolioAssistant(supabase as any);
 
   // Filter conversation history to only include user/assistant messages
   const filteredHistory = (conversationHistory || [])

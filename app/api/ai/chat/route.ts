@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { ClaudePortfolioAssistant } from '@/lib/claude-assistant';
+import { PortfolioAssistant } from '@/lib/ai/portfolio-assistant';
 import { cookies } from 'next/headers';
 import { createServerClient } from '@supabase/ssr';
 import { aiAuthRequired, rateLimitExceeded } from '@/lib/rate-limit-response';
@@ -32,10 +32,10 @@ function supabaseService() {
  */
 export async function POST(req: NextRequest) {
   try {
-    // Verify env vars - now requires Anthropic API key for Claude
-    const { NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE, ANTHROPIC_API_KEY } = process.env;
-    if (!NEXT_PUBLIC_SUPABASE_URL || !SUPABASE_SERVICE_ROLE || !ANTHROPIC_API_KEY) {
-      return NextResponse.json({ error: 'Missing required env vars (ANTHROPIC_API_KEY required)' }, { status: 500 });
+    // Verify env vars. Provider-specific API keys are checked by the provider.
+    const { NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE } = process.env;
+    if (!NEXT_PUBLIC_SUPABASE_URL || !SUPABASE_SERVICE_ROLE) {
+      return NextResponse.json({ error: 'Missing required env vars' }, { status: 500 });
     }
 
     // Get authenticated user
@@ -181,10 +181,10 @@ export async function POST(req: NextRequest) {
       })
       .eq('id', sessionId);
 
-    // Initialize Claude AI assistant with session-scoped client — RLS enforces org/portfolio scope on all tool calls
-    const assistant = new ClaudePortfolioAssistant(supabase as any, ANTHROPIC_API_KEY);
+    // Initialize assistant with session-scoped client — RLS enforces org/portfolio scope on all tool calls
+    const assistant = new PortfolioAssistant(supabase as any);
 
-    // Filter conversation history to only include user/assistant messages (Claude doesn't accept system in messages array)
+    // Filter conversation history to only include user/assistant messages.
     const filteredHistory = (conversationHistory || [])
       .filter(msg => msg.role === 'user' || msg.role === 'assistant')
       .map(msg => ({ role: msg.role as 'user' | 'assistant', content: msg.content }));

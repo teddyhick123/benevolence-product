@@ -16,6 +16,11 @@ describe('lib/claude-assistant.ts ai_instructions injection', () => {
     expect(src).not.toMatch(/this\.anthropic\s*=\s*new Anthropic/);
   });
 
+  it('exports provider-neutral PortfolioAssistant', () => {
+    expect(src).toMatch(/export class PortfolioAssistant/);
+    expect(src).toMatch(/PortfolioAssistant as ClaudePortfolioAssistant/);
+  });
+
   it('uses AI_MODELS.assistant for the model string', () => {
     expect(src).toMatch(/AI_MODELS\.assistant/);
   });

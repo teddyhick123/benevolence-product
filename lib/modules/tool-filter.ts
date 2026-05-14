@@ -13,9 +13,7 @@ import {
   getRequiredModules,
   canDisableModule,
 } from './registry';
-
-// Import Anthropic types
-import type Anthropic from '@anthropic-ai/sdk';
+import type { ToolDefinition } from '@/lib/ai/types';
 
 const MODULE_TO_DB_SLUG: Record<ModuleId, string> = {
   core: 'portfolio',
@@ -115,9 +113,9 @@ async function updateOrgModulesJson(
  * Filter tools array based on enabled modules
  */
 export function filterToolsForOrg(
-  allTools: Anthropic.Tool[],
+  allTools: ToolDefinition[],
   enabledModules: ModuleId[]
-): Anthropic.Tool[] {
+): ToolDefinition[] {
   const allowedToolNames = new Set(getToolsForModules(enabledModules));
   return allTools.filter(tool => allowedToolNames.has(tool.name));
 }

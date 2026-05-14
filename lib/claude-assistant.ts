@@ -1,5 +1,4 @@
 // @ts-nocheck - Supabase generated types are incorrect for this file
-import Anthropic from '@anthropic-ai/sdk';
 import { createClient } from '@supabase/supabase-js';
 import { AIActionExecutor } from './ai-action-executor';
 import {
@@ -139,9 +138,10 @@ const CHART_COLORS = [
   '#f97316', // orange
 ];
 
-// Tool definitions for Claude function calling (Anthropic format)
+// Provider-neutral tool definitions. The active AI provider adapts these to
+// its native function/tool-calling format.
 // Exported for use by module filtering system
-export const PORTFOLIO_TOOLS: Anthropic.Tool[] = [
+export const PORTFOLIO_TOOLS: ToolDefinition[] = [
   {
     name: 'add_holding',
     description: 'Create a new holding/investment in the portfolio',
@@ -1273,20 +1273,20 @@ export const PORTFOLIO_TOOLS: Anthropic.Tool[] = [
 ];
 
 /**
- * Claude-powered AI Assistant for portfolio management
- * Uses Anthropic's Claude Sonnet model for conversation and function calling
+ * AI Assistant for portfolio management
+ * Uses the configured provider/model for conversation and function calling
  *
  * Supports modular tool filtering - only tools from enabled modules are available.
  * When orgId is provided, tools are filtered based on the organization's enabled modules.
  */
-export class ClaudePortfolioAssistant {
+export class PortfolioAssistant {
   private provider: AIProvider;
   private aiInstructions: string | null = null;
   private supabase: ReturnType<typeof createClient>;
   private enabledModules: ModuleId[] = ['core'];
   private moduleSystemPrompt: string = '';
 
-  constructor(supabaseClient: ReturnType<typeof createClient>, _anthropicApiKey?: string) {
+  constructor(supabaseClient: ReturnType<typeof createClient>, _apiKey?: string) {
     this.provider = createAIProvider();
     this.supabase = supabaseClient;
   }
@@ -1312,7 +1312,7 @@ export class ClaudePortfolioAssistant {
   /**
    * Get tools filtered by enabled modules
    */
-  private getFilteredTools(): Anthropic.Tool[] {
+  private getFilteredTools(): ToolDefinition[] {
     return filterToolsForOrg(PORTFOLIO_TOOLS, this.enabledModules);
   }
 
@@ -5381,7 +5381,7 @@ ${org?.name || 'The Organization'}`;
               donor_id: d.donor_id,
               name: d.display_name,
               email: d.email,
-              type: d.donor_type,
+              type: d.is_organization ? 'organization' : 'individual',
               tier: d.donor_tier,
               status: d.recency_status,
               total_lifetime_giving: d.total_lifetime_giving,
@@ -5812,13 +5812,12 @@ ${org?.name || 'The Organization'}`;
           .neq('id', portfolioId),
         this.supabase
           .from('donors')
-          .select('id', { count: 'exact', head: false })
-          .eq('organization_id', orgId)
-          .limit(1),
+          .select('id', { count: 'exact', head: true })
+          .eq('org_id', orgId),
         this.supabase
           .from('filing_calendar')
           .select('description, due_date, filing_type')
-          .eq('organization_id', orgId)
+          .eq('org_id', orgId)
           .eq('status', 'pending')
           .gte('due_date', new Date().toISOString().slice(0, 10))
           .order('due_date', { ascending: true })
@@ -5861,7 +5860,7 @@ ${org?.name || 'The Organization'}`;
         modules,
         otherPortfolioCount: otherPortfolios.data?.length ?? 0,
         otherPortfolioValue,
-        donorCount: modules.donors ? (donorStats.data?.length ?? 0) : null,
+        donorCount: modules.donors ? (donorStats.count ?? 0) : null,
         donorGivingThisYear: modules.donors ? donorGivingThisYear : null,
         nextFiling: modules.compliance && nextFiling.data?.[0]
           ? { description: nextFiling.data[0].description || nextFiling.data[0].filing_type, due_date: nextFiling.data[0].due_date }
@@ -5893,7 +5892,7 @@ ${org?.name || 'The Organization'}`;
   }
 
   /**
-   * Build system prompt for Claude
+   * Build system prompt for the configured AI provider.
    */
   private buildSystemPrompt(context: any): string {
     const formatCurrency = (n: number) => n >= 1_000_000
@@ -6156,3 +6155,7 @@ ${this.moduleSystemPrompt}
     return prompt;
   }
 }
+
+// Backwards-compatible export for older imports. New code should import
+// PortfolioAssistant from '@/lib/ai/portfolio-assistant'.
+export { PortfolioAssistant as ClaudePortfolioAssistant };

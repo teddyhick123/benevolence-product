@@ -9,6 +9,11 @@ describe('AI chat viewer write bypass', () => {
     expect(chatSrc).toContain('memberRole');
   });
 
+  it('chat route imports the provider-neutral assistant entrypoint', () => {
+    expect(chatSrc).toContain("@/lib/ai/portfolio-assistant");
+    expect(chatSrc).not.toContain("ClaudePortfolioAssistant");
+  });
+
   it('executeTool guards write tools from viewers', () => {
     expect(assistantSrc).toMatch(/viewer/i);
     expect(assistantSrc).toMatch(/WRITE_TOOLS|write_tools/i);

@@ -18,7 +18,7 @@ export async function POST() {
   }
 
   // Admin guard
-  const { data: isAdmin } = await supabase.rpc('is_admin');
+  const { data: isAdmin } = await supabase.rpc('is_app_admin');
   if (!isAdmin) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }

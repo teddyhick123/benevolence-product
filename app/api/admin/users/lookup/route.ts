@@ -19,7 +19,7 @@ export async function GET(req: Request) {
   // Check admin via SSR cookie-bound client
   const supabase = await createSupabaseServerClient();
 
-  const { data: isAdmin, error: adminErr } = await supabase.rpc('is_admin');
+  const { data: isAdmin, error: adminErr } = await supabase.rpc('is_app_admin');
   if (adminErr || !isAdmin) return noStore({ error: 'not authorized' }, 403);
 
   // Use service role to search auth.users (server-side only)

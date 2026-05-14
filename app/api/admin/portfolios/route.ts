@@ -29,7 +29,7 @@ export async function POST(req: Request) {
   const supabase = await createSupabaseServerClient();
 
   // Must be admin
-  const { data: isAdmin, error: adminErr } = await supabase.rpc('is_admin');
+  const { data: isAdmin, error: adminErr } = await supabase.rpc('is_app_admin');
   if (adminErr || !isAdmin) {
     return NextResponse.json({ error: 'not authorized' }, { status: 403 });
   }
@@ -85,7 +85,7 @@ export async function POST(req: Request) {
 export async function GET() {
   const supabase = await createSupabaseServerClient();
 
-  const { data: isAdmin, error: adminErr } = await supabase.rpc('is_admin');
+  const { data: isAdmin, error: adminErr } = await supabase.rpc('is_app_admin');
   if (adminErr || !isAdmin) return NextResponse.json({ error: 'not authorized' }, { status: 403 });
 
   const { data, error } = await supabase

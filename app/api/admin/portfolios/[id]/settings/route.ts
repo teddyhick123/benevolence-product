@@ -40,7 +40,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   const supabase = await createSupabaseServerClient();
 
   // Admin check
-  const { data: isAdmin, error: adminErr } = await supabase.rpc('is_admin');
+  const { data: isAdmin, error: adminErr } = await supabase.rpc('is_app_admin');
   if (adminErr || !isAdmin) {
     return NextResponse.json({ error: 'not authorized' }, { status: 403, headers: { 'Cache-Control': 'no-store' } });
   }

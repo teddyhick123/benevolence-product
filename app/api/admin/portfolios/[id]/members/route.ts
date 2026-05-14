@@ -36,7 +36,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   const supabase = await createSupabaseServerClient();
 
   // Check if caller is admin
-  const { data: isAdmin, error: adminErr } = await supabase.rpc('is_admin');
+  const { data: isAdmin, error: adminErr } = await supabase.rpc('is_app_admin');
   if (adminErr) {
     return NextResponse.json({ error: adminErr.message }, { status: 500 });
   }

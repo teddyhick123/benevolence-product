@@ -111,7 +111,7 @@ export async function POST(req: NextRequest) {
     .maybeSingle();
 
   // Also check if user is admin (using canonical is_admin() RPC)
-  const { data: isAdminResult } = await supabase.rpc('is_admin');
+  const { data: isAdminResult } = await supabase.rpc('is_app_admin');
   const isAdmin = !!isAdminResult;
 
   if (!membership && !isAdmin) {

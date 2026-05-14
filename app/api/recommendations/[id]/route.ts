@@ -65,7 +65,7 @@ export async function PUT(req: Request, ctx: { params: Promise<{ id: string }> }
       .eq('user_id', user.id)
       .single();
 
-    const { data: isAdmin } = await supabase.rpc('is_admin');
+    const { data: isAdmin } = await supabase.rpc('is_app_admin');
 
     if (!isAdmin && (!member || member.role !== 'owner')) {
       return NextResponse.json(
@@ -144,7 +144,7 @@ export async function DELETE(req: Request, ctx: { params: Promise<{ id: string }
       .eq('user_id', user.id)
       .single();
 
-    const { data: isAdmin } = await supabase.rpc('is_admin');
+    const { data: isAdmin } = await supabase.rpc('is_app_admin');
 
     if (!isAdmin && (!member || member.role !== 'owner')) {
       return NextResponse.json(

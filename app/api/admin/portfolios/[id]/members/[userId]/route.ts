@@ -20,7 +20,7 @@ export async function DELETE(_req: Request, ctx: { params: Promise<{ id: string;
 
   const supabase = await createSupabaseServerClient();
 
-  const { data: isAdmin, error: adminErr } = await supabase.rpc('is_admin');
+  const { data: isAdmin, error: adminErr } = await supabase.rpc('is_app_admin');
   if (adminErr) return NextResponse.json({ error: adminErr.message }, { status: 500 });
 
   let callerRole: 'viewer'|'editor'|'owner'|'admin' = 'viewer';
@@ -97,7 +97,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string; u
 
   const supabase = await createSupabaseServerClient();
 
-  const { data: isAdmin, error: adminErr } = await supabase.rpc('is_admin');
+  const { data: isAdmin, error: adminErr } = await supabase.rpc('is_app_admin');
   if (adminErr) return NextResponse.json({ error: adminErr.message }, { status: 500 });
 
   let callerRole: 'viewer'|'editor'|'owner'|'admin' = 'viewer';

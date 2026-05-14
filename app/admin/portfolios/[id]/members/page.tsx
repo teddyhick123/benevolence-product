@@ -18,7 +18,7 @@ async function loadMembers(portfolioId: string) {
   const supabase = await createSupabaseServerClient();
 
   // Ensure admin
-  const { data: isAdmin } = await supabase.rpc('is_admin');
+  const { data: isAdmin } = await supabase.rpc('is_app_admin');
   if (!isAdmin) return { error: 'Not authorized', members: [] as MemberRow[] };
 
   // Pull members + display name if present

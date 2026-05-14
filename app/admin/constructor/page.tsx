@@ -32,7 +32,7 @@ export default async function ConstructorPage() {
     );
   }
 
-  const { data: isAdmin, error: adminErr } = await supabase.rpc('is_admin');
+  const { data: isAdmin, error: adminErr } = await supabase.rpc('is_app_admin');
   if (adminErr || !isAdmin) {
     return (
       <div className="mx-auto max-w-3xl space-y-4">

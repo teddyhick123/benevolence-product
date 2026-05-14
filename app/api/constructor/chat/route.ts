@@ -78,7 +78,7 @@ export async function POST(req: NextRequest) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const { data: isAdmin } = await supabase.rpc('is_admin');
+  const { data: isAdmin } = await supabase.rpc('is_app_admin');
   if (!isAdmin) {
     return Response.json({ error: 'Admin access required' }, { status: 403 });
   }

@@ -32,7 +32,7 @@ export default async function MappingPage({
     );
   }
 
-  const { data: isAdmin } = await supabase.rpc('is_admin');
+  const { data: isAdmin } = await supabase.rpc('is_app_admin');
   if (!isAdmin) {
     return <div className="card p-6 text-sm text-neutral-600">Admin access required.</div>;
   }

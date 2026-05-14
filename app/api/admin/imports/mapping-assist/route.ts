@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
   const supabase = await createServerClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return aiAuthRequired();
-  const { data: isAdmin } = await supabase.rpc('is_admin');
+  const { data: isAdmin } = await supabase.rpc('is_app_admin');
   if (!isAdmin) return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
 
   // Per-user rate limit

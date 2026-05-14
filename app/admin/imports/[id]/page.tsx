@@ -40,7 +40,7 @@ export default async function ImportDetailPage({
     );
   }
 
-  const { data: isAdmin } = await supabase.rpc('is_admin');
+  const { data: isAdmin } = await supabase.rpc('is_app_admin');
   if (!isAdmin) {
     return (
       <div className="mx-auto max-w-4xl">

@@ -142,12 +142,13 @@ describe('FilingCalendar', () => {
     // Click the "Mark Filed" button in the modal (there are now two: the link and the modal button)
     const markFiledButtons = screen.getAllByText('Mark Filed');
     // The modal button is the last one
-    fireEvent.click(markFiledButtons[markFiledButtons.length - 1]);
+    fireEvent.click(markFiledButtons.at(-1)!);
 
     await waitFor(() => {
       const postCall = fetchMock.mock.calls.find(([, opts]) => opts?.method === 'POST');
       expect(postCall).toBeTruthy();
-      const body = JSON.parse(postCall![1].body as string);
+      const [, opts] = postCall!;
+      const body = JSON.parse(opts!.body as string);
       expect(body.status).toBe('filed');
     });
   });
@@ -207,8 +208,8 @@ describe('FilingCalendar', () => {
     fireEvent.change(select, { target: { value: 'overdue' } });
 
     await waitFor(() => {
-      const calls = fetchMock.mock.calls.map(([url]) => url);
-      expect(calls.some(url => url.includes('status=overdue'))).toBe(true);
+      const calls = (fetchMock.mock.calls as any[]).map(([url]) => url);
+      expect(calls.some(url => String(url).includes('status=overdue'))).toBe(true);
     });
   });
 });

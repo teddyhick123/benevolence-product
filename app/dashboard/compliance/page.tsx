@@ -70,7 +70,7 @@ export default function CompliancePage() {
       ]);
       if (orgRes.ok) {
         const d = await orgRes.json();
-        const org = pickActiveOrg(d.organizations ?? []);
+        const org = pickActiveOrg((d.organizations ?? []) as Array<{ id: string; modules?: Record<string, boolean> }>);
         setOrgId(org?.id || null);
         setModuleEnabled(!!org?.modules?.compliance);
       }

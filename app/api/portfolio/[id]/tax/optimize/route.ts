@@ -110,7 +110,7 @@ export async function POST(
       .from('v_holdings')
       .select('*')
       .eq('portfolio_id', portfolio_id)
-      .eq('status', 'Active');
+      .eq('status', 'active');
 
     if (holdingsError) {
       console.error('Error fetching holdings:', holdingsError);

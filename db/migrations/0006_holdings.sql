@@ -10,7 +10,8 @@ CREATE TABLE IF NOT EXISTS holdings (
   created_at      timestamptz NOT NULL DEFAULT now(),
   updated_at      timestamptz NOT NULL DEFAULT now(),
 
-  -- Ownership chain (both required — portfolio always has an org)
+  -- Ownership chain (both required — portfolio always has an org).
+  -- org_id is derived from portfolios by trg_holdings_set_org_id.
   portfolio_id    uuid NOT NULL REFERENCES portfolios(id) ON DELETE CASCADE,
   org_id          uuid NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
 
@@ -21,11 +22,15 @@ CREATE TABLE IF NOT EXISTS holdings (
   -- Identity
   name            text NOT NULL,
   description     text,
+  sector          text,
   ein             text,           -- for nonprofits / grantees
+  investee_id     uuid,
   ticker          text,           -- for public equities
   cusip           text,
   isin            text,
   website         text,
+  custodian       text,
+  valuation_method text,
 
   -- Location (for geocoded map view)
   address_line1   text,
@@ -34,23 +39,36 @@ CREATE TABLE IF NOT EXISTS holdings (
   state           text,
   zip             text,
   country         text,
+  location_city   text,           -- UI compatibility alias for city
+  location_state  text,           -- UI compatibility alias for state
+  location_country text,          -- UI compatibility alias for country
   latitude        double precision,
   longitude       double precision,
   geocoded_at     timestamptz,
+  geocode_status  text,
+  geocode_provider text,
+  geocode_metadata jsonb,
 
   -- Financials
   amount_invested numeric(20,4),
   current_value   numeric(20,4),
+  funds_allocated numeric(20,4),  -- UI/reporting alias for allocated capital
+  cost_basis      numeric(20,4),
+  fmv             numeric(20,4),  -- fair market value for tax optimization
   currency        text NOT NULL DEFAULT 'USD',
 
   -- Dates
   investment_date date,
   exit_date       date,
   committed_date  date,
+  as_of           date,
 
   -- Impact & display
   impact_score    numeric(5,2),   -- 0-100 composite
   focus_area      text[],         -- e.g. ['education','climate']
+  cost_per_outcome numeric(20,4),
+  cost_per_outcome_unit text,
+  total_org_funding numeric(20,4),
   tags            text[],
   notes           text,
 
@@ -60,14 +78,52 @@ CREATE TABLE IF NOT EXISTS holdings (
 
   -- Soft-delete
   deleted_at      timestamptz,
-  deleted_by      uuid REFERENCES auth.users(id),
-
-  -- Consistency constraint
-  CONSTRAINT holdings_org_matches_portfolio
-    CHECK (
-      org_id = (SELECT org_id FROM portfolios WHERE id = portfolio_id)
-    )
+  deleted_by      uuid REFERENCES auth.users(id)
 );
+
+CREATE OR REPLACE FUNCTION set_holding_org_id_from_portfolio()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_org_id uuid;
+BEGIN
+  SELECT p.org_id INTO v_org_id
+  FROM portfolios p
+  WHERE p.id = NEW.portfolio_id
+    AND p.deleted_at IS NULL;
+
+  IF v_org_id IS NULL THEN
+    RAISE EXCEPTION 'Portfolio % does not exist or is deleted', NEW.portfolio_id
+      USING ERRCODE = 'foreign_key_violation';
+  END IF;
+
+  IF NEW.org_id IS NULL THEN
+    NEW.org_id := v_org_id;
+  ELSIF NEW.org_id <> v_org_id THEN
+    RAISE EXCEPTION 'Holding org_id % does not match portfolio org_id %', NEW.org_id, v_org_id
+      USING ERRCODE = 'check_violation';
+  END IF;
+
+  NEW.city := COALESCE(NEW.city, NEW.location_city);
+  NEW.state := COALESCE(NEW.state, NEW.location_state);
+  NEW.country := COALESCE(NEW.country, NEW.location_country);
+  NEW.location_city := COALESCE(NEW.location_city, NEW.city);
+  NEW.location_state := COALESCE(NEW.location_state, NEW.state);
+  NEW.location_country := COALESCE(NEW.location_country, NEW.country);
+  NEW.amount_invested := COALESCE(NEW.amount_invested, NEW.funds_allocated);
+  NEW.current_value := COALESCE(NEW.current_value, NEW.fmv, NEW.funds_allocated);
+
+  RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER trg_holdings_set_org_id
+  BEFORE INSERT OR UPDATE OF portfolio_id, org_id, city, state, country, location_city, location_state, location_country, amount_invested, current_value, funds_allocated, fmv
+  ON holdings
+  FOR EACH ROW EXECUTE FUNCTION set_holding_org_id_from_portfolio();
 
 CREATE INDEX idx_holdings_portfolio_id   ON holdings (portfolio_id) WHERE deleted_at IS NULL;
 CREATE INDEX idx_holdings_org_id         ON holdings (org_id)        WHERE deleted_at IS NULL;
@@ -137,6 +193,10 @@ ALTER TABLE holdings ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "holdings: portfolio members can view"
   ON holdings FOR SELECT
   USING (can_view_portfolio(portfolio_id) AND deleted_at IS NULL);
+
+CREATE POLICY "holdings: org members can view"
+  ON holdings FOR SELECT
+  USING (can_view_org(org_id) AND deleted_at IS NULL);
 
 CREATE POLICY "holdings: portfolio members (member+) can insert"
   ON holdings FOR INSERT

@@ -125,14 +125,14 @@ export async function POST(req: NextRequest) {
 
   // Get organization context for this portfolio (if any)
   let orgId: string | undefined;
-  const { data: orgHolding } = await sb
-    .from('organization_holdings')
-    .select('organization_id')
-    .eq('holding_id', portfolioId)
+  const { data: portfolio } = await sb
+    .from('portfolios')
+    .select('org_id')
+    .eq('id', portfolioId)
     .maybeSingle();
 
-  if (orgHolding?.organization_id) {
-    orgId = orgHolding.organization_id;
+  if (portfolio?.org_id) {
+    orgId = portfolio.org_id;
   } else {
     const { data: userOrg } = await sb
       .from('organization_members')

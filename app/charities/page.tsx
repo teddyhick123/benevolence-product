@@ -76,6 +76,16 @@ export default function CharitiesPage() {
     }
   }, [viewMode]);
 
+  // Debounced search query for main charity fetch (avoids hitting DB on every keystroke)
+  const [debouncedQuery, setDebouncedQuery] = useState('');
+  const searchDebounceRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    searchDebounceRef.current = setTimeout(() => setDebouncedQuery(searchQuery), 300);
+    return () => { if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current); };
+  }, [searchQuery]);
+
   // Fetch charities when view, debounced search, filters, or page changes
   useEffect(() => {
     fetchCharities();
@@ -95,16 +105,6 @@ export default function CharitiesPage() {
       // silent
     }
   };
-
-  // Debounced search query for main charity fetch (avoids hitting DB on every keystroke)
-  const [debouncedQuery, setDebouncedQuery] = useState('');
-  const searchDebounceRef = useRef<NodeJS.Timeout | null>(null);
-
-  useEffect(() => {
-    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
-    searchDebounceRef.current = setTimeout(() => setDebouncedQuery(searchQuery), 300);
-    return () => { if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current); };
-  }, [searchQuery]);
 
   // Autocomplete: debounced fetch on searchQuery change
   useEffect(() => {

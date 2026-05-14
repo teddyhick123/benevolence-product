@@ -42,6 +42,11 @@ LEFT JOIN LATERAL (
 ) v ON true
 WHERE h.deleted_at IS NULL;
 
+-- Backwards-compatible public holdings view used by portfolio APIs.
+CREATE OR REPLACE VIEW v_holdings AS
+SELECT *
+FROM v_holdings_enriched;
+
 -- ---------------------------------------------------------------------------
 -- v_portfolio_summary — one-row-per-portfolio financial summary
 -- ---------------------------------------------------------------------------

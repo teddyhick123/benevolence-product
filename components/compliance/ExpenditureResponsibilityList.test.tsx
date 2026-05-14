@@ -186,7 +186,8 @@ describe('ExpenditureResponsibilityList', () => {
     await waitFor(() => {
       const patchCall = fetchMock.mock.calls.find(([, opts]) => opts?.method === 'PATCH');
       expect(patchCall).toBeTruthy();
-      const body = JSON.parse(patchCall![1].body as string);
+      const [, opts] = patchCall!;
+      const body = JSON.parse(opts!.body as string);
       expect(body.er_reports_received_count).toBe(2); // 1 + 1
       expect(patchCall![0]).toContain('er-1'); // grant id in URL
     });

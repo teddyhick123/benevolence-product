@@ -66,7 +66,7 @@ export default function ModuleRecommendations({
       setExcluded(data.excluded || []);
 
       // Pre-select recommended modules with confidence >= 0.5
-      const preSelected = new Set(
+      const preSelected = new Set<string>(
         (data.recommendations || [])
           .filter((r: Recommendation) => r.confidence >= 0.5)
           .map((r: Recommendation) => r.module_id)

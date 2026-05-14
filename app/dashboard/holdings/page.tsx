@@ -149,7 +149,7 @@ export default function HoldingsPage() {
           onClose={() => setModalOpen(false)}
           onChanged={() => mutate()}
           portfolioId={portfolioId}
-          initialData={editing ?? undefined}
+          initial={editing ?? undefined}
         />
       )}
     </div>

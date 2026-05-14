@@ -50,7 +50,7 @@ function TaxDashboard() {
         }
         if (orgRes.ok) {
           const json = await orgRes.json();
-          const activeOrg = pickActiveOrg(json.organizations ?? []);
+          const activeOrg = pickActiveOrg((json.organizations ?? []) as Array<{ id: string; modules?: Record<string, boolean> }>);
           setModuleEnabled(activeOrg ? !!activeOrg.modules?.tax : true);
         }
       } catch (err) {

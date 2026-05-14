@@ -23,6 +23,7 @@ export interface OrganizationMember {
 
 export interface OrganizationHolding {
   organization_id: string;
+  org_id: string;
   holding_id: string;
   verified_at: string | null;
   verified_by: string | null;
@@ -127,7 +128,7 @@ export async function getOrganizationMembers(
 }
 
 /**
- * Get holdings linked to organization
+ * Get holdings owned by organization
  */
 export async function getOrganizationHoldings(
   supabase: SupabaseClient,
@@ -137,26 +138,37 @@ export async function getOrganizationHoldings(
   error: string | null;
 }> {
   const { data, error } = await supabase
-    .from('organization_holdings')
+    .from('holdings')
     .select(`
-      organization_id,
-      holding_id,
-      verified_at,
-      verified_by,
+      id,
+      org_id,
+      name,
+      portfolio_id,
       created_at,
-      holdings (
-        id,
-        name,
-        portfolio_id
-      )
     `)
-    .eq('organization_id', orgId);
+    .eq('org_id', orgId)
+    .is('deleted_at', null)
+    .order('name');
 
   if (error) {
     return { holdings: [], error: error.message };
   }
 
-  return { holdings: (data || []) as unknown as OrganizationHolding[], error: null };
+  const holdings = (data || []).map((holding: any) => ({
+    organization_id: orgId,
+    org_id: orgId,
+    holding_id: holding.id,
+    verified_at: holding.created_at,
+    verified_by: null,
+    created_at: holding.created_at,
+    holdings: {
+      id: holding.id,
+      name: holding.name,
+      portfolio_id: holding.portfolio_id,
+    },
+  }));
+
+  return { holdings, error: null };
 }
 
 /**

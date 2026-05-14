@@ -37,6 +37,13 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: "Not authorized to upload" }, { status: 403 });
     }
 
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) {
+      return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+    }
+
     // Parse form data
     const form = await req.formData();
     const file = form.get("file") as File | null;
@@ -63,29 +70,23 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       );
     }
 
-    // Verify the holding is linked and verified
-    const { data: holdingLink } = await supabase
-      .from("organization_holdings")
-      .select("verified_at, holdings(portfolio_id)")
+    // Verify the holding belongs to this org.
+    const { data: holding } = await supabase
+      .from("holdings")
+      .select("id, portfolio_id")
       .eq("org_id", orgId)
-      .eq("holding_id", holding_id)
+      .eq("id", holding_id)
+      .is("deleted_at", null)
       .single();
 
-    if (!holdingLink) {
+    if (!holding) {
       return NextResponse.json(
-        { error: "Holding is not linked to this organization" },
+        { error: "Holding does not belong to this organization" },
         { status: 400 }
       );
     }
 
-    if (!holdingLink.verified_at) {
-      return NextResponse.json(
-        { error: "Holding link is not yet verified by the portfolio owner" },
-        { status: 400 }
-      );
-    }
-
-    const portfolioId = (holdingLink as any).holdings?.portfolio_id;
+    const portfolioId = holding.portfolio_id;
 
     // Create upload record
     const fileName = file.name;
@@ -94,10 +95,17 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     const { data: upload, error: uploadError } = await adminClient
       .from("uploads")
       .insert({
+        org_id: orgId,
+        portfolio_id: portfolioId,
+        uploaded_by: user.id,
+        filename: fileName,
+        original_name: fileName,
+        storage_path: `org/${orgId}/uploads/${crypto.randomUUID()}-${fileName}`,
+        mime_type: file.type || null,
+        size_bytes: file.size,
         file_name: fileName,
         file_ext: ext,
         status: "processing",
-        portfolio_id: portfolioId,
         holding_id,
         ai_mode: aiMode,
       })

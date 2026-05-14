@@ -38,7 +38,6 @@ export const MODULE_REGISTRY: Record<ModuleId, ModuleDefinition> = {
       'portfolio_members',
       'organizations',
       'organization_members',
-      'organization_holdings',
     ],
     routes: [
       '/dashboard',

@@ -197,17 +197,22 @@ async function fetchOrgSubmittedFacts(holdingId: string) {
 
 async function fetchLinkedOrg(holdingId: string): Promise<{ id: string; name: string } | null> {
   const supabase = await getSupabase();
-  const { data, error } = await supabase
-    .from('organization_holdings')
-    .select('organizations (id, name)')
-    .eq('holding_id', holdingId)
-    .not('verified_at', 'is', null)
-    .limit(1)
+  const { data: holding, error: holdingError } = await supabase
+    .from('holdings')
+    .select('org_id')
+    .eq('id', holdingId)
     .single();
 
-  if (error || !data) return null;
-  const org = (data as any).organizations;
-  return org ? { id: org.id, name: org.name } : null;
+  if (holdingError || !holding?.org_id) return null;
+
+  const { data: org, error: orgError } = await supabase
+    .from('organizations')
+    .select('id, name')
+    .eq('id', holding.org_id)
+    .single();
+
+  if (orgError || !org) return null;
+  return { id: org.id, name: org.name };
 }
 
 

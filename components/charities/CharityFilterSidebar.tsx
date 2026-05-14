@@ -19,7 +19,7 @@ interface FilterState {
 interface CharityFilterSidebarProps {
   filters: FilterState;
   onFiltersChange: (filters: FilterState) => void;
-  view?: 'discovery' | 'portfolio';
+  view?: 'discovery' | 'portfolio' | 'saved';
   onClearFilters: () => void;
   isOpen?: boolean;
   onClose?: () => void;

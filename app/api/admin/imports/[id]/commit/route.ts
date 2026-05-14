@@ -78,7 +78,10 @@ export async function POST(
   }
 
   // Fire-and-forget: clean up staging PII from jobs older than 30 days
-  supabase.rpc('cleanup_staging_pii', { retention_days: 30 }).then().catch(() => {});
+  supabase.rpc('cleanup_staging_pii', { retention_days: 30 }).then(
+    () => {},
+    () => {}
+  );
 
   return NextResponse.json(
     {

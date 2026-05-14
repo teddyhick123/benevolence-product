@@ -28,20 +28,17 @@ async function loadDataPageData(orgId: string) {
     .eq("id", orgId)
     .single();
 
-  // Load linked and verified holdings for data entry
+  // Load org-owned holdings for data entry
   const { data: holdingsData } = await supabase
-    .from("organization_holdings")
+    .from("holdings")
     .select(`
-      holding_id,
-      verified_at,
-      holdings (
-        id,
-        name,
-        portfolio_id
-      )
+      id,
+      name,
+      portfolio_id
     `)
     .eq("org_id", orgId)
-    .not("verified_at", "is", null);
+    .is("deleted_at", null)
+    .order("name");
 
   // Load pending staging facts
   const { data: pendingFacts } = await supabase
@@ -68,6 +65,7 @@ async function loadDataPageData(orgId: string) {
   const { data: uploads } = await supabase
     .from("uploads")
     .select("id, file_name, status, created_at, holding_id, holdings(name)")
+    .eq("org_id", orgId)
     .order("created_at", { ascending: false })
     .limit(20);
 
@@ -105,7 +103,7 @@ export default async function OrgDataPage({ params }: Props) {
     );
   }
 
-  const verifiedHoldings = holdings.filter((h: any) => h.verified_at);
+  const ownedHoldings = holdings;
 
   return (
     <div className="space-y-6">
@@ -121,30 +119,29 @@ export default async function OrgDataPage({ params }: Props) {
         </div>
       )}
 
-      {verifiedHoldings.length === 0 && (
+      {ownedHoldings.length === 0 && (
         <div className="card p-6 text-center">
-          <h3 className="font-medium mb-2">No Verified Holdings</h3>
+          <h3 className="font-medium mb-2">No Holdings</h3>
           <p className="text-sm text-neutral-600 mb-4">
-            Your organization needs verified links to holdings before you can submit data.
-            Request a link from your Settings page.
+            Add holdings to a portfolio before submitting impact data.
           </p>
           <Link
-            href={`/org/${orgId}/settings`}
+            href="/dashboard/holdings"
             className="text-azure hover:underline text-sm"
           >
-            Go to Settings
+            Go to Holdings
           </Link>
         </div>
       )}
 
-      {canEdit && verifiedHoldings.length > 0 && (
+      {canEdit && ownedHoldings.length > 0 && (
         <>
           {/* Manual Data Entry */}
           <div className="card p-6">
             <h2 className="text-lg font-medium mb-4">Manual Metric Entry</h2>
             <OrgDataEntry
               orgId={orgId}
-              holdings={verifiedHoldings.map((h: any) => h.holdings)}
+              holdings={ownedHoldings as any}
               metrics={metrics}
             />
           </div>
@@ -154,7 +151,7 @@ export default async function OrgDataPage({ params }: Props) {
             <h2 className="text-lg font-medium mb-4">Upload Report</h2>
             <OrgReportUploader
               orgId={orgId}
-              holdings={verifiedHoldings.map((h: any) => h.holdings)}
+              holdings={ownedHoldings as any}
             />
           </div>
         </>

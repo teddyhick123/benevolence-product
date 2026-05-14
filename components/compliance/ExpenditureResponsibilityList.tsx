@@ -134,7 +134,7 @@ export default function ExpenditureResponsibilityList({ portfolioId }: Props) {
                     )}
                   </td>
                   <td className="px-4 py-3">
-                    {g.er_reports_required ? (
+                    {g.er_reports_required_count > 0 ? (
                       <div>
                         <span className={`text-xs font-medium ${g.reports_deficient ? 'text-red-600' : 'text-green-700'}`}>
                           {g.er_reports_received_count}/{g.er_reports_required_count}

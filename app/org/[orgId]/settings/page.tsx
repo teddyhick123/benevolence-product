@@ -40,23 +40,34 @@ async function loadSettingsData(orgId: string) {
     return { error: orgError.message, org: null, holdings: [], charity: null, isAdmin: !!isAdmin };
   }
 
-  // Load holding links (both verified and pending)
-  const { data: holdingLinks } = await supabase
-    .from("organization_holdings")
+  // Load holdings owned by this organization
+  const { data: holdingRows } = await supabase
+    .from("holdings")
     .select(`
-      org_id,
-      holding_id,
-      verified_at,
-      verified_by,
+      id,
+      name,
+      portfolio_id,
       created_at,
-      holdings (
-        id,
-        name,
-        portfolio_id,
-        portfolios (name)
-      )
+      portfolios (name)
     `)
-    .eq("org_id", orgId);
+    .eq("org_id", orgId)
+    .is("deleted_at", null)
+    .order("name");
+
+  const holdingLinks = (holdingRows || []).map((holding: any) => ({
+    organization_id: orgId,
+    org_id: orgId,
+    holding_id: holding.id,
+    verified_at: holding.created_at,
+    verified_by: null,
+    created_at: holding.created_at,
+    holdings: {
+      id: holding.id,
+      name: holding.name,
+      portfolio_id: holding.portfolio_id,
+      portfolios: holding.portfolios,
+    },
+  }));
 
   return {
     error: null,

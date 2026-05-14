@@ -81,12 +81,12 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       enabled_modules: enabledModules,
     };
 
-    // Get linked holdings count (core)
+    // Get holdings owned by this organization (core)
     const { count: holdingsCount } = await adminClient
-      .from("organization_holdings")
+      .from("holdings")
       .select("*", { count: "exact", head: true })
       .eq("org_id", orgId)
-      .not("verified_at", "is", null);
+      .is("deleted_at", null);
 
     stats.linked_holdings = holdingsCount || 0;
 
@@ -137,16 +137,16 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
 
     // Grant management stats
     // Note: grant_details is portfolio-scoped (linked via holding_id), so we query
-    // through organization_holdings to find grants for holdings linked to this org
+    // through org-owned holdings to find grants for this org.
     if (enabledModules.includes("grant_management")) {
-      // Get grants for holdings linked to this organization
+      // Get grants for holdings owned by this organization
       const { data: orgHoldings } = await adminClient
-        .from("organization_holdings")
-        .select("holding_id")
+        .from("holdings")
+        .select("id")
         .eq("org_id", orgId)
-        .not("verified_at", "is", null);
+        .is("deleted_at", null);
 
-      const holdingIds = orgHoldings?.map((h) => h.holding_id) || [];
+      const holdingIds = orgHoldings?.map((h) => h.id) || [];
 
       if (holdingIds.length > 0) {
         // Count grants for these holdings (active = within grant period or no end date)

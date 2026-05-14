@@ -83,24 +83,18 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       );
     }
 
-    // Verify the holding is linked to this org and verified
-    const { data: holdingLink } = await supabase
-      .from("organization_holdings")
-      .select("verified_at")
+    // Verify the holding belongs to this org.
+    const { data: holding } = await supabase
+      .from("holdings")
+      .select("id, portfolio_id")
       .eq("org_id", orgId)
-      .eq("holding_id", holding_id)
+      .eq("id", holding_id)
+      .is("deleted_at", null)
       .single();
 
-    if (!holdingLink) {
+    if (!holding) {
       return NextResponse.json(
-        { error: "Holding is not linked to this organization" },
-        { status: 400 }
-      );
-    }
-
-    if (!holdingLink.verified_at) {
-      return NextResponse.json(
-        { error: "Holding link is not yet verified by the portfolio owner" },
+        { error: "Holding does not belong to this organization" },
         { status: 400 }
       );
     }
@@ -115,13 +109,6 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     if (!metric) {
       return NextResponse.json({ error: "Invalid metric code" }, { status: 400 });
     }
-
-    // Get the holding's portfolio_id for the upload record
-    const { data: holding } = await supabase
-      .from("holdings")
-      .select("portfolio_id")
-      .eq("id", holding_id)
-      .single();
 
     // Insert into staging_metric_facts
     const adminClient = createAdminClient();

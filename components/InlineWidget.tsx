@@ -157,9 +157,10 @@ type WidgetData = {
 type InlineWidgetProps = {
   widget: WidgetData;
   portfolioId: string;
+  compact?: boolean;
 };
 
-export default function InlineWidget({ widget, portfolioId }: InlineWidgetProps) {
+export default function InlineWidget({ widget, portfolioId, compact: _compact = false }: InlineWidgetProps) {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 

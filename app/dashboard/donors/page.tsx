@@ -51,7 +51,7 @@ export default function DonorsPage() {
         const res = await fetch('/api/org');
         if (res.ok) {
           const data = await res.json();
-          const activeOrg = pickActiveOrg(data.organizations ?? []);
+          const activeOrg = pickActiveOrg((data.organizations ?? []) as Array<{ id: string; modules?: Record<string, boolean> }>);
           if (activeOrg) {
             setOrgId(activeOrg.id);
             setModuleEnabled(!!activeOrg.modules?.donors);

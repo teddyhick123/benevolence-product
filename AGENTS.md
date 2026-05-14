@@ -14,6 +14,7 @@ Key invariants that differ from older patterns or documentation you may encounte
 - The RLS helper for membership is **`can_view_org(p_org_id)`** (not `is_org_member`).
 - The role lookup function is **`user_org_role(p_org_id)`** (not `org_role`).
 - The app-level admin check is **`is_app_admin()`** (not `is_admin`).
+- The `organization_holdings` table does **not** exist. Holdings belong to organizations directly through **`holdings.org_id`**, derived from the holding's portfolio.
 - The `organization_modules` table does **not** exist. Module state lives in `organizations.modules` JSONB checked via `org_has_module(p_org_id, p_module)`; the parameter is `p_module`, not `p_module_id`.
 - Module slugs in the database are `portfolio`, `donors`, `pledges`, `tax`, `compliance`, `reports`, `grant_management`, `impact_tracking`, `analytics`, `external_data`, `quickbooks`, `import`, and `ai_assistant`. App-facing aliases such as `core`, `donor_management`, `pledge_tracking`, `tax_optimization`, and `reporting` must map to those DB slugs.
 

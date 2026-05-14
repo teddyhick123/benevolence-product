@@ -127,16 +127,16 @@ export async function POST(req: NextRequest) {
     // Get organization context for this portfolio (if any)
     // This enables module-based tool filtering
     let orgId: string | undefined;
-    const { data: orgHolding } = await sb
-      .from('organization_holdings')
-      .select('organization_id')
-      .eq('holding_id', portfolioId)
+    const { data: portfolio } = await sb
+      .from('portfolios')
+      .select('org_id')
+      .eq('id', portfolioId)
       .maybeSingle();
 
-    // If portfolio is linked to an org via holdings, use that org
+    // If portfolio belongs to an org, use that org
     // Otherwise check if user belongs to an org that might be relevant
-    if (orgHolding?.organization_id) {
-      orgId = orgHolding.organization_id;
+    if (portfolio?.org_id) {
+      orgId = portfolio.org_id;
     } else {
       // Check if user has an organization membership
       const { data: userOrg } = await sb
@@ -219,8 +219,10 @@ export async function POST(req: NextRequest) {
           input_tokens: result.usage.inputTokens,
           output_tokens: result.usage.outputTokens,
         })
-        .then()
-        .catch((err) => console.error('[ai/chat] usage log insert failed:', err));
+        .then(
+          () => {},
+          (err: any) => console.error('[ai/chat] usage log insert failed:', err)
+        );
     }
 
     // Check if any widgets were created/displayed and fetch their full data

@@ -2,7 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAIProvider } from '@/lib/ai/factory';
 import { AI_MODELS } from '@/lib/ai/models';
-import type { AIStreamChunk, AIContentBlock } from '@/lib/ai/types';
+import type { AIStreamChunk, AIContentBlock, AIMessage } from '@/lib/ai/types';
 import { createServerClient, createAdminClient } from '@/lib/supabase';
 import { fetchOrgSnapshot, buildSystemPrompt } from '@/lib/builder/context-bundle';
 import { BUILDER_TOOLS, executeTool, ToolResult } from '@/lib/builder/tools';
@@ -60,7 +60,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
 
   const existingMessages: StoredMessage[] = (sessionRes.data?.messages as StoredMessage[]) || [];
 
-  const history = existingMessages
+  const history: AIMessage[] = existingMessages
     .slice(-20)
     .map(m => ({ role: m.role, content: m.content }));
 

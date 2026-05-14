@@ -3,6 +3,36 @@ import { supabasePublic } from '@/lib/supabase';
 import { createHoldingSchema } from '@/lib/schemas/portfolio';
 import { validateRequest } from '@/lib/validation';
 
+function normalizeHoldingStatus(status: string | null | undefined): string | null {
+  if (!status) return null;
+  const map: Record<string, string> = {
+    Active: 'active',
+    Pipeline: 'pending',
+    Exited: 'exited',
+    'On Hold': 'committed',
+  };
+  return map[status] ?? status;
+}
+
+function normalizeAssetType(assetType: string | null | undefined): string | null {
+  if (!assetType) return null;
+  const map: Record<string, string> = {
+    equity_investment: 'equity',
+    private_equity_investment: 'private_equity',
+    venture_capital_investment: 'private_equity',
+    debt_investment: 'fixed_income',
+    impact_bond: 'fixed_income',
+    conservation_investment: 'other',
+    pri: 'program_related_investment',
+    mri: 'mission_related_investment',
+    real_estate_donation: 'real_estate',
+    qcd_distribution: 'cash_equivalent',
+    cryptocurrency_donation: 'cryptocurrency',
+    artwork_collectible_donation: 'other',
+  };
+  return map[assetType] ?? assetType;
+}
+
 export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id: portfolio_id } = await ctx.params;
   const url = new URL(req.url);
@@ -88,8 +118,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   const insertRow: any = {
     portfolio_id,
     name: validated.name,
-    status: validated.status ?? null,
-    asset_type: validated.asset_type ?? null,
+    status: normalizeHoldingStatus(validated.status),
+    asset_type: normalizeAssetType(validated.asset_type),
     custodian: validated.custodian ?? null,
     valuation_method: validated.valuation_method ?? null,
     sector: validated.sector ?? null,

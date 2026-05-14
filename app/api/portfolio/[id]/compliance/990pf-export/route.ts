@@ -42,7 +42,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
         .maybeSingle(),
       supabase
         .from('tax_contributions')
-        .select('id, contribution_date, recipient_name, recipient_ein, contribution_type, fair_market_value, description_of_property, deductible_amount')
+        .select('id, contribution_date, recipient_name, recipient_ein, recipient_type, contribution_type, fair_market_value, description_of_property, deductible_amount')
         .eq('portfolio_id', portfolioId)
         .eq('tax_year', year)
         .gte('contribution_date', `${year}-01-01`)

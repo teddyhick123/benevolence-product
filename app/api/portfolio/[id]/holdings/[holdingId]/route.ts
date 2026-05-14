@@ -9,6 +9,36 @@ function cacheHeaders() {
 
 const createSb = createSupabaseServerClient;
 
+function normalizeHoldingStatus(status: string | null | undefined): string | null {
+  if (!status) return null;
+  const map: Record<string, string> = {
+    Active: 'active',
+    Pipeline: 'pending',
+    Exited: 'exited',
+    'On Hold': 'committed',
+  };
+  return map[status] ?? status;
+}
+
+function normalizeAssetType(assetType: string | null | undefined): string | null {
+  if (!assetType) return null;
+  const map: Record<string, string> = {
+    equity_investment: 'equity',
+    private_equity_investment: 'private_equity',
+    venture_capital_investment: 'private_equity',
+    debt_investment: 'fixed_income',
+    impact_bond: 'fixed_income',
+    conservation_investment: 'other',
+    pri: 'program_related_investment',
+    mri: 'mission_related_investment',
+    real_estate_donation: 'real_estate',
+    qcd_distribution: 'cash_equivalent',
+    cryptocurrency_donation: 'cryptocurrency',
+    artwork_collectible_donation: 'other',
+  };
+  return map[assetType] ?? assetType;
+}
+
 export async function PATCH(req: Request, ctx: { params: Promise<{ id: string; holdingId: string }> }) {
   const { id: portfolio_id, holdingId } = await ctx.params;
   const sb = await createSb();
@@ -49,8 +79,8 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string; h
   // Build patch object from validated data (only include provided fields)
   const patch: Record<string, any> = {};
   if (validated.name !== undefined) patch.name = validated.name;
-  if (validated.status !== undefined) patch.status = validated.status;
-  if (validated.asset_type !== undefined) patch.asset_type = validated.asset_type;
+  if (validated.status !== undefined) patch.status = normalizeHoldingStatus(validated.status);
+  if (validated.asset_type !== undefined) patch.asset_type = normalizeAssetType(validated.asset_type);
   if (validated.custodian !== undefined) patch.custodian = validated.custodian;
   if (validated.valuation_method !== undefined) patch.valuation_method = validated.valuation_method;
   if (validated.sector !== undefined) patch.sector = validated.sector;

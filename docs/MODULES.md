@@ -54,7 +54,7 @@ Provides fundamental portfolio management capabilities.
 - `remove_holding` - Delete holding
 - `get_holding_details` - Detailed view
 
-**Tables**: `portfolios`, `holdings`, `portfolio_members`, `organizations`, `organization_members`, `organization_holdings`
+**Tables**: `portfolios`, `holdings`, `portfolio_members`, `organizations`, `organization_members`
 
 **Routes**: `/dashboard`, `/dashboard/holdings`, `/org`
 

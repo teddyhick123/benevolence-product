@@ -78,7 +78,7 @@ export default function DonorDetail({ organizationId, donorId, onEdit }: Props) 
           .from('donors')
           .select('*')
           .eq('id', donorId)
-          .eq('organization_id', organizationId)
+          .eq('org_id', organizationId)
           .single();
 
         if (donorError) throw donorError;

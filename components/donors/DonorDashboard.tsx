@@ -5,8 +5,8 @@ import { createClient } from '@/lib/supabase-browser';
 
 type DonorSummary = {
   donor_id: string;
-  organization_id: string;
-  donor_type: string;
+  org_id: string;
+  is_organization: boolean;
   display_name: string;
   email: string | null;
   is_anonymous: boolean;
@@ -29,7 +29,7 @@ type ContributionSummary = {
   donor_name: string;
   amount: number;
   contribution_date: string;
-  contribution_type: string;
+  gift_type: string;
   receipt_status: string;
   acknowledgment_status: string;
 };
@@ -63,7 +63,7 @@ export default function DonorDashboard({ organizationId }: Props) {
         const { data: donorData, error: donorError } = await supabase
           .from('v_donor_summary')
           .select('*')
-          .eq('organization_id', organizationId)
+          .eq('org_id', organizationId)
           .order('total_lifetime_giving', { ascending: false });
 
         if (donorError) throw donorError;
@@ -98,7 +98,7 @@ export default function DonorDashboard({ organizationId }: Props) {
         const { data: contribData, error: contribError } = await supabase
           .from('v_contribution_with_donor')
           .select('*')
-          .eq('organization_id', organizationId)
+          .eq('org_id', organizationId)
           .order('contribution_date', { ascending: false })
           .limit(10);
 
@@ -322,7 +322,7 @@ export default function DonorDashboard({ organizationId }: Props) {
                       </div>
                     </div>
                     <span className="text-xs text-gray-500 capitalize">
-                      {contrib.contribution_type.replace('_', ' ')}
+                      {contrib.gift_type.replace('_', ' ')}
                     </span>
                   </div>
                 </li>

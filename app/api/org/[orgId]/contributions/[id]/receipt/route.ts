@@ -22,49 +22,41 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     const body = await req.json().catch(() => ({}));
     const { send_immediately } = body;
 
-    // Get contribution with donor and org info
+    // Get contribution with donor info
     const { data: contribution, error: contribError } = await supabase
       .from("contributions_received")
       .select(`
         *,
         donors(
-          id, donor_type, first_name, last_name, email, organization_name,
-          address_line1, address_line2, city, state, postal_code, country
-        ),
-        organizations:organization_id(name, ein, website)
+          id, is_organization, first_name, last_name, email, organization_name,
+          address_line1, address_line2, city, state, zip, country
+        )
       `)
       .eq("id", id)
-      .eq("organization_id", orgId)
+      .eq("org_id", orgId)
       .single();
 
     if (contribError) {
       return NextResponse.json({ error: "Contribution not found" }, { status: 404 });
     }
 
-    // Generate receipt number
-    let receiptNumber = contribution.receipt_number;
-    if (!receiptNumber) {
-      const { data: newReceiptNum } = await supabase.rpc("generate_receipt_number", {
-        p_org_id: orgId,
-      });
-      receiptNumber = newReceiptNum;
-    }
-
-    const org = contribution.organizations;
+    const { data: org } = await supabase
+      .from("organizations")
+      .select("name, ein")
+      .eq("id", orgId)
+      .single();
     const donor = contribution.donors;
 
     // Build donor display name
     const donorName = donor
-      ? donor.donor_type === "individual"
-        ? `${donor.first_name || ""} ${donor.last_name || ""}`.trim() || "Donor"
-        : donor.organization_name || "Donor"
+      ? donor.is_organization
+        ? donor.organization_name || "Donor"
+        : `${donor.first_name || ""} ${donor.last_name || ""}`.trim() || "Donor"
       : "Donor";
 
     // Build goods/services statement
     const goodsServicesStatement =
-      contribution.quid_pro_quo_value > 0
-        ? `The estimated value of goods and services provided in exchange for this contribution was $${contribution.quid_pro_quo_value.toLocaleString()}. The tax-deductible portion is $${contribution.tax_deductible_amount.toLocaleString()}.`
-        : "No goods or services were provided in exchange for this contribution.";
+      "No goods or services were provided in exchange for this contribution.";
 
     // Generate receipt content
     const receiptBody = `Dear ${donorName},
@@ -76,9 +68,8 @@ This letter serves as your official receipt for tax purposes.
 Contribution Details:
 - Date: ${new Date(contribution.contribution_date).toLocaleDateString()}
 - Amount: $${contribution.amount.toLocaleString()}
-- Type: ${contribution.contribution_type.replace("_", " ")}
-- Receipt Number: ${receiptNumber}
-${contribution.designation ? `- Designation: ${contribution.designation}` : ""}
+- Type: ${contribution.gift_type.replace("_", " ")}
+${contribution.fund_designation ? `- Designation: ${contribution.fund_designation}` : ""}
 
 ${goodsServicesStatement}
 
@@ -96,21 +87,16 @@ ${org?.name || "The Organization"}`;
     const { data: letter, error: letterError } = await supabase
       .from("acknowledgment_letters")
       .insert({
-        organization_id: orgId,
+        org_id: orgId,
         donor_id: contribution.donor_id,
-        contribution_id: id,
-        letter_type: "tax_receipt",
-        subject: `Tax Receipt - ${receiptNumber}`,
+        contribution_ids: [id],
+        subject: `Tax Receipt - ${new Date(contribution.contribution_date).toLocaleDateString()}`,
         body: receiptBody,
-        org_name: org?.name,
-        org_ein: org?.ein,
-        contribution_amount: contribution.amount,
-        contribution_date: contribution.contribution_date,
-        goods_services_statement: goodsServicesStatement,
         status: send_immediately && donor?.email ? "sent" : "draft",
-        sent_via: "email",
+        delivery_method: "email",
         sent_at: send_immediately && donor?.email ? new Date().toISOString() : null,
-        created_by: user?.id,
+        sent_by: send_immediately && donor?.email ? user?.id : null,
+        recipient_email: donor?.email ?? null,
       })
       .select()
       .single();
@@ -119,20 +105,17 @@ ${org?.name || "The Organization"}`;
       return NextResponse.json({ error: letterError.message }, { status: 500 });
     }
 
-    // Update contribution receipt status
     await supabase
       .from("contributions_received")
       .update({
-        receipt_number: receiptNumber,
-        receipt_status: send_immediately && donor?.email ? "sent" : "generated",
-        receipt_generated_at: new Date().toISOString(),
-        receipt_sent_at: send_immediately && donor?.email ? new Date().toISOString() : null,
+        acknowledgment_sent: !!(send_immediately && donor?.email),
+        acknowledged_at: new Date().toISOString(),
       })
-      .eq("id", id);
+      .eq("id", id)
+      .eq("org_id", orgId);
 
     return NextResponse.json({
       success: true,
-      receipt_number: receiptNumber,
       letter_id: letter.id,
       sent: send_immediately && donor?.email,
       donor_email: donor?.email,
@@ -149,7 +132,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     const supabase = await createServerClient();
 
     // Check access
-    const { data: role } = await supabase.rpc("org_role", { p_org_id: orgId });
+    const { data: role } = await supabase.rpc("user_org_role", { p_org_id: orgId });
     if (!role) {
       return NextResponse.json({ error: "Not authorized" }, { status: 403 });
     }
@@ -158,13 +141,11 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     const { data: contribution, error: contribError } = await supabase
       .from("contributions_received")
       .select(`
-        id, receipt_number, receipt_status, receipt_generated_at, receipt_sent_at,
-        amount, contribution_date, contribution_type, tax_deductible_amount, quid_pro_quo_value,
-        donors(first_name, last_name, organization_name, donor_type, email),
-        organizations:organization_id(name, ein)
+        id, amount, contribution_date, gift_type, acknowledgment_sent, acknowledged_at,
+        donors(first_name, last_name, organization_name, is_organization, email)
       `)
       .eq("id", id)
-      .eq("organization_id", orgId)
+      .eq("org_id", orgId)
       .single();
 
     if (contribError) {
@@ -175,8 +156,8 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     const { data: letter } = await supabase
       .from("acknowledgment_letters")
       .select("*")
-      .eq("contribution_id", id)
-      .eq("letter_type", "tax_receipt")
+      .eq("org_id", orgId)
+      .contains("contribution_ids", [id])
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();

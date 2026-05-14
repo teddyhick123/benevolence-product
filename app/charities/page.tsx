@@ -389,7 +389,7 @@ export default function CharitiesPage() {
                 <div className="text-center py-16 bg-white rounded-lg border border-gray-200">
                   <div className="text-5xl mb-3">☆</div>
                   <h3 className="text-lg font-semibold text-gray-900 mb-2">No saved charities</h3>
-                  <p className="text-sm text-gray-500 mb-4">Click "Save for Later" on any charity detail page to bookmark it here.</p>
+                  <p className="text-sm text-gray-500 mb-4">Click &quot;Save for Later&quot; on any charity detail page to bookmark it here.</p>
                   <button onClick={() => setViewMode('discovery')} className="px-4 py-2 bg-azure text-white rounded-lg text-sm font-medium">
                     Discover Charities
                   </button>

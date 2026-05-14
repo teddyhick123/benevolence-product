@@ -8,7 +8,7 @@ const ALLOWED_ROLES = ['owner', 'admin', 'member'];
 const ADMIN_ROLES   = ['owner', 'admin'];
 
 async function getRole(supabase: any, orgId: string): Promise<string | null> {
-  const { data: role } = await supabase.rpc('org_role', { p_org_id: orgId });
+  const { data: role } = await supabase.rpc('user_org_role', { p_org_id: orgId });
   return role || null;
 }
 
@@ -22,14 +22,43 @@ export async function GET(
     const role = await getRole(supabase, orgId);
     if (!role || !ALLOWED_ROLES.includes(role)) return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
 
-    const [{ data: pledge, error: pe }, { data: installments }, { data: events }] = await Promise.all([
+    const [
+      { data: pledge, error: pledgeError },
+      { data: installments, error: installmentsError },
+      { data: events, error: eventsError },
+    ] = await Promise.all([
       supabase.from('v_pledge_pipeline').select('*').eq('id', pledgeId).eq('org_id', orgId).single(),
-      supabase.from('pledge_installments').select('*, contributions_received(id, contribution_date, amount, receipt_status, acknowledgment_sent)').eq('pledge_id', pledgeId).order('due_date'),
+      supabase.from('pledge_installments').select('*').eq('pledge_id', pledgeId).eq('org_id', orgId).order('due_date'),
       supabase.from('pledge_events').select('*').eq('pledge_id', pledgeId).order('created_at', { ascending: false }).limit(50),
     ]);
-    if (pe) return NextResponse.json({ error: pe.message }, { status: pe.code === 'PGRST116' ? 404 : 500 });
+    if (pledgeError) return NextResponse.json({ error: pledgeError.message }, { status: pledgeError.code === 'PGRST116' ? 404 : 500 });
+    if (installmentsError) return NextResponse.json({ error: installmentsError.message }, { status: 500 });
+    if (eventsError) return NextResponse.json({ error: eventsError.message }, { status: 500 });
 
-    return NextResponse.json({ pledge, installments, events });
+    const contributionIds = [...new Set(
+      (installments ?? [])
+        .map((installment: any) => installment.contribution_id)
+        .filter(Boolean)
+    )];
+
+    let contributionsById: Record<string, any> = {};
+    if (contributionIds.length > 0) {
+      const { data: contributions, error: contributionsError } = await supabase
+        .from('contributions_received')
+        .select('id, contribution_date, amount, gift_type, acknowledgment_sent, pledge_id, pledge_installment_id')
+        .eq('org_id', orgId)
+        .in('id', contributionIds);
+
+      if (contributionsError) return NextResponse.json({ error: contributionsError.message }, { status: 500 });
+      contributionsById = Object.fromEntries((contributions ?? []).map((contribution: any) => [contribution.id, contribution]));
+    }
+
+    const installmentsWithContributions = (installments ?? []).map((installment: any) => ({
+      ...installment,
+      contribution: installment.contribution_id ? contributionsById[installment.contribution_id] ?? null : null,
+    }));
+
+    return NextResponse.json({ pledge, installments: installmentsWithContributions, events });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }

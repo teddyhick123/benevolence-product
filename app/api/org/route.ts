@@ -59,8 +59,11 @@ export async function POST(req: NextRequest) {
         name: name.trim(),
         ein: ein?.trim() || null,
         org_type: org_type || null,
-        fiscal_year_end: fiscal_year_end || null,
-        state_of_incorporation: state_of_incorporation?.trim() || null,
+        org_type_config: {
+          fiscal_year_end: fiscal_year_end || null,
+          state_of_incorporation: state_of_incorporation?.trim() || null,
+        },
+        modules: { portfolio: true },
       })
       .select()
       .single();
@@ -100,31 +103,35 @@ export async function POST(req: NextRequest) {
 
     // Auto-seed standard foundation filings for the current year
     const currentYear = new Date().getFullYear();
-    await adminClient.from('filing_calendar').insert([
-      {
-        org_id: org.id,
-        filing_type: 'form_990_pf',
-        title: 'Form 990-PF Annual Return',
-        description: 'Annual return for private foundations — reports assets, income, distributions, and officer compensation.',
-        jurisdiction: 'federal',
-        due_date: `${currentYear}-05-15`,
-        extension_due_date: `${currentYear}-11-15`,
-        period_start: `${currentYear - 1}-01-01`,
-        period_end: `${currentYear - 1}-12-31`,
-        status: 'upcoming',
-      },
-      {
-        org_id: org.id,
-        filing_type: 'irs_extension',
-        title: 'Form 8868 — Extension Request',
-        description: 'Automatic 6-month extension of time to file Form 990-PF. Extends deadline from May 15 to November 15.',
-        jurisdiction: 'federal',
-        due_date: `${currentYear}-05-15`,
-        period_start: `${currentYear - 1}-01-01`,
-        period_end: `${currentYear - 1}-12-31`,
-        status: 'upcoming',
-      },
-    ]).then(() => {}).catch(() => {});
+    try {
+      await adminClient.from('filing_calendar').insert([
+        {
+          org_id: org.id,
+          filing_type: 'form_990_pf',
+          title: 'Form 990-PF Annual Return',
+          description: 'Annual return for private foundations — reports assets, income, distributions, and officer compensation.',
+          jurisdiction: 'federal',
+          due_date: `${currentYear}-05-15`,
+          extension_due_date: `${currentYear}-11-15`,
+          period_start: `${currentYear - 1}-01-01`,
+          period_end: `${currentYear - 1}-12-31`,
+          status: 'upcoming',
+        },
+        {
+          org_id: org.id,
+          filing_type: 'irs_extension',
+          title: 'Form 8868 — Extension Request',
+          description: 'Automatic 6-month extension of time to file Form 990-PF. Extends deadline from May 15 to November 15.',
+          jurisdiction: 'federal',
+          due_date: `${currentYear}-05-15`,
+          period_start: `${currentYear - 1}-01-01`,
+          period_end: `${currentYear - 1}-12-31`,
+          status: 'upcoming',
+        },
+      ]);
+    } catch {
+      // Filing seed failure should not block organization creation.
+    }
 
     return NextResponse.json({ ...org, portfolio_id }, { status: 201 });
   } catch (err: any) {

@@ -15,7 +15,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    const { data: role } = await supabase.rpc('org_role', { p_org_id: orgId });
+    const { data: role } = await supabase.rpc('user_org_role', { p_org_id: orgId });
     if (!role) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
     const adminSupabase = createAdminClient();

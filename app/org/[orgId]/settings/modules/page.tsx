@@ -25,8 +25,10 @@ type ModuleId =
   | 'tax_optimization'
   | 'grant_management'
   | 'donor_management'
+  | 'pledge_tracking'
   | 'external_data'
-  | 'analytics';
+  | 'analytics'
+  | 'compliance_regulatory';
 
 interface ModuleInfo {
   id: ModuleId;
@@ -89,6 +91,15 @@ const MODULES: ModuleInfo[] = [
     features: ['Donor records', 'Contribution tracking', 'Tax receipts', 'Acknowledgment letters'],
   },
   {
+    id: 'pledge_tracking',
+    name: 'Pledge Tracking',
+    description: 'Track donor commitments, installment schedules, and fulfillment',
+    icon: CheckIcon,
+    isCore: false,
+    dependencies: ['donor_management'],
+    features: ['Pledge pipeline', 'Installment schedules', 'Fulfillment tracking', 'Payment history'],
+  },
+  {
     id: 'external_data',
     name: 'External Data',
     description: 'Pull data from Charity Navigator, Candid, and news sources',
@@ -145,39 +156,19 @@ export default function ModuleSettingsPage() {
       setOrgName(org.name);
     }
 
-    // Fetch enabled modules
-    const { data: modules } = await supabase
-      .from('organization_modules')
-      .select('module_id')
-      .eq('organization_id', orgId);
-
-    if (modules) {
-      const enabled = new Set<ModuleId>(['core']);
-      modules.forEach((row: { module_id: string }) => enabled.add(row.module_id as ModuleId));
-      setEnabledModules(enabled);
-    }
-
-    // Fetch presets
-    const { data: presetData } = await supabase
-      .from('module_presets')
-      .select('*')
-      .order('sort_order');
-
-    if (presetData) {
-      setPresets(presetData.map((p: { id: string; name: string; description: string; module_ids: string[] }) => ({
-        id: p.id,
-        name: p.name,
-        description: p.description,
-        moduleIds: p.module_ids as ModuleId[],
-      })));
+    const modulesRes = await fetch(`/api/org/${orgId}/modules`);
+    if (modulesRes.ok) {
+      const modulesData = await modulesRes.json();
+      setEnabledModules(new Set<ModuleId>(modulesData.enabledModules || ['core']));
+      setPresets(modulesData.presets || []);
     }
 
     setLoading(false);
   };
 
   const toggleModule = async (moduleId: ModuleId) => {
-    const module = MODULES.find(m => m.id === moduleId);
-    if (!module || module.isCore) return;
+    const moduleInfo = MODULES.find(m => m.id === moduleId);
+    if (!moduleInfo || moduleInfo.isCore) return;
 
     setSaving(moduleId);
     const isEnabled = enabledModules.has(moduleId);
@@ -190,17 +181,21 @@ export default function ModuleSettingsPage() {
         );
 
         if (dependents.length > 0) {
-          alert(`Cannot disable ${module.name}: required by ${dependents.map(d => d.name).join(', ')}`);
+          alert(`Cannot disable ${moduleInfo.name}: required by ${dependents.map(d => d.name).join(', ')}`);
           setSaving(null);
           return;
         }
 
-        // Disable
-        await supabase
-          .from('organization_modules')
-          .delete()
-          .eq('organization_id', orgId)
-          .eq('module_id', moduleId);
+        const res = await fetch(`/api/org/${orgId}/modules`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'disable', moduleId }),
+        });
+
+        if (!res.ok) {
+          const data = await res.json();
+          throw new Error(data.error || 'Failed to disable module');
+        }
 
         setEnabledModules(prev => {
           const next = new Set(prev);
@@ -208,20 +203,16 @@ export default function ModuleSettingsPage() {
           return next;
         });
       } else {
-        // Enable (and dependencies)
-        const toEnable = [moduleId, ...(module.dependencies || [])];
-        const { data: { user } } = await supabase.auth.getUser();
+        const toEnable = [moduleId, ...(moduleInfo.dependencies || [])];
+        const res = await fetch(`/api/org/${orgId}/modules`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'enable', moduleId }),
+        });
 
-        for (const id of toEnable) {
-          await supabase
-            .from('organization_modules')
-            .upsert({
-              organization_id: orgId,
-              module_id: id,
-              enabled_by: user?.id,
-            }, {
-              onConflict: 'organization_id,module_id',
-            });
+        if (!res.ok) {
+          const data = await res.json();
+          throw new Error(data.error || 'Failed to enable module');
         }
 
         setEnabledModules(prev => {
@@ -244,23 +235,15 @@ export default function ModuleSettingsPage() {
     setApplyingPreset(presetId);
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const res = await fetch(`/api/org/${orgId}/modules`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'apply_preset', presetId }),
+      });
 
-      // Clear existing modules
-      await supabase
-        .from('organization_modules')
-        .delete()
-        .eq('organization_id', orgId);
-
-      // Enable preset modules
-      for (const moduleId of preset.moduleIds) {
-        await supabase
-          .from('organization_modules')
-          .insert({
-            organization_id: orgId,
-            module_id: moduleId,
-            enabled_by: user?.id,
-          });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Failed to apply preset');
       }
 
       // Update state
@@ -353,15 +336,15 @@ export default function ModuleSettingsPage() {
           </div>
 
           <div className="divide-y divide-neutral-100">
-            {MODULES.map(module => {
-              const Icon = module.icon;
-              const isEnabled = enabledModules.has(module.id);
-              const isSaving = saving === module.id;
+            {MODULES.map(moduleInfo => {
+              const Icon = moduleInfo.icon;
+              const isEnabled = enabledModules.has(moduleInfo.id);
+              const isSaving = saving === moduleInfo.id;
 
               return (
                 <div
-                  key={module.id}
-                  className={`p-6 ${module.isCore ? 'bg-neutral-50' : ''}`}
+                  key={moduleInfo.id}
+                  className={`p-6 ${moduleInfo.isCore ? 'bg-neutral-50' : ''}`}
                 >
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex items-start gap-4 flex-1">
@@ -376,23 +359,23 @@ export default function ModuleSettingsPage() {
                       </div>
                       <div className="flex-1">
                         <div className="flex items-center gap-2">
-                          <h3 className="font-semibold text-neutral-900">{module.name}</h3>
-                          {module.isCore && (
+                          <h3 className="font-semibold text-neutral-900">{moduleInfo.name}</h3>
+                          {moduleInfo.isCore && (
                             <span className="px-2 py-0.5 text-xs bg-neutral-200 text-neutral-600 rounded">
                               Always enabled
                             </span>
                           )}
-                          {module.dependencies && module.dependencies.length > 0 && (
+                          {moduleInfo.dependencies && moduleInfo.dependencies.length > 0 && (
                             <span className="text-xs text-neutral-500">
-                              Requires: {module.dependencies.map(d =>
+                              Requires: {moduleInfo.dependencies.map(d =>
                                 MODULES.find(m => m.id === d)?.name
                               ).join(', ')}
                             </span>
                           )}
                         </div>
-                        <p className="text-sm text-neutral-600 mt-1">{module.description}</p>
+                        <p className="text-sm text-neutral-600 mt-1">{moduleInfo.description}</p>
                         <div className="flex flex-wrap gap-2 mt-3">
-                          {module.features.map((feature, idx) => (
+                          {moduleInfo.features.map((feature, idx) => (
                             <span
                               key={idx}
                               className={`inline-block px-2 py-1 text-xs rounded-full ${
@@ -410,14 +393,14 @@ export default function ModuleSettingsPage() {
 
                     {/* Toggle */}
                     <button
-                      onClick={() => toggleModule(module.id)}
-                      disabled={module.isCore || isSaving}
+                      onClick={() => toggleModule(moduleInfo.id)}
+                      disabled={moduleInfo.isCore || isSaving}
                       className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
                         isEnabled ? 'bg-azure' : 'bg-neutral-200'
                       } disabled:opacity-50 disabled:cursor-not-allowed`}
                     >
                       <span className="sr-only">
-                        {isEnabled ? 'Disable' : 'Enable'} {module.name}
+                        {isEnabled ? 'Disable' : 'Enable'} {moduleInfo.name}
                       </span>
                       <span
                         className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${

@@ -7,6 +7,18 @@ interface RouteParams {
   params: Promise<{ orgId: string; id: string }>;
 }
 
+function normalizeContribution(row: any) {
+  return {
+    ...row,
+    organization_id: row.org_id,
+    contribution_type: row.gift_type,
+    designation: row.fund_designation,
+    restriction_description: row.restriction_purpose,
+    receipt_status: row.acknowledgment_sent ? "sent" : "pending",
+    acknowledgment_status: row.acknowledgment_sent ? "sent" : "pending",
+  };
+}
+
 // GET /api/org/[orgId]/contributions/[id] - Get contribution details
 export async function GET(req: NextRequest, { params }: RouteParams) {
   try {
@@ -14,7 +26,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     const supabase = await createServerClient();
 
     // Check access
-    const { data: role } = await supabase.rpc("org_role", { p_org_id: orgId });
+    const { data: role } = await supabase.rpc("user_org_role", { p_org_id: orgId });
     if (!role) {
       return NextResponse.json({ error: "Not authorized" }, { status: 403 });
     }
@@ -24,20 +36,19 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       .select(`
         *,
         donors(
-          id, donor_type, first_name, last_name, email, organization_name,
-          address_line1, address_line2, city, state, postal_code, country
-        ),
-        acknowledgment_letters(id, letter_type, status, sent_at)
+          id, is_organization, first_name, last_name, email, organization_name,
+          address_line1, address_line2, city, state, zip, country
+        )
       `)
       .eq("id", id)
-      .eq("organization_id", orgId)
+      .eq("org_id", orgId)
       .single();
 
     if (error) {
       return NextResponse.json({ error: "Contribution not found" }, { status: 404 });
     }
 
-    return NextResponse.json(contribution);
+    return NextResponse.json(normalizeContribution(contribution));
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
@@ -58,13 +69,34 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     const body = await req.json();
 
     // Remove computed/auto fields
-    const { tax_deductible_amount, created_at, updated_at, created_by, ...updateData } = body;
+    const {
+      tax_deductible_amount,
+      created_at,
+      updated_at,
+      created_by,
+      organization_id,
+      contribution_type,
+      designation,
+      restriction_description,
+      ...rest
+    } = body;
+    const updateData = {
+      ...rest,
+      ...(contribution_type !== undefined ? { gift_type: contribution_type } : {}),
+      ...(designation !== undefined ? { fund_designation: designation } : {}),
+      ...(restriction_description !== undefined ? { restriction_purpose: restriction_description } : {}),
+    };
+    void tax_deductible_amount;
+    void created_at;
+    void updated_at;
+    void created_by;
+    void organization_id;
 
     const { data: contribution, error } = await supabase
       .from("contributions_received")
       .update(updateData)
       .eq("id", id)
-      .eq("organization_id", orgId)
+      .eq("org_id", orgId)
       .select()
       .single();
 
@@ -72,7 +104,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json(contribution);
+    return NextResponse.json(normalizeContribution(contribution));
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
@@ -94,7 +126,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
       .from("contributions_received")
       .delete()
       .eq("id", id)
-      .eq("organization_id", orgId);
+      .eq("org_id", orgId);
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });

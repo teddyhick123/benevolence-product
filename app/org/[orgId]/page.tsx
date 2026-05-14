@@ -54,7 +54,7 @@ export default async function OrgDashboardPage({ params }: Props) {
 
   const { data: org } = await adminClient
     .from("organizations")
-    .select("id, name, logo_url, description, ein, org_type, website, created_at")
+    .select("id, name, branding, org_type_config, ein, org_type, website, created_at")
     .eq("id", orgId)
     .single();
 
@@ -66,7 +66,7 @@ export default async function OrgDashboardPage({ params }: Props) {
             Organization Not Found
           </h1>
           <p className="text-red-600">
-            This organization doesn't exist or you don't have access.
+            This organization doesn&apos;t exist or you don&apos;t have access.
           </p>
           <Link
             href="/dashboard"
@@ -83,7 +83,7 @@ export default async function OrgDashboardPage({ params }: Props) {
   const { data: membership } = await adminClient
     .from("organization_members")
     .select("role")
-    .eq("organization_id", orgId)
+    .eq("org_id", orgId)
     .eq("user_id", user.id)
     .single();
 
@@ -108,7 +108,11 @@ export default async function OrgDashboardPage({ params }: Props) {
   return (
     <OrgDashboardClient
       orgId={orgId}
-      initialOrg={org}
+      initialOrg={{
+        ...org,
+        logo_url: org.branding?.logo_url ?? null,
+        description: org.org_type_config?.description ?? null,
+      }}
       enabledModules={enabledModules}
       moduleData={moduleData}
       userRole={userRole}

@@ -16,6 +16,7 @@ import ReportUploader from '@/components/holdings/ReportUploader';
 import OrgSubmittedMetrics from '@/components/holdings/OrgSubmittedMetrics';
 import GrantMilestonesWidget from '@/components/holdings/GrantMilestonesWidget';
 import { geocodeLocation } from '@/lib/services/google-maps';
+import Link from 'next/link';
 
 type HoldingRow = {
   id: string;
@@ -890,7 +891,7 @@ export default async function HoldingMiniDashboard({
     <div className="space-y-8">
       {/* Breadcrumb */}
       <nav className="flex items-center gap-2 text-sm text-neutral-500">
-        <a href="/dashboard/holdings" className="hover:text-neutral-800 transition-colors">Holdings</a>
+        <Link href="/dashboard/holdings" className="hover:text-neutral-800 transition-colors">Holdings</Link>
         <span>/</span>
         <span className="text-neutral-900 font-medium truncate">{holding.name}</span>
       </nav>

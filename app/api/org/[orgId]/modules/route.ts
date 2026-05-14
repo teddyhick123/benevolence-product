@@ -59,14 +59,9 @@ export async function GET(
     }
 
     // Verify org membership
-    const { data: membership } = await supabase
-      .from('organization_members')
-      .select('role')
-      .eq('organization_id', orgId)
-      .eq('user_id', user.id)
-      .maybeSingle();
+    const { data: role } = await supabase.rpc('user_org_role', { p_org_id: orgId });
 
-    if (!membership) {
+    if (!role) {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 });
     }
 
@@ -107,14 +102,9 @@ export async function POST(
     }
 
     // Verify org admin
-    const { data: membership } = await supabase
-      .from('organization_members')
-      .select('role')
-      .eq('organization_id', orgId)
-      .eq('user_id', user.id)
-      .maybeSingle();
+    const { data: role } = await supabase.rpc('user_org_role', { p_org_id: orgId });
 
-    if (!membership || membership.role !== 'admin') {
+    if (!role || !['owner', 'admin'].includes(role)) {
       return NextResponse.json(
         { error: 'Only organization admins can manage modules' },
         { status: 403 }

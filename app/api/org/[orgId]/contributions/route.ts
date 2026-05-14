@@ -7,6 +7,18 @@ interface RouteParams {
   params: Promise<{ orgId: string }>;
 }
 
+function normalizeContribution(row: any) {
+  return {
+    ...row,
+    organization_id: row.org_id,
+    contribution_type: row.gift_type,
+    designation: row.fund_designation,
+    restriction_description: row.restriction_purpose,
+    receipt_status: row.acknowledgment_sent ? "sent" : "pending",
+    acknowledgment_status: row.acknowledgment_sent ? "sent" : "pending",
+  };
+}
+
 // GET /api/org/[orgId]/contributions - List contributions
 export async function GET(req: NextRequest, { params }: RouteParams) {
   try {
@@ -15,16 +27,18 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     const { searchParams } = new URL(req.url);
 
     // Check access
-    const { data: role } = await supabase.rpc("org_role", { p_org_id: orgId });
+    const { data: role } = await supabase.rpc("user_org_role", { p_org_id: orgId });
     if (!role) {
       return NextResponse.json({ error: "Not authorized" }, { status: 403 });
     }
 
-    // Build query using the view for donor info
     let query = supabase
-      .from("v_contribution_with_donor")
-      .select("*")
-      .eq("organization_id", orgId);
+      .from("contributions_received")
+      .select(`
+        *,
+        donors(first_name, last_name, organization_name, is_organization, email)
+      `)
+      .eq("org_id", orgId);
 
     // Apply filters
     const donorId = searchParams.get("donor_id");
@@ -42,10 +56,10 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     if (donorId) query = query.eq("donor_id", donorId);
     if (startDate) query = query.gte("contribution_date", startDate);
     if (endDate) query = query.lte("contribution_date", endDate);
-    if (contributionType) query = query.eq("contribution_type", contributionType);
-    if (receiptStatus) query = query.eq("receipt_status", receiptStatus);
-    if (ackStatus) query = query.eq("acknowledgment_status", ackStatus);
-    if (campaign) query = query.eq("campaign", campaign);
+    if (contributionType) query = query.eq("gift_type", contributionType);
+    if (receiptStatus === "pending" || ackStatus === "pending") query = query.eq("acknowledgment_sent", false);
+    if (receiptStatus === "sent" || ackStatus === "sent") query = query.eq("acknowledgment_sent", true);
+    void campaign;
     if (minAmount) query = query.gte("amount", parseFloat(minAmount));
     if (maxAmount) query = query.lte("amount", parseFloat(maxAmount));
 
@@ -57,14 +71,8 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    // Get summary stats
-    const { data: stats } = await supabase
-      .from("contributions_received")
-      .select("amount.sum(), id.count()")
-      .eq("organization_id", orgId);
-
     return NextResponse.json({
-      contributions,
+      contributions: (contributions || []).map(normalizeContribution),
       count: contributions?.length || 0,
     });
   } catch (err: any) {
@@ -90,51 +98,36 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       amount,
       contribution_date,
       contribution_type,
-      non_cash_description,
-      fair_market_value,
       designation,
       is_restricted,
       restriction_description,
-      quid_pro_quo_value,
-      payment_reference,
-      payment_method_detail,
-      campaign,
-      appeal_code,
       notes,
-      auto_generate_receipt,
     } = body;
 
     if (!amount || amount <= 0) {
       return NextResponse.json({ error: "Amount must be greater than 0" }, { status: 400 });
     }
 
-    // Get current user
-    const { data: { user } } = await supabase.auth.getUser();
+    if (!donor_id) {
+      return NextResponse.json({ error: "donor_id is required" }, { status: 400 });
+    }
 
     const { data: contribution, error } = await supabase
       .from("contributions_received")
       .insert({
-        organization_id: orgId,
-        donor_id: donor_id || null,
+        org_id: orgId,
+        donor_id,
         amount,
         contribution_date: contribution_date || new Date().toISOString().split("T")[0],
-        contribution_type: contribution_type || "cash",
-        non_cash_description,
-        fair_market_value,
-        designation,
+        gift_type: contribution_type || "cash",
+        fund_designation: designation || null,
         is_restricted: is_restricted || false,
-        restriction_description,
-        quid_pro_quo_value: quid_pro_quo_value || 0,
-        payment_reference,
-        payment_method_detail,
-        campaign,
-        appeal_code,
+        restriction_purpose: restriction_description || null,
         notes,
-        created_by: user?.id,
       })
       .select(`
         *,
-        donors(first_name, last_name, organization_name, donor_type, email)
+        donors(first_name, last_name, organization_name, is_organization, email)
       `)
       .single();
 
@@ -142,28 +135,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    // Auto-generate receipt if requested and amount >= $250
-    if (auto_generate_receipt && amount >= 250) {
-      const { data: receiptNumber } = await supabase.rpc("generate_receipt_number", {
-        p_org_id: orgId,
-      });
-
-      if (receiptNumber) {
-        await supabase
-          .from("contributions_received")
-          .update({
-            receipt_number: receiptNumber,
-            receipt_status: "generated",
-            receipt_generated_at: new Date().toISOString(),
-          })
-          .eq("id", contribution.id);
-
-        contribution.receipt_number = receiptNumber;
-        contribution.receipt_status = "generated";
-      }
-    }
-
-    return NextResponse.json(contribution, { status: 201 });
+    return NextResponse.json(normalizeContribution(contribution), { status: 201 });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }

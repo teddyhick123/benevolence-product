@@ -11,7 +11,7 @@ export async function PATCH(
   try {
     const { orgId, pledgeId, installmentId } = await params;
     const supabase = await createServerClient();
-    const { data: role } = await supabase.rpc('org_role', { p_org_id: orgId });
+    const { data: role } = await supabase.rpc('user_org_role', { p_org_id: orgId });
     if (!['owner','admin','member'].includes(role)) return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
 
     let body: any;

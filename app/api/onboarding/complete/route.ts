@@ -120,7 +120,10 @@ export async function POST(req: NextRequest) {
         .from('organizations')
         .insert({
           name: quickIntake.org_name,
-          description: `${quickIntake.org_type || 'nonprofit'} organization`,
+          org_type_config: {
+            description: `${quickIntake.org_type || 'nonprofit'} organization`,
+          },
+          modules: { portfolio: true },
         })
         .select()
         .single();
@@ -136,7 +139,7 @@ export async function POST(req: NextRequest) {
       const { error: memberError } = await sb
         .from('organization_members')
         .insert({
-          organization_id: orgId,
+          org_id: orgId,
           user_id: user.id,
           role: 'admin',
         });

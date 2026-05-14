@@ -26,7 +26,7 @@ export default async function ConstructorPage() {
       <div className="mx-auto max-w-3xl space-y-4">
         <h1 className="text-2xl font-semibold">Constructor</h1>
         <div className="card p-6 text-sm text-neutral-600">
-          You're not signed in. <a href="/login" className="text-azure underline">Sign in</a> to continue.
+          You&apos;re not signed in. <a href="/login" className="text-azure underline">Sign in</a> to continue.
         </div>
       </div>
     );

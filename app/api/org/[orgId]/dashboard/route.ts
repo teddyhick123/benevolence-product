@@ -50,7 +50,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     const adminClient = createAdminClient();
 
     // Check access
-    const { data: role } = await supabase.rpc("org_role", { p_org_id: orgId });
+    const { data: role } = await supabase.rpc("user_org_role", { p_org_id: orgId });
     if (!role) {
       return NextResponse.json({ error: "Not authorized" }, { status: 403 });
     }
@@ -58,7 +58,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     // Get organization details
     const { data: org, error: orgError } = await adminClient
       .from("organizations")
-      .select("id, name, logo_url, description, ein, org_type, website, created_at")
+      .select("id, name, branding, org_type_config, ein, org_type, website, created_at")
       .eq("id", orgId)
       .single();
 
@@ -73,7 +73,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     const { count: membersCount } = await adminClient
       .from("organization_members")
       .select("*", { count: "exact", head: true })
-      .eq("organization_id", orgId);
+      .eq("org_id", orgId);
 
     // Initialize stats
     const stats: DashboardStats = {
@@ -103,7 +103,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       const { count: donorsCount } = await adminClient
         .from("donors")
         .select("*", { count: "exact", head: true })
-        .eq("organization_id", orgId);
+        .eq("org_id", orgId);
 
       stats.donors_count = donorsCount || 0;
 
@@ -111,7 +111,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       const { count: newDonorsCount } = await adminClient
         .from("donors")
         .select("*", { count: "exact", head: true })
-        .eq("organization_id", orgId)
+        .eq("org_id", orgId)
         .gte("created_at", startOfMonth);
 
       stats.new_donors_this_month = newDonorsCount || 0;
@@ -120,17 +120,17 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       const { data: ytdData } = await adminClient
         .from("contributions_received")
         .select("amount")
-        .eq("organization_id", orgId)
+        .eq("org_id", orgId)
         .gte("contribution_date", startOfYear);
 
-      stats.ytd_contributions = ytdData?.reduce((sum, c) => sum + (c.amount || 0), 0) || 0;
+      stats.ytd_contributions = ytdData?.reduce((sum, c) => sum + Number(c.amount || 0), 0) || 0;
 
       // Pending receipts
       const { count: pendingReceiptsCount } = await adminClient
         .from("contributions_received")
         .select("*", { count: "exact", head: true })
-        .eq("organization_id", orgId)
-        .eq("receipt_status", "pending");
+        .eq("org_id", orgId)
+        .eq("acknowledgment_sent", false);
 
       stats.pending_receipts = pendingReceiptsCount || 0;
     }
@@ -196,7 +196,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       const { data: recentContributions } = await adminClient
         .from("contributions_received")
         .select("id, amount, contribution_date, donors(first_name, last_name, organization_name)")
-        .eq("organization_id", orgId)
+        .eq("org_id", orgId)
         .order("created_at", { ascending: false })
         .limit(5);
 
@@ -217,8 +217,8 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       // Recent donors added
       const { data: recentDonors } = await adminClient
         .from("donors")
-        .select("id, first_name, last_name, organization_name, donor_type, created_at")
-        .eq("organization_id", orgId)
+        .select("id, first_name, last_name, organization_name, is_organization, created_at")
+        .eq("org_id", orgId)
         .order("created_at", { ascending: false })
         .limit(3);
 
@@ -237,17 +237,16 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     // Recent members
     const { data: recentMembers } = await adminClient
       .from("organization_members")
-      .select("id, role, created_at, users(email)")
-      .eq("organization_id", orgId)
+      .select("id, user_id, role, created_at")
+      .eq("org_id", orgId)
       .order("created_at", { ascending: false })
       .limit(3);
 
     recentMembers?.forEach((m: any) => {
-      const email = (m.users as any)?.email || "User";
       activity.push({
         id: `member-${m.id}`,
         type: "member",
-        description: `${email} joined as ${m.role}`,
+        description: `Team member ${m.user_id} joined as ${m.role}`,
         timestamp: m.created_at,
       });
     });
@@ -260,7 +259,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       {
         id: "profile",
         label: "Complete organization profile",
-        completed: !!(org.description && org.ein),
+        completed: !!(org.org_type_config?.description && org.ein),
       },
       {
         id: "members",
@@ -297,8 +296,8 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       org: {
         id: org.id,
         name: org.name,
-        logo_url: org.logo_url,
-        description: org.description,
+        logo_url: org.branding?.logo_url ?? null,
+        description: org.org_type_config?.description ?? null,
         ein: org.ein,
         org_type: org.org_type,
         website: org.website,

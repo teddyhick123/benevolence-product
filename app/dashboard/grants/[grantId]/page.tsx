@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 import { createClient } from '@/lib/supabase-browser';
 import DocumentManager from '@/components/grants/DocumentManager';
 import BudgetTracker from '@/components/grants/BudgetTracker';
@@ -203,12 +204,12 @@ export default function GrantDetailPage() {
         <div className="text-center py-12">
           <h3 className="text-lg font-medium text-gray-900">Grant Not Found</h3>
           <p className="mt-1 text-sm text-gray-500">The requested grant could not be found.</p>
-          <a
+          <Link
             href="/dashboard/grants"
             className="mt-4 inline-flex items-center px-4 py-2 text-sm font-medium text-azure hover:text-azure/80"
           >
             &larr; Back to Grants
-          </a>
+          </Link>
         </div>
       </div>
     );

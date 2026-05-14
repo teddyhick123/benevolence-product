@@ -15,7 +15,7 @@ async function loadDataPageData(orgId: string) {
 
   // Verify user has access and can edit
   const { data: canEdit } = await supabase.rpc("can_edit_org", { p_org_id: orgId });
-  const { data: roleData } = await supabase.rpc("org_role", { p_org_id: orgId });
+  const { data: roleData } = await supabase.rpc("user_org_role", { p_org_id: orgId });
 
   if (!roleData) {
     return { error: "Not authorized", canEdit: false, holdings: [], pendingFacts: [], uploads: [], metrics: [] };

@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic';
 const ALLOWED_ROLES = ['owner', 'admin', 'member'];
 
 async function authorize(supabase: any, orgId: string) {
-  const { data: role } = await supabase.rpc('org_role', { p_org_id: orgId });
+  const { data: role } = await supabase.rpc('user_org_role', { p_org_id: orgId });
   if (!role || !ALLOWED_ROLES.includes(role)) return null;
   return role as string;
 }

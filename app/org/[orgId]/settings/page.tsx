@@ -15,7 +15,7 @@ async function loadSettingsData(orgId: string) {
 
   // Verify user is admin
   const { data: isAdmin } = await supabase.rpc("is_org_admin", { p_org_id: orgId });
-  const { data: roleData } = await supabase.rpc("org_role", { p_org_id: orgId });
+  const { data: roleData } = await supabase.rpc("user_org_role", { p_org_id: orgId });
 
   if (!roleData) {
     return { error: "Not authorized", org: null, holdings: [], charity: null, isAdmin: false };

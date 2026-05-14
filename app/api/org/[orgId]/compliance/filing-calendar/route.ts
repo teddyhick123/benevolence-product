@@ -14,7 +14,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     const supabase = await createServerClient();
     const { searchParams } = new URL(req.url);
 
-    const { data: role } = await supabase.rpc('org_role', { p_org_id: orgId });
+    const { data: role } = await supabase.rpc('user_org_role', { p_org_id: orgId });
     if (!role) {
       return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
     }

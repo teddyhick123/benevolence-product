@@ -13,7 +13,7 @@ async function loadMembersData(orgId: string) {
   const supabase = await createSupabaseServerClient();
 
   // Verify user has access
-  const { data: roleData } = await supabase.rpc("org_role", { p_org_id: orgId });
+  const { data: roleData } = await supabase.rpc("user_org_role", { p_org_id: orgId });
   if (!roleData) {
     return { error: "Not authorized", org: null, members: [], isAdmin: false };
   }

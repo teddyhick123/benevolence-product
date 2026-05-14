@@ -10,6 +10,6 @@ export async function requireAdmin(): Promise<string | null> {
   const supabase = await createServerClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
-  const { data: isAdmin } = await supabase.rpc('is_admin');
+  const { data: isAdmin } = await supabase.rpc('is_app_admin');
   return isAdmin ? user.id : null;
 }

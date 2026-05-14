@@ -88,7 +88,7 @@ export async function getOrganization(
   }
 
   // Get user's role
-  const { data: roleData } = await supabase.rpc('org_role', { p_org_id: orgId });
+  const { data: roleData } = await supabase.rpc('user_org_role', { p_org_id: orgId });
 
   return {
     organization: org,

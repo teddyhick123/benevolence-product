@@ -146,7 +146,7 @@ export default function DonorProfilePage() {
           donor_id: donorId,
           amount: parseFloat(giftFields.amount),
           contribution_date: giftFields.date,
-          contribution_type: giftFields.type,
+          gift_type: giftFields.type,
           notes: giftFields.notes || undefined,
         }),
       });
@@ -206,7 +206,7 @@ export default function DonorProfilePage() {
           <div className="flex items-start justify-between">
             <div className="flex-1">
               <h1 className="text-2xl font-bold text-gray-900">{displayName}</h1>
-              <p className="text-sm text-gray-500 mt-1 capitalize">{donor.donor_type}</p>
+              <p className="text-sm text-gray-500 mt-1 capitalize">{donor.is_organization ? 'Organization' : 'Individual'}</p>
               {!isEditing && donor.email && <p className="text-sm text-gray-600 mt-1">{donor.email}</p>}
               {!isEditing && donor.phone && <p className="text-sm text-gray-600">{donor.phone}</p>}
             </div>
@@ -384,7 +384,7 @@ export default function DonorProfilePage() {
                     <td className="px-6 py-3 text-gray-700">
                       {new Date(c.contribution_date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
                     </td>
-                    <td className="px-6 py-3 text-gray-600 capitalize">{c.contribution_type}</td>
+                    <td className="px-6 py-3 text-gray-600 capitalize">{c.gift_type}</td>
                     <td className="px-6 py-3 text-right font-medium text-gray-900">
                       ${Number(c.amount).toLocaleString()}
                     </td>

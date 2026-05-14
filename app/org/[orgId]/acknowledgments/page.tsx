@@ -17,7 +17,7 @@ type Acknowledgment = {
     first_name: string | null;
     last_name: string | null;
     organization_name: string | null;
-    donor_type: string;
+    is_organization: boolean;
     email: string | null;
   } | null;
   contributions_received: {
@@ -52,7 +52,7 @@ export default function AcknowledgmentsPage() {
               first_name,
               last_name,
               organization_name,
-              donor_type,
+              is_organization,
               email
             ),
             contributions_received (
@@ -94,7 +94,7 @@ export default function AcknowledgmentsPage() {
 
   const getDonorName = (donor: Acknowledgment['donors']) => {
     if (!donor) return 'Unknown';
-    if (donor.donor_type === 'individual') {
+    if (!donor.is_organization) {
       return `${donor.first_name || ''} ${donor.last_name || ''}`.trim() || 'Unknown';
     }
     return donor.organization_name || 'Unknown';

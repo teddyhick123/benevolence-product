@@ -137,11 +137,11 @@ ${orgName}`;
         if (contribution_id) {
           const { data: contrib } = await supabase
             .from('contributions_received')
-            .select('amount, contribution_date, contribution_type')
+            .select('amount, contribution_date, gift_type')
             .eq('id', contribution_id)
             .single();
           if (contrib) {
-            contributionDetail = `\n  Date: ${new Date(contrib.contribution_date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}\n  Amount: $${Number(contrib.amount).toLocaleString()}\n  Type: ${contrib.contribution_type}`;
+            contributionDetail = `\n  Date: ${new Date(contrib.contribution_date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}\n  Amount: $${Number(contrib.amount).toLocaleString()}\n  Type: ${contrib.gift_type}`;
           }
         }
 

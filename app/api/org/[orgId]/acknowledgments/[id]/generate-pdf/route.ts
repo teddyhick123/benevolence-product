@@ -24,7 +24,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       .from('acknowledgment_letters')
       .select(`
         *,
-        donors(first_name, last_name, organization_name, donor_type, address_line1, address_line2, city, state, postal_code, country)
+        donors(first_name, last_name, organization_name, is_organization, address_line1, address_line2, city, state, zip, country)
       `)
       .eq('id', id)
       .eq('org_id', orgId)
@@ -103,7 +103,7 @@ function generateAcknowledgmentPDF(letter: any): Buffer {
   const donor = letter.donors;
   if (donor) {
     const donorName =
-      donor.donor_type === 'individual'
+      !donor.is_organization
         ? `${donor.first_name || ''} ${donor.last_name || ''}`.trim()
         : donor.organization_name || '';
 
@@ -112,9 +112,9 @@ function generateAcknowledgmentPDF(letter: any): Buffer {
     if (donorName) { doc.text(donorName, MARGIN, y); y += 5; }
     if (donor.address_line1) { doc.text(donor.address_line1, MARGIN, y); y += 5; }
     if (donor.address_line2) { doc.text(donor.address_line2, MARGIN, y); y += 5; }
-    if (donor.city || donor.state || donor.postal_code) {
+    if (donor.city || donor.state || donor.zip) {
       doc.text(
-        [donor.city, donor.state, donor.postal_code].filter(Boolean).join(', '),
+        [donor.city, donor.state, donor.zip].filter(Boolean).join(', '),
         MARGIN, y
       );
       y += 5;

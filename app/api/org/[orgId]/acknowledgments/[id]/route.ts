@@ -23,7 +23,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       .select(`
         *,
         donors(id, first_name, last_name, organization_name, is_organization, email, address_line1, city, state, zip),
-        contributions_received:contribution_id(id, amount, contribution_date, contribution_type)
+        contributions_received:contribution_id(id, amount, contribution_date, gift_type)
       `)
       .eq('id', id)
       .eq('org_id', orgId)

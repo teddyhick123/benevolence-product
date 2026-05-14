@@ -3,8 +3,6 @@
 import { useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 
-type DonorType = 'individual' | 'foundation' | 'corporation' | 'government' | 'other';
-
 export default function NewDonorPage() {
   const params = useParams();
   const router = useRouter();
@@ -14,7 +12,7 @@ export default function NewDonorPage() {
   const [error, setError] = useState<string | null>(null);
 
   const [formData, setFormData] = useState({
-    donor_type: 'individual' as DonorType,
+    is_organization: false,
     first_name: '',
     last_name: '',
     organization_name: '',
@@ -25,7 +23,7 @@ export default function NewDonorPage() {
     address_line2: '',
     city: '',
     state: '',
-    postal_code: '',
+    zip: '',
     country: 'USA',
     is_anonymous: false,
     communication_preference: 'email',
@@ -87,7 +85,7 @@ export default function NewDonorPage() {
     }
   };
 
-  const isOrganization = formData.donor_type !== 'individual';
+  const isOrganization = formData.is_organization;
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-8">
@@ -119,16 +117,13 @@ export default function NewDonorPage() {
             Donor Type
           </label>
           <select
-            name="donor_type"
-            value={formData.donor_type}
-            onChange={handleChange}
+            name="is_organization"
+            value={formData.is_organization ? 'organization' : 'individual'}
+            onChange={(e) => setFormData((prev) => ({ ...prev, is_organization: e.target.value !== 'individual' }))}
             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-azure focus:border-transparent"
           >
             <option value="individual">Individual</option>
-            <option value="foundation">Foundation</option>
-            <option value="corporation">Corporation</option>
-            <option value="government">Government</option>
-            <option value="other">Other</option>
+            <option value="organization">Organization / Foundation / Corporation</option>
           </select>
         </div>
 
@@ -265,8 +260,8 @@ export default function NewDonorPage() {
             <div className="col-span-2">
               <input
                 type="text"
-                name="postal_code"
-                value={formData.postal_code}
+                name="zip"
+                value={formData.zip}
                 onChange={handleChange}
                 placeholder="ZIP Code"
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-azure focus:border-transparent"

@@ -189,7 +189,7 @@ export default function DonorsPage() {
                 <tr>
                   {[
                     { key: 'display_name', label: 'Name', align: 'left' },
-                    { key: 'donor_type', label: 'Type', align: 'left' },
+                    { key: 'is_organization', label: 'Type', align: 'left' },
                     { key: 'computed_tier', label: 'Tier', align: 'left' },
                     { key: 'total_lifetime_giving', label: 'Lifetime Giving', align: 'right' },
                     { key: 'recency_status', label: 'Recency', align: 'left' },
@@ -219,7 +219,7 @@ export default function DonorsPage() {
                         <div className="text-xs text-gray-400">{donor.email}</div>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-gray-600 capitalize">{donor.donor_type}</td>
+                    <td className="px-4 py-3 text-gray-600 capitalize">{donor.is_organization ? 'Organization' : 'Individual'}</td>
                     <td className="px-4 py-3">
                       <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${TIER_COLORS[donor.computed_tier] || TIER_COLORS.prospect}`}>
                         {TIER_LABELS[donor.computed_tier] || donor.computed_tier}

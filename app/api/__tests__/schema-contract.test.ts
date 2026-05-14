@@ -1,12 +1,16 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync, readdirSync, statSync } from 'fs';
-import { join, relative } from 'path';
+import { join } from 'path';
+
+// Directories that are never source code to validate
+const EXCLUDED_DIRS = new Set(['__tests__', '.next', 'node_modules', 'graphify-out']);
 
 function walkDir(dir: string, extensions: string[] = ['.ts', '.tsx']): string[] {
   const files: string[] = [];
   try {
     const entries = readdirSync(dir, { withFileTypes: true });
     for (const entry of entries) {
+      if (EXCLUDED_DIRS.has(entry.name)) continue;
       const fullPath = join(dir, entry.name);
       if (entry.isDirectory()) {
         files.push(...walkDir(fullPath, extensions));
@@ -64,9 +68,14 @@ describe('Schema contract: RPC function names', () => {
 });
 
 describe('Schema contract: column names in donor components', () => {
+  // Donor/contributions context: excludes portfolio and tax routes where
+  // tax_contributions table legitimately has a contribution_type column,
+  // and excludes admin import mapping labels.
   const donorSrc = readAllSources([
     'components/donors',
-    'app',
+    'app/org',
+    'app/dashboard/donors',
+    'app/api/org',
   ]);
 
   it('no donor_type references (field is is_organization boolean)', () => {

@@ -11,7 +11,6 @@ function normalizeContribution(row: any) {
   return {
     ...row,
     organization_id: row.org_id,
-    contribution_type: row.gift_type,
     designation: row.fund_designation,
     restriction_description: row.restriction_purpose,
     receipt_status: row.acknowledgment_sent ? "sent" : "pending",
@@ -44,7 +43,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     const donorId = searchParams.get("donor_id");
     const startDate = searchParams.get("start_date");
     const endDate = searchParams.get("end_date");
-    const contributionType = searchParams.get("contribution_type");
+    const contributionType = searchParams.get("gift_type");
     const receiptStatus = searchParams.get("receipt_status");
     const ackStatus = searchParams.get("acknowledgment_status");
     const campaign = searchParams.get("campaign");
@@ -97,7 +96,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       donor_id,
       amount,
       contribution_date,
-      contribution_type,
+      gift_type,
       designation,
       is_restricted,
       restriction_description,
@@ -119,7 +118,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
         donor_id,
         amount,
         contribution_date: contribution_date || new Date().toISOString().split("T")[0],
-        gift_type: contribution_type || "cash",
+        gift_type: gift_type || "cash",
         fund_designation: designation || null,
         is_restricted: is_restricted || false,
         restriction_purpose: restriction_description || null,

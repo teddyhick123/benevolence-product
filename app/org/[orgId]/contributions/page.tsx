@@ -10,7 +10,7 @@ type Contribution = {
   id: string;
   contribution_date: string;
   amount: number;
-  contribution_type: string;
+  gift_type: string;
   designation: string | null;
   is_restricted: boolean;
   quid_pro_quo_value: number;
@@ -24,7 +24,7 @@ type Contribution = {
     first_name: string | null;
     last_name: string | null;
     organization_name: string | null;
-    donor_type: string;
+    is_organization: boolean;
     email: string | null;
     address_line1: string | null;
     city: string | null;
@@ -71,7 +71,7 @@ export default function ContributionsPage() {
                 first_name,
                 last_name,
                 organization_name,
-                donor_type,
+                is_organization,
                 email,
                 address_line1,
                 city,
@@ -118,7 +118,7 @@ export default function ContributionsPage() {
 
   const getDonorName = (donor: Contribution['donors']) => {
     if (!donor) return 'Unknown';
-    if (donor.donor_type === 'individual') {
+    if (!donor.is_organization) {
       return `${donor.first_name || ''} ${donor.last_name || ''}`.trim() || 'Unknown';
     }
     return donor.organization_name || 'Unknown';
@@ -134,7 +134,7 @@ export default function ContributionsPage() {
   };
 
   const filteredContributions = contributions.filter((c) => {
-    if (typeFilter && c.contribution_type !== typeFilter) return false;
+    if (typeFilter && c.gift_type !== typeFilter) return false;
     if (receiptFilter && c.receipt_status !== receiptFilter) return false;
     if (dateFilter) {
       const contribDate = new Date(c.contribution_date);
@@ -299,7 +299,7 @@ export default function ContributionsPage() {
                       {formatCurrency(contrib.amount)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 capitalize">
-                      {contrib.contribution_type.replace('_', ' ')}
+                      {(contrib.gift_type || '').replace('_', ' ')}
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-600">
                       {contrib.designation || '-'}

@@ -11,7 +11,6 @@ function normalizeContribution(row: any) {
   return {
     ...row,
     organization_id: row.org_id,
-    contribution_type: row.gift_type,
     designation: row.fund_designation,
     restriction_description: row.restriction_purpose,
     receipt_status: row.acknowledgment_sent ? "sent" : "pending",
@@ -75,14 +74,14 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
       updated_at,
       created_by,
       organization_id,
-      contribution_type,
+      gift_type,
       designation,
       restriction_description,
       ...rest
     } = body;
     const updateData = {
       ...rest,
-      ...(contribution_type !== undefined ? { gift_type: contribution_type } : {}),
+      ...(gift_type !== undefined ? { gift_type } : {}),
       ...(designation !== undefined ? { fund_designation: designation } : {}),
       ...(restriction_description !== undefined ? { restriction_purpose: restriction_description } : {}),
     };

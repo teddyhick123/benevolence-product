@@ -110,6 +110,47 @@ const InputValidator = {
   },
 };
 
+const CANONICAL_GIFT_TYPES = [
+  'cash',
+  'check',
+  'credit_card',
+  'securities',
+  'daf_grant',
+  'in_kind',
+  'pledge',
+  'bequest',
+] as const;
+
+function normalizeGiftType(value: string | undefined): string {
+  switch (value) {
+    case 'stock':
+    case 'crypto':
+      return 'securities';
+    case 'wire':
+    case 'ach':
+      return 'cash';
+    case 'real_estate':
+    case 'other':
+      return 'in_kind';
+    default:
+      return value || 'cash';
+  }
+}
+
+function donorDisplayName(donor: any): string {
+  if (!donor) return 'Donor';
+  if (donor.display_name) return donor.display_name;
+  if (donor.is_organization) return donor.organization_name || 'Unknown Organization';
+  return `${donor.first_name || ''} ${donor.last_name || ''}`.trim() || donor.preferred_name || 'Donor';
+}
+
+function daysSince(date: string | null | undefined): number | null {
+  if (!date) return null;
+  const ts = new Date(date).getTime();
+  if (Number.isNaN(ts)) return null;
+  return Math.floor((Date.now() - ts) / (24 * 60 * 60 * 1000));
+}
+
 // Time window helper
 type TimeWindow = '3m' | '6m' | '12m' | '24m' | 'all';
 const TimeWindowHelper = {
@@ -971,10 +1012,15 @@ export const PORTFOLIO_TOOLS: ToolDefinition[] = [
         organization_id: { type: 'string', description: 'Organization UUID receiving the donation' },
         amount: { type: 'number', description: 'Donation amount in USD' },
         contribution_date: { type: 'string', description: 'Date of contribution (YYYY-MM-DD, defaults to today)' },
+        gift_type: {
+          type: 'string',
+          enum: ['cash', 'check', 'credit_card', 'securities', 'daf_grant', 'in_kind', 'pledge', 'bequest'],
+          description: 'Type of gift stored on contributions_received.gift_type (default: cash)',
+        },
         contribution_type: {
           type: 'string',
           enum: ['cash', 'check', 'credit_card', 'wire', 'ach', 'stock', 'crypto', 'real_estate', 'in_kind', 'other'],
-          description: 'Type of contribution (default: cash)',
+          description: 'Legacy alias for gift_type. Prefer gift_type for new calls.',
         },
         donor_id: { type: 'string', description: 'Existing donor UUID (optional - provide donor info to auto-create)' },
         donor_name: { type: 'string', description: 'Donor name for auto-creation (e.g., "John Smith" or "Smith Foundation")' },
@@ -1060,12 +1106,12 @@ export const PORTFOLIO_TOOLS: ToolDefinition[] = [
         },
         donor_tier: {
           type: 'string',
-          enum: ['major', 'leadership', 'sustainer', 'supporter'],
+          enum: ['major', 'mid', 'recurring', 'annual', 'lapsed', 'prospect'],
           description: 'Filter by giving tier',
         },
         recency_status: {
           type: 'string',
-          enum: ['active', 'lapsed', 'inactive'],
+          enum: ['active', 'lapsed', 'lost'],
           description: 'Filter by recency status',
         },
         min_lifetime_giving: { type: 'number', description: 'Minimum lifetime giving amount' },
@@ -4814,6 +4860,9 @@ export class PortfolioAssistant {
         InputValidator.validateNumber(args.amount, 'amount', { min: 0.01 });
         if (args.donor_id) InputValidator.validateUUID(args.donor_id, 'donor_id');
         if (args.contribution_date) InputValidator.validateDateString(args.contribution_date, 'contribution_date');
+        if (args.gift_type) {
+          InputValidator.validateEnum(args.gift_type, 'gift_type', CANONICAL_GIFT_TYPES);
+        }
         if (args.contribution_type) {
           InputValidator.validateEnum(args.contribution_type, 'contribution_type', [
             'cash', 'check', 'credit_card', 'wire', 'ach', 'stock', 'crypto', 'real_estate', 'in_kind', 'other'
@@ -4904,21 +4953,26 @@ export class PortfolioAssistant {
           }
         }
 
+        if (!donorId) {
+          throw new ValidationError('Either donor_id or donor_name is required to log a contribution');
+        }
+
+        const giftType = normalizeGiftType(args.gift_type || args.contribution_type);
+
         // Create the contribution
         const { data: contribution, error: contribError } = await this.supabase
           .from('contributions_received')
           .insert({
             org_id: args.organization_id,
-            donor_id: donorId || null,
+            donor_id: donorId,
             amount: args.amount,
             contribution_date: args.contribution_date || new Date().toISOString().split('T')[0],
-            contribution_type: args.contribution_type || 'cash',
-            designation: args.designation || null,
+            gift_type: giftType,
+            fund_designation: args.designation || null,
             is_restricted: args.is_restricted || false,
             quid_pro_quo_value: args.quid_pro_quo_value || 0,
             campaign: args.campaign || null,
             notes: args.notes || null,
-            created_by: userId,
           })
           .select('*, donors(first_name, last_name, organization_name, is_organization)')
           .single();
@@ -5045,17 +5099,13 @@ ${org?.name || 'The Organization'}`;
           .insert({
             org_id: contribution.org_id,
             donor_id: contribution.donor_id,
-            contribution_id: contribution.id,
-            letter_type: 'tax_receipt',
+            contribution_ids: [contribution.id],
             subject: `Tax Receipt - ${receiptNumber}`,
             body: receiptBody,
-            org_name: org?.name,
-            org_ein: org?.ein,
-            contribution_amount: contribution.amount,
-            contribution_date: contribution.contribution_date,
-            goods_services_statement: goodsServicesStatement,
             status: 'draft',
-            created_by: userId,
+            delivery_method: 'email',
+            sent_by: userId,
+            notes: `Generated tax receipt. ${goodsServicesStatement}`,
           })
           .select()
           .single();
@@ -5066,8 +5116,9 @@ ${org?.name || 'The Organization'}`;
             .from('acknowledgment_letters')
             .update({
               status: 'sent',
-              sent_via: 'email',
+              delivery_method: 'email',
               sent_at: new Date().toISOString(),
+              sent_by: userId,
             })
             .eq('id', letter?.id);
 
@@ -5076,6 +5127,8 @@ ${org?.name || 'The Organization'}`;
             .update({
               receipt_status: 'sent',
               receipt_sent_at: new Date().toISOString(),
+              acknowledgment_sent: true,
+              acknowledged_at: new Date().toISOString(),
             })
             .eq('id', args.contribution_id);
         }
@@ -5163,14 +5216,14 @@ ${org?.name || 'The Organization'}`;
           const currentYear = new Date().getFullYear();
           const { data: yearContribs } = await this.supabase
             .from('contributions_received')
-            .select('amount, is_tax_deductible')
+            .select('amount, tax_deductible_amount')
             .eq('donor_id', args.donor_id)
             .gte('contribution_date', `${currentYear}-01-01`)
             .lte('contribution_date', `${currentYear}-12-31`);
 
           const contribs = yearContribs || [];
           const totalContributions = contribs.reduce((s: number, c: any) => s + (c.amount || 0), 0);
-          const totalTaxDeductible = contribs.filter((c: any) => c.is_tax_deductible).reduce((s: number, c: any) => s + (c.amount || 0), 0);
+          const totalTaxDeductible = contribs.reduce((s: number, c: any) => s + (c.tax_deductible_amount ?? c.amount ?? 0), 0);
 
           subject = `Your ${currentYear} Giving Summary`;
           body = `Dear ${donorName},
@@ -5215,15 +5268,13 @@ ${org?.name || 'The Organization'}`;
           .insert({
             org_id: args.organization_id,
             donor_id: args.donor_id,
-            contribution_id: args.contribution_id || null,
-            letter_type: letterType,
+            contribution_ids: args.contribution_id ? [args.contribution_id] : [],
             subject,
             body,
-            org_name: org?.name,
-            org_ein: org?.ein,
             status: 'draft',
-            sent_via: args.send_via || 'email',
-            created_by: userId,
+            delivery_method: args.send_via || 'email',
+            sent_by: userId,
+            notes: `type=${letterType}`,
           })
           .select()
           .single();
@@ -5234,7 +5285,7 @@ ${org?.name || 'The Organization'}`;
         if (args.contribution_id) {
           await this.supabase
             .from('contributions_received')
-            .update({ acknowledgment_status: 'draft' })
+            .update({ acknowledgment_sent: false })
             .eq('id', args.contribution_id);
         }
 
@@ -5259,52 +5310,68 @@ ${org?.name || 'The Organization'}`;
         const { data: donor, error: donorError } = await this.supabase
           .from('v_donor_summary')
           .select('*')
-          .eq('donor_id', args.donor_id)
+          .eq('id', args.donor_id)
           .single();
 
         if (donorError) throw new Error(`Donor not found: ${donorError.message}`);
 
+        const { data: donorContributions } = await this.supabase
+          .from('contributions_received')
+          .select('id, contribution_date, amount, gift_type, fund_designation, receipt_status, acknowledgment_sent, tax_deductible_amount')
+          .eq('donor_id', args.donor_id)
+          .order('contribution_date', { ascending: false });
+
+        const contributionsForStats = donorContributions || [];
+        const currentYear = new Date().getFullYear();
+        const ytdStart = `${currentYear}-01-01`;
+        const ytdContributions = contributionsForStats.filter((c: any) => c.contribution_date >= ytdStart);
+        const totalYtdGiving = ytdContributions.reduce((sum: number, c: any) => sum + Number(c.amount || 0), 0);
+        const giftCount = donor.gift_count ?? contributionsForStats.length;
+        const averageGift = giftCount > 0 ? Number(donor.lifetime_giving || 0) / giftCount : 0;
+        const hasPendingReceipts = contributionsForStats.some((c: any) => (c.receipt_status || 'pending') !== 'sent');
+        const hasPendingAcknowledgments =
+          donor.has_pending_acknowledgments ??
+          contributionsForStats.some((c: any) => c.acknowledgment_sent === false);
+
         const result: any = {
           donor: {
-            id: donor.donor_id,
-            name: donor.display_name,
+            id: donor.id,
+            name: donorDisplayName(donor),
             email: donor.email,
             type: donor.is_organization ? 'organization' : 'individual',
-            tier: donor.tier,
+            tier: donor.computed_tier ?? donor.tier,
             status: donor.recency_status,
           },
           giving_stats: {
-            total_lifetime: donor.total_lifetime_giving,
-            total_ytd: donor.total_ytd_giving,
-            gift_count: donor.gift_count,
+            total_lifetime: donor.total_lifetime_giving ?? donor.lifetime_giving,
+            total_ytd: totalYtdGiving,
+            gift_count: giftCount,
             largest_gift: donor.largest_gift,
-            average_gift: donor.average_gift,
+            average_gift: averageGift,
             first_gift_date: donor.first_gift_date,
             last_gift_date: donor.last_gift_date,
-            days_since_last_gift: donor.days_since_last_gift,
+            days_since_last_gift: daysSince(donor.last_gift_date),
           },
           pending_items: {
-            has_pending_receipts: donor.has_pending_receipts,
-            has_pending_acknowledgments: donor.has_pending_acknowledgments,
+            has_pending_receipts: hasPendingReceipts,
+            has_pending_acknowledgments: hasPendingAcknowledgments,
           },
         };
 
         // Include contributions if requested
         if (args.include_contributions !== false) {
-          let contribQuery = this.supabase
-            .from('contributions_received')
-            .select('id, contribution_date, amount, contribution_type, designation, receipt_status, acknowledgment_status')
-            .eq('donor_id', args.donor_id)
-            .order('contribution_date', { ascending: false });
-
-          if (args.year) {
-            const yearStart = `${args.year}-01-01`;
-            const yearEnd = `${args.year}-12-31`;
-            contribQuery = contribQuery.gte('contribution_date', yearStart).lte('contribution_date', yearEnd);
-          }
-
-          const { data: contributions } = await contribQuery.limit(50);
-          result.contributions = contributions || [];
+          const contributions = args.year
+            ? contributionsForStats.filter((c: any) => c.contribution_date >= `${args.year}-01-01` && c.contribution_date <= `${args.year}-12-31`)
+            : contributionsForStats;
+          result.contributions = contributions.slice(0, 50).map((c: any) => ({
+            id: c.id,
+            contribution_date: c.contribution_date,
+            amount: c.amount,
+            gift_type: c.gift_type,
+            fund_designation: c.fund_designation,
+            receipt_status: c.receipt_status,
+            acknowledgment_sent: c.acknowledgment_sent,
+          }));
         }
 
         return {
@@ -5322,12 +5389,12 @@ ${org?.name || 'The Organization'}`;
         }
         if (args.donor_tier) {
           InputValidator.validateEnum(args.donor_tier, 'donor_tier', [
-            'major', 'leadership', 'sustainer', 'supporter'
+            'major', 'mid', 'recurring', 'annual', 'lapsed', 'prospect'
           ] as const);
         }
         if (args.recency_status) {
           InputValidator.validateEnum(args.recency_status, 'recency_status', [
-            'active', 'lapsed', 'inactive'
+            'active', 'lapsed', 'lost'
           ] as const);
         }
         if (args.min_lifetime_giving) {
@@ -5353,7 +5420,7 @@ ${org?.name || 'The Organization'}`;
           query = query.eq('is_organization', args.donor_type !== 'individual');
         }
         if (args.donor_tier) {
-          query = query.eq('tier', args.donor_tier);
+          query = query.eq('computed_tier', args.donor_tier);
         }
         if (args.recency_status) {
           query = query.eq('recency_status', args.recency_status);
@@ -5361,34 +5428,48 @@ ${org?.name || 'The Organization'}`;
         if (args.min_lifetime_giving) {
           query = query.gte('total_lifetime_giving', args.min_lifetime_giving);
         }
-        if (args.has_pending_receipts) {
-          query = query.eq('has_pending_receipts', true);
-        }
         if (args.has_pending_acknowledgments) {
           query = query.eq('has_pending_acknowledgments', true);
         }
 
-        const { data: donors, error } = await query
+        const { data: donorRows, error } = await query
           .order('total_lifetime_giving', { ascending: false })
           .limit(limit);
 
         if (error) throw new Error(`Error searching donors: ${error.message}`);
 
+        let donors = donorRows || [];
+        const donorIds = donors.map((d: any) => d.id).filter(Boolean);
+        const pendingReceiptIds = new Set<string>();
+        if (donorIds.length > 0) {
+          const { data: pendingReceiptRows } = await this.supabase
+            .from('contributions_received')
+            .select('donor_id')
+            .in('donor_id', donorIds)
+            .neq('receipt_status', 'sent');
+          for (const row of pendingReceiptRows || []) {
+            pendingReceiptIds.add(row.donor_id);
+          }
+        }
+        if (args.has_pending_receipts) {
+          donors = donors.filter((d: any) => pendingReceiptIds.has(d.id));
+        }
+
         return {
           action: null,
           output: {
             donors: (donors || []).map((d: any) => ({
-              donor_id: d.donor_id,
-              name: d.display_name,
+              donor_id: d.id,
+              name: donorDisplayName(d),
               email: d.email,
               type: d.is_organization ? 'organization' : 'individual',
-              tier: d.donor_tier,
+              tier: d.computed_tier ?? d.tier,
               status: d.recency_status,
               total_lifetime_giving: d.total_lifetime_giving,
-              total_ytd_giving: d.total_ytd_giving,
+              total_ytd_giving: null,
               gift_count: d.gift_count,
               last_gift_date: d.last_gift_date,
-              has_pending_receipts: d.has_pending_receipts,
+              has_pending_receipts: pendingReceiptIds.has(d.id),
               has_pending_acknowledgments: d.has_pending_acknowledgments,
             })),
             count: donors?.length || 0,

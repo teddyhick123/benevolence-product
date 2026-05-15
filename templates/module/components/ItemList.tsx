@@ -42,7 +42,7 @@ export default function {ModuleName}ItemList({ orgId, onItemClick }: ItemListPro
       let query = supabase
         .from('{module_name}_items')
         .select('*')
-        .eq('organization_id', orgId)
+        .eq('org_id', orgId)
         .order('created_at', { ascending: false });
 
       if (statusFilter !== 'all') {

@@ -27,8 +27,9 @@ Add to `/lib/modules/client-info.ts` and `/lib/modules/registry.ts`:
 - Full MODULE_REGISTRY entry in registry.ts
 
 ### 3. Create AI Tools
-Copy `lib/tools.ts` to `/lib/ai/tools/{module_name}.ts` and implement:
-- Tool definitions (Anthropic format)
+Use `lib/tools.ts` as a reference, then integrate the module's tools into:
+- `/lib/ai/assistant/tool-definitions.ts` for provider-neutral `ToolDefinition` entries
+- `/lib/ai/assistant/executor.ts` for executor cases
 - Tool executor functions
 - Input validation using `/lib/ai/validators.ts`
 
@@ -61,7 +62,8 @@ Replace these placeholders throughout:
 
 ```
 /db/00XX_{module_name}.sql          # Database schema
-/lib/ai/tools/{module_name}.ts       # AI tool definitions
+/lib/ai/assistant/tool-definitions.ts # Provider-neutral AI tool definitions
+/lib/ai/assistant/executor.ts         # AI tool executor cases
 /app/api/{module_name}/route.ts      # API endpoints
 /components/{module_name}/           # React components
 /app/dashboard/{module_name}/        # Dashboard pages

@@ -29,7 +29,7 @@ export default async function {ModuleName}Page() {
   // Get user's organization
   const { data: membership } = await supabase
     .from('organization_members')
-    .select('organization_id, role')
+    .select('org_id, role')
     .eq('user_id', user.id)
     .single();
 
@@ -39,11 +39,7 @@ export default async function {ModuleName}Page() {
 
   // Check if module is enabled for this org
   const { data: moduleEnabled } = await supabase
-    .from('organization_modules')
-    .select('module_id')
-    .eq('organization_id', membership.organization_id)
-    .eq('module_id', '{module_name}')
-    .maybeSingle();
+    .rpc('org_has_module', { p_org_id: membership.org_id, p_module: '{module_name}' });
 
   if (!moduleEnabled) {
     // Module not enabled - show upsell or redirect
@@ -52,7 +48,7 @@ export default async function {ModuleName}Page() {
 
   return (
     <{ModuleName}PageContent
-      orgId={membership.organization_id}
+      orgId={membership.org_id}
       userRole={membership.role}
     />
   );

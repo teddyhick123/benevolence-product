@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
     let query = supabase
       .from('{module_name}_items')
       .select('*')
-      .eq('organization_id', orgId)
+      .eq('org_id', orgId)
       .order('created_at', { ascending: false })
       .limit(Math.min(limit, 100));
 
@@ -107,7 +107,7 @@ export async function POST(request: NextRequest) {
     const { data: membership } = await supabase
       .from('organization_members')
       .select('role')
-      .eq('organization_id', org_id)
+      .eq('org_id', org_id)
       .eq('user_id', user.id)
       .maybeSingle();
 
@@ -119,7 +119,7 @@ export async function POST(request: NextRequest) {
     const { data, error } = await supabase
       .from('{module_name}_items')
       .insert({
-        organization_id: org_id,
+        org_id,
         name: name.trim(),
         description: description?.trim() || null,
         created_by: user.id,

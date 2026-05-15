@@ -9,7 +9,7 @@
 
 CREATE TABLE IF NOT EXISTS {module_name}_items (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
 
   -- Core fields
   name TEXT NOT NULL,
@@ -31,16 +31,16 @@ CREATE TABLE IF NOT EXISTS {module_name}_items (
 
 -- Index for common queries
 CREATE INDEX IF NOT EXISTS idx_{module_name}_items_org
-  ON {module_name}_items(organization_id);
+  ON {module_name}_items(org_id);
 CREATE INDEX IF NOT EXISTS idx_{module_name}_items_status
-  ON {module_name}_items(organization_id, status);
+  ON {module_name}_items(org_id, status);
 CREATE INDEX IF NOT EXISTS idx_{module_name}_items_created
-  ON {module_name}_items(organization_id, created_at DESC);
+  ON {module_name}_items(org_id, created_at DESC);
 
 -- Updated at trigger
 CREATE TRIGGER set_{module_name}_items_updated_at
   BEFORE UPDATE ON {module_name}_items
-  FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+  FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
 
 -- ============================================================================
@@ -74,25 +74,25 @@ ALTER TABLE {module_name}_details ENABLE ROW LEVEL SECURITY;
 -- Policy: Organization members can view items
 CREATE POLICY "{module_name}_items_select" ON {module_name}_items
   FOR SELECT USING (
-    is_org_member(organization_id)
+    can_view_org(org_id)
   );
 
 -- Policy: Organization admins can insert items
 CREATE POLICY "{module_name}_items_insert" ON {module_name}_items
   FOR INSERT WITH CHECK (
-    is_org_admin(organization_id)
+    is_org_admin(org_id)
   );
 
 -- Policy: Organization admins can update items
 CREATE POLICY "{module_name}_items_update" ON {module_name}_items
   FOR UPDATE USING (
-    is_org_admin(organization_id)
+    is_org_admin(org_id)
   );
 
 -- Policy: Organization admins can delete items
 CREATE POLICY "{module_name}_items_delete" ON {module_name}_items
   FOR DELETE USING (
-    is_org_admin(organization_id)
+    is_org_admin(org_id)
   );
 
 -- Details inherit parent permissions
@@ -101,7 +101,7 @@ CREATE POLICY "{module_name}_details_select" ON {module_name}_details
     EXISTS (
       SELECT 1 FROM {module_name}_items i
       WHERE i.id = {module_name}_item_id
-      AND is_org_member(i.organization_id)
+      AND can_view_org(i.org_id)
     )
   );
 
@@ -110,7 +110,7 @@ CREATE POLICY "{module_name}_details_insert" ON {module_name}_details
     EXISTS (
       SELECT 1 FROM {module_name}_items i
       WHERE i.id = {module_name}_item_id
-      AND is_org_admin(i.organization_id)
+      AND is_org_admin(i.org_id)
     )
   );
 
@@ -119,7 +119,7 @@ CREATE POLICY "{module_name}_details_update" ON {module_name}_details
     EXISTS (
       SELECT 1 FROM {module_name}_items i
       WHERE i.id = {module_name}_item_id
-      AND is_org_admin(i.organization_id)
+      AND is_org_admin(i.org_id)
     )
   );
 
@@ -128,7 +128,7 @@ CREATE POLICY "{module_name}_details_delete" ON {module_name}_details
     EXISTS (
       SELECT 1 FROM {module_name}_items i
       WHERE i.id = {module_name}_item_id
-      AND is_org_admin(i.organization_id)
+      AND is_org_admin(i.org_id)
     )
   );
 
@@ -146,7 +146,7 @@ DECLARE
   result JSONB;
 BEGIN
   -- Check access
-  IF NOT is_org_member(p_org_id) THEN
+  IF NOT can_view_org(p_org_id) THEN
     RAISE EXCEPTION 'Access denied';
   END IF;
 
@@ -156,7 +156,7 @@ BEGIN
     'inactive_count', COUNT(*) FILTER (WHERE status = 'inactive')
   ) INTO result
   FROM {module_name}_items
-  WHERE organization_id = p_org_id;
+  WHERE org_id = p_org_id;
 
   RETURN COALESCE(result, '{}'::jsonb);
 END;

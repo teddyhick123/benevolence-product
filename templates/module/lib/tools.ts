@@ -1,11 +1,12 @@
 /**
  * {ModuleName} Module - AI Tools
  *
- * Tool definitions and executors for the {ModuleName} module.
- * These tools are available to the AI assistant when this module is enabled.
+ * Tool definitions and executor examples for the {ModuleName} module.
+ * Copy definitions into /lib/ai/assistant/tool-definitions.ts and add
+ * executor cases to /lib/ai/assistant/executor.ts.
  */
 
-import type Anthropic from '@anthropic-ai/sdk';
+import type { ToolDefinition } from '@/lib/ai/types';
 import type { ToolExecutorContext, ToolResult, AIAction } from '@/lib/ai/types';
 import { InputValidator, ValidationError } from '@/lib/ai/validators';
 
@@ -13,13 +14,17 @@ import { InputValidator, ValidationError } from '@/lib/ai/validators';
 // TOOL DEFINITIONS
 // =============================================================================
 
-export const {module_name}Tools: Anthropic.Tool[] = [
+export const {module_name}Tools: ToolDefinition[] = [
   {
     name: 'list_{module_name}_items',
     description: 'List items in the {module_name} module with optional filtering',
     input_schema: {
       type: 'object',
       properties: {
+        org_id: {
+          type: 'string',
+          description: 'Organization UUID',
+        },
         status: {
           type: 'string',
           enum: ['active', 'inactive', 'archived', 'all'],
@@ -34,7 +39,7 @@ export const {module_name}Tools: Anthropic.Tool[] = [
           description: 'Search term to filter by name',
         },
       },
-      required: [],
+      required: ['org_id'],
     },
   },
   {
@@ -57,6 +62,10 @@ export const {module_name}Tools: Anthropic.Tool[] = [
     input_schema: {
       type: 'object',
       properties: {
+        org_id: {
+          type: 'string',
+          description: 'Organization UUID',
+        },
         name: {
           type: 'string',
           description: 'Name of the item (required)',
@@ -67,7 +76,7 @@ export const {module_name}Tools: Anthropic.Tool[] = [
         },
         // Add more properties as needed
       },
-      required: ['name'],
+      required: ['org_id', 'name'],
     },
   },
   {
@@ -122,13 +131,14 @@ export const {module_name}Tools: Anthropic.Tool[] = [
  * List items with optional filtering
  */
 async function executeList{ModuleName}Items(
-  input: { status?: string; limit?: number; search?: string },
+  input: { org_id: string; status?: string; limit?: number; search?: string },
   context: ToolExecutorContext
 ): Promise<ToolResult> {
   const { supabase } = context;
-  const orgId = context.portfolioId; // Or get from context differently
 
   // Validate inputs
+  InputValidator.validateRequired(input.org_id, 'org_id');
+  InputValidator.validateUUID(input.org_id, 'org_id');
   InputValidator.validateEnum(input.status, 'status', ['active', 'inactive', 'archived', 'all']);
   InputValidator.validateNumber(input.limit, 'limit', { min: 1, max: 100 });
   InputValidator.validateString(input.search, 'search', { maxLength: 100 });
@@ -140,7 +150,7 @@ async function executeList{ModuleName}Items(
   let query = supabase
     .from('{module_name}_items')
     .select('*')
-    .eq('organization_id', orgId)
+    .eq('org_id', input.org_id)
     .order('created_at', { ascending: false })
     .limit(limit);
 
@@ -205,19 +215,20 @@ async function executeGet{ModuleName}Item(
  * Create a new item
  */
 async function executeCreate{ModuleName}Item(
-  input: { name: string; description?: string },
+  input: { org_id: string; name: string; description?: string },
   context: ToolExecutorContext
 ): Promise<ToolResult> {
   const { supabase, userId, sessionId, batchId, sequenceOrder, userPrompt } = context;
-  const orgId = context.portfolioId;
 
   // Validate
+  InputValidator.validateRequired(input.org_id, 'org_id');
+  InputValidator.validateUUID(input.org_id, 'org_id');
   InputValidator.validateRequired(input.name, 'name');
   InputValidator.validateString(input.name, 'name', { maxLength: 200 });
   InputValidator.validateString(input.description, 'description', { maxLength: 2000 });
 
   const insertData = {
-    organization_id: orgId,
+    org_id: input.org_id,
     name: input.name,
     description: input.description || null,
     created_by: userId,
@@ -238,7 +249,7 @@ async function executeCreate{ModuleName}Item(
   const action: AIAction = {
     id: crypto.randomUUID(),
     sessionId,
-    portfolioId: orgId,
+    portfolioId: context.portfolioId,
     userId,
     actionType: 'create',
     entityType: '{module_name}_item' as any, // Add to AIAction entityType if needed
@@ -272,7 +283,6 @@ async function executeUpdate{ModuleName}Item(
   context: ToolExecutorContext
 ): Promise<ToolResult> {
   const { supabase, userId, sessionId, batchId, sequenceOrder, userPrompt } = context;
-  const orgId = context.portfolioId;
 
   // Validate
   InputValidator.validateRequired(input.item_id, 'item_id');
@@ -312,7 +322,7 @@ async function executeUpdate{ModuleName}Item(
   const action: AIAction = {
     id: crypto.randomUUID(),
     sessionId,
-    portfolioId: orgId,
+    portfolioId: context.portfolioId,
     userId,
     actionType: 'update',
     entityType: '{module_name}_item' as any,
@@ -347,7 +357,6 @@ async function executeDelete{ModuleName}Item(
   context: ToolExecutorContext
 ): Promise<ToolResult> {
   const { supabase, userId, sessionId, batchId, sequenceOrder, userPrompt } = context;
-  const orgId = context.portfolioId;
 
   // Validate
   InputValidator.validateRequired(input.item_id, 'item_id');
@@ -376,7 +385,7 @@ async function executeDelete{ModuleName}Item(
   const action: AIAction = {
     id: crypto.randomUUID(),
     sessionId,
-    portfolioId: orgId,
+    portfolioId: context.portfolioId,
     userId,
     actionType: 'delete',
     entityType: '{module_name}_item' as any,

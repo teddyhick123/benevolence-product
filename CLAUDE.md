@@ -35,7 +35,9 @@ Key invariants that differ from older patterns or documentation you may encounte
 | Module Client Info | `/lib/modules/client-info.ts` |
 | Module Registry | `/lib/modules/registry.ts` |
 | AI Assistant Entry | `/lib/ai/portfolio-assistant.ts` |
-| AI Tool Definitions/Executors | `/lib/claude-assistant.ts` (legacy filename, provider-neutral implementation) |
+| AI Tool Definitions | `/lib/ai/assistant/tool-definitions.ts` |
+| AI Tool Executors | `/lib/ai/assistant/executor.ts` |
+| AI Prompts/Context | `/lib/ai/assistant/prompts.ts`, `/lib/ai/assistant/context.ts` |
 | AI Validators | `/lib/ai/validators.ts` |
 | AI Types | `/lib/ai/types.ts` |
 | Database Migrations | `/db/migrations/NNNN_description.sql` |
@@ -198,7 +200,7 @@ CREATE TRIGGER set_new_module_table_updated_at
 
 ### Step 3: Add AI Tools
 
-Add provider-neutral tool definitions to `/lib/claude-assistant.ts` after the comment for your module:
+Add provider-neutral tool definitions to `/lib/ai/assistant/tool-definitions.ts`:
 
 ```typescript
 // ==================== NEW MODULE ====================
@@ -222,7 +224,7 @@ Add provider-neutral tool definitions to `/lib/claude-assistant.ts` after the co
 },
 ```
 
-Add tool executor in the `executeTool` switch statement:
+Add the tool executor case in `executeAssistantTool()` in `/lib/ai/assistant/executor.ts`:
 
 ```typescript
 case 'tool_name_1': {
@@ -230,9 +232,9 @@ case 'tool_name_1': {
   InputValidator.validateUUID(args.required_field, 'required_field');
 
   // Execute operation
-  const { data, error } = await this.supabase
+  const { data, error } = await supabase
     .from('new_module_table')
-    .insert({ ... })
+    .insert({ org_id: args.org_id, ... })
     .select()
     .single();
 
@@ -588,7 +590,8 @@ CREATE POLICY "table_service" ON public.table_name
     registry.ts     # Module definitions
     tool-filter.ts  # Tool filtering logic
     index.ts        # Exports
-  /ai               # AI assistant (being refactored)
+  /ai/assistant     # AI assistant internals: tools, executor, prompts, context
+  /ai               # Provider abstraction, public assistant entrypoints, shared AI types
   /services         # External service integrations
   /schemas          # Zod validation schemas
 
@@ -629,6 +632,6 @@ When creating a new module, verify:
 ## Getting Help
 
 - Module system: `/lib/modules/registry.ts`
-- AI patterns: `/lib/ai/portfolio-assistant.ts`, `/lib/claude-assistant.ts`
+- AI patterns: `/lib/ai/portfolio-assistant.ts`, `/lib/ai/assistant/tool-definitions.ts`, `/lib/ai/assistant/executor.ts`
 - Database patterns: Check similar migrations in `/db/`
 - Component patterns: Check similar components in `/components/`

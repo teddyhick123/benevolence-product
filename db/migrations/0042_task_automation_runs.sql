@@ -31,7 +31,10 @@ ALTER TABLE public.task_automation_runs ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "task_automation_runs: org admins read"
   ON public.task_automation_runs FOR SELECT TO authenticated
-  USING (org_id IS NULL OR public.is_org_admin(org_id));
+  USING (
+    (org_id IS NULL AND public.is_app_admin())
+    OR (org_id IS NOT NULL AND public.is_org_admin(org_id))
+  );
 
 CREATE POLICY "task_automation_runs: service role"
   ON public.task_automation_runs FOR ALL TO service_role

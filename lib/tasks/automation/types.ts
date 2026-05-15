@@ -41,7 +41,7 @@ export type UpsertGeneratedTaskInput = {
   sourceKey: string;
   title: string;
   description: string;
-  taskType: 'reminder' | 'follow_up' | 'review' | 'approval';
+  taskType: 'task' | 'reminder' | 'follow_up' | 'review' | 'approval' | 'checklist_step';
   priority: 'low' | 'normal' | 'high' | 'urgent';
   dueAt?: string | null;
   assignedTo?: string | null;

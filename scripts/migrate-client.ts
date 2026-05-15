@@ -1,6 +1,6 @@
 #!/usr/bin/env ts-node
 /**
- * Benevolence Client Migration Runner
+ * Client migration runner
  *
  * Applies new SQL migrations to an existing client Supabase project.
  * Idempotent — safe to run multiple times.
@@ -43,7 +43,7 @@ function parseArgs(): MigrateArgs {
 
   if (args.includes('--help') || args.includes('-h')) {
     console.log(`
-Benevolence Client Migration Runner
+Impact Platform Client Migration Runner
 
 Usage:
   SUPABASE_URL=https://xxx.supabase.co SUPABASE_SERVICE_KEY=xxx \\

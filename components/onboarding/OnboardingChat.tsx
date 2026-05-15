@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import { PaperAirplaneIcon, SparklesIcon } from '@heroicons/react/24/outline';
 import ReactMarkdown from 'react-markdown';
 import ProgressIndicator from './ProgressIndicator';
+import { branding } from '@/lib/config';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -142,7 +143,7 @@ export default function OnboardingChat({
             <SparklesIcon className="w-5 h-5 text-white" />
           </div>
           <div>
-            <h2 className="font-semibold text-neutral-900">Chat with Ben</h2>
+            <h2 className="font-semibold text-neutral-900">Chat with {branding.onboardingAssistantName}</h2>
             <p className="text-xs text-neutral-500">Your onboarding assistant</p>
           </div>
         </div>
@@ -226,7 +227,7 @@ export default function OnboardingChat({
             <li>Share what takes up most of your time</li>
             <li>Mention any frustrations or challenges</li>
             <li>Describe your goals for the next year</li>
-            <li>Tell Ben about your team</li>
+            <li>Tell {branding.onboardingAssistantName} about your team</li>
           </ul>
         </div>
 

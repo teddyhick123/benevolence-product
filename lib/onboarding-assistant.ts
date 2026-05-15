@@ -6,7 +6,7 @@
  * Uses conversational discovery to understand pain points, goals, and workflows,
  * then generates tailored module recommendations.
  *
- * Personality: "Ben" - warm, curious, conversational
+ * Personality: warm, curious, conversational
  */
 
 import { createClient } from '@supabase/supabase-js';
@@ -793,7 +793,7 @@ export class OnboardingAssistant {
   }
 
   /**
-   * Get the first message from Ben to start the conversation
+   * Get the first onboarding message to start the conversation
    */
   static getWelcomeMessage(quickIntake: QuickIntake): string {
     const orgName = quickIntake.org_name || 'your organization';

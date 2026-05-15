@@ -1,11 +1,15 @@
+import { branding } from '@/lib/config';
+
 export default function Home() {
+  const brandInitial = branding.appName.charAt(0).toUpperCase();
+
   return (
     <div className="min-h-screen bg-creme font-sans antialiased text-ink">
 
       {/* ── Nav ── */}
       <header className="max-w-[1120px] mx-auto px-14 py-8 flex items-center justify-between">
         <div className="font-serif text-2xl font-semibold text-azure-deep tracking-tight">
-          Benevolence<span className="text-coral">.</span>
+          {branding.appName}<span className="text-coral">.</span>
         </div>
         <nav className="flex items-center gap-8">
           <a href="#features" className="text-sm text-ink-60 hover:text-ink transition-colors">Platform</a>
@@ -31,7 +35,7 @@ export default function Home() {
               <em className="italic text-azure">philanthropic capital.</em>
             </h1>
             <p className="text-[16px] leading-[1.7] text-ink-60 max-w-[460px] mb-10">
-              Benevolence gives private foundations, family offices, and
+              {branding.appName} gives private foundations, family offices, and
               donor-advised funds a modern, unified workspace — impact investments,
               grants, donor relationships, tax obligations, and compliance in one
               place.
@@ -56,7 +60,7 @@ export default function Home() {
           <div className="flex items-center justify-center">
             <div className="w-[220px] h-[220px] bg-white border border-ink-10 rounded-lg flex items-center justify-center shadow-soft">
               <span className="font-serif font-semibold text-[120px] leading-none text-azure-deep select-none">
-                B<span className="text-coral">.</span>
+                {brandInitial}<span className="text-coral">.</span>
               </span>
             </div>
           </div>
@@ -214,11 +218,11 @@ export default function Home() {
       {/* ── Footer ── */}
       <footer className="max-w-[1120px] mx-auto px-14 py-8 border-t border-ink-10 flex items-center justify-between">
         <div className="font-serif font-semibold text-xl text-azure-deep tracking-tight">
-          Benevolence<span className="text-coral">.</span>
+          {branding.appName}<span className="text-coral">.</span>
         </div>
         <div className="flex items-center gap-8">
           <a href="/login" className="text-sm text-ink-60 hover:text-ink transition-colors">Sign in</a>
-          <span className="text-[12px] text-ink-30 tracking-[0.06em]">© 2026 Benevolence</span>
+          <span className="text-[12px] text-ink-30 tracking-[0.06em]">© 2026 {branding.appName}</span>
         </div>
       </footer>
 

@@ -1,11 +1,13 @@
 // lib/import/ai/prompts/mapping-assist.ts
 // System and user prompts for the AI mapping assistant
 
+import { branding } from '@/lib/config';
+
 export const MAPPING_ASSIST_SYSTEM = `You are an expert data migration specialist for philanthropic software with deep knowledge of Blackbaud Raiser's Edge NXT, Salesforce NPSP, DonorPerfect, and other nonprofit CRM systems.
 
-Your task is to analyze source system field names and sample records, then suggest precise mappings to the Benevolence target schema.
+Your task is to analyze source system field names and sample records, then suggest precise mappings to the ${branding.appName} target schema.
 
-## Benevolence Target Schema
+## ${branding.appName} Target Schema
 
 ### Entity: investees (Organizations/Nonprofits)
 Required: display_name

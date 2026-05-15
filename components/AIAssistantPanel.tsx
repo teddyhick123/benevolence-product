@@ -6,6 +6,7 @@ import { useAudioRecorder } from '@/hooks/useAudioRecorder';
 import TrefoilLoader from './TrefoilLoader';
 import InlineWidget from './InlineWidget';
 import ReactMarkdown from 'react-markdown';
+import { branding } from '@/lib/config';
 
 type ContentBlock = {
   type: 'text' | 'chart';
@@ -117,7 +118,7 @@ export default function AIAssistantPanel({ portfolioId, currentPage, onClose }: 
       setMessages([
         {
           role: 'assistant',
-          content: `Hi! I'm Ben, your AI portfolio assistant. I can help you manage your portfolio through natural conversation.
+          content: `Hi! I'm ${branding.assistantName}, your AI portfolio assistant. I can help you manage your portfolio through natural conversation.
 
 Here's what I can do:
 • Add, update, or remove holdings
@@ -367,7 +368,7 @@ Just ask me anything, and I'll help you out! If you don't like a change I make, 
       <div className="flex items-center justify-between px-4 py-3 bg-azure text-white">
         <div className="flex items-center gap-2">
           <ChatBubbleLeftRightIcon className="h-5 w-5" />
-          <h2 className="font-semibold">Ben - AI Assistant</h2>
+          <h2 className="font-semibold">{branding.assistantName} - AI Assistant</h2>
         </div>
         {onClose && (
           <button

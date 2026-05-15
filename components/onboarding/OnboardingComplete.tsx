@@ -2,6 +2,7 @@
 
 import { CheckCircleIcon, ArrowRightIcon, SparklesIcon } from '@heroicons/react/24/outline';
 import Link from 'next/link';
+import { branding } from '@/lib/config';
 
 interface OnboardingCompleteProps {
   organizationId?: string;
@@ -91,7 +92,7 @@ export default function OnboardingComplete({
               <span className="text-azure text-sm font-medium">3</span>
             </div>
             <div>
-              <p className="font-medium text-neutral-900">Chat with Ben anytime</p>
+              <p className="font-medium text-neutral-900">Chat with {branding.assistantName} anytime</p>
               <p className="text-sm text-neutral-600">
                 Your AI assistant is always available to help manage your portfolio.
               </p>

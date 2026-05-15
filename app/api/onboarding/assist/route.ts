@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase';
 import { AI_MODELS } from '@/lib/ai/models';
 import { generateText } from '@/lib/ai/text';
+import { branding } from '@/lib/config';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,11 +27,11 @@ type QuestionType = 'org_type_help' | 'module_help';
 
 function buildPrompt(question: QuestionType, context: Record<string, string>): string {
   if (question === 'org_type_help') {
-    return `You are the onboarding assistant for Benevolence, a philanthropic portfolio management platform. A new user named "${context.org_name ?? 'the user'}" is setting up their account and isn't sure which organization type applies to them. Explain the differences between the available types in 2-3 plain-English sentences aimed at a foundation executive, then ask which sounds closest. Available types:\n${Object.values(ORG_TYPE_DESCRIPTIONS).join('\n')}`;
+    return `You are the onboarding assistant for ${branding.appName}, a philanthropic portfolio management platform. A new user named "${context.org_name ?? 'the user'}" is setting up their account and isn't sure which organization type applies to them. Explain the differences between the available types in 2-3 plain-English sentences aimed at a foundation executive, then ask which sounds closest. Available types:\n${Object.values(ORG_TYPE_DESCRIPTIONS).join('\n')}`;
   }
   const moduleLabel = MODULE_LABELS[context.module] ?? context.module;
   const orgDesc = ORG_TYPE_DESCRIPTIONS[context.org_type] ?? context.org_type;
-  return `You are the onboarding assistant for Benevolence. A user setting up a "${orgDesc}" account wants to know what the "${moduleLabel}" feature does. Explain it in 2 plain-English sentences. Be specific about what it enables and who typically uses it. Do not use jargon.`;
+  return `You are the onboarding assistant for ${branding.appName}. A user setting up a "${orgDesc}" account wants to know what the "${moduleLabel}" feature does. Explain it in 2 plain-English sentences. Be specific about what it enables and who typically uses it. Do not use jargon.`;
 }
 
 export async function POST(req: NextRequest) {

@@ -1,5 +1,6 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { branding } from '@/lib/config';
 
 export interface BoardReportData {
   portfolioName: string;
@@ -38,7 +39,7 @@ export function generateBoardReportPDF(data: BoardReportData): Buffer {
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(11);
   doc.setFont('helvetica', 'normal');
-  doc.text('BENEVOLENCE', MARGIN, 20);
+  doc.text(branding.appName.toUpperCase(), MARGIN, 20);
 
   doc.setFontSize(30);
   doc.setFont('helvetica', 'bold');
@@ -232,7 +233,7 @@ export function generateBoardReportPDF(data: BoardReportData): Buffer {
     doc.setFontSize(8);
     doc.setTextColor(...GRAY);
     doc.text(
-      `Benevolence · ${data.portfolioName} · Page ${i} of ${pageCount}`,
+      `${branding.appName} · ${data.portfolioName} · Page ${i} of ${pageCount}`,
       MARGIN,
       doc.internal.pageSize.height - 10
     );

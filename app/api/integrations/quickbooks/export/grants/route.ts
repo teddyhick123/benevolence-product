@@ -5,6 +5,7 @@
 // Reads grants across ALL portfolios belonging to the org and creates Journal Entries in QuickBooks.
 
 import { createServerClient } from '@/lib/supabase';
+import { branding } from '@/lib/config';
 import {
   getAuthenticatedQBClientByOrg,
   createJournalEntryAsync,
@@ -130,8 +131,8 @@ export async function POST(req: Request): Promise<Response> {
 
         const entry: QBJournalEntry = {
           TxnDate: txnDate,
-          DocNumber: `BEN-GRANT-${grant.id.slice(0, 8).toUpperCase()}`,
-          PrivateNote: `Grant to ${grant.name} — exported from Benevolence`,
+          DocNumber: `GRANT-${grant.id.slice(0, 8).toUpperCase()}`,
+          PrivateNote: `Grant to ${grant.name} — exported from ${branding.appName}`,
           Line: [
             {
               Description: `Grant disbursement — ${grant.name}`,

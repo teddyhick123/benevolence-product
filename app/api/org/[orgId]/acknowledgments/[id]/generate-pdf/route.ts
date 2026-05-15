@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient, createAdminClient } from '@/lib/supabase';
+import { branding } from '@/lib/config';
 import jsPDF from 'jspdf';
 
 export const dynamic = 'force-dynamic';
@@ -88,7 +89,7 @@ function generateAcknowledgmentPDF(letter: any): Buffer {
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(10);
   doc.setFont('helvetica', 'bold');
-  doc.text(letter.org_name || 'Benevolence', MARGIN, 12);
+  doc.text(letter.org_name || branding.appName, MARGIN, 12);
 
   // Date (top right)
   doc.setFont('helvetica', 'normal');
@@ -190,7 +191,7 @@ function generateAcknowledgmentPDF(letter: any): Buffer {
     doc.setFontSize(8);
     doc.setTextColor(...GRAY);
     doc.text(
-      `${letter.org_name || 'Benevolence'} · ${typeLabel[letter.letter_type] || 'Acknowledgment'} · Page ${i} of ${pageCount}`,
+      `${letter.org_name || branding.appName} · ${typeLabel[letter.letter_type] || 'Acknowledgment'} · Page ${i} of ${pageCount}`,
       MARGIN,
       doc.internal.pageSize.height - 10
     );

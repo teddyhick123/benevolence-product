@@ -1,6 +1,6 @@
 #!/usr/bin/env ts-node
 /**
- * Benevolence Client Handoff Package Generator
+ * Client handoff package generator
  *
  * Usage:
  *   npx ts-node scripts/export-client-package.ts --org-name "Foundation Name" --slug foundation-name
@@ -17,6 +17,8 @@ import { execSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 
+const APP_NAME = process.env.NEXT_PUBLIC_APP_NAME || 'Impact Platform';
+
 // ---------------------------------------------------------------------------
 // CLI args
 // ---------------------------------------------------------------------------
@@ -25,7 +27,7 @@ function parseArgs(): { orgName: string; slug: string } {
 
   if (args.includes('--help') || args.includes('-h')) {
     console.log(`
-Benevolence Client Handoff Package Generator
+${APP_NAME} Client Handoff Package Generator
 
 Usage:
   npx ts-node scripts/export-client-package.ts \\
@@ -61,9 +63,9 @@ Creates:
 // Generate HANDOFF.md
 // ---------------------------------------------------------------------------
 function generateHandoff(orgName: string): string {
-  return `# Benevolence — Client Handoff: ${orgName}
+  return `# ${APP_NAME} — Client Handoff: ${orgName}
 
-Welcome to your Benevolence installation. This package contains everything you need to own and operate your philanthropic management platform.
+Welcome to your ${APP_NAME} installation. This package contains everything you need to own and operate your philanthropic management platform.
 
 ## What You Own
 - Full Next.js 15 source code (TypeScript)
@@ -93,9 +95,12 @@ Your team (or a hired developer) can modify any part of this codebase. The code 
 // Generate .env.template
 // ---------------------------------------------------------------------------
 function generateEnvTemplate(): string {
-  return `# Benevolence Environment Variables
+  return `# ${APP_NAME} Environment Variables
 # Copy this file to .env.local and fill in your values.
 # Never commit .env.local to version control.
+
+# ── Branding ────────────────────────────────────────────────────────────────
+NEXT_PUBLIC_APP_NAME=${APP_NAME}
 
 # ── Supabase (required) ─────────────────────────────────────────────────────
 NEXT_PUBLIC_SUPABASE_URL=https://YOUR_PROJECT_REF.supabase.co

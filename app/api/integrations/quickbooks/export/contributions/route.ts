@@ -6,6 +6,7 @@
 // and creates Journal Entries in QuickBooks (debit Expense, credit Bank).
 
 import { createServerClient } from '@/lib/supabase';
+import { branding } from '@/lib/config';
 import {
   getAuthenticatedQBClientByOrg,
   createJournalEntryAsync,
@@ -119,8 +120,8 @@ export async function POST(req: Request): Promise<Response> {
         const amount = contribution.calculated_deductible_amount ?? contribution.amount_usd;
         const entry: QBJournalEntry = {
           TxnDate: contribution.contribution_date,
-          DocNumber: `BEN-CONTRIB-${contribution.id.slice(0, 8).toUpperCase()}`,
-          PrivateNote: `Charitable contribution to ${contribution.recipient_name} — exported from Benevolence`,
+          DocNumber: `CONTRIB-${contribution.id.slice(0, 8).toUpperCase()}`,
+          PrivateNote: `Charitable contribution to ${contribution.recipient_name} — exported from ${branding.appName}`,
           Line: [
             {
               Description: `Charitable contribution — ${contribution.recipient_name}`,

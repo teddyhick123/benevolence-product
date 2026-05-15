@@ -1,7 +1,7 @@
 #!/usr/bin/env ts-node
 /**
  * scripts/provision-client.ts
- * Provision a new Benevolence client organization.
+ * Provision a new client organization.
  *
  * Usage:
  *   npx ts-node scripts/provision-client.ts \
@@ -37,6 +37,8 @@
 import { createClient } from '@supabase/supabase-js';
 import * as fs from 'fs';
 
+const APP_NAME = process.env.NEXT_PUBLIC_APP_NAME || 'Impact Platform';
+
 // ---------------------------------------------------------------------------
 // CLI args
 // ---------------------------------------------------------------------------
@@ -48,7 +50,7 @@ type OrgType = typeof VALID_ORG_TYPES[number];
 
 function printHelp(): void {
   console.log(`
-Benevolence Client Provisioning Script
+${APP_NAME} Client Provisioning Script
 
 Usage:
   npx ts-node scripts/provision-client.ts \\
@@ -326,7 +328,7 @@ async function main() {
 
   // Write .env file
   const envFile = `deployment-${slug}.env`;
-  const envContent = `# Benevolence deployment — ${orgName}
+  const envContent = `# ${APP_NAME} deployment — ${orgName}
 # Generated: ${new Date().toISOString()}
 
 NEXT_PUBLIC_SUPABASE_URL=${supabaseUrl}

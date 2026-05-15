@@ -3,6 +3,7 @@ import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { createServerClient } from '@supabase/ssr';
 import SetupClient from './SetupClient';
+import { branding } from '@/lib/config';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -51,7 +52,7 @@ export default async function Welcome() {
   return (
     <div className="mx-auto max-w-lg space-y-6 py-12 px-4">
       <div>
-        <h1 className="text-2xl font-semibold">Welcome to Benevolence</h1>
+        <h1 className="text-2xl font-semibold">Welcome to {branding.appName}</h1>
         <p className="text-sm text-neutral-500 mt-1">
           Let&apos;s create your organization to get started. This takes about 30 seconds.
         </p>

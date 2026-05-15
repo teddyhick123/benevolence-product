@@ -3,6 +3,7 @@
 
 import Link from 'next/link';
 import { createServerClient, createAdminClient } from '@/lib/supabase';
+import { branding } from '@/lib/config';
 import { MappingPageClient } from './MappingPageClient';
 import type { ImportJob, MappingProfile } from '@/lib/import/types';
 import { STAGING_TABLE_MAP } from '@/lib/import/types';
@@ -117,7 +118,7 @@ export default async function MappingPage({
         </div>
         <h1 className="text-2xl font-semibold">Field Mapping</h1>
         <p className="text-sm text-neutral-500 mt-1">
-          Map source CSV columns to Benevolence fields. Save & Validate to check data quality.
+          Map source CSV columns to {branding.appName} fields. Save & Validate to check data quality.
         </p>
       </div>
 

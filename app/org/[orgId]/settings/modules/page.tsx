@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { createBrowserClient } from '@/lib/supabase-browser';
+import { branding } from '@/lib/config';
 import Link from 'next/link';
 import {
   ChartBarIcon,
@@ -279,7 +280,7 @@ export default function ModuleSettingsPage() {
           <h1 className="text-2xl font-bold text-neutral-900">Module Settings</h1>
           <p className="text-neutral-600 mt-1">
             Configure which features are available for {orgName}. Only enabled modules
-            will be accessible to Ben, your AI assistant.
+            will be accessible to {branding.assistantName}, your AI assistant.
           </p>
         </div>
 
@@ -433,7 +434,7 @@ export default function ModuleSettingsPage() {
             ).join(', ')}
           </p>
           <p className="text-sm text-neutral-500 mt-2">
-            Ben will have access to all tools from these modules when assisting with your portfolio.
+            {branding.assistantName} will have access to all tools from these modules when assisting with your portfolio.
           </p>
         </div>
       </div>

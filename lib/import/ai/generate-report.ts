@@ -1,11 +1,12 @@
 // lib/import/ai/generate-report.ts
 // AI-powered migration report generation
 
+import { branding } from '@/lib/config';
 import { callAI } from './client';
 
 const REPORT_SYSTEM = `You are a professional consultant writing a migration summary report for a philanthropic organization.
 
-The organization has just migrated their data from a legacy system (Blackbaud or similar) to Benevolence, a modern philanthropic management platform.
+The organization has just migrated their data from a legacy system (Blackbaud or similar) to ${branding.appName}, a modern philanthropic management platform.
 
 Write a comprehensive yet readable report that:
 1. Celebrates the successful migration
@@ -34,7 +35,7 @@ Include these sections in order:
 2. Migration Overview (stats table)
 3. Data Quality Analysis
 4. Financial Reconciliation
-5. What's New in Benevolence (3-4 bullet points about features they now have)
+5. What's New in ${branding.appName} (3-4 bullet points about features they now have)
 6. Action Items (if any)
 7. Next Steps (go-live checklist)
 
@@ -108,7 +109,7 @@ ${entityTableRows}
 
 ## Financial Reconciliation
 - Source System Total: $${financialReconciliation.sourceTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-- Loaded to Benevolence: $${financialReconciliation.loadedTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+- Loaded to ${branding.appName}: $${financialReconciliation.loadedTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
 - Variance: ${financialReconciliation.deltaPercent.toFixed(2)}%
 
 ## AI-Assisted Improvements

@@ -2,6 +2,7 @@
 import { Resend } from 'resend';
 import { render } from '@react-email/components';
 import InviteEmail from './templates/invite';
+import { branding } from '@/lib/config';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -22,9 +23,9 @@ export async function sendInviteEmail(params: SendInviteEmailParams): Promise<vo
   );
 
   const { error } = await resend.emails.send({
-    from: `Benevolence <noreply@${process.env.RESEND_FROM_DOMAIN || 'resend.dev'}>`,
+    from: `${branding.appName} <noreply@${process.env.RESEND_FROM_DOMAIN || 'resend.dev'}>`,
     to,
-    subject: `You've been invited to join ${orgName} on Benevolence`,
+    subject: `You've been invited to join ${orgName} on ${branding.appName}`,
     html,
   });
 

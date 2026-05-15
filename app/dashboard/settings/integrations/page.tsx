@@ -3,6 +3,7 @@
 
 import { redirect } from 'next/navigation';
 import { createServerClient } from '@/lib/supabase';
+import { branding } from '@/lib/config';
 import QuickBooksSettings from '@/components/integrations/QuickBooksSettings';
 
 export const dynamic = 'force-dynamic';
@@ -47,7 +48,7 @@ export default async function IntegrationsSettingsPage({
       <div className="mb-8">
         <h1 className="text-2xl font-semibold text-gray-900">Integrations</h1>
         <p className="mt-1 text-sm text-gray-500">
-          Connect external accounting tools to sync data with Benevolence.
+          Connect external accounting tools to sync data with {branding.appName}.
         </p>
       </div>
 

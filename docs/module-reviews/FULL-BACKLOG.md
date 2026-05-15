@@ -1,4 +1,4 @@
-# Benevolence — Open Backlog
+# Impact Platform — Open Backlog
 
 **Status:** Backlog reconciled 2026-05-10 after Sprint E session (Dr-U2, H-F8, Cm-F6, Cm-F7, Ch-U3, Ch-F6, Ch-F9, Dr-F5, D-F7, Adm-U2, Adm-U3, Adm-U4, Vis-B7, QB-F8 resolved).
 
@@ -133,7 +133,7 @@ For resolved-issue history, see `git log docs/module-reviews/FULL-BACKLOG.md` an
 
 ---
 
-## AI Assistant (Ben)
+## AI Assistant
 
 ### UX Gaps (P2)
 
@@ -152,6 +152,24 @@ For resolved-issue history, see `git log docs/module-reviews/FULL-BACKLOG.md` an
 | AI-F5 | Donor CRM tool coverage (`find_donor`, `log_gift`, `generate_acknowledgment`) |
 | AI-F6 | Tax center tool coverage (`estimate_deduction`, `run_optimization`) |
 | AI-F8 | Per-org AI usage rollups for billing and abuse detection (raw `ai_usage_log` already populated) |
+
+---
+
+## White-Label / Branding
+
+### Bugs (P1)
+
+| # | Issue | Location |
+|---|-------|----------|
+| Br-B1 | Hardcoded template brand appears in user-facing onboarding, emails, PDFs, exports, import copy, and builder prompts instead of `lib/config/branding.ts` | Runtime copy surfaces |
+
+### Missing Features (P2)
+
+| # | Feature |
+|---|---------|
+| Br-F1 | Contract tests that prevent hardcoded template-brand leakage in runtime code |
+| Br-F2 | Org-specific brand overrides in generated PDFs, outbound emails, and exported accounting notes |
+| Br-F3 | Assistant display name should be fully configurable across onboarding, dashboard chat, module settings, and builder surfaces |
 
 ---
 
@@ -238,6 +256,6 @@ For resolved-issue history, see `git log docs/module-reviews/FULL-BACKLOG.md` an
 | AI Assistant      | — |  8 | — |  8 |
 | Visualizations    | — |  2 | 6 |  8 |
 | Admin / Import    | — |  8 | — |  8 |
+| White-Label / Branding | 1 |  3 | — |  4 |
 | Cross-Cutting     | — |  2 | 1 |  3 |
-| **Total**         | **—** | **50** | **7** | **57** |
-
+| **Total**         | **1** | **53** | **7** | **61** |

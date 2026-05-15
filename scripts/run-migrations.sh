@@ -65,7 +65,7 @@ if ! $DRY_RUN; then
 fi
 
 echo "========================================"
-echo "  Benevolence Migration Runner"
+echo "  Impact Platform Migration Runner"
 echo "  Migrations: $MIGRATIONS_DIR"
 if ! $DRY_RUN; then
   echo "  Target: ${SUPABASE_URL:-local}"

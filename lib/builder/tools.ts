@@ -5,6 +5,7 @@ import { createAIProvider } from '@/lib/ai/factory';
 import { AI_MODELS } from '@/lib/ai/models';
 import { buildScaffoldContext, formatScaffoldContextForPrompt } from './scaffold-context';
 import { getCodebaseIndex, formatIndexForPrompt } from './codebase-index';
+import { branding } from '@/lib/config';
 
 // ─── Tool definitions ────────────────────────────────────────────────────────
 
@@ -386,7 +387,7 @@ export async function executeTool(
         const contextPrompt = formatScaffoldContextForPrompt(scaffoldCtx);
 
         const provider = createAIProvider();
-        const planningSystemPrompt = `You are a senior software engineer planning a new feature module for the Benevolence platform — a white-label philanthropic portfolio management system built with Next.js 15, TypeScript, Supabase (PostgreSQL + RLS), and Tailwind CSS.${contextPrompt}`;
+        const planningSystemPrompt = `You are a senior software engineer planning a new feature module for the ${branding.appName} platform — a white-label philanthropic portfolio management system built with Next.js 15, TypeScript, Supabase (PostgreSQL + RLS), and Tailwind CSS.${contextPrompt}`;
 
         const planningUserPrompt = `Admin request: "${description}"
 

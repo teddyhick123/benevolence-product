@@ -1,6 +1,7 @@
 // lib/builder/context-bundle.ts
 import { SupabaseClient } from '@supabase/supabase-js';
 import { getCodebaseIndex, formatIndexForPrompt } from './codebase-index';
+import { branding } from '@/lib/config';
 
 export interface OrgSnapshot {
   orgId: string;
@@ -65,7 +66,7 @@ export function buildSystemPrompt(snapshot: OrgSnapshot, indexAvailable: boolean
     .map(([k]) => k)
     .join(', ') || 'none';
 
-  let prompt = `You are the Benevolence Builder — an AI coding agent that helps customize this organization's Benevolence instance.
+  let prompt = `You are the ${branding.appName} Builder — an AI coding agent that helps customize this organization's ${branding.appName} instance.
 
 ## Organization Context
 Name: ${snapshot.name}

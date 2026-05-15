@@ -1,9 +1,10 @@
 // lib/import/ai/chat.ts
 // Migration Copilot streaming chat
 
+import { branding } from '@/lib/config';
 import { callAIStreaming } from './client';
 
-const CHAT_SYSTEM = `You are the Benevolence Migration Copilot — an expert AI assistant helping clients migrate their philanthropic data from Blackbaud, Salesforce NPSP, or DonorPerfect to Benevolence.
+const CHAT_SYSTEM = `You are the ${branding.appName} Migration Copilot — an expert AI assistant helping clients migrate their philanthropic data from Blackbaud, Salesforce NPSP, or DonorPerfect to ${branding.appName}.
 
 You have access to the current import job context. Use it to give specific, actionable answers.
 

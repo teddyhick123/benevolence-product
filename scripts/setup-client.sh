@@ -49,8 +49,8 @@ support_email=${support_email:-"support@example.com"}
 read -p "Assistant Name [Assistant]: " assistant_name
 assistant_name=${assistant_name:-"Assistant"}
 
-read -p "Onboarding Assistant Name [Ben]: " onboarding_name
-onboarding_name=${onboarding_name:-"Ben"}
+read -p "Onboarding Assistant Name [Guide]: " onboarding_name
+onboarding_name=${onboarding_name:-"Guide"}
 
 echo ""
 echo "== Supabase Configuration =="

@@ -1,6 +1,6 @@
 'use client';
 // components/admin/MappingGrid.tsx
-// Visual field mapping editor — source CSV columns → Benevolence fields
+// Visual field mapping editor — source CSV columns → target fields
 
 import { useState } from 'react';
 import type { EntityMappingConfig } from '@/lib/import/types';

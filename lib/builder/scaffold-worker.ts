@@ -6,6 +6,7 @@ import { AI_MODELS } from '@/lib/ai/models';
 import { buildScaffoldContext, formatScaffoldContextForPrompt } from './scaffold-context';
 import { getCodebaseIndex, formatIndexForPrompt } from './codebase-index';
 import type { ScaffoldPlanContent } from './tools';
+import { branding } from '@/lib/config';
 
 const redisConnection = {
   url: process.env.REDIS_URL || 'redis://localhost:6379',
@@ -79,7 +80,7 @@ async function runBuildPhase(data: ScaffoldBuildJobData): Promise<void> {
 
   const scaffoldCtx = buildScaffoldContext(indexStr);
   const contextPrompt = formatScaffoldContextForPrompt(scaffoldCtx);
-  const systemPrompt = `You are a senior software engineer implementing a module for the Benevolence platform.${contextPrompt}`;
+  const systemPrompt = `You are a senior software engineer implementing a module for the ${branding.appName} platform.${contextPrompt}`;
 
   const provider = createAIProvider();
   const generatedFiles: Array<{ path: string; content: string }> = [];
@@ -130,7 +131,7 @@ async function runReviewPhase(
     .map(f => `### ${f.path}\n\`\`\`\n${f.content.slice(0, 3000)}\n\`\`\``)
     .join('\n\n');
 
-  const reviewPrompt = `Review this generated module implementation against the plan and Benevolence codebase standards.
+  const reviewPrompt = `Review this generated module implementation against the plan and ${branding.appName} codebase standards.
 
 Module plan:
 ${JSON.stringify(planContent, null, 2)}

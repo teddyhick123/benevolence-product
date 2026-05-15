@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import type { OrgType } from '@/lib/types/org';
+import { branding } from '@/lib/config';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -78,7 +79,7 @@ function Avatar() {
   return (
     <div className="w-8 h-8 rounded-full bg-azure text-white flex items-center justify-center flex-shrink-0 mt-0.5"
       style={{ fontFamily: 'var(--font-serif)', fontSize: '0.875rem', fontWeight: 600 }}>
-      B.
+      {branding.onboardingAssistantName.charAt(0).toUpperCase()}.
     </div>
   );
 }
@@ -90,7 +91,7 @@ export default function SetupClient() {
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const [messages, setMessages] = useState<Message[]>([
-    { id: uid(), kind: 'bot', text: "Welcome to Benevolence. I'll help you set up your workspace in about 2 minutes. What's the name of your organization?" },
+    { id: uid(), kind: 'bot', text: `Welcome to ${branding.appName}. I'll help you set up your workspace in about 2 minutes. What's the name of your organization?` },
   ]);
   const [step, setStep] = useState<WizardStep>('org_name');
   const [inputValue, setInputValue] = useState('');
@@ -257,7 +258,7 @@ export default function SetupClient() {
       {/* Nav */}
       <nav className="flex items-center justify-between px-14 py-5 border-b border-ink-10">
         <Link href="/" style={{ fontFamily: 'var(--font-serif)', fontSize: '1.25rem', fontWeight: 600, color: 'var(--color-azure-deep)' }}>
-          Benevolence<span style={{ color: 'var(--color-coral)' }}>.</span>
+          {branding.appName}<span style={{ color: 'var(--color-coral)' }}>.</span>
         </Link>
         <span className="text-xs text-ink-30 tracking-wide font-medium uppercase">Setting up your workspace</span>
       </nav>

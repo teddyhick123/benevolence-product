@@ -10,6 +10,7 @@ import {
   Hr,
   Preview,
 } from '@react-email/components';
+import { branding } from '@/lib/config';
 
 interface InviteEmailProps {
   orgName: string;
@@ -29,7 +30,7 @@ export default function InviteEmail({
   return (
     <Html>
       <Head />
-      <Preview>{inviterName} invited you to join {orgName} on Benevolence</Preview>
+      <Preview>{inviterName} invited you to join {orgName} on {branding.appName}</Preview>
       <Body style={{ backgroundColor: '#f5f3ee', fontFamily: 'sans-serif' }}>
         <Container style={{ maxWidth: '480px', margin: '40px auto', backgroundColor: '#ffffff', borderRadius: '8px', padding: '40px' }}>
           <Text style={{ fontSize: '24px', fontWeight: '600', marginBottom: '8px' }}>

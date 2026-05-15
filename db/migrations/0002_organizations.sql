@@ -104,6 +104,8 @@ CREATE TABLE IF NOT EXISTS org_invitations (
   email           text NOT NULL,
   role            member_role_enum NOT NULL DEFAULT 'viewer',
   token           text NOT NULL UNIQUE DEFAULT encode(gen_random_bytes(32), 'hex'),
+  status          text NOT NULL DEFAULT 'pending'
+                  CHECK (status IN ('pending', 'accepted', 'cancelled', 'expired')),
 
   accepted_at     timestamptz,
   accepted_by     uuid REFERENCES auth.users(id),  -- user who accepted (may differ from email if email changed)
@@ -114,6 +116,10 @@ CREATE TABLE IF NOT EXISTS org_invitations (
 CREATE INDEX idx_org_invitations_token    ON org_invitations (token) WHERE accepted_at IS NULL;
 CREATE INDEX idx_org_invitations_email    ON org_invitations (email) WHERE accepted_at IS NULL;
 CREATE INDEX idx_org_invitations_org_id   ON org_invitations (org_id);
+CREATE INDEX idx_org_invitations_org_status ON org_invitations (org_id, status);
+CREATE UNIQUE INDEX idx_org_invitations_pending_unique
+  ON org_invitations (org_id, lower(email))
+  WHERE status = 'pending';
 
 -- ---------------------------------------------------------------------------
 -- RLS: organizations
@@ -174,7 +180,12 @@ CREATE POLICY "org_invitations: admins can manage"
 
 CREATE POLICY "org_invitations: anyone can read by token"
   ON org_invitations FOR SELECT
-  USING (expires_at > now() AND accepted_at IS NULL);
+  USING (
+    expires_at > now()
+    AND accepted_at IS NULL
+    AND status = 'pending'
+    AND email = (auth.jwt() ->> 'email')
+  );
 
 -- ---------------------------------------------------------------------------
 -- Helpful view: current user's orgs

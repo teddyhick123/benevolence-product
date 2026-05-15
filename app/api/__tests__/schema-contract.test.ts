@@ -92,6 +92,56 @@ describe('Schema contract: module storage', () => {
   });
 });
 
+describe('Schema contract: prerelease migration cleanup', () => {
+  function createTableCount(tableName: string): number {
+    const escaped = tableName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return (migrationsSrc.match(new RegExp(`CREATE\\s+TABLE\\s+IF\\s+NOT\\s+EXISTS\\s+(?:public\\.)?${escaped}\\s*\\(`, 'gi')) || []).length;
+  }
+
+  it('does not create legacy AI conversation/action-log tables', () => {
+    expect(migrationsSrc).not.toMatch(/CREATE\s+TABLE\s+IF\s+NOT\s+EXISTS\s+(?:public\.)?ai_conversations\s*\(/i);
+    expect(migrationsSrc).not.toMatch(/CREATE\s+TABLE\s+IF\s+NOT\s+EXISTS\s+(?:public\.)?ai_messages\s*\(/i);
+    expect(migrationsSrc).not.toMatch(/CREATE\s+TABLE\s+IF\s+NOT\s+EXISTS\s+(?:public\.)?ai_action_log\s*\(/i);
+    expect(migrationsSrc).not.toMatch(/ON\s+ai_action_log\b/i);
+  });
+
+  it('defines ai_actions.initiated_by in the canonical ai_actions table', () => {
+    expect(migrationsSrc).toMatch(/CREATE TABLE IF NOT EXISTS public\.ai_actions[\s\S]*initiated_by\s+TEXT NOT NULL DEFAULT 'ai'/);
+    expect(migrationsSrc).not.toMatch(/ALTER\s+TABLE\s+public\.ai_actions\s+ADD\s+COLUMN\s+IF\s+NOT\s+EXISTS\s+initiated_by/i);
+  });
+
+  it('creates duplicated historical tables only once in the active schema', () => {
+    expect(createTableCount('org_invitations')).toBe(1);
+    expect(createTableCount('portfolio_recommendations')).toBe(1);
+  });
+
+  it('portfolio recommendations use the active recommendation workflow shape', () => {
+    expect(migrationsSrc).toMatch(/CREATE TABLE IF NOT EXISTS public\.portfolio_recommendations[\s\S]*organization_name TEXT NOT NULL/);
+    expect(migrationsSrc).toMatch(/CREATE TABLE IF NOT EXISTS public\.portfolio_recommendations[\s\S]*interaction_status TEXT NOT NULL DEFAULT 'new'/);
+    expect(migrationsSrc).toMatch(/CREATE TABLE IF NOT EXISTS public\.recommendation_status_history[\s\S]*user_id\s+UUID REFERENCES auth\.users\(id\)/);
+    expect(migrationsSrc).toMatch(/CREATE OR REPLACE FUNCTION public\.log_recommendation_status_change/);
+  });
+
+  it('keeps org invitation status in the canonical organization migration', () => {
+    expect(migrationsSrc).toMatch(/CREATE TABLE IF NOT EXISTS org_invitations[\s\S]*status\s+text NOT NULL DEFAULT 'pending'/);
+    expect(migrationsSrc).toMatch(/idx_org_invitations_pending_unique/);
+  });
+
+  it('uses the canonical portfolio edit helper and valid Postgres DDL syntax', () => {
+    expect(appSrc + migrationsSrc).not.toMatch(/can_modify_portfolio/);
+    expect(migrationsSrc).not.toMatch(/CREATE\s+(?:POLICY|TRIGGER)\s+IF\s+NOT\s+EXISTS/i);
+  });
+
+  it('defines org_has_module once with all accepted module aliases', () => {
+    expect((migrationsSrc.match(/CREATE\s+OR\s+REPLACE\s+FUNCTION\s+(?:public\.)?org_has_module\s*\(/gi) || []).length).toBe(1);
+    expect(migrationsSrc).toMatch(/WHEN 'pledge_tracking'\s+THEN 'pledges'/);
+    expect(migrationsSrc).toMatch(/WHEN 'donor_management'\s+THEN 'donors'/);
+    expect(migrationsSrc).toMatch(/WHEN 'tax_optimization'\s+THEN 'tax'/);
+    expect(migrationsSrc).toMatch(/WHEN 'reporting'\s+THEN 'reports'/);
+    expect(migrationsSrc).toMatch(/WHEN 'core'\s+THEN 'portfolio'/);
+  });
+});
+
 describe('Schema contract: organization membership columns', () => {
   it('organization_members selects use org_id, not organization_id', () => {
     expect(appSrc).not.toMatch(/from\(['"]organization_members['"]\)[\s\S]{0,160}\.select\(\s*['"`][^'"`]*organization_id/);
@@ -126,5 +176,56 @@ describe('Schema contract: column names in donor components', () => {
 
   it('no contribution_type references (field is gift_type)', () => {
     expect(donorSrc).not.toMatch(/contribution_type/);
+  });
+});
+
+describe('Schema contract: DB cleanup fixes (2026-05-15)', () => {
+  it('recommendation_status_history has no UPDATE policy for authenticated users', () => {
+    // rec_status_history is append-only via trigger; UPDATE access breaks audit integrity
+    expect(migrationsSrc).not.toMatch(
+      /CREATE\s+POLICY\s+["']rec_status_history_write["']\s+ON\s+public\.recommendation_status_history\s+FOR\s+UPDATE\s+TO\s+authenticated/i
+    );
+  });
+
+  it('org_invitations read policy requires caller email match for non-admin access', () => {
+    // Without this, any authenticated user can enumerate pending invitations for any org
+    expect(migrationsSrc).toMatch(
+      /CREATE\s+POLICY\s+"org_invitations: anyone can read by token"[\s\S]{0,500}auth\.jwt\(\)\s*->>\s*'email'/
+    );
+  });
+
+  it('module_definitions seeds include all active module slugs', () => {
+    // grant_management, impact_tracking, analytics, external_data were missing
+    expect(migrationsSrc).toMatch(/'grant_management'/);
+    expect(migrationsSrc).toMatch(/'impact_tracking'/);
+    expect(migrationsSrc).toMatch(/'analytics'/);
+    expect(migrationsSrc).toMatch(/'external_data'/);
+  });
+
+  it('task_events are viewable by org members, not only admins', () => {
+    // Regular members need event visibility for tasks assigned to them
+    expect(migrationsSrc).not.toMatch(
+      /CREATE\s+POLICY\s+"task_events: org admins can view"\s+ON\s+public\.task_events\s+FOR\s+SELECT\s+USING\s*\(\s*public\.is_org_admin/i
+    );
+    expect(migrationsSrc).toMatch(
+      /CREATE\s+POLICY\s+"task_events: org members can view"/
+    );
+  });
+
+  it('metric_facts composite index uses metric_code, not the generated metric_name alias', () => {
+    // metric_name is GENERATED ALWAYS AS (metric_code); index should use the real column
+    expect(migrationsSrc).not.toMatch(
+      /idx_metric_facts_holding_metric_period[\s\S]{0,300}metric_name/
+    );
+    expect(migrationsSrc).toMatch(
+      /idx_metric_facts_holding_metric_period[\s\S]{0,300}metric_code/
+    );
+  });
+
+  it('contributions_received has an explicit service_role policy', () => {
+    // Every other table has one; consistency prevents surprises in service-client code
+    expect(migrationsSrc).toMatch(
+      /ON\s+(?:public\.)?contributions_received\s+FOR\s+ALL\s+TO\s+service_role/i
+    );
   });
 });

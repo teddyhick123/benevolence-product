@@ -3,7 +3,7 @@ import { readFileSync } from 'fs';
 
 describe('AI chat viewer write bypass', () => {
   const chatSrc = readFileSync('app/api/ai/chat/route.ts', 'utf8');
-  const assistantSrc = readFileSync('lib/claude-assistant.ts', 'utf8');
+  const assistantSrc = readFileSync('lib/ai/assistant/executor.ts', 'utf8');
 
   it('chat route passes memberRole to assistant.chat()', () => {
     expect(chatSrc).toContain('memberRole');

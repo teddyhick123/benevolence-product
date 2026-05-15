@@ -2,7 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
 
 describe('lib/claude-assistant.ts ai_instructions injection', () => {
-  const src = readFileSync('lib/claude-assistant.ts', 'utf8');
+  const src = readFileSync('lib/ai/assistant/portfolio-assistant.ts', 'utf8');
+  const legacyEntrypointSrc = readFileSync('lib/claude-assistant.ts', 'utf8');
 
   it('imports createAIProvider from lib/ai/factory', () => {
     expect(src).toMatch(/from ['"]@\/lib\/ai\/factory['"]/);
@@ -18,7 +19,7 @@ describe('lib/claude-assistant.ts ai_instructions injection', () => {
 
   it('exports provider-neutral PortfolioAssistant', () => {
     expect(src).toMatch(/export class PortfolioAssistant/);
-    expect(src).toMatch(/PortfolioAssistant as ClaudePortfolioAssistant/);
+    expect(legacyEntrypointSrc).toMatch(/PortfolioAssistant as ClaudePortfolioAssistant/);
   });
 
   it('uses AI_MODELS.assistant for the model string', () => {

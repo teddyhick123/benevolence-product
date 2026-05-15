@@ -2,7 +2,16 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync, readdirSync } from 'fs';
 import { join } from 'path';
 
-const assistantSrc = readFileSync('lib/claude-assistant.ts', 'utf8');
+const assistantSrc = [
+  'lib/ai/assistant/context.ts',
+  'lib/ai/assistant/executor.ts',
+  'lib/ai/assistant/portfolio-assistant.ts',
+  'lib/ai/assistant/prompts.ts',
+  'lib/ai/assistant/tool-definitions.ts',
+  'lib/ai/assistant/helpers.ts',
+]
+  .map(file => readFileSync(file, 'utf8'))
+  .join('\n');
 const migrationsSrc = readdirSync('db/migrations')
   .filter(file => file.endsWith('.sql'))
   .sort()

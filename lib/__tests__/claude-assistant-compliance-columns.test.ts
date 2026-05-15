@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
 
 describe('claude-assistant compliance executor column contract', () => {
-  const src = readFileSync('lib/claude-assistant.ts', 'utf8');
+  const src = readFileSync('lib/ai/assistant/executor.ts', 'utf8');
 
   const complianceStart = src.indexOf("case 'get_compliance_status'");
   const complianceEnd = src.indexOf("default:\n        throw new Error(`Unknown function");

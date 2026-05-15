@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
 
 describe('claude-assistant donor executor column contract', () => {
-  const src = readFileSync('lib/claude-assistant.ts', 'utf8');
+  const src = readFileSync('lib/ai/assistant/executor.ts', 'utf8');
 
   it('does not reference donor.donor_type (use is_organization)', () => {
     expect(src).not.toMatch(/donor\.donor_type/);

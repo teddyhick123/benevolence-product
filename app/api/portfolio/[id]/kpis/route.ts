@@ -70,18 +70,27 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
       return NextResponse.json({ data: [], count: 0, nextOffset: null }, { headers: cacheHeaders() });
     }
 
-    const { data: metricsData } = await sb
-      .from('metrics')
-      .select('code, name, unit')
-      .in('code', metricCodes);
+    const { data: portfolioRow } = await sb
+      .from('portfolios')
+      .select('org_id')
+      .eq('id', portfolio_id)
+      .single();
 
-    const metricMeta = new Map((metricsData ?? []).map((m: any) => [m.code, m]));
+    const { data: kpiDefs } = portfolioRow
+      ? await sb
+          .from('kpi_definitions')
+          .select('slug, name, unit')
+          .eq('org_id', portfolioRow.org_id)
+          .eq('is_active', true)
+      : { data: [] };
+
+    const kpiMeta = new Map((kpiDefs ?? []).map((k: any) => [k.slug, k]));
 
     metrics = metricCodes.map(code => ({
       metric_code: code,
       portfolio_id: portfolio_id,
-      metric_name: metricMeta.get(code)?.name ?? code,
-      unit: metricMeta.get(code)?.unit ?? null,
+      metric_name: kpiMeta.get(code)?.name ?? code,
+      unit: kpiMeta.get(code)?.unit ?? null,
       total_value: sumByCode.get(code) ?? 0,
       latest_date: latestPeriodByCode.get(code) ?? null,
     }));
@@ -188,31 +197,37 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     return NextResponse.json({ error: 'metric_code is required' }, { status: 400, headers: cacheHeaders() });
   }
 
-  // Verify metric exists in metrics table
-  const { data: metricExists } = await sb
+  // Look up org_id from portfolio
+  const { data: portfolioMeta } = await sb
+    .from('portfolios')
+    .select('org_id')
+    .eq('id', portfolio_id)
+    .single();
+
+  if (!portfolioMeta) {
+    return NextResponse.json({ error: 'Portfolio not found' }, { status: 404, headers: cacheHeaders() });
+  }
+
+  // Resolve display name: caller-supplied name > global metric name
+  const { data: metricRef } = await sb
     .from('metrics')
-    .select('code')
+    .select('name, unit')
     .eq('code', body.metric_code)
     .maybeSingle();
 
-  if (!metricExists) {
-    return NextResponse.json({ error: 'Invalid metric_code' }, { status: 400, headers: cacheHeaders() });
-  }
-
-  const insertRow: any = {
-    portfolio_id,
-    metric_code: body.metric_code,
+  const kpiRow: any = {
+    org_id: portfolioMeta.org_id,
+    slug: body.metric_code,
+    name: body.display_name || metricRef?.name || body.metric_code,
+    unit: metricRef?.unit ?? null,
     target_value: body.target_value ?? null,
-    target_date: body.target_date ?? null,
-    display_name: body.display_name ?? null,
-    notes: body.notes ?? null,
+    is_active: true,
   };
 
-  // Insert or update target (UPSERT on unique constraint)
   const { data: inserted, error: insErr } = await sb
-    .from('portfolio_metric_targets')
-    .upsert(insertRow, { onConflict: 'portfolio_id,metric_code' })
-    .select('id, portfolio_id, metric_code, target_value, target_date, display_name, notes')
+    .from('kpi_definitions')
+    .upsert(kpiRow, { onConflict: 'org_id,slug' })
+    .select('id, org_id, slug, name, target_value, unit')
     .single();
 
   if (insErr) return NextResponse.json({ error: insErr.message }, { status: 500, headers: cacheHeaders() });

@@ -72,10 +72,9 @@ You can help manage the portfolio and holdings. Available actions include:
     ],
     tables: [
       'metrics',
+      'kpi_definitions',
       'metric_facts',
       'staging_metric_facts',
-      'portfolio_metric_targets',
-      'widgets',
       'holding_widgets',
       'holding_locations',
     ],

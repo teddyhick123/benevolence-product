@@ -41,7 +41,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
     value: row.value,
   }));
 
-  // Get display name from first row (view now includes display_name from portfolio_metric_targets)
+  // Get display name from first row (view provides display_name from kpi_definitions)
   let displayName = metricCode;
   if (rows && rows.length > 0) {
     const firstRow = rows[0];

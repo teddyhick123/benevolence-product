@@ -13,7 +13,7 @@ export type KpiRow = {
   metric_code: string;           // Primary identifier (was id)
   portfolio_id: string;
   metric_name: string;          // From metrics table
-  display_name?: string | null; // Optional override from portfolio_metric_targets
+  display_name?: string | null; // Org-level KPI display name from kpi_definitions
   value: number | null;
   unit: string | null;
   period_end: string | null;    // ISO datetime

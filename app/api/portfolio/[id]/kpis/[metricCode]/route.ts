@@ -12,7 +12,6 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string; met
   const { id: portfolio_id, metricCode } = await ctx.params;
   const sb = await createSb();
 
-  // Get metric data from v_portfolio_kpi_latest
   const { data: metric, error } = await sb
     .from('v_portfolio_kpi_latest')
     .select('*')
@@ -31,6 +30,11 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string; met
   return NextResponse.json({ data: metric }, { headers: cacheHeaders() });
 }
 
+async function getOrgId(sb: any, portfolio_id: string): Promise<string | null> {
+  const { data } = await sb.from('portfolios').select('org_id').eq('id', portfolio_id).single();
+  return data?.org_id ?? null;
+}
+
 export async function PATCH(req: Request, ctx: { params: Promise<{ id: string; metricCode: string }> }) {
   const { id: portfolio_id, metricCode } = await ctx.params;
   const sb = await createSb();
@@ -39,7 +43,6 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string; m
   if (canEditErr) return NextResponse.json({ error: canEditErr.message }, { status: 500, headers: cacheHeaders() });
   if (!canEdit) return NextResponse.json({ error: 'not authorized' }, { status: 403, headers: cacheHeaders() });
 
-  // Parse request body
   let body: any;
   try {
     body = await req.json();
@@ -47,34 +50,29 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string; m
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400, headers: cacheHeaders() });
   }
 
-  // Build patch object for portfolio_metric_targets
   const patch: Record<string, any> = {};
   if (body.target_value !== undefined) patch.target_value = body.target_value;
-  if (body.target_date !== undefined) patch.target_date = body.target_date;
-  if (body.display_name !== undefined) patch.display_name = body.display_name;
-  if (body.notes !== undefined) patch.notes = body.notes;
+  if (body.display_name !== undefined) patch.name = body.display_name;
+  if (body.name !== undefined) patch.name = body.name;
 
   if (Object.keys(patch).length === 0) {
     return NextResponse.json({ error: 'no valid fields to update' }, { status: 400, headers: cacheHeaders() });
   }
 
-  // Update or insert target
+  const orgId = await getOrgId(sb, portfolio_id);
+  if (!orgId) return NextResponse.json({ error: 'Portfolio not found' }, { status: 404, headers: cacheHeaders() });
+
   const { data: target, error: updateError } = await sb
-    .from('portfolio_metric_targets')
+    .from('kpi_definitions')
     .upsert(
-      {
-        portfolio_id,
-        metric_code: metricCode,
-        ...patch,
-      },
-      { onConflict: 'portfolio_id,metric_code' }
+      { org_id: orgId, slug: metricCode, ...patch },
+      { onConflict: 'org_id,slug' }
     )
-    .select('id, portfolio_id, metric_code, target_value, target_date, display_name, notes')
+    .select('id, org_id, slug, name, target_value, unit')
     .single();
 
   if (updateError) return NextResponse.json({ error: updateError.message }, { status: 500, headers: cacheHeaders() });
 
-  // Get latest metric data
   const { data: latest, error: latestError } = await sb
     .from('v_portfolio_kpi_latest')
     .select('*')
@@ -97,12 +95,14 @@ export async function DELETE(req: Request, ctx: { params: Promise<{ id: string; 
   if (canEditErr) return NextResponse.json({ error: canEditErr.message }, { status: 500, headers: cacheHeaders() });
   if (!canEdit) return NextResponse.json({ error: 'not authorized' }, { status: 403, headers: cacheHeaders() });
 
-  // Delete target from portfolio_metric_targets
+  const orgId = await getOrgId(sb, portfolio_id);
+  if (!orgId) return NextResponse.json({ error: 'Portfolio not found' }, { status: 404, headers: cacheHeaders() });
+
   const { error } = await sb
-    .from('portfolio_metric_targets')
+    .from('kpi_definitions')
     .delete()
-    .eq('portfolio_id', portfolio_id)
-    .eq('metric_code', metricCode);
+    .eq('org_id', orgId)
+    .eq('slug', metricCode);
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500, headers: cacheHeaders() });
   return NextResponse.json({ ok: true }, { headers: cacheHeaders() });

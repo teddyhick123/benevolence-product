@@ -7,7 +7,6 @@ const routes = [
   'app/api/portfolio/[id]/letter/route.ts',
   'app/api/portfolio/[id]/meta/route.ts',
   'app/api/portfolio/[id]/settings/route.ts',
-  'app/api/portfolio/[id]/targets/route.ts',
   'app/api/portfolio/[id]/metrics/sector-aggregate/route.ts',
 ];
 

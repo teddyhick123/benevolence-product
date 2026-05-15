@@ -231,11 +231,10 @@ describe('Admin Schemas', () => {
   describe('adminUpdateKpiSchema', () => {
     it('should validate full KPI update', () => {
       const validData = {
-        metric_code: 'UPDATED_001',
-        display_name: 'Updated KPI',
+        slug: 'updated_kpi',
+        name: 'Updated KPI',
         target_value: 5000,
-        target_date: '2025-06-30',
-        order_index: 2,
+        display_order: 2,
       };
 
       const result = adminUpdateKpiSchema.safeParse(validData);
@@ -244,25 +243,25 @@ describe('Admin Schemas', () => {
 
     it('should allow partial updates', () => {
       const partialData = {
-        display_name: 'New Name',
+        name: 'New Name',
       };
 
       const result = adminUpdateKpiSchema.safeParse(partialData);
       expect(result.success).toBe(true);
     });
 
-    it('should enforce max length on metric_code', () => {
+    it('should enforce max length on slug', () => {
       const tooLong = {
-        metric_code: 'A'.repeat(60), // Max is 50
+        slug: 'a'.repeat(60), // Max is 50
       };
 
       const result = adminUpdateKpiSchema.safeParse(tooLong);
       expect(result.success).toBe(false);
     });
 
-    it('should require integer for order_index', () => {
+    it('should require integer for display_order', () => {
       const invalidData = {
-        order_index: 3.5,
+        display_order: 3.5,
       };
 
       const result = adminUpdateKpiSchema.safeParse(invalidData);

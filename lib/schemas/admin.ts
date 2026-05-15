@@ -58,9 +58,8 @@ export const updateMemberRoleSchema = z.object({
  * Schema for admin KPI update
  */
 export const adminUpdateKpiSchema = z.object({
-  metric_code: z.string().min(1).max(50).optional(),
-  display_name: z.string().max(255).optional(),
+  slug: z.string().min(1).max(50).optional(),
+  name: z.string().max(255).optional(),
   target_value: z.number().optional().nullable(),
-  target_date: z.string().optional().nullable(),
-  order_index: z.number().int().optional(),
+  display_order: z.number().int().optional(),
 });

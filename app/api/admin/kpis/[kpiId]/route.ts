@@ -32,37 +32,28 @@ export async function PUT(req: Request, ctx: { params: Promise<{ kpiId: string }
   const get = (k: string) =>
     typeof (parsed as any)?.get === 'function' ? (parsed as FormData).get(k) : (parsed as any)?.[k];
 
-  // Build object for validation
   const body: any = {};
-  if (get('metric_code') != null) body.metric_code = String(get('metric_code') || '').trim();
-  if (get('display_name') != null) body.display_name = String(get('display_name') || '');
+  if (get('slug') != null) body.slug = String(get('slug') || '').trim();
+  if (get('name') != null) body.name = String(get('name') || '');
   if (get('target_value') != null) body.target_value = toNumber(get('target_value'));
-  if (get('target_date') != null) body.target_date = get('target_date') ? String(get('target_date')) : null;
-  if (get('order_index') != null) body.order_index = toNumber(get('order_index'));
+  if (get('display_order') != null) body.display_order = toNumber(get('display_order'));
 
-  // Validate with Zod
   const validation = adminUpdateKpiSchema.safeParse(body);
   if (!validation.success) {
     return NextResponse.json(
-      {
-        error: 'Validation failed',
-        details: validation.error.format(),
-      },
+      { error: 'Validation failed', details: validation.error.format() },
       { status: 400 }
     );
   }
-
-  const fields = validation.data;
 
   const userId = await requireAdmin();
   if (!userId) return NextResponse.json({ error: 'not authorized' }, { status: 403 });
   const supabase = await createServerClient();
 
-  const { error } = await supabase.from('portfolio_metric_targets').update(fields).eq('id', kpiId);
+  const { error } = await supabase.from('kpi_definitions').update(validation.data).eq('id', kpiId);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  // If coming from a form, redirect back to the referer or to the KPIs page
-  const referer = (typeof (parsed as any)?.get === 'function') ? ( (parsed as FormData).get('__referer') as string | null) : null;
+  const referer = (typeof (parsed as any)?.get === 'function') ? ((parsed as FormData).get('__referer') as string | null) : null;
   if (referer) return NextResponse.redirect(new URL(referer, req.url));
   return NextResponse.json({ ok: true });
 }
@@ -73,7 +64,7 @@ export async function DELETE(_req: Request, ctx: { params: Promise<{ kpiId: stri
   if (!userId) return NextResponse.json({ error: 'not authorized' }, { status: 403 });
   const supabase = await createServerClient();
 
-  const { error } = await supabase.from('portfolio_metric_targets').delete().eq('id', kpiId);
+  const { error } = await supabase.from('kpi_definitions').delete().eq('id', kpiId);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ ok: true });
 }

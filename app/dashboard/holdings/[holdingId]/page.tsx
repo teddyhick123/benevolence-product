@@ -107,32 +107,22 @@ async function fetchMetricNames(portfolioId: string): Promise<Map<string, string
   const supabase = await getSupabase();
   const metricMap = new Map<string, string>();
 
-  // First try to get portfolio-specific display names from portfolio_metric_targets
-  const { data: targets } = await supabase
-    .from('portfolio_metric_targets')
-    .select('metric_code, display_name')
-    .eq('portfolio_id', portfolioId);
+  const { data: portfolio } = await supabase
+    .from('portfolios')
+    .select('org_id')
+    .eq('id', portfolioId)
+    .single();
 
-  if (targets) {
-    for (const target of targets) {
-      if (target.display_name) {
-        metricMap.set(target.metric_code, target.display_name);
-      }
-    }
-  }
+  if (!portfolio) return metricMap;
 
-  // Then get global metric names from metrics table
-  const { data: metrics } = await supabase
-    .from('metrics')
-    .select('code, name');
+  const { data: kpis } = await supabase
+    .from('kpi_definitions')
+    .select('slug, name')
+    .eq('org_id', portfolio.org_id)
+    .eq('is_active', true);
 
-  if (metrics) {
-    for (const metric of metrics) {
-      // Only add if not already set by portfolio_metric_targets (portfolio-specific takes precedence)
-      if (!metricMap.has(metric.code) && metric.name) {
-        metricMap.set(metric.code, metric.name);
-      }
-    }
+  for (const kpi of kpis ?? []) {
+    if (kpi.name) metricMap.set(kpi.slug, kpi.name);
   }
 
   return metricMap;

@@ -183,23 +183,23 @@ describe('Schema contract: DB cleanup fixes (2026-05-15)', () => {
   it('recommendation_status_history has no UPDATE policy for authenticated users', () => {
     // rec_status_history is append-only via trigger; UPDATE access breaks audit integrity
     expect(migrationsSrc).not.toMatch(
-      /CREATE\s+POLICY\s+["']rec_status_history_write["']\s+ON\s+public\.recommendation_status_history\s+FOR\s+UPDATE\s+TO\s+authenticated/i
+      /ON\s+public\.recommendation_status_history\s+FOR\s+UPDATE\s+TO\s+authenticated/i
     );
   });
 
   it('org_invitations read policy requires caller email match for non-admin access', () => {
     // Without this, any authenticated user can enumerate pending invitations for any org
     expect(migrationsSrc).toMatch(
-      /CREATE\s+POLICY\s+"org_invitations: anyone can read by token"[\s\S]{0,500}auth\.jwt\(\)\s*->>\s*'email'/
+      /CREATE\s+POLICY\s+"org_invitations: anyone can read by token"[\s\S]{0,800}auth\.jwt\(\)\s*->>\s*'email'/
     );
   });
 
   it('module_definitions seeds include all active module slugs', () => {
     // grant_management, impact_tracking, analytics, external_data were missing
-    expect(migrationsSrc).toMatch(/'grant_management'/);
-    expect(migrationsSrc).toMatch(/'impact_tracking'/);
-    expect(migrationsSrc).toMatch(/'analytics'/);
-    expect(migrationsSrc).toMatch(/'external_data'/);
+    expect(migrationsSrc).toMatch(/INSERT\s+INTO\s+(?:public\.)?module_definitions[\s\S]{0,800}'grant_management'/i);
+    expect(migrationsSrc).toMatch(/INSERT\s+INTO\s+(?:public\.)?module_definitions[\s\S]{0,800}'impact_tracking'/i);
+    expect(migrationsSrc).toMatch(/INSERT\s+INTO\s+(?:public\.)?module_definitions[\s\S]{0,800}'analytics'/i);
+    expect(migrationsSrc).toMatch(/INSERT\s+INTO\s+(?:public\.)?module_definitions[\s\S]{0,800}'external_data'/i);
   });
 
   it('task_events are viewable by org members, not only admins', () => {
@@ -215,10 +215,10 @@ describe('Schema contract: DB cleanup fixes (2026-05-15)', () => {
   it('metric_facts composite index uses metric_code, not the generated metric_name alias', () => {
     // metric_name is GENERATED ALWAYS AS (metric_code); index should use the real column
     expect(migrationsSrc).not.toMatch(
-      /idx_metric_facts_holding_metric_period[\s\S]{0,300}metric_name/
+      /idx_metric_facts_holding_metric_period[\s\S]{0,500}metric_name/
     );
     expect(migrationsSrc).toMatch(
-      /idx_metric_facts_holding_metric_period[\s\S]{0,300}metric_code/
+      /idx_metric_facts_holding_metric_period[\s\S]{0,500}metric_code/
     );
   });
 

@@ -19,13 +19,25 @@ CREATE TABLE IF NOT EXISTS module_definitions (
 
 INSERT INTO module_definitions (slug, label, description, depends_on, is_core) VALUES
   ('portfolio',    'Portfolio Management', 'Core holdings and investment tracking', NULL, true),
-  ('donors',       'Donor CRM',            'Donor management, contributions, acknowledgment letters', NULL, false),
-  ('tax',          'Tax Center',           'Tax deduction tracking, Form 8283, carryforward analysis', ARRAY['portfolio'], false),
-  ('compliance',   'Compliance',           'Filing calendar and state charitable registrations', NULL, false),
-  ('quickbooks',   'QuickBooks Sync',      'QuickBooks Online integration for financial sync', ARRAY['portfolio'], false),
-  ('import',       'Data Import',          'AI-assisted data import from Blackbaud and other systems', NULL, false),
-  ('reports',      'Reports',              'Shareable impact and portfolio reports', ARRAY['portfolio'], false),
-  ('ai_assistant', 'AI Assistant',         'Claude AI portfolio advisor and action executor', ARRAY['portfolio'], false)
+  ('donors',       'Donor CRM',           'Donor management and acknowledgment letters', NULL, false),
+  ('tax',          'Tax Center',          'Tax deduction tracking and Form 8283', ARRAY['portfolio'], false),
+  ('compliance',   'Compliance',          'Filing calendar and state registrations', NULL, false),
+  ('quickbooks',   'QuickBooks Sync',     'QuickBooks Online integration', ARRAY['portfolio'], false),
+  ('import',       'Data Import',         'AI-assisted data import', NULL, false),
+  ('reports',      'Reports',             'Shareable impact and portfolio reports', ARRAY['portfolio'], false),
+  ('ai_assistant', 'AI Assistant',        'Claude AI portfolio advisor', ARRAY['portfolio'], false)
+ON CONFLICT (slug) DO UPDATE SET
+  label       = EXCLUDED.label,
+  description = EXCLUDED.description,
+  depends_on  = EXCLUDED.depends_on,
+  is_core     = EXCLUDED.is_core;
+
+-- Additional module definitions (grant_management, impact_tracking, analytics, external_data)
+INSERT INTO module_definitions (slug, label, description, depends_on, is_core) VALUES
+  ('grant_management', 'Grant Management', 'Due diligence workflows, payments, and grantee reporting', NULL, false),
+  ('impact_tracking',  'Impact Tracking',  'KPIs, metrics, and impact visualizations', NULL, false),
+  ('analytics',        'Analytics',        'Projections, benchmarks, risk scoring, and AI insights', ARRAY['impact_tracking'], false),
+  ('external_data',    'External Data',    'Charity Navigator, Candid, and news integrations', NULL, false)
 ON CONFLICT (slug) DO UPDATE SET
   label       = EXCLUDED.label,
   description = EXCLUDED.description,

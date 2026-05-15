@@ -1,6 +1,6 @@
 # Database Migrations
 
-Single source of truth for the schema. 36 ordered, idempotent migrations replace
+Single source of truth for the schema. 41 ordered, idempotent migrations replace
 the ad-hoc legacy files and the stale consolidated module files.
 
 ## Running migrations
@@ -56,6 +56,11 @@ psql $DATABASE_URL -f db/demo/seed_demo_org.sql
 | 0034_onboarding | Onboarding | Onboarding sessions, profiles, recommendations, analytics |
 | 0035_analytics_module | Analytics | Benchmarks, projections cache, risk snapshots, insights |
 | 0036_seeds | Seeds | Module definitions and preset bundles |
+| 0037_qb_sync_log | QuickBooks | QuickBooks sync event logging |
+| 0038_pledge_tracking | Donors | Pledge lifecycle, installments, events, and pipeline view |
+| 0039_alignment_fixes | Fix | Schema alignment fixes for receipts and module aliases |
+| 0040_holdings_org_alignment | Fix | Holdings org alignment and compatibility fixes |
+| 0041_task_workflow_foundation | Workflow | Tasks, workflow tables, grant ops compatibility, and deadline views |
 
 ## Architecture decisions
 

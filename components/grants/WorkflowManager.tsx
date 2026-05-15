@@ -49,9 +49,10 @@ type WorkflowTask = {
 
 interface Props {
   portfolioId: string;
+  orgId: string;
 }
 
-export default function WorkflowManager({ portfolioId }: Props) {
+export default function WorkflowManager({ portfolioId, orgId }: Props) {
   const [loading, setLoading] = useState(true);
   const [workflows, setWorkflows] = useState<WorkflowInstance[]>([]);
   const [templates, setTemplates] = useState<WorkflowTemplate[]>([]);
@@ -71,38 +72,11 @@ export default function WorkflowManager({ portfolioId }: Props) {
       try {
         const supabase = createClient();
 
-        // Fetch workflow instances with related data
-        const { data: workflowData, error: workflowError } = await supabase
-          .from('workflow_instances')
-          .select(`
-            id,
-            name,
-            status,
-            due_date,
-            started_at,
-            completed_at,
-            notes,
-            workflow_templates(name, workflow_type),
-            grant_details!inner(holding_id, holdings(name)),
-            workflow_tasks(
-              id,
-              name,
-              description,
-              status,
-              is_required,
-              due_date,
-              outcome,
-              outcome_notes,
-              completed_at,
-              sequence_order
-            )
-          `)
-          .eq('portfolio_id', portfolioId)
-          .order('started_at', { ascending: false });
+        const workflowRes = await fetch(`/api/org/${orgId}/workflows?portfolio_id=${portfolioId}&status=all`);
+        const workflowJson = await workflowRes.json();
+        if (!workflowRes.ok) throw new Error(workflowJson.error || 'Failed to load workflows');
 
-        if (workflowError) throw workflowError;
-
-        const processedWorkflows = (workflowData || []).map((wf: any) => ({
+        const processedWorkflows = (workflowJson.workflows || []).map((wf: any) => ({
           id: wf.id,
           name: wf.name,
           status: wf.status,
@@ -119,14 +93,10 @@ export default function WorkflowManager({ portfolioId }: Props) {
 
         setWorkflows(processedWorkflows);
 
-        // Fetch templates
-        const { data: templateData } = await supabase
-          .from('workflow_templates')
-          .select('*')
-          .eq('is_active', true)
-          .order('name');
-
-        setTemplates(templateData || []);
+        const templateRes = await fetch(`/api/org/${orgId}/workflow-templates`);
+        const templateJson = await templateRes.json();
+        if (!templateRes.ok) throw new Error(templateJson.error || 'Failed to load workflow templates');
+        setTemplates(templateJson.templates || []);
 
         // Fetch grant holdings
         const { data: holdingsData } = await supabase
@@ -145,7 +115,7 @@ export default function WorkflowManager({ portfolioId }: Props) {
     }
 
     fetchData();
-  }, [portfolioId]);
+  }, [orgId, portfolioId]);
 
   const formatDate = (date: string | null) => {
     if (!date) return 'Not set';
@@ -194,54 +164,22 @@ export default function WorkflowManager({ portfolioId }: Props) {
     }
 
     try {
-      const supabase = createClient();
       const template = templates.find(t => t.id === newWorkflowData.templateId);
       const holding = holdings.find(h => h.id === newWorkflowData.holdingId);
 
-      // Get or create grant details
-      let { data: grant } = await supabase
-        .from('grant_details')
-        .select('id')
-        .eq('holding_id', newWorkflowData.holdingId)
-        .maybeSingle();
-
-      if (!grant) {
-        const { data: newGrant } = await supabase
-          .from('grant_details')
-          .insert({ holding_id: newWorkflowData.holdingId })
-          .select('id')
-          .single();
-        grant = newGrant;
-      }
-
-      // Create workflow instance
-      const { data: workflow, error: wfError } = await supabase
-        .from('workflow_instances')
-        .insert({
+      const res = await fetch(`/api/org/${orgId}/workflows`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
           template_id: newWorkflowData.templateId,
-          grant_id: grant?.id,
+          holding_id: newWorkflowData.holdingId,
           portfolio_id: portfolioId,
           name: `${template?.name || 'Workflow'} - ${holding?.name || 'Grant'}`,
           due_date: newWorkflowData.dueDate || null,
-          status: 'active',
-        })
-        .select()
-        .single();
-
-      if (wfError) throw wfError;
-
-      // Create tasks from template
-      const tasks = (template?.steps || []).map((step, index) => ({
-        workflow_id: workflow.id,
-        step_id: step.id,
-        name: step.name,
-        description: step.description,
-        sequence_order: step.order || index + 1,
-        is_required: step.required !== false,
-        status: 'pending',
-      }));
-
-      await supabase.from('workflow_tasks').insert(tasks);
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Failed to start workflow');
 
       // Refresh data
       window.location.reload();
@@ -251,18 +189,18 @@ export default function WorkflowManager({ portfolioId }: Props) {
     }
   };
 
-  const handleCompleteTask = async (taskId: string, outcome: string) => {
+  const handleCompleteTask = async (workflowId: string, taskId: string, outcome: string) => {
     try {
-      const supabase = createClient();
-
-      await supabase
-        .from('workflow_tasks')
-        .update({
+      const res = await fetch(`/api/org/${orgId}/workflows/${workflowId}/tasks/${taskId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
           status: 'completed',
           outcome,
-          completed_at: new Date().toISOString(),
-        })
-        .eq('id', taskId);
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Failed to complete task');
 
       // Refresh data
       window.location.reload();
@@ -496,7 +434,7 @@ export default function WorkflowManager({ portfolioId }: Props) {
                             {task.status !== 'completed' && workflow.status === 'active' && (
                               <div className="flex items-center gap-1">
                                 <button
-                                  onClick={() => handleCompleteTask(task.id, 'pass')}
+                                  onClick={() => handleCompleteTask(workflow.id, task.id, 'pass')}
                                   className="p-1 text-green-600 hover:bg-green-50 rounded"
                                   title="Pass"
                                 >
@@ -505,7 +443,7 @@ export default function WorkflowManager({ portfolioId }: Props) {
                                   </svg>
                                 </button>
                                 <button
-                                  onClick={() => handleCompleteTask(task.id, 'fail')}
+                                  onClick={() => handleCompleteTask(workflow.id, task.id, 'fail')}
                                   className="p-1 text-red-600 hover:bg-red-50 rounded"
                                   title="Fail"
                                 >

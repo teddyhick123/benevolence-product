@@ -1,6 +1,6 @@
 # Impact Platform — Open Backlog
 
-**Status:** Backlog reconciled 2026-05-10 after Sprint E session (Dr-U2, H-F8, Cm-F6, Cm-F7, Ch-U3, Ch-F6, Ch-F9, Dr-F5, D-F7, Adm-U2, Adm-U3, Adm-U4, Vis-B7, QB-F8 resolved).
+**Status:** Backlog reconciled 2026-05-15 after brand-agnostic pass and task/workflow sweep.
 
 For resolved-issue history, see `git log docs/module-reviews/FULL-BACKLOG.md` and individual `*-review.md` files in this directory.
 
@@ -139,14 +139,12 @@ For resolved-issue history, see `git log docs/module-reviews/FULL-BACKLOG.md` an
 
 | # | Issue |
 |---|-------|
-| AI-U1 | No streaming — full reply waits until complete (20–45s for complex reports) before rendering |
 | AI-U2 | Conversation history lost on page reload — no persistence across sessions |
 
 ### Missing Features (P2–P3)
 
 | # | Feature |
 |---|---------|
-| AI-F2 | Streaming responses (SSE or ReadableStream) |
 | AI-F3 | Persist conversation history across page reloads |
 | AI-F4 | Portfolio-aware contextual suggested prompts |
 | AI-F5 | Donor CRM tool coverage (`find_donor`, `log_gift`, `generate_acknowledgment`) |
@@ -157,19 +155,25 @@ For resolved-issue history, see `git log docs/module-reviews/FULL-BACKLOG.md` an
 
 ## White-Label / Branding
 
-### Bugs (P1)
+### Missing Features (P2)
 
-| # | Issue | Location |
-|---|-------|----------|
-| Br-B1 | Hardcoded template brand appears in user-facing onboarding, emails, PDFs, exports, import copy, and builder prompts instead of `lib/config/branding.ts` | Runtime copy surfaces |
+| # | Feature |
+|---|---------|
+| Br-F2 | Org-specific brand overrides in generated PDFs, outbound emails, and exported accounting notes |
+
+---
+
+## Task / Workflow Management
 
 ### Missing Features (P2)
 
 | # | Feature |
 |---|---------|
-| Br-F1 | Contract tests that prevent hardcoded template-brand leakage in runtime code |
-| Br-F2 | Org-specific brand overrides in generated PDFs, outbound emails, and exported accounting notes |
-| Br-F3 | Assistant display name should be fully configurable across onboarding, dashboard chat, module settings, and builder surfaces |
+| Tw-F1 | Unified org task inbox across grants, compliance, pledges, imports, donor follow-up, and board reporting |
+| Tw-F4 | Automation producers for compliance reminders, pledge follow-up, grant reports/milestones, import review, and report approvals |
+| Tw-F5 | Notification event queue and digest delivery driven by task events and `organization_members.notification_prefs` |
+
+Spec: `/docs/superpowers/specs/2026-05-15-task-workflow-management-design.md`
 
 ---
 
@@ -222,7 +226,6 @@ For resolved-issue history, see `git log docs/module-reviews/FULL-BACKLOG.md` an
 
 | # | Severity | Issue |
 |---|----------|-------|
-| X6 | P2 | No task / workflow / approval system — `reminder_days` and notification preferences exist in schema but drive zero behavior |
 | X7 | P2 | No grant lifecycle management (intake → review → approval → payment → reporting → closeout) |
 | X8 | P3 | No board portal — no structured quarterly reporting pathway for foundations |
 
@@ -253,9 +256,10 @@ For resolved-issue history, see `git log docs/module-reviews/FULL-BACKLOG.md` an
 | QuickBooks        | — |  3 | — |  3 |
 | Donor CRM         | — |  7 | — |  7 |
 | Charities         | — |  5 | — |  5 |
-| AI Assistant      | — |  8 | — |  8 |
+| AI Assistant      | — |  6 | — |  6 |
 | Visualizations    | — |  2 | 6 |  8 |
 | Admin / Import    | — |  8 | — |  8 |
-| White-Label / Branding | 1 |  3 | — |  4 |
-| Cross-Cutting     | — |  2 | 1 |  3 |
-| **Total**         | **1** | **53** | **7** | **61** |
+| White-Label / Branding | — |  1 | — |  1 |
+| Task / Workflow Management | — |  3 | — |  3 |
+| Cross-Cutting     | — |  1 | 1 |  2 |
+| **Total**         | **—** | **51** | **7** | **58** |

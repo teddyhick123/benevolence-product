@@ -114,7 +114,8 @@ INSERT INTO public.workflow_templates (
       "order": 11
     }
   ]'::JSONB
-);
+)
+ON CONFLICT (id) DO NOTHING;
 
 -- ============================================================================
 -- QUARTERLY GRANT REVIEW
@@ -196,7 +197,8 @@ INSERT INTO public.workflow_templates (
       "order": 7
     }
   ]'::JSONB
-);
+)
+ON CONFLICT (id) DO NOTHING;
 
 -- ============================================================================
 -- GRANT CLOSEOUT
@@ -278,7 +280,8 @@ INSERT INTO public.workflow_templates (
       "order": 7
     }
   ]'::JSONB
-);
+)
+ON CONFLICT (id) DO NOTHING;
 
 -- ============================================================================
 -- RENEWAL REVIEW
@@ -352,7 +355,8 @@ INSERT INTO public.workflow_templates (
       "order": 6
     }
   ]'::JSONB
-);
+)
+ON CONFLICT (id) DO NOTHING;
 
 -- ============================================================================
 -- SITE VISIT
@@ -426,7 +430,8 @@ INSERT INTO public.workflow_templates (
       "order": 6
     }
   ]'::JSONB
-);
+)
+ON CONFLICT (id) DO NOTHING;
 
 -- Verify insertion
 -- SELECT name, workflow_type, jsonb_array_length(steps) as step_count FROM public.workflow_templates WHERE is_system = true;

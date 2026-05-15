@@ -87,6 +87,9 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
   try {
     const { orgId, taskId } = await params;
     const supabase = await createServerClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
     const { data: role } = await supabase.rpc('user_org_role', { p_org_id: orgId });
     if (!role) return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
 
@@ -103,11 +106,11 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
   try {
     const { orgId, taskId } = await params;
     const supabase = await createServerClient();
-    const { data: role } = await supabase.rpc('user_org_role', { p_org_id: orgId });
-    if (!role) return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
-
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+    const { data: role } = await supabase.rpc('user_org_role', { p_org_id: orgId });
+    if (!role) return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
 
     const existing = await loadTask(orgId, taskId);
     if (!existing) return NextResponse.json({ error: 'Task not found' }, { status: 404 });
@@ -167,22 +170,26 @@ export async function DELETE(_req: NextRequest, { params }: RouteParams) {
   try {
     const { orgId, taskId } = await params;
     const supabase = await createServerClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
     const { data: role } = await supabase.rpc('user_org_role', { p_org_id: orgId });
     if (!role || !ADMIN_ROLES.has(role)) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }
 
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
     const adminClient = createAdminClient();
-    const { error } = await adminClient
+    const { data: deleted, error } = await adminClient
       .from('tasks')
       .update({ deleted_at: new Date().toISOString(), deleted_by: user.id })
       .eq('id', taskId)
-      .eq('org_id', orgId);
+      .eq('org_id', orgId)
+      .is('deleted_at', null)
+      .select('id')
+      .maybeSingle();
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (!deleted) return NextResponse.json({ error: 'Task not found' }, { status: 404 });
 
     return NextResponse.json({ success: true });
   } catch (err: any) {

@@ -170,6 +170,14 @@ CREATE INDEX IF NOT EXISTS idx_installments_org_due  ON public.pledge_installmen
 CREATE INDEX IF NOT EXISTS idx_installments_overdue  ON public.pledge_installments (org_id, due_date)
   WHERE status = 'pending';
 
+CREATE TRIGGER set_pledges_updated_at
+  BEFORE UPDATE ON public.pledges
+  FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+
+CREATE TRIGGER set_pledge_installments_updated_at
+  BEFORE UPDATE ON public.pledge_installments
+  FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+
 -- ---------------------------------------------------------------------------
 -- pledge_events  (immutable audit log — no DELETE policy for authenticated)
 -- ---------------------------------------------------------------------------

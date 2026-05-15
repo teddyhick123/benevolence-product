@@ -13,16 +13,12 @@ create index if not exists qb_sync_log_org_created on qb_sync_log(org_id, create
 alter table qb_sync_log enable row level security;
 
 create policy "qb_sync_log: org admins read"
-  on qb_sync_log for select
-  using (
-    exists (
-      select 1 from organization_members
-      where org_id = qb_sync_log.org_id
-        and user_id = auth.uid()
-        and member_role in ('owner', 'admin')
-    )
-  );
+  on qb_sync_log for select to authenticated
+  using (public.is_org_admin(org_id));
 
 create policy "qb_sync_log: service role write"
-  on qb_sync_log for insert
-  with check (true);
+  on qb_sync_log for all to service_role
+  using (true) with check (true);
+
+grant select on qb_sync_log to authenticated;
+grant all on qb_sync_log to service_role;

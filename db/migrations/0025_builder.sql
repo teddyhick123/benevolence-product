@@ -30,12 +30,16 @@ CREATE INDEX IF NOT EXISTS builder_proposals_status_created_idx
 
 ALTER TABLE builder_proposals ENABLE ROW LEVEL SECURITY;
 
--- Org admins can read their own org's proposals
-CREATE POLICY "org admins can read builder proposals"
-  ON builder_proposals FOR SELECT
-  USING (is_org_admin(org_id));
+CREATE POLICY "builder_proposals: org admins read"
+  ON builder_proposals FOR SELECT TO authenticated
+  USING (public.is_org_admin(org_id));
 
--- Insert and updates only via service role (admin client)
+CREATE POLICY "builder_proposals: service role"
+  ON builder_proposals FOR ALL TO service_role
+  USING (true) WITH CHECK (true);
+
+GRANT SELECT ON builder_proposals TO authenticated;
+GRANT ALL ON builder_proposals TO service_role;
 
 -- ---------------------------------------------------------------------------
 -- builder_sessions — persists Builder chat history per org+user
@@ -55,8 +59,18 @@ CREATE INDEX IF NOT EXISTS builder_sessions_org_updated_idx
 
 ALTER TABLE builder_sessions ENABLE ROW LEVEL SECURITY;
 
--- Users can read and write only their own session
-CREATE POLICY "users can manage own builder session"
-  ON builder_sessions FOR ALL
+CREATE POLICY "builder_sessions: users can manage own session"
+  ON builder_sessions FOR ALL TO authenticated
   USING (auth.uid() = user_id)
   WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "builder_sessions: service role"
+  ON builder_sessions FOR ALL TO service_role
+  USING (true) WITH CHECK (true);
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON builder_sessions TO authenticated;
+GRANT ALL ON builder_sessions TO service_role;
+
+CREATE TRIGGER set_builder_sessions_updated_at
+  BEFORE UPDATE ON builder_sessions
+  FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();

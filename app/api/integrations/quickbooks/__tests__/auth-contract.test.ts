@@ -16,9 +16,10 @@ describe('QB route role checks', () => {
   ];
 
   for (const file of routeFiles) {
-    it(`${file} checks member_role`, () => {
+    it(`${file} uses role not member_role`, () => {
       const src = readFileSync(file, 'utf8');
-      expect(src).toContain('member_role');
+      expect(src).toContain(".select('role')");
+      expect(src).not.toContain('member_role');
     });
   }
 });

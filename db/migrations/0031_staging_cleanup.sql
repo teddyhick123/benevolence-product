@@ -18,44 +18,7 @@ DECLARE
 BEGIN
   cutoff := NOW() - (retention_days || ' days')::INTERVAL;
 
-  -- Delete from each staging table where the parent job is terminal and old
-  DELETE FROM public.staging_import_holdings
-    WHERE import_job_id IN (
-      SELECT id FROM public.import_jobs
-      WHERE status IN ('completed', 'failed', 'rolled_back')
-        AND updated_at < cutoff
-    );
-  GET DIAGNOSTICS deleted = ROW_COUNT;
-  total_deleted := total_deleted + deleted;
-
-  DELETE FROM public.staging_import_contributions
-    WHERE import_job_id IN (
-      SELECT id FROM public.import_jobs
-      WHERE status IN ('completed', 'failed', 'rolled_back')
-        AND updated_at < cutoff
-    );
-  GET DIAGNOSTICS deleted = ROW_COUNT;
-  total_deleted := total_deleted + deleted;
-
-  DELETE FROM public.staging_import_investees
-    WHERE import_job_id IN (
-      SELECT id FROM public.import_jobs
-      WHERE status IN ('completed', 'failed', 'rolled_back')
-        AND updated_at < cutoff
-    );
-  GET DIAGNOSTICS deleted = ROW_COUNT;
-  total_deleted := total_deleted + deleted;
-
-  DELETE FROM public.staging_import_metrics
-    WHERE import_job_id IN (
-      SELECT id FROM public.import_jobs
-      WHERE status IN ('completed', 'failed', 'rolled_back')
-        AND updated_at < cutoff
-    );
-  GET DIAGNOSTICS deleted = ROW_COUNT;
-  total_deleted := total_deleted + deleted;
-
-  DELETE FROM public.staging_import_users
+  DELETE FROM public.staging_import_rows
     WHERE import_job_id IN (
       SELECT id FROM public.import_jobs
       WHERE status IN ('completed', 'failed', 'rolled_back')

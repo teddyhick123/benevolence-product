@@ -24,12 +24,12 @@ export async function GET(req: Request): Promise<NextResponse> {
   // Confirm user is an admin or owner of this org
   const { data: membership } = await supabase
     .from('organization_members')
-    .select('member_role')
+    .select('role')
     .eq('org_id', orgId)
     .eq('user_id', user.id)
     .single();
 
-  if (!membership || !['owner', 'admin'].includes(membership.member_role as string)) {
+  if (!membership || !['owner', 'admin'].includes(membership.role as string)) {
     return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
   }
 

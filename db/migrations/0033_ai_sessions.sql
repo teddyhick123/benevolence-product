@@ -42,6 +42,8 @@ CREATE TABLE IF NOT EXISTS public.ai_actions (
   ai_reasoning   TEXT,
   user_prompt    TEXT,
   source         TEXT,
+  initiated_by   TEXT NOT NULL DEFAULT 'ai'
+                 CHECK (initiated_by IN ('ai', 'user', 'import', 'system')),
 
   status         TEXT NOT NULL DEFAULT 'applied'
                  CHECK (status IN ('applied', 'undone', 'redone')),
@@ -60,6 +62,10 @@ CREATE INDEX IF NOT EXISTS ai_actions_entity_idx       ON public.ai_actions(enti
 CREATE INDEX IF NOT EXISTS ai_actions_batch_id_idx     ON public.ai_actions(batch_id);
 CREATE INDEX IF NOT EXISTS ai_actions_status_idx       ON public.ai_actions(status);
 CREATE INDEX IF NOT EXISTS ai_actions_created_at_idx   ON public.ai_actions(created_at DESC);
+CREATE INDEX IF NOT EXISTS ai_actions_initiated_by_idx ON public.ai_actions(initiated_by);
+
+COMMENT ON COLUMN public.ai_actions.initiated_by IS
+  'Source of the action: ai = AI assistant, user = direct user action, import = ETL import, system = automated process';
 
 -- ---------------------------------------------------------------------------
 -- portfolio_recommendations — curated org recommendations
@@ -74,6 +80,7 @@ CREATE TABLE IF NOT EXISTS public.portfolio_recommendations (
   sector            TEXT,
   ein               TEXT,
   location          TEXT,
+  country           TEXT,
 
   description       TEXT,
   impact_focus      TEXT[],
@@ -88,6 +95,20 @@ CREATE TABLE IF NOT EXISTS public.portfolio_recommendations (
 
   status            TEXT NOT NULL DEFAULT 'active'
                     CHECK (status IN ('active', 'archived', 'converted')),
+  interaction_status TEXT NOT NULL DEFAULT 'new'
+                    CHECK (interaction_status IN (
+                      'new',
+                      'reviewing',
+                      'interested',
+                      'contacted',
+                      'meeting_scheduled',
+                      'in_discussion',
+                      'approved',
+                      'declined',
+                      'donated'
+                    )),
+  status_updated_at TIMESTAMPTZ,
+  status_updated_by UUID REFERENCES auth.users(id),
 
   created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -96,6 +117,9 @@ CREATE TABLE IF NOT EXISTS public.portfolio_recommendations (
 CREATE INDEX IF NOT EXISTS idx_portfolio_recommendations_portfolio ON public.portfolio_recommendations(portfolio_id);
 CREATE INDEX IF NOT EXISTS idx_portfolio_recommendations_status    ON public.portfolio_recommendations(portfolio_id, status) WHERE status = 'active';
 CREATE INDEX IF NOT EXISTS idx_portfolio_recommendations_charity   ON public.portfolio_recommendations(charity_id);
+CREATE INDEX IF NOT EXISTS idx_portfolio_recommendations_interaction_status
+  ON public.portfolio_recommendations(portfolio_id, interaction_status)
+  WHERE status = 'active';
 
 -- ---------------------------------------------------------------------------
 -- recommendation_comments / favorites / status_history
@@ -130,13 +154,47 @@ CREATE TABLE IF NOT EXISTS public.recommendation_status_history (
   recommendation_id UUID NOT NULL REFERENCES public.portfolio_recommendations(id) ON DELETE CASCADE,
   old_status        TEXT,
   new_status        TEXT NOT NULL,
+  user_id           UUID REFERENCES auth.users(id),
   changed_by        UUID REFERENCES auth.users(id),
   reason            TEXT,
+  notes             TEXT,
   created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX IF NOT EXISTS idx_rec_status_history_rec  ON public.recommendation_status_history(recommendation_id);
 CREATE INDEX IF NOT EXISTS idx_rec_status_history_date ON public.recommendation_status_history(created_at DESC);
+
+CREATE OR REPLACE FUNCTION public.log_recommendation_status_change()
+RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  IF OLD.interaction_status IS DISTINCT FROM NEW.interaction_status THEN
+    INSERT INTO public.recommendation_status_history (
+      recommendation_id,
+      old_status,
+      new_status,
+      user_id,
+      changed_by
+    )
+    VALUES (
+      NEW.id,
+      OLD.interaction_status,
+      NEW.interaction_status,
+      NEW.status_updated_by,
+      NEW.status_updated_by
+    );
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_recommendation_status_history ON public.portfolio_recommendations;
+CREATE TRIGGER trg_recommendation_status_history
+  AFTER UPDATE OF interaction_status ON public.portfolio_recommendations
+  FOR EACH ROW EXECUTE FUNCTION public.log_recommendation_status_change();
 
 -- ---------------------------------------------------------------------------
 -- Functions

@@ -34,6 +34,12 @@ export async function POST(_req: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: 'Invitation has expired' }, { status: 410 });
     }
 
+    const userEmail = user.email?.trim().toLowerCase();
+    const inviteEmail = invite.email.trim().toLowerCase();
+    if (!userEmail || userEmail !== inviteEmail) {
+      return NextResponse.json({ error: 'Invitation is tied to a different email' }, { status: 403 });
+    }
+
     // Check if already a member
     const { data: existingMember } = await adminClient
       .from('organization_members')

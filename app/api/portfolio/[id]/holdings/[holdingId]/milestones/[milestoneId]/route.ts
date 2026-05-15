@@ -68,6 +68,9 @@ export async function PATCH(
     if (validated.completed_date !== undefined) updateData.completed_date = validated.completed_date;
     if (validated.status !== undefined) updateData.status = validated.status;
     if (validated.notes !== undefined) updateData.notes = validated.notes;
+    if (validated.status === 'completed' && updateData.completed_date === undefined) {
+      updateData.completed_date = new Date().toISOString().slice(0, 10);
+    }
     updateData.updated_at = new Date().toISOString();
 
     const { data: milestone, error } = await supabase

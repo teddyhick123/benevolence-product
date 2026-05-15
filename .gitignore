@@ -46,6 +46,8 @@ Thumbs.db
 
 # Tool output / plugin caches
 .superpowers/
+.claude/settings.local.json
+.claude/worktrees/
 app/graphify-out/
 components/graphify-out/
 graphify-out/

@@ -173,7 +173,10 @@ For resolved-issue history, see `git log docs/module-reviews/FULL-BACKLOG.md` an
 | Tw-F4 | Automation producers for compliance reminders, pledge follow-up, grant reports/milestones, import review, and report approvals |
 | Tw-F5 | Notification event queue and digest delivery driven by task events and `organization_members.notification_prefs` |
 
-Spec: `/docs/superpowers/specs/2026-05-15-task-workflow-management-design.md`
+Specs:
+
+- `/docs/superpowers/specs/2026-05-15-task-workflow-management-design.md`
+- `/docs/superpowers/specs/2026-05-15-task-automation-producers-design.md`
 
 ---
 

@@ -125,6 +125,10 @@ export async function POST(
       grant_id: grantDetails.id, // Ensure grant_id matches the holding's grant
     });
 
+    const completedDate = validated.status === 'completed'
+      ? validated.completed_date ?? new Date().toISOString().slice(0, 10)
+      : validated.completed_date ?? null;
+
     // Insert milestone
     const { data: milestone, error } = await supabase
       .from('grant_milestones')
@@ -133,7 +137,7 @@ export async function POST(
         milestone_name: validated.milestone_name,
         description: validated.description ?? null,
         due_date: validated.due_date ?? null,
-        completed_date: validated.completed_date ?? null,
+        completed_date: completedDate,
         status: validated.status,
         notes: validated.notes ?? null,
       })

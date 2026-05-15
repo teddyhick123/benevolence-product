@@ -72,6 +72,8 @@ export async function GET(req: Request): Promise<NextResponse> {
     access_token: string;
     refresh_token: string;
     expires_in: number;
+    x_refresh_token_expires_in?: number;
+    token_type?: string;
     realmId?: string;
   };
 
@@ -90,6 +92,9 @@ export async function GET(req: Request): Promise<NextResponse> {
   }
 
   const tokenExpiry = new Date(Date.now() + (tokens.expires_in ?? 3600) * 1000);
+  const refreshTokenExpiry = tokens.x_refresh_token_expires_in
+    ? new Date(Date.now() + tokens.x_refresh_token_expires_in * 1000)
+    : null;
 
   const { error: upsertError } = await supabase
     .from('quickbooks_connections')
@@ -99,8 +104,12 @@ export async function GET(req: Request): Promise<NextResponse> {
         realm_id: realmId,
         access_token: encryptToken(tokens.access_token),
         refresh_token: encryptToken(tokens.refresh_token),
-        token_expiry: tokenExpiry.toISOString(),
-        connected_at: new Date().toISOString(),
+        token_type: tokens.token_type ?? 'bearer',
+        expires_at: tokenExpiry.toISOString(),
+        refresh_expires_at: refreshTokenExpiry?.toISOString() ?? null,
+        connected_by: user.id,
+        disconnected_at: null,
+        disconnected_by: null,
       },
       { onConflict: 'org_id' }
     );

@@ -100,69 +100,28 @@ export async function PUT(req: Request, ctx: { params: Promise<{ id: string }> }
 
     const { status: newStatus, notes } = validation.data;
 
-    // Get the recommendation to check access
-    const { data: rec, error: recError } = await supabase
-      .from('portfolio_recommendations')
-      .select('id, portfolio_id, interaction_status')
-      .eq('id', id)
-      .eq('status', 'active')
-      .single();
-
-    if (recError || !rec) {
-      return NextResponse.json(
-        { error: 'Recommendation not found' },
-        { status: 404, headers: cacheHeaders() }
-      );
-    }
-
-    // Verify user is a portfolio member
-    const { data: member } = await supabase
-      .from('portfolio_members')
-      .select('user_id')
-      .eq('portfolio_id', rec.portfolio_id)
-      .eq('user_id', user.id)
-      .single();
-
-    if (!member) {
-      return NextResponse.json(
-        { error: 'Access denied' },
-        { status: 403, headers: cacheHeaders() }
-      );
-    }
-
-    // Update the status
     const { data, error } = await supabase
-      .from('portfolio_recommendations')
-      .update({
-        interaction_status: newStatus,
-        status_updated_at: new Date().toISOString(),
-        status_updated_by: user.id,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', id)
-      .select()
-      .single();
+      .rpc('update_recommendation_interaction_status', {
+        p_recommendation_id: id,
+        p_status: newStatus,
+        p_notes: notes?.trim() || null,
+      });
 
-    if (error) throw error;
-
-    // If notes provided, add them to the most recent history entry
-    if (notes && notes.trim()) {
-      // Get the most recent history entry (created by trigger)
-      const { data: latestHistory } = await supabase
-        .from('recommendation_status_history')
-        .select('id')
-        .eq('recommendation_id', id)
-        .eq('new_status', newStatus)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .single();
-
-      if (latestHistory) {
-        await supabase
-          .from('recommendation_status_history')
-          .update({ notes })
-          .eq('id', latestHistory.id);
+    if (error) {
+      const message = error.message || '';
+      if (message.includes('Recommendation not found')) {
+        return NextResponse.json(
+          { error: 'Recommendation not found' },
+          { status: 404, headers: cacheHeaders() }
+        );
       }
+      if (message.includes('Access denied')) {
+        return NextResponse.json(
+          { error: 'Access denied' },
+          { status: 403, headers: cacheHeaders() }
+        );
+      }
+      throw error;
     }
 
     return NextResponse.json({ data }, { headers: cacheHeaders() });

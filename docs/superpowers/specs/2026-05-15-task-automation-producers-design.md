@@ -284,7 +284,8 @@ Title examples:
 
 Resolution:
 
-- When status becomes `filed`, `waived`, or `not_applicable`, complete or cancel open reminder/overdue tasks for the filing.
+- When status becomes `filed`, complete open reminder/overdue tasks for the filing.
+- When status becomes `waived` or `not_applicable`, cancel open reminder/overdue tasks for the filing.
 
 ### Filing Overdue Tasks
 
@@ -306,6 +307,7 @@ Task:
 Side effect:
 
 - Optionally update `filing_calendar.status = 'overdue'` when status is not already overdue and not filed/waived/not applicable.
+- Complete or cancel the open `filing:{filing_id}:reminder` task when creating the overdue task so the filing never has two open generated tasks.
 
 ### State Registration Renewal Tasks
 
@@ -420,9 +422,9 @@ Source tables:
 - `grant_reports`
 - `grant_payments`
 
-Org scoping note: `grant_milestones` and `grant_payments` have no `org_id` column. Producers must join to scope by org: `grant_milestones/grant_payments → grant_details → holdings → portfolios.org_id`. Never query these tables with a direct `.eq('org_id', orgId)`.
+Org scoping note: `grant_milestones` and `grant_payments` have no `org_id` column. Producers must join to scope by org: `grant_milestones/grant_payments → grant_details → holdings.org_id` or `holdings → portfolios.org_id`. Never query these tables with a direct `.eq('org_id', orgId)`.
 
-Entity ID convention: for entity links with `entity_type = 'grant'`, always use the `grant_details.id` value. `grant_milestones` and `grant_payments` both FK directly to `grant_details.id`. For `grant_reports`, see the Grant Report Tasks section below for the join required.
+Entity ID convention: for entity links with `entity_type = 'grant'`, always use the `grant_details.id` value. `grant_milestones`, `grant_reports`, and `grant_payments` all FK directly to `grant_details.id` after migration `0041_task_workflow_foundation.sql`.
 
 ### Grant Milestone Tasks
 
@@ -458,11 +460,11 @@ Resolution:
 
 ### Grant Report Tasks
 
-Schema note: `grant_reports.grant_id` references the `grants` table (migration `0009`), not `grant_details`. To resolve a `grant_details` row and its associated `holding` for entity links, producers must join: `grant_reports → grants.holding_id → holdings → grant_details` (look up the `grant_details` row where `holding_id` matches). If no `grant_details` row exists for that holding, omit `grant` and `holding` context links rather than failing. Note also that `grant_reports` has no `submitted_date` column — `received_at` is the only completion signal.
+Schema note: `grant_reports` is created directly in migration `0041_task_workflow_foundation.sql` with `grant_reports.grant_id -> grant_details.id`. There is no `grants` table in the active schema. Producers should treat `grant_details` as the only grant lifecycle parent.
 
 Scan:
 
-- `grant_reports.received_at IS NULL`
+- `COALESCE(grant_reports.submitted_date::timestamptz, grant_reports.received_at) IS NULL`
 - `due_date IS NOT NULL`
 
 Window:
@@ -486,7 +488,7 @@ Links:
 
 Resolution:
 
-- Complete when `received_at` is present.
+- Complete when either `submitted_date` or `received_at` is present. `submitted_date` exists in active migration `0041`; `received_at` is the original completion field from `0009`.
 
 ### Grant Payment Condition Tasks
 
@@ -668,7 +670,15 @@ RLS:
 
 ### Concurrent Run Protection
 
-Before starting a run, the job route should check for an in-flight run with the same producer and org_id:
+Before starting a run, the job route must acquire a transaction-scoped advisory lock and then check for an in-flight run with the same producer and org_id. The preflight query alone is not sufficient because two cron retries can read "no running row" at the same time.
+
+Recommended lock key:
+
+- `task_automation:{producer || 'all'}:{org_id || 'all'}`
+
+Use `pg_try_advisory_xact_lock` through a small RPC such as `try_task_automation_lock(lock_key text) returns boolean`, or an equivalent database-side lock helper. If the lock cannot be acquired, return `409 Conflict`.
+
+After acquiring the lock, also check for a recent in-flight run:
 
 ```sql
 SELECT id FROM task_automation_runs
@@ -678,7 +688,7 @@ WHERE status = 'running'
   AND created_at > now() - interval '30 minutes';
 ```
 
-If a match is found, return `409 Conflict` with the in-flight `run_id`. The 30-minute window prevents a stuck `running` row from permanently blocking re-runs.
+If a match is found, return `409 Conflict` with the in-flight `run_id`. The 30-minute window prevents a stuck `running` row from permanently blocking re-runs. On unexpected process failure, a later run may mark stale `running` rows as `failed` before continuing.
 
 ## UI Changes
 

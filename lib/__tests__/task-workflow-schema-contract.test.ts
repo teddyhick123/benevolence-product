@@ -144,7 +144,12 @@ describe('task/workflow schema contract', () => {
   });
 
   it('grant reports are aligned to the holding-level grant_details model', () => {
-    expect(migrationsSrc).toContain('grant_reports_grant_details_fkey');
-    expect(migrationsSrc).toContain('FOREIGN KEY (grant_id) REFERENCES public.grant_details(id)');
+    expect(migrationsSrc).toMatch(/CREATE TABLE IF NOT EXISTS public\.grant_reports[\s\S]*grant_id\s+uuid NOT NULL REFERENCES public\.grant_details\(id\)/);
+    expect(migrationsSrc).toContain('ALTER TABLE public.grant_reports ENABLE ROW LEVEL SECURITY');
+    expect(migrationsSrc).not.toMatch(/CREATE TABLE IF NOT EXISTS (?:public\.)?grants\s*\(/);
+    expect(migrationsSrc).not.toMatch(/REFERENCES (?:public\.)?grants\s*\(/);
+    expect(migrationsSrc).not.toMatch(/(?:FROM|JOIN) public\.grants\b/);
+    expect(migrationsSrc).not.toContain('ANALYZE grants');
+    expect(migrationsSrc).not.toMatch(/grant_reports_grant_details_fkey[\s\S]{0,300}NOT VALID/);
   });
 });

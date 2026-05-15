@@ -118,37 +118,6 @@ LEFT JOIN kpi_definitions kd
 ORDER BY mf.holding_id, mf.metric_code, mf.period_end DESC;
 
 -- ---------------------------------------------------------------------------
--- portfolio_recommendations — AI-generated suggestions
--- ---------------------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS portfolio_recommendations (
-  id              uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
-  created_at      timestamptz NOT NULL DEFAULT now(),
-  updated_at      timestamptz NOT NULL DEFAULT now(),
-
-  portfolio_id    uuid NOT NULL REFERENCES portfolios(id) ON DELETE CASCADE,
-
-  recommendation_type text NOT NULL,   -- 'diversification', 'rebalance', 'impact_gap', etc.
-  title           text NOT NULL,
-  body            text NOT NULL,
-  supporting_data jsonb,
-  priority        int NOT NULL DEFAULT 5,  -- 1=highest
-
-  is_dismissed    boolean NOT NULL DEFAULT false,
-  dismissed_by    uuid REFERENCES auth.users(id),
-  dismissed_at    timestamptz,
-
-  expires_at      timestamptz
-);
-
-CREATE INDEX idx_portfolio_recommendations_portfolio_id
-  ON portfolio_recommendations (portfolio_id)
-  WHERE NOT is_dismissed AND (expires_at IS NULL OR expires_at > now());
-
-CREATE TRIGGER trg_portfolio_recommendations_updated_at
-  BEFORE UPDATE ON portfolio_recommendations
-  FOR EACH ROW EXECUTE FUNCTION set_updated_at();
-
--- ---------------------------------------------------------------------------
 -- RLS
 -- ---------------------------------------------------------------------------
 ALTER TABLE kpi_definitions ENABLE ROW LEVEL SECURITY;
@@ -168,15 +137,3 @@ CREATE POLICY "metric_facts: portfolio members (member+) can manage"
   ON metric_facts FOR ALL
   USING (can_edit_portfolio((SELECT portfolio_id FROM holdings WHERE id = holding_id)))
   WITH CHECK (can_edit_portfolio((SELECT portfolio_id FROM holdings WHERE id = holding_id)));
-
-ALTER TABLE portfolio_recommendations ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "portfolio_recommendations: portfolio members can view"
-  ON portfolio_recommendations FOR SELECT
-  USING (can_view_portfolio(portfolio_id));
-CREATE POLICY "portfolio_recommendations: service role can insert"
-  ON portfolio_recommendations FOR INSERT
-  WITH CHECK (can_edit_portfolio(portfolio_id));
-CREATE POLICY "portfolio_recommendations: portfolio members can dismiss"
-  ON portfolio_recommendations FOR UPDATE
-  USING (can_view_portfolio(portfolio_id))
-  WITH CHECK (can_view_portfolio(portfolio_id));

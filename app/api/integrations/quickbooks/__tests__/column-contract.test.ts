@@ -6,6 +6,10 @@ describe('quickbooks_connections column contract', () => {
     'app/api/integrations/quickbooks/status/route.ts',
     'utf8'
   );
+  const callbackSrc = readFileSync(
+    'app/api/integrations/quickbooks/callback/route.ts',
+    'utf8'
+  );
 
   it('status route selects expires_at not token_expiry', () => {
     expect(statusSrc).toContain('expires_at');
@@ -15,6 +19,14 @@ describe('quickbooks_connections column contract', () => {
   it('status route uses created_at not connected_at in select', () => {
     expect(statusSrc).toContain("'realm_id, created_at, last_sync_at, expires_at");
     expect(statusSrc).not.toContain("'realm_id, connected_at");
+  });
+
+  it('callback route writes canonical connection columns', () => {
+    expect(callbackSrc).toContain('expires_at');
+    expect(callbackSrc).toContain('refresh_expires_at');
+    expect(callbackSrc).toContain('connected_by');
+    expect(callbackSrc).not.toContain('token_expiry:');
+    expect(callbackSrc).not.toMatch(/^\s*connected_at:/m);
   });
 });
 

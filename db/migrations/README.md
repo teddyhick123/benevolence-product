@@ -28,7 +28,7 @@ psql $DATABASE_URL -f db/demo/seed_demo_org.sql
 | 0006_holdings | Investment | Universal asset table, holding_facts, widgets |
 | 0007_investment_tracking | Investment | Valuations, transactions, co-investors |
 | 0008_metrics_and_kpis | Investment | KPI definitions, metric facts, recommendations |
-| 0009_grants | Investment | Grant management, milestones, payments, workflows |
+| 0009_grants | Historical | Placeholder only; canonical grant lifecycle tables are created in 0041 |
 | 0010_charities_and_news | Reference | Charity lookup DB, news article cache |
 | 0011_reports | Reports | Generated portfolio reports |
 | 0012_owner_tax_profile | Tax | Portfolio owner's personal tax data (NOT the donor CRM) |
@@ -39,16 +39,16 @@ psql $DATABASE_URL -f db/demo/seed_demo_org.sql
 | 0017_quickbooks | QuickBooks | QB OAuth tokens, accounts, transactions |
 | 0018_import_system | Import | Import jobs, mapping profiles, FK back-refs |
 | 0019_portfolio_summary_views | Views | Portfolio summary and holdings enriched views |
-| 0020_ai_portfolio_manager | AI (legacy) | Legacy AI conversation tables (ai_conversations, ai_messages, ai_action_log) |
+| 0020_ai_portfolio_manager | Historical | Placeholder only; canonical AI session/action tables are created in 0033 |
 | 0021_composite_indexes | Performance | Cross-table query indexes |
 | 0022_module_enforcement | Admin | Module flags validation, module_definitions table |
 | 0023_admin_superuser_policies | Admin | App admin policies, org type defaults, provision RPC |
-| 0024_settings_ops_hub | Settings | org_invitations, org_audit_log, notification_prefs |
+| 0024_settings_ops_hub | Settings | org_audit_log and notification_prefs |
 | 0025_builder | Builder | Portfolio builder tables |
 | 0026_builder_enhancement | Builder | Builder enhancements |
 | 0027_portfolio_charities | Charities | Portfolio-level charity links |
 | 0028_foundation_payout | Foundation | Foundation payout tracking |
-| 0029_ai_action_source | AI | Source tracking on ai_actions |
+| 0029_ai_action_source | Historical | Placeholder only; ai_actions.initiated_by is defined in 0033 |
 | 0030_ai_usage_log | AI | Token usage log per AI chat call (cost visibility) |
 | 0031_staging_cleanup | Admin | `cleanup_staging_pii()` function (SECURITY DEFINER) |
 | 0032_fix_v_donor_summary | Fix | Rebuild v_donor_summary with correct column aliases |
@@ -58,9 +58,9 @@ psql $DATABASE_URL -f db/demo/seed_demo_org.sql
 | 0036_seeds | Seeds | Module definitions and preset bundles |
 | 0037_qb_sync_log | QuickBooks | QuickBooks sync event logging |
 | 0038_pledge_tracking | Donors | Pledge lifecycle, installments, events, and pipeline view |
-| 0039_alignment_fixes | Fix | Schema alignment fixes for receipts and module aliases |
+| 0039_alignment_fixes | Historical | Placeholder only; receipt fields and module aliases are folded into canonical migrations |
 | 0040_holdings_org_alignment | Fix | Holdings org alignment and compatibility fixes |
-| 0041_task_workflow_foundation | Workflow | Tasks, workflow tables, grant ops compatibility, and deadline views |
+| 0041_task_workflow_foundation | Workflow | Tasks, workflow tables, canonical grant lifecycle tables, and deadline views |
 
 ## Architecture decisions
 
@@ -95,10 +95,10 @@ One QB connection per org. `quickbooks_connections` and `qb_accounts` have
 `org_id NOT NULL` and no `portfolio_id` column. QB transactions can optionally
 link to individual holdings via `holding_id`.
 
-### AI tables: active vs legacy
-- **Active**: `ai_sessions` + `ai_actions` (0033) — used by all app code.
-- **Legacy**: `ai_conversations` + `ai_messages` + `ai_action_log` (0020) —
-  original schema, preserved for data migration continuity only.
+### AI tables
+`ai_sessions` + `ai_actions` (0033) are the only active assistant state
+tables. The earlier `ai_conversations`, `ai_messages`, and `ai_action_log`
+schema is intentionally not created in active migrations.
 
 ### Seeds are migrations (0036)
 Module definitions and presets live in 0036_seeds.sql so they run in the same

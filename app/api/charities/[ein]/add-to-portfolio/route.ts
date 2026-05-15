@@ -21,7 +21,7 @@ export async function POST(
       );
     }
 
-    const { data: canModify, error: permErr } = await sb.rpc('can_modify_portfolio', {
+    const { data: canModify, error: permErr } = await sb.rpc('can_edit_portfolio', {
       p_portfolio_id: portfolio_id,
     });
     if (permErr || !canModify) {

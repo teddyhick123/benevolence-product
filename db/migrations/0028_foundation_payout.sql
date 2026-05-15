@@ -2,15 +2,6 @@
 -- 0028_foundation_payout.sql
 -- Adds foundation_990pf_data table with proper IRS 990-PF Part XIII columns.
 -- Depends on: 0004 (portfolios)
---
--- The legacy migration track (0013_tax_tracking.sql) created a simplified
--- version of this table.  This migration idempotently creates it if absent and
--- adds the extra columns needed for the correct Part XIII calculation:
---   avg_fair_market_value  — average monthly FMV (more accurate than year-end)
---   exempt_use_assets      — assets used directly in charitable activities
---   acquisition_indebtedness — indebtedness on asset acquisition
--- Without these three columns the distributable-amount formula is just
--- netAssets × 0.05, which materially over-states the required payout.
 -- =============================================================================
 
 CREATE TABLE IF NOT EXISTS foundation_990pf_data (
@@ -48,31 +39,26 @@ CREATE TABLE IF NOT EXISTS foundation_990pf_data (
   UNIQUE (portfolio_id, tax_year)
 );
 
--- Add new columns for environments that already have the legacy table
-ALTER TABLE foundation_990pf_data
-  ADD COLUMN IF NOT EXISTS avg_fair_market_value    NUMERIC(18,2);
-ALTER TABLE foundation_990pf_data
-  ADD COLUMN IF NOT EXISTS exempt_use_assets        NUMERIC(18,2) NOT NULL DEFAULT 0;
-ALTER TABLE foundation_990pf_data
-  ADD COLUMN IF NOT EXISTS acquisition_indebtedness NUMERIC(18,2) NOT NULL DEFAULT 0;
-
 CREATE INDEX IF NOT EXISTS idx_foundation_990pf_portfolio_year
   ON foundation_990pf_data (portfolio_id, tax_year);
 
-CREATE TRIGGER IF NOT EXISTS trg_foundation_990pf_updated_at
+DROP TRIGGER IF EXISTS trg_foundation_990pf_updated_at ON foundation_990pf_data;
+CREATE TRIGGER trg_foundation_990pf_updated_at
   BEFORE UPDATE ON foundation_990pf_data
   FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
 ALTER TABLE foundation_990pf_data ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY IF NOT EXISTS "foundation_990pf_data: portfolio members can view"
+DROP POLICY IF EXISTS "foundation_990pf_data: portfolio members can view" ON foundation_990pf_data;
+CREATE POLICY "foundation_990pf_data: portfolio members can view"
   ON foundation_990pf_data FOR SELECT
   USING (can_view_portfolio(portfolio_id));
 
-CREATE POLICY IF NOT EXISTS "foundation_990pf_data: portfolio admins can manage"
+DROP POLICY IF EXISTS "foundation_990pf_data: portfolio admins can manage" ON foundation_990pf_data;
+CREATE POLICY "foundation_990pf_data: portfolio admins can manage"
   ON foundation_990pf_data FOR ALL
-  USING (can_modify_portfolio(portfolio_id))
-  WITH CHECK (can_modify_portfolio(portfolio_id));
+  USING (can_edit_portfolio(portfolio_id))
+  WITH CHECK (can_edit_portfolio(portfolio_id));
 
 GRANT SELECT, INSERT, UPDATE, DELETE ON foundation_990pf_data TO authenticated;
 GRANT ALL ON foundation_990pf_data TO service_role;

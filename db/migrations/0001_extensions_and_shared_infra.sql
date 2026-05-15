@@ -207,7 +207,21 @@ LANGUAGE sql STABLE SECURITY DEFINER
 SET search_path = public
 AS $$
   SELECT COALESCE(
-    (SELECT (modules->>p_module)::boolean FROM organizations WHERE id = p_org_id),
+    (
+      SELECT (modules->>(
+        CASE p_module
+          WHEN 'pledge_tracking'       THEN 'pledges'
+          WHEN 'donor_management'      THEN 'donors'
+          WHEN 'tax_optimization'      THEN 'tax'
+          WHEN 'compliance_regulatory' THEN 'compliance'
+          WHEN 'reporting'             THEN 'reports'
+          WHEN 'core'                  THEN 'portfolio'
+          ELSE p_module
+        END
+      ))::boolean
+      FROM organizations
+      WHERE id = p_org_id
+    ),
     false
   );
 $$;

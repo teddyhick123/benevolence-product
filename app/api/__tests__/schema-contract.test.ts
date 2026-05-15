@@ -119,7 +119,7 @@ describe('Schema contract: prerelease migration cleanup', () => {
     expect(migrationsSrc).toMatch(/CREATE TABLE IF NOT EXISTS public\.portfolio_recommendations[\s\S]*organization_name TEXT NOT NULL/);
     expect(migrationsSrc).toMatch(/CREATE TABLE IF NOT EXISTS public\.portfolio_recommendations[\s\S]*interaction_status TEXT NOT NULL DEFAULT 'new'/);
     expect(migrationsSrc).toMatch(/CREATE TABLE IF NOT EXISTS public\.recommendation_status_history[\s\S]*user_id\s+UUID REFERENCES auth\.users\(id\)/);
-    expect(migrationsSrc).toMatch(/CREATE OR REPLACE FUNCTION public\.log_recommendation_status_change/);
+    expect(migrationsSrc).toMatch(/CREATE OR REPLACE FUNCTION public\.update_recommendation_interaction_status/);
   });
 
   it('keeps org invitation status in the canonical organization migration', () => {
@@ -187,6 +187,30 @@ describe('Schema contract: DB cleanup fixes (2026-05-15)', () => {
     );
   });
 
+  it('recommendation status notes are inserted by the status RPC, not patched onto history rows', () => {
+    expect(appSrc).not.toMatch(
+      /from\(['"]recommendation_status_history['"]\)[\s\S]{0,300}\.update\(/i
+    );
+    expect(appSrc).toMatch(/rpc\(['"]update_recommendation_interaction_status['"]/);
+    expect(migrationsSrc).toMatch(
+      /CREATE OR REPLACE FUNCTION public\.update_recommendation_interaction_status[\s\S]*INSERT INTO public\.recommendation_status_history[\s\S]*notes/i
+    );
+  });
+
+  it('recommendation comments and favorites writes require parent portfolio visibility', () => {
+    expect(migrationsSrc).toMatch(
+      /CREATE POLICY "rec_comments_write"[\s\S]{0,900}portfolio_recommendations[\s\S]{0,400}can_view_portfolio/i
+    );
+    expect(migrationsSrc).toMatch(
+      /CREATE POLICY "rec_favorites_write"[\s\S]{0,900}portfolio_recommendations[\s\S]{0,400}can_view_portfolio/i
+    );
+  });
+
+  it('invitation acceptance enforces invitee email even though it uses the admin client', () => {
+    expect(appSrc).toMatch(/user\.email\?\.trim\(\)\.toLowerCase\(\)/);
+    expect(appSrc).toMatch(/invite\.email\.trim\(\)\.toLowerCase\(\)/);
+  });
+
   it('org_invitations read policy requires caller email match for non-admin access', () => {
     // Without this, any authenticated user can enumerate pending invitations for any org
     expect(migrationsSrc).toMatch(
@@ -227,5 +251,18 @@ describe('Schema contract: DB cleanup fixes (2026-05-15)', () => {
     expect(migrationsSrc).toMatch(
       /ON\s+(?:public\.)?contributions_received\s+FOR\s+ALL\s+TO\s+service_role/i
     );
+  });
+
+  it('tax contribution routes have matching canonical table columns and views', () => {
+    expect(migrationsSrc).toMatch(/CREATE TABLE IF NOT EXISTS public\.tax_profiles/);
+    expect(migrationsSrc).toMatch(/CREATE TABLE IF NOT EXISTS public\.tax_years/);
+    expect(migrationsSrc).toMatch(/CREATE TABLE IF NOT EXISTS public\.tax_contributions[\s\S]*amount_usd\s+NUMERIC/);
+    expect(migrationsSrc).toMatch(/CREATE TABLE IF NOT EXISTS public\.tax_contributions[\s\S]*fmv_at_donation\s+NUMERIC/);
+    expect(migrationsSrc).toMatch(/CREATE TABLE IF NOT EXISTS public\.tax_contributions[\s\S]*property_description\s+TEXT/);
+    expect(migrationsSrc).toMatch(/CREATE TABLE IF NOT EXISTS public\.tax_contributions[\s\S]*quid_pro_quo_value\s+NUMERIC/);
+    expect(migrationsSrc).toMatch(/CREATE OR REPLACE VIEW public\.v_tax_contributions_enriched/);
+    expect(migrationsSrc).toMatch(/CREATE OR REPLACE VIEW public\.v_tax_contributions_with_limits/);
+    expect(migrationsSrc).toMatch(/CREATE OR REPLACE VIEW public\.v_portfolio_tax_summary/);
+    expect(migrationsSrc).toMatch(/CREATE OR REPLACE FUNCTION public\.get_donation_capacity/);
   });
 });

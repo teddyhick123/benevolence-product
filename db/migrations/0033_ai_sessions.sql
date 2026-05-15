@@ -164,41 +164,89 @@ CREATE TABLE IF NOT EXISTS public.recommendation_status_history (
 CREATE INDEX IF NOT EXISTS idx_rec_status_history_rec  ON public.recommendation_status_history(recommendation_id);
 CREATE INDEX IF NOT EXISTS idx_rec_status_history_date ON public.recommendation_status_history(created_at DESC);
 
-CREATE OR REPLACE FUNCTION public.log_recommendation_status_change()
-RETURNS trigger
-LANGUAGE plpgsql SECURITY DEFINER
+-- ---------------------------------------------------------------------------
+-- Functions
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.update_recommendation_interaction_status(
+  p_recommendation_id UUID,
+  p_status TEXT,
+  p_notes TEXT DEFAULT NULL
+)
+RETURNS public.portfolio_recommendations
+LANGUAGE plpgsql
+SECURITY DEFINER
 SET search_path = public
 AS $$
+DECLARE
+  v_recommendation public.portfolio_recommendations%ROWTYPE;
+  v_updated public.portfolio_recommendations%ROWTYPE;
+  v_actor UUID := auth.uid();
 BEGIN
-  IF OLD.interaction_status IS DISTINCT FROM NEW.interaction_status THEN
+  IF v_actor IS NULL THEN
+    RAISE EXCEPTION 'Unauthorized';
+  END IF;
+
+  IF p_status NOT IN (
+    'new',
+    'reviewing',
+    'interested',
+    'contacted',
+    'meeting_scheduled',
+    'in_discussion',
+    'approved',
+    'declined',
+    'donated'
+  ) THEN
+    RAISE EXCEPTION 'Invalid recommendation status: %', p_status;
+  END IF;
+
+  SELECT *
+  INTO v_recommendation
+  FROM public.portfolio_recommendations
+  WHERE id = p_recommendation_id
+    AND status = 'active'
+  FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Recommendation not found';
+  END IF;
+
+  IF NOT public.can_view_portfolio(v_recommendation.portfolio_id) THEN
+    RAISE EXCEPTION 'Access denied';
+  END IF;
+
+  UPDATE public.portfolio_recommendations
+  SET
+    interaction_status = p_status,
+    status_updated_at = NOW(),
+    status_updated_by = v_actor,
+    updated_at = NOW()
+  WHERE id = p_recommendation_id
+  RETURNING * INTO v_updated;
+
+  IF v_recommendation.interaction_status IS DISTINCT FROM p_status THEN
     INSERT INTO public.recommendation_status_history (
       recommendation_id,
       old_status,
       new_status,
       user_id,
-      changed_by
+      changed_by,
+      notes
     )
     VALUES (
-      NEW.id,
-      OLD.interaction_status,
-      NEW.interaction_status,
-      NEW.status_updated_by,
-      NEW.status_updated_by
+      p_recommendation_id,
+      v_recommendation.interaction_status,
+      p_status,
+      v_actor,
+      v_actor,
+      NULLIF(BTRIM(p_notes), '')
     );
   END IF;
 
-  RETURN NEW;
+  RETURN v_updated;
 END;
 $$;
 
-DROP TRIGGER IF EXISTS trg_recommendation_status_history ON public.portfolio_recommendations;
-CREATE TRIGGER trg_recommendation_status_history
-  AFTER UPDATE OF interaction_status ON public.portfolio_recommendations
-  FOR EACH ROW EXECUTE FUNCTION public.log_recommendation_status_change();
-
--- ---------------------------------------------------------------------------
--- Functions
--- ---------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.get_or_create_ai_session(
   p_portfolio_id UUID,
   p_user_id      UUID
@@ -272,6 +320,8 @@ BEGIN
 END;
 $$;
 
+GRANT EXECUTE ON FUNCTION public.update_recommendation_interaction_status(UUID, TEXT, TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.update_recommendation_interaction_status(UUID, TEXT, TEXT) TO service_role;
 GRANT EXECUTE ON FUNCTION public.get_or_create_ai_session(UUID, UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.undo_ai_action(UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.redo_ai_action(UUID) TO authenticated;
@@ -334,7 +384,22 @@ CREATE POLICY "rec_comments_read" ON public.recommendation_comments
 
 CREATE POLICY "rec_comments_write" ON public.recommendation_comments
   FOR ALL TO authenticated
-  USING (user_id = auth.uid()) WITH CHECK (user_id = auth.uid());
+  USING (
+    user_id = auth.uid()
+    AND EXISTS (
+      SELECT 1 FROM public.portfolio_recommendations r
+      WHERE r.id = recommendation_comments.recommendation_id
+        AND public.can_view_portfolio(r.portfolio_id)
+    )
+  )
+  WITH CHECK (
+    user_id = auth.uid()
+    AND EXISTS (
+      SELECT 1 FROM public.portfolio_recommendations r
+      WHERE r.id = recommendation_comments.recommendation_id
+        AND public.can_view_portfolio(r.portfolio_id)
+    )
+  );
 
 CREATE POLICY "rec_comments_service" ON public.recommendation_comments
   FOR ALL TO service_role USING (true) WITH CHECK (true);
@@ -344,7 +409,22 @@ CREATE POLICY "rec_favorites_read" ON public.recommendation_favorites
 
 CREATE POLICY "rec_favorites_write" ON public.recommendation_favorites
   FOR ALL TO authenticated
-  USING (user_id = auth.uid()) WITH CHECK (user_id = auth.uid());
+  USING (
+    user_id = auth.uid()
+    AND EXISTS (
+      SELECT 1 FROM public.portfolio_recommendations r
+      WHERE r.id = recommendation_favorites.recommendation_id
+        AND public.can_view_portfolio(r.portfolio_id)
+    )
+  )
+  WITH CHECK (
+    user_id = auth.uid()
+    AND EXISTS (
+      SELECT 1 FROM public.portfolio_recommendations r
+      WHERE r.id = recommendation_favorites.recommendation_id
+        AND public.can_view_portfolio(r.portfolio_id)
+    )
+  );
 
 CREATE POLICY "rec_favorites_service" ON public.recommendation_favorites
   FOR ALL TO service_role USING (true) WITH CHECK (true);

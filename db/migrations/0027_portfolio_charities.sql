@@ -37,8 +37,8 @@ CREATE POLICY "portfolio_charities_read" ON portfolio_charities
 
 CREATE POLICY "portfolio_charities_write" ON portfolio_charities
   FOR ALL TO authenticated
-  USING (public.can_modify_portfolio(portfolio_id))
-  WITH CHECK (public.can_modify_portfolio(portfolio_id));
+  USING (public.can_edit_portfolio(portfolio_id))
+  WITH CHECK (public.can_edit_portfolio(portfolio_id));
 
 CREATE POLICY "portfolio_charities_service" ON portfolio_charities
   FOR ALL TO service_role

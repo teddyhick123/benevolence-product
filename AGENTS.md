@@ -8,6 +8,8 @@ A modular, white-label platform for philanthropic organizations. Clone this temp
 
 **`db/migrations` is the single source of truth.** Any SQL outside that directory is stale and must not be treated as authoritative. When in doubt about a table name, column name, or function, read the relevant migration file.
 
+**The database is still prerelease.** No production/customer instances have run these migrations yet, so optimize the active migration set for the best long-term schema rather than preserving migration archaeology. Prefer consolidating duplicate tables, folding patch migrations into the canonical table definition, removing unused legacy schemas, and updating tests/docs to protect the new canon. Do not keep compatibility shims unless product code actively needs them or the user explicitly asks for backwards compatibility.
+
 Key invariants that differ from older patterns or documentation you may encounter elsewhere:
 - All org-scoped tables use **`org_id`** (not `organization_id`) as the FK column name.
 - The `organization_members` table uses **`org_id`** (not `organization_id`).
@@ -17,6 +19,7 @@ Key invariants that differ from older patterns or documentation you may encounte
 - The `organization_holdings` table does **not** exist. Holdings belong to organizations directly through **`holdings.org_id`**, derived from the holding's portfolio.
 - The `organization_modules` table does **not** exist. Module state lives in `organizations.modules` JSONB checked via `org_has_module(p_org_id, p_module)`; the parameter is `p_module`, not `p_module_id`.
 - Module slugs in the database are `portfolio`, `donors`, `pledges`, `tax`, `compliance`, `reports`, `grant_management`, `impact_tracking`, `analytics`, `external_data`, `quickbooks`, `import`, and `ai_assistant`. App-facing aliases such as `core`, `donor_management`, `pledge_tracking`, `tax_optimization`, and `reporting` must map to those DB slugs.
+- The canonical grant lifecycle parent is **`grant_details.id`** (holding-level). There is no `grants` table in the active schema; do not query or recreate one. `grant_milestones.grant_id`, `grant_reports.grant_id`, `grant_payments.grant_id`, and other grant ops tables reference `grant_details.id`. Scope grant ops through `grant_details -> holdings.org_id` or `holdings.portfolio_id`; do not query those tables with direct `org_id` filters unless the table actually defines `org_id`.
 
 ## Documentation
 

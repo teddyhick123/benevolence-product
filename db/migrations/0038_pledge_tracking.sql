@@ -338,32 +338,6 @@ EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
 
 -- ---------------------------------------------------------------------------
--- Update org_has_module to support pledge_tracking / donor_management aliases
--- ---------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION public.org_has_module(p_org_id uuid, p_module text)
-RETURNS boolean
-LANGUAGE sql STABLE SECURITY DEFINER
-SET search_path = public
-AS $$
-  SELECT COALESCE(
-    (
-      SELECT (modules->>(
-        CASE p_module
-          WHEN 'pledge_tracking'       THEN 'pledges'
-          WHEN 'donor_management'      THEN 'donors'
-          WHEN 'tax_optimization'      THEN 'tax'
-          WHEN 'compliance_regulatory' THEN 'compliance'
-          ELSE p_module
-        END
-      ))::boolean
-      FROM organizations
-      WHERE id = p_org_id
-    ),
-    false
-  );
-$$;
-
--- ---------------------------------------------------------------------------
 -- Register pledges module in module_definitions
 -- ---------------------------------------------------------------------------
 INSERT INTO public.module_definitions (slug, label, description, depends_on, is_core)

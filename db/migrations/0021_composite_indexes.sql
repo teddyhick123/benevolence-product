@@ -27,17 +27,6 @@ CREATE INDEX IF NOT EXISTS idx_tax_contributions_portfolio_type_year
   ON tax_contributions (portfolio_id, contribution_type, tax_year);
 
 -- ---------------------------------------------------------------------------
--- Grants — by org + status + grantee
--- ---------------------------------------------------------------------------
-CREATE INDEX IF NOT EXISTS idx_grants_org_status_date
-  ON grants (org_id, status, payment_date DESC)
-  WHERE deleted_at IS NULL;
-
-CREATE INDEX IF NOT EXISTS idx_grants_grantee_ein_org
-  ON grants (grantee_ein, org_id)
-  WHERE grantee_ein IS NOT NULL AND deleted_at IS NULL;
-
--- ---------------------------------------------------------------------------
 -- Donors — common CRM list queries
 -- ---------------------------------------------------------------------------
 CREATE INDEX IF NOT EXISTS idx_donors_org_tier_recency
@@ -64,7 +53,7 @@ CREATE INDEX IF NOT EXISTS idx_news_articles_holding_published
 -- Metric facts — time-series range queries
 -- ---------------------------------------------------------------------------
 CREATE INDEX IF NOT EXISTS idx_metric_facts_holding_metric_period
-  ON metric_facts (holding_id, metric_name, period_end DESC);
+  ON metric_facts (holding_id, metric_code, period_end DESC);
 
 -- ---------------------------------------------------------------------------
 -- Filing calendar — upcoming deadlines view
@@ -72,13 +61,6 @@ CREATE INDEX IF NOT EXISTS idx_metric_facts_holding_metric_period
 CREATE INDEX IF NOT EXISTS idx_filing_calendar_org_due_status
   ON filing_calendar (org_id, due_date, status)
   WHERE status IN ('upcoming','in_progress','extended','overdue');
-
--- ---------------------------------------------------------------------------
--- AI action log — review queue
--- ---------------------------------------------------------------------------
-CREATE INDEX IF NOT EXISTS idx_ai_action_log_pending_review
-  ON ai_action_log (org_id, created_at DESC)
-  WHERE requires_review AND reviewed_at IS NULL;
 
 -- ---------------------------------------------------------------------------
 -- Audit log — common queries by org + action
@@ -117,7 +99,6 @@ ANALYZE holding_facts;
 ANALYZE metric_facts;
 ANALYZE donors;
 ANALYZE contributions_received;
-ANALYZE grants;
 ANALYZE filing_calendar;
 ANALYZE quickbooks_connections;
 ANALYZE qb_transactions;

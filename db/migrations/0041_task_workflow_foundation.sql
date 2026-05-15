@@ -139,6 +139,39 @@ CREATE TRIGGER trg_grant_details_updated_at
   BEFORE UPDATE ON public.grant_details
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 
+CREATE TABLE IF NOT EXISTS public.grant_reports (
+  id                   uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  created_at            timestamptz NOT NULL DEFAULT now(),
+  updated_at            timestamptz NOT NULL DEFAULT now(),
+
+  grant_id              uuid NOT NULL REFERENCES public.grant_details(id) ON DELETE CASCADE,
+  report_type           text NOT NULL DEFAULT 'progress',
+  report_date           date,
+  due_date              date,
+  received_at           timestamptz,
+  report_period_start   date,
+  report_period_end     date,
+  submitted_date        date,
+  document_url          text,
+  content               text,
+  attachments           jsonb,
+  notes                 text
+);
+
+CREATE INDEX IF NOT EXISTS idx_grant_reports_grant
+  ON public.grant_reports (grant_id);
+CREATE INDEX IF NOT EXISTS idx_grant_reports_due
+  ON public.grant_reports (due_date)
+  WHERE submitted_date IS NULL AND received_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_grant_reports_submitted
+  ON public.grant_reports (submitted_date DESC)
+  WHERE submitted_date IS NOT NULL;
+
+DROP TRIGGER IF EXISTS trg_grant_reports_updated_at ON public.grant_reports;
+CREATE TRIGGER trg_grant_reports_updated_at
+  BEFORE UPDATE ON public.grant_reports
+  FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+
 CREATE TABLE IF NOT EXISTS public.grant_milestones (
   id              uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
   created_at      timestamptz NOT NULL DEFAULT now(),
@@ -171,45 +204,6 @@ DROP TRIGGER IF EXISTS trg_grant_milestones_updated_at ON public.grant_milestone
 CREATE TRIGGER trg_grant_milestones_updated_at
   BEFORE UPDATE ON public.grant_milestones
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
-
--- 0009 created grant_reports against the older grants table. The active app
--- expects grant_reports.grant_id to reference grant_details.id, so reconcile it.
-ALTER TABLE public.grant_reports
-  DROP CONSTRAINT IF EXISTS grant_reports_grant_id_fkey;
-
-ALTER TABLE public.grant_reports
-  ALTER COLUMN report_date DROP NOT NULL,
-  ADD COLUMN IF NOT EXISTS report_period_start date,
-  ADD COLUMN IF NOT EXISTS report_period_end date,
-  ADD COLUMN IF NOT EXISTS submitted_date date,
-  ADD COLUMN IF NOT EXISTS document_url text;
-
-UPDATE public.grant_reports
-SET submitted_date = COALESCE(submitted_date, received_at::date)
-WHERE submitted_date IS NULL AND received_at IS NOT NULL;
-
-DO $$
-BEGIN
-  IF NOT EXISTS (
-    SELECT 1
-    FROM pg_constraint
-    WHERE conname = 'grant_reports_grant_details_fkey'
-  ) THEN
-    ALTER TABLE public.grant_reports
-      ADD CONSTRAINT grant_reports_grant_details_fkey
-      FOREIGN KEY (grant_id) REFERENCES public.grant_details(id)
-      ON DELETE CASCADE
-      NOT VALID;
-  END IF;
-END
-$$;
-
-CREATE INDEX IF NOT EXISTS idx_grant_reports_due
-  ON public.grant_reports (due_date)
-  WHERE submitted_date IS NULL;
-CREATE INDEX IF NOT EXISTS idx_grant_reports_submitted
-  ON public.grant_reports (submitted_date DESC)
-  WHERE submitted_date IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS public.grant_payments (
   id                uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -628,9 +622,10 @@ CREATE POLICY "task_comments: org members can comment"
 
 ALTER TABLE public.task_events ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "task_events: org admins can view" ON public.task_events;
-CREATE POLICY "task_events: org admins can view"
+DROP POLICY IF EXISTS "task_events: org members can view" ON public.task_events;
+CREATE POLICY "task_events: org members can view"
   ON public.task_events FOR SELECT
-  USING (public.is_org_admin(org_id));
+  USING (public.can_view_org(org_id));
 DROP POLICY IF EXISTS "task_events: service role can manage" ON public.task_events;
 CREATE POLICY "task_events: service role can manage"
   ON public.task_events FOR ALL TO service_role
@@ -649,6 +644,7 @@ CREATE POLICY "grant_details: portfolio members can manage"
   WITH CHECK (public.can_edit_portfolio((SELECT h.portfolio_id FROM public.holdings h WHERE h.id = holding_id)));
 
 ALTER TABLE public.grant_milestones ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.grant_reports ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "grant_milestones: inherit grant details view" ON public.grant_milestones;
 CREATE POLICY "grant_milestones: inherit grant details view"
   ON public.grant_milestones FOR SELECT
@@ -680,8 +676,6 @@ CREATE POLICY "grant_milestones: inherit grant details manage"
     ))
   );
 
-DROP POLICY IF EXISTS "grant_reports: inherit from grant" ON public.grant_reports;
-DROP POLICY IF EXISTS "grant_reports: portfolio members (member+) can manage" ON public.grant_reports;
 DROP POLICY IF EXISTS "grant_reports: inherit grant details view" ON public.grant_reports;
 CREATE POLICY "grant_reports: inherit grant details view"
   ON public.grant_reports FOR SELECT

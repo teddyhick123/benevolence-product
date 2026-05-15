@@ -127,10 +127,20 @@ CREATE TABLE IF NOT EXISTS contributions_received (
   -- Acknowledgment
   acknowledged_at     timestamptz,
   acknowledgment_sent boolean NOT NULL DEFAULT false,
+  quid_pro_quo_value  numeric(20,2) NOT NULL DEFAULT 0,
+  tax_deductible_amount numeric(20,2)
+                      GENERATED ALWAYS AS (GREATEST(amount - COALESCE(quid_pro_quo_value, 0), 0)) STORED,
+  receipt_number      text,
+  receipt_generated_at timestamptz,
+  receipt_sent_at     timestamptz,
+  receipt_status      text NOT NULL DEFAULT 'pending'
+                      CHECK (receipt_status IN ('pending', 'generated', 'sent')),
 
   -- External
   external_id         text,
   source_system       text,
+  payment_reference   text,
+  campaign            text,
   notes               text,
   receipt_url         text
 );
@@ -139,6 +149,32 @@ CREATE INDEX idx_contributions_received_org_id      ON contributions_received (o
 CREATE INDEX idx_contributions_received_donor_id    ON contributions_received (donor_id);
 CREATE INDEX idx_contributions_received_date        ON contributions_received (contribution_date DESC);
 CREATE INDEX idx_contributions_received_fund        ON contributions_received (fund_designation) WHERE fund_designation IS NOT NULL;
+CREATE INDEX idx_contributions_received_receipt_status
+  ON contributions_received (org_id, receipt_status)
+  WHERE receipt_status != 'sent';
+CREATE UNIQUE INDEX idx_contributions_received_receipt_number
+  ON contributions_received (org_id, receipt_number)
+  WHERE receipt_number IS NOT NULL;
+
+CREATE SEQUENCE IF NOT EXISTS receipt_number_seq;
+
+CREATE OR REPLACE FUNCTION generate_receipt_number(p_org_id uuid)
+RETURNS text
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  IF auth.uid() IS NOT NULL AND NOT can_edit_org(p_org_id) THEN
+    RAISE EXCEPTION 'Not authorized';
+  END IF;
+
+  RETURN 'R-' || to_char(now(), 'YYYY') || '-' ||
+    lpad(nextval('receipt_number_seq')::text, 6, '0');
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION generate_receipt_number(uuid) TO authenticated;
+GRANT EXECUTE ON FUNCTION generate_receipt_number(uuid) TO service_role;
 
 CREATE TRIGGER trg_contributions_received_updated_at
   BEFORE UPDATE ON contributions_received
@@ -217,3 +253,7 @@ CREATE POLICY "contributions_received: org members (member+) can manage"
   ON contributions_received FOR ALL
   USING (can_edit_org(org_id) AND org_has_module(org_id, 'donors'))
   WITH CHECK (can_edit_org(org_id) AND org_has_module(org_id, 'donors'));
+
+CREATE POLICY "contributions_received: service role"
+  ON contributions_received FOR ALL TO service_role
+  USING (true) WITH CHECK (true);

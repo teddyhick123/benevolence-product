@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createServerClient } from '@/lib/supabase';
+import { createServerClient, createAdminClient } from '@/lib/supabase';
+import { completeGeneratedTasks, cancelGeneratedTasks } from '@/lib/tasks/automation/task-writer';
 
 export const dynamic = 'force-dynamic';
 
@@ -148,6 +149,26 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    // Fire-and-forget: sync task state with the new filing status
+    const newStatus = updates.status as string | undefined;
+    if (newStatus && ['filed', 'waived', 'not_applicable'].includes(newStatus)) {
+      (async () => {
+        try {
+          const adminDb = createAdminClient();
+          const sourcePrefix = `filing:${id}:`;
+          if (newStatus === 'filed') {
+            await completeGeneratedTasks(adminDb, orgId, sourcePrefix, 'Filing marked as filed');
+          } else if (newStatus === 'waived') {
+            await cancelGeneratedTasks(adminDb, orgId, sourcePrefix, 'Filing waived');
+          } else if (newStatus === 'not_applicable') {
+            await cancelGeneratedTasks(adminDb, orgId, sourcePrefix, 'Filing marked not applicable');
+          }
+        } catch (err) {
+          console.warn('[task-hook] Failed to update compliance filing tasks:', err);
+        }
+      })();
     }
 
     return NextResponse.json({ data });

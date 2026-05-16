@@ -52,7 +52,7 @@ export async function pledgeFollowUpProducer(
 
   // Query all pending installments that are either overdue OR due within the window.
   // pledge_installments has org_id directly, so we don't need a join for org scoping.
-  // We join pledges to get relationship_manager and portfolio_id.
+  // We join pledges to get relationship_manager (pledges has no portfolio_id).
   const { data: installments, error: fetchError } = await db
     .from('pledge_installments')
     .select(`
@@ -64,7 +64,6 @@ export async function pledgeFollowUpProducer(
       status,
       pledges!inner (
         id,
-        portfolio_id,
         relationship_manager,
         donor_id
       )
@@ -97,7 +96,6 @@ export async function pledgeFollowUpProducer(
     const amount = inst.amount as number;
     const pledge = inst.pledges as unknown as {
       id: string;
-      portfolio_id: string | null;
       relationship_manager: string | null;
       donor_id: string;
     };
@@ -127,7 +125,7 @@ export async function pledgeFollowUpProducer(
 
         const task: UpsertGeneratedTaskInput = {
           orgId,
-          portfolioId: pledge.portfolio_id ?? null,
+          portfolioId: null,
           sourceKey: `pledge_installment:${instId}:overdue`,
           title: `Overdue pledge installment — $${amount.toLocaleString()}`,
           description: `Pledge installment of $${amount.toLocaleString()} was due on ${dueDate} and is now ${daysOverdue} day${daysOverdue === 1 ? '' : 's'} overdue. Follow up with the donor to collect or resolve this installment.`,
@@ -164,7 +162,7 @@ export async function pledgeFollowUpProducer(
 
         const task: UpsertGeneratedTaskInput = {
           orgId,
-          portfolioId: pledge.portfolio_id ?? null,
+          portfolioId: null,
           sourceKey: `pledge_installment:${instId}:due_soon`,
           title: `Pledge installment due soon — $${amount.toLocaleString()}`,
           description: `Pledge installment of $${amount.toLocaleString()} is due on ${dueDate} (${daysUntilDue} day${daysUntilDue === 1 ? '' : 's'} away). Ensure payment is collected or contact the donor to confirm.`,

@@ -144,6 +144,7 @@ export async function pledgeFollowUpProducer(
           links: [
             { entityType: 'pledge_installment', entityId: instId, relationship: 'primary' },
             { entityType: 'pledge', entityId: pledgeId, relationship: 'context' },
+            { entityType: 'donor', entityId: pledge.donor_id, relationship: 'context' },
           ],
           reopenResolved: false,
         };
@@ -181,6 +182,7 @@ export async function pledgeFollowUpProducer(
           links: [
             { entityType: 'pledge_installment', entityId: instId, relationship: 'primary' },
             { entityType: 'pledge', entityId: pledgeId, relationship: 'context' },
+            { entityType: 'donor', entityId: pledge.donor_id, relationship: 'context' },
           ],
           reopenResolved: false,
         };

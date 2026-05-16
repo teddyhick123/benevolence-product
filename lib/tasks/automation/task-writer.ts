@@ -4,11 +4,31 @@ import { UpsertGeneratedTaskInput, TaskLink } from './types';
 
 export type UpsertResult = 'created' | 'updated' | 'skipped';
 
+async function validateAssignee(
+  db: SupabaseClient,
+  orgId: string,
+  userId: string | null
+): Promise<string | null> {
+  if (!userId) return null;
+  const { data } = await db
+    .from('organization_members')
+    .select('user_id')
+    .eq('org_id', orgId)
+    .eq('user_id', userId)
+    .maybeSingle();
+  if (!data) {
+    console.warn(`[task-writer] assignedTo ${userId} is not a member of org ${orgId} — clearing assignment`);
+    return null;
+  }
+  return userId;
+}
+
 export async function upsertGeneratedTask(
   db: SupabaseClient,
   input: UpsertGeneratedTaskInput
 ): Promise<UpsertResult> {
   const now = new Date().toISOString();
+  const resolvedAssignedTo = await validateAssignee(db, input.orgId, input.assignedTo ?? null);
 
   const { data: existing } = await db
     .from('tasks')
@@ -32,7 +52,7 @@ export async function upsertGeneratedTask(
         source: 'automation',
         source_key: input.sourceKey,
         due_at: input.dueAt ?? null,
-        assigned_to: input.assignedTo ?? null,
+        assigned_to: resolvedAssignedTo,
         metadata: { ...input.metadata, generated_at: now },
       })
       .select('id')
@@ -82,9 +102,9 @@ export async function upsertGeneratedTask(
     events.push({ event_type: 'due_date_changed', before_values: { due_at: existing.due_at }, after_values: { due_at: input.dueAt ?? null } });
     patch.due_at = input.dueAt ?? null;
   }
-  if ((existing.assigned_to ?? null) !== (input.assignedTo ?? null)) {
-    events.push({ event_type: 'assigned', before_values: { assigned_to: existing.assigned_to }, after_values: { assigned_to: input.assignedTo ?? null } });
-    patch.assigned_to = input.assignedTo ?? null;
+  if ((existing.assigned_to ?? null) !== resolvedAssignedTo) {
+    events.push({ event_type: 'assigned', before_values: { assigned_to: existing.assigned_to }, after_values: { assigned_to: resolvedAssignedTo } });
+    patch.assigned_to = resolvedAssignedTo;
   }
 
   await db.from('tasks').update(patch).eq('id', existing.id);

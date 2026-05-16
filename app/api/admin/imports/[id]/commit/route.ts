@@ -6,6 +6,7 @@ import { createAdminClient, createServerClient } from '@/lib/supabase';
 import { loadStagingToProduction } from '@/lib/import/loader';
 import type { ImportJob } from '@/lib/import/types';
 import { requireAdmin } from '@/lib/admin-auth';
+import { completeGeneratedTasks } from '@/lib/tasks/automation/task-writer';
 
 export async function POST(
   _req: NextRequest,
@@ -76,6 +77,9 @@ export async function POST(
   if (updateError) {
     return NextResponse.json({ error: updateError.message }, { status: 500 });
   }
+
+  // Fire-and-forget: close the automation approval task now that the job is committed
+  completeGeneratedTasks(supabase, job.org_id, `import_job:${id}:approval`, 'Import job committed successfully').catch(() => {});
 
   // Fire-and-forget: clean up staging PII from jobs older than 30 days
   supabase.rpc('cleanup_staging_pii', { retention_days: 30 }).then(

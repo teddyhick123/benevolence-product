@@ -25,6 +25,9 @@ const pledgesSrc = read('lib/tasks/automation/producers/pledges.ts');
 const grantsSrc = read('lib/tasks/automation/producers/grants.ts');
 const importsSrc = read('lib/tasks/automation/producers/imports.ts');
 const generateSrc = read('app/api/jobs/tasks/generate/route.ts');
+const filingCalendarRouteSrc = read('app/api/org/[orgId]/compliance/filing-calendar/route.ts');
+const installmentRouteSrc = read('app/api/org/[orgId]/pledges/[pledgeId]/installments/[installmentId]/route.ts');
+const pledgeCancelRouteSrc = read('app/api/org/[orgId]/pledges/[pledgeId]/cancel/route.ts');
 
 // ---------------------------------------------------------------------------
 // 1. Active producer tables exist in migrations
@@ -213,7 +216,28 @@ describe('Job route security', () => {
 });
 
 // ---------------------------------------------------------------------------
-// 8. Reports stub is safe (returns empty array, does not error)
+// 8. Source hook cancel prefix safety in mutation routes
+// ---------------------------------------------------------------------------
+describe('Source hook cancel prefix safety', () => {
+  it('filing-calendar PATCH route uses prefix form for cancelGeneratedTasks', () => {
+    expect(filingCalendarRouteSrc).toMatch(/cancelGeneratedTasks[^`]*`filing:\${[^}]+}:`/);
+  });
+
+  it('installment route uses prefix form for completeGeneratedTasks on pay', () => {
+    expect(installmentRouteSrc).toMatch(/completeGeneratedTasks[^`]*`pledge_installment:\${[^}]+}:`/);
+  });
+
+  it('installment route uses prefix form for cancelGeneratedTasks on waive/write_off', () => {
+    expect(installmentRouteSrc).toMatch(/cancelGeneratedTasks[^`]*`pledge_installment:\${[^}]+}:`/);
+  });
+
+  it('pledge cancel route uses prefix form for cancelGeneratedTasks', () => {
+    expect(pledgeCancelRouteSrc).toMatch(/cancelGeneratedTasks[^`]*`pledge_installment:\${[^}]+}:`/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 9. Reports stub is safe (returns empty array, does not error)
 // ---------------------------------------------------------------------------
 describe('Reports producer stub', () => {
   it('reports producer exports reportApprovalsProducer', async () => {

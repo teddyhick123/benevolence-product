@@ -11,7 +11,11 @@ interface RouteParams {
 
 const notificationPrefsSchema = z.object({
   digest: z.enum(['daily', 'weekly', 'never']).optional(),
-  alerts: z.array(z.string()).optional(),
+  channels: z.object({
+    in_app: z.boolean().optional(),
+    email: z.boolean().optional(),
+  }).optional(),
+  alerts: z.record(z.string(), z.boolean()).optional(),
 });
 
 export async function PATCH(req: NextRequest, { params }: RouteParams) {

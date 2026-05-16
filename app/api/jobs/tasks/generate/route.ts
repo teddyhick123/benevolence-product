@@ -109,7 +109,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         .eq('id', runId);
     }
 
-    return NextResponse.json({ ok: true, run_id: runId, results });
+    return NextResponse.json({ ok: true, run_id: dry_run ? null : runId, results });
   } catch (err: any) {
     if (!dry_run) {
       await db

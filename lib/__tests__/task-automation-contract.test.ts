@@ -1,0 +1,230 @@
+// lib/__tests__/task-automation-contract.test.ts
+import { describe, it, expect } from 'vitest';
+import { readFileSync, readdirSync } from 'fs';
+import { join } from 'path';
+
+const ROOT = process.cwd(); // project root when vitest runs
+
+function read(relPath: string): string {
+  return readFileSync(join(ROOT, relPath), 'utf8');
+}
+
+function readMigrations(): string {
+  const migDir = join(ROOT, 'db/migrations');
+  return readdirSync(migDir)
+    .filter(f => f.endsWith('.sql'))
+    .map(f => readFileSync(join(migDir, f), 'utf8'))
+    .join('\n');
+}
+
+const migrations = readMigrations();
+const typesSrc = read('lib/tasks/automation/types.ts');
+const writerSrc = read('lib/tasks/automation/task-writer.ts');
+const complianceSrc = read('lib/tasks/automation/producers/compliance.ts');
+const pledgesSrc = read('lib/tasks/automation/producers/pledges.ts');
+const grantsSrc = read('lib/tasks/automation/producers/grants.ts');
+const importsSrc = read('lib/tasks/automation/producers/imports.ts');
+const generateSrc = read('app/api/jobs/tasks/generate/route.ts');
+
+// ---------------------------------------------------------------------------
+// 1. Active producer tables exist in migrations
+// ---------------------------------------------------------------------------
+describe('Active producer tables exist in migrations', () => {
+  const ACTIVE_PRODUCER_TABLES = [
+    'filing_calendar',
+    'state_registrations',
+    'pledge_installments',
+    'pledges',
+    'grant_milestones',
+    'grant_reports',
+    'grant_payments',
+    'grant_details',
+    'import_jobs',
+    'task_automation_runs',
+  ];
+
+  for (const table of ACTIVE_PRODUCER_TABLES) {
+    it(`table "${table}" is defined in migrations`, () => {
+      // Check for CREATE TABLE or CREATE TABLE IF NOT EXISTS
+      const pattern = new RegExp(`CREATE TABLE\\s+(IF NOT EXISTS\\s+)?\\w*\\.?${table}\\s*\\(`, 'i');
+      expect(pattern.test(migrations)).toBe(true);
+    });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// 2. TASK_ENTITY_TYPES covers all entity types used in producers
+// ---------------------------------------------------------------------------
+describe('TASK_ENTITY_TYPES covers all entity types used in producers', () => {
+  const REQUIRED_ENTITY_TYPES = [
+    'filing',
+    'state_registration',
+    'pledge_installment',
+    'pledge',
+    'grant_milestone',
+    'grant_report',
+    'grant_payment',
+    'import_job',
+  ];
+
+  for (const entityType of REQUIRED_ENTITY_TYPES) {
+    it(`TASK_ENTITY_TYPES includes '${entityType}'`, () => {
+      expect(typesSrc).toContain(`'${entityType}'`);
+    });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// 3. Source key patterns follow the required format
+// ---------------------------------------------------------------------------
+describe('Source key patterns', () => {
+  it('pledge producer uses pledge_installment:{id}:due_soon pattern', () => {
+    expect(pledgesSrc).toMatch(/`pledge_installment:\${.*}:due_soon`/);
+  });
+
+  it('pledge producer uses pledge_installment:{id}:overdue pattern', () => {
+    expect(pledgesSrc).toMatch(/`pledge_installment:\${.*}:overdue`/);
+  });
+
+  it('compliance producer uses filing:{id}:reminder pattern', () => {
+    expect(complianceSrc).toMatch(/`filing:\${.*}:reminder`/);
+  });
+
+  it('compliance producer uses filing:{id}:overdue pattern', () => {
+    expect(complianceSrc).toMatch(/`filing:\${.*}:overdue`/);
+  });
+
+  it('compliance producer uses state_registration:{id}:renewal_reminder pattern', () => {
+    expect(complianceSrc).toMatch(/`state_registration:\${.*}:renewal_reminder`/);
+  });
+
+  it('grant producer uses grant_milestone:{id}:upcoming pattern', () => {
+    expect(grantsSrc).toMatch(/`grant_milestone:\${.*}:upcoming`/);
+  });
+
+  it('grant producer uses grant_milestone:{id}:overdue pattern', () => {
+    expect(grantsSrc).toMatch(/`grant_milestone:\${.*}:overdue`/);
+  });
+
+  it('grant producer uses grant_report:{id}:due_soon pattern', () => {
+    expect(grantsSrc).toMatch(/`grant_report:\${.*}:due_soon`/);
+  });
+
+  it('grant producer uses grant_payment:{id}:conditions_pending pattern', () => {
+    expect(grantsSrc).toMatch(/`grant_payment:\${.*}:conditions_pending`/);
+  });
+
+  it('import producer uses import_job:{id}:errors pattern', () => {
+    expect(importsSrc).toMatch(/`import_job:\${.*}:errors`/);
+  });
+
+  it('import producer uses import_job:{id}:needs_approval pattern', () => {
+    expect(importsSrc).toMatch(/`import_job:\${.*}:needs_approval`/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 4. Grant producers do NOT use direct org_id filter on scoped tables
+// ---------------------------------------------------------------------------
+describe('Grant producer org scoping', () => {
+  it('grant producer does not filter grant_milestones directly by org_id', () => {
+    // Should NOT have .eq('org_id' immediately after .from('grant_milestones')
+    // A direct org_id filter on this table would be wrong — must join via grant_details
+    expect(grantsSrc).not.toMatch(/from\(['"]grant_milestones['"]\)[^)]*\.eq\(['"]org_id['"]/);
+  });
+
+  it('grant producer does not filter grant_payments directly by org_id', () => {
+    expect(grantsSrc).not.toMatch(/from\(['"]grant_payments['"]\)[^)]*\.eq\(['"]org_id['"]/);
+  });
+
+  it('grant producer does not filter grant_reports directly by org_id', () => {
+    expect(grantsSrc).not.toMatch(/from\(['"]grant_reports['"]\)[^)]*\.eq\(['"]org_id['"]/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 5. Task writer prefix safety
+//
+// completeGeneratedTasks / cancelGeneratedTasks must use prefix form (trailing
+// colon) when closing ALL tasks for a source record, OR must use an exact
+// scoped source key (entity_type:{id}:event_name).
+//
+// Compliance and grants use the prefix form (filing:{id}:, grant_milestone:{id}:)
+// to close all open tasks for a source when transitioning state.
+//
+// Pledges uses an exact key (pledge_installment:{id}:due_soon) to close only
+// the due_soon task when an installment transitions to overdue — this is also
+// correct and safe because the key is fully scoped.
+//
+// Imports uses the prefix form (import_job:{id}:) for terminal cancellation.
+// ---------------------------------------------------------------------------
+describe('Task writer prefix safety in producers', () => {
+  it('pledge producer targets pledge_installment source key when completing tasks', () => {
+    // Pledge producer completes the exact due_soon key (scoped to a single installment)
+    // before creating an overdue task — this is safe because it has 2 colons minimum.
+    expect(pledgesSrc).toMatch(/completeGeneratedTasks[^`]*`pledge_installment:\${[^}]+}:due_soon`/);
+  });
+
+  it('compliance producer uses prefix form for filing complete', () => {
+    expect(complianceSrc).toMatch(/completeGeneratedTasks[^`]*`filing:\${[^}]+}:`/);
+  });
+
+  it('grant producer uses prefix form for grant_milestone complete', () => {
+    expect(grantsSrc).toMatch(/completeGeneratedTasks[^`]*`grant_milestone:\${[^}]+}:`/);
+  });
+
+  it('import producer uses prefix form for import_job cancel', () => {
+    expect(importsSrc).toMatch(/cancelGeneratedTasks[^`]*`import_job:\${[^}]+}:`/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 6. Task writer prefix-safety guard exists
+// ---------------------------------------------------------------------------
+describe('Task writer prefix-safety guard', () => {
+  it('task-writer asserts minimum 2 colons on prefix calls', () => {
+    expect(writerSrc).toContain('assertPrefixSafe');
+    expect(writerSrc).toMatch(/colonCount\s*<\s*2/);
+  });
+
+  it('task-writer assertPrefixSafe is called in both completeGeneratedTasks and cancelGeneratedTasks', () => {
+    const assertCallCount = (writerSrc.match(/assertPrefixSafe\(/g) ?? []).length;
+    // At least called in completeGeneratedTasks and cancelGeneratedTasks
+    expect(assertCallCount).toBeGreaterThanOrEqual(2);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 7. Job route security
+// ---------------------------------------------------------------------------
+describe('Job route security', () => {
+  it('generate route checks x-job-secret header', () => {
+    expect(generateSrc).toContain('x-job-secret');
+    expect(generateSrc).toContain('CRON_SECRET');
+  });
+
+  it('generate route validates producer against PRODUCER_IDS', () => {
+    expect(generateSrc).toContain('PRODUCER_IDS');
+  });
+
+  it('generate route logs run to task_automation_runs', () => {
+    expect(generateSrc).toContain('task_automation_runs');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 8. Reports stub is safe (returns empty array, does not error)
+// ---------------------------------------------------------------------------
+describe('Reports producer stub', () => {
+  it('reports producer exports reportApprovalsProducer', async () => {
+    // Dynamic import — validates the module loads without errors
+    const mod = await import('../tasks/automation/producers/reports');
+    expect(typeof mod.reportApprovalsProducer).toBe('function');
+  });
+
+  it('reportApprovalsProducer returns an empty array', async () => {
+    const mod = await import('../tasks/automation/producers/reports');
+    const result = await mod.reportApprovalsProducer({});
+    expect(result).toEqual([]);
+  });
+});

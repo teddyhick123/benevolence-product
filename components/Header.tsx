@@ -4,6 +4,7 @@ import { useEffect, useState, useRef, Suspense } from "react";
 import { useSearchParams, usePathname } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 import { pickActiveOrg, setActiveOrgId } from "@/lib/org-cookie";
+import NotificationBell from "@/components/notifications/NotificationBell";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -16,6 +17,7 @@ function HeaderContent() {
   const [orgName, setOrgName] = useState<string | null>(null);
   const [orgModules, setOrgModules] = useState<Record<string, boolean>>({});
   const [allOrgs, setAllOrgs] = useState<Array<{ id: string; name: string }>>([]);
+  const [activeOrgId, setActiveOrgIdState] = useState<string | null>(null);
   const [orgSwitcherOpen, setOrgSwitcherOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const orgSwitcherRef = useRef<HTMLDivElement>(null);
@@ -63,6 +65,7 @@ function HeaderContent() {
           const activeOrg = pickActiveOrg(orgs);
           if (activeOrg?.modules) setOrgModules(activeOrg.modules);
           if (activeOrg?.name) setOrgName(activeOrg.name);
+          if (activeOrg?.id) setActiveOrgIdState(activeOrg.id);
         }
       } catch {
         // ignore
@@ -247,6 +250,9 @@ function HeaderContent() {
                 Sign out
               </button>
             </nav>
+
+            {/* Notification Bell */}
+            {activeOrgId && <NotificationBell orgId={activeOrgId} />}
 
             {/* Mobile Hamburger Button */}
             <button

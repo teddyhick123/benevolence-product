@@ -12,6 +12,8 @@ import { resolveRecipients, RecipientWithAlert } from './recipients';
 
 const LOG = '[notifications:fanout]';
 
+// 'digest_ready' is emitted by the digest job, not classified from task_events
+
 type FanOutResult = {
   taskEventId: string;
   created: number;

@@ -5,15 +5,15 @@ import { useState } from 'react';
 import { NOTIFICATION_ALERT_KEYS, NotificationAlertKey, NotificationPrefs, DEFAULT_NOTIFICATION_PREFS } from '@/lib/notifications/types';
 
 const ALERT_LABELS: Record<NotificationAlertKey, string> = {
-  assigned_to_me: 'Assigned to me',
-  due_soon: 'Task due soon (7 days)',
-  overdue: 'Overdue task',
-  approvals: 'Approval requests',
-  comments: 'Comments on my tasks',
-  mentions: 'Mentions',
-  automation_failures: 'Automation failures',
-  digest_summary: 'Digest summary email',
-  org_admin: 'Org-wide admin alerts',
+  'assigned_to_me': 'Assigned to me',
+  'due_soon': 'Task due soon (7 days)',
+  'overdue': 'Overdue task',
+  'approvals': 'Approval requests',
+  'comments': 'Comments on my tasks',
+  'mentions': 'Mentions',
+  'automation_failures': 'Automation failures',
+  'digest_summary': 'Digest summary email',
+  'org_admin': 'Org-wide admin alerts',
 };
 
 function mergeWithDefaults(raw: any): NotificationPrefs {

@@ -30,5 +30,19 @@ CREATE POLICY "org admins can read audit log"
 -- ---------------------------------------------------------------------------
 -- notification_prefs column on organization_members
 -- ---------------------------------------------------------------------------
-ALTER TABLE organization_members
-  ADD COLUMN IF NOT EXISTS notification_prefs jsonb NOT NULL DEFAULT '{"digest":"weekly","alerts":["member_joined","module_changed"]}';
+ALTER TABLE public.organization_members
+  ADD COLUMN IF NOT EXISTS notification_prefs jsonb NOT NULL DEFAULT '{
+    "digest": "weekly",
+    "channels": {"in_app": true, "email": true},
+    "alerts": {
+      "assigned_to_me": true,
+      "due_soon": true,
+      "overdue": true,
+      "approvals": true,
+      "comments": true,
+      "mentions": true,
+      "automation_failures": true,
+      "digest_summary": true,
+      "org_admin": false
+    }
+  }'::jsonb;

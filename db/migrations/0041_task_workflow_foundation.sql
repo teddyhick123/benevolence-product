@@ -462,27 +462,50 @@ CREATE TRIGGER trg_workflow_tasks_updated_at
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 
 CREATE TABLE IF NOT EXISTS public.notification_events (
-  id                 uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id                   uuid        PRIMARY KEY DEFAULT uuid_generate_v4(),
+  org_id               uuid        NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
+  recipient_user_id    uuid        NOT NULL REFERENCES auth.users(id),
+  task_id              uuid        REFERENCES public.tasks(id) ON DELETE CASCADE,
+  task_event_id        uuid        REFERENCES public.task_events(id) ON DELETE SET NULL,
+  actor_id             uuid        REFERENCES auth.users(id),
+  event_type           text        NOT NULL,
+  channel              text        NOT NULL CHECK (channel IN ('in_app', 'email', 'digest')),
+  status               text        NOT NULL DEFAULT 'pending'
+                                   CHECK (status IN ('pending', 'sent', 'failed', 'suppressed', 'cancelled')),
+  priority             text        NOT NULL DEFAULT 'normal'
+                                   CHECK (priority IN ('low', 'normal', 'high', 'urgent')),
+  dedupe_key           text        NOT NULL,
+  scheduled_for        timestamptz NOT NULL DEFAULT now(),
+  sent_at              timestamptz,
+  read_at              timestamptz,
+  delivery_attempts    int         NOT NULL DEFAULT 0,
+  last_attempt_at      timestamptz,
+  next_attempt_at      timestamptz,
+  error_message        text,
+  payload              jsonb       NOT NULL DEFAULT '{}'::jsonb,
   created_at           timestamptz NOT NULL DEFAULT now(),
-  org_id             uuid NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
-  recipient_user_id  uuid REFERENCES auth.users(id),
-  task_id            uuid REFERENCES public.tasks(id) ON DELETE CASCADE,
-  event_type         text NOT NULL,
-  channel            text NOT NULL CHECK (channel IN ('in_app', 'email', 'digest')),
-  status             text NOT NULL DEFAULT 'pending'
-                     CHECK (status IN ('pending', 'sent', 'failed', 'suppressed')),
-  scheduled_for      timestamptz NOT NULL DEFAULT now(),
-  sent_at            timestamptz,
-  error_message      text,
-  payload            jsonb NOT NULL DEFAULT '{}'::jsonb
+  updated_at           timestamptz NOT NULL DEFAULT now(),
+
+  CONSTRAINT uq_notification_dedupe UNIQUE (org_id, recipient_user_id, channel, dedupe_key)
 );
 
+-- Inbox query (unread first, recent)
+CREATE INDEX IF NOT EXISTS idx_notification_events_inbox
+  ON public.notification_events (recipient_user_id, status, created_at DESC);
+
+-- Pending send job
 CREATE INDEX IF NOT EXISTS idx_notification_events_pending
-  ON public.notification_events (scheduled_for)
+  ON public.notification_events (status, scheduled_for)
   WHERE status = 'pending';
-CREATE INDEX IF NOT EXISTS idx_notification_events_recipient
-  ON public.notification_events (recipient_user_id, created_at DESC)
-  WHERE recipient_user_id IS NOT NULL;
+
+-- Retry backoff query
+CREATE INDEX IF NOT EXISTS idx_notification_events_retry
+  ON public.notification_events (status, next_attempt_at)
+  WHERE status = 'failed';
+
+-- Task + event type lookup for fan-out dedup
+CREATE INDEX IF NOT EXISTS idx_notification_events_task_event
+  ON public.notification_events (org_id, task_id, event_type);
 
 -- ---------------------------------------------------------------------------
 -- Built-in workflow templates
@@ -808,15 +831,32 @@ CREATE POLICY "workflow_tasks: inherit workflow manage"
   WITH CHECK (public.is_org_admin((SELECT wi.org_id FROM public.workflow_instances wi WHERE wi.id = workflow_id)));
 
 ALTER TABLE public.notification_events ENABLE ROW LEVEL SECURITY;
+
 DROP POLICY IF EXISTS "notification_events: recipients can view" ON public.notification_events;
 CREATE POLICY "notification_events: recipients can view"
-  ON public.notification_events FOR SELECT
-  USING (recipient_user_id = auth.uid() AND public.can_view_org(org_id));
+  ON public.notification_events FOR SELECT TO authenticated
+  USING (
+    recipient_user_id = auth.uid()
+    AND public.can_view_org(org_id)
+  );
+
+DROP POLICY IF EXISTS "notification_events: recipients can mark read" ON public.notification_events;
+CREATE POLICY "notification_events: recipients can mark read"
+  ON public.notification_events FOR UPDATE TO authenticated
+  USING (recipient_user_id = auth.uid())
+  WITH CHECK (recipient_user_id = auth.uid());
+
 DROP POLICY IF EXISTS "notification_events: service role can manage" ON public.notification_events;
 CREATE POLICY "notification_events: service role can manage"
   ON public.notification_events FOR ALL TO service_role
-  USING (true)
-  WITH CHECK (true);
+  USING (true) WITH CHECK (true);
+
+GRANT SELECT, UPDATE ON public.notification_events TO authenticated;
+GRANT ALL ON public.notification_events TO service_role;
+
+CREATE TRIGGER trg_notification_events_updated_at
+  BEFORE UPDATE ON public.notification_events
+  FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 
 -- ---------------------------------------------------------------------------
 -- Grant reporting views and deadline function expected by current UI

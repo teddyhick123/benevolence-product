@@ -28,6 +28,8 @@ const generateSrc = read('app/api/jobs/tasks/generate/route.ts');
 const filingCalendarRouteSrc = read('app/api/org/[orgId]/compliance/filing-calendar/route.ts');
 const installmentRouteSrc = read('app/api/org/[orgId]/pledges/[pledgeId]/installments/[installmentId]/route.ts');
 const pledgeCancelRouteSrc = read('app/api/org/[orgId]/pledges/[pledgeId]/cancel/route.ts');
+const milestoneRouteSrc = read('app/api/portfolio/[id]/holdings/[holdingId]/milestones/[milestoneId]/route.ts');
+const importCommitRouteSrc = read('app/api/admin/imports/[id]/commit/route.ts');
 
 // ---------------------------------------------------------------------------
 // 1. Active producer tables exist in migrations
@@ -97,32 +99,36 @@ describe('Source key patterns', () => {
     expect(complianceSrc).toMatch(/`filing:\${.*}:overdue`/);
   });
 
-  it('compliance producer uses state_registration:{id}:renewal_reminder pattern', () => {
-    expect(complianceSrc).toMatch(/`state_registration:\${.*}:renewal_reminder`/);
+  it('compliance producer uses state_registration:{id}:renewal pattern', () => {
+    expect(complianceSrc).toMatch(/`state_registration:\${.*}:renewal`/);
   });
 
-  it('grant producer uses grant_milestone:{id}:upcoming pattern', () => {
-    expect(grantsSrc).toMatch(/`grant_milestone:\${.*}:upcoming`/);
+  it('grant producer uses grant_milestone:{id}:due pattern', () => {
+    expect(grantsSrc).toMatch(/`grant_milestone:\${.*}:due`/);
   });
 
-  it('grant producer uses grant_milestone:{id}:overdue pattern', () => {
-    expect(grantsSrc).toMatch(/`grant_milestone:\${.*}:overdue`/);
+  it('grant producer uses grant_report:{id}:due pattern', () => {
+    expect(grantsSrc).toMatch(/`grant_report:\${.*}:due`/);
   });
 
-  it('grant producer uses grant_report:{id}:due_soon pattern', () => {
-    expect(grantsSrc).toMatch(/`grant_report:\${.*}:due_soon`/);
+  it('grant producer uses grant_payment:{id}:conditions pattern', () => {
+    expect(grantsSrc).toMatch(/`grant_payment:\${.*}:conditions`/);
   });
 
-  it('grant producer uses grant_payment:{id}:conditions_pending pattern', () => {
-    expect(grantsSrc).toMatch(/`grant_payment:\${.*}:conditions_pending`/);
+  it('import producer uses import_job:{id}:review_errors pattern', () => {
+    expect(importsSrc).toMatch(/`import_job:\${.*}:review_errors`/);
   });
 
-  it('import producer uses import_job:{id}:errors pattern', () => {
-    expect(importsSrc).toMatch(/`import_job:\${.*}:errors`/);
+  it('import producer uses import_job:{id}:approval pattern', () => {
+    expect(importsSrc).toMatch(/`import_job:\${.*}:approval`/);
   });
 
-  it('import producer uses import_job:{id}:needs_approval pattern', () => {
-    expect(importsSrc).toMatch(/`import_job:\${.*}:needs_approval`/);
+  it('compliance producer uses extension_due_date for extended filings', () => {
+    expect(complianceSrc).toContain('extension_due_date');
+  });
+
+  it('pledge producer includes donor context link', () => {
+    expect(pledgesSrc).toContain("entityType: 'donor'");
   });
 });
 
@@ -172,12 +178,20 @@ describe('Task writer prefix safety in producers', () => {
     expect(complianceSrc).toMatch(/completeGeneratedTasks[^`]*`filing:\${[^}]+}:`/);
   });
 
-  it('grant producer uses prefix form for grant_milestone complete', () => {
-    expect(grantsSrc).toMatch(/completeGeneratedTasks[^`]*`grant_milestone:\${[^}]+}:`/);
-  });
-
   it('import producer uses prefix form for import_job cancel', () => {
     expect(importsSrc).toMatch(/cancelGeneratedTasks[^`]*`import_job:\${[^}]+}:`/);
+  });
+
+  it('milestone route uses prefix form for completeGeneratedTasks on milestone complete', () => {
+    expect(milestoneRouteSrc).toMatch(/completeGeneratedTasks[^`]*`grant_milestone:\${[^}]+}:`/);
+  });
+
+  it('milestone route uses prefix form for cancelGeneratedTasks on milestone cancel', () => {
+    expect(milestoneRouteSrc).toMatch(/cancelGeneratedTasks[^`]*`grant_milestone:\${[^}]+}:`/);
+  });
+
+  it('import commit route completes import_job approval task on commit', () => {
+    expect(importCommitRouteSrc).toMatch(/completeGeneratedTasks[^`]*`import_job:\${[^}]+}:approval`/);
   });
 });
 
@@ -250,5 +264,52 @@ describe('Reports producer stub', () => {
     const mod = await import('../tasks/automation/producers/reports');
     const result = await mod.reportApprovalsProducer({});
     expect(result).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 10. Task type conformance in producers
+// ---------------------------------------------------------------------------
+describe('Task type conformance', () => {
+  it('grant producer uses task_type review for milestones', () => {
+    expect(grantsSrc).toContain("taskType: 'review'");
+  });
+
+  it('grant producer uses task_type approval for payments', () => {
+    expect(grantsSrc).toContain("taskType: 'approval'");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 11. Compliance escalation state naming conformance
+// ---------------------------------------------------------------------------
+describe('Compliance escalation state naming', () => {
+  it('uses spec escalation states for filing reminders', () => {
+    expect(complianceSrc).toContain("'reminder_7'");
+    expect(complianceSrc).toContain("'reminder_14'");
+    expect(complianceSrc).toContain("'reminder_30'");
+  });
+
+  it('uses spec escalation states for filing overdue', () => {
+    expect(complianceSrc).toContain("'overdue_1'");
+    expect(complianceSrc).toContain("'overdue_7'");
+    expect(complianceSrc).toContain("'overdue_30'");
+  });
+
+  it('uses spec escalation states for state registrations', () => {
+    expect(complianceSrc).toContain("'renewal_60'");
+    expect(complianceSrc).toContain("'renewal_30'");
+    expect(complianceSrc).toContain("'renewal_14'");
+    expect(complianceSrc).toContain("'renewal_7'");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 12. Assignment validation in task-writer
+// ---------------------------------------------------------------------------
+describe('Assignment validation', () => {
+  it('task writer validates assignee against org membership', () => {
+    expect(writerSrc).toContain('organization_members');
+    expect(writerSrc).toContain('validateAssignee');
   });
 });

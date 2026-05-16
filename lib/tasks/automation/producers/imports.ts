@@ -53,7 +53,7 @@ export async function importReviewProducer(
       'id, org_id, entity_type, status, total_rows, processed_rows, approved_rows, rejected_rows, error_rows, error_message, reviewed_by, created_at'
     )
     .eq('org_id', orgId)
-    .not('status', 'in', '("completed")')
+    .not('status', 'in', '(completed)')
     .order('created_at', { ascending: false });
 
   if (jobsError) {
@@ -97,6 +97,8 @@ export async function importReviewProducer(
             'Import job failed or was rejected'
           );
           result.completed += cancelled;
+        } else {
+          result.skipped++;
         }
         // Do NOT upsert new tasks for failed/rejected jobs
         continue;

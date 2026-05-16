@@ -106,8 +106,7 @@ export async function complianceDeadlinesProducer(
 
       const dueDateMs = new Date(effectiveDueDate).getTime();
       const nowMs = now.getTime();
-      const diffMs = dueDateMs - nowMs;
-      const diffDays = diffMs / (1000 * 60 * 60 * 24);
+      const diffDays = (dueDateMs - nowMs) / (1000 * 60 * 60 * 24);
 
       const isOverdue = effectiveDueDate < today;
 

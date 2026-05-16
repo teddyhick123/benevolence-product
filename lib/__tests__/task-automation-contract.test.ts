@@ -107,6 +107,14 @@ describe('Source key patterns', () => {
     expect(grantsSrc).toMatch(/`grant_milestone:\${.*}:due`/);
   });
 
+  it('grant producer does not use stale grant_milestone:{id}:upcoming key', () => {
+    expect(grantsSrc).not.toMatch(/`grant_milestone:\${.*}:upcoming`/);
+  });
+
+  it('grant producer does not use stale grant_milestone:{id}:overdue key', () => {
+    expect(grantsSrc).not.toMatch(/`grant_milestone:\${.*}:overdue`/);
+  });
+
   it('grant producer uses grant_report:{id}:due pattern', () => {
     expect(grantsSrc).toMatch(/`grant_report:\${.*}:due`/);
   });
@@ -285,22 +293,22 @@ describe('Task type conformance', () => {
 // ---------------------------------------------------------------------------
 describe('Compliance escalation state naming', () => {
   it('uses spec escalation states for filing reminders', () => {
-    expect(complianceSrc).toContain("'reminder_7'");
-    expect(complianceSrc).toContain("'reminder_14'");
-    expect(complianceSrc).toContain("'reminder_30'");
+    expect(complianceSrc).toMatch(/escalation_state:\s*'reminder_7'/);
+    expect(complianceSrc).toMatch(/escalation_state:\s*'reminder_14'/);
+    expect(complianceSrc).toMatch(/escalation_state:\s*'reminder_30'/);
   });
 
   it('uses spec escalation states for filing overdue', () => {
-    expect(complianceSrc).toContain("'overdue_1'");
-    expect(complianceSrc).toContain("'overdue_7'");
-    expect(complianceSrc).toContain("'overdue_30'");
+    expect(complianceSrc).toMatch(/escalation_state:\s*'overdue_1'/);
+    expect(complianceSrc).toMatch(/escalation_state:\s*'overdue_7'/);
+    expect(complianceSrc).toMatch(/escalation_state:\s*'overdue_30'/);
   });
 
   it('uses spec escalation states for state registrations', () => {
-    expect(complianceSrc).toContain("'renewal_60'");
-    expect(complianceSrc).toContain("'renewal_30'");
-    expect(complianceSrc).toContain("'renewal_14'");
-    expect(complianceSrc).toContain("'renewal_7'");
+    expect(complianceSrc).toMatch(/escalation_state:\s*'renewal_60'/);
+    expect(complianceSrc).toMatch(/escalation_state:\s*'renewal_30'/);
+    expect(complianceSrc).toMatch(/escalation_state:\s*'renewal_14'/);
+    expect(complianceSrc).toMatch(/escalation_state:\s*'renewal_7'/);
   });
 });
 
@@ -310,6 +318,6 @@ describe('Compliance escalation state naming', () => {
 describe('Assignment validation', () => {
   it('task writer validates assignee against org membership', () => {
     expect(writerSrc).toContain('organization_members');
-    expect(writerSrc).toContain('validateAssignee');
+    expect(writerSrc).toMatch(/await validateAssignee\(db,/);
   });
 });

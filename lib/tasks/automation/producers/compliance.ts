@@ -7,7 +7,7 @@
 // Source key formats:
 //   Filing reminder:      filing:{id}:reminder
 //   Filing overdue:       filing:{id}:overdue
-//   State reg reminder:   state_registration:{id}:renewal_reminder
+//   State reg reminder/overdue: state_registration:{id}:renewal
 //
 // Prefix for closing all tasks for a filing: filing:{id}:
 // Prefix for closing all tasks for a state reg: state_registration:{id}:
@@ -23,10 +23,6 @@ const DEFAULT_REMINDER_DAYS = [30, 14, 7];
 
 // State registrations: start generating renewal tasks 60 days out
 const STATE_REG_REMINDER_DAYS = 60;
-// Urgency threshold for state registrations
-const STATE_REG_HIGH_PRIORITY_DAYS = 30;
-const STATE_REG_URGENT_DAYS = 14;
-
 // Non-actionable statuses — we skip these
 const FILING_TERMINAL_STATUSES = ['filed', 'waived', 'not_applicable'];
 // Statuses we query for
@@ -73,7 +69,7 @@ export async function complianceDeadlinesProducer(
 
   const { data: filings, error: filingsError } = await db
     .from('filing_calendar')
-    .select('id, org_id, title, filing_type, due_date, status, reminder_days, jurisdiction')
+    .select('id, org_id, title, filing_type, due_date, extension_due_date, status, reminder_days, jurisdiction')
     .eq('org_id', orgId)
     .in('status', FILING_ACTIVE_STATUSES)
     .lte('due_date', filingHorizonStr)
@@ -100,15 +96,20 @@ export async function complianceDeadlinesProducer(
       const filingType = filing.filing_type as string;
       const jurisdiction = (filing.jurisdiction as string | null) ?? '';
 
+      // When the filing has been extended, use extension_due_date as the deadline
+      const extensionDueDate = (filing.extension_due_date as string | null) ?? null;
+      const effectiveDueDate: string =
+        status === 'extended' && extensionDueDate ? extensionDueDate : dueDate;
+
       // Max reminder window for this entry
       const maxReminderDays = reminderDays.length > 0 ? Math.max(...reminderDays) : 30;
 
-      const dueDateMs = new Date(dueDate).getTime();
+      const dueDateMs = new Date(effectiveDueDate).getTime();
       const nowMs = now.getTime();
       const diffMs = dueDateMs - nowMs;
       const diffDays = diffMs / (1000 * 60 * 60 * 24);
 
-      const isOverdue = dueDate < today;
+      const isOverdue = effectiveDueDate < today;
 
       try {
         if (isOverdue) {
@@ -125,33 +126,41 @@ export async function complianceDeadlinesProducer(
 
           const daysOverdue = Math.ceil((nowMs - dueDateMs) / (1000 * 60 * 60 * 24));
 
-          const task: UpsertGeneratedTaskInput = {
+          const filingOverdueBase = {
             orgId,
-            portfolioId: null,
+            portfolioId: null as null,
             sourceKey: `filing:${filingId}:overdue`,
             title: `Overdue filing — ${title}`,
             description:
               `The ${filingType.replace(/_/g, ' ')} filing "${title}"` +
               (jurisdiction ? ` (${jurisdiction})` : '') +
-              ` was due on ${dueDate} and is now ${daysOverdue} day${daysOverdue === 1 ? '' : 's'} overdue.` +
+              ` was due on ${effectiveDueDate} and is now ${daysOverdue} day${daysOverdue === 1 ? '' : 's'} overdue.` +
               ` File immediately or document the resolution (waiver, extension, etc.).`,
-            taskType: 'reminder',
-            priority: 'urgent',
-            dueAt: dueDate,
-            assignedTo: null,
-            metadata: {
-              producer: PRODUCER_ID,
-              reason: 'overdue',
-              source_status: status,
-              escalation_state: 'overdue',
-              days_overdue: daysOverdue,
-              filing_type: filingType,
-              jurisdiction,
-              generated_at: generatedAt,
-            },
-            links: [{ entityType: 'filing', entityId: filingId, relationship: 'primary' }],
+            taskType: 'reminder' as const,
+            priority: 'urgent' as const,
+            dueAt: effectiveDueDate,
+            assignedTo: null as null,
+            links: [{ entityType: 'filing' as const, entityId: filingId, relationship: 'primary' as const }],
             reopenResolved: false,
           };
+          const filingOverdueMeta = {
+            producer: PRODUCER_ID,
+            reason: 'overdue',
+            source_status: status,
+            days_overdue: daysOverdue,
+            filing_type: filingType,
+            jurisdiction,
+            generated_at: generatedAt,
+          };
+
+          let task: UpsertGeneratedTaskInput;
+          if (daysOverdue >= 30) {
+            task = { ...filingOverdueBase, metadata: { ...filingOverdueMeta, escalation_state: 'overdue_30' } };
+          } else if (daysOverdue >= 7) {
+            task = { ...filingOverdueBase, metadata: { ...filingOverdueMeta, escalation_state: 'overdue_7' } };
+          } else {
+            task = { ...filingOverdueBase, metadata: { ...filingOverdueMeta, escalation_state: 'overdue_1' } };
+          }
 
           if (!dryRun) {
             const upsertResult = await upsertGeneratedTask(db, task);
@@ -163,52 +172,41 @@ export async function complianceDeadlinesProducer(
           // Within reminder window — compute escalation tier
           const daysUntilDue = Math.ceil(diffDays);
 
-          // Find the smallest reminder threshold that is >= daysUntilDue
-          // e.g. reminder_days = [30, 14, 7], daysUntilDue = 10 → tier is 14-day threshold → 'high'
-          const sortedThresholds = [...reminderDays].sort((a, b) => a - b);
-          const activeThreshold = sortedThresholds.find((t) => t >= daysUntilDue) ?? sortedThresholds[sortedThresholds.length - 1];
-
-          let priority: UpsertGeneratedTaskInput['priority'];
-          let escalationState: string;
-
-          if (activeThreshold <= (sortedThresholds[0] ?? 7)) {
-            priority = 'urgent';
-            escalationState = 'imminent';
-          } else if (activeThreshold <= (sortedThresholds[1] ?? 14)) {
-            priority = 'high';
-            escalationState = 'approaching';
-          } else {
-            priority = 'normal';
-            escalationState = 'upcoming';
-          }
-
-          const task: UpsertGeneratedTaskInput = {
+          const filingReminderDescription =
+            `The ${filingType.replace(/_/g, ' ')} filing "${title}"` +
+            (jurisdiction ? ` (${jurisdiction})` : '') +
+            ` is due on ${effectiveDueDate} (${daysUntilDue} day${daysUntilDue === 1 ? '' : 's'} away).` +
+            ` Ensure this filing is completed on time to avoid penalties.`;
+          const filingReminderBase = {
             orgId,
-            portfolioId: null,
+            portfolioId: null as null,
             sourceKey: `filing:${filingId}:reminder`,
             title: `Filing due in ${daysUntilDue} day${daysUntilDue === 1 ? '' : 's'} — ${title}`,
-            description:
-              `The ${filingType.replace(/_/g, ' ')} filing "${title}"` +
-              (jurisdiction ? ` (${jurisdiction})` : '') +
-              ` is due on ${dueDate} (${daysUntilDue} day${daysUntilDue === 1 ? '' : 's'} away).` +
-              ` Ensure this filing is completed on time to avoid penalties.`,
-            taskType: 'reminder',
-            priority,
-            dueAt: dueDate,
-            assignedTo: null,
-            metadata: {
-              producer: PRODUCER_ID,
-              reason: 'deadline_reminder',
-              source_status: status,
-              escalation_state: escalationState,
-              days_until_due: daysUntilDue,
-              filing_type: filingType,
-              jurisdiction,
-              generated_at: generatedAt,
-            },
-            links: [{ entityType: 'filing', entityId: filingId, relationship: 'primary' }],
+            description: filingReminderDescription,
+            taskType: 'reminder' as const,
+            dueAt: effectiveDueDate,
+            assignedTo: null as null,
+            links: [{ entityType: 'filing' as const, entityId: filingId, relationship: 'primary' as const }],
             reopenResolved: false,
           };
+          const filingReminderMeta = {
+            producer: PRODUCER_ID,
+            reason: 'deadline_reminder',
+            source_status: status,
+            days_until_due: daysUntilDue,
+            filing_type: filingType,
+            jurisdiction,
+            generated_at: generatedAt,
+          };
+
+          let task: UpsertGeneratedTaskInput;
+          if (daysUntilDue <= 7) {
+            task = { ...filingReminderBase, priority: 'urgent', metadata: { ...filingReminderMeta, escalation_state: 'reminder_7' } };
+          } else if (daysUntilDue <= 14) {
+            task = { ...filingReminderBase, priority: 'high', metadata: { ...filingReminderMeta, escalation_state: 'reminder_14' } };
+          } else {
+            task = { ...filingReminderBase, priority: 'normal', metadata: { ...filingReminderMeta, escalation_state: 'reminder_30' } };
+          }
 
           if (!dryRun) {
             const upsertResult = await upsertGeneratedTask(db, task);
@@ -282,7 +280,7 @@ export async function complianceDeadlinesProducer(
           const task: UpsertGeneratedTaskInput = {
             orgId,
             portfolioId: null,
-            sourceKey: `state_registration:${regId}:renewal_reminder`,
+            sourceKey: `state_registration:${regId}:renewal`,
             title: `Overdue state registration renewal — ${state}`,
             description:
               `The ${regType} registration in ${state}` +
@@ -316,47 +314,42 @@ export async function complianceDeadlinesProducer(
         } else {
           const daysUntilDue = Math.ceil(diffDays);
 
-          let priority: UpsertGeneratedTaskInput['priority'];
-          let escalationState: string;
-
-          if (daysUntilDue <= STATE_REG_URGENT_DAYS) {
-            priority = 'urgent';
-            escalationState = 'imminent';
-          } else if (daysUntilDue <= STATE_REG_HIGH_PRIORITY_DAYS) {
-            priority = 'high';
-            escalationState = 'approaching';
-          } else {
-            priority = 'normal';
-            escalationState = 'upcoming';
-          }
-
-          const task: UpsertGeneratedTaskInput = {
+          const stateRegReminderBase = {
             orgId,
-            portfolioId: null,
-            sourceKey: `state_registration:${regId}:renewal_reminder`,
+            portfolioId: null as null,
+            sourceKey: `state_registration:${regId}:renewal`,
             title: `State registration renewal due in ${daysUntilDue} day${daysUntilDue === 1 ? '' : 's'} — ${state}`,
             description:
               `The ${regType} registration in ${state}` +
               (regNumber ? ` (${regNumber})` : '') +
               ` is up for renewal on ${renewalDue} (${daysUntilDue} day${daysUntilDue === 1 ? '' : 's'} away).` +
               ` Submit the renewal application and any required fees to maintain active registration.`,
-            taskType: 'reminder',
-            priority,
+            taskType: 'reminder' as const,
             dueAt: renewalDue,
-            assignedTo: null,
-            metadata: {
-              producer: PRODUCER_ID,
-              reason: 'renewal_reminder',
-              source_status: status,
-              escalation_state: escalationState,
-              days_until_due: daysUntilDue,
-              state,
-              registration_type: reg.registration_type,
-              generated_at: generatedAt,
-            },
-            links: [{ entityType: 'state_registration', entityId: regId, relationship: 'primary' }],
+            assignedTo: null as null,
+            links: [{ entityType: 'state_registration' as const, entityId: regId, relationship: 'primary' as const }],
             reopenResolved: false,
           };
+          const stateRegReminderMeta = {
+            producer: PRODUCER_ID,
+            reason: 'renewal_reminder',
+            source_status: status,
+            days_until_due: daysUntilDue,
+            state,
+            registration_type: reg.registration_type,
+            generated_at: generatedAt,
+          };
+
+          let task: UpsertGeneratedTaskInput;
+          if (daysUntilDue <= 7) {
+            task = { ...stateRegReminderBase, priority: 'urgent', metadata: { ...stateRegReminderMeta, escalation_state: 'renewal_7' } };
+          } else if (daysUntilDue <= 14) {
+            task = { ...stateRegReminderBase, priority: 'high', metadata: { ...stateRegReminderMeta, escalation_state: 'renewal_14' } };
+          } else if (daysUntilDue <= 30) {
+            task = { ...stateRegReminderBase, priority: 'high', metadata: { ...stateRegReminderMeta, escalation_state: 'renewal_30' } };
+          } else {
+            task = { ...stateRegReminderBase, priority: 'normal', metadata: { ...stateRegReminderMeta, escalation_state: 'renewal_60' } };
+          }
 
           if (!dryRun) {
             const upsertResult = await upsertGeneratedTask(db, task);

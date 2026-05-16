@@ -6,8 +6,8 @@
 //   3. Terminal cancel: job is 'failed' or 'rejected' — cancels any open tasks for that job
 //
 // Source key formats:
-//   Error review:     import_job:{id}:errors
-//   Approval needed:  import_job:{id}:needs_approval
+//   Error review:     import_job:{id}:review_errors
+//   Approval needed:  import_job:{id}:approval
 //
 // Prefix for cancelling all tasks for a job: import_job:{id}:
 
@@ -116,7 +116,7 @@ export async function importReviewProducer(
         const task: UpsertGeneratedTaskInput = {
           orgId,
           portfolioId: null,
-          sourceKey: `import_job:${jobId}:errors`,
+          sourceKey: `import_job:${jobId}:review_errors`,
           title: `Import job has errors — ${jobLabel}`,
           description:
             `The import job for "${jobLabel}" (status: ${status}) has ${errorSummary.join(' and ')}.` +
@@ -156,7 +156,7 @@ export async function importReviewProducer(
         const task: UpsertGeneratedTaskInput = {
           orgId,
           portfolioId: null,
-          sourceKey: `import_job:${jobId}:needs_approval`,
+          sourceKey: `import_job:${jobId}:approval`,
           title: `Import job ready for approval — ${jobLabel}`,
           description:
             `The import job for "${jobLabel}" has ${approvedRows} row${approvedRows === 1 ? '' : 's'} ready for approval.` +

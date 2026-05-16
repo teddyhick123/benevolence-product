@@ -1,21 +1,18 @@
 // lib/tasks/automation/producers/grants.ts
 //
 // Produces tasks for grant obligations:
-//   1. grant_milestones — upcoming and overdue milestones
-//   2. grant_reports    — reports due soon that haven't been submitted/received
+//   1. grant_milestones — one task per milestone, updated in place as priority escalates
+//   2. grant_reports    — reports due soon or overdue that haven't been submitted/received
 //   3. grant_payments   — payments where conditions haven't been met yet
 //
 // CRITICAL: grant_milestones, grant_reports, and grant_payments have NO org_id column.
-// They are scoped to org via: grant_details → holdings.org_id
-// The Supabase PostgREST join syntax `grant_details!inner(holdings!inner(org_id))`
-// is used in select() and then filtered client-side by org_id after the query.
-// Since admin client bypasses RLS, we filter org_id via the joined holdings path.
+// Scope via: grant_milestones/grant_payments → grant_details → holdings.org_id
+// Admin client bypasses RLS; filter org_id client-side from joined holdings.
 //
 // Source key formats:
-//   Milestone upcoming:         grant_milestone:{id}:upcoming
-//   Milestone overdue:          grant_milestone:{id}:overdue
-//   Report due:                 grant_report:{id}:due_soon
-//   Payment conditions pending: grant_payment:{id}:conditions_pending
+//   Milestone (one key, updated in place): grant_milestone:{id}:due
+//   Report (one key, updated in place):    grant_report:{id}:due
+//   Payment conditions:                    grant_payment:{id}:conditions
 //
 // Prefix for closing all tasks for a milestone: grant_milestone:{id}:
 // Prefix for closing all tasks for a report:    grant_report:{id}:
@@ -23,21 +20,18 @@
 
 import { createAdminClient } from '@/lib/supabase';
 import { ProducerOptions, TaskProducerResult, UpsertGeneratedTaskInput } from '../types';
-import { upsertGeneratedTask, completeGeneratedTasks } from '../task-writer';
+import { upsertGeneratedTask } from '../task-writer';
 
 const PRODUCER_ID = 'grant_obligations';
 
-// Milestone: generate tasks when due within this window
 const MILESTONE_REMINDER_DAYS = 30;
-// Milestone: high priority when within this many days
 const MILESTONE_HIGH_PRIORITY_DAYS = 14;
 
-// Grant reports: generate tasks when due within this window
 const REPORT_REMINDER_DAYS = 45;
-// Grant reports: high priority when within this many days
-const REPORT_HIGH_PRIORITY_DAYS = 14;
+const REPORT_HIGH_PRIORITY_DAYS = 15; // spec: 1-15 days = high
 
-// Statuses considered "not done" for milestones
+const PAYMENT_REMINDER_DAYS = 14; // spec: scheduled within 14 days or overdue
+
 const MILESTONE_OPEN_STATUSES = ['pending', 'in_progress', 'overdue'];
 
 export async function grantObligationsProducer(
@@ -107,120 +101,86 @@ export async function grantObligationsProducer(
     const milestoneId = milestone.id as string;
     const grantId = milestone.grant_id as string;
     const milestoneName = (milestone.milestone_name as string) ?? 'Grant milestone';
-    const description = (milestone.description as string | null) ?? '';
+    const milestoneDesc = (milestone.description as string | null) ?? '';
     const dueDate = milestone.due_date as string;
     const status = milestone.status as string;
     const holding = (milestone as any).grant_details?.holdings ?? {};
     const portfolioId = (holding.portfolio_id as string | null) ?? null;
+    const holdingId = ((milestone as any).grant_details?.holding_id as string | null) ?? null;
     const grantName = (holding.name as string | null) ?? 'grant';
 
     const dueDateMs = new Date(dueDate).getTime();
     const nowMs = now.getTime();
-    const diffMs = dueDateMs - nowMs;
-    const diffDays = diffMs / (1000 * 60 * 60 * 24);
+    const diffDays = (dueDateMs - nowMs) / (1000 * 60 * 60 * 24);
     const isOverdue = dueDate < today;
 
     try {
+      let priority: UpsertGeneratedTaskInput['priority'];
+      let escalationState: string;
+      let taskTitle: string;
+      let taskDescription: string;
+
       if (isOverdue) {
-        // Complete the upcoming task if it exists, then upsert an overdue task
-        if (!dryRun) {
-          const completed = await completeGeneratedTasks(
-            db,
-            orgId,
-            `grant_milestone:${milestoneId}:`,
-            'Milestone is now overdue'
-          );
-          result.completed += completed;
-        }
-
         const daysOverdue = Math.ceil((nowMs - dueDateMs) / (1000 * 60 * 60 * 24));
-
-        const task: UpsertGeneratedTaskInput = {
-          orgId,
-          portfolioId,
-          sourceKey: `grant_milestone:${milestoneId}:overdue`,
-          title: `Overdue milestone — ${milestoneName}`,
-          description:
-            `Grant milestone "${milestoneName}" for ${grantName} was due on ${dueDate}` +
-            ` and is now ${daysOverdue} day${daysOverdue === 1 ? '' : 's'} overdue.` +
-            (description ? ` Details: ${description}` : '') +
-            ` Update the milestone status or complete it as soon as possible.`,
-          taskType: 'reminder',
-          priority: 'urgent',
-          dueAt: dueDate,
-          assignedTo: null,
-          metadata: {
-            producer: PRODUCER_ID,
-            reason: 'overdue',
-            source_status: status,
-            escalation_state: 'overdue',
-            days_overdue: daysOverdue,
-            grant_id: grantId,
-            generated_at: generatedAt,
-          },
-          links: [
-            { entityType: 'grant_milestone', entityId: milestoneId, relationship: 'primary' },
-            { entityType: 'grant', entityId: grantId, relationship: 'context' },
-          ],
-          reopenResolved: false,
-        };
-
-        if (!dryRun) {
-          const upsertResult = await upsertGeneratedTask(db, task);
-          if (upsertResult === 'created') result.created++;
-          else if (upsertResult === 'updated') result.updated++;
-          else result.skipped++;
-        }
+        priority = 'urgent';
+        escalationState = daysOverdue >= 30 ? 'overdue_30' : daysOverdue >= 7 ? 'overdue_7' : 'overdue_1';
+        taskTitle = `Overdue milestone — ${milestoneName}`;
+        taskDescription =
+          `Grant milestone "${milestoneName}" for ${grantName} was due on ${dueDate}` +
+          ` and is now ${daysOverdue} day${daysOverdue === 1 ? '' : 's'} overdue.` +
+          (milestoneDesc ? ` Details: ${milestoneDesc}` : '') +
+          ` Update the milestone status or complete it as soon as possible.`;
       } else {
         const daysUntilDue = Math.ceil(diffDays);
+        priority = daysUntilDue <= MILESTONE_HIGH_PRIORITY_DAYS ? 'high' : 'normal';
+        escalationState = daysUntilDue <= MILESTONE_HIGH_PRIORITY_DAYS ? 'approaching' : 'due_soon';
+        taskTitle = `Grant milestone due in ${daysUntilDue} day${daysUntilDue === 1 ? '' : 's'} — ${milestoneName}`;
+        taskDescription =
+          `Grant milestone "${milestoneName}" for ${grantName} is due on ${dueDate}` +
+          ` (${daysUntilDue} day${daysUntilDue === 1 ? '' : 's'} away).` +
+          (milestoneDesc ? ` Details: ${milestoneDesc}` : '') +
+          ` Complete or update this milestone before the deadline.`;
+      }
 
-        let priority: UpsertGeneratedTaskInput['priority'];
-        let escalationState: string;
+      const milestoneLinks: UpsertGeneratedTaskInput['links'] = [
+        { entityType: 'grant_milestone', entityId: milestoneId, relationship: 'primary' },
+        { entityType: 'grant', entityId: grantId, relationship: 'context' },
+      ];
+      if (holdingId) milestoneLinks.push({ entityType: 'holding', entityId: holdingId, relationship: 'context' });
+      if (portfolioId) milestoneLinks.push({ entityType: 'portfolio', entityId: portfolioId, relationship: 'context' });
 
-        if (daysUntilDue <= MILESTONE_HIGH_PRIORITY_DAYS) {
-          priority = 'high';
-          escalationState = 'approaching';
-        } else {
-          priority = 'normal';
-          escalationState = 'upcoming';
-        }
+      const task: UpsertGeneratedTaskInput = {
+        orgId,
+        portfolioId,
+        sourceKey: `grant_milestone:${milestoneId}:due`,
+        title: taskTitle,
+        description: taskDescription,
+        taskType: 'review',
+        priority,
+        dueAt: dueDate,
+        assignedTo: null,
+        metadata: {
+          producer: PRODUCER_ID,
+          reason: isOverdue ? 'overdue' : 'upcoming_milestone',
+          source_status: status,
+          escalation_state: escalationState,
+          ...(isOverdue
+            ? { days_overdue: Math.ceil((now.getTime() - new Date(dueDate).getTime()) / (1000 * 60 * 60 * 24)) }
+            : { days_until_due: Math.ceil((new Date(dueDate).getTime() - now.getTime()) / (1000 * 60 * 60 * 24)) }),
+          grant_id: grantId,
+          generated_at: generatedAt,
+        },
+        links: milestoneLinks,
+        reopenResolved: false,
+      };
 
-        const task: UpsertGeneratedTaskInput = {
-          orgId,
-          portfolioId,
-          sourceKey: `grant_milestone:${milestoneId}:upcoming`,
-          title: `Grant milestone due in ${daysUntilDue} day${daysUntilDue === 1 ? '' : 's'} — ${milestoneName}`,
-          description:
-            `Grant milestone "${milestoneName}" for ${grantName} is due on ${dueDate}` +
-            ` (${daysUntilDue} day${daysUntilDue === 1 ? '' : 's'} away).` +
-            (description ? ` Details: ${description}` : '') +
-            ` Complete or update this milestone before the deadline.`,
-          taskType: 'reminder',
-          priority,
-          dueAt: dueDate,
-          assignedTo: null,
-          metadata: {
-            producer: PRODUCER_ID,
-            reason: 'upcoming_milestone',
-            source_status: status,
-            escalation_state: escalationState,
-            days_until_due: daysUntilDue,
-            grant_id: grantId,
-            generated_at: generatedAt,
-          },
-          links: [
-            { entityType: 'grant_milestone', entityId: milestoneId, relationship: 'primary' },
-            { entityType: 'grant', entityId: grantId, relationship: 'context' },
-          ],
-          reopenResolved: false,
-        };
-
-        if (!dryRun) {
-          const upsertResult = await upsertGeneratedTask(db, task);
-          if (upsertResult === 'created') result.created++;
-          else if (upsertResult === 'updated') result.updated++;
-          else result.skipped++;
-        }
+      if (!dryRun) {
+        const upsertResult = await upsertGeneratedTask(db, task);
+        if (upsertResult === 'created') result.created++;
+        else if (upsertResult === 'updated') result.updated++;
+        else result.skipped++;
+      } else {
+        result.skipped++;
       }
     } catch (err: any) {
       result.errors.push({
@@ -274,6 +234,7 @@ export async function grantObligationsProducer(
     const dueDate = report.due_date as string;
     const holding = (report as any).grant_details?.holdings ?? {};
     const portfolioId = (holding.portfolio_id as string | null) ?? null;
+    const holdingId = ((report as any).grant_details?.holding_id as string | null) ?? null;
     const grantName = (holding.name as string | null) ?? 'grant';
 
     const dueDateMs = new Date(dueDate).getTime();
@@ -319,7 +280,7 @@ export async function grantObligationsProducer(
       const task: UpsertGeneratedTaskInput = {
         orgId,
         portfolioId,
-        sourceKey: `grant_report:${reportId}:due_soon`,
+        sourceKey: `grant_report:${reportId}:due`,
         title,
         description,
         taskType: 'review',
@@ -336,10 +297,15 @@ export async function grantObligationsProducer(
           report_type: report.report_type,
           generated_at: generatedAt,
         },
-        links: [
-          { entityType: 'grant_report', entityId: reportId, relationship: 'primary' },
-          { entityType: 'grant', entityId: grantId, relationship: 'context' },
-        ],
+        links: (() => {
+          const l: UpsertGeneratedTaskInput['links'] = [
+            { entityType: 'grant_report', entityId: reportId, relationship: 'primary' },
+            { entityType: 'grant', entityId: grantId, relationship: 'context' },
+          ];
+          if (holdingId) l.push({ entityType: 'holding', entityId: holdingId, relationship: 'context' });
+          if (portfolioId) l.push({ entityType: 'portfolio', entityId: portfolioId, relationship: 'context' });
+          return l;
+        })(),
         reopenResolved: false,
       };
 
@@ -366,13 +332,20 @@ export async function grantObligationsProducer(
   // Use paid_date IS NULL (actual payment field; payment_date does not exist in schema).
   // -------------------------------------------------------------------------
 
+  const paymentHorizon = new Date(now);
+  paymentHorizon.setDate(paymentHorizon.getDate() + PAYMENT_REMINDER_DAYS);
+  const paymentHorizonStr = paymentHorizon.toISOString().slice(0, 10);
+
   const { data: payments, error: paymentsError } = await (db
     .from('grant_payments')
     .select(
       'id, grant_id, payment_number, amount, conditions_met, paid_date, scheduled_date, status, grant_details!inner(holding_id, holdings!inner(org_id, portfolio_id, name))'
     )
     .is('paid_date', null)
-    .eq('conditions_met', false) as any);
+    .eq('conditions_met', false)
+    .in('status', ['scheduled', 'approved', 'processing'])
+    .not('scheduled_date', 'is', null)
+    .lte('scheduled_date', paymentHorizonStr) as any);
 
   if (paymentsError) {
     result.errors.push({
@@ -399,7 +372,10 @@ export async function grantObligationsProducer(
     const status = payment.status as string;
     const holding = (payment as any).grant_details?.holdings ?? {};
     const portfolioId = (holding.portfolio_id as string | null) ?? null;
+    const holdingId = ((payment as any).grant_details?.holding_id as string | null) ?? null;
     const grantName = (holding.name as string | null) ?? 'grant';
+    const isPaymentOverdue = scheduledDate !== null && scheduledDate < today;
+    const paymentPriority: UpsertGeneratedTaskInput['priority'] = isPaymentOverdue ? 'urgent' : 'high';
 
     const amountStr = amount != null
       ? ` ($${Number(amount).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 })})`
@@ -409,15 +385,15 @@ export async function grantObligationsProducer(
       const task: UpsertGeneratedTaskInput = {
         orgId,
         portfolioId,
-        sourceKey: `grant_payment:${paymentId}:conditions_pending`,
+        sourceKey: `grant_payment:${paymentId}:conditions`,
         title: `Grant payment #${paymentNumber} awaiting conditions — ${grantName}`,
         description:
           `Payment #${paymentNumber}${amountStr} for ${grantName} cannot be disbursed because` +
           ` its conditions have not yet been marked as met.` +
           (scheduledDate ? ` This payment is scheduled for ${scheduledDate}.` : '') +
           ` Review and confirm all disbursement conditions, then update the payment record.`,
-        taskType: 'checklist_step',
-        priority: 'normal',
+        taskType: 'approval',
+        priority: paymentPriority,
         dueAt: scheduledDate,
         assignedTo: null,
         metadata: {
@@ -429,10 +405,14 @@ export async function grantObligationsProducer(
           grant_id: grantId,
           generated_at: generatedAt,
         },
-        links: [
-          { entityType: 'grant_payment', entityId: paymentId, relationship: 'primary' },
-          { entityType: 'grant', entityId: grantId, relationship: 'context' },
-        ],
+        links: (() => {
+          const l: UpsertGeneratedTaskInput['links'] = [
+            { entityType: 'grant_payment', entityId: paymentId, relationship: 'primary' },
+            { entityType: 'grant', entityId: grantId, relationship: 'context' },
+          ];
+          if (holdingId) l.push({ entityType: 'holding', entityId: holdingId, relationship: 'context' });
+          return l;
+        })(),
         reopenResolved: false,
       };
 

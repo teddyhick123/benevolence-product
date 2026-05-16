@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createServerClient } from '@/lib/supabase';
+import { createServerClient, createAdminClient } from '@/lib/supabase';
 import { CancelPledgeSchema } from '@/lib/schemas/pledge';
+import { cancelGeneratedTasks } from '@/lib/tasks/automation/task-writer';
 
 export const dynamic = 'force-dynamic';
 
@@ -37,6 +38,27 @@ export async function POST(
       org_id: orgId, pledge_id: pledgeId, event_type: 'cancelled', actor_id: user?.id,
       after_values: { cancellation_reason: parsed.data.cancellation_reason, waive_pending: parsed.data.waive_pending },
     });
+
+    // Fire-and-forget: cancel all generated tasks for each installment of this pledge
+    (async () => {
+      try {
+        const adminDb = createAdminClient();
+        const { data: instList } = await adminDb
+          .from('pledge_installments')
+          .select('id')
+          .eq('pledge_id', pledgeId);
+        for (const inst of instList ?? []) {
+          await cancelGeneratedTasks(
+            adminDb,
+            orgId,
+            `pledge_installment:${inst.id}:`,
+            'Pledge cancelled'
+          );
+        }
+      } catch (err) {
+        console.warn('[task-hook] Failed to cancel pledge installment tasks:', err);
+      }
+    })();
 
     return NextResponse.json({ success: true });
   } catch (err: any) {

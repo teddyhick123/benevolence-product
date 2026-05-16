@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createServerClient } from '@/lib/supabase';
+import { createServerClient, createAdminClient } from '@/lib/supabase';
 import { PatchInstallmentSchema } from '@/lib/schemas/pledge';
+import { completeGeneratedTasks, cancelGeneratedTasks } from '@/lib/tasks/automation/task-writer';
 
 export const dynamic = 'force-dynamic';
 
@@ -33,6 +34,25 @@ export async function PATCH(
       p_notes:               d.notes ?? null,
     });
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+    // Fire-and-forget: close generated tasks based on the action taken
+    const action = d.action;
+    (async () => {
+      try {
+        const adminDb = createAdminClient();
+        const prefix = `pledge_installment:${installmentId}:`;
+        if (action === 'mark_paid') {
+          await completeGeneratedTasks(adminDb, orgId, prefix, 'Installment paid');
+        } else if (action === 'waive') {
+          await cancelGeneratedTasks(adminDb, orgId, prefix, 'Installment waived');
+        } else if (action === 'write_off') {
+          await cancelGeneratedTasks(adminDb, orgId, prefix, 'Installment written off');
+        }
+        // 'reopen' intentionally does not close tasks — the producer will regenerate if due
+      } catch (err) {
+        console.warn('[task-hook] Failed to update pledge installment tasks:', err);
+      }
+    })();
 
     const { data: pledge }       = await supabase.from('v_pledge_pipeline').select('*').eq('id', pledgeId).single();
     const { data: installments } = await supabase.from('pledge_installments').select('*').eq('pledge_id', pledgeId).order('due_date');

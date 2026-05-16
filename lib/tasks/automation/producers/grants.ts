@@ -114,6 +114,10 @@ export async function grantObligationsProducer(
     const diffDays = (dueDateMs - nowMs) / (1000 * 60 * 60 * 24);
     const isOverdue = dueDate < today;
 
+    // Hoist these to outer scope to avoid redundant computation in metadata spread
+    let daysOverdue = 0;
+    let daysUntilDue = 0;
+
     try {
       let priority: UpsertGeneratedTaskInput['priority'];
       let escalationState: string;
@@ -121,7 +125,7 @@ export async function grantObligationsProducer(
       let taskDescription: string;
 
       if (isOverdue) {
-        const daysOverdue = Math.ceil((nowMs - dueDateMs) / (1000 * 60 * 60 * 24));
+        daysOverdue = Math.ceil((nowMs - dueDateMs) / (1000 * 60 * 60 * 24));
         priority = 'urgent';
         escalationState = daysOverdue >= 30 ? 'overdue_30' : daysOverdue >= 7 ? 'overdue_7' : 'overdue_1';
         taskTitle = `Overdue milestone — ${milestoneName}`;
@@ -131,7 +135,7 @@ export async function grantObligationsProducer(
           (milestoneDesc ? ` Details: ${milestoneDesc}` : '') +
           ` Update the milestone status or complete it as soon as possible.`;
       } else {
-        const daysUntilDue = Math.ceil(diffDays);
+        daysUntilDue = Math.ceil(diffDays);
         priority = daysUntilDue <= MILESTONE_HIGH_PRIORITY_DAYS ? 'high' : 'normal';
         escalationState = daysUntilDue <= MILESTONE_HIGH_PRIORITY_DAYS ? 'approaching' : 'due_soon';
         taskTitle = `Grant milestone due in ${daysUntilDue} day${daysUntilDue === 1 ? '' : 's'} — ${milestoneName}`;
@@ -164,9 +168,7 @@ export async function grantObligationsProducer(
           reason: isOverdue ? 'overdue' : 'upcoming_milestone',
           source_status: status,
           escalation_state: escalationState,
-          ...(isOverdue
-            ? { days_overdue: Math.ceil((now.getTime() - new Date(dueDate).getTime()) / (1000 * 60 * 60 * 24)) }
-            : { days_until_due: Math.ceil((new Date(dueDate).getTime() - now.getTime()) / (1000 * 60 * 60 * 24)) }),
+          ...(isOverdue ? { days_overdue: daysOverdue } : { days_until_due: daysUntilDue }),
           grant_id: grantId,
           generated_at: generatedAt,
         },
@@ -328,7 +330,7 @@ export async function grantObligationsProducer(
   // 3. Grant payments — conditions not yet met, payment not yet made
   //
   // Scope to org via grant_details → holdings.org_id.
-  // No date window — any payment in this state generates a task.
+  // Window: scheduled within 14 days (PAYMENT_REMINDER_DAYS) or already overdue.
   // Use paid_date IS NULL (actual payment field; payment_date does not exist in schema).
   // -------------------------------------------------------------------------
 

@@ -127,7 +127,7 @@ export async function grantObligationsProducer(
           const completed = await completeGeneratedTasks(
             db,
             orgId,
-            `grant_milestone:${milestoneId}:upcoming`,
+            `grant_milestone:${milestoneId}:`,
             'Milestone is now overdue'
           );
           result.completed += completed;
@@ -371,7 +371,8 @@ export async function grantObligationsProducer(
     .select(
       'id, grant_id, payment_number, amount, conditions_met, paid_date, scheduled_date, status, grant_details!inner(holding_id, holdings!inner(org_id, portfolio_id, name))'
     )
-    .is('paid_date', null) as any);
+    .is('paid_date', null)
+    .eq('conditions_met', false) as any);
 
   if (paymentsError) {
     result.errors.push({

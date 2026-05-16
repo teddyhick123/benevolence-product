@@ -76,7 +76,6 @@ export async function upsertGeneratedTask(
   if (existing.description !== input.description) patch.description = input.description;
 
   if (existing.priority !== input.priority) {
-    events.push({ event_type: 'status_changed', before_values: { priority: existing.priority }, after_values: { priority: input.priority } });
     patch.priority = input.priority;
   }
   if ((existing.due_at ?? null) !== (input.dueAt ?? null)) {

@@ -46,7 +46,7 @@ export async function GET(
       .from('grant_milestones')
       .select('id, grant_id, milestone_name, due_date, status')
       .in('grant_id', grantIds)
-      .not('status', 'in', '("completed","cancelled")')
+      .not('status', 'in', '(completed,cancelled)')
       .gte('due_date', cutoff)
       .lte('due_date', horizon)
       .order('due_date', { ascending: true });
@@ -66,9 +66,10 @@ export async function GET(
     // Reports
     const { data: reports } = await db
       .from('grant_reports')
-      .select('id, grant_id, report_type, due_date, submitted_date')
+      .select('id, grant_id, report_type, due_date, submitted_date, received_at')
       .in('grant_id', grantIds)
       .is('submitted_date', null)
+      .is('received_at', null)
       .gte('due_date', cutoff)
       .lte('due_date', horizon)
       .order('due_date', { ascending: true });
@@ -90,7 +91,7 @@ export async function GET(
       .from('grant_payments')
       .select('id, grant_id, payment_number, amount, scheduled_date, status')
       .in('grant_id', grantIds)
-      .not('status', 'in', '("paid","cancelled")')
+      .not('status', 'in', '(completed,cancelled,returned)')
       .gte('scheduled_date', cutoff)
       .lte('scheduled_date', horizon)
       .order('scheduled_date', { ascending: true });
@@ -112,7 +113,7 @@ export async function GET(
     const { data: endingGrants } = await db
       .from('grants')
       .select('id, holding_id, lifecycle_stage, grant_period_end, renewal_eligible, holdings!inner(name)')
-      .eq('org_id', orgId)
+      .in('id', grantIds)
       .is('deleted_at', null)
       .in('lifecycle_stage', ['active', 'renewal_review', 'closeout'])
       .gte('grant_period_end', cutoff)

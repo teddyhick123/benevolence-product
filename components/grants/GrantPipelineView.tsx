@@ -2,12 +2,12 @@
 
 import { useMemo } from 'react';
 import Link from 'next/link';
-import { LIFECYCLE_STAGES } from '@/lib/grants/lifecycle';
+import { LIFECYCLE_STAGES, type LifecycleStage } from '@/lib/grants/lifecycle';
 
 export interface GrantListItem {
   id: string;
   holding_id: string;
-  lifecycle_stage: string;
+  lifecycle_stage: LifecycleStage;
   requested_amount: number | null;
   approved_amount: number | null;
   currency: string | null;

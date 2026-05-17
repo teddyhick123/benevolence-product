@@ -416,15 +416,15 @@ Producer id: `grant_obligations`
 
 Source tables:
 
-- `grant_details`
+- `grants`
 - `holdings`
 - `grant_milestones`
 - `grant_reports`
 - `grant_payments`
 
-Org scoping note: `grant_milestones` and `grant_payments` have no `org_id` column. Producers must join to scope by org: `grant_milestones/grant_payments → grant_details → holdings.org_id` or `holdings → portfolios.org_id`. Never query these tables with a direct `.eq('org_id', orgId)`.
+Org scoping note: `grants` is the canonical grant lifecycle parent and carries `org_id`, `portfolio_id`, and `holding_id` directly. `grant_milestones`, `grant_reports`, and `grant_payments` still scope through their `grant_id` FK, so producers should join through `grants!inner(org_id, portfolio_id, holding_id)` or fetch org-scoped grant IDs first. Do not recreate or target the old `grant_details` table.
 
-Entity ID convention: for entity links with `entity_type = 'grant'`, always use the `grant_details.id` value. `grant_milestones`, `grant_reports`, and `grant_payments` all FK directly to `grant_details.id` after migration `0041_task_workflow_foundation.sql`.
+Entity ID convention: for entity links with `entity_type = 'grant'`, always use `grants.id`. `grant_milestones`, `grant_reports`, and `grant_payments` all FK directly to `grants.id` after migration `0041_task_workflow_foundation.sql`.
 
 ### Grant Milestone Tasks
 
@@ -460,7 +460,7 @@ Resolution:
 
 ### Grant Report Tasks
 
-Schema note: `grant_reports` is created directly in migration `0041_task_workflow_foundation.sql` with `grant_reports.grant_id -> grant_details.id`. There is no `grants` table in the active schema. Producers should treat `grant_details` as the only grant lifecycle parent.
+Schema note: `grant_reports` is created directly in migration `0041_task_workflow_foundation.sql` with `grant_reports.grant_id -> grants.id`. `grant_details` is the old name and must not be used by new producers.
 
 Scan:
 

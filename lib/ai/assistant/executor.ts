@@ -2433,13 +2433,13 @@ export async function executeAssistantTool(params: AssistantToolParams): Promise
         return await trackMilestone(supabase, args);
 
       case 'start_due_diligence':
-        return await startDueDiligence(supabase, args, portfolioId);
+        return await startDueDiligence(supabase, args, portfolioId, userId);
 
       case 'get_workflow_status':
         return await getWorkflowStatus(supabase, args);
 
       case 'complete_workflow_task':
-        return await completeWorkflowTask(supabase, args);
+        return await completeWorkflowTask(supabase, args, userId);
 
       case 'schedule_reminder':
         return await scheduleReminder(supabase, args, portfolioId);

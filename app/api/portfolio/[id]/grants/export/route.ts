@@ -187,11 +187,11 @@ function generateCSV(data: ReturnType<typeof buildExportData>): string {
   lines.push('');
 
   lines.push('GRANTS');
-  lines.push('Name,Type,Lifecycle Stage,Risk Level,Requested Amount,Approved Amount,Funds Allocated,Currency,Period Start,Period End,Reporting Frequency,Next Report Due,Renewal Eligible,Purpose,Sector,Country');
+  lines.push('Name,Type,Lifecycle Stage,Risk Level,Owner ID,Requested Amount,Approved Amount,Funds Allocated,Currency,Period Start,Period End,Reporting Frequency,Next Report Due,Renewal Eligible,Purpose,Sector,Country');
   for (const g of data.grants) {
     lines.push([
       q(g.name), g.grant_type || '', g.lifecycle_stage || '', g.risk_level || '',
-      g.requested_amount ?? '', g.approved_amount ?? '', g.funds_allocated ?? 0,
+      g.owner_id || '', g.requested_amount ?? '', g.approved_amount ?? '', g.funds_allocated ?? 0,
       g.currency || 'USD', g.grant_period_start || '', g.grant_period_end || '',
       g.reporting_frequency || '', g.next_report_due || '',
       g.renewal_eligible ? 'Yes' : 'No',
@@ -256,9 +256,9 @@ function generateXLSX(data: ReturnType<typeof buildExportData>): Buffer {
   ]), 'Summary');
 
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
-    ['Name', 'Type', 'Lifecycle Stage', 'Risk Level', 'Requested', 'Approved', 'Funds Allocated', 'Currency', 'Period Start', 'Period End', 'Reporting Freq', 'Next Report Due', 'Renewal Eligible', 'Purpose', 'Sector', 'Country'],
+    ['Name', 'Type', 'Lifecycle Stage', 'Risk Level', 'Owner ID', 'Requested', 'Approved', 'Funds Allocated', 'Currency', 'Period Start', 'Period End', 'Reporting Freq', 'Next Report Due', 'Renewal Eligible', 'Purpose', 'Sector', 'Country'],
     ...data.grants.map((g: any) => [
-      g.name, g.grant_type, g.lifecycle_stage, g.risk_level, g.requested_amount,
+      g.name, g.grant_type, g.lifecycle_stage, g.risk_level, g.owner_id, g.requested_amount,
       g.approved_amount, g.funds_allocated, g.currency, g.grant_period_start,
       g.grant_period_end, g.reporting_frequency, g.next_report_due,
       g.renewal_eligible ? 'Yes' : 'No', g.purpose, g.sector, g.country,

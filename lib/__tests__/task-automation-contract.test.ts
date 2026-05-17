@@ -385,8 +385,8 @@ describe('No stale import status values in app code', () => {
 // ---------------------------------------------------------------------------
 describe('Import producer uses canonical column names', () => {
   it('import producer queries name not entity_type', () => {
-    expect(importsSrc).not.toContain("'entity_type'");
-    expect(importsSrc).toContain("'name'");
+    expect(importsSrc).not.toContain('entity_type');
+    expect(importsSrc).toContain('job.name');
   });
 
   it('import producer cancels tasks for rolled_back jobs', () => {

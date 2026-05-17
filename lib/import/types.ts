@@ -1,14 +1,17 @@
 // lib/import/types.ts
 // Shared types for the AI-Native Import System
 
-export type EntityType = 'holdings' | 'investees' | 'contributions' | 'metrics' | 'users';
+export type EntityType = 'donors' | 'investees' | 'holdings' | 'contributions' | 'metrics';
 
 export type ImportJobStatus =
   | 'pending'
-  | 'running'
-  | 'paused'
+  | 'processing'
+  | 'needs_review'
+  | 'approved'
+  | 'committing'
   | 'completed'
   | 'failed'
+  | 'rejected'
   | 'rolled_back';
 
 export type ValidationStatus = 'pending' | 'valid' | 'invalid' | 'warning' | 'skipped';
@@ -24,6 +27,7 @@ export type ActionTaken =
 
 export interface ImportJob {
   id: string;
+  org_id: string;
   portfolio_id: string | null;
   name: string;
   source_type: 'blackbaud_api' | 'csv_export' | 'direct_db';
@@ -34,13 +38,17 @@ export interface ImportJob {
   records_validated: number;
   records_loaded: number;
   records_failed: number;
+  approved_rows: number;
+  rejected_rows: number;
+  error_rows: number;
+  last_heartbeat_at: string | null;
   started_at: string | null;
   completed_at: string | null;
-  estimated_completion: string | null;
-  pause_reason: string | null;
+  error_message: string | null;
+  error_details: Record<string, unknown> | null;
   reconciliation_data: Record<string, unknown> | null;
-  notes: string | null;
   created_by: string | null;
+  reviewed_by: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -68,8 +76,9 @@ export interface EntityMappingConfig {
 
 export interface MappingProfile {
   id: string;
+  org_id: string;
   name: string;
-  source_system: 'blackbaud_re_nxt' | 'salesforce_npsp' | 'donorperfect' | 'custom_csv';
+  source_type: 'blackbaud_re_nxt' | 'salesforce_npsp' | 'donorperfect' | 'custom_csv';
   description: string | null;
   entity_mappings: Record<string, EntityMappingConfig>;
   version: number;
@@ -80,9 +89,9 @@ export interface MappingProfile {
 }
 
 export const STAGING_TABLE_MAP: Record<EntityType, string> = {
-  holdings: 'staging_import_holdings',
+  donors: 'staging_import_donors',
   investees: 'staging_import_investees',
+  holdings: 'staging_import_holdings',
   contributions: 'staging_import_contributions',
   metrics: 'staging_import_metrics',
-  users: 'staging_import_users',
 };

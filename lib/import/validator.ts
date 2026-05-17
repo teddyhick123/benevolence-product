@@ -375,8 +375,8 @@ const ENTITY_DEFAULT_RULES: Record<EntityType, DefaultRule[]> = {
     { field: 'value', rule: { rule: 'required', severity: 'error' } },
     { field: 'value', rule: { rule: 'positive', severity: 'error' } },
   ],
-  users: [
-    // email or matched_existing_user_id required — checked below as special case
+  donors: [
+    { field: 'display_name', rule: { rule: 'required', severity: 'error' } },
   ],
 };
 
@@ -404,15 +404,15 @@ export function validateTransformedRow(
     if (err) errors.push(err);
   }
 
-  // Special case for users: require email OR matched_existing_user_id
-  if (entityType === 'users') {
-    const hasEmail = transformed['raw_data.email'] || transformed['email'];
-    const hasUserId = transformed['matched_existing_user_id'];
-    if (!hasEmail && !hasUserId) {
+  // Special case for donors: require email OR external_id for dedup
+  if (entityType === 'donors') {
+    const hasEmail = transformed['email'];
+    const hasExternalId = transformed['external_id'];
+    if (!hasEmail && !hasExternalId) {
       errors.push({
         field: 'email',
-        message: 'Either email or matched_existing_user_id is required',
-        severity: 'error',
+        message: 'Either email or external_id is required for donor deduplication',
+        severity: 'warning',
         rule: 'required',
       });
     }

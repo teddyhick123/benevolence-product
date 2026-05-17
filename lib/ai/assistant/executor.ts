@@ -21,6 +21,7 @@ import {
   startDueDiligence,
   getWorkflowStatus,
   completeWorkflowTask,
+  scheduleReminder,
 } from './executors/grants';
 
 export type AssistantToolParams = {
@@ -2440,16 +2441,8 @@ export async function executeAssistantTool(params: AssistantToolParams): Promise
       case 'complete_workflow_task':
         return await completeWorkflowTask(supabase, args);
 
-      case 'schedule_reminder': {
-        const { holding_id, reminder_type, remind_at, note } = args;
-        const { data, error } = await supabase
-          .from('task_reminders')
-          .insert({ holding_id, reminder_type, remind_at, note: note ?? null })
-          .select()
-          .single();
-        if (error) throw new Error(error.message);
-        return { action: null, output: { success: true, reminder: data } };
-      }
+      case 'schedule_reminder':
+        return await scheduleReminder(supabase, args, portfolioId);
 
       // ==================== DONOR MANAGEMENT MODULE ====================
       case 'log_contribution_received': {

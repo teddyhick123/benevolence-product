@@ -2,13 +2,18 @@
 
 import { useState, useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import GrantHealthDashboard from '@/components/grants/GrantHealthDashboard';
 import WorkflowManager from '@/components/grants/WorkflowManager';
 import PaymentSchedule from '@/components/grants/PaymentSchedule';
 import CommunicationLog from '@/components/grants/CommunicationLog';
 import CreateGrantWizard from '@/components/grants/CreateGrantWizard';
+import GrantPipelineView, { type GrantListItem } from '@/components/grants/GrantPipelineView';
+import GrantTableView from '@/components/grants/GrantTableView';
+import GrantCalendarView from '@/components/grants/GrantCalendarView';
+import GrantAttentionQueue from '@/components/grants/GrantAttentionQueue';
 
-type TabId = 'overview' | 'workflows' | 'payments' | 'communications';
+type ViewId = 'pipeline' | 'table' | 'calendar' | 'attention' | 'workflows' | 'payments' | 'communications';
+
+interface OrgMember { id: string; display_name?: string | null; email?: string | null }
 
 export default function GrantsDashboard() {
   const searchParams = useSearchParams();
@@ -16,11 +21,15 @@ export default function GrantsDashboard() {
   const [portfolioId, setPortfolioId] = useState<string | null>(null);
   const [orgId, setOrgId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<TabId>('overview');
+  const [activeView, setActiveView] = useState<ViewId>('pipeline');
   const [refreshKey, setRefreshKey] = useState(0);
   const [showWizard, setShowWizard] = useState(false);
 
-  // Fetch user's portfolio ID
+  // Grant list data (shared across pipeline/table/attention views)
+  const [grants, setGrants] = useState<GrantListItem[]>([]);
+  const [grantsLoading, setGrantsLoading] = useState(false);
+  const [members, setMembers] = useState<OrgMember[]>([]);
+
   useEffect(() => {
     async function fetchProfile() {
       try {
@@ -39,29 +48,80 @@ export default function GrantsDashboard() {
     fetchProfile();
   }, []);
 
-  // Check URL params for tab
+  // Sync view from URL
   useEffect(() => {
-    const tab = searchParams.get('tab');
-    if (tab && ['overview', 'workflows', 'payments', 'communications'].includes(tab)) {
-      setActiveTab(tab as TabId);
+    const view = searchParams.get('view') as ViewId | null;
+    if (view && ['pipeline','table','calendar','attention','workflows','payments','communications'].includes(view)) {
+      setActiveView(view);
     }
   }, [searchParams]);
 
-  const tabs: { id: TabId; label: string; icon: React.ReactNode }[] = [
+  // Fetch grants list when orgId+portfolioId available
+  useEffect(() => {
+    if (!orgId || !portfolioId) return;
+    setGrantsLoading(true);
+    Promise.all([
+      fetch(`/api/org/${orgId}/grants?portfolio_id=${encodeURIComponent(portfolioId)}&page_size=200`).then(r => r.json()),
+      fetch(`/api/org/${orgId}/members`).then(r => r.json()).catch(() => ({ members: [] })),
+    ]).then(([grantsJson, membersJson]) => {
+      setGrants(grantsJson.data ?? []);
+      // Normalize to {id: user_id, display_name} so owner filter matches grants.internal_owner_id
+      const raw: any[] = membersJson.members ?? membersJson.data ?? [];
+      setMembers(raw.map(m => ({ id: m.user_id ?? m.id, display_name: m.full_name ?? m.email })));
+    }).finally(() => setGrantsLoading(false));
+  }, [orgId, portfolioId, refreshKey]);
+
+  function handleViewChange(view: ViewId) {
+    setActiveView(view);
+  }
+
+  const views: { id: ViewId; label: string; icon: React.ReactNode; group: 'center' | 'ops' }[] = [
     {
-      id: 'overview',
-      label: 'Health Overview',
+      id: 'pipeline',
+      label: 'Pipeline',
+      group: 'center',
       icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2" />
+        </svg>
+      ),
+    },
+    {
+      id: 'table',
+      label: 'Table',
+      group: 'center',
+      icon: (
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+        </svg>
+      ),
+    },
+    {
+      id: 'calendar',
+      label: 'Calendar',
+      group: 'center',
+      icon: (
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+        </svg>
+      ),
+    },
+    {
+      id: 'attention',
+      label: 'Attention',
+      group: 'center',
+      icon: (
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
         </svg>
       ),
     },
     {
       id: 'workflows',
       label: 'Workflows',
+      group: 'ops',
       icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
         </svg>
       ),
@@ -69,8 +129,9 @@ export default function GrantsDashboard() {
     {
       id: 'payments',
       label: 'Payments',
+      group: 'ops',
       icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
       ),
@@ -78,13 +139,20 @@ export default function GrantsDashboard() {
     {
       id: 'communications',
       label: 'Communications',
+      group: 'ops',
       icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
         </svg>
       ),
     },
   ];
+
+  // Counts for attention badge
+  const attentionCount = grants.filter(g => {
+    const d = g.grant_period_end ? Math.round((new Date(g.grant_period_end).getTime() - Date.now()) / 86_400_000) : null;
+    return (g.risk_level === 'high' || g.risk_level === 'critical') || (d !== null && d < 0);
+  }).length;
 
   if (loading) {
     return (
@@ -93,7 +161,7 @@ export default function GrantsDashboard() {
           <div className="h-8 bg-gray-200 rounded w-1/4 mb-4"></div>
           <div className="h-4 bg-gray-200 rounded w-1/2 mb-8"></div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {[1, 2, 3].map((i) => (
+            {[1, 2, 3].map(i => (
               <div key={i} className="h-32 bg-gray-200 rounded-lg"></div>
             ))}
           </div>
@@ -116,14 +184,17 @@ export default function GrantsDashboard() {
     );
   }
 
+  const centerViews = views.filter(v => v.group === 'center');
+  const opsViews = views.filter(v => v.group === 'ops');
+
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-serif text-gray-900">Grant Management</h1>
           <p className="mt-1 text-sm text-gray-500">
-            Track due diligence, milestones, payments, and communications
+            {grantsLoading ? 'Loading…' : `${grants.length} grant${grants.length !== 1 ? 's' : ''} · Track lifecycle, obligations, and payments`}
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -143,47 +214,93 @@ export default function GrantsDashboard() {
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
             </svg>
-            Back to Dashboard
+            Dashboard
           </a>
         </div>
       </div>
 
-      {/* Tab Navigation */}
-      <div className="border-b border-gray-200">
-        <nav className="-mb-px flex space-x-8" aria-label="Tabs">
-          {tabs.map((tab) => (
+      {/* Navigation */}
+      <div className="flex flex-col gap-0 border-b border-gray-200">
+        {/* Center views */}
+        <nav className="-mb-px flex space-x-1" aria-label="Center views">
+          <span className="py-3 px-2 text-xs font-semibold text-gray-400 uppercase tracking-wide self-center">Views</span>
+          {centerViews.map(view => (
             <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`
-                group inline-flex items-center gap-2 py-4 px-1 border-b-2 font-medium text-sm transition-colors
-                ${activeTab === tab.id
+              key={view.id}
+              onClick={() => handleViewChange(view.id)}
+              className={`relative group inline-flex items-center gap-1.5 py-3 px-3 border-b-2 font-medium text-sm transition-colors ${
+                activeView === view.id
                   ? 'border-azure text-azure'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }
-              `}
+              }`}
             >
-              <span className={activeTab === tab.id ? 'text-azure' : 'text-gray-400 group-hover:text-gray-500'}>
-                {tab.icon}
+              <span className={activeView === view.id ? 'text-azure' : 'text-gray-400 group-hover:text-gray-500'}>
+                {view.icon}
               </span>
-              {tab.label}
+              {view.label}
+              {view.id === 'attention' && attentionCount > 0 && (
+                <span className="ml-1 inline-flex items-center rounded-full bg-red-100 px-1.5 py-0.5 text-xs font-medium text-red-700">
+                  {attentionCount}
+                </span>
+              )}
+            </button>
+          ))}
+          <span className="flex-1" />
+          <span className="py-3 px-2 text-xs font-semibold text-gray-400 uppercase tracking-wide self-center">Operations</span>
+          {opsViews.map(view => (
+            <button
+              key={view.id}
+              onClick={() => handleViewChange(view.id)}
+              className={`group inline-flex items-center gap-1.5 py-3 px-3 border-b-2 font-medium text-sm transition-colors ${
+                activeView === view.id
+                  ? 'border-azure text-azure'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              <span className={activeView === view.id ? 'text-azure' : 'text-gray-400 group-hover:text-gray-500'}>
+                {view.icon}
+              </span>
+              {view.label}
             </button>
           ))}
         </nav>
       </div>
 
-      {/* Tab Content */}
+      {/* View content */}
       <div className="min-h-[400px]">
-        {activeTab === 'overview' && (
-          <GrantHealthDashboard portfolioId={portfolioId} key={`health-${refreshKey}`} />
+        {activeView === 'pipeline' && (
+          <GrantPipelineView
+            grants={grants}
+            onNewGrant={() => setShowWizard(true)}
+          />
         )}
-        {activeTab === 'workflows' && (
+        {activeView === 'table' && (
+          <GrantTableView
+            grants={grants}
+            members={members}
+            onNewGrant={() => setShowWizard(true)}
+          />
+        )}
+        {activeView === 'calendar' && (
+          <GrantCalendarView
+            orgId={orgId}
+            portfolioId={portfolioId}
+            key={`calendar-${refreshKey}`}
+          />
+        )}
+        {activeView === 'attention' && (
+          <GrantAttentionQueue
+            grants={grants}
+            onNewGrant={() => setShowWizard(true)}
+          />
+        )}
+        {activeView === 'workflows' && (
           <WorkflowManager orgId={orgId} portfolioId={portfolioId} key={`workflows-${refreshKey}`} />
         )}
-        {activeTab === 'payments' && (
+        {activeView === 'payments' && (
           <PaymentSchedule portfolioId={portfolioId} key={`payments-${refreshKey}`} />
         )}
-        {activeTab === 'communications' && (
+        {activeView === 'communications' && (
           <CommunicationLog portfolioId={portfolioId} key={`comms-${refreshKey}`} />
         )}
       </div>

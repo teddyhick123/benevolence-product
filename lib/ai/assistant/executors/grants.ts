@@ -8,6 +8,35 @@ import type { ToolResult } from '@/lib/ai/types';
 
 type DB = any; // supabase client
 
+// ── schedule_reminder ────────────────────────────────────────────────────────
+
+export async function scheduleReminder(supabase: DB, args: any, portfolioId: string): Promise<ToolResult> {
+  const { portfolio_id, title, description, due_date } = args;
+  const pid = portfolio_id ?? portfolioId;
+
+  // Look up org_id from portfolio
+  const { data: portfolio } = await supabase
+    .from('portfolios')
+    .select('org_id')
+    .eq('id', pid)
+    .maybeSingle();
+
+  const { data, error } = await supabase
+    .from('reminders')
+    .insert({
+      org_id: portfolio?.org_id ?? null,
+      portfolio_id: pid,
+      title: title ?? 'Reminder',
+      description: description ?? null,
+      due_at: due_date,
+    })
+    .select()
+    .single();
+
+  if (error) throw new Error(error.message);
+  return { action: null, output: { success: true, reminder: data } };
+}
+
 async function grantByHolding(supabase: DB, holdingId: string) {
   const { data, error } = await supabase
     .from('grants')

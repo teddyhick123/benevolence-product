@@ -3,8 +3,6 @@
 --   Called: (a) explicitly by admins via API, (b) automatically when a new import job commits.
 -- Date: 2026-05-06
 
--- Function: purge staging rows where the parent job finished > retention_days ago.
--- Returns the number of rows deleted across all staging tables.
 CREATE OR REPLACE FUNCTION public.cleanup_staging_pii(retention_days INT DEFAULT 30)
 RETURNS INTEGER
 LANGUAGE plpgsql
@@ -18,7 +16,54 @@ DECLARE
 BEGIN
   cutoff := NOW() - (retention_days || ' days')::INTERVAL;
 
+  -- Generic staging rows (legacy)
   DELETE FROM public.staging_import_rows
+    WHERE import_job_id IN (
+      SELECT id FROM public.import_jobs
+      WHERE status IN ('completed', 'failed', 'rolled_back')
+        AND updated_at < cutoff
+    );
+  GET DIAGNOSTICS deleted = ROW_COUNT;
+  total_deleted := total_deleted + deleted;
+
+  -- Per-entity staging tables
+  DELETE FROM public.staging_import_donors
+    WHERE import_job_id IN (
+      SELECT id FROM public.import_jobs
+      WHERE status IN ('completed', 'failed', 'rolled_back')
+        AND updated_at < cutoff
+    );
+  GET DIAGNOSTICS deleted = ROW_COUNT;
+  total_deleted := total_deleted + deleted;
+
+  DELETE FROM public.staging_import_investees
+    WHERE import_job_id IN (
+      SELECT id FROM public.import_jobs
+      WHERE status IN ('completed', 'failed', 'rolled_back')
+        AND updated_at < cutoff
+    );
+  GET DIAGNOSTICS deleted = ROW_COUNT;
+  total_deleted := total_deleted + deleted;
+
+  DELETE FROM public.staging_import_holdings
+    WHERE import_job_id IN (
+      SELECT id FROM public.import_jobs
+      WHERE status IN ('completed', 'failed', 'rolled_back')
+        AND updated_at < cutoff
+    );
+  GET DIAGNOSTICS deleted = ROW_COUNT;
+  total_deleted := total_deleted + deleted;
+
+  DELETE FROM public.staging_import_contributions
+    WHERE import_job_id IN (
+      SELECT id FROM public.import_jobs
+      WHERE status IN ('completed', 'failed', 'rolled_back')
+        AND updated_at < cutoff
+    );
+  GET DIAGNOSTICS deleted = ROW_COUNT;
+  total_deleted := total_deleted + deleted;
+
+  DELETE FROM public.staging_import_metrics
     WHERE import_job_id IN (
       SELECT id FROM public.import_jobs
       WHERE status IN ('completed', 'failed', 'rolled_back')
@@ -31,6 +76,5 @@ BEGIN
 END;
 $$;
 
--- Only service_role can call this function (called from admin API routes only)
 REVOKE ALL ON FUNCTION public.cleanup_staging_pii(INT) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.cleanup_staging_pii(INT) TO service_role;

@@ -1,21 +1,24 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import GrantHealthDashboard from '@/components/grants/GrantHealthDashboard';
 import WorkflowManager from '@/components/grants/WorkflowManager';
 import PaymentSchedule from '@/components/grants/PaymentSchedule';
 import CommunicationLog from '@/components/grants/CommunicationLog';
+import CreateGrantWizard from '@/components/grants/CreateGrantWizard';
 
 type TabId = 'overview' | 'workflows' | 'payments' | 'communications';
 
 export default function GrantsDashboard() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const [portfolioId, setPortfolioId] = useState<string | null>(null);
   const [orgId, setOrgId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<TabId>('overview');
   const [refreshKey, setRefreshKey] = useState(0);
+  const [showWizard, setShowWizard] = useState(false);
 
   // Fetch user's portfolio ID
   useEffect(() => {
@@ -123,15 +126,26 @@ export default function GrantsDashboard() {
             Track due diligence, milestones, payments, and communications
           </p>
         </div>
-        <a
-          href={`/dashboard?portfolio_id=${portfolioId}`}
-          className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-          </svg>
-          Back to Dashboard
-        </a>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setShowWizard(true)}
+            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-azure rounded-lg hover:bg-azure/90 transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            New Grant
+          </button>
+          <a
+            href={`/dashboard?portfolio_id=${portfolioId}`}
+            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+            </svg>
+            Back to Dashboard
+          </a>
+        </div>
       </div>
 
       {/* Tab Navigation */}
@@ -173,6 +187,20 @@ export default function GrantsDashboard() {
           <CommunicationLog portfolioId={portfolioId} key={`comms-${refreshKey}`} />
         )}
       </div>
+
+      {/* Create Grant Wizard */}
+      {showWizard && orgId && portfolioId && (
+        <CreateGrantWizard
+          orgId={orgId}
+          portfolioId={portfolioId}
+          onClose={() => setShowWizard(false)}
+          onSuccess={(grantId) => {
+            setShowWizard(false);
+            setRefreshKey(k => k + 1);
+            router.push(`/dashboard/grants/${grantId}`);
+          }}
+        />
+      )}
     </div>
   );
 }

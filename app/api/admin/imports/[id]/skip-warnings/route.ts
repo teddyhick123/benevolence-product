@@ -6,11 +6,11 @@ import { createAdminClient, createServerClient } from '@/lib/supabase';
 import { requireAdmin } from '@/lib/admin-auth';
 
 const STAGING_TABLES = [
+  'staging_import_donors',
   'staging_import_holdings',
   'staging_import_investees',
   'staging_import_contributions',
   'staging_import_metrics',
-  'staging_import_users',
 ];
 
 export async function POST(

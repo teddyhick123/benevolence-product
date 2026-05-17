@@ -39,7 +39,7 @@ export function createImportWorker(): Worker {
       const { importJobId, storagePaths, mappingProfileId } = job.data;
       const supabase = createAdminClient();
 
-      // 1. Mark job as running with initial heartbeat
+      // 1. Mark job as processing with initial heartbeat
       await supabase
         .from('import_jobs')
         .update({ status: 'processing', started_at: new Date().toISOString(), last_heartbeat_at: new Date().toISOString() })
@@ -113,7 +113,11 @@ export function createImportWorker(): Worker {
           .from('import_jobs')
           .update({
             status: 'failed',
-            notes: `Worker error: ${errorMessage}`,
+            error_message: errorMessage,
+            error_details: {
+              failed_at: new Date().toISOString(),
+              stage: 'worker',
+            },
             completed_at: new Date().toISOString(),
           })
           .eq('id', importJobId);

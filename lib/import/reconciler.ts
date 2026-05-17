@@ -35,14 +35,15 @@ export async function generateReconciliationReport(
 ): Promise<ReconciliationReport> {
   const entities: EntityReconciliation[] = [];
 
-  const [investees, holdings, contributions, metrics] = await Promise.all([
+  const [donors, investees, holdings, contributions, metrics] = await Promise.all([
+    reconcileDonors(supabase, importJobId, tolerancePercent),
     reconcileInvestees(supabase, importJobId, tolerancePercent),
     reconcileHoldings(supabase, importJobId, tolerancePercent),
     reconcileContributions(supabase, importJobId, tolerancePercent),
     reconcileMetrics(supabase, importJobId, tolerancePercent),
   ]);
 
-  entities.push(investees, holdings, contributions, metrics);
+  entities.push(donors, investees, holdings, contributions, metrics);
 
   const overallSuccess = entities.every((e) => e.withinTolerance);
   const actionItems: string[] = [];
@@ -82,6 +83,14 @@ export async function generateReconciliationReport(
 }
 
 // ─── Entity reconcilers ───────────────────────────────────────────────────────
+
+async function reconcileDonors(
+  supabase: SupabaseClient,
+  importJobId: string,
+  tolerancePercent: number
+): Promise<EntityReconciliation> {
+  return reconcileSimpleEntity(supabase, importJobId, 'donors', 'staging_import_donors', 'final_id', tolerancePercent);
+}
 
 async function reconcileInvestees(
   supabase: SupabaseClient,
@@ -196,36 +205,32 @@ async function reconcileContributions(
     .eq('import_job_id', importJobId)
     .eq('action_taken', 'error');
 
-  // Source amount total — push SUM to PostgreSQL to avoid loading all JSONB blobs
-  const { data: sumResult } = await supabase.rpc('sum_contribution_amounts', {
-    p_import_job_id: importJobId,
-  });
-  const sourceTotalAmount = (sumResult as Array<{ total: number }> | null)?.[0]?.total ?? 0;
+  const sourceTotalAmount = await sumStagedContributionAmounts(supabase, importJobId);
 
-  // Loaded amount total from tax_contributions
+  // Loaded amount total from contributions_received
   const { data: loadedIds } = await supabase
     .from('staging_import_contributions')
-    .select('final_tax_contribution_id')
+    .select('final_contribution_id')
     .eq('import_job_id', importJobId)
     .in('action_taken', ['create', 'update'])
-    .not('final_tax_contribution_id', 'is', null);
+    .not('final_contribution_id', 'is', null);
 
-  const taxIds = (loadedIds ?? [])
-    .map((r: { final_tax_contribution_id: string | null }) => r.final_tax_contribution_id)
+  const contributionIds = (loadedIds ?? [])
+    .map((r: { final_contribution_id: string | null }) => r.final_contribution_id)
     .filter(Boolean) as string[];
 
   let loadedTotalAmount = 0;
-  if (taxIds.length > 0) {
+  if (contributionIds.length > 0) {
     // Chunk to avoid PostgREST URL limits
     const chunkSize = 500;
-    for (let i = 0; i < taxIds.length; i += chunkSize) {
-      const chunk = taxIds.slice(i, i + chunkSize);
-      const { data: taxRows } = await supabase
-        .from('tax_contributions')
-        .select('amount_usd')
+    for (let i = 0; i < contributionIds.length; i += chunkSize) {
+      const chunk = contributionIds.slice(i, i + chunkSize);
+      const { data: contributionRows } = await supabase
+        .from('contributions_received')
+        .select('amount')
         .in('id', chunk);
-      loadedTotalAmount += (taxRows ?? []).reduce(
-        (sum: number, r: { amount_usd: number | null }) => sum + (r.amount_usd ?? 0),
+      loadedTotalAmount += (contributionRows ?? []).reduce(
+        (sum: number, r: { amount: number | null }) => sum + (r.amount ?? 0),
         0
       );
     }
@@ -240,7 +245,7 @@ async function reconcileContributions(
     .select('id')
     .eq('import_job_id', importJobId)
     .in('validation_status', ['valid', 'warning'])
-    .is('final_tax_contribution_id', null)
+    .is('final_contribution_id', null)
     .neq('action_taken', 'skip')
     .limit(10);
 
@@ -265,4 +270,45 @@ async function reconcileContributions(
     duplicateWarnings: [],
     withinTolerance: matchRate >= threshold && amountWithinTolerance,
   };
+}
+
+async function sumStagedContributionAmounts(
+  supabase: SupabaseClient,
+  importJobId: string
+): Promise<number> {
+  const PAGE_SIZE = 1000;
+  let offset = 0;
+  let total = 0;
+
+  while (true) {
+    const { data: rows, error } = await supabase
+      .from('staging_import_contributions')
+      .select('transformed_data')
+      .eq('import_job_id', importJobId)
+      .in('validation_status', ['valid', 'warning'])
+      .range(offset, offset + PAGE_SIZE - 1);
+
+    if (error) {
+      throw new Error(`Failed to sum staged contributions: ${error.message}`);
+    }
+
+    const page = rows ?? [];
+    for (const row of page as Array<{ transformed_data: Record<string, unknown> | null }>) {
+      total += coerceAmount(row.transformed_data?.amount ?? row.transformed_data?.amount_usd);
+    }
+
+    if (page.length < PAGE_SIZE) break;
+    offset += PAGE_SIZE;
+  }
+
+  return total;
+}
+
+function coerceAmount(value: unknown): number {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string') {
+    const parsed = Number(value.replace(/[$,\s]/g, ''));
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+  return 0;
 }

@@ -44,14 +44,14 @@ export default async function ImportsPage() {
 
   const [{ data: jobs }, { data: portfolios }] = await Promise.all([
     supabase.from('import_jobs').select('*').order('created_at', { ascending: false }),
-    supabase.from('portfolios').select('id, name').order('name'),
+    supabase.from('portfolios').select('id, name, org_id').order('name'),
   ]);
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
       <ImportDashboardClient
         initialJobs={(jobs as ImportJob[]) ?? []}
-        portfolios={(portfolios as { id: string; name: string }[]) ?? []}
+        portfolios={(portfolios as { id: string; name: string; org_id: string }[]) ?? []}
       />
     </div>
   );

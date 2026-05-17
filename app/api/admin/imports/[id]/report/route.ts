@@ -67,11 +67,11 @@ export async function GET(
 
   // Gather entity counts
   const stagingTables: Record<string, string> = {
+    donors: 'staging_import_donors',
     holdings: 'staging_import_holdings',
     investees: 'staging_import_investees',
     contributions: 'staging_import_contributions',
     metrics: 'staging_import_metrics',
-    users: 'staging_import_users',
   };
 
   const entityCountEntries = await Promise.all(
@@ -111,9 +111,9 @@ export async function GET(
     actionItems.push(`Review and resolve ${totalFailed} rows that failed to load`);
   }
 
-  // Estimate enrichment stats from staging contributions
+  // Estimate enrichment stats from staged investees
   const { count: charitiesMatched } = await supabase
-    .from('staging_import_contributions')
+    .from('staging_import_investees')
     .select('*', { count: 'exact', head: true })
     .eq('import_job_id', importJobId)
     .not('matched_charity_id', 'is', null);

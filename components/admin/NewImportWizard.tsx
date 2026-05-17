@@ -8,6 +8,7 @@ import { useRouter } from 'next/navigation';
 interface Portfolio {
   id: string;
   name: string;
+  org_id: string;
 }
 
 interface NewImportWizardProps {
@@ -29,7 +30,8 @@ const SOURCE_LABELS: Record<SourceSystem, string> = {
 };
 
 const FILE_SLOTS = [
-  { key: 'constituents.csv', label: 'Constituents / Donors' },
+  { key: 'donors.csv', label: 'Donors / Constituents' },
+  { key: 'investees.csv', label: 'Investees / Organizations' },
   { key: 'funds.csv', label: 'Funds / Holdings' },
   { key: 'gifts.csv', label: 'Gifts / Contributions' },
   { key: 'custom_fields.csv', label: 'Custom Fields (optional)' },
@@ -61,8 +63,12 @@ export function NewImportWizard({ portfolios, onClose }: NewImportWizardProps) {
 
     try {
       const formData = new FormData();
+      const selectedPortfolio = portfolios.find((p) => p.id === portfolioId);
       formData.append('name', name);
       formData.append('portfolio_id', portfolioId);
+      if (selectedPortfolio?.org_id) {
+        formData.append('org_id', selectedPortfolio.org_id);
+      }
       formData.append('source_type', 'csv_export');
 
       for (const [key, file] of Object.entries(files)) {

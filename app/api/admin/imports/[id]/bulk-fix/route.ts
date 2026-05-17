@@ -29,11 +29,11 @@ const GIFT_TYPE_MAP: Record<string, string> = {
 };
 
 const STAGING_TABLE_MAP: Record<string, string> = {
+  donors: 'staging_import_donors',
   holdings: 'staging_import_holdings',
   investees: 'staging_import_investees',
   contributions: 'staging_import_contributions',
   metrics: 'staging_import_metrics',
-  users: 'staging_import_users',
 };
 
 function normalizeEIN(raw: string): string | null {

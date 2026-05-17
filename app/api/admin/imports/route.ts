@@ -82,8 +82,8 @@ export async function POST(req: NextRequest) {
   // Upload each CSV file to Supabase Storage
   const entityFileMap: Record<string, string> = {
     'funds.csv': 'holdings',
-    'constituents.csv': 'investees',
     'donors.csv': 'donors',
+    'investees.csv': 'investees',
     'gifts.csv': 'contributions',
     'custom_fields.csv': 'metrics',
   };

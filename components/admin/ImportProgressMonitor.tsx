@@ -7,7 +7,7 @@ import type { ImportJob } from '@/lib/import/types';
 import type { ProgressEvent } from '@/lib/import/progress-emitter';
 import { ImportStatusBadge } from './ImportStatusBadge';
 
-type RollbackScope = 'full' | 'investees' | 'holdings' | 'users' | 'contributions' | 'metrics';
+type RollbackScope = 'full' | 'donors' | 'investees' | 'holdings' | 'contributions' | 'metrics';
 
 interface EntityProgress {
   processed: number;
@@ -120,7 +120,7 @@ export function ImportProgressMonitor({ importJobId, initialJob }: ImportProgres
   const isComplete = job.status === 'completed';
   const isFailed = job.status === 'failed';
 
-  const entityTypes = ['holdings', 'investees', 'contributions', 'metrics'] as const;
+  const entityTypes = ['donors', 'holdings', 'investees', 'contributions', 'metrics'] as const;
 
   const handlePause = async () => {
     await fetch(`/api/admin/imports/${importJobId}`, {
@@ -166,6 +166,7 @@ export function ImportProgressMonitor({ importJobId, initialJob }: ImportProgres
 
   const ROLLBACK_SCOPES: { label: string; scope: RollbackScope }[] = [
     { label: 'Full rollback', scope: 'full' },
+    { label: 'Rollback donors only', scope: 'donors' },
     { label: 'Rollback contributions only', scope: 'contributions' },
     { label: 'Rollback holdings only', scope: 'holdings' },
     { label: 'Rollback investees only', scope: 'investees' },

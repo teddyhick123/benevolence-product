@@ -24,6 +24,17 @@ export async function extractCSVToStaging(
   let rowsInserted = 0;
   const stagingTable = STAGING_TABLE_MAP[entityType];
 
+  const { data: job, error: jobError } = await supabase
+    .from('import_jobs')
+    .select('org_id')
+    .eq('id', importJobId)
+    .single();
+
+  if (jobError || !job?.org_id) {
+    throw new Error(`Cannot extract import ${importJobId}: missing org_id`);
+  }
+  const orgId = job.org_id as string;
+
   // Download file from Supabase Storage
   const { data: fileData, error: downloadError } = await supabase.storage
     .from('imports')
@@ -67,6 +78,7 @@ export async function extractCSVToStaging(
 
     const records = batch.map((row, idx) => ({
       import_job_id: importJobId,
+      org_id: orgId,
       row_number: i + idx + 1,
       raw_data: row,
       validation_status: 'pending' as const,

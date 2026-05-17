@@ -34,7 +34,7 @@ const PHASE_TABLES: Record<LoadPhase, string[]> = {
   donors: ['donors'],
   investees: ['investees'],
   holdings: ['holdings'],
-  contributions: ['tax_contributions', 'holding_contributions'],
+  contributions: ['contributions_received'],
   metrics: ['metric_facts'],
 };
 
@@ -197,7 +197,7 @@ export async function rollbackImport(
       // Contributions have extra final ID columns
       await supabase
         .from('staging_import_contributions')
-        .update({ action_taken: 'pending', final_tax_contribution_id: null, final_holding_contribution_id: null })
+        .update({ action_taken: 'pending', final_contribution_id: null })
         .eq('import_job_id', importJobId);
 
       await supabase
@@ -216,8 +216,7 @@ export async function rollbackImport(
       const updateFields: Record<string, unknown> = { action_taken: 'pending' };
 
       if (scope === 'contributions') {
-        updateFields.final_tax_contribution_id = null;
-        updateFields.final_holding_contribution_id = null;
+        updateFields.final_contribution_id = null;
       } else {
         updateFields.final_id = null;
       }

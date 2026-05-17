@@ -1,5 +1,5 @@
 // POST /api/admin/imports/[id]/resume
-// Resets a paused import job back to processing so the queue picks it up.
+// Resets a review-blocked import job back to processing so the queue picks it up.
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient, createServerClient } from '@/lib/supabase';

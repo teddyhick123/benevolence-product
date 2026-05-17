@@ -39,11 +39,11 @@ export async function POST(req: NextRequest) {
   } catch {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
   }
-  const { id, name, source_system, description, entity_mappings, org_id } = body;
+  const { id, name, source_type, description, entity_mappings, org_id } = body;
 
-  if (!name || !source_system || !entity_mappings) {
+  if (!name || !source_type || !entity_mappings || (!id && !org_id)) {
     return NextResponse.json(
-      { error: 'name, source_system, and entity_mappings are required' },
+      { error: 'name, source_type, entity_mappings, and org_id are required' },
       { status: 400 }
     );
   }
@@ -51,10 +51,12 @@ export async function POST(req: NextRequest) {
   const supabase = createAdminClient();
 
   if (id) {
+    const updateData: Record<string, unknown> = { name, source_type, description, entity_mappings };
+    if (org_id) updateData.org_id = org_id;
     // Update existing
     const { data, error } = await supabase
       .from('import_mapping_profiles')
-      .update({ name, source_system, description, entity_mappings, org_id: org_id || null })
+      .update(updateData)
       .eq('id', id)
       .select()
       .single();
@@ -65,7 +67,7 @@ export async function POST(req: NextRequest) {
     // Create new
     const { data, error } = await supabase
       .from('import_mapping_profiles')
-      .insert({ name, source_system, description, entity_mappings, org_id: org_id || null, created_by: userId })
+      .insert({ name, source_type, description, entity_mappings, org_id: org_id || null, created_by: userId })
       .select()
       .single();
 

@@ -6,11 +6,11 @@ import { createAdminClient, createServerClient } from '@/lib/supabase';
 import { requireAdmin } from '@/lib/admin-auth';
 
 type StagingTable =
+  | 'staging_import_donors'
   | 'staging_import_holdings'
   | 'staging_import_investees'
   | 'staging_import_contributions'
-  | 'staging_import_metrics'
-  | 'staging_import_users';
+  | 'staging_import_metrics';
 
 interface StagingCounts {
   total: number;
@@ -45,11 +45,11 @@ export async function GET(
 
   // Fetch staging counts for each entity type
   const stagingTables: Record<string, StagingTable> = {
+    donors: 'staging_import_donors',
     holdings: 'staging_import_holdings',
     investees: 'staging_import_investees',
     contributions: 'staging_import_contributions',
     metrics: 'staging_import_metrics',
-    users: 'staging_import_users',
   };
 
   const stagingCounts: Record<string, StagingCounts> = {};

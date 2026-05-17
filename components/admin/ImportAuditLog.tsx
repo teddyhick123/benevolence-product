@@ -29,7 +29,7 @@ const OPERATION_COLORS: Record<string, string> = {
   rollback: 'bg-orange-100 text-orange-700',
 };
 
-const ALL_TABLES = ['investees', 'holdings', 'profiles', 'tax_contributions', 'metric_facts'];
+const ALL_TABLES = ['donors', 'investees', 'holdings', 'contributions_received', 'metric_facts'];
 const ALL_OPERATIONS = ['insert', 'update', 'skip', 'error', 'rollback'];
 
 export function ImportAuditLog({ importJobId }: ImportAuditLogProps) {

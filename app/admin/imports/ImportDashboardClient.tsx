@@ -9,7 +9,7 @@ import type { ImportJob } from '@/lib/import/types';
 
 interface Props {
   initialJobs: ImportJob[];
-  portfolios: { id: string; name: string }[];
+  portfolios: { id: string; name: string; org_id: string }[];
 }
 
 export function ImportDashboardClient({ initialJobs, portfolios }: Props) {

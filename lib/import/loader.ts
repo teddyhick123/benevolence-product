@@ -29,10 +29,12 @@ export interface LoadOptions {
 interface StagingRow {
   id: string;
   import_job_id: string;
+  org_id: string;
   transformed_data: Record<string, unknown> | null;
   validation_status: string;
   action_taken: string;
   final_id?: string | null;
+  matched_existing_id?: string | null;
 }
 
 interface StagingInvesteeRow extends StagingRow {
@@ -141,8 +143,7 @@ async function loadPhase(
       .limit(batchSize);
 
     if (fetchError) {
-      console.error(`[loader] Error fetching ${stagingTable}:`, fetchError.message);
-      break;
+      throw new Error(`Error fetching ${stagingTable}: ${fetchError.message}`);
     }
 
     if (!rows || rows.length === 0) {
@@ -405,30 +406,61 @@ async function processDonor(
   auditor: ImportAuditor,
   stagingTable: string
 ): Promise<'insert' | 'update' | 'skip'> {
-  const displayName = data.display_name as string | null;
-  const email = data.email as string | null;
-  const orgId = data.org_id as string | null;
-  const existingId = (row as any).matched_existing_id as string | null;
+  const donorPayload = buildDonorPayload(row.org_id, data);
+  const email = donorPayload.email as string | null | undefined;
+  const externalId = donorPayload.external_id as string | null | undefined;
+  let existingId = row.matched_existing_id ?? null;
 
-  if (!displayName && !email) return 'skip';
-  if (!orgId) return 'skip';
+  if (!donorPayload.first_name && !donorPayload.last_name && !donorPayload.organization_name && !email) {
+    return 'skip';
+  }
+
+  if (!existingId && externalId) {
+    const { data: existing } = await supabase
+      .from('donors')
+      .select('id')
+      .eq('org_id', row.org_id)
+      .eq('external_id', externalId)
+      .maybeSingle();
+    existingId = existing?.id ?? null;
+  }
+
+  if (!existingId && email) {
+    const { data: existing } = await supabase
+      .from('donors')
+      .select('id')
+      .eq('org_id', row.org_id)
+      .ilike('email', email)
+      .maybeSingle();
+    existingId = existing?.id ?? null;
+  }
 
   if (dryRun) return existingId ? 'update' : 'insert';
 
   if (existingId) {
+    const { data: before } = await supabase.from('donors').select('*').eq('id', existingId).single();
     const { error } = await supabase
       .from('donors')
-      .update({ ...data, updated_at: new Date().toISOString() })
+      .update(donorPayload)
       .eq('id', existingId);
     if (error) throw new Error(`donor update failed: ${error.message}`);
-    auditor.log({ tableName: 'donors', operation: 'update', recordId: existingId, stagingTable, stagingRowId: row.id });
+    const { data: after } = await supabase.from('donors').select('*').eq('id', existingId).single();
+    auditor.log({
+      tableName: 'donors',
+      operation: 'update',
+      recordId: existingId,
+      stagingTable,
+      stagingRowId: row.id,
+      dataBefore: before ?? undefined,
+      dataAfter: after ?? undefined,
+    });
     await supabase.from('staging_import_donors').update({ action_taken: 'update', final_id: existingId }).eq('id', row.id);
     return 'update';
   } else {
     const { data: inserted, error } = await supabase
       .from('donors')
-      .insert({ org_id: orgId, display_name: displayName, email, ...data })
-      .select('id')
+      .insert(donorPayload)
+      .select('*')
       .single();
     if (error) throw new Error(`donor insert failed: ${error.message}`);
     auditor.log({ tableName: 'donors', operation: 'insert', recordId: inserted.id, stagingTable, stagingRowId: row.id, dataAfter: inserted });
@@ -448,90 +480,260 @@ async function processContribution(
   auditor: ImportAuditor,
   stagingTable: string
 ): Promise<'insert' | 'update' | 'skip'> {
-  const portfolioId = data.portfolio_id as string | null;
   const contributionDate = data.contribution_date as string | null;
-  const amountUsd = data.amount_usd as number | null;
-  const recipientName = data.recipient_name as string | null;
-  const holdingName = data.holding_name as string | null;
+  const amount = coerceNumber(data.amount ?? data.amount_usd);
+  const donorId = await resolveContributionDonor(
+    supabase,
+    row.org_id,
+    data,
+    importJobId,
+    auditor,
+    stagingTable,
+    row.id
+  );
 
-  if (!portfolioId || !contributionDate || amountUsd == null) return 'skip';
+  if (!donorId || !contributionDate || amount == null) return 'skip';
 
-  // Resolve holding_id from staging
-  let holdingId: string | null = data.holding_id as string | null;
-  if (!holdingId && holdingName) {
-    const { data: stagingHolding } = await supabase
-      .from('staging_import_holdings')
-      .select('final_id')
-      .eq('import_job_id', importJobId)
-      .ilike('transformed_data->>name', holdingName)
-      .maybeSingle();
-    holdingId = stagingHolding?.final_id ?? null;
-  }
-
-  // Dedup check on tax_contributions
   const { data: existing } = await supabase
-    .from('tax_contributions')
+    .from('contributions_received')
     .select('id')
-    .eq('portfolio_id', portfolioId)
+    .eq('org_id', row.org_id)
+    .eq('donor_id', donorId)
     .eq('contribution_date', contributionDate)
-    .eq('amount_usd', amountUsd)
-    .ilike('recipient_name', recipientName ?? '')
+    .eq('amount', amount)
     .maybeSingle();
-  const existingTaxId = existing?.id ?? null;
+  const existingContributionId = existing?.id ?? null;
 
-  if (dryRun) return existingTaxId ? 'update' : 'insert';
+  if (dryRun) return existingContributionId ? 'update' : 'insert';
 
-  const taxPayload: Record<string, unknown> = {
-    portfolio_id: portfolioId,
-    contribution_date: contributionDate,
-    amount_usd: amountUsd,
-    recipient_name: recipientName,
-  };
-  for (const [k, v] of Object.entries(data)) {
-    if (!['portfolio_id', 'contribution_date', 'amount_usd', 'recipient_name', 'holding_id', 'holding_name', '_enrichment'].includes(k)) {
-      taxPayload[k] = v;
-    }
-  }
-
-  let taxContributionId: string;
+  const contributionPayload = buildContributionPayload(row.org_id, donorId, contributionDate, amount, data);
+  let contributionId: string;
   let outcome: 'insert' | 'update';
 
-  if (existingTaxId) {
-    const { data: before } = await supabase.from('tax_contributions').select('*').eq('id', existingTaxId).single();
-    await supabase.from('tax_contributions').update(taxPayload).eq('id', existingTaxId);
-    const { data: after } = await supabase.from('tax_contributions').select('*').eq('id', existingTaxId).single();
-    auditor.log({ tableName: 'tax_contributions', operation: 'update', recordId: existingTaxId, stagingTable, stagingRowId: row.id, dataBefore: before ?? undefined, dataAfter: after ?? undefined });
-    taxContributionId = existingTaxId;
+  if (existingContributionId) {
+    const { data: before } = await supabase.from('contributions_received').select('*').eq('id', existingContributionId).single();
+    const { error } = await supabase
+      .from('contributions_received')
+      .update(contributionPayload)
+      .eq('id', existingContributionId);
+    if (error) throw new Error(`contribution update failed: ${error.message}`);
+    const { data: after } = await supabase.from('contributions_received').select('*').eq('id', existingContributionId).single();
+    auditor.log({
+      tableName: 'contributions_received',
+      operation: 'update',
+      recordId: existingContributionId,
+      stagingTable,
+      stagingRowId: row.id,
+      dataBefore: before ?? undefined,
+      dataAfter: after ?? undefined,
+    });
+    contributionId = existingContributionId;
     outcome = 'update';
   } else {
-    const { data: inserted, error } = await supabase.from('tax_contributions').insert(taxPayload).select('*').single();
-    if (error) throw new Error(`tax_contribution insert failed: ${error.message}`);
-    auditor.log({ tableName: 'tax_contributions', operation: 'insert', recordId: inserted.id, stagingTable, stagingRowId: row.id, dataAfter: inserted });
-    taxContributionId = inserted.id;
-    outcome = 'insert';
-  }
-
-  // Also insert into holding_contributions if holding resolved
-  let holdingContributionId: string | null = null;
-  if (holdingId) {
-    const { data: hc, error: hcError } = await supabase
-      .from('holding_contributions')
-      .insert({ holding_id: holdingId, tax_contribution_id: taxContributionId, amount_usd: amountUsd })
-      .select('id')
+    const { data: inserted, error } = await supabase
+      .from('contributions_received')
+      .insert(contributionPayload)
+      .select('*')
       .single();
-    if (!hcError && hc) holdingContributionId = hc.id;
+    if (error) throw new Error(`contribution insert failed: ${error.message}`);
+    auditor.log({
+      tableName: 'contributions_received',
+      operation: 'insert',
+      recordId: inserted.id,
+      stagingTable,
+      stagingRowId: row.id,
+      dataAfter: inserted,
+    });
+    contributionId = inserted.id;
+    outcome = 'insert';
   }
 
   await supabase
     .from('staging_import_contributions')
     .update({
       action_taken: outcome === 'insert' ? 'create' : 'update',
-      final_tax_contribution_id: taxContributionId,
-      final_holding_contribution_id: holdingContributionId,
+      final_contribution_id: contributionId,
     })
     .eq('id', row.id);
 
   return outcome;
+}
+
+function buildContributionPayload(
+  orgId: string,
+  donorId: string,
+  contributionDate: string,
+  amount: number,
+  data: Record<string, unknown>
+): Record<string, unknown> {
+  const payload: Record<string, unknown> = {
+    org_id: orgId,
+    donor_id: donorId,
+    contribution_date: contributionDate,
+    amount,
+    currency: (data.currency as string | null) ?? 'USD',
+    gift_type: (data.gift_type ?? data.contribution_type ?? 'cash') as string,
+  };
+
+  const optionalFields = [
+    'fund_designation',
+    'is_restricted',
+    'restriction_purpose',
+    'quid_pro_quo_value',
+    'acknowledged_at',
+    'acknowledgment_sent',
+    'external_id',
+    'source_system',
+    'payment_reference',
+    'campaign',
+    'notes',
+    'receipt_url',
+  ];
+  for (const field of optionalFields) {
+    if (data[field] !== undefined) {
+      payload[field] = data[field];
+    }
+  }
+  return payload;
+}
+
+async function resolveContributionDonor(
+  supabase: SupabaseClient,
+  orgId: string,
+  data: Record<string, unknown>,
+  importJobId: string,
+  auditor: ImportAuditor,
+  stagingTable: string,
+  stagingRowId: string
+): Promise<string | null> {
+  const explicitDonorId = data.donor_id as string | null;
+  if (explicitDonorId) return explicitDonorId;
+
+  const donorExternalId = (data.donor_external_id ?? data.external_donor_id) as string | null;
+  if (donorExternalId) {
+    const { data: donor } = await supabase
+      .from('donors')
+      .select('id')
+      .eq('org_id', orgId)
+      .eq('external_id', donorExternalId)
+      .maybeSingle();
+    if (donor?.id) return donor.id as string;
+
+    const { data: stagedDonor } = await supabase
+      .from('staging_import_donors')
+      .select('final_id')
+      .eq('import_job_id', importJobId)
+      .eq('external_id', donorExternalId)
+      .maybeSingle();
+    if (stagedDonor?.final_id) return stagedDonor.final_id as string;
+  }
+
+  const donorEmail = (data.donor_email ?? data.email) as string | null;
+  if (donorEmail) {
+    const { data: donor } = await supabase
+      .from('donors')
+      .select('id')
+      .eq('org_id', orgId)
+      .ilike('email', donorEmail)
+      .maybeSingle();
+    if (donor?.id) return donor.id as string;
+  }
+
+  const donorName = (data.donor_name ?? data.recipient_name) as string | null;
+  if (!donorEmail && !donorExternalId && !donorName) return null;
+
+  const donorPayload = buildDonorPayload(orgId, {
+    display_name: donorName,
+    email: donorEmail,
+    external_id: donorExternalId,
+    source: data.source_system ?? data.source,
+  });
+  const { data: inserted, error } = await supabase
+    .from('donors')
+    .insert(donorPayload)
+    .select('*')
+    .single();
+  if (error) throw new Error(`donor resolution failed: ${error.message}`);
+  auditor.log({
+    tableName: 'donors',
+    operation: 'insert',
+    recordId: inserted.id,
+    stagingTable,
+    stagingRowId,
+    dataAfter: inserted,
+  });
+  return inserted.id as string;
+}
+
+function buildDonorPayload(orgId: string, data: Record<string, unknown>): Record<string, unknown> {
+  const displayName = (data.display_name ?? data.donor_name ?? data.name) as string | null;
+  const organizationName = data.organization_name as string | null;
+  const firstName = data.first_name as string | null;
+  const lastName = data.last_name as string | null;
+  const isOrganization = Boolean(data.is_organization ?? organizationName);
+  const payload: Record<string, unknown> = {
+    org_id: orgId,
+    is_organization: isOrganization,
+  };
+
+  if (organizationName) {
+    payload.organization_name = organizationName;
+    payload.is_organization = true;
+  } else if (firstName || lastName) {
+    if (firstName) payload.first_name = firstName;
+    if (lastName) payload.last_name = lastName;
+    if (displayName) payload.preferred_name = displayName;
+  } else if (displayName) {
+    const parts = displayName.trim().split(/\s+/);
+    if (!isOrganization && parts.length >= 2) {
+      payload.first_name = parts.slice(0, -1).join(' ');
+      payload.last_name = parts[parts.length - 1];
+      payload.preferred_name = displayName;
+    } else {
+      payload.organization_name = displayName;
+      payload.is_organization = true;
+    }
+  }
+
+  const optionalFields = [
+    'email',
+    'phone',
+    'address_line1',
+    'address_line2',
+    'city',
+    'state',
+    'zip',
+    'country',
+    'tier',
+    'recency_status',
+    'relationship_manager',
+    'notes',
+    'tags',
+    'custom_fields',
+    'source',
+    'external_id',
+  ];
+  for (const field of optionalFields) {
+    if (data[field] !== undefined) {
+      payload[field] = data[field];
+    }
+  }
+
+  if (data.source_system !== undefined && payload.source === undefined) {
+    payload.source = data.source_system;
+  }
+
+  return payload;
+}
+
+function coerceNumber(value: unknown): number | null {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+  if (typeof value === 'string') {
+    const cleaned = value.replace(/[$,\s]/g, '');
+    const parsed = Number(cleaned);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
 }
 
 // ─── Phase: metrics ──────────────────────────────────────────────────────────

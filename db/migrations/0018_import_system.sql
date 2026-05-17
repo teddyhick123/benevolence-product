@@ -165,8 +165,7 @@ CREATE TABLE IF NOT EXISTS staging_import_contributions (
   action_taken    text NOT NULL DEFAULT 'pending',
   validation_errors jsonb,
   matched_existing_id uuid,
-  final_tax_contribution_id uuid,
-  final_holding_contribution_id uuid
+  final_contribution_id uuid       -- contributions_received.id created or updated by load
 );
 
 CREATE INDEX idx_staging_import_contributions_job_id ON staging_import_contributions (import_job_id);
@@ -189,6 +188,25 @@ CREATE TABLE IF NOT EXISTS staging_import_metrics (
 
 CREATE INDEX idx_staging_import_metrics_job_id ON staging_import_metrics (import_job_id);
 CREATE INDEX idx_staging_import_metrics_org_id ON staging_import_metrics (org_id);
+
+-- ---------------------------------------------------------------------------
+-- import_audit_log — immutable production write log used for rollback
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS import_audit_log (
+  id              uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  created_at      timestamptz NOT NULL DEFAULT now(),
+  import_job_id   uuid NOT NULL REFERENCES import_jobs(id) ON DELETE CASCADE,
+  table_name      text NOT NULL,
+  operation       text NOT NULL CHECK (operation IN ('insert', 'update', 'skip', 'error', 'rollback')),
+  record_id       uuid NOT NULL,
+  staging_table   text,
+  staging_row_id  uuid,
+  data_snapshot   jsonb,
+  error_message   text
+);
+
+CREATE INDEX idx_import_audit_log_job_id ON import_audit_log (import_job_id, created_at DESC);
+CREATE INDEX idx_import_audit_log_table_record ON import_audit_log (table_name, record_id);
 
 -- ---------------------------------------------------------------------------
 -- Add FK back-references from earlier tables
@@ -282,6 +300,20 @@ CREATE POLICY "staging_import_metrics: service role full access"
   ON staging_import_metrics FOR ALL TO service_role
   USING (true) WITH CHECK (true);
 
+ALTER TABLE import_audit_log ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "import_audit_log: org admins can view"
+  ON import_audit_log FOR SELECT
+  USING (
+    EXISTS (
+      SELECT 1 FROM import_jobs j
+      WHERE j.id = import_audit_log.import_job_id
+        AND is_org_admin(j.org_id)
+    )
+  );
+CREATE POLICY "import_audit_log: service role full access"
+  ON import_audit_log FOR ALL TO service_role
+  USING (true) WITH CHECK (true);
+
 -- ---------------------------------------------------------------------------
 -- Grants
 -- ---------------------------------------------------------------------------
@@ -305,3 +337,6 @@ GRANT ALL ON staging_import_contributions TO service_role;
 
 GRANT SELECT, INSERT, UPDATE, DELETE ON staging_import_metrics TO authenticated;
 GRANT ALL ON staging_import_metrics TO service_role;
+
+GRANT SELECT ON import_audit_log TO authenticated;
+GRANT ALL ON import_audit_log TO service_role;

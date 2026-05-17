@@ -1,6 +1,6 @@
 // app/api/admin/imports/mapping-assist/route.ts
 // POST /api/admin/imports/mapping-assist
-// Body: { source_system, entity_type, source_fields, sample_records, existing_mapping? }
+// Body: { source_type, entity_type, source_fields, sample_records, existing_mapping? }
 // Returns: MappingAssistResult
 // Admin-only endpoint
 
@@ -24,20 +24,20 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json() as {
-      source_system?: string;
+      source_type?: string;
       entity_type?: string;
       source_fields?: string[];
       sample_records?: Record<string, string>[];
       existing_mapping?: Record<string, unknown>;
     };
-    const { source_system, entity_type, source_fields, sample_records, existing_mapping } = body;
+    const { source_type, entity_type, source_fields, sample_records, existing_mapping } = body;
 
-    if (!source_system || !entity_type || !source_fields || !sample_records) {
+    if (!source_type || !entity_type || !source_fields || !sample_records) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
     const result = await suggestMappings({
-      sourceSystem: source_system,
+      sourceSystem: source_type,
       entityType: entity_type,
       sourceFields: source_fields,
       sampleRecords: sample_records,

@@ -17,24 +17,24 @@ Optional: ein (format: XX-XXXXXXX), sector, country (default: United States), ci
 Required: name
 Optional: custodian, asset_class (string), funds_allocated (numeric, USD), as_of (date), cost_basis (numeric), sector, country, description, theory_of_action
 
-### Entity: contributions (tax_contributions)
-Required: recipient_name, contribution_date (date YYYY-MM-DD), amount_usd (positive numeric)
-Optional: recipient_ein (XX-XXXXXXX), contribution_type (cash|check|wire|stock|crypto|real_estate|other_property), quid_pro_quo_value (numeric default 0), deductible_amount (numeric), acknowledgment_received (boolean), tax_year (int, derived from date if missing)
+### Entity: donors (Donor CRM)
+Required: display_name
+Optional: first_name, last_name, organization_name, is_organization, email, phone, address_line1, address_line2, city, state, zip, country, tier, notes, external_id
+
+### Entity: contributions (contributions_received)
+Required: donor_name OR donor_email OR donor_external_id, contribution_date (date YYYY-MM-DD), amount_usd (positive numeric)
+Optional: donor_id, gift_type (cash|check|credit_card|securities|daf_grant|in_kind|pledge|bequest), fund_designation, is_restricted, restriction_purpose, quid_pro_quo_value, external_id, payment_reference, campaign, notes
 
 ### Entity: metrics (metric_facts)
 Required: metric_code (snake_case string), value (numeric)
 Optional: period_start (date), period_end (date), unit (string), source (string)
-
-### Entity: users (portfolio_members/profiles)
-Required: email OR display_name
-Optional: role (owner|editor|viewer, default: viewer)
 
 ## Output Format
 
 Respond ONLY with valid JSON. No markdown, no explanation outside the JSON.
 
 {
-  "entity": "investees|holdings|contributions|metrics|users",
+  "entity": "donors|investees|holdings|contributions|metrics",
   "source_entity": "name of source table/file",
   "confidence_overall": 0.0-1.0,
   "mappings": [

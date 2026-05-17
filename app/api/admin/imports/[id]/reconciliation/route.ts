@@ -83,20 +83,20 @@ export async function POST(
     try {
       const { data: stagingMismatches } = await supabase
         .from('staging_import_contributions')
-        .select('id, transformed_data, final_tax_contribution_id')
+        .select('id, transformed_data, final_contribution_id')
         .eq('import_job_id', id)
         .in('validation_status', ['valid', 'warning'])
-        .is('final_tax_contribution_id', null)
+        .is('final_contribution_id', null)
         .neq('action_taken', 'skip')
         .limit(5);
 
       const sampleMismatches = (stagingMismatches ?? []).map((row: {
         id: string;
         transformed_data: Record<string, unknown> | null;
-        final_tax_contribution_id: string | null;
+        final_contribution_id: string | null;
       }) => ({
         staging: { id: row.id, ...(row.transformed_data ?? {}) },
-        production: { note: 'No matching record found in tax_contributions' },
+        production: { note: 'No matching record found in contributions_received' },
       }));
 
       const aiAnalysis = await analyzeReconciliation(report, sampleMismatches);

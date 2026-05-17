@@ -23,7 +23,7 @@ interface ErrorRow {
   action_taken: string;
 }
 
-type EntityType = 'holdings' | 'investees' | 'contributions' | 'metrics' | 'users';
+type EntityType = 'donors' | 'holdings' | 'investees' | 'contributions' | 'metrics';
 type SeverityFilter = 'all' | 'error' | 'warning';
 
 interface ImportErrorsTableProps {
@@ -31,17 +31,17 @@ interface ImportErrorsTableProps {
 }
 
 const STAGING_TABLE: Record<EntityType, string> = {
+  donors: 'staging_import_donors',
   holdings: 'staging_import_holdings',
   investees: 'staging_import_investees',
   contributions: 'staging_import_contributions',
   metrics: 'staging_import_metrics',
-  users: 'staging_import_users',
 };
 
 const PAGE_SIZE = 50;
 
 export function ImportErrorsTable({ importJobId }: ImportErrorsTableProps) {
-  const [entity, setEntity] = useState<EntityType>('holdings');
+  const [entity, setEntity] = useState<EntityType>('donors');
   const [severity, setSeverity] = useState<SeverityFilter>('all');
   const [offset, setOffset] = useState(0);
   const [rows, setRows] = useState<ErrorRow[]>([]);
@@ -231,7 +231,7 @@ export function ImportErrorsTable({ importJobId }: ImportErrorsTableProps) {
     URL.revokeObjectURL(url);
   };
 
-  const entityOptions: EntityType[] = ['holdings', 'investees', 'contributions', 'metrics', 'users'];
+  const entityOptions: EntityType[] = ['donors', 'holdings', 'investees', 'contributions', 'metrics'];
 
   const autoFixableCount = rows.filter((r) =>
     r.validation_errors?.some((e) => e.auto_fixable)

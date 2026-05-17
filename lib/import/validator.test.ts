@@ -6,36 +6,36 @@ import { validateTransformedRow } from './validator';
 // required rule
 // ---------------------------------------------------------------------------
 describe('required rule', () => {
-  it('catches empty string', () => {
+  it('requires donor identity when donor name is empty', () => {
     const errors = validateTransformedRow(
       { recipient_name: '', contribution_date: '2024-01-01', amount_usd: 100 },
       'contributions'
     );
-    expect(errors.some((e) => e.field === 'recipient_name' && e.rule === 'required')).toBe(true);
+    expect(errors.some((e) => e.field === 'donor_name' && e.rule === 'required')).toBe(true);
   });
 
-  it('catches null', () => {
+  it('requires donor identity when donor name is null', () => {
     const errors = validateTransformedRow(
       { recipient_name: null, contribution_date: '2024-01-01', amount_usd: 100 },
       'contributions'
     );
-    expect(errors.some((e) => e.field === 'recipient_name' && e.rule === 'required')).toBe(true);
+    expect(errors.some((e) => e.field === 'donor_name' && e.rule === 'required')).toBe(true);
   });
 
-  it('catches undefined', () => {
+  it('requires donor identity when donor identity is missing', () => {
     const errors = validateTransformedRow(
       { contribution_date: '2024-01-01', amount_usd: 100 },
       'contributions'
     );
-    expect(errors.some((e) => e.field === 'recipient_name' && e.rule === 'required')).toBe(true);
+    expect(errors.some((e) => e.field === 'donor_name' && e.rule === 'required')).toBe(true);
   });
 
-  it('does not fire when value is present', () => {
+  it('does not fire when legacy recipient name is present', () => {
     const errors = validateTransformedRow(
       { recipient_name: 'ACME Foundation', contribution_date: '2024-01-01', amount_usd: 100 },
       'contributions'
     );
-    expect(errors.some((e) => e.field === 'recipient_name' && e.rule === 'required')).toBe(false);
+    expect(errors.some((e) => e.field === 'donor_name' && e.rule === 'required')).toBe(false);
   });
 });
 

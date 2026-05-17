@@ -354,7 +354,6 @@ interface DefaultRule {
 
 const ENTITY_DEFAULT_RULES: Record<EntityType, DefaultRule[]> = {
   contributions: [
-    { field: 'recipient_name', rule: { rule: 'required', severity: 'error' } },
     { field: 'contribution_date', rule: { rule: 'required', severity: 'error' } },
     { field: 'amount_usd', rule: { rule: 'required', severity: 'error' } },
     { field: 'contribution_type', rule: { rule: 'contribution_type_valid', severity: 'error' } },
@@ -413,6 +412,19 @@ export function validateTransformedRow(
         field: 'email',
         message: 'Either email or external_id is required for donor deduplication',
         severity: 'warning',
+        rule: 'required',
+      });
+    }
+  }
+
+  if (entityType === 'contributions') {
+    const hasDonorLink = transformed['donor_id'] || transformed['donor_external_id'] || transformed['external_donor_id'];
+    const hasDonorIdentity = transformed['donor_email'] || transformed['email'] || transformed['donor_name'] || transformed['recipient_name'];
+    if (!hasDonorLink && !hasDonorIdentity) {
+      errors.push({
+        field: 'donor_name',
+        message: 'A donor identifier, email, or name is required to import a contribution',
+        severity: 'error',
         rule: 'required',
       });
     }

@@ -21,6 +21,14 @@ interface MappingPageClientProps {
 }
 
 const ENTITY_TARGET_FIELDS: Record<string, TargetField[]> = {
+  donors: [
+    { field: 'display_name', label: 'Display Name', required: true, entity: 'donors', type: 'string' },
+    { field: 'first_name', label: 'First Name', required: false, entity: 'donors', type: 'string' },
+    { field: 'last_name', label: 'Last Name', required: false, entity: 'donors', type: 'string' },
+    { field: 'organization_name', label: 'Organization Name', required: false, entity: 'donors', type: 'string' },
+    { field: 'email', label: 'Email', required: false, entity: 'donors', type: 'string' },
+    { field: 'external_id', label: 'Source ID', required: false, entity: 'donors', type: 'string' },
+  ],
   holdings: [
     { field: 'name', label: 'Fund Name', required: true, entity: 'holdings', type: 'string' },
     { field: 'custodian', label: 'Custodian', required: false, entity: 'holdings', type: 'string' },
@@ -36,11 +44,12 @@ const ENTITY_TARGET_FIELDS: Record<string, TargetField[]> = {
     { field: 'city', label: 'City', required: false, entity: 'investees', type: 'string' },
   ],
   contributions: [
-    { field: 'recipient_name', label: 'Recipient Name', required: true, entity: 'contributions', type: 'string' },
-    { field: 'recipient_ein', label: 'Recipient EIN', required: false, entity: 'contributions', type: 'string' },
+    { field: 'donor_name', label: 'Donor Name', required: true, entity: 'contributions', type: 'string' },
+    { field: 'donor_email', label: 'Donor Email', required: false, entity: 'contributions', type: 'string' },
+    { field: 'donor_external_id', label: 'Donor Source ID', required: false, entity: 'contributions', type: 'string' },
     { field: 'contribution_date', label: 'Gift Date', required: true, entity: 'contributions', type: 'date' },
     { field: 'amount_usd', label: 'Amount (USD)', required: true, entity: 'contributions', type: 'numeric' },
-    { field: 'contribution_type', label: 'Gift Type', required: false, entity: 'contributions', type: 'enum' },
+    { field: 'gift_type', label: 'Gift Type', required: false, entity: 'contributions', type: 'enum' },
   ],
   metrics: [
     { field: 'metric_code', label: 'Field Name / Code', required: true, entity: 'metrics', type: 'string' },

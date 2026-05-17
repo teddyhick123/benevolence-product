@@ -66,9 +66,11 @@ CREATE TYPE import_status_enum AS ENUM (
   'processing',
   'needs_review',
   'approved',
+  'committing',
   'rejected',
   'completed',
-  'failed'
+  'failed',
+  'rolled_back'
 );
 
 -- ---------------------------------------------------------------------------

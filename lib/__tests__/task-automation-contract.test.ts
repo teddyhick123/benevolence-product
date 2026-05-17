@@ -182,8 +182,8 @@ describe('Task writer prefix safety in producers', () => {
     expect(pledgesSrc).toMatch(/completeGeneratedTasks[^`]*`pledge_installment:\${[^}]+}:due_soon`/);
   });
 
-  it('compliance producer uses prefix form for filing complete', () => {
-    expect(complianceSrc).toMatch(/completeGeneratedTasks[^`]*`filing:\${[^}]+}:`/);
+  it('compliance producer completes only the filing reminder task when overdue', () => {
+    expect(complianceSrc).toMatch(/completeGeneratedTasks[^`]*`filing:\${[^}]+}:reminder`/);
   });
 
   it('import producer uses prefix form for import_job cancel', () => {
@@ -319,5 +319,110 @@ describe('Assignment validation', () => {
   it('task writer validates assignee against org membership', () => {
     expect(writerSrc).toContain('organization_members');
     expect(writerSrc).toMatch(/await validateAssignee\(db,/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 13. Import status enum completeness
+// ---------------------------------------------------------------------------
+describe('Import status enum includes all required values', () => {
+  const REQUIRED_IMPORT_STATUSES = [
+    'pending',
+    'processing',
+    'needs_review',
+    'approved',
+    'committing',
+    'completed',
+    'failed',
+    'rejected',
+    'rolled_back',
+  ];
+
+  for (const status of REQUIRED_IMPORT_STATUSES) {
+    it(`import_status_enum includes '${status}'`, () => {
+      expect(migrations).toContain(`'${status}'`);
+    });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// 14. No stale import status values in app code
+// ---------------------------------------------------------------------------
+describe('No stale import status values in app code', () => {
+  const jobQueueSrc = read('lib/import/job-queue.ts');
+  const rollbackSrc = read('lib/import/rollback.ts');
+  const loadRouteSrc = (() => {
+    try { return read('app/api/admin/imports/[id]/load/route.ts'); } catch { return ''; }
+  })();
+
+  it('job-queue does not use stale running status', () => {
+    expect(jobQueueSrc).not.toContain("'running'");
+  });
+
+  it('job-queue does not use stale paused status', () => {
+    expect(jobQueueSrc).not.toContain("'paused'");
+  });
+
+  it('job-queue does not reference pause_reason column', () => {
+    expect(jobQueueSrc).not.toContain('pause_reason');
+  });
+
+  it('load route is deleted (stale duplicate of commit route)', () => {
+    expect(loadRouteSrc).toBe('');
+  });
+
+  it('rollback does not reference stale paused status', () => {
+    expect(rollbackSrc).not.toContain("'paused'");
+  });
+
+  it('rollback does not reference pause_reason', () => {
+    expect(rollbackSrc).not.toContain('pause_reason');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 15. Import producer uses canonical column names
+// ---------------------------------------------------------------------------
+describe('Import producer uses canonical column names', () => {
+  it('import producer queries name not entity_type', () => {
+    expect(importsSrc).not.toContain("'entity_type'");
+    expect(importsSrc).toContain("'name'");
+  });
+
+  it('import producer cancels tasks for rolled_back jobs', () => {
+    expect(importsSrc).toContain("'rolled_back'");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 16. Per-entity staging tables exist in active migrations
+// ---------------------------------------------------------------------------
+describe('Per-entity staging tables exist in active migrations', () => {
+  const REQUIRED_STAGING_TABLES = [
+    'staging_import_donors',
+    'staging_import_investees',
+    'staging_import_holdings',
+    'staging_import_contributions',
+    'staging_import_metrics',
+  ];
+
+  for (const table of REQUIRED_STAGING_TABLES) {
+    it(`staging table "${table}" is defined in migrations`, () => {
+      const pattern = new RegExp(`CREATE TABLE\\s+(IF NOT EXISTS\\s+)?\\w*\\.?${table}\\s*\\(`, 'i');
+      expect(pattern.test(migrations)).toBe(true);
+    });
+  }
+
+  it('staging_import_users is NOT in active migrations (users import deferred)', () => {
+    const pattern = /CREATE TABLE\s+(IF NOT EXISTS\s+)?\w*\.?staging_import_users\s*\(/i;
+    expect(pattern.test(migrations)).toBe(false);
+  });
+
+  it('import_jobs has last_heartbeat_at column', () => {
+    expect(migrations).toContain('last_heartbeat_at');
+  });
+
+  it('import_mapping_profiles has entity_mappings column', () => {
+    expect(migrations).toContain('entity_mappings');
   });
 });

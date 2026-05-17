@@ -226,11 +226,29 @@ Specs:
 
 ---
 
+## Grant Management
+
+Shipped 2026-05-16: 14-stage lifecycle, org-scoped CRUD APIs, Pipeline/Table/Calendar/Attention views, AI tools, task automation producers, decisions, transitions, export.
+
+### Remaining Gaps (P2–P3)
+
+| # | Priority | Gap |
+|---|----------|-----|
+| GM-1 | P2 | Grantee-facing application portal (external form → `application_received` stage) |
+| GM-2 | P2 | Grant report submission workflow — grantee uploads report → `grant_reports.submitted_date` set |
+| GM-3 | P2 | Bulk stage transitions from Pipeline view (drag-and-drop kanban) |
+| GM-4 | P2 | Grant search across all portfolios in org (currently per-portfolio) |
+| GM-5 | P3 | Grant comparison view — side-by-side health metrics for multiple grants |
+| GM-6 | P3 | Automated grant renewal workflow triggered by `renewal_review` stage |
+| GM-7 | P3 | Grant agreement template generation from `grant_decisions` data |
+
+---
+
 ## Cross-Cutting Issues
 
 | # | Severity | Issue |
 |---|----------|-------|
-| X7 | P2 | No grant lifecycle management (intake → review → approval → payment → reporting → closeout) |
+| X7 | ~~P2~~ | ~~No grant lifecycle management~~ — **SHIPPED 2026-05-16**: 14-stage lifecycle, decisions, pipeline view, AI tools, task automation |
 | X8 | P3 | No board portal — no structured quarterly reporting pathway for foundations |
 
 ---
@@ -239,8 +257,8 @@ Specs:
 
 | Priority | Module | Rationale |
 |----------|--------|-----------|
-| P0 | Grant Lifecycle Management | Largest competitive gap; Foundant/Fluxx built around this |
-| P0 | Task / Workflow / Approvals | Required for team-based operations |
+| ~~P0~~ | ~~Grant Lifecycle Management~~ | **SHIPPED 2026-05-16** — 14-stage lifecycle, org-scoped APIs, Pipeline/Table/Calendar/Attention views, AI tools, task automation producers, lifecycle decisions, export |
+| ~~P0~~ | ~~Task / Workflow / Approvals~~ | **SHIPPED** — task automation, workflow instances, task notification delivery |
 | P1 | Board Portal & Reporting | Foundations present to boards quarterly |
 | P1 | Document Hub / Data Room | Grant agreements, 990s, appraisals need organized storage |
 | P2 | Stakeholder CRM | Grantees, board members, advisors beyond donor CRM |

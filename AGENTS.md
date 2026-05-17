@@ -19,7 +19,10 @@ Key invariants that differ from older patterns or documentation you may encounte
 - The `organization_holdings` table does **not** exist. Holdings belong to organizations directly through **`holdings.org_id`**, derived from the holding's portfolio.
 - The `organization_modules` table does **not** exist. Module state lives in `organizations.modules` JSONB checked via `org_has_module(p_org_id, p_module)`; the parameter is `p_module`, not `p_module_id`.
 - Module slugs in the database are `portfolio`, `donors`, `pledges`, `tax`, `compliance`, `reports`, `grant_management`, `impact_tracking`, `analytics`, `external_data`, `quickbooks`, `import`, and `ai_assistant`. App-facing aliases such as `core`, `donor_management`, `pledge_tracking`, `tax_optimization`, and `reporting` must map to those DB slugs.
-- The canonical grant lifecycle parent is **`grant_details.id`** (holding-level). There is no `grants` table in the active schema; do not query or recreate one. `grant_milestones.grant_id`, `grant_reports.grant_id`, `grant_payments.grant_id`, and other grant ops tables reference `grant_details.id`. Scope grant ops through `grant_details -> holdings.org_id` or `holdings.portfolio_id`; do not query those tables with direct `org_id` filters unless the table actually defines `org_id`.
+- The canonical grant lifecycle parent is **`grants.id`** (migration 0041). `grant_details` is the old name — do not recreate it. `grant_milestones.grant_id`, `grant_reports.grant_id`, `grant_payments.grant_id`, `grant_decisions.grant_id`, `grant_status_history.grant_id`, and other grant ops tables reference `grants(id)`. `grants` carries `org_id` and `portfolio_id` directly; scope grant ops with `.eq('org_id', orgId)` on `grants` or via `grants!inner(org_id)` joins on child tables.
+- Grant lifecycle stages (14-value CHECK on `grants.lifecycle_stage`): `draft`, `prospect`, `invited`, `application_received`, `due_diligence`, `recommended`, `approved`, `agreement`, `active`, `renewal_review`, `closeout`, `closed`, `declined`, `cancelled`. Use `lib/grants/lifecycle.ts` (`LIFECYCLE_STAGES`, `canTransition`, `transitionGrant`) to advance a grant — never update `lifecycle_stage` directly without recording `grant_status_history`.
+- Org-scoped grant mutations live at `app/api/org/[orgId]/grants/**`. Do not create portfolio-scoped grant mutation routes.
+- AI grant tools are implemented in `lib/ai/assistant/executors/grants.ts` and imported into `executor.ts`. Do not mark them with `feature_not_available`. Tools resolve `holding_id → grant_id` via `grantByHolding(supabase, holdingId)` before operating on child tables.
 
 ## Documentation
 
@@ -39,7 +42,7 @@ Key invariants that differ from older patterns or documentation you may encounte
 | Module Registry | `/lib/modules/registry.ts` |
 | AI Assistant Entry | `/lib/ai/portfolio-assistant.ts` |
 | AI Tool Definitions | `/lib/ai/assistant/tool-definitions.ts` |
-| AI Tool Executors | `/lib/ai/assistant/executor.ts` |
+| AI Tool Executors | `/lib/ai/assistant/executor.ts`, `/lib/ai/assistant/executors/` |
 | AI Prompts/Context | `/lib/ai/assistant/prompts.ts`, `/lib/ai/assistant/context.ts` |
 | AI Validators | `/lib/ai/validators.ts` |
 | AI Types | `/lib/ai/types.ts` |

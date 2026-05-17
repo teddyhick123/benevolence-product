@@ -31,17 +31,17 @@ interface AuditLogRow {
 
 // Maps LoadPhase → production table(s) for filtering audit log
 const PHASE_TABLES: Record<LoadPhase, string[]> = {
+  donors: ['donors'],
   investees: ['investees'],
   holdings: ['holdings'],
-  users: ['profiles', 'portfolio_members'],
   contributions: ['tax_contributions', 'holding_contributions'],
   metrics: ['metric_facts'],
 };
 
 const STAGING_TABLES: Record<LoadPhase, string> = {
+  donors: 'staging_import_donors',
   investees: 'staging_import_investees',
   holdings: 'staging_import_holdings',
-  users: 'staging_import_users',
   contributions: 'staging_import_contributions',
   metrics: 'staging_import_metrics',
 };
@@ -188,32 +188,25 @@ export async function rollbackImport(
 
     // Reset staging rows
     if (scope === 'full') {
-      // Reset all staging tables
       for (const stagingTable of Object.values(STAGING_TABLES)) {
         await supabase
           .from(stagingTable)
           .update({ action_taken: 'pending', final_id: null })
           .eq('import_job_id', importJobId);
       }
-      // Also reset contribution-specific final IDs
+      // Contributions have extra final ID columns
       await supabase
         .from('staging_import_contributions')
         .update({ action_taken: 'pending', final_tax_contribution_id: null, final_holding_contribution_id: null })
         .eq('import_job_id', importJobId);
-      // Reset users staging table
-      await supabase
-        .from('staging_import_users')
-        .update({ action_taken: 'pending', final_profile_id: null })
-        .eq('import_job_id', importJobId);
 
-      // Update job status
       await supabase
         .from('import_jobs')
         .update({
           status: 'rolled_back',
           records_loaded: 0,
           records_failed: 0,
-          pause_reason: null,
+          error_message: null,
           reconciliation_data: null,
         })
         .eq('id', importJobId);
@@ -225,8 +218,6 @@ export async function rollbackImport(
       if (scope === 'contributions') {
         updateFields.final_tax_contribution_id = null;
         updateFields.final_holding_contribution_id = null;
-      } else if (scope === 'users') {
-        updateFields.final_profile_id = null;
       } else {
         updateFields.final_id = null;
       }
@@ -236,10 +227,12 @@ export async function rollbackImport(
         .update(updateFields)
         .eq('import_job_id', importJobId);
 
-      // Set job back to paused (partial rollback allows re-loading)
       await supabase
         .from('import_jobs')
-        .update({ status: 'paused', pause_reason: `Partial rollback: ${scope} reverted.` })
+        .update({
+          status: 'needs_review',
+          error_message: `Partial rollback: ${scope} reverted. Review and re-approve affected rows.`,
+        })
         .eq('id', importJobId);
     }
   } finally {

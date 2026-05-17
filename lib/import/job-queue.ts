@@ -42,7 +42,7 @@ export function createImportWorker(): Worker {
       // 1. Mark job as running with initial heartbeat
       await supabase
         .from('import_jobs')
-        .update({ status: 'running', started_at: new Date().toISOString(), last_heartbeat_at: new Date().toISOString() })
+        .update({ status: 'processing', started_at: new Date().toISOString(), last_heartbeat_at: new Date().toISOString() })
         .eq('id', importJobId);
 
       // Start heartbeat - updates last_heartbeat_at every 30s
@@ -51,7 +51,7 @@ export function createImportWorker(): Worker {
           .from('import_jobs')
           .update({ last_heartbeat_at: new Date().toISOString() })
           .eq('id', importJobId)
-          .eq('status', 'running'); // only update if still running
+          .eq('status', 'processing'); // only update if still processing
       }, 30_000);
 
       try {
@@ -101,8 +101,8 @@ export function createImportWorker(): Worker {
         await supabase
           .from('import_jobs')
           .update({
-            status: 'paused',
-            pause_reason: 'Extraction and validation complete. Review errors before loading.',
+            status: 'needs_review',
+            error_message: null,
           })
           .eq('id', importJobId);
       } catch (err) {

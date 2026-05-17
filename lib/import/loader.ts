@@ -5,10 +5,10 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { ImportProgressEmitter } from './progress-emitter';
 import { ImportAuditor } from './auditor';
 
-export type LoadPhase = 'investees' | 'holdings' | 'users' | 'contributions' | 'metrics';
+export type LoadPhase = 'donors' | 'investees' | 'holdings' | 'contributions' | 'metrics';
 
 // Dependency order — MUST load in this sequence to satisfy FKs
-export const LOAD_ORDER: LoadPhase[] = ['investees', 'holdings', 'users', 'contributions', 'metrics'];
+export const LOAD_ORDER: LoadPhase[] = ['investees', 'donors', 'holdings', 'contributions', 'metrics'];
 
 export interface LoadResult {
   phase: LoadPhase;
@@ -228,8 +228,8 @@ async function processRow(
       return processInvestee(supabase, row, data, dryRun, auditor, stagingTable);
     case 'holdings':
       return processHolding(supabase, row, data, dryRun, importJobId, auditor, stagingTable);
-    case 'users':
-      return processUser(supabase, row, data, dryRun, importJobId, auditor, stagingTable);
+    case 'donors':
+      return processDonor(supabase, row, data, dryRun, auditor, stagingTable);
     case 'contributions':
       return processContribution(supabase, row, data, dryRun, importJobId, auditor, stagingTable);
     case 'metrics':
@@ -395,61 +395,44 @@ async function processHolding(
   }
 }
 
-// ─── Phase: users ───────────────────────────────────────────────────────────
+// ─── Phase: donors ───────────────────────────────────────────────────────────
 
-async function processUser(
+async function processDonor(
   supabase: SupabaseClient,
   row: StagingRow,
   data: Record<string, unknown>,
   dryRun: boolean,
-  _importJobId: string,
   auditor: ImportAuditor,
   stagingTable: string
 ): Promise<'insert' | 'update' | 'skip'> {
-  const email = data.email as string | null;
   const displayName = data.display_name as string | null;
-  const portfolioId = data.portfolio_id as string | null;
-  const role = (data.role as string | null) ?? 'member';
+  const email = data.email as string | null;
+  const orgId = data.org_id as string | null;
+  const existingId = (row as any).matched_existing_id as string | null;
 
-  if (!email && !displayName) return 'skip';
+  if (!displayName && !email) return 'skip';
+  if (!orgId) return 'skip';
 
-  // Look up existing auth.users by email
-  let profileId: string | null = null;
+  if (dryRun) return existingId ? 'update' : 'insert';
 
-  if (email) {
-    const { data: authUsers } = await supabase
-      .from('profiles')
-      .select('id')
-      .eq('email', email)
-      .maybeSingle();
-    profileId = authUsers?.id ?? null;
-  }
-
-  if (dryRun) return profileId ? 'update' : 'insert';
-
-  if (profileId) {
-    if (portfolioId) {
-      await supabase
-        .from('portfolio_members')
-        .upsert({ profile_id: profileId, portfolio_id: portfolioId, role }, { onConflict: 'profile_id,portfolio_id' });
-    }
-    auditor.log({ tableName: 'profiles', operation: 'update', recordId: profileId, stagingTable, stagingRowId: row.id });
-    await supabase.from('staging_import_users').update({ action_taken: 'update', final_profile_id: profileId }).eq('id', row.id);
+  if (existingId) {
+    const { error } = await supabase
+      .from('donors')
+      .update({ ...data, updated_at: new Date().toISOString() })
+      .eq('id', existingId);
+    if (error) throw new Error(`donor update failed: ${error.message}`);
+    auditor.log({ tableName: 'donors', operation: 'update', recordId: existingId, stagingTable, stagingRowId: row.id });
+    await supabase.from('staging_import_donors').update({ action_taken: 'update', final_id: existingId }).eq('id', row.id);
     return 'update';
   } else {
-    const profilePayload: Record<string, unknown> = { display_name: displayName };
-    if (email) profilePayload.email = email;
-
-    const { data: inserted, error } = await supabase.from('profiles').insert(profilePayload).select('*').single();
-    if (error) throw new Error(`profile insert failed: ${error.message}`);
-
-    if (portfolioId) {
-      await supabase
-        .from('portfolio_members')
-        .upsert({ profile_id: inserted.id, portfolio_id: portfolioId, role }, { onConflict: 'profile_id,portfolio_id' });
-    }
-    auditor.log({ tableName: 'profiles', operation: 'insert', recordId: inserted.id, stagingTable, stagingRowId: row.id, dataAfter: inserted });
-    await supabase.from('staging_import_users').update({ action_taken: 'create', final_profile_id: inserted.id }).eq('id', row.id);
+    const { data: inserted, error } = await supabase
+      .from('donors')
+      .insert({ org_id: orgId, display_name: displayName, email, ...data })
+      .select('id')
+      .single();
+    if (error) throw new Error(`donor insert failed: ${error.message}`);
+    auditor.log({ tableName: 'donors', operation: 'insert', recordId: inserted.id, stagingTable, stagingRowId: row.id, dataAfter: inserted });
+    await supabase.from('staging_import_donors').update({ action_taken: 'create', final_id: inserted.id }).eq('id', row.id);
     return 'insert';
   }
 }
@@ -633,9 +616,9 @@ async function processMetric(
 
 function getStagingTable(phase: LoadPhase): string {
   const map: Record<LoadPhase, string> = {
+    donors: 'staging_import_donors',
     investees: 'staging_import_investees',
     holdings: 'staging_import_holdings',
-    users: 'staging_import_users',
     contributions: 'staging_import_contributions',
     metrics: 'staging_import_metrics',
   };
@@ -644,10 +627,10 @@ function getStagingTable(phase: LoadPhase): string {
 
 function getProductionTable(phase: LoadPhase): string {
   const map: Record<LoadPhase, string> = {
+    donors: 'donors',
     investees: 'investees',
     holdings: 'holdings',
-    users: 'profiles',
-    contributions: 'tax_contributions',
+    contributions: 'contributions_received',
     metrics: 'metric_facts',
   };
   return map[phase];

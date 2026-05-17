@@ -794,6 +794,76 @@ DROP POLICY IF EXISTS "grant_contacts: service role can manage" ON public.grant_
 CREATE POLICY "grant_contacts: service role can manage"
   ON public.grant_contacts FOR ALL TO service_role USING (true) WITH CHECK (true);
 
+-- ---------------------------------------------------------------------------
+-- Grant status history
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.grant_status_history (
+  id          uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  grant_id    uuid NOT NULL REFERENCES public.grants(id) ON DELETE CASCADE,
+  org_id      uuid NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
+  from_stage  text,
+  to_stage    text NOT NULL,
+  reason      text,
+  actor_id    uuid REFERENCES auth.users(id),
+  metadata    jsonb,
+  created_at  timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_grant_status_history_grant ON public.grant_status_history(grant_id);
+ALTER TABLE public.grant_status_history ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "grant_status_history: org members can view" ON public.grant_status_history;
+CREATE POLICY "grant_status_history: org members can view"
+  ON public.grant_status_history FOR SELECT TO authenticated
+  USING (public.can_view_org(org_id));
+DROP POLICY IF EXISTS "grant_status_history: org admins can manage" ON public.grant_status_history;
+CREATE POLICY "grant_status_history: org admins can manage"
+  ON public.grant_status_history FOR ALL TO authenticated
+  USING (public.is_org_admin(org_id))
+  WITH CHECK (public.is_org_admin(org_id));
+DROP POLICY IF EXISTS "grant_status_history: service role can manage" ON public.grant_status_history;
+CREATE POLICY "grant_status_history: service role can manage"
+  ON public.grant_status_history FOR ALL TO service_role USING (true) WITH CHECK (true);
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.grant_status_history TO authenticated;
+GRANT ALL ON public.grant_status_history TO service_role;
+
+-- ---------------------------------------------------------------------------
+-- Grant decisions
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.grant_decisions (
+  id                uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  grant_id          uuid NOT NULL REFERENCES public.grants(id) ON DELETE CASCADE,
+  org_id            uuid NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
+  decision_type     text NOT NULL CHECK (decision_type IN ('approval','decline','defer','renewal','closeout','payment_release')),
+  decision          text NOT NULL CHECK (decision IN ('approved','declined','deferred','conditional','not_applicable')),
+  decision_date     date NOT NULL,
+  decided_by        uuid REFERENCES auth.users(id),
+  amount            numeric(20,4),
+  conditions        text,
+  rationale         text,
+  board_meeting_date date,
+  metadata          jsonb,
+  created_at        timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_grant_decisions_grant ON public.grant_decisions(grant_id);
+ALTER TABLE public.grant_decisions ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "grant_decisions: org members can view" ON public.grant_decisions;
+CREATE POLICY "grant_decisions: org members can view"
+  ON public.grant_decisions FOR SELECT TO authenticated
+  USING (public.can_view_org(org_id));
+DROP POLICY IF EXISTS "grant_decisions: org admins can manage" ON public.grant_decisions;
+CREATE POLICY "grant_decisions: org admins can manage"
+  ON public.grant_decisions FOR ALL TO authenticated
+  USING (public.is_org_admin(org_id))
+  WITH CHECK (public.is_org_admin(org_id));
+DROP POLICY IF EXISTS "grant_decisions: service role can manage" ON public.grant_decisions;
+CREATE POLICY "grant_decisions: service role can manage"
+  ON public.grant_decisions FOR ALL TO service_role USING (true) WITH CHECK (true);
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.grant_decisions TO authenticated;
+GRANT ALL ON public.grant_decisions TO service_role;
+
 DROP POLICY IF EXISTS "reminders: org members can view" ON public.reminders;
 CREATE POLICY "reminders: org members can view"
   ON public.reminders FOR SELECT

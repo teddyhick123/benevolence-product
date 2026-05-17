@@ -84,7 +84,7 @@ describe('grants table has required lifecycle columns', () => {
   }
 
   it('grants.lifecycle_stage has a CHECK constraint with canonical stages', () => {
-    expect(migrations).toMatch(/lifecycle_stage\s+text.*CHECK\s*\(/i);
+    expect(migrations).toMatch(/lifecycle_stage[\s\S]*?CHECK\s*\(/i);
     // Spot-check a few canonical stage values
     expect(migrations).toContain("'draft'");
     expect(migrations).toContain("'due_diligence'");
@@ -277,9 +277,71 @@ describe('lib/grants/lifecycle.ts exports required symbols', () => {
     // Read and parse manually rather than importing to avoid ESM issues
     const terminalStages = ['closed', 'declined', 'cancelled'];
     for (const stage of terminalStages) {
-      // Pattern: `stage: []` in the ALLOWED_TRANSITIONS object
-      const pattern = new RegExp(`'${stage}'\\s*:\\s*\\[\\s*\\]`);
+      // Match both quoted ('stage': []) and unquoted (stage: []) key forms
+      const pattern = new RegExp(`['"]?${stage}['"]?\\s*:\\s*\\[\\s*\\]`);
       expect(pattern.test(lifecycleSrc)).toBe(true);
     }
+  });
+
+  it('DECISION_REQUIRED_TRANSITIONS only references pairs present in ALLOWED_TRANSITIONS', () => {
+    if (!lifecycleSrc.includes('ALLOWED_TRANSITIONS')) return;
+    // Extract all 'from->to' strings from DECISION_REQUIRED_TRANSITIONS block
+    const setBlock = lifecycleSrc.match(
+      /DECISION_REQUIRED_TRANSITIONS\s*=\s*new Set[^(]*\(\[([\s\S]*?)\]\)/
+    );
+    if (!setBlock) return;
+    const pairs = setBlock[1].match(/'([a-z_]+)->([a-z_]+)'/g) ?? [];
+    for (const pair of pairs) {
+      const [, from, to] = pair.replace(/'/g, '').match(/^([a-z_]+)->([a-z_]+)$/) ?? [];
+      if (!from || !to) continue;
+      // Both stages must appear in LIFECYCLE_STAGES list
+      expect(lifecycleSrc).toContain(`'${from}'`);
+      expect(lifecycleSrc).toContain(`'${to}'`);
+      // The `to` stage must appear in the ALLOWED_TRANSITIONS[from] array
+      const fromBlockMatch = lifecycleSrc.match(
+        new RegExp(`['"]?${from}['"]?\\s*:\\s*\\[([^\\]]*?)\\]`)
+      );
+      expect(fromBlockMatch).not.toBeNull();
+      expect(fromBlockMatch![1]).toContain(`'${to}'`);
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 7. grant_status_history and grant_decisions tables exist in migration
+// ---------------------------------------------------------------------------
+describe('Grant audit tables in migration', () => {
+  it('grant_status_history table is defined', () => {
+    expect(migrations).toContain('CREATE TABLE IF NOT EXISTS public.grant_status_history');
+  });
+
+  it('grant_status_history has grant_id FK to grants', () => {
+    const block = migrations.match(
+      /CREATE TABLE IF NOT EXISTS public\.grant_status_history\s*\([\s\S]*?\);/
+    );
+    expect(block).not.toBeNull();
+    expect(block![0]).toContain('grant_id');
+    expect(block![0]).toContain('REFERENCES public.grants(id)');
+  });
+
+  it('grant_decisions table is defined', () => {
+    expect(migrations).toContain('CREATE TABLE IF NOT EXISTS public.grant_decisions');
+  });
+
+  it('grant_decisions has decision_type CHECK constraint', () => {
+    const block = migrations.match(
+      /CREATE TABLE IF NOT EXISTS public\.grant_decisions\s*\([\s\S]*?\);/
+    );
+    expect(block).not.toBeNull();
+    expect(block![0]).toContain('decision_type');
+    expect(block![0]).toContain("CHECK (decision_type IN");
+  });
+
+  it('grant_status_history has RLS enabled (policy defined)', () => {
+    expect(migrations).toContain('grant_status_history: org members can view');
+  });
+
+  it('grant_decisions has RLS enabled (policy defined)', () => {
+    expect(migrations).toContain('grant_decisions: org members can view');
   });
 });

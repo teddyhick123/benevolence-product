@@ -12,6 +12,16 @@ import {
   donorDisplayName,
   normalizeGiftType,
 } from './helpers';
+import {
+  getGrantHealth,
+  getUpcomingDeadlines,
+  logGrantCommunication,
+  recordGrantPayment,
+  trackMilestone,
+  startDueDiligence,
+  getWorkflowStatus,
+  completeWorkflowTask,
+} from './executors/grants';
 
 export type AssistantToolParams = {
   supabase: ReturnType<typeof createClient>;
@@ -2406,22 +2416,39 @@ export async function executeAssistantTool(params: AssistantToolParams): Promise
       }
 
       // ==================== GRANT MANAGEMENT MODULE ====================
-      case 'start_due_diligence':
-      case 'get_workflow_status':
-      case 'complete_workflow_task':
-      case 'track_milestone':
-      case 'schedule_reminder':
-      case 'get_upcoming_deadlines':
-      case 'log_grant_communication':
       case 'get_grant_health':
-      case 'record_grant_payment': {
-        return {
-          action: null,
-          output: {
-            feature_not_available: true,
-            message: 'Grant lifecycle workflow tools require grant_details, workflow, milestone, reminder, communication, payment, and grant health migrations that are not deployed in the active schema.',
-          },
-        };
+        return await getGrantHealth(supabase, args);
+
+      case 'get_upcoming_deadlines':
+        return await getUpcomingDeadlines(supabase, args);
+
+      case 'log_grant_communication':
+        return await logGrantCommunication(supabase, args, userId);
+
+      case 'record_grant_payment':
+        return await recordGrantPayment(supabase, args);
+
+      case 'track_milestone':
+        return await trackMilestone(supabase, args);
+
+      case 'start_due_diligence':
+        return await startDueDiligence(supabase, args, portfolioId);
+
+      case 'get_workflow_status':
+        return await getWorkflowStatus(supabase, args);
+
+      case 'complete_workflow_task':
+        return await completeWorkflowTask(supabase, args);
+
+      case 'schedule_reminder': {
+        const { holding_id, reminder_type, remind_at, note } = args;
+        const { data, error } = await supabase
+          .from('task_reminders')
+          .insert({ holding_id, reminder_type, remind_at, note: note ?? null })
+          .select()
+          .single();
+        if (error) throw new Error(error.message);
+        return { action: null, output: { success: true, reminder: data } };
       }
 
       // ==================== DONOR MANAGEMENT MODULE ====================

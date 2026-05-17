@@ -28,16 +28,16 @@ export async function POST(
     return NextResponse.json({ error: 'Import job not found' }, { status: 404 });
   }
 
-  if (job.status !== 'paused') {
+  if (job.status !== 'needs_review') {
     return NextResponse.json(
-      { error: `Cannot resume a job with status '${job.status}'` },
+      { error: `Cannot resume a job with status '${job.status}'. Job must be in needs_review.` },
       { status: 422 }
     );
   }
 
   const { data: updated, error } = await supabase
     .from('import_jobs')
-    .update({ status: 'processing', pause_reason: null })
+    .update({ status: 'processing', error_message: null })
     .eq('id', id)
     .select('*')
     .single();

@@ -11,13 +11,21 @@ const STATUS_CONFIG: Record<
     label: 'Pending',
     classes: 'bg-neutral-100 text-neutral-600 border-neutral-200',
   },
-  running: {
-    label: 'Running',
+  processing: {
+    label: 'Processing',
     classes: 'bg-blue-50 text-blue-700 border-blue-200',
   },
-  paused: {
-    label: 'Paused',
+  needs_review: {
+    label: 'Needs Review',
     classes: 'bg-yellow-50 text-yellow-700 border-yellow-200',
+  },
+  approved: {
+    label: 'Approved',
+    classes: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+  },
+  committing: {
+    label: 'Committing',
+    classes: 'bg-blue-50 text-blue-700 border-blue-200',
   },
   completed: {
     label: 'Completed',
@@ -25,6 +33,10 @@ const STATUS_CONFIG: Record<
   },
   failed: {
     label: 'Failed',
+    classes: 'bg-red-50 text-red-700 border-red-200',
+  },
+  rejected: {
+    label: 'Rejected',
     classes: 'bg-red-50 text-red-700 border-red-200',
   },
   rolled_back: {

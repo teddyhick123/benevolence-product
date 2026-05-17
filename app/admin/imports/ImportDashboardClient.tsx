@@ -122,7 +122,7 @@ export function ImportDashboardClient({ initialJobs, portfolios }: Props) {
                       >
                         View
                       </Link>
-                      {job.status === 'paused' && (
+                      {job.status === 'needs_review' && (
                         <button
                           onClick={() => handleResume(job.id)}
                           disabled={actionInProgress === job.id}

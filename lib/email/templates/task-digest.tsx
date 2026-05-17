@@ -53,10 +53,13 @@ export default function TaskDigestEmail({
   automationFailures,
   preferencesHref,
 }: TaskDigestEmailProps) {
+  const itemCount = overdue.length + dueSoon.length + approvals.length + automationFailures.length;
+  const previewText = `${itemCount} items need your attention - ${orgName}`;
+
   return (
     <Html>
       <Head />
-      <Preview>{overdue.length + dueSoon.length + approvals.length + automationFailures.length} items need your attention — {orgName}</Preview>
+      <Preview>{previewText}</Preview>
       <Tailwind>
         <Body className="bg-gray-50 font-sans">
           <Container className="max-w-xl mx-auto py-8 px-4">

@@ -1,8 +1,8 @@
 // app/api/admin/imports/[id]/commit/route.ts
-// POST: load staging data into production tables, then mark job completed.
+// POST: load staging data into production tables for an approved job.
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createAdminClient, createServerClient } from '@/lib/supabase';
+import { createAdminClient } from '@/lib/supabase';
 import { loadStagingToProduction } from '@/lib/import/loader';
 import type { ImportJob } from '@/lib/import/types';
 import { requireAdmin } from '@/lib/admin-auth';
@@ -30,11 +30,10 @@ export async function POST(
     return NextResponse.json({ error: 'Import job not found' }, { status: 404 });
   }
 
-  const committableStatuses = ['mapped', 'validated', 'paused'];
-  if (!committableStatuses.includes(job.status)) {
+  if (job.status !== 'approved') {
     return NextResponse.json(
       {
-        error: `Cannot commit a job with status '${job.status}'. Job must be mapped or validated first.`,
+        error: `Cannot commit a job with status '${job.status}'. Job must be approved first.`,
       },
       { status: 422 }
     );
@@ -42,7 +41,7 @@ export async function POST(
 
   await supabase
     .from('import_jobs')
-    .update({ status: 'processing' })
+    .update({ status: 'committing' })
     .eq('id', id);
 
   let loadResults;
@@ -51,7 +50,14 @@ export async function POST(
   } catch (loadErr: any) {
     await supabase
       .from('import_jobs')
-      .update({ status: job.status, pause_reason: loadErr.message })
+      .update({
+        status: 'failed',
+        error_message: loadErr.message,
+        error_details: {
+          previous_status: job.status,
+          failed_at: new Date().toISOString(),
+        },
+      })
       .eq('id', id);
     return NextResponse.json(
       { error: `Load failed: ${loadErr.message}` },
@@ -67,8 +73,15 @@ export async function POST(
     .update({
       status: 'completed',
       completed_at: new Date().toISOString(),
-      pause_reason: null,
-      records_loaded: totalInserted,
+      reviewed_by: userId,
+      error_message: null,
+      error_details: {
+        load_summary: {
+          total_inserted: totalInserted,
+          total_failed: totalFailed,
+          phases: loadResults,
+        },
+      },
     })
     .eq('id', id)
     .select('*')
@@ -78,14 +91,9 @@ export async function POST(
     return NextResponse.json({ error: updateError.message }, { status: 500 });
   }
 
-  // Fire-and-forget: close the automation approval task now that the job is committed
   completeGeneratedTasks(supabase, job.org_id, `import_job:${id}:approval`, 'Import job committed successfully').catch(() => {});
 
-  // Fire-and-forget: clean up staging PII from jobs older than 30 days
-  supabase.rpc('cleanup_staging_pii', { retention_days: 30 }).then(
-    () => {},
-    () => {}
-  );
+  supabase.rpc('cleanup_staging_pii', { retention_days: 30 }).then(() => {}, () => {});
 
   return NextResponse.json(
     {

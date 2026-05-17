@@ -21,4 +21,21 @@ describe('import commit route', () => {
     expect(loadIdx).toBeGreaterThan(0);
     expect(loadIdx).toBeLessThan(statusIdx);
   });
+
+  it('only accepts approved status — no needs_review shortcut', () => {
+    expect(src).toContain("'approved'");
+    expect(src).not.toContain("'needs_review'");
+    expect(src).not.toContain("'mapped'");
+    expect(src).not.toContain("'validated'");
+  });
+
+  it('transitions to committing while load runs', () => {
+    expect(src).toContain("'committing'");
+  });
+
+  it('does not use stale statuses or columns', () => {
+    expect(src).not.toContain("'paused'");
+    expect(src).not.toContain("'running'");
+    expect(src).not.toContain('pause_reason');
+  });
 });

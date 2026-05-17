@@ -122,16 +122,10 @@ export default async function ImportDetailPage({
               <dd className="font-medium font-mono text-xs">{importJob.mapping_profile_id}</dd>
             </div>
           )}
-          {importJob.pause_reason && (
+          {importJob.error_message && (
             <div className="col-span-2">
-              <dt className="text-neutral-500">Pause Reason</dt>
-              <dd className="text-yellow-700">{importJob.pause_reason}</dd>
-            </div>
-          )}
-          {importJob.notes && (
-            <div className="col-span-2">
-              <dt className="text-neutral-500">Notes</dt>
-              <dd>{importJob.notes}</dd>
+              <dt className="text-neutral-500">Error</dt>
+              <dd className="text-red-700">{importJob.error_message}</dd>
             </div>
           )}
         </dl>

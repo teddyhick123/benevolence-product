@@ -8,8 +8,8 @@ import type { RollbackScope } from '@/lib/import/rollback';
 import type { ImportJob } from '@/lib/import/types';
 import { requireAdmin } from '@/lib/admin-auth';
 
-const VALID_STATUSES = ['completed', 'paused', 'failed'];
-const VALID_SCOPES: RollbackScope[] = ['full', 'investees', 'holdings', 'users', 'contributions', 'metrics'];
+const VALID_STATUSES = ['completed', 'needs_review', 'failed'];
+const VALID_SCOPES: RollbackScope[] = ['full', 'donors', 'investees', 'holdings', 'contributions', 'metrics'];
 
 export async function POST(
   req: NextRequest,
@@ -38,7 +38,7 @@ export async function POST(
 
   if (!VALID_STATUSES.includes(job.status)) {
     return NextResponse.json(
-      { error: `Job must be in completed, paused, or failed status to rollback. Current: ${job.status}` },
+      { error: `Job must be in completed, needs_review, or failed status to rollback. Current: ${job.status}` },
       { status: 400 }
     );
   }

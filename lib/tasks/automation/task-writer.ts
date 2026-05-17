@@ -15,6 +15,8 @@ async function validateAssignee(
     .select('user_id')
     .eq('org_id', orgId)
     .eq('user_id', userId)
+    .is('deleted_at', null)
+    .not('accepted_at', 'is', null)
     .maybeSingle();
   if (!data) {
     console.warn(`[task-writer] assignedTo ${userId} is not a member of org ${orgId} — clearing assignment`);

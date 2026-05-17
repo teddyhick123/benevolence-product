@@ -21,6 +21,12 @@ function makeDb(overrides: Record<string, unknown> = {}) {
         filtered = filtered.filter((r: any) => val === null ? r[col] == null : r[col] === val);
         return chain;
       }),
+      not: vi.fn((col: string, op: string, val: unknown) => {
+        if (op === 'is' && val === null) {
+          filtered = filtered.filter((r: any) => r[col] != null);
+        }
+        return chain;
+      }),
       like: vi.fn((col: string, pat: string) => {
         const prefix = pat.replace('%', '');
         filtered = filtered.filter((r: any) => String(r[col]).startsWith(prefix));

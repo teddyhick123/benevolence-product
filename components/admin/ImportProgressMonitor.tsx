@@ -115,8 +115,8 @@ export function ImportProgressMonitor({ importJobId, initialJob }: ImportProgres
   }, [importJobId]);
 
   const phaseLabel = PHASE_LABELS[phase] ?? '';
-  const isRunning = job.status === 'running';
-  const isPaused = job.status === 'paused';
+  const isRunning = job.status === 'processing' || job.status === 'committing';
+  const isPaused = job.status === 'needs_review';
   const isComplete = job.status === 'completed';
   const isFailed = job.status === 'failed';
 
@@ -189,7 +189,7 @@ export function ImportProgressMonitor({ importJobId, initialJob }: ImportProgres
           {job.records_failed > 0
             ? `${job.records_failed.toLocaleString()} errors found. Review before loading.`
             : 'Mapping complete. Click Resume to begin loading.'}
-          {job.pause_reason && <span className="ml-1 text-yellow-700">({job.pause_reason})</span>}
+          {job.error_message && <span className="ml-1 text-yellow-700">({job.error_message})</span>}
         </div>
       )}
 
@@ -203,7 +203,7 @@ export function ImportProgressMonitor({ importJobId, initialJob }: ImportProgres
 
       {isFailed && (
         <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
-          <strong>Import failed.</strong> {job.pause_reason ?? 'An error occurred.'}
+          <strong>Import failed.</strong> {job.error_message ?? 'An error occurred.'}
         </div>
       )}
 

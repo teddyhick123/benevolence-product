@@ -87,7 +87,7 @@ export function MappingPageClient({ job, mappingProfile, stagingPreviews }: Mapp
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          source_system: job.source_type,
+          source_type: job.source_type,
           entity_type: entityType,
           source_fields: preview.sourceFields,
           sample_records: preview.sampleRecords,
@@ -126,7 +126,7 @@ export function MappingPageClient({ job, mappingProfile, stagingPreviews }: Mapp
       body: JSON.stringify({
         id: currentProfile.id,
         name: currentProfile.name,
-        source_system: currentProfile.source_system,
+        source_type: currentProfile.source_type,
         description: currentProfile.description,
         entity_mappings: {
           ...currentProfile.entity_mappings,

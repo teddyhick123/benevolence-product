@@ -117,7 +117,7 @@ export async function complianceDeadlinesProducer(
             const completed = await completeGeneratedTasks(
               db,
               orgId,
-              `filing:${filingId}:`,
+              `filing:${filingId}:reminder`,
               'Filing deadline has passed — now overdue'
             );
             result.completed += completed;

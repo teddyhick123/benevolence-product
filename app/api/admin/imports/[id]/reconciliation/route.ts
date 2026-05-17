@@ -106,27 +106,13 @@ export async function POST(
     }
   }
 
-  // Update status based on reconciliation outcome
-  const newStatus = report.overallSuccess ? 'completed' : 'paused';
-  const pauseReason = report.overallSuccess
-    ? null
-    : 'Reconciliation failed. Review discrepancies.';
-
   const { error: updateErr } = await supabase
     .from('import_jobs')
-    .update({
-      reconciliation_data: reconciliationData,
-      status: newStatus,
-      ...(report.overallSuccess ? { completed_at: new Date().toISOString(), pause_reason: null } : { pause_reason: pauseReason }),
-    })
+    .update({ reconciliation_data: reconciliationData })
     .eq('id', id);
 
   if (updateErr) {
-    console.error('[reconciliation POST] Failed to update import job status:', updateErr);
-    return NextResponse.json(
-      { error: 'Reconciliation completed but job status could not be saved.' },
-      { status: 500, headers: { 'Cache-Control': 'no-store' } }
-    );
+    console.error('[reconciliation POST] Failed to cache reconciliation data:', updateErr);
   }
 
   return NextResponse.json({ report: reconciliationData }, { headers: { 'Cache-Control': 'no-store' } });

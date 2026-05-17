@@ -177,6 +177,7 @@ Specs:
 
 - `/docs/superpowers/specs/2026-05-15-task-workflow-management-design.md`
 - `/docs/superpowers/specs/2026-05-15-task-automation-producers-design.md`
+- `/docs/superpowers/specs/2026-05-15-task-notification-delivery-design.md`
 
 ---
 

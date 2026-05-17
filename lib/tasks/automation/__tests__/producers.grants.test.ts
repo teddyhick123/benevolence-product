@@ -47,6 +47,7 @@ function buildMockDb() {
           select: vi.fn().mockReturnThis(),
           eq: vi.fn().mockReturnThis(),
           is: vi.fn().mockReturnThis(),
+          in: vi.fn().mockReturnThis(),
           not: vi.fn().mockReturnThis(),
           lte: vi.fn().mockReturnThis(),
           gte: vi.fn().mockReturnThis(),

@@ -54,6 +54,9 @@ export async function POST(req: NextRequest) {
   if (!name) {
     return NextResponse.json({ error: 'name is required' }, { status: 400 });
   }
+  if (!orgId) {
+    return NextResponse.json({ error: 'org_id is required' }, { status: 400 });
+  }
 
   // Create the import_jobs row first to get an ID
   const { data: job, error: jobError } = await supabase
@@ -80,9 +83,9 @@ export async function POST(req: NextRequest) {
   const entityFileMap: Record<string, string> = {
     'funds.csv': 'holdings',
     'constituents.csv': 'investees',
+    'donors.csv': 'donors',
     'gifts.csv': 'contributions',
     'custom_fields.csv': 'metrics',
-    'users.csv': 'users',
   };
 
   const storagePaths: Partial<Record<EntityType, string>> = {};

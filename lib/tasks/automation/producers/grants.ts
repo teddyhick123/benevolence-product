@@ -426,6 +426,224 @@ export async function grantObligationsProducer(
     }
   }
 
+  // -------------------------------------------------------------------------
+  // 4. Renewal reminders
+  //
+  // Grants in 'active' stage where:
+  //   - renewal_eligible = true
+  //   - grant_period_end is within the next 90 days (not already overdue)
+  // -------------------------------------------------------------------------
+
+  const RENEWAL_REMINDER_DAYS = 90;
+  const renewalHorizon = new Date(now);
+  renewalHorizon.setDate(renewalHorizon.getDate() + RENEWAL_REMINDER_DAYS);
+  const renewalHorizonStr = renewalHorizon.toISOString().slice(0, 10);
+
+  const { data: renewalGrants, error: renewalError } = await (db
+    .from('grants')
+    .select('id, lifecycle_stage, grant_period_end, renewal_eligible, org_id, portfolio_id, holding_id, holdings!inner(name)')
+    .eq('org_id', orgId)
+    .eq('lifecycle_stage', 'active')
+    .eq('renewal_eligible', true)
+    .not('grant_period_end', 'is', null)
+    .gte('grant_period_end', today)
+    .lte('grant_period_end', renewalHorizonStr) as any);
+
+  if (renewalError) {
+    result.errors.push({ sourceType: 'grants_renewal', sourceId: orgId, message: (renewalError as any).message });
+  }
+
+  for (const g of (renewalGrants ?? [])) {
+    const grantId = g.id as string;
+    const grantName = (g as any).holdings?.name ?? 'grant';
+    const endDate = g.grant_period_end as string;
+    const daysUntilEnd = Math.ceil((new Date(endDate).getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+
+    result.scanned++;
+    try {
+      const task: UpsertGeneratedTaskInput = {
+        orgId,
+        portfolioId: (g.portfolio_id as string | null) ?? null,
+        sourceKey: `grant:${grantId}:renewal`,
+        title: `Renewal decision due in ${daysUntilEnd} day${daysUntilEnd === 1 ? '' : 's'} — ${grantName}`,
+        description: `Grant "${grantName}" is eligible for renewal and its period ends on ${endDate} (${daysUntilEnd} day${daysUntilEnd === 1 ? '' : 's'} away). Initiate renewal review to decide whether to renew, extend, or close this grant.`,
+        taskType: 'review',
+        priority: daysUntilEnd <= 30 ? 'high' : 'normal',
+        dueAt: endDate,
+        assignedTo: null,
+        metadata: {
+          producer: PRODUCER_ID,
+          reason: 'renewal_approaching',
+          source_status: 'active',
+          escalation_state: daysUntilEnd <= 30 ? 'approaching' : 'upcoming',
+          days_until_end: daysUntilEnd,
+          generated_at: generatedAt,
+        },
+        links: [
+          { entityType: 'grant', entityId: grantId, relationship: 'primary' },
+          ...(g.holding_id ? [{ entityType: 'holding' as const, entityId: g.holding_id as string, relationship: 'context' as const }] : []),
+          ...(g.portfolio_id ? [{ entityType: 'portfolio' as const, entityId: g.portfolio_id as string, relationship: 'context' as const }] : []),
+        ],
+        reopenResolved: false,
+      };
+      if (!dryRun) {
+        const r = await upsertGeneratedTask(db, task);
+        if (r === 'created') result.created++;
+        else if (r === 'updated') result.updated++;
+        else result.skipped++;
+      } else {
+        result.skipped++;
+      }
+    } catch (err: any) {
+      result.errors.push({ sourceType: 'grants_renewal', sourceId: grantId, message: err?.message ?? String(err) });
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // 5. Closeout reminders
+  //
+  // Grants in 'active' or 'renewal_review' where grant_period_end has passed.
+  // -------------------------------------------------------------------------
+
+  const { data: closeoutGrants, error: closeoutError } = await (db
+    .from('grants')
+    .select('id, lifecycle_stage, grant_period_end, org_id, portfolio_id, holding_id, holdings!inner(name)')
+    .eq('org_id', orgId)
+    .in('lifecycle_stage', ['active', 'renewal_review'])
+    .not('grant_period_end', 'is', null)
+    .lt('grant_period_end', today) as any);
+
+  if (closeoutError) {
+    result.errors.push({ sourceType: 'grants_closeout', sourceId: orgId, message: (closeoutError as any).message });
+  }
+
+  for (const g of (closeoutGrants ?? [])) {
+    const grantId = g.id as string;
+    const grantName = (g as any).holdings?.name ?? 'grant';
+    const endDate = g.grant_period_end as string;
+    const daysOver = Math.ceil((now.getTime() - new Date(endDate).getTime()) / (1000 * 60 * 60 * 24));
+
+    result.scanned++;
+    try {
+      const task: UpsertGeneratedTaskInput = {
+        orgId,
+        portfolioId: (g.portfolio_id as string | null) ?? null,
+        sourceKey: `grant:${grantId}:closeout`,
+        title: `Grant period ended ${daysOver} day${daysOver === 1 ? '' : 's'} ago — initiate closeout for ${grantName}`,
+        description: `Grant "${grantName}" had its period end on ${endDate}. The grant is still in "${(g.lifecycle_stage as string).replace(/_/g, ' ')}" stage. Initiate the closeout process to finalize reporting, payments, and documentation.`,
+        taskType: 'review',
+        priority: daysOver >= 30 ? 'urgent' : 'high',
+        dueAt: null,
+        assignedTo: null,
+        metadata: {
+          producer: PRODUCER_ID,
+          reason: 'closeout_needed',
+          source_status: g.lifecycle_stage as string,
+          escalation_state: daysOver >= 30 ? 'overdue_30' : 'overdue',
+          days_overdue: daysOver,
+          generated_at: generatedAt,
+        },
+        links: [
+          { entityType: 'grant', entityId: grantId, relationship: 'primary' },
+          ...(g.holding_id ? [{ entityType: 'holding' as const, entityId: g.holding_id as string, relationship: 'context' as const }] : []),
+          ...(g.portfolio_id ? [{ entityType: 'portfolio' as const, entityId: g.portfolio_id as string, relationship: 'context' as const }] : []),
+        ],
+        reopenResolved: false,
+      };
+      if (!dryRun) {
+        const r = await upsertGeneratedTask(db, task);
+        if (r === 'created') result.created++;
+        else if (r === 'updated') result.updated++;
+        else result.skipped++;
+      } else {
+        result.skipped++;
+      }
+    } catch (err: any) {
+      result.errors.push({ sourceType: 'grants_closeout', sourceId: grantId, message: err?.message ?? String(err) });
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // 6. Unsigned agreements
+  //
+  // Grants in 'approved' stage (haven't moved to 'agreement') where the most
+  // recent history entry is > 7 days old (approval is stale).
+  // -------------------------------------------------------------------------
+
+  const AGREEMENT_STALE_DAYS = 7;
+  const agreementCutoff = new Date(now);
+  agreementCutoff.setDate(agreementCutoff.getDate() - AGREEMENT_STALE_DAYS);
+  const agreementCutoffStr = agreementCutoff.toISOString();
+
+  const { data: approvedGrants, error: approvedError } = await (db
+    .from('grants')
+    .select('id, org_id, portfolio_id, holding_id, holdings!inner(name)')
+    .eq('org_id', orgId)
+    .eq('lifecycle_stage', 'approved') as any);
+
+  if (approvedError) {
+    result.errors.push({ sourceType: 'grants_agreement', sourceId: orgId, message: (approvedError as any).message });
+  }
+
+  for (const g of (approvedGrants ?? [])) {
+    const grantId = g.id as string;
+    const grantName = (g as any).holdings?.name ?? 'grant';
+
+    // Check if the most recent status history entry is stale
+    const { data: latestHistory } = await db
+      .from('grant_status_history')
+      .select('created_at')
+      .eq('grant_id', grantId)
+      .eq('to_stage', 'approved')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle() as any;
+
+    if (!latestHistory) continue;
+    if (latestHistory.created_at > agreementCutoffStr) continue; // Not stale yet
+
+    const daysStale = Math.ceil((now.getTime() - new Date(latestHistory.created_at).getTime()) / (1000 * 60 * 60 * 24));
+
+    result.scanned++;
+    try {
+      const task: UpsertGeneratedTaskInput = {
+        orgId,
+        portfolioId: (g.portfolio_id as string | null) ?? null,
+        sourceKey: `grant:${grantId}:agreement`,
+        title: `Grant agreement not yet signed — ${grantName}`,
+        description: `Grant "${grantName}" was approved ${daysStale} day${daysStale === 1 ? '' : 's'} ago but has not yet moved to the Agreement stage. Prepare and execute the grant agreement to proceed.`,
+        taskType: 'approval',
+        priority: daysStale >= 21 ? 'urgent' : 'high',
+        dueAt: null,
+        assignedTo: null,
+        metadata: {
+          producer: PRODUCER_ID,
+          reason: 'unsigned_agreement',
+          source_status: 'approved',
+          escalation_state: daysStale >= 21 ? 'stale_21' : 'stale',
+          days_since_approval: daysStale,
+          generated_at: generatedAt,
+        },
+        links: [
+          { entityType: 'grant', entityId: grantId, relationship: 'primary' },
+          ...(g.holding_id ? [{ entityType: 'holding' as const, entityId: g.holding_id as string, relationship: 'context' as const }] : []),
+          ...(g.portfolio_id ? [{ entityType: 'portfolio' as const, entityId: g.portfolio_id as string, relationship: 'context' as const }] : []),
+        ],
+        reopenResolved: false,
+      };
+      if (!dryRun) {
+        const r = await upsertGeneratedTask(db, task);
+        if (r === 'created') result.created++;
+        else if (r === 'updated') result.updated++;
+        else result.skipped++;
+      } else {
+        result.skipped++;
+      }
+    } catch (err: any) {
+      result.errors.push({ sourceType: 'grants_agreement', sourceId: grantId, message: err?.message ?? String(err) });
+    }
+  }
+
   // Only return a result if we actually had entries to scan or errors
   if (result.scanned === 0 && result.errors.length === 0) {
     return [];

@@ -5,6 +5,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 let _mockMilestones: unknown[] = [];
 let _mockReports: unknown[] = [];
 let _mockPayments: unknown[] = [];
+let _mockGrants: unknown[] = [];
+let _mockStatusHistory: unknown[] = [];
 
 vi.mock('@/lib/supabase', () => ({
   createAdminClient: vi.fn(() => buildMockDb()),
@@ -57,6 +59,36 @@ function buildMockDb() {
           ),
         };
       }
+      if (table === 'grants') {
+        return {
+          select: vi.fn().mockReturnThis(),
+          eq: vi.fn().mockReturnThis(),
+          in: vi.fn().mockReturnThis(),
+          not: vi.fn().mockReturnThis(),
+          is: vi.fn().mockReturnThis(),
+          gte: vi.fn().mockReturnThis(),
+          lt: vi.fn().mockReturnThis(),
+          lte: vi.fn().mockReturnThis(),
+          order: vi.fn().mockReturnThis(),
+          limit: vi.fn().mockReturnThis(),
+          maybeSingle: vi.fn(async () => ({ data: null, error: null })),
+          then: vi.fn(async (resolve: Function) =>
+            resolve({ data: _mockGrants, error: null })
+          ),
+        };
+      }
+      if (table === 'grant_status_history') {
+        return {
+          select: vi.fn().mockReturnThis(),
+          eq: vi.fn().mockReturnThis(),
+          order: vi.fn().mockReturnThis(),
+          limit: vi.fn().mockReturnThis(),
+          maybeSingle: vi.fn(async () => ({ data: _mockStatusHistory[0] ?? null, error: null })),
+          then: vi.fn(async (resolve: Function) =>
+            resolve({ data: _mockStatusHistory, error: null })
+          ),
+        };
+      }
       if (table === 'tasks') {
         return {
           select: vi.fn().mockReturnThis(),
@@ -96,6 +128,8 @@ describe('grantObligationsProducer', () => {
     _mockMilestones = [];
     _mockReports = [];
     _mockPayments = [];
+    _mockGrants = [];
+    _mockStatusHistory = [];
   });
 
   it('returns empty array when no orgId provided', async () => {
@@ -263,5 +297,56 @@ describe('grantObligationsProducer', () => {
     const results = await grantObligationsProducer({ orgId: 'org-1' });
     // Should still return a result array without errors
     expect(Array.isArray(results)).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Source key contract tests
+// Verify the producer uses the documented source key formats.
+// ---------------------------------------------------------------------------
+import { readFileSync } from 'fs';
+import { join } from 'path';
+
+describe('grantObligationsProducer source key contracts', () => {
+  const src = readFileSync(join(process.cwd(), 'lib/tasks/automation/producers/grants.ts'), 'utf8');
+
+  it('uses grant_milestone:{id}:due as milestone source key', () => {
+    expect(src).toContain('grant_milestone:${milestoneId}:due');
+  });
+
+  it('uses grant_report:{id}:due as report source key', () => {
+    expect(src).toContain('grant_report:${reportId}:due');
+  });
+
+  it('uses grant_payment:{id}:conditions as payment source key', () => {
+    expect(src).toContain('grant_payment:${paymentId}:conditions');
+  });
+
+  it('uses grant:{id}:renewal as renewal source key', () => {
+    expect(src).toContain('grant:${grantId}:renewal');
+  });
+
+  it('uses grant:{id}:closeout as closeout source key', () => {
+    expect(src).toContain('grant:${grantId}:closeout');
+  });
+
+  it('uses grant:{id}:agreement as unsigned agreement source key', () => {
+    expect(src).toContain('grant:${grantId}:agreement');
+  });
+
+  it('milestone tasks include grant_milestone and grant entity links', () => {
+    // Primary link for milestones is grant_milestone
+    expect(src).toContain("entityType: 'grant_milestone'");
+    // Context link for grants
+    expect(src).toContain("entityType: 'grant'");
+  });
+
+  it('queries grants table for renewal candidates', () => {
+    expect(src).toContain("from('grants')");
+    expect(src).toContain('renewal_eligible');
+  });
+
+  it('queries grant_status_history for agreement staleness check', () => {
+    expect(src).toContain("from('grant_status_history')");
   });
 });

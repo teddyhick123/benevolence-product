@@ -59,18 +59,22 @@ export async function GET(
     { data: payments },
     { data: communications },
     { data: budgetItems },
+    { data: decisions },
   ] = await Promise.all([
     grantIds.length > 0
-      ? sb.from('grant_milestones').select('*').in('grant_id', grantIds).order('due_date')
+      ? sb.from('grant_milestones').select('grant_id, milestone_name, description, due_date, completed_date, status, notes').in('grant_id', grantIds).order('due_date')
       : Promise.resolve({ data: [] }),
     grantIds.length > 0
-      ? sb.from('grant_payments').select('*').in('grant_id', grantIds).order('scheduled_date')
+      ? sb.from('grant_payments').select('grant_id, payment_number, payment_type, amount, scheduled_date, paid_date, status, conditions_met, notes').in('grant_id', grantIds).order('scheduled_date')
       : Promise.resolve({ data: [] }),
     grantIds.length > 0
-      ? sb.from('grant_communications').select('*').in('grant_id', grantIds).order('occurred_at', { ascending: false })
+      ? sb.from('grant_communications').select('grant_id, direction, comm_type, subject, summary, contact_name, occurred_at').in('grant_id', grantIds).order('occurred_at', { ascending: false })
       : Promise.resolve({ data: [] }),
     grantIds.length > 0
-      ? sb.from('grant_budget_items').select('*').in('grant_id', grantIds).order('category')
+      ? sb.from('grant_budget_items').select('grant_id, category, description, budgeted_amount, actual_amount').in('grant_id', grantIds).order('category')
+      : Promise.resolve({ data: [] }),
+    grantIds.length > 0
+      ? sb.from('grant_decisions').select('grant_id, decision_type, decision, decision_date, decided_by, amount, conditions, rationale').in('grant_id', grantIds).order('decision_date', { ascending: false })
       : Promise.resolve({ data: [] }),
   ]);
 
@@ -84,13 +88,19 @@ export async function GET(
       id: g.grant_id,
       name: g.name,
       grant_type: g.grant_type,
-      status: g.status,
+      lifecycle_stage: g.lifecycle_stage,
+      risk_level: g.risk_level,
+      owner_id: g.internal_owner_id,
+      requested_amount: g.requested_amount,
+      approved_amount: g.approved_amount,
       funds_allocated: g.funds_allocated,
+      currency: g.currency,
       grant_period_start: g.grant_period_start,
       grant_period_end: g.grant_period_end,
       reporting_frequency: g.reporting_frequency,
       next_report_due: g.next_report_due,
       renewal_eligible: g.renewal_eligible,
+      purpose: g.purpose,
       sector: g.sector,
       country: g.country,
     })),
@@ -105,12 +115,24 @@ export async function GET(
     })),
     payments: (payments || []).map((p: any) => ({
       grant_id: p.grant_id,
+      payment_number: p.payment_number,
       payment_type: p.payment_type,
       amount: p.amount,
       scheduled_date: p.scheduled_date,
       paid_date: p.paid_date,
       status: p.status,
+      conditions_met: p.conditions_met,
       notes: p.notes,
+    })),
+    decisions: (decisions || []).map((d: any) => ({
+      grant_id: d.grant_id,
+      decision_type: d.decision_type,
+      decision: d.decision,
+      decision_date: d.decision_date,
+      decided_by: d.decided_by,
+      amount: d.amount,
+      conditions: d.conditions,
+      rationale: d.rationale,
     })),
     budget_items: (budgetItems || []).map((b: any) => ({
       grant_id: b.grant_id,
@@ -151,63 +173,62 @@ export async function GET(
   return NextResponse.json({ error: 'Invalid format. Use csv, json, or xlsx.' }, { status: 400 });
 }
 
+function q(s: string | null | undefined): string {
+  return `"${(s ?? '').replace(/"/g, '""')}"`;
+}
+
 function generateCSV(data: ReturnType<typeof buildExportData>): string {
   const lines: string[] = [];
 
-  lines.push(`Grant Export Report`);
+  lines.push('Grant Export Report');
   lines.push(`Portfolio: ${data.meta.portfolioName}`);
   lines.push(`Generated: ${new Date(data.meta.generatedAt).toLocaleString()}`);
   lines.push(`Total Grants: ${data.meta.grantCount}`);
   lines.push('');
 
   lines.push('GRANTS');
-  lines.push('Name,Type,Status,Funds Allocated,Period Start,Period End,Reporting Frequency,Next Report Due,Renewal Eligible,Sector,Country');
+  lines.push('Name,Type,Lifecycle Stage,Risk Level,Requested Amount,Approved Amount,Funds Allocated,Currency,Period Start,Period End,Reporting Frequency,Next Report Due,Renewal Eligible,Purpose,Sector,Country');
   for (const g of data.grants) {
     lines.push([
-      `"${(g.name || '').replace(/"/g, '""')}"`,
-      g.grant_type || '',
-      g.status || '',
-      g.funds_allocated || 0,
-      g.grant_period_start || '',
-      g.grant_period_end || '',
-      g.reporting_frequency || '',
-      g.next_report_due || '',
+      q(g.name), g.grant_type || '', g.lifecycle_stage || '', g.risk_level || '',
+      g.requested_amount ?? '', g.approved_amount ?? '', g.funds_allocated ?? 0,
+      g.currency || 'USD', g.grant_period_start || '', g.grant_period_end || '',
+      g.reporting_frequency || '', g.next_report_due || '',
       g.renewal_eligible ? 'Yes' : 'No',
-      `"${(g.sector || '').replace(/"/g, '""')}"`,
-      g.country || '',
+      q(g.purpose), q(g.sector), g.country || '',
     ].join(','));
   }
   lines.push('');
+
+  if (data.decisions && data.decisions.length > 0) {
+    lines.push('DECISIONS');
+    lines.push('Grant ID,Decision Type,Decision,Date,Amount,Rationale');
+    for (const d of data.decisions) {
+      lines.push([
+        d.grant_id, d.decision_type || '', d.decision || '',
+        d.decision_date || '', d.amount ?? '', q(d.rationale),
+      ].join(','));
+    }
+    lines.push('');
+  }
 
   if (data.milestones.length > 0) {
     lines.push('MILESTONES');
     lines.push('Grant ID,Name,Description,Due Date,Completed Date,Status,Notes');
     for (const m of data.milestones) {
-      lines.push([
-        m.grant_id,
-        `"${(m.milestone_name || '').replace(/"/g, '""')}"`,
-        `"${(m.description || '').replace(/"/g, '""')}"`,
-        m.due_date || '',
-        m.completed_date || '',
-        m.status || '',
-        `"${(m.notes || '').replace(/"/g, '""')}"`,
-      ].join(','));
+      lines.push([m.grant_id, q(m.milestone_name), q(m.description), m.due_date || '', m.completed_date || '', m.status || '', q(m.notes)].join(','));
     }
     lines.push('');
   }
 
   if (data.payments.length > 0) {
     lines.push('PAYMENTS');
-    lines.push('Grant ID,Payment Type,Amount,Scheduled Date,Paid Date,Status,Notes');
+    lines.push('Grant ID,#,Payment Type,Amount,Scheduled Date,Paid Date,Status,Conditions Met,Notes');
     for (const p of data.payments) {
       lines.push([
-        p.grant_id,
-        p.payment_type || '',
-        p.amount || 0,
-        p.scheduled_date || '',
-        p.paid_date || '',
-        p.status || '',
-        `"${(p.notes || '').replace(/"/g, '""')}"`,
+        p.grant_id, p.payment_number ?? '', p.payment_type || '',
+        p.amount ?? 0, p.scheduled_date || '', p.paid_date || '',
+        p.status || '', p.conditions_met ? 'Yes' : 'No', q(p.notes),
       ].join(','));
     }
     lines.push('');
@@ -217,14 +238,7 @@ function generateCSV(data: ReturnType<typeof buildExportData>): string {
     lines.push('BUDGET ITEMS');
     lines.push('Grant ID,Category,Description,Budgeted,Actual,Variance');
     for (const b of data.budget_items) {
-      lines.push([
-        b.grant_id,
-        `"${(b.category || '').replace(/"/g, '""')}"`,
-        `"${(b.description || '').replace(/"/g, '""')}"`,
-        b.budgeted_amount || 0,
-        b.actual_amount != null ? b.actual_amount : '',
-        b.variance != null ? b.variance : '',
-      ].join(','));
+      lines.push([b.grant_id, q(b.category), q(b.description), b.budgeted_amount ?? 0, b.actual_amount ?? '', b.variance ?? ''].join(','));
     }
   }
 
@@ -234,59 +248,52 @@ function generateCSV(data: ReturnType<typeof buildExportData>): string {
 function generateXLSX(data: ReturnType<typeof buildExportData>): Buffer {
   const wb = XLSX.utils.book_new();
 
-  // Summary sheet
-  const summaryData = [
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
     ['Grant Export Report'],
     ['Portfolio', data.meta.portfolioName],
     ['Generated', new Date(data.meta.generatedAt).toLocaleString()],
     ['Total Grants', data.meta.grantCount],
-  ];
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(summaryData), 'Summary');
+  ]), 'Summary');
 
-  // Grants sheet
-  const grantsHeader = ['Name', 'Type', 'Status', 'Funds Allocated', 'Period Start', 'Period End', 'Reporting Freq', 'Next Report Due', 'Renewal Eligible', 'Sector', 'Country'];
-  const grantsData = [
-    grantsHeader,
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
+    ['Name', 'Type', 'Lifecycle Stage', 'Risk Level', 'Requested', 'Approved', 'Funds Allocated', 'Currency', 'Period Start', 'Period End', 'Reporting Freq', 'Next Report Due', 'Renewal Eligible', 'Purpose', 'Sector', 'Country'],
     ...data.grants.map((g: any) => [
-      g.name, g.grant_type, g.status, g.funds_allocated,
-      g.grant_period_start, g.grant_period_end, g.reporting_frequency,
-      g.next_report_due, g.renewal_eligible ? 'Yes' : 'No', g.sector, g.country,
+      g.name, g.grant_type, g.lifecycle_stage, g.risk_level, g.requested_amount,
+      g.approved_amount, g.funds_allocated, g.currency, g.grant_period_start,
+      g.grant_period_end, g.reporting_frequency, g.next_report_due,
+      g.renewal_eligible ? 'Yes' : 'No', g.purpose, g.sector, g.country,
     ]),
-  ];
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(grantsData), 'Grants');
+  ]), 'Grants');
 
-  // Milestones sheet
+  if (data.decisions && data.decisions.length > 0) {
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
+      ['Grant ID', 'Decision Type', 'Decision', 'Date', 'Amount', 'Rationale'],
+      ...data.decisions.map((d: any) => [d.grant_id, d.decision_type, d.decision, d.decision_date, d.amount, d.rationale]),
+    ]), 'Decisions');
+  }
+
   if (data.milestones.length > 0) {
-    const milestonesHeader = ['Grant ID', 'Milestone', 'Description', 'Due Date', 'Completed Date', 'Status', 'Notes'];
-    const milestonesData = [
-      milestonesHeader,
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
+      ['Grant ID', 'Milestone', 'Description', 'Due Date', 'Completed Date', 'Status', 'Notes'],
       ...data.milestones.map((m: any) => [m.grant_id, m.milestone_name, m.description, m.due_date, m.completed_date, m.status, m.notes]),
-    ];
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(milestonesData), 'Milestones');
+    ]), 'Milestones');
   }
 
-  // Payments sheet
   if (data.payments.length > 0) {
-    const paymentsHeader = ['Grant ID', 'Payment Type', 'Amount', 'Scheduled Date', 'Paid Date', 'Status', 'Notes'];
-    const paymentsData = [
-      paymentsHeader,
-      ...data.payments.map((p: any) => [p.grant_id, p.payment_type, p.amount, p.scheduled_date, p.paid_date, p.status, p.notes]),
-    ];
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(paymentsData), 'Payments');
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
+      ['Grant ID', '#', 'Payment Type', 'Amount', 'Scheduled Date', 'Paid Date', 'Status', 'Conditions Met', 'Notes'],
+      ...data.payments.map((p: any) => [p.grant_id, p.payment_number, p.payment_type, p.amount, p.scheduled_date, p.paid_date, p.status, p.conditions_met ? 'Yes' : 'No', p.notes]),
+    ]), 'Payments');
   }
 
-  // Budget sheet
   if (data.budget_items.length > 0) {
-    const budgetHeader = ['Grant ID', 'Category', 'Description', 'Budgeted', 'Actual', 'Variance'];
-    const budgetData = [
-      budgetHeader,
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
+      ['Grant ID', 'Category', 'Description', 'Budgeted', 'Actual', 'Variance'],
       ...data.budget_items.map((b: any) => [b.grant_id, b.category, b.description, b.budgeted_amount, b.actual_amount, b.variance]),
-    ];
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(budgetData), 'Budget');
+    ]), 'Budget');
   }
 
   return XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
 }
 
-// Type helper used above
 function buildExportData(d: any) { return d; }

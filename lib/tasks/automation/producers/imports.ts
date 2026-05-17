@@ -18,10 +18,10 @@ import { upsertGeneratedTask, cancelGeneratedTasks } from '../task-writer';
 const PRODUCER_ID = 'import_review';
 
 // Statuses that indicate the job is done — no new tasks needed
-const TERMINAL_STATUSES = ['completed', 'rejected', 'failed'];
+const TERMINAL_STATUSES = ['completed', 'rejected', 'failed', 'rolled_back'];
 
-// Statuses that trigger task cancellation (job ended badly or was rejected)
-const CANCEL_STATUSES = ['failed', 'rejected'];
+// Statuses that trigger task cancellation (job ended badly, was rejected, or was rolled back)
+const CANCEL_STATUSES = ['failed', 'rejected', 'rolled_back'];
 
 export async function importReviewProducer(
   options: ProducerOptions
@@ -50,10 +50,10 @@ export async function importReviewProducer(
   const { data: jobs, error: jobsError } = await db
     .from('import_jobs')
     .select(
-      'id, org_id, entity_type, status, total_rows, processed_rows, approved_rows, rejected_rows, error_rows, error_message, reviewed_by, created_at'
+      'id, org_id, name, status, approved_rows, rejected_rows, error_rows, error_message, reviewed_by, created_at'
     )
     .eq('org_id', orgId)
-    .not('status', 'in', '(completed)')
+    .not('status', 'in', `(${TERMINAL_STATUSES.join(',')})`)
     .order('created_at', { ascending: false });
 
   if (jobsError) {
@@ -74,15 +74,14 @@ export async function importReviewProducer(
   for (const job of jobs) {
     const jobId = job.id as string;
     const status = job.status as string;
-    const entityType = (job.entity_type as string | null) ?? jobId;
+    const jobName = (job.name as string | null) ?? jobId;
     const errorRows = (job.error_rows as number) ?? 0;
     const rejectedRows = (job.rejected_rows as number) ?? 0;
     const approvedRows = (job.approved_rows as number) ?? 0;
     const errorMessage = (job.error_message as string | null) ?? null;
     const reviewedBy = (job.reviewed_by as string | null) ?? null;
 
-    // Human-friendly label for task titles
-    const jobLabel = entityType !== jobId ? `${entityType} import` : jobId;
+    const jobLabel = jobName;
 
     try {
       // -----------------------------------------------------------------------

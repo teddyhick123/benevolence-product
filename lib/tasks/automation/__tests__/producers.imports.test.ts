@@ -86,10 +86,8 @@ describe('importReviewProducer', () => {
       {
         id: 'job-1',
         org_id: 'org-1',
-        entity_type: 'holding',
+        name: 'Holdings import Q1',
         status: 'needs_review',
-        total_rows: 10,
-        processed_rows: 10,
         approved_rows: 8,
         rejected_rows: 0,
         error_rows: 2,
@@ -109,10 +107,8 @@ describe('importReviewProducer', () => {
       {
         id: 'job-2',
         org_id: 'org-1',
-        entity_type: 'donor',
+        name: 'Donors import May',
         status: 'needs_review',
-        total_rows: 5,
-        processed_rows: 5,
         approved_rows: 3,
         rejected_rows: 2,
         error_rows: 0,
@@ -131,10 +127,8 @@ describe('importReviewProducer', () => {
       {
         id: 'job-3',
         org_id: 'org-1',
-        entity_type: 'grant',
+        name: 'Grants import',
         status: 'processing',
-        total_rows: 20,
-        processed_rows: 5,
         approved_rows: 0,
         rejected_rows: 0,
         error_rows: 0,
@@ -153,10 +147,8 @@ describe('importReviewProducer', () => {
       {
         id: 'job-4',
         org_id: 'org-1',
-        entity_type: 'holding',
+        name: 'Holdings import Q2',
         status: 'needs_review',
-        total_rows: 10,
-        processed_rows: 10,
         approved_rows: 10,
         rejected_rows: 0,
         error_rows: 0,
@@ -175,10 +167,8 @@ describe('importReviewProducer', () => {
       {
         id: 'job-5',
         org_id: 'org-1',
-        entity_type: 'holding',
+        name: 'Holdings import Q3',
         status: 'needs_review',
-        total_rows: 10,
-        processed_rows: 10,
         approved_rows: 10,
         rejected_rows: 0,
         error_rows: 0,
@@ -188,9 +178,7 @@ describe('importReviewProducer', () => {
       },
     ];
     const results = await importReviewProducer({ orgId: 'org-1' });
-    // With a reviewer already set and no errors, this job should be skipped
     if (results.length > 0) {
-      // No tasks created for an already-reviewed, error-free job
       expect(results[0].created).toBe(0);
     } else {
       expect(results).toHaveLength(0);
@@ -202,10 +190,8 @@ describe('importReviewProducer', () => {
       {
         id: 'job-6',
         org_id: 'org-1',
-        entity_type: 'donor',
+        name: 'Donors import failed',
         status: 'failed',
-        total_rows: 10,
-        processed_rows: 3,
         approved_rows: 0,
         rejected_rows: 0,
         error_rows: 3,
@@ -214,9 +200,31 @@ describe('importReviewProducer', () => {
         created_at: new Date().toISOString(),
       },
     ];
-    // Should not throw
     const results = await importReviewProducer({ orgId: 'org-1' });
     expect(Array.isArray(results)).toBe(true);
+  });
+
+  it('cancels tasks for rolled_back jobs', async () => {
+    _mockJobs = [
+      {
+        id: 'job-rb',
+        org_id: 'org-1',
+        name: 'Holdings import — rolled back',
+        status: 'rolled_back',
+        approved_rows: 0,
+        rejected_rows: 0,
+        error_rows: 0,
+        error_message: null,
+        reviewed_by: null,
+        created_at: new Date().toISOString(),
+      },
+    ];
+    const results = await importReviewProducer({ orgId: 'org-1' });
+    expect(Array.isArray(results)).toBe(true);
+    if (results.length > 0) {
+      expect(results[0].created).toBe(0);
+      expect(results[0].updated).toBe(0);
+    }
   });
 
   it('does not crash when import_jobs returns an empty array', async () => {
@@ -230,10 +238,8 @@ describe('importReviewProducer', () => {
       {
         id: 'job-7',
         org_id: 'org-1',
-        entity_type: 'holding',
+        name: 'Holdings import dry run',
         status: 'needs_review',
-        total_rows: 10,
-        processed_rows: 10,
         approved_rows: 5,
         rejected_rows: 2,
         error_rows: 3,
@@ -255,10 +261,8 @@ describe('importReviewProducer', () => {
       {
         id: 'job-8',
         org_id: 'org-1',
-        entity_type: 'holding',
+        name: 'Holdings import batch A',
         status: 'needs_review',
-        total_rows: 5,
-        processed_rows: 5,
         approved_rows: 5,
         rejected_rows: 0,
         error_rows: 0,
@@ -269,10 +273,8 @@ describe('importReviewProducer', () => {
       {
         id: 'job-9',
         org_id: 'org-1',
-        entity_type: 'donor',
+        name: 'Donors import batch A',
         status: 'needs_review',
-        total_rows: 8,
-        processed_rows: 8,
         approved_rows: 6,
         rejected_rows: 0,
         error_rows: 2,

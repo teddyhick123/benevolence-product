@@ -102,7 +102,7 @@ async function loadGrantContext(input: {
 
   if (grantId) {
     const { data: grant, error } = await adminClient
-      .from('grant_details')
+      .from('grants')
       .select('id, holding_id')
       .eq('id', grantId)
       .maybeSingle();
@@ -132,7 +132,7 @@ async function loadGrantContext(input: {
     holding = foundHolding;
 
     const { data: existingGrant } = await adminClient
-      .from('grant_details')
+      .from('grants')
       .select('id')
       .eq('holding_id', input.holdingId)
       .maybeSingle();
@@ -141,8 +141,12 @@ async function loadGrantContext(input: {
       grantId = existingGrant.id;
     } else {
       const { data: newGrant, error: grantError } = await adminClient
-        .from('grant_details')
-        .insert({ holding_id: input.holdingId })
+        .from('grants')
+        .insert({
+          holding_id: input.holdingId,
+          org_id: holding.org_id,
+          portfolio_id: holding.portfolio_id,
+        })
         .select('id')
         .single();
       if (grantError) throw grantError;
@@ -165,7 +169,7 @@ async function loadWorkflow(adminClient: ReturnType<typeof createAdminClient>, o
       *,
       workflow_templates(name, workflow_type),
       workflow_tasks(*),
-      grant_details(holding_id)
+      grants(holding_id)
     `)
     .eq('id', workflowId)
     .eq('org_id', orgId)
@@ -196,7 +200,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       .select(`
         *,
         workflow_templates(name, workflow_type),
-        grant_details(holding_id, holdings(name)),
+        grants(holding_id, holdings(name)),
         workflow_tasks(*)
       `)
       .eq('org_id', orgId)

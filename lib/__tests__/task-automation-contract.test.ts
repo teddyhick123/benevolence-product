@@ -43,7 +43,7 @@ describe('Active producer tables exist in migrations', () => {
     'grant_milestones',
     'grant_reports',
     'grant_payments',
-    'grant_details',
+    'grants',
     'import_jobs',
     'task_automation_runs',
   ];
@@ -146,7 +146,7 @@ describe('Source key patterns', () => {
 describe('Grant producer org scoping', () => {
   it('grant producer does not filter grant_milestones directly by org_id', () => {
     // Should NOT have .eq('org_id' immediately after .from('grant_milestones')
-    // A direct org_id filter on this table would be wrong — must join via grant_details
+    // A direct org_id filter on this table would be wrong — must join via grants
     expect(grantsSrc).not.toMatch(/from\(['"]grant_milestones['"]\)[^)]*\.eq\(['"]org_id['"]/);
   });
 

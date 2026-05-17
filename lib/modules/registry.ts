@@ -188,7 +188,7 @@ Tax limits:
       'record_grant_payment',
     ],
     tables: [
-      'grant_details',
+      'grants',
       'grant_milestones',
       'grant_reports',
       'workflow_templates',

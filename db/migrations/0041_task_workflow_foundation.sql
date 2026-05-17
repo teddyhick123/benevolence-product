@@ -105,38 +105,62 @@ CREATE INDEX IF NOT EXISTS idx_task_events_org_created
   ON public.task_events (org_id, created_at DESC);
 
 -- ---------------------------------------------------------------------------
--- Grant operational model expected by current grant UI/API surfaces
+-- Grant lifecycle model — canonical table is public.grants (was grant_details)
 -- ---------------------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS public.grant_details (
+CREATE TABLE IF NOT EXISTS public.grants (
   id                   uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
-  created_at            timestamptz NOT NULL DEFAULT now(),
-  updated_at            timestamptz NOT NULL DEFAULT now(),
+  created_at           timestamptz NOT NULL DEFAULT now(),
+  updated_at           timestamptz NOT NULL DEFAULT now(),
 
-  holding_id            uuid NOT NULL REFERENCES public.holdings(id) ON DELETE CASCADE,
-  grant_period_start    date,
-  grant_period_end      date,
-  grant_type            text,
-  renewal_eligible      boolean NOT NULL DEFAULT false,
-  renewal_date          date,
-  deliverables          text,
-  reporting_frequency   text,
-  next_report_due       date,
+  org_id               uuid NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
+  portfolio_id         uuid NOT NULL REFERENCES public.portfolios(id) ON DELETE CASCADE,
+  holding_id           uuid NOT NULL REFERENCES public.holdings(id) ON DELETE CASCADE,
+
+  lifecycle_stage      text NOT NULL DEFAULT 'draft'
+    CHECK (lifecycle_stage IN (
+      'draft', 'prospect', 'invited', 'application_received',
+      'due_diligence', 'recommended', 'approved', 'agreement',
+      'active', 'renewal_review', 'closeout', 'closed',
+      'declined', 'cancelled'
+    )),
+
+  grant_type           text,
+  requested_amount     numeric(20,4),
+  approved_amount      numeric(20,4),
+  currency             text NOT NULL DEFAULT 'USD',
+  grant_period_start   date,
+  grant_period_end     date,
+  renewal_eligible     boolean NOT NULL DEFAULT false,
+  renewal_date         date,
+  deliverables         text,
+  reporting_frequency  text,
+  next_report_due      date,
+  purpose              text,
+  internal_owner_id    uuid REFERENCES auth.users(id),
+  risk_level           text CHECK (risk_level IN ('low', 'medium', 'high')),
+  deleted_at           timestamptz,
 
   UNIQUE (holding_id)
 );
 
-CREATE INDEX IF NOT EXISTS idx_grant_details_holding
-  ON public.grant_details (holding_id);
-CREATE INDEX IF NOT EXISTS idx_grant_details_next_report
-  ON public.grant_details (next_report_due)
-  WHERE next_report_due IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_grant_details_renewal
-  ON public.grant_details (renewal_date)
-  WHERE renewal_eligible = true;
+CREATE INDEX IF NOT EXISTS idx_grants_org
+  ON public.grants (org_id);
+CREATE INDEX IF NOT EXISTS idx_grants_portfolio
+  ON public.grants (portfolio_id);
+CREATE INDEX IF NOT EXISTS idx_grants_holding
+  ON public.grants (holding_id);
+CREATE INDEX IF NOT EXISTS idx_grants_stage
+  ON public.grants (lifecycle_stage);
+CREATE INDEX IF NOT EXISTS idx_grants_next_report
+  ON public.grants (next_report_due)
+  WHERE next_report_due IS NOT NULL AND deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_grants_renewal
+  ON public.grants (renewal_date)
+  WHERE renewal_eligible = true AND deleted_at IS NULL;
 
-DROP TRIGGER IF EXISTS trg_grant_details_updated_at ON public.grant_details;
-CREATE TRIGGER trg_grant_details_updated_at
-  BEFORE UPDATE ON public.grant_details
+DROP TRIGGER IF EXISTS trg_grants_updated_at ON public.grants;
+CREATE TRIGGER trg_grants_updated_at
+  BEFORE UPDATE ON public.grants
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 
 CREATE TABLE IF NOT EXISTS public.grant_reports (
@@ -144,7 +168,7 @@ CREATE TABLE IF NOT EXISTS public.grant_reports (
   created_at            timestamptz NOT NULL DEFAULT now(),
   updated_at            timestamptz NOT NULL DEFAULT now(),
 
-  grant_id              uuid NOT NULL REFERENCES public.grant_details(id) ON DELETE CASCADE,
+  grant_id              uuid NOT NULL REFERENCES public.grants(id) ON DELETE CASCADE,
   report_type           text NOT NULL DEFAULT 'progress',
   report_date           date,
   due_date              date,
@@ -177,7 +201,7 @@ CREATE TABLE IF NOT EXISTS public.grant_milestones (
   created_at      timestamptz NOT NULL DEFAULT now(),
   updated_at      timestamptz NOT NULL DEFAULT now(),
 
-  grant_id        uuid NOT NULL REFERENCES public.grant_details(id) ON DELETE CASCADE,
+  grant_id        uuid NOT NULL REFERENCES public.grants(id) ON DELETE CASCADE,
   milestone_name  text NOT NULL,
   description     text,
   due_date        date,
@@ -210,7 +234,7 @@ CREATE TABLE IF NOT EXISTS public.grant_payments (
   created_at        timestamptz NOT NULL DEFAULT now(),
   updated_at        timestamptz NOT NULL DEFAULT now(),
 
-  grant_id          uuid NOT NULL REFERENCES public.grant_details(id) ON DELETE CASCADE,
+  grant_id          uuid NOT NULL REFERENCES public.grants(id) ON DELETE CASCADE,
   payment_number    int NOT NULL DEFAULT 1,
   payment_type      text NOT NULL DEFAULT 'grant_disbursement',
   amount            numeric(20,4) NOT NULL CHECK (amount >= 0),
@@ -242,7 +266,7 @@ CREATE TABLE IF NOT EXISTS public.grant_budget_items (
   created_at       timestamptz NOT NULL DEFAULT now(),
   updated_at       timestamptz NOT NULL DEFAULT now(),
 
-  grant_id         uuid NOT NULL REFERENCES public.grant_details(id) ON DELETE CASCADE,
+  grant_id         uuid NOT NULL REFERENCES public.grants(id) ON DELETE CASCADE,
   category         text NOT NULL,
   description      text NOT NULL,
   budgeted_amount  numeric(20,4) NOT NULL CHECK (budgeted_amount >= 0),
@@ -263,7 +287,7 @@ CREATE TABLE IF NOT EXISTS public.grant_communications (
   created_at          timestamptz NOT NULL DEFAULT now(),
   updated_at          timestamptz NOT NULL DEFAULT now(),
 
-  grant_id            uuid NOT NULL REFERENCES public.grant_details(id) ON DELETE CASCADE,
+  grant_id            uuid NOT NULL REFERENCES public.grants(id) ON DELETE CASCADE,
   direction           text NOT NULL DEFAULT 'outbound'
                       CHECK (direction IN ('inbound', 'outbound', 'internal')),
   comm_type           text NOT NULL DEFAULT 'email',
@@ -295,7 +319,7 @@ CREATE TABLE IF NOT EXISTS public.grant_documents (
   created_at      timestamptz NOT NULL DEFAULT now(),
   updated_at      timestamptz NOT NULL DEFAULT now(),
 
-  grant_id       uuid NOT NULL REFERENCES public.grant_details(id) ON DELETE CASCADE,
+  grant_id       uuid NOT NULL REFERENCES public.grants(id) ON DELETE CASCADE,
   document_type  text NOT NULL DEFAULT 'proposal',
   file_name      text NOT NULL,
   file_size      bigint NOT NULL DEFAULT 0,
@@ -317,7 +341,7 @@ CREATE TABLE IF NOT EXISTS public.grant_contacts (
   created_at    timestamptz NOT NULL DEFAULT now(),
   updated_at    timestamptz NOT NULL DEFAULT now(),
 
-  grant_id      uuid NOT NULL REFERENCES public.grant_details(id) ON DELETE CASCADE,
+  grant_id      uuid NOT NULL REFERENCES public.grants(id) ON DELETE CASCADE,
   name          text NOT NULL,
   email         text,
   phone         text,
@@ -343,7 +367,7 @@ CREATE TABLE IF NOT EXISTS public.reminders (
   org_id        uuid NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
   portfolio_id  uuid REFERENCES public.portfolios(id) ON DELETE CASCADE,
   task_id       uuid REFERENCES public.tasks(id) ON DELETE CASCADE,
-  grant_id      uuid REFERENCES public.grant_details(id) ON DELETE CASCADE,
+  grant_id      uuid REFERENCES public.grants(id) ON DELETE CASCADE,
   title         text NOT NULL,
   description   text,
   due_at        timestamptz NOT NULL,
@@ -399,7 +423,7 @@ CREATE TABLE IF NOT EXISTS public.workflow_instances (
   org_id         uuid NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
   portfolio_id   uuid REFERENCES public.portfolios(id) ON DELETE CASCADE,
   template_id    uuid REFERENCES public.workflow_templates(id) ON DELETE SET NULL,
-  grant_id       uuid REFERENCES public.grant_details(id) ON DELETE CASCADE,
+  grant_id       uuid REFERENCES public.grants(id) ON DELETE CASCADE,
 
   name           text NOT NULL,
   workflow_type  text NOT NULL DEFAULT 'custom',
@@ -655,80 +679,48 @@ CREATE POLICY "task_events: service role can manage"
   USING (true)
   WITH CHECK (true);
 
-ALTER TABLE public.grant_details ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "grant_details: portfolio members can view" ON public.grant_details;
-CREATE POLICY "grant_details: portfolio members can view"
-  ON public.grant_details FOR SELECT
-  USING (public.can_view_portfolio((SELECT h.portfolio_id FROM public.holdings h WHERE h.id = holding_id)));
-DROP POLICY IF EXISTS "grant_details: portfolio members can manage" ON public.grant_details;
-CREATE POLICY "grant_details: portfolio members can manage"
-  ON public.grant_details FOR ALL
-  USING (public.can_edit_portfolio((SELECT h.portfolio_id FROM public.holdings h WHERE h.id = holding_id)))
-  WITH CHECK (public.can_edit_portfolio((SELECT h.portfolio_id FROM public.holdings h WHERE h.id = holding_id)));
+ALTER TABLE public.grants ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "grants: org members can view" ON public.grants;
+CREATE POLICY "grants: org members can view"
+  ON public.grants FOR SELECT
+  USING (public.can_view_org(org_id));
+DROP POLICY IF EXISTS "grants: org admins can manage" ON public.grants;
+CREATE POLICY "grants: org admins can manage"
+  ON public.grants FOR ALL
+  USING (public.is_org_admin(org_id))
+  WITH CHECK (public.is_org_admin(org_id));
+DROP POLICY IF EXISTS "grants: service role can manage" ON public.grants;
+CREATE POLICY "grants: service role can manage"
+  ON public.grants FOR ALL TO service_role
+  USING (true) WITH CHECK (true);
 
 ALTER TABLE public.grant_milestones ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.grant_reports ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "grant_milestones: inherit grant details view" ON public.grant_milestones;
-CREATE POLICY "grant_milestones: inherit grant details view"
+DROP POLICY IF EXISTS "grant_milestones: org members can view" ON public.grant_milestones;
+CREATE POLICY "grant_milestones: org members can view"
   ON public.grant_milestones FOR SELECT
-  USING (
-    public.can_view_portfolio((
-      SELECT h.portfolio_id
-      FROM public.grant_details gd
-      JOIN public.holdings h ON h.id = gd.holding_id
-      WHERE gd.id = grant_id
-    ))
-  );
-DROP POLICY IF EXISTS "grant_milestones: inherit grant details manage" ON public.grant_milestones;
-CREATE POLICY "grant_milestones: inherit grant details manage"
+  USING (public.can_view_org((SELECT g.org_id FROM public.grants g WHERE g.id = grant_id)));
+DROP POLICY IF EXISTS "grant_milestones: org admins can manage" ON public.grant_milestones;
+CREATE POLICY "grant_milestones: org admins can manage"
   ON public.grant_milestones FOR ALL
-  USING (
-    public.can_edit_portfolio((
-      SELECT h.portfolio_id
-      FROM public.grant_details gd
-      JOIN public.holdings h ON h.id = gd.holding_id
-      WHERE gd.id = grant_id
-    ))
-  )
-  WITH CHECK (
-    public.can_edit_portfolio((
-      SELECT h.portfolio_id
-      FROM public.grant_details gd
-      JOIN public.holdings h ON h.id = gd.holding_id
-      WHERE gd.id = grant_id
-    ))
-  );
+  USING (public.is_org_admin((SELECT g.org_id FROM public.grants g WHERE g.id = grant_id)))
+  WITH CHECK (public.is_org_admin((SELECT g.org_id FROM public.grants g WHERE g.id = grant_id)));
+DROP POLICY IF EXISTS "grant_milestones: service role can manage" ON public.grant_milestones;
+CREATE POLICY "grant_milestones: service role can manage"
+  ON public.grant_milestones FOR ALL TO service_role USING (true) WITH CHECK (true);
 
-DROP POLICY IF EXISTS "grant_reports: inherit grant details view" ON public.grant_reports;
-CREATE POLICY "grant_reports: inherit grant details view"
+DROP POLICY IF EXISTS "grant_reports: org members can view" ON public.grant_reports;
+CREATE POLICY "grant_reports: org members can view"
   ON public.grant_reports FOR SELECT
-  USING (
-    public.can_view_portfolio((
-      SELECT h.portfolio_id
-      FROM public.grant_details gd
-      JOIN public.holdings h ON h.id = gd.holding_id
-      WHERE gd.id = grant_id
-    ))
-  );
-DROP POLICY IF EXISTS "grant_reports: inherit grant details manage" ON public.grant_reports;
-CREATE POLICY "grant_reports: inherit grant details manage"
+  USING (public.can_view_org((SELECT g.org_id FROM public.grants g WHERE g.id = grant_id)));
+DROP POLICY IF EXISTS "grant_reports: org admins can manage" ON public.grant_reports;
+CREATE POLICY "grant_reports: org admins can manage"
   ON public.grant_reports FOR ALL
-  USING (
-    public.can_edit_portfolio((
-      SELECT h.portfolio_id
-      FROM public.grant_details gd
-      JOIN public.holdings h ON h.id = gd.holding_id
-      WHERE gd.id = grant_id
-    ))
-  )
-  WITH CHECK (
-    public.can_edit_portfolio((
-      SELECT h.portfolio_id
-      FROM public.grant_details gd
-      JOIN public.holdings h ON h.id = gd.holding_id
-      WHERE gd.id = grant_id
-    ))
-  );
+  USING (public.is_org_admin((SELECT g.org_id FROM public.grants g WHERE g.id = grant_id)))
+  WITH CHECK (public.is_org_admin((SELECT g.org_id FROM public.grants g WHERE g.id = grant_id)));
+DROP POLICY IF EXISTS "grant_reports: service role can manage" ON public.grant_reports;
+CREATE POLICY "grant_reports: service role can manage"
+  ON public.grant_reports FOR ALL TO service_role USING (true) WITH CHECK (true);
 
 ALTER TABLE public.grant_payments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.grant_budget_items ENABLE ROW LEVEL SECURITY;
@@ -737,55 +729,70 @@ ALTER TABLE public.grant_documents ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.grant_contacts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.reminders ENABLE ROW LEVEL SECURITY;
 
-DROP POLICY IF EXISTS "grant_payments: inherit grant details view" ON public.grant_payments;
-CREATE POLICY "grant_payments: inherit grant details view"
+DROP POLICY IF EXISTS "grant_payments: org members can view" ON public.grant_payments;
+CREATE POLICY "grant_payments: org members can view"
   ON public.grant_payments FOR SELECT
-  USING (public.can_view_portfolio((SELECT h.portfolio_id FROM public.grant_details gd JOIN public.holdings h ON h.id = gd.holding_id WHERE gd.id = grant_id)));
-DROP POLICY IF EXISTS "grant_payments: inherit grant details manage" ON public.grant_payments;
-CREATE POLICY "grant_payments: inherit grant details manage"
+  USING (public.can_view_org((SELECT g.org_id FROM public.grants g WHERE g.id = grant_id)));
+DROP POLICY IF EXISTS "grant_payments: org admins can manage" ON public.grant_payments;
+CREATE POLICY "grant_payments: org admins can manage"
   ON public.grant_payments FOR ALL
-  USING (public.can_edit_portfolio((SELECT h.portfolio_id FROM public.grant_details gd JOIN public.holdings h ON h.id = gd.holding_id WHERE gd.id = grant_id)))
-  WITH CHECK (public.can_edit_portfolio((SELECT h.portfolio_id FROM public.grant_details gd JOIN public.holdings h ON h.id = gd.holding_id WHERE gd.id = grant_id)));
+  USING (public.is_org_admin((SELECT g.org_id FROM public.grants g WHERE g.id = grant_id)))
+  WITH CHECK (public.is_org_admin((SELECT g.org_id FROM public.grants g WHERE g.id = grant_id)));
+DROP POLICY IF EXISTS "grant_payments: service role can manage" ON public.grant_payments;
+CREATE POLICY "grant_payments: service role can manage"
+  ON public.grant_payments FOR ALL TO service_role USING (true) WITH CHECK (true);
 
-DROP POLICY IF EXISTS "grant_budget_items: inherit grant details view" ON public.grant_budget_items;
-CREATE POLICY "grant_budget_items: inherit grant details view"
+DROP POLICY IF EXISTS "grant_budget_items: org members can view" ON public.grant_budget_items;
+CREATE POLICY "grant_budget_items: org members can view"
   ON public.grant_budget_items FOR SELECT
-  USING (public.can_view_portfolio((SELECT h.portfolio_id FROM public.grant_details gd JOIN public.holdings h ON h.id = gd.holding_id WHERE gd.id = grant_id)));
-DROP POLICY IF EXISTS "grant_budget_items: inherit grant details manage" ON public.grant_budget_items;
-CREATE POLICY "grant_budget_items: inherit grant details manage"
+  USING (public.can_view_org((SELECT g.org_id FROM public.grants g WHERE g.id = grant_id)));
+DROP POLICY IF EXISTS "grant_budget_items: org admins can manage" ON public.grant_budget_items;
+CREATE POLICY "grant_budget_items: org admins can manage"
   ON public.grant_budget_items FOR ALL
-  USING (public.can_edit_portfolio((SELECT h.portfolio_id FROM public.grant_details gd JOIN public.holdings h ON h.id = gd.holding_id WHERE gd.id = grant_id)))
-  WITH CHECK (public.can_edit_portfolio((SELECT h.portfolio_id FROM public.grant_details gd JOIN public.holdings h ON h.id = gd.holding_id WHERE gd.id = grant_id)));
+  USING (public.is_org_admin((SELECT g.org_id FROM public.grants g WHERE g.id = grant_id)))
+  WITH CHECK (public.is_org_admin((SELECT g.org_id FROM public.grants g WHERE g.id = grant_id)));
+DROP POLICY IF EXISTS "grant_budget_items: service role can manage" ON public.grant_budget_items;
+CREATE POLICY "grant_budget_items: service role can manage"
+  ON public.grant_budget_items FOR ALL TO service_role USING (true) WITH CHECK (true);
 
-DROP POLICY IF EXISTS "grant_communications: inherit grant details view" ON public.grant_communications;
-CREATE POLICY "grant_communications: inherit grant details view"
+DROP POLICY IF EXISTS "grant_communications: org members can view" ON public.grant_communications;
+CREATE POLICY "grant_communications: org members can view"
   ON public.grant_communications FOR SELECT
-  USING (public.can_view_portfolio((SELECT h.portfolio_id FROM public.grant_details gd JOIN public.holdings h ON h.id = gd.holding_id WHERE gd.id = grant_id)));
-DROP POLICY IF EXISTS "grant_communications: inherit grant details manage" ON public.grant_communications;
-CREATE POLICY "grant_communications: inherit grant details manage"
+  USING (public.can_view_org((SELECT g.org_id FROM public.grants g WHERE g.id = grant_id)));
+DROP POLICY IF EXISTS "grant_communications: org admins can manage" ON public.grant_communications;
+CREATE POLICY "grant_communications: org admins can manage"
   ON public.grant_communications FOR ALL
-  USING (public.can_edit_portfolio((SELECT h.portfolio_id FROM public.grant_details gd JOIN public.holdings h ON h.id = gd.holding_id WHERE gd.id = grant_id)))
-  WITH CHECK (public.can_edit_portfolio((SELECT h.portfolio_id FROM public.grant_details gd JOIN public.holdings h ON h.id = gd.holding_id WHERE gd.id = grant_id)));
+  USING (public.is_org_admin((SELECT g.org_id FROM public.grants g WHERE g.id = grant_id)))
+  WITH CHECK (public.is_org_admin((SELECT g.org_id FROM public.grants g WHERE g.id = grant_id)));
+DROP POLICY IF EXISTS "grant_communications: service role can manage" ON public.grant_communications;
+CREATE POLICY "grant_communications: service role can manage"
+  ON public.grant_communications FOR ALL TO service_role USING (true) WITH CHECK (true);
 
-DROP POLICY IF EXISTS "grant_documents: inherit grant details view" ON public.grant_documents;
-CREATE POLICY "grant_documents: inherit grant details view"
+DROP POLICY IF EXISTS "grant_documents: org members can view" ON public.grant_documents;
+CREATE POLICY "grant_documents: org members can view"
   ON public.grant_documents FOR SELECT
-  USING (public.can_view_portfolio((SELECT h.portfolio_id FROM public.grant_details gd JOIN public.holdings h ON h.id = gd.holding_id WHERE gd.id = grant_id)));
-DROP POLICY IF EXISTS "grant_documents: inherit grant details manage" ON public.grant_documents;
-CREATE POLICY "grant_documents: inherit grant details manage"
+  USING (public.can_view_org((SELECT g.org_id FROM public.grants g WHERE g.id = grant_id)));
+DROP POLICY IF EXISTS "grant_documents: org admins can manage" ON public.grant_documents;
+CREATE POLICY "grant_documents: org admins can manage"
   ON public.grant_documents FOR ALL
-  USING (public.can_edit_portfolio((SELECT h.portfolio_id FROM public.grant_details gd JOIN public.holdings h ON h.id = gd.holding_id WHERE gd.id = grant_id)))
-  WITH CHECK (public.can_edit_portfolio((SELECT h.portfolio_id FROM public.grant_details gd JOIN public.holdings h ON h.id = gd.holding_id WHERE gd.id = grant_id)));
+  USING (public.is_org_admin((SELECT g.org_id FROM public.grants g WHERE g.id = grant_id)))
+  WITH CHECK (public.is_org_admin((SELECT g.org_id FROM public.grants g WHERE g.id = grant_id)));
+DROP POLICY IF EXISTS "grant_documents: service role can manage" ON public.grant_documents;
+CREATE POLICY "grant_documents: service role can manage"
+  ON public.grant_documents FOR ALL TO service_role USING (true) WITH CHECK (true);
 
-DROP POLICY IF EXISTS "grant_contacts: inherit grant details view" ON public.grant_contacts;
-CREATE POLICY "grant_contacts: inherit grant details view"
+DROP POLICY IF EXISTS "grant_contacts: org members can view" ON public.grant_contacts;
+CREATE POLICY "grant_contacts: org members can view"
   ON public.grant_contacts FOR SELECT
-  USING (public.can_view_portfolio((SELECT h.portfolio_id FROM public.grant_details gd JOIN public.holdings h ON h.id = gd.holding_id WHERE gd.id = grant_id)));
-DROP POLICY IF EXISTS "grant_contacts: inherit grant details manage" ON public.grant_contacts;
-CREATE POLICY "grant_contacts: inherit grant details manage"
+  USING (public.can_view_org((SELECT g.org_id FROM public.grants g WHERE g.id = grant_id)));
+DROP POLICY IF EXISTS "grant_contacts: org admins can manage" ON public.grant_contacts;
+CREATE POLICY "grant_contacts: org admins can manage"
   ON public.grant_contacts FOR ALL
-  USING (public.can_edit_portfolio((SELECT h.portfolio_id FROM public.grant_details gd JOIN public.holdings h ON h.id = gd.holding_id WHERE gd.id = grant_id)))
-  WITH CHECK (public.can_edit_portfolio((SELECT h.portfolio_id FROM public.grant_details gd JOIN public.holdings h ON h.id = gd.holding_id WHERE gd.id = grant_id)));
+  USING (public.is_org_admin((SELECT g.org_id FROM public.grants g WHERE g.id = grant_id)))
+  WITH CHECK (public.is_org_admin((SELECT g.org_id FROM public.grants g WHERE g.id = grant_id)));
+DROP POLICY IF EXISTS "grant_contacts: service role can manage" ON public.grant_contacts;
+CREATE POLICY "grant_contacts: service role can manage"
+  ON public.grant_contacts FOR ALL TO service_role USING (true) WITH CHECK (true);
 
 DROP POLICY IF EXISTS "reminders: org members can view" ON public.reminders;
 CREATE POLICY "reminders: org members can view"
@@ -863,28 +870,35 @@ CREATE TRIGGER trg_notification_events_updated_at
 -- ---------------------------------------------------------------------------
 CREATE OR REPLACE VIEW public.v_grants AS
 SELECT
-  gd.id AS grant_id,
+  g.id AS grant_id,
   h.id AS holding_id,
-  h.portfolio_id,
-  h.org_id,
+  g.org_id,
+  g.portfolio_id,
   h.name,
   h.asset_type::text AS asset_type,
   h.status::text AS status,
   h.funds_allocated,
   h.sector,
   h.country,
-  gd.grant_type,
-  gd.grant_period_start,
-  gd.grant_period_end,
-  gd.reporting_frequency,
-  gd.next_report_due,
-  gd.renewal_eligible,
-  gd.renewal_date,
-  gd.deliverables,
+  g.lifecycle_stage,
+  g.grant_type,
+  g.requested_amount,
+  g.approved_amount,
+  g.currency,
+  g.grant_period_start,
+  g.grant_period_end,
+  g.reporting_frequency,
+  g.next_report_due,
+  g.renewal_eligible,
+  g.renewal_date,
+  g.deliverables,
+  g.purpose,
+  g.internal_owner_id,
+  g.risk_level,
   CASE
-    WHEN gd.grant_period_start IS NOT NULL AND gd.grant_period_start > CURRENT_DATE THEN 'future'
-    WHEN gd.grant_period_end IS NOT NULL AND gd.grant_period_end < CURRENT_DATE THEN 'ended'
-    WHEN gd.grant_period_start IS NOT NULL OR gd.grant_period_end IS NOT NULL THEN 'active'
+    WHEN g.grant_period_start IS NOT NULL AND g.grant_period_start > CURRENT_DATE THEN 'future'
+    WHEN g.grant_period_end IS NOT NULL AND g.grant_period_end < CURRENT_DATE THEN 'ended'
+    WHEN g.grant_period_start IS NOT NULL OR g.grant_period_end IS NOT NULL THEN 'active'
     ELSE 'ongoing'
   END AS grant_period_status,
   COUNT(DISTINCT gm.id)::int AS total_milestones,
@@ -908,12 +922,12 @@ SELECT
       1
     )
   END AS milestone_completion_pct
-FROM public.grant_details gd
-JOIN public.holdings h ON h.id = gd.holding_id
-LEFT JOIN public.grant_milestones gm ON gm.grant_id = gd.id
-LEFT JOIN public.grant_reports gr ON gr.grant_id = gd.id
-WHERE h.deleted_at IS NULL
-GROUP BY gd.id, h.id;
+FROM public.grants g
+JOIN public.holdings h ON h.id = g.holding_id
+LEFT JOIN public.grant_milestones gm ON gm.grant_id = g.id
+LEFT JOIN public.grant_reports gr ON gr.grant_id = g.id
+WHERE h.deleted_at IS NULL AND g.deleted_at IS NULL
+GROUP BY g.id, h.id;
 
 CREATE OR REPLACE VIEW public.v_portfolio_grant_summary AS
 SELECT
@@ -1011,8 +1025,8 @@ AS $$
       gm.milestone_name AS title,
       gm.due_date
     FROM grant_milestones gm
-    JOIN grant_details gd ON gd.id = gm.grant_id
-    JOIN holdings h ON h.id = gd.holding_id
+    JOIN grants g ON g.id = gm.grant_id
+    JOIN holdings h ON h.id = g.holding_id
     WHERE h.portfolio_id = p_portfolio_id
       AND gm.status <> 'completed'
       AND gm.due_date IS NOT NULL
@@ -1027,8 +1041,8 @@ AS $$
       COALESCE(gr.report_type, 'Grant report'),
       gr.due_date
     FROM grant_reports gr
-    JOIN grant_details gd ON gd.id = gr.grant_id
-    JOIN holdings h ON h.id = gd.holding_id
+    JOIN grants g ON g.id = gr.grant_id
+    JOIN holdings h ON h.id = g.holding_id
     WHERE h.portfolio_id = p_portfolio_id
       AND gr.due_date IS NOT NULL
       AND gr.submitted_date IS NULL
@@ -1044,8 +1058,8 @@ AS $$
       ('Payment #' || gp.payment_number)::text,
       gp.scheduled_date
     FROM grant_payments gp
-    JOIN grant_details gd ON gd.id = gp.grant_id
-    JOIN holdings h ON h.id = gd.holding_id
+    JOIN grants g ON g.id = gp.grant_id
+    JOIN holdings h ON h.id = g.holding_id
     WHERE h.portfolio_id = p_portfolio_id
       AND gp.status IN ('scheduled', 'approved', 'processing')
       AND gp.scheduled_date IS NOT NULL

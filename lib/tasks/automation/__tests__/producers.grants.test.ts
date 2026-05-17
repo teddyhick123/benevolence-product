@@ -132,7 +132,7 @@ describe('grantObligationsProducer', () => {
         description: 'Submit Q1 progress report',
         due_date: futureDate.toISOString().slice(0, 10),
         status: 'pending',
-        grant_details: { holding_id: 'h-1', holdings: { org_id: 'org-1', portfolio_id: 'p-1', name: 'Grant A' } },
+        grants: { org_id: 'org-1', portfolio_id: 'p-1', holding_id: 'h-1', holdings: { name: 'Grant A' } },
       },
     ];
     const results = await grantObligationsProducer({ orgId: 'org-1' });
@@ -151,7 +151,7 @@ describe('grantObligationsProducer', () => {
         description: null,
         due_date: futureDate.toISOString().slice(0, 10),
         status: 'in_progress',
-        grant_details: { holding_id: 'h-2', holdings: { org_id: 'org-1', portfolio_id: 'p-2', name: 'Grant B' } },
+        grants: { org_id: 'org-1', portfolio_id: 'p-2', holding_id: 'h-2', holdings: { name: 'Grant B' } },
       },
     ];
     const results = await grantObligationsProducer({ orgId: 'org-1' });
@@ -171,7 +171,7 @@ describe('grantObligationsProducer', () => {
         description: null,
         due_date: futureDate.toISOString().slice(0, 10),
         status: 'pending',
-        grant_details: { holding_id: 'h-3', holdings: { org_id: 'org-1', portfolio_id: 'p-1', name: 'Grant C' } },
+        grants: { org_id: 'org-1', portfolio_id: 'p-1', holding_id: 'h-3', holdings: { name: 'Grant C' } },
       },
     ];
     const results = await grantObligationsProducer({ orgId: 'org-1', dryRun: true });
@@ -194,7 +194,7 @@ describe('grantObligationsProducer', () => {
         description: null,
         due_date: pastDate.toISOString().slice(0, 10),
         status: 'pending',
-        grant_details: { holding_id: 'h-4', holdings: { org_id: 'org-1', portfolio_id: 'p-1', name: 'Grant D' } },
+        grants: { org_id: 'org-1', portfolio_id: 'p-1', holding_id: 'h-4', holdings: { name: 'Grant D' } },
       },
     ];
     const results = await grantObligationsProducer({ orgId: 'org-1' });
@@ -215,7 +215,7 @@ describe('grantObligationsProducer', () => {
         due_date: futureDate.toISOString().slice(0, 10),
         submitted_date: null,
         received_at: null,
-        grant_details: { holding_id: 'h-5', holdings: { org_id: 'org-1', portfolio_id: 'p-1', name: 'Grant E' } },
+        grants: { org_id: 'org-1', portfolio_id: 'p-1', holding_id: 'h-5', holdings: { name: 'Grant E' } },
       },
     ];
     const results = await grantObligationsProducer({ orgId: 'org-1' });
@@ -236,7 +236,7 @@ describe('grantObligationsProducer', () => {
         paid_date: null,
         scheduled_date: null,
         status: 'scheduled',
-        grant_details: { holding_id: 'h-6', holdings: { org_id: 'org-1', portfolio_id: 'p-1', name: 'Grant F' } },
+        grants: { org_id: 'org-1', portfolio_id: 'p-1', holding_id: 'h-6', holdings: { name: 'Grant F' } },
       },
     ];
     const results = await grantObligationsProducer({ orgId: 'org-1' });
@@ -257,7 +257,7 @@ describe('grantObligationsProducer', () => {
         description: null,
         due_date: futureDate.toISOString().slice(0, 10),
         status: 'pending',
-        grant_details: { holding_id: 'h-7', holdings: { org_id: 'org-1', portfolio_id: 'p-1', name: 'Grant G' } },
+        grants: { org_id: 'org-1', portfolio_id: 'p-1', holding_id: 'h-7', holdings: { name: 'Grant G' } },
       },
     ];
     const results = await grantObligationsProducer({ orgId: 'org-1' });

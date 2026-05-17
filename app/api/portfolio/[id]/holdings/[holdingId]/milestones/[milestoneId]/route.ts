@@ -40,7 +40,7 @@ export async function PATCH(
       .select(`
         id,
         grant_id,
-        grant_details!inner(holding_id)
+        grants!inner(holding_id)
       `)
       .eq('id', milestoneId)
       .single();
@@ -53,7 +53,7 @@ export async function PATCH(
     }
 
     // Verify the milestone belongs to the specified holding
-    const grantDetails = existingMilestone.grant_details as any;
+    const grantDetails = existingMilestone.grants as any;
     if (grantDetails.holding_id !== holdingId) {
       return NextResponse.json(
         { error: 'Milestone does not belong to this holding' },
@@ -152,7 +152,7 @@ export async function DELETE(
       .select(`
         id,
         grant_id,
-        grant_details!inner(holding_id)
+        grants!inner(holding_id)
       `)
       .eq('id', milestoneId)
       .single();
@@ -165,7 +165,7 @@ export async function DELETE(
     }
 
     // Verify the milestone belongs to the specified holding
-    const grantDetails = existingMilestone.grant_details as any;
+    const grantDetails = existingMilestone.grants as any;
     if (grantDetails.holding_id !== holdingId) {
       return NextResponse.json(
         { error: 'Milestone does not belong to this holding' },

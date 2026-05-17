@@ -31,18 +31,18 @@ export async function GET(
       );
     }
 
-    // Get grant details to find grant_id
-    const { data: grantDetails } = await supabase
-      .from('grant_details')
+    // Find the grant record for this holding
+    const { data: grantRecord } = await supabase
+      .from('grants')
       .select('id')
       .eq('holding_id', holdingId)
       .maybeSingle();
 
-    if (!grantDetails) {
+    if (!grantRecord) {
       return NextResponse.json({
         data: [],
         count: 0,
-        message: 'No grant details found for this holding',
+        message: 'No grant found for this holding',
       });
     }
 
@@ -50,7 +50,7 @@ export async function GET(
     const { data: milestones, error } = await supabase
       .from('grant_milestones')
       .select('*')
-      .eq('grant_id', grantDetails.id)
+      .eq('grant_id', grantRecord.id)
       .order('due_date', { ascending: true, nullsFirst: false });
 
     if (error) {
@@ -105,16 +105,16 @@ export async function POST(
       return NextResponse.json({ error: 'Holding not found' }, { status: 404 });
     }
 
-    // Get grant details
-    const { data: grantDetails } = await supabase
-      .from('grant_details')
+    // Get the grant record for this holding
+    const { data: grantRecord } = await supabase
+      .from('grants')
       .select('id')
       .eq('holding_id', holdingId)
       .single();
 
-    if (!grantDetails) {
+    if (!grantRecord) {
       return NextResponse.json(
-        { error: 'Grant details not found. Create grant details first.' },
+        { error: 'Grant not found for this holding. Create a grant first.' },
         { status: 404 }
       );
     }
@@ -122,7 +122,7 @@ export async function POST(
     // Validate request body
     const validated = createMilestoneSchema.parse({
       ...body,
-      grant_id: grantDetails.id, // Ensure grant_id matches the holding's grant
+      grant_id: grantRecord.id, // Ensure grant_id matches the holding's grant
     });
 
     const completedDate = validated.status === 'completed'

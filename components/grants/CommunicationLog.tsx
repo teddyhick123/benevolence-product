@@ -58,21 +58,21 @@ export default function CommunicationLog({ portfolioId }: Props) {
           .from('grant_communications')
           .select(`
             *,
-            grant_details!inner(
+            grants!inner(
               id,
               holding_id,
               holdings!inner(name, portfolio_id)
             )
           `)
-          .eq('grant_details.holdings.portfolio_id', portfolioId)
+          .eq('grants.holdings.portfolio_id', portfolioId)
           .order('occurred_at', { ascending: false });
 
         if (error) throw error;
 
         const processedComms = (commsData || []).map((c: any) => ({
           ...c,
-          grant_name: c.grant_details?.holdings?.name || 'Unknown Grant',
-          holding_id: c.grant_details?.holding_id,
+          grant_name: c.grants?.holdings?.name || 'Unknown Grant',
+          holding_id: c.grants?.holding_id,
         }));
 
         setCommunications(processedComms);
@@ -83,7 +83,7 @@ export default function CommunicationLog({ portfolioId }: Props) {
           .select(`
             id,
             name,
-            grant_details(id)
+            grants(id)
           `)
           .eq('portfolio_id', portfolioId)
           .in('asset_type', ['foundation_grant', 'daf_grant', 'pri', 'mri'])
@@ -92,7 +92,7 @@ export default function CommunicationLog({ portfolioId }: Props) {
         const processedHoldings = (holdingsData || []).map((h: any) => ({
           id: h.id,
           name: h.name,
-          grant_id: h.grant_details?.[0]?.id,
+          grant_id: h.grants?.[0]?.id,
         }));
 
         setHoldings(processedHoldings);
@@ -168,12 +168,21 @@ export default function CommunicationLog({ portfolioId }: Props) {
       const supabase = createClient();
       const holding = holdings.find(h => h.id === newComm.holdingId);
 
-      // Get or create grant details
+      // Get or create grant record
       let grantId = holding?.grant_id;
       if (!grantId) {
+        const { data: holdingRow } = await supabase
+          .from('holdings')
+          .select('org_id, portfolio_id')
+          .eq('id', newComm.holdingId)
+          .single();
         const { data: newGrant } = await supabase
-          .from('grant_details')
-          .insert({ holding_id: newComm.holdingId })
+          .from('grants')
+          .insert({
+            holding_id: newComm.holdingId,
+            org_id: holdingRow?.org_id,
+            portfolio_id: holdingRow?.portfolio_id ?? portfolioId,
+          })
           .select('id')
           .single();
         grantId = newGrant?.id;

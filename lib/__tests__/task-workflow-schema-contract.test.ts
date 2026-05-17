@@ -143,13 +143,13 @@ describe('task/workflow schema contract', () => {
     expect(seedTargets.filter(table => !dbObjects.has(table))).toEqual([]);
   });
 
-  it('grant reports are aligned to the holding-level grant_details model', () => {
-    expect(migrationsSrc).toMatch(/CREATE TABLE IF NOT EXISTS public\.grant_reports[\s\S]*grant_id\s+uuid NOT NULL REFERENCES public\.grant_details\(id\)/);
+  it('grant reports are aligned to the canonical grants lifecycle model', () => {
+    // After the grant_details → grants rename, child tables reference grants(id)
+    expect(migrationsSrc).toMatch(/CREATE TABLE IF NOT EXISTS public\.grant_reports[\s\S]*grant_id\s+uuid NOT NULL REFERENCES public\.grants\(id\)/);
     expect(migrationsSrc).toContain('ALTER TABLE public.grant_reports ENABLE ROW LEVEL SECURITY');
-    expect(migrationsSrc).not.toMatch(/CREATE TABLE IF NOT EXISTS (?:public\.)?grants\s*\(/);
-    expect(migrationsSrc).not.toMatch(/REFERENCES (?:public\.)?grants\s*\(/);
-    expect(migrationsSrc).not.toMatch(/(?:FROM|JOIN) public\.grants\b/);
-    expect(migrationsSrc).not.toContain('ANALYZE grants');
-    expect(migrationsSrc).not.toMatch(/grant_reports_grant_details_fkey[\s\S]{0,300}NOT VALID/);
+    // grants table (the canonical lifecycle record) must exist
+    expect(migrationsSrc).toMatch(/CREATE TABLE IF NOT EXISTS public\.grants\s*\(/);
+    // grant_details must not exist as a CREATE TABLE
+    expect(migrationsSrc).not.toMatch(/CREATE TABLE\s+(?:IF NOT EXISTS\s+)?public\.grant_details\s*\(/);
   });
 });

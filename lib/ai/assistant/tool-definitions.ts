@@ -1064,7 +1064,7 @@ export const PORTFOLIO_TOOLS: ToolDefinition[] = [
       type: 'object',
       properties: {
         portfolio_id: { type: 'string', description: 'UUID of the portfolio' },
-        grant_id: { type: 'string', description: 'UUID of the grant_details record' },
+        grant_id: { type: 'string', description: 'UUID of the grants record' },
         er_record_id: { type: 'string', description: 'UUID of existing ER record to update (omit to create)' },
         grantee_is_public_charity: { type: 'boolean', description: 'Is the grantee a public charity? (if true, ER agreement not required)' },
         grantee_ein: { type: 'string', description: "Grantee's EIN" },

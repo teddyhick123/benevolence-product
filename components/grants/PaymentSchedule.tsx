@@ -56,21 +56,21 @@ export default function PaymentSchedule({ portfolioId }: Props) {
           .from('grant_payments')
           .select(`
             *,
-            grant_details!inner(
+            grants!inner(
               id,
               holding_id,
               holdings!inner(name, portfolio_id)
             )
           `)
-          .eq('grant_details.holdings.portfolio_id', portfolioId)
+          .eq('grants.holdings.portfolio_id', portfolioId)
           .order('scheduled_date', { ascending: true });
 
         if (error) throw error;
 
         const processedPayments = (paymentsData || []).map((p: any) => ({
           ...p,
-          grant_name: p.grant_details?.holdings?.name || 'Unknown Grant',
-          holding_id: p.grant_details?.holding_id,
+          grant_name: p.grants?.holdings?.name || 'Unknown Grant',
+          holding_id: p.grants?.holding_id,
         }));
 
         setPayments(processedPayments);
@@ -93,7 +93,7 @@ export default function PaymentSchedule({ portfolioId }: Props) {
           .select(`
             id,
             name,
-            grant_details(id)
+            grants(id)
           `)
           .eq('portfolio_id', portfolioId)
           .in('asset_type', ['foundation_grant', 'daf_grant', 'pri', 'mri'])
@@ -102,7 +102,7 @@ export default function PaymentSchedule({ portfolioId }: Props) {
         const processedHoldings = (holdingsData || []).map((h: any) => ({
           id: h.id,
           name: h.name,
-          grant_id: h.grant_details?.[0]?.id,
+          grant_id: h.grants?.[0]?.id,
         }));
 
         setHoldings(processedHoldings);
@@ -157,12 +157,21 @@ export default function PaymentSchedule({ portfolioId }: Props) {
       const supabase = createClient();
       const holding = holdings.find(h => h.id === newPayment.holdingId);
 
-      // Get or create grant details
+      // Get or create grant record
       let grantId = holding?.grant_id;
       if (!grantId) {
+        const { data: holdingRow } = await supabase
+          .from('holdings')
+          .select('org_id, portfolio_id')
+          .eq('id', newPayment.holdingId)
+          .single();
         const { data: newGrant } = await supabase
-          .from('grant_details')
-          .insert({ holding_id: newPayment.holdingId })
+          .from('grants')
+          .insert({
+            holding_id: newPayment.holdingId,
+            org_id: holdingRow?.org_id,
+            portfolio_id: holdingRow?.portfolio_id ?? portfolioId,
+          })
           .select('id')
           .single();
         grantId = newGrant?.id;

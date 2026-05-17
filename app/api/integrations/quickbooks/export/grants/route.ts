@@ -71,7 +71,7 @@ export async function POST(req: Request): Promise<Response> {
 
   const portfolioIds = portfolios.map((p) => p.id);
 
-  // Fetch holdings with grant_details across all org portfolios.
+  // Fetch holdings with grants across all org portfolios.
   // Use funds_allocated (what has been disbursed/drawn) not total_committed
   // (the full multi-year pledge) to avoid double-counting on re-exports.
   let query = supabase
@@ -80,7 +80,7 @@ export async function POST(req: Request): Promise<Response> {
       `id,
        name,
        funds_allocated,
-       grant_details!inner(grant_period_start, grant_period_end)`
+       grants!inner(grant_period_start, grant_period_end)`
     )
     .in('portfolio_id', portfolioIds)
     .not('funds_allocated', 'is', null)
@@ -88,7 +88,7 @@ export async function POST(req: Request): Promise<Response> {
     .limit(2000);
 
   if (since) {
-    query = query.gte('grant_details.grant_period_start', since);
+    query = query.gte('grants.grant_period_start', since);
   }
 
   const { data: grants, error: fetchError } = await query;

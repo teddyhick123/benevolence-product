@@ -87,9 +87,9 @@ export default function GrantDetailPage() {
       try {
         const supabase = createClient();
 
-        // Fetch grant details with holding info
+        // Fetch grant with holding info
         const { data: grantData, error: grantError } = await supabase
-          .from('grant_details')
+          .from('grants')
           .select(`
             *,
             holding:holdings(id, name, sector, country, funds_allocated, status)

@@ -135,45 +135,32 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       stats.pending_receipts = pendingReceiptsCount || 0;
     }
 
-    // Grant management stats
-    // Note: grant_details is portfolio-scoped (linked via holding_id), so we query
-    // through org-owned holdings to find grants for this org.
+    // Grant management stats — grants now has org_id directly
     if (enabledModules.includes("grant_management")) {
-      // Get grants for holdings owned by this organization
-      const { data: orgHoldings } = await adminClient
-        .from("holdings")
-        .select("id")
+      // Count active grants for this org (active = within grant period or no end date)
+      const { count: activeGrantsCount } = await adminClient
+        .from("grants")
+        .select("*", { count: "exact", head: true })
         .eq("org_id", orgId)
-        .is("deleted_at", null);
+        .is("deleted_at", null)
+        .or("grant_period_end.is.null,grant_period_end.gte." + new Date().toISOString().split("T")[0]);
 
-      const holdingIds = orgHoldings?.map((h) => h.id) || [];
+      stats.active_grants = activeGrantsCount || 0;
 
-      if (holdingIds.length > 0) {
-        // Count grants for these holdings (active = within grant period or no end date)
-        const { count: activeGrantsCount } = await adminClient
-          .from("grant_details")
-          .select("*", { count: "exact", head: true })
-          .in("holding_id", holdingIds)
-          .or("grant_period_end.is.null,grant_period_end.gte." + new Date().toISOString().split("T")[0]);
-
-        stats.active_grants = activeGrantsCount || 0;
-
-        // Upcoming deadlines (next 30 days) - milestones for these grants
+      // Upcoming deadlines (next 30 days) - milestones for this org's grants
+      if (activeGrantsCount && activeGrantsCount > 0) {
         const thirtyDaysFromNow = new Date();
         thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
 
         const { count: deadlinesCount } = await adminClient
           .from("grant_milestones")
-          .select("*, grant_details!inner(holding_id)", { count: "exact", head: true })
-          .in("grant_details.holding_id", holdingIds)
+          .select("*, grants!inner(org_id)", { count: "exact", head: true })
+          .eq("grants.org_id", orgId)
           .lte("due_date", thirtyDaysFromNow.toISOString().split("T")[0])
           .gte("due_date", new Date().toISOString().split("T")[0])
           .eq("status", "pending");
 
         stats.upcoming_deadlines = deadlinesCount || 0;
-      } else {
-        stats.active_grants = 0;
-        stats.upcoming_deadlines = 0;
       }
     }
 

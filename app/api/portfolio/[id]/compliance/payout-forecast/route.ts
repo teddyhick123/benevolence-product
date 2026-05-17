@@ -93,7 +93,7 @@ export async function GET(
         const holdingIds = holdings.map(h => h.id);
 
         const { data: grants } = await sb
-          .from('grant_details')
+          .from('grants')
           .select('id')
           .in('holding_id', holdingIds);
 

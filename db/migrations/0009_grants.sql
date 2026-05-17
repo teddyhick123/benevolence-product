@@ -2,8 +2,10 @@
 -- 0009_grants.sql
 -- Historical placeholder.
 --
--- The early schema had a standalone grants table. Grant lifecycle data is now
--- modeled canonically as holding-level grant_details in migration 0041.
+-- The early schema had a standalone grants table. That name was briefly changed
+-- to grant_details (holding-level detail record) in migration 0041, but has
+-- since been renamed back to public.grants in migration 0041 with the full
+-- lifecycle model (org_id, portfolio_id, lifecycle_stage, etc.).
 -- This file intentionally creates no tables so the migration numbering remains
 -- stable without leaving two competing grant parents in the active schema.
 -- =============================================================================

@@ -142,7 +142,7 @@ type HoldingLocationRow = {
 async function fetchGrantDetails(holdingId: string): Promise<{ next_report_due?: string | null } | null> {
   const supabase = await getSupabase();
   const { data } = await supabase
-    .from('grant_details')
+    .from('grants')
     .select('next_report_due')
     .eq('holding_id', holdingId)
     .maybeSingle();

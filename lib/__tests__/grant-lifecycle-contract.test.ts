@@ -1,0 +1,285 @@
+// lib/__tests__/grant-lifecycle-contract.test.ts
+// Contract tests that define the TARGET state for the grant lifecycle refactor.
+// These tests FAIL before Task 2 (rename grant_details to grants) and should
+// ALL PASS once the migration and code sweep are complete.
+import { describe, it, expect } from 'vitest';
+import { readFileSync, readdirSync } from 'fs';
+import { join } from 'path';
+
+const ROOT = process.cwd();
+
+function read(relPath: string): string {
+  return readFileSync(join(ROOT, relPath), 'utf8');
+}
+
+function readMigrations(): string {
+  const migDir = join(ROOT, 'db/migrations');
+  return readdirSync(migDir)
+    .filter((f) => f.endsWith('.sql'))
+    .map((f) => readFileSync(join(migDir, f), 'utf8'))
+    .join('\n');
+}
+
+const migrations = readMigrations();
+const executorSrc = read('lib/ai/assistant/executor.ts');
+
+// ---------------------------------------------------------------------------
+// 1. Canonical table is `grants`, not `grant_details`
+// ---------------------------------------------------------------------------
+describe('Canonical grant table naming', () => {
+  it('migrations define public.grants as a CREATE TABLE', () => {
+    expect(migrations).toMatch(
+      /CREATE TABLE\s+IF NOT EXISTS\s+public\.grants\s*\(/i
+    );
+  });
+
+  it('migrations do NOT define public.grant_details as a CREATE TABLE', () => {
+    expect(migrations).not.toMatch(
+      /CREATE TABLE\s+(IF NOT EXISTS\s+)?public\.grant_details\s*\(/i
+    );
+  });
+
+  it('grants child tables FK to public.grants, not public.grant_details', () => {
+    // All grant child table FKs should reference grants(id)
+    const grantChildFkPattern = /REFERENCES\s+public\.grant_details\s*\(id\)/i;
+    expect(migrations).not.toMatch(grantChildFkPattern);
+  });
+
+  it('views and RPCs reference public.grants, not public.grant_details', () => {
+    // v_grants, v_grant_health, get_upcoming_deadlines should use grants
+    expect(migrations).not.toMatch(/FROM\s+public\.grant_details\b/i);
+    expect(migrations).not.toMatch(/JOIN\s+public\.grant_details\b/i);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 2. grants table has required columns
+// ---------------------------------------------------------------------------
+describe('grants table has required lifecycle columns', () => {
+  // Extract the grants table definition block from migrations
+  function getGrantsTableBlock(): string {
+    const match = migrations.match(
+      /CREATE TABLE\s+IF NOT EXISTS\s+public\.grants\s*\(([\s\S]*?)\);/i
+    );
+    return match ? match[1] : '';
+  }
+
+  const grantsBlock = getGrantsTableBlock();
+
+  const requiredColumns = [
+    'org_id',
+    'portfolio_id',
+    'holding_id',
+    'lifecycle_stage',
+    'requested_amount',
+    'approved_amount',
+    'internal_owner_id',
+  ];
+
+  for (const col of requiredColumns) {
+    it(`grants table has column "${col}"`, () => {
+      const colPattern = new RegExp(`\\b${col}\\b`, 'i');
+      expect(colPattern.test(grantsBlock)).toBe(true);
+    });
+  }
+
+  it('grants.lifecycle_stage has a CHECK constraint with canonical stages', () => {
+    expect(migrations).toMatch(/lifecycle_stage\s+text.*CHECK\s*\(/i);
+    // Spot-check a few canonical stage values
+    expect(migrations).toContain("'draft'");
+    expect(migrations).toContain("'due_diligence'");
+    expect(migrations).toContain("'approved'");
+    expect(migrations).toContain("'closed'");
+  });
+
+  it('grants has a UNIQUE constraint on holding_id', () => {
+    expect(migrations).toMatch(/UNIQUE\s*\(\s*holding_id\s*\)/i);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 3. Audit / history tables exist
+// ---------------------------------------------------------------------------
+describe('Grant audit tables exist in migrations', () => {
+  it('grant_status_history is defined', () => {
+    expect(migrations).toMatch(
+      /CREATE TABLE\s+(IF NOT EXISTS\s+)?public\.grant_status_history\s*\(/i
+    );
+  });
+
+  it('grant_decisions is defined', () => {
+    expect(migrations).toMatch(
+      /CREATE TABLE\s+(IF NOT EXISTS\s+)?public\.grant_decisions\s*\(/i
+    );
+  });
+
+  it('grant_status_history has grant_id, from_stage, to_stage, actor_id', () => {
+    const block = migrations.match(
+      /CREATE TABLE\s+(?:IF NOT EXISTS\s+)?public\.grant_status_history\s*\(([\s\S]*?)\);/i
+    )?.[1] ?? '';
+    expect(block).toMatch(/\bgrant_id\b/i);
+    expect(block).toMatch(/\bfrom_stage\b/i);
+    expect(block).toMatch(/\bto_stage\b/i);
+    expect(block).toMatch(/\bactor_id\b/i);
+  });
+
+  it('grant_decisions has decision_type, decision, decided_by', () => {
+    const block = migrations.match(
+      /CREATE TABLE\s+(?:IF NOT EXISTS\s+)?public\.grant_decisions\s*\(([\s\S]*?)\);/i
+    )?.[1] ?? '';
+    expect(block).toMatch(/\bdecision_type\b/i);
+    expect(block).toMatch(/\bdecision\b/i);
+    expect(block).toMatch(/\bdecided_by\b/i);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 4. No stale grant_details references in application source
+// ---------------------------------------------------------------------------
+describe('No stale grant_details references in application source', () => {
+  const { readdirSync: rdSync, statSync } = require('fs');
+
+  const EXCLUDED_DIRS = new Set(['__tests__', '.next', 'node_modules', 'graphify-out']);
+  const PERMITTED_FILES = new Set([
+    // Only the 0009 placeholder comment is allowed to reference the old name
+    'db/migrations/0009_grants.sql',
+  ]);
+
+  function walkTs(dir: string): string[] {
+    const results: string[] = [];
+    try {
+      for (const entry of rdSync(dir, { withFileTypes: true })) {
+        if (EXCLUDED_DIRS.has(entry.name)) continue;
+        const full = join(dir, entry.name);
+        if (entry.isDirectory()) {
+          results.push(...walkTs(full));
+        } else if (entry.name.endsWith('.ts') || entry.name.endsWith('.tsx')) {
+          results.push(full);
+        }
+      }
+    } catch { /* ignore */ }
+    return results;
+  }
+
+  const allFiles = [
+    ...walkTs(join(ROOT, 'app')),
+    ...walkTs(join(ROOT, 'lib')),
+    ...walkTs(join(ROOT, 'components')),
+  ];
+
+  it('no TS/TSX file references .from("grant_details") or .from(\'grant_details\')', () => {
+    const violations: string[] = [];
+    for (const f of allFiles) {
+      const rel = f.replace(ROOT + '/', '');
+      if (PERMITTED_FILES.has(rel)) continue;
+      const content = readFileSync(f, 'utf8');
+      if (/\.from\(['"]grant_details['"]\)/.test(content)) {
+        violations.push(rel);
+      }
+    }
+    expect(violations).toEqual([]);
+  });
+
+  it('no TS/TSX file contains nested grant_details(...) select strings', () => {
+    const violations: string[] = [];
+    for (const f of allFiles) {
+      const rel = f.replace(ROOT + '/', '');
+      if (PERMITTED_FILES.has(rel)) continue;
+      const content = readFileSync(f, 'utf8');
+      if (/grant_details\s*\(/.test(content)) {
+        violations.push(rel);
+      }
+    }
+    expect(violations).toEqual([]);
+  });
+
+  it('CLAUDE.md documents grants as canonical table (not grant_details)', () => {
+    const claudeMd = read('CLAUDE.md');
+    expect(claudeMd).not.toContain('grant_details.id');
+    expect(claudeMd).toContain('grants');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 5. AI grant tools do not return feature_not_available
+// ---------------------------------------------------------------------------
+describe('AI grant tools are not stubbed', () => {
+  const GRANT_TOOL_NAMES = [
+    'start_due_diligence',
+    'get_workflow_status',
+    'complete_workflow_task',
+    'track_milestone',
+    'get_upcoming_deadlines',
+    'log_grant_communication',
+    'get_grant_health',
+    'record_grant_payment',
+  ];
+
+  it('executor.ts does not group grant tool cases into a single feature_not_available block', () => {
+    // The stubbed block looks like:
+    // case 'start_due_diligence':
+    // case 'track_milestone':
+    // ...
+    // case 'record_grant_payment': {
+    //   return { ... feature_not_available: true ... };
+    // }
+    // After implementation each tool gets its own case. Verify the stub pattern is gone.
+    const stubPattern = /case 'start_due_diligence':[\s\S]{0,800}feature_not_available:\s*true/;
+    expect(stubPattern.test(executorSrc)).toBe(false);
+  });
+
+  for (const tool of GRANT_TOOL_NAMES) {
+    it(`executor.ts handles case '${tool}' without feature_not_available`, () => {
+      // Find the case block for this tool and assert no feature_not_available inside it
+      const caseIdx = executorSrc.indexOf(`case '${tool}':`);
+      expect(caseIdx).toBeGreaterThan(-1);
+      // Extract a window after the case label and check for the stub flag
+      const window = executorSrc.slice(caseIdx, caseIdx + 600);
+      expect(window).not.toContain('feature_not_available');
+    });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// 6. lib/grants/lifecycle.ts exposes required exports
+// ---------------------------------------------------------------------------
+describe('lib/grants/lifecycle.ts exports required symbols', () => {
+  let lifecycleSrc = '';
+  try {
+    lifecycleSrc = read('lib/grants/lifecycle.ts');
+  } catch {
+    lifecycleSrc = '';
+  }
+
+  it('lifecycle.ts exists', () => {
+    expect(lifecycleSrc.length).toBeGreaterThan(0);
+  });
+
+  it('exports LIFECYCLE_STAGES', () => {
+    expect(lifecycleSrc).toContain('LIFECYCLE_STAGES');
+  });
+
+  it('exports ALLOWED_TRANSITIONS', () => {
+    expect(lifecycleSrc).toContain('ALLOWED_TRANSITIONS');
+  });
+
+  it('exports DECISION_REQUIRED_TRANSITIONS', () => {
+    expect(lifecycleSrc).toContain('DECISION_REQUIRED_TRANSITIONS');
+  });
+
+  it('exports canTransition function', () => {
+    expect(lifecycleSrc).toContain('canTransition');
+  });
+
+  it('terminal stages have no forward transitions', () => {
+    // This test imports the actual module — runs only if lifecycle.ts exists
+    if (!lifecycleSrc.includes('ALLOWED_TRANSITIONS')) return;
+    // Read and parse manually rather than importing to avoid ESM issues
+    const terminalStages = ['closed', 'declined', 'cancelled'];
+    for (const stage of terminalStages) {
+      // Pattern: `stage: []` in the ALLOWED_TRANSITIONS object
+      const pattern = new RegExp(`'${stage}'\\s*:\\s*\\[\\s*\\]`);
+      expect(pattern.test(lifecycleSrc)).toBe(true);
+    }
+  });
+});

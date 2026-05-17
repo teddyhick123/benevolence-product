@@ -5,9 +5,8 @@
 //   2. grant_reports    — reports due soon or overdue that haven't been submitted/received
 //   3. grant_payments   — payments where conditions haven't been met yet
 //
-// CRITICAL: grant_milestones, grant_reports, and grant_payments have NO org_id column.
-// Scope via: grant_milestones/grant_payments → grant_details → holdings.org_id
-// Admin client bypasses RLS; filter org_id client-side from joined holdings.
+// Scope via grants.org_id (grants now carries org_id/portfolio_id directly).
+// Admin client bypasses RLS; filter org_id client-side from joined grants row.
 //
 // Source key formats:
 //   Milestone (one key, updated in place): grant_milestone:{id}:due
@@ -62,7 +61,7 @@ export async function grantObligationsProducer(
   // -------------------------------------------------------------------------
   // 1. Grant milestones
   //
-  // Scope to org via grant_details → holdings.org_id.
+  // Scope to org via grants.org_id (grants carries org_id directly).
   // Filter to milestones with due_date within 30 days (or already overdue)
   // and status NOT in terminal set.
   // -------------------------------------------------------------------------
@@ -74,7 +73,7 @@ export async function grantObligationsProducer(
   const { data: milestones, error: milestonesError } = await (db
     .from('grant_milestones')
     .select(
-      'id, grant_id, milestone_name, description, due_date, status, grant_details!inner(holding_id, holdings!inner(org_id, portfolio_id, name))'
+      'id, grant_id, milestone_name, description, due_date, status, grants!inner(org_id, portfolio_id, holding_id, holdings!inner(name))'
     )
     .in('status', MILESTONE_OPEN_STATUSES)
     .not('due_date', 'is', null)
@@ -89,10 +88,9 @@ export async function grantObligationsProducer(
     // Continue to reports/payments
   }
 
-  // Filter client-side to org (admin client bypasses RLS; the join brings org_id into scope)
+  // Filter client-side to org (admin client bypasses RLS; grants.org_id is in scope)
   const orgMilestones = (milestones ?? []).filter((m: any) => {
-    const holding = m.grant_details?.holdings;
-    return holding?.org_id === orgId;
+    return m.grants?.org_id === orgId;
   });
 
   result.scanned += orgMilestones.length;
@@ -104,17 +102,16 @@ export async function grantObligationsProducer(
     const milestoneDesc = (milestone.description as string | null) ?? '';
     const dueDate = milestone.due_date as string;
     const status = milestone.status as string;
-    const holding = (milestone as any).grant_details?.holdings ?? {};
-    const portfolioId = (holding.portfolio_id as string | null) ?? null;
-    const holdingId = ((milestone as any).grant_details?.holding_id as string | null) ?? null;
-    const grantName = (holding.name as string | null) ?? 'grant';
+    const grantRecord = (milestone as any).grants ?? {};
+    const portfolioId = (grantRecord.portfolio_id as string | null) ?? null;
+    const holdingId = (grantRecord.holding_id as string | null) ?? null;
+    const grantName = (grantRecord.holdings?.name as string | null) ?? 'grant';
 
     const dueDateMs = new Date(dueDate).getTime();
     const nowMs = now.getTime();
     const diffDays = (dueDateMs - nowMs) / (1000 * 60 * 60 * 24);
     const isOverdue = dueDate < today;
 
-    // Hoist these to outer scope to avoid redundant computation in metadata spread
     let daysOverdue = 0;
     let daysUntilDue = 0;
 
@@ -196,7 +193,7 @@ export async function grantObligationsProducer(
   // -------------------------------------------------------------------------
   // 2. Grant reports
   //
-  // Scope to org via grant_details → holdings.org_id.
+  // Scope to org via grants.org_id.
   // Filter: submitted_date IS NULL AND received_at IS NULL AND due_date within 45 days.
   // -------------------------------------------------------------------------
 
@@ -207,7 +204,7 @@ export async function grantObligationsProducer(
   const { data: reports, error: reportsError } = await (db
     .from('grant_reports')
     .select(
-      'id, grant_id, report_type, due_date, submitted_date, received_at, grant_details!inner(holding_id, holdings!inner(org_id, portfolio_id, name))'
+      'id, grant_id, report_type, due_date, submitted_date, received_at, grants!inner(org_id, portfolio_id, holding_id, holdings!inner(name))'
     )
     .is('submitted_date', null)
     .is('received_at', null)
@@ -223,8 +220,7 @@ export async function grantObligationsProducer(
   }
 
   const orgReports = (reports ?? []).filter((r: any) => {
-    const holding = r.grant_details?.holdings;
-    return holding?.org_id === orgId;
+    return r.grants?.org_id === orgId;
   });
 
   result.scanned += orgReports.length;
@@ -234,10 +230,10 @@ export async function grantObligationsProducer(
     const grantId = report.grant_id as string;
     const reportType = ((report.report_type as string | null) ?? 'report').replace(/_/g, ' ');
     const dueDate = report.due_date as string;
-    const holding = (report as any).grant_details?.holdings ?? {};
-    const portfolioId = (holding.portfolio_id as string | null) ?? null;
-    const holdingId = ((report as any).grant_details?.holding_id as string | null) ?? null;
-    const grantName = (holding.name as string | null) ?? 'grant';
+    const grantRecord = (report as any).grants ?? {};
+    const portfolioId = (grantRecord.portfolio_id as string | null) ?? null;
+    const holdingId = (grantRecord.holding_id as string | null) ?? null;
+    const grantName = (grantRecord.holdings?.name as string | null) ?? 'grant';
 
     const dueDateMs = new Date(dueDate).getTime();
     const nowMs = now.getTime();
@@ -329,9 +325,8 @@ export async function grantObligationsProducer(
   // -------------------------------------------------------------------------
   // 3. Grant payments — conditions not yet met, payment not yet made
   //
-  // Scope to org via grant_details → holdings.org_id.
+  // Scope to org via grants.org_id.
   // Window: scheduled within 14 days (PAYMENT_REMINDER_DAYS) or already overdue.
-  // Use paid_date IS NULL (actual payment field; payment_date does not exist in schema).
   // -------------------------------------------------------------------------
 
   const paymentHorizon = new Date(now);
@@ -341,7 +336,7 @@ export async function grantObligationsProducer(
   const { data: payments, error: paymentsError } = await (db
     .from('grant_payments')
     .select(
-      'id, grant_id, payment_number, amount, conditions_met, paid_date, scheduled_date, status, grant_details!inner(holding_id, holdings!inner(org_id, portfolio_id, name))'
+      'id, grant_id, payment_number, amount, conditions_met, paid_date, scheduled_date, status, grants!inner(org_id, portfolio_id, holding_id, holdings!inner(name))'
     )
     .is('paid_date', null)
     .eq('conditions_met', false)
@@ -357,10 +352,8 @@ export async function grantObligationsProducer(
     });
   }
 
-  // Filter client-side: org scoping + conditions_met = false
   const orgPayments = (payments ?? []).filter((p: any) => {
-    const holding = p.grant_details?.holdings;
-    return holding?.org_id === orgId && p.conditions_met === false;
+    return p.grants?.org_id === orgId && p.conditions_met === false;
   });
 
   result.scanned += orgPayments.length;
@@ -372,10 +365,10 @@ export async function grantObligationsProducer(
     const amount = payment.amount as number | null;
     const scheduledDate = (payment.scheduled_date as string | null) ?? null;
     const status = payment.status as string;
-    const holding = (payment as any).grant_details?.holdings ?? {};
-    const portfolioId = (holding.portfolio_id as string | null) ?? null;
-    const holdingId = ((payment as any).grant_details?.holding_id as string | null) ?? null;
-    const grantName = (holding.name as string | null) ?? 'grant';
+    const grantRecord = (payment as any).grants ?? {};
+    const portfolioId = (grantRecord.portfolio_id as string | null) ?? null;
+    const holdingId = (grantRecord.holding_id as string | null) ?? null;
+    const grantName = (grantRecord.holdings?.name as string | null) ?? 'grant';
     const isPaymentOverdue = scheduledDate !== null && scheduledDate < today;
     const paymentPriority: UpsertGeneratedTaskInput['priority'] = isPaymentOverdue ? 'urgent' : 'high';
 

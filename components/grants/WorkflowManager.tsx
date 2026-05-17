@@ -86,8 +86,8 @@ export default function WorkflowManager({ portfolioId, orgId }: Props) {
           notes: wf.notes,
           template_name: wf.workflow_templates?.name || 'Unknown',
           workflow_type: wf.workflow_templates?.workflow_type || 'custom',
-          grant_name: wf.grant_details?.holdings?.name || 'Unknown Grant',
-          holding_id: wf.grant_details?.holding_id,
+          grant_name: wf.grants?.holdings?.name || 'Unknown Grant',
+          holding_id: wf.grants?.holding_id,
           tasks: (wf.workflow_tasks || []).sort((a: any, b: any) => a.sequence_order - b.sequence_order),
         }));
 

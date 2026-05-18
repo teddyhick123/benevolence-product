@@ -5,7 +5,7 @@
 //
 //   - All core tax tables have RLS enabled
 //   - All core tax tables have a service_role policy
-//   - Tax views are NOT declared SECURITY DEFINER (security invoker by default)
+//   - Tax views are explicit security_invoker views
 //   - tax_carryforwards table has amount_remaining column (canonical carryforward source)
 //   - v_active_carryforwards view exists
 //
@@ -85,11 +85,12 @@ describe('Tax schema contract: service_role policies on all core tax tables', ()
   }
 });
 
-// ── Views: no SECURITY DEFINER ───────────────────────────────────────────────
+// ── Views: explicit security invoker ─────────────────────────────────────────
 
-describe('Tax schema contract: tax views are not SECURITY DEFINER', () => {
-  // Postgres views are security invoker by default; explicit SECURITY DEFINER
-  // would let the view bypass RLS, which is not what we want.
+describe('Tax schema contract: tax views are explicit SECURITY INVOKER views', () => {
+  // Postgres views are SECURITY DEFINER by default. Tax views expose sensitive
+  // AGI, contribution, carryforward, and document-derived data, so they must be
+  // created with security_invoker = true to preserve base-table RLS.
   const TAX_VIEWS = [
     'v_tax_contributions_enriched',
     'v_tax_contributions_with_limits',
@@ -100,18 +101,30 @@ describe('Tax schema contract: tax views are not SECURITY DEFINER', () => {
   ];
 
   for (const view of TAX_VIEWS) {
-    it(`${view} is not declared with SECURITY DEFINER`, () => {
-      // Find the CREATE OR REPLACE VIEW block and check it has no SECURITY DEFINER
-      // We look for the pattern "CREATE ... VIEW <name> ... SECURITY DEFINER"
-      // within a reasonable lookahead window after the view definition starts.
-      const viewStart = migrationsSrc.indexOf(`CREATE OR REPLACE VIEW public.${view}`);
-      expect(viewStart, `view ${view} must exist in migrations`).toBeGreaterThan(-1);
-
-      // Check the next 500 characters after the view definition start
-      const window = migrationsSrc.slice(viewStart, viewStart + 500);
-      expect(window).not.toMatch(/SECURITY\s+DEFINER/i);
+    it(`${view} uses WITH (security_invoker = true)`, () => {
+      expect(migrationsSrc).toMatch(
+        new RegExp(
+          `CREATE\\s+OR\\s+REPLACE\\s+VIEW\\s+public\\.${view}\\s+WITH\\s*\\(\\s*security_invoker\\s*=\\s*true\\s*\\)\\s+AS`,
+          'i'
+        )
+      );
     });
   }
+});
+
+describe('Tax schema contract: tax contribution view derived fields', () => {
+  it('v_tax_contributions_enriched exposes computed substantiation_status', () => {
+    const viewStart = migrationsSrc.indexOf('CREATE OR REPLACE VIEW public.v_tax_contributions_enriched');
+    expect(viewStart).toBeGreaterThan(-1);
+    const viewBlock = migrationsSrc.slice(viewStart, viewStart + 2500);
+    expect(viewBlock).toContain('AS substantiation_status');
+  });
+
+  it('large non-cash compliance requires both acknowledgment and appraisal', () => {
+    const viewStart = migrationsSrc.indexOf('CREATE OR REPLACE VIEW public.v_tax_contributions_enriched');
+    const viewBlock = migrationsSrc.slice(viewStart, viewStart + 3000);
+    expect(viewBlock).toMatch(/tc\.acknowledgment_received[\s\S]{0,120}tc\.appraisal_storage_path IS NOT NULL[\s\S]{0,120}THEN true/i);
+  });
 });
 
 // ── tax_carryforwards shape ──────────────────────────────────────────────────

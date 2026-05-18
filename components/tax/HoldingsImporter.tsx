@@ -98,6 +98,10 @@ export default function HoldingsImporter({
         body.requires_appraisal = true;
       }
 
+      if (holding.asset_type === 'qcd_distribution') {
+        body.qcd_qualified = true;
+      }
+
       const res = await fetch(`/api/portfolio/${portfolioId}/tax/contributions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

@@ -14,7 +14,7 @@ import { branding } from '../config';
 export interface CPAShareLink {
   id: string;
   portfolio_id: string;
-  share_token: string; // Secure random token
+  share_token?: string; // Stored SHA-256 token hash; raw bearer token is shown only at creation
   cpa_name?: string;
   cpa_email?: string;
   cpa_firm?: string;
@@ -57,6 +57,13 @@ export interface CPAAccessLog {
  */
 export function generateShareToken(): string {
   return crypto.randomBytes(32).toString('hex');
+}
+
+/**
+ * Hash a raw CPA bearer token before persistence.
+ */
+export function hashShareToken(rawToken: string): string {
+  return crypto.createHash('sha256').update(rawToken, 'utf8').digest('hex');
 }
 
 /**

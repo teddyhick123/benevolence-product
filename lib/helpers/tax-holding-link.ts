@@ -197,6 +197,7 @@ export interface TaxContributionDraft {
   /** Derived from contribution_date year */
   tax_year: number;
   property_description?: string;
+  qcd_qualified?: boolean;
   notes?: string;
 }
 
@@ -240,6 +241,11 @@ export function createTaxContributionDraft(holding: HoldingForTax): TaxContribut
   if (assetType === 'equity_investment' && !draft.cost_basis) {
     draft.cost_basis = holding.funds_allocated || 0;
     draft.fmv_at_donation = holding.funds_allocated || 0;
+  }
+
+  const taxMetadata = getAssetTaxMetadata(assetType);
+  if (taxMetadata.qcd_qualified) {
+    draft.qcd_qualified = true;
   }
 
   // Add helpful note

@@ -2,11 +2,11 @@ import { NextResponse } from 'next/server';
 import { supabasePublic } from '@/lib/supabase';
 import {
   generateShareToken,
+  hashShareToken,
   generateCPAShareURL,
   createDefaultPermissions,
   createExpirationDate,
   formatCPAEmailInvite,
-  type CPAShareLink,
 } from '@/lib/tax/cpa-collaboration';
 
 /**
@@ -35,7 +35,24 @@ export async function GET(
   try {
     const { data: shareLinks, error } = await sb
       .from('cpa_share_links')
-      .select('*')
+      .select(`
+        id,
+        portfolio_id,
+        org_id,
+        cpa_name,
+        cpa_email,
+        cpa_firm,
+        tax_years,
+        permissions,
+        expires_at,
+        max_accesses,
+        access_count,
+        revoked_at,
+        created_by,
+        notes,
+        created_at,
+        updated_at
+      `)
       .eq('portfolio_id', portfolio_id)
       .order('created_at', { ascending: false });
 
@@ -115,6 +132,7 @@ export async function POST(
 
     // Generate secure token
     const shareToken = generateShareToken();
+    const tokenHash = hashShareToken(shareToken);
     const expiresAt = createExpirationDate(expiration);
     const finalPermissions = permissions || createDefaultPermissions();
 
@@ -138,7 +156,7 @@ export async function POST(
       .insert({
         portfolio_id,
         org_id: portfolioRow.org_id,
-        share_token: shareToken,
+        share_token: tokenHash,
         cpa_name,
         cpa_email,
         cpa_firm,
@@ -148,7 +166,24 @@ export async function POST(
         permissions: finalPermissions,
         notes,
       })
-      .select()
+      .select(`
+        id,
+        portfolio_id,
+        org_id,
+        cpa_name,
+        cpa_email,
+        cpa_firm,
+        tax_years,
+        permissions,
+        expires_at,
+        max_accesses,
+        access_count,
+        revoked_at,
+        created_by,
+        notes,
+        created_at,
+        updated_at
+      `)
       .single();
 
     if (insertError) {

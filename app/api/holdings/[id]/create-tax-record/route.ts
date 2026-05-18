@@ -139,6 +139,7 @@ export async function POST(
         recipient_name: draft.recipient_name,
         recipient_ein: draft.recipient_ein ?? null,
         property_description: draft.property_description ?? null,
+        qcd_qualified: draft.qcd_qualified ?? false,
         notes: draft.notes ?? null,
       })
       .select()

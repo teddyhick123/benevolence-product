@@ -176,6 +176,7 @@ export async function POST(
       deductible_amount: deductibleAmount,
       applied_to_tax_year: validated.applied_to_tax_year ?? validated.tax_year,
       agi_limit_category: agiLimitCategory ?? null,
+      qcd_qualified: validated.qcd_qualified ?? false,
       notes: validated.notes ?? null,
     })
     .select()

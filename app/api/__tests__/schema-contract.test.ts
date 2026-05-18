@@ -318,8 +318,16 @@ describe('Schema contract: tax document storage privacy', () => {
 
 describe('Schema contract: CPA sharing', () => {
   const migPath = join(process.cwd(), 'db/migrations/0043_tax_cpa_sharing.sql');
+  const routePath = join(process.cwd(), 'app/api/portfolio/[id]/tax/cpa-share/route.ts');
+  const helperPath = join(process.cwd(), 'lib/tax/cpa-collaboration.ts');
   let src: string;
-  beforeAll(() => { src = readFileSync(migPath, 'utf-8'); });
+  let routeSrc: string;
+  let helperSrc: string;
+  beforeAll(() => {
+    src = readFileSync(migPath, 'utf-8');
+    routeSrc = readFileSync(routePath, 'utf-8');
+    helperSrc = readFileSync(helperPath, 'utf-8');
+  });
 
   it('creates cpa_share_links table', () => {
     expect(src).toMatch(/CREATE TABLE.*cpa_share_links/i);
@@ -329,12 +337,24 @@ describe('Schema contract: CPA sharing', () => {
     expect(src).toMatch(/CREATE TABLE.*cpa_access_logs/i);
   });
 
-  it('stores only token_hash (no plain token column)', () => {
-    expect(src).toContain('token_hash');
+  it('stores only a hashed share_token value (no plain token column)', () => {
+    expect(src).toContain('share_token');
+    expect(src).toMatch(/share_token\s+TEXT\s+NOT NULL UNIQUE[\s\S]{0,120}SHA-256/i);
     // Ensure there is no bare `token` column definition (e.g. `token TEXT NOT NULL`).
-    // Column definitions are indented and start the line after whitespace.
-    // This deliberately excludes comments (which start with --) and token_hash.
+    // This deliberately excludes comments and the hashed share_token column.
     expect(src).not.toMatch(/^\s+token\s+\w/m);
+  });
+
+  it('CPA share route hashes raw bearer tokens before persistence', () => {
+    expect(helperSrc).toMatch(/function\s+hashShareToken/);
+    expect(routeSrc).toContain('hashShareToken(shareToken)');
+    expect(routeSrc).toMatch(/share_token:\s*tokenHash/);
+    expect(routeSrc).not.toMatch(/share_token:\s*shareToken/);
+  });
+
+  it('CPA share route does not select persisted token hashes into responses', () => {
+    expect(routeSrc).not.toMatch(/from\('cpa_share_links'\)[\s\S]{0,100}\.select\(['"]\*['"]\)/);
+    expect(routeSrc).not.toMatch(/\.select\(`[\s\S]{0,300}share_token[\s\S]{0,300}`\)/);
   });
 });
 

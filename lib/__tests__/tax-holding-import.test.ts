@@ -21,6 +21,8 @@ function read(relPath: string): string {
 }
 
 const routeSrc = read('app/api/holdings/[id]/create-tax-record/route.ts');
+const taxContributionsRouteSrc = read('app/api/portfolio/[id]/tax/contributions/route.ts');
+const holdingsImporterSrc = read('components/tax/HoldingsImporter.tsx');
 const helperSrc = read('lib/helpers/tax-holding-link.ts');
 
 // ---------------------------------------------------------------------------
@@ -100,8 +102,23 @@ describe('create-tax-record route: canonical schema columns', () => {
     expect(routeSrc).toContain('property_description');
   });
 
+  it('preserves QCD treatment on insert', () => {
+    expect(routeSrc).toContain('qcd_qualified: draft.qcd_qualified ?? false');
+  });
+
   it('inserts notes', () => {
     expect(routeSrc).toContain('notes');
+  });
+});
+
+describe('Tax Center holding importer: QCD passthrough contract', () => {
+  it('HoldingsImporter marks qcd_distribution rows as qcd_qualified', () => {
+    expect(holdingsImporterSrc).toContain("holding.asset_type === 'qcd_distribution'");
+    expect(holdingsImporterSrc).toContain('body.qcd_qualified = true');
+  });
+
+  it('tax contributions POST route persists qcd_qualified from validation', () => {
+    expect(taxContributionsRouteSrc).toContain('qcd_qualified: validated.qcd_qualified ?? false');
   });
 });
 
@@ -152,6 +169,10 @@ describe('tax-holding-link helper: TaxContributionDraft interface', () => {
 
   it('exports property_description field', () => {
     expect(helperSrc).toContain('property_description');
+  });
+
+  it('exports qcd_qualified field', () => {
+    expect(helperSrc).toContain('qcd_qualified?: boolean');
   });
 });
 
@@ -328,7 +349,30 @@ describe('createTaxContributionDraft: holding without created_at', () => {
 });
 
 // ---------------------------------------------------------------------------
-// 10. Asset type → contribution type mapping: spot checks
+// 10. Helper: createTaxContributionDraft — QCD holding
+// ---------------------------------------------------------------------------
+describe('createTaxContributionDraft: QCD holding', () => {
+  const holding = {
+    id: 'holding-uuid-qcd',
+    name: 'IRA Direct Distribution',
+    asset_type: 'qcd_distribution' as const,
+    funds_allocated: 25000,
+    created_at: '2025-11-01T00:00:00Z',
+  };
+
+  const draft = createTaxContributionDraft(holding);
+
+  it('maps to a canonical cash-adjacent contribution type', () => {
+    expect(draft.contribution_type).toBe('wire');
+  });
+
+  it('sets qcd_qualified so exports treat it outside Schedule A', () => {
+    expect(draft.qcd_qualified).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 11. Asset type → contribution type mapping: spot checks
 // ---------------------------------------------------------------------------
 describe('ASSET_TYPE_TO_CONTRIBUTION_TYPE mapping', () => {
   const canonicalValues = new Set<ContributionType>([
@@ -378,7 +422,7 @@ describe('ASSET_TYPE_TO_CONTRIBUTION_TYPE mapping', () => {
 });
 
 // ---------------------------------------------------------------------------
-// 11. isContributionTypeValid: spot checks
+// 12. isContributionTypeValid: spot checks
 // ---------------------------------------------------------------------------
 describe('isContributionTypeValid', () => {
   it('equity_investment + stock → valid', () => {

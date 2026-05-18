@@ -459,7 +459,8 @@ CREATE TRIGGER trg_tax_documents_updated_at
 -- ---------------------------------------------------------------------------
 -- Views and calculation helpers.
 -- ---------------------------------------------------------------------------
-CREATE OR REPLACE VIEW public.v_tax_contributions_enriched AS
+CREATE OR REPLACE VIEW public.v_tax_contributions_enriched
+WITH (security_invoker = true) AS
 SELECT
   tc.*,
   h.name AS holding_name,
@@ -471,16 +472,39 @@ SELECT
     ELSE 'acknowledgment'
   END AS substantiation_requirement,
   CASE
+    WHEN tc.amount_usd < 250 THEN 'not_required'
+    WHEN tc.amount_usd >= 5000
+      AND tc.contribution_type NOT IN ('cash', 'check', 'wire')
+      AND tc.acknowledgment_received
+      AND tc.appraisal_storage_path IS NOT NULL THEN 'received'
+    WHEN tc.amount_usd >= 250
+      AND NOT (
+        tc.amount_usd >= 5000
+        AND tc.contribution_type NOT IN ('cash', 'check', 'wire')
+      )
+      AND tc.acknowledgment_received THEN 'received'
+    ELSE 'pending'
+  END AS substantiation_status,
+  CASE
     WHEN tc.amount_usd < 250 THEN true
-    WHEN tc.amount_usd >= 250 AND tc.acknowledgment_received THEN true
-    WHEN tc.amount_usd >= 5000 AND tc.contribution_type NOT IN ('cash', 'check', 'wire') AND tc.appraisal_storage_path IS NOT NULL THEN true
+    WHEN tc.amount_usd >= 5000
+      AND tc.contribution_type NOT IN ('cash', 'check', 'wire')
+      AND tc.acknowledgment_received
+      AND tc.appraisal_storage_path IS NOT NULL THEN true
+    WHEN tc.amount_usd >= 250
+      AND NOT (
+        tc.amount_usd >= 5000
+        AND tc.contribution_type NOT IN ('cash', 'check', 'wire')
+      )
+      AND tc.acknowledgment_received THEN true
     ELSE false
   END AS is_compliant,
   COALESCE(tc.deductible_amount, GREATEST(tc.amount_usd - COALESCE(tc.quid_pro_quo_value, 0), 0)) AS calculated_deductible_amount
 FROM public.tax_contributions tc
 LEFT JOIN public.holdings h ON h.id = tc.holding_id;
 
-CREATE OR REPLACE VIEW public.v_tax_contributions_with_limits AS
+CREATE OR REPLACE VIEW public.v_tax_contributions_with_limits
+WITH (security_invoker = true) AS
 SELECT
   v.*,
   v.deductible_amount AS original_deductible_amount,
@@ -524,7 +548,8 @@ LEFT JOIN public.tax_years ty
   ON ty.portfolio_id = v.portfolio_id
  AND ty.tax_year = v.tax_year;
 
-CREATE OR REPLACE VIEW public.v_tax_deduction_summary AS
+CREATE OR REPLACE VIEW public.v_tax_deduction_summary
+WITH (security_invoker = true) AS
 SELECT
   tc.portfolio_id,
   tc.org_id,
@@ -537,7 +562,8 @@ SELECT
 FROM public.tax_contributions tc
 GROUP BY tc.portfolio_id, tc.org_id, tc.tax_year;
 
-CREATE OR REPLACE VIEW public.v_portfolio_tax_summary AS
+CREATE OR REPLACE VIEW public.v_portfolio_tax_summary
+WITH (security_invoker = true) AS
 SELECT
   ty.portfolio_id,
   ty.tax_year,
@@ -611,7 +637,8 @@ GROUP BY
   ty.created_at,
   ty.updated_at;
 
-CREATE OR REPLACE VIEW public.v_carryforward_schedule AS
+CREATE OR REPLACE VIEW public.v_carryforward_schedule
+WITH (security_invoker = true) AS
 SELECT
   cf.id,
   cf.portfolio_id,
@@ -640,7 +667,8 @@ FROM public.tax_carryforwards cf
 LEFT JOIN public.tax_contributions tc ON tc.id = cf.tax_contribution_id
 LEFT JOIN public.holdings h ON h.id = tc.holding_id;
 
-CREATE OR REPLACE VIEW public.v_active_carryforwards AS
+CREATE OR REPLACE VIEW public.v_active_carryforwards
+WITH (security_invoker = true) AS
 SELECT *
 FROM public.v_carryforward_schedule
 WHERE amount_remaining > 0

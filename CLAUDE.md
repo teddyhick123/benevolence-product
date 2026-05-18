@@ -412,8 +412,8 @@ export default async function NewModulePage() {
 ### Canonical Tax Center tables
 
 - `tax_profiles` — portfolio owner's tax filing context (filing status, state)
-- `tax_years` — per-year actuals: `adjusted_gross_income`, `total_charitable_deductions`, `standard_deduction_taken`, `filing_status`
-- `tax_contributions` — individual charitable contributions; canonical columns: `contribution_date`, `tax_year`, `contribution_type`, `amount_usd`, `fmv_at_donation`, `cost_basis`, `recipient_name`, `recipient_ein`, `property_description`, `notes`, `qcd_qualified`, `substantiation_status`
+- `tax_years` — per-year actuals/planning: `adjusted_gross_income`, generated AGI limits, `standard_deduction`, contribution limit buckets, carryforward inputs, `filing_status`
+- `tax_contributions` — individual charitable contributions; canonical columns: `contribution_date`, `tax_year`, `contribution_type`, `amount_usd`, `fmv_at_donation`, `cost_basis`, `recipient_name`, `recipient_ein`, `property_description`, `notes`, `qcd_qualified`
 - `holding_contributions` — M:M join between `holdings` and `tax_contributions`
 - `tax_carryforwards` — multi-year carryforward tracking; canonical columns: `amount` (original), `amount_remaining`, `originating_tax_year`, `expires_tax_year`
 - `daf_grants` — donor-advised fund grant records
@@ -446,7 +446,9 @@ The old 4-value set (`cash`, `stock`, `crypto`, `other`) is stale — do not use
 
 Views: `v_tax_contributions_enriched`, `v_tax_contributions_with_limits`, `v_tax_deduction_summary`, `v_portfolio_tax_summary`, `v_carryforward_schedule`, `v_active_carryforwards`
 
-These views are security invoker (Postgres default). Do NOT add `SECURITY DEFINER` — that would bypass RLS and leak cross-portfolio data.
+These views must be created with `WITH (security_invoker = true)`. Plain Postgres/Supabase views are not security-invoker by default and can bypass base-table RLS. Do NOT add `SECURITY DEFINER`.
+
+`v_tax_contributions_enriched` exposes computed fields such as `substantiation_requirement`, `substantiation_status`, `is_compliant`, and `calculated_deductible_amount`; do not add those as physical `tax_contributions` columns unless the schema is deliberately redesigned.
 
 ### CPA sharing (Phase A)
 

@@ -17,7 +17,7 @@ These were open questions at review time; they are now resolved and the tasks be
 | Question | Answer |
 |----------|--------|
 | Do `can_view_portfolio` / `can_edit_portfolio` helpers exist? | **Yes.** Both are defined in `db/migrations/0001_extensions_and_shared_infra.sql`. All task references to them are correct. |
-| Are tax views `SECURITY INVOKER`? | PostgreSQL views are security invoker by default — they run with the caller's permissions and RLS on underlying tables applies. The existing views do NOT need `WITH (security_invoker = true)`. The real risk is route/application code that reads views without a `portfolio_id` filter; that is what Task 1 must enforce at the route layer. |
+| Are tax views `SECURITY INVOKER`? | **They must be explicit.** Plain PostgreSQL/Supabase views are not security-invoker by default and can bypass base-table RLS. Tax views must use `WITH (security_invoker = true)` and routes should still perform explicit portfolio access checks for crisp 403 behavior. |
 | Is `get_donation_capacity` secure? | Functionally yes — it is `STABLE` (not `SECURITY DEFINER`), so RLS on `v_portfolio_tax_summary` → `tax_years` + `tax_contributions` applies. However it returns empty results rather than an error for unauthorized access. Task 1 adds an explicit `can_view_portfolio` guard so unauthorized callers receive a 403 instead of empty rows. |
 | Is the `tax-documents` storage bucket created in migrations? | **No.** `0013_tax_contributions.sql` only stores the bucket name as a column default. The bucket itself is never created. Task 2 fixes this. |
 | Where exactly is `getPublicUrl` used? | `app/api/portfolio/[id]/tax/contributions/[contributionId]/documents/route.ts` line 152 (upload response). The download route correctly uses `createSignedUrl`. |
@@ -103,7 +103,7 @@ Acceptance:
 
 ## Task 1: Lock Down Tax Views, RPCs, And GET Routes
 
-**Context:** The underlying tables already have correct RLS (`can_view_portfolio` + `org_has_module('tax')`). The views themselves are security invoker by default and are safe. The gap is at the route layer: some routes read views without first asserting `can_view_portfolio`, meaning a user with a valid session but no portfolio membership could call a route with an arbitrary `portfolioId` and receive an appropriate empty result rather than a 403. Enforce the 403 explicitly.
+**Context:** The underlying tables already have correct RLS (`can_view_portfolio` + `org_has_module('tax')`). Tax views must also be declared with `WITH (security_invoker = true)` so direct view reads preserve base-table RLS. Routes should still assert `can_view_portfolio` before reading views so unauthorized callers receive a proper 403 rather than an empty result.
 
 **Files:**
 - Modify: `db/migrations/0013_tax_contributions.sql`
@@ -353,7 +353,7 @@ Acceptance:
 - [ ] Document that `owner_tax_profiles` has been dropped and must not be recreated. The canonical source for personal AGI data is `tax_years.adjusted_gross_income`.
 - [ ] Document the canonical contribution type values: `cash`, `check`, `wire`, `stock`, `crypto`, `real_estate`, `other_property`. Note that `daf_grants` uses the same set.
 - [ ] Document that tax documents must use the private `tax-documents` storage bucket and signed URLs.
-- [ ] Document that tax views are security invoker by default and safe, but all tax routes must still call `can_view_portfolio` explicitly before reading views to return a proper 403 on unauthorized access.
+- [ ] Document that tax views must use `WITH (security_invoker = true)` and all tax routes must still call `can_view_portfolio` explicitly before reading views to return a proper 403 on unauthorized access.
 - [ ] Document CPA sharing schema and token hashing once Phase A of Task 3 is complete. Update when Phase B ships.
 - [ ] Document that `can_view_portfolio` and `can_edit_portfolio` are defined in `0001_extensions_and_shared_infra.sql` and are available to all tax route code.
 

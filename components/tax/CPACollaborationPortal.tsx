@@ -201,10 +201,12 @@ interface ShareLinkCardProps {
 function ShareLinkCard({ link, expanded, onToggleExpand, onRevoke }: ShareLinkCardProps) {
   const [copied, setCopied] = React.useState(false);
 
-  const shareURL = `${window.location.origin}/tax/cpa/${link.share_token}`;
+  const shareURL = link.share_token ? `${window.location.origin}/tax/cpa/${link.share_token}` : null;
   const isActive = !link.revoked_at && (!link.expires_at || new Date(link.expires_at) > new Date());
 
   async function copyToClipboard() {
+    if (!shareURL) return;
+
     try {
       await navigator.clipboard.writeText(shareURL);
       setCopied(true);
@@ -263,20 +265,24 @@ function ShareLinkCard({ link, expanded, onToggleExpand, onRevoke }: ShareLinkCa
           {/* Share URL */}
           <div>
             <label className="block text-sm font-medium text-neutral-700 mb-2">Share URL</label>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={shareURL}
-                readOnly
-                className="flex-1 px-3 py-2 border border-neutral-300 rounded-lg bg-neutral-50 text-sm font-mono"
-              />
-              <button
-                onClick={copyToClipboard}
-                className="px-4 py-2 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 rounded-lg transition-colors font-medium text-sm"
-              >
-                {copied ? '✓ Copied!' : 'Copy'}
-              </button>
-            </div>
+            {shareURL ? (
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={shareURL}
+                  readOnly
+                  className="flex-1 px-3 py-2 border border-neutral-300 rounded-lg bg-neutral-50 text-sm font-mono"
+                />
+                <button
+                  onClick={copyToClipboard}
+                  className="px-4 py-2 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 rounded-lg transition-colors font-medium text-sm"
+                >
+                  {copied ? '✓ Copied!' : 'Copy'}
+                </button>
+              </div>
+            ) : (
+              <p className="text-sm text-neutral-600">Available only immediately after creation.</p>
+            )}
           </div>
 
           {/* Permissions */}

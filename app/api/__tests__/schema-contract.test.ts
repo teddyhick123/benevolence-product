@@ -288,6 +288,34 @@ describe('Schema contract: get_donation_capacity security guard', () => {
   });
 });
 
+describe('Schema contract: tax document storage privacy', () => {
+  const uploadRoutePath = 'app/api/portfolio/[id]/tax/contributions/[contributionId]/documents/route.ts';
+  const uploadRouteSrc = (() => {
+    try {
+      return readFileSync(uploadRoutePath, 'utf-8');
+    } catch {
+      return '';
+    }
+  })();
+
+  it('0013_tax_contributions.sql creates the tax-documents storage bucket', () => {
+    expect(migrationsSrc).toMatch(/INSERT\s+INTO\s+storage\.buckets/i);
+  });
+
+  it('tax-documents bucket is created as private (public = false)', () => {
+    // The INSERT into storage.buckets for tax-documents must specify false for the public column
+    expect(migrationsSrc).toMatch(/INSERT\s+INTO\s+storage\.buckets[\s\S]{0,200}tax-documents[\s\S]{0,200}false/i);
+  });
+
+  it('upload route does not use getPublicUrl (documents must be private)', () => {
+    expect(uploadRouteSrc).not.toMatch(/getPublicUrl/);
+  });
+
+  it('upload route uses createSignedUrl to return private document URLs', () => {
+    expect(uploadRouteSrc).toMatch(/createSignedUrl/);
+  });
+});
+
 describe('Schema contract: owner_tax_profiles removal', () => {
   const migrationFiles = (() => {
     const { readdirSync, readFileSync } = require('fs');

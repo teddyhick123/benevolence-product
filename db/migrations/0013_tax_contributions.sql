@@ -790,6 +790,58 @@ CREATE POLICY "tax_documents_service" ON public.tax_documents
   FOR ALL TO service_role USING (true) WITH CHECK (true);
 
 -- ---------------------------------------------------------------------------
+-- Storage: private tax-documents bucket
+-- ---------------------------------------------------------------------------
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('tax-documents', 'tax-documents', false)
+ON CONFLICT (id) DO NOTHING;
+
+-- Allow authenticated users to read documents tied to portfolios they can view
+CREATE POLICY "tax_documents_storage_read" ON storage.objects
+  FOR SELECT TO authenticated
+  USING (
+    bucket_id = 'tax-documents'
+    AND EXISTS (
+      SELECT 1 FROM public.tax_documents td
+      WHERE td.storage_path = name
+        AND public.can_view_portfolio(td.portfolio_id)
+        AND public.org_has_module(td.org_id, 'tax')
+    )
+  );
+
+-- Allow authenticated users to write documents tied to portfolios they can edit
+CREATE POLICY "tax_documents_storage_write" ON storage.objects
+  FOR INSERT TO authenticated
+  WITH CHECK (
+    bucket_id = 'tax-documents'
+    AND EXISTS (
+      SELECT 1 FROM public.tax_documents td
+      WHERE td.storage_path = name
+        AND public.can_edit_portfolio(td.portfolio_id)
+        AND public.org_has_module(td.org_id, 'tax')
+    )
+  );
+
+-- Allow authenticated users to delete documents tied to portfolios they can edit
+CREATE POLICY "tax_documents_storage_delete" ON storage.objects
+  FOR DELETE TO authenticated
+  USING (
+    bucket_id = 'tax-documents'
+    AND EXISTS (
+      SELECT 1 FROM public.tax_documents td
+      WHERE td.storage_path = name
+        AND public.can_edit_portfolio(td.portfolio_id)
+        AND public.org_has_module(td.org_id, 'tax')
+    )
+  );
+
+-- Service role has full access for server-side cleanup and generation
+CREATE POLICY "tax_documents_storage_service" ON storage.objects
+  FOR ALL TO service_role
+  USING (bucket_id = 'tax-documents')
+  WITH CHECK (bucket_id = 'tax-documents');
+
+-- ---------------------------------------------------------------------------
 -- Grants
 -- ---------------------------------------------------------------------------
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.tax_profiles TO authenticated;

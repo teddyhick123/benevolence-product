@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createSupabaseServerClient } from '@/lib/supabase';
-import { createTaxDocumentSchema, documentTypeSchema } from '@/lib/schemas/tax';
+import { documentTypeSchema } from '@/lib/schemas/tax';
 import type { DocumentType } from '@/lib/schemas/tax';
 
 const getSupabase = createSupabaseServerClient;
@@ -120,9 +120,9 @@ export async function POST(
 
     // Generate unique filename
     const fileExt = file.name.split('.').pop();
-    const sanitizedName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
     const fileName = `${contributionId}/${documentType}-${Date.now()}.${fileExt}`;
-    const storagePath = `tax-documents/${portfolioId}/${fileName}`;
+    // storagePath is the object path within the bucket — must NOT include the bucket name
+    const storagePath = `${portfolioId}/${fileName}`;
 
     // Convert File to Buffer
     const arrayBuffer = await file.arrayBuffer();
@@ -144,10 +144,16 @@ export async function POST(
       );
     }
 
-    // Get public URL
-    const { data: urlData } = supabase.storage
+    // Generate a signed URL valid for 1 hour — documents are private
+    const { data: signedData, error: signedError } = await supabase.storage
       .from('tax-documents')
-      .getPublicUrl(storagePath);
+      .createSignedUrl(storagePath, 3600);
+
+    if (signedError || !signedData?.signedUrl) {
+      // Clean up the uploaded file before returning the error
+      await supabase.storage.from('tax-documents').remove([storagePath]);
+      return NextResponse.json({ error: 'Failed to generate document URL' }, { status: 500 });
+    }
 
     // Create document record
     const { data: docRecord, error: docError } = await supabase
@@ -184,7 +190,7 @@ export async function POST(
     return NextResponse.json({
       data: {
         ...docRecord,
-        public_url: urlData.publicUrl,
+        signed_url: signedData.signedUrl,
       },
     });
   } catch (error) {

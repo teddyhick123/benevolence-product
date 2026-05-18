@@ -363,7 +363,7 @@ CREATE TABLE IF NOT EXISTS public.daf_grants (
   daf_account_number    TEXT,
   contribution_date     DATE NOT NULL,
   contribution_amount   NUMERIC(20,2) NOT NULL CHECK (contribution_amount > 0),
-  contribution_type     TEXT CHECK (contribution_type IN ('cash', 'stock', 'crypto', 'other')),
+  contribution_type     TEXT CHECK (contribution_type IN ('cash', 'check', 'wire', 'stock', 'crypto', 'real_estate', 'other_property')),
   tax_contribution_id   UUID REFERENCES public.tax_contributions(id) ON DELETE SET NULL,
   grant_date            DATE,
   grant_recipient       TEXT,

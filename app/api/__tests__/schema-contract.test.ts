@@ -338,6 +338,69 @@ describe('Schema contract: CPA sharing', () => {
   });
 });
 
+describe('Schema contract: contribution type normalization', () => {
+  const DB_CONTRIBUTION_TYPES = ['cash', 'check', 'wire', 'stock', 'crypto', 'real_estate', 'other_property'];
+  const STALE_TYPES = ['ach', 'art', 'vehicle'];
+
+  const helperSrc = (() => {
+    try {
+      return readFileSync(join(process.cwd(), 'lib/helpers/tax-holding-link.ts'), 'utf-8');
+    } catch {
+      return '';
+    }
+  })();
+
+  it('helper contribution type labels contain no stale types (ach, art, vehicle)', () => {
+    for (const staleType of STALE_TYPES) {
+      expect(helperSrc).not.toContain(`'${staleType}'`);
+    }
+  });
+
+  it('helper CONTRIBUTION_TYPE_LABELS covers all canonical DB types', () => {
+    for (const dbType of DB_CONTRIBUTION_TYPES) {
+      expect(helperSrc).toContain(`'${dbType}'`);
+    }
+  });
+
+  it('CONTRIBUTION_TYPE_LABELS does not include bare "other" as a key', () => {
+    // Extract CONTRIBUTION_TYPE_LABELS block — "other" key would appear as `other:` inside the object literal
+    const labelsBlock = helperSrc.match(/CONTRIBUTION_TYPE_LABELS[^=]*=\s*\{([^}]+)\}/)?.[1] ?? '';
+    // The key 'other' should not be a top-level key in the labels map
+    expect(labelsBlock).not.toMatch(/^\s*other:/m);
+    expect(labelsBlock).not.toMatch(/['"]other['"]\s*:/);
+  });
+
+  it('daf_grants CHECK constraint uses canonical type set (not legacy cash/stock/crypto/other)', () => {
+    // Verify the old stale set is gone
+    expect(migrationsSrc).not.toMatch(/contribution_type\s+IN\s*\(\s*'cash',\s*'stock',\s*'crypto',\s*'other'\s*\)/);
+  });
+
+  it('daf_grants CHECK constraint includes other_property', () => {
+    expect(migrationsSrc).toMatch(
+      /daf_grants[\s\S]{0,2000}contribution_type\s+TEXT\s+CHECK\s*\([^)]*'other_property'[^)]*\)/
+    );
+  });
+
+  it('daf_grants and tax_contributions share the same canonical contribution type set', () => {
+    // Both tables should have identical CHECK constraint content
+    const canonicalConstraint = `('cash', 'check', 'wire', 'stock', 'crypto', 'real_estate', 'other_property')`;
+    const occurrences = (migrationsSrc.match(new RegExp(
+      `contribution_type\\s+(?:TEXT\\s+(?:NOT NULL\\s+)?)?CHECK\\s*\\(contribution_type\\s+IN\\s*\\('cash', 'check', 'wire', 'stock', 'crypto', 'real_estate', 'other_property'\\)\\)`,
+      'g'
+    )) || []).length;
+    // Should appear at least twice: once for tax_contributions, once for daf_grants
+    expect(occurrences).toBeGreaterThanOrEqual(2);
+  });
+
+  it('no application source references bare "other" as a tax contribution type in type assertions', () => {
+    // Specifically guard against contribution_type: 'other' assignments in app/lib code
+    const taxRelatedSrc = readAllSources(['lib/helpers', 'lib/schemas', 'lib/tax', 'components/tax']);
+    // Allow 'other' in recipient_type contexts (e.g., '501c3_public', 'other')
+    // but not as a standalone contribution_type enum value
+    expect(taxRelatedSrc).not.toMatch(/contribution_type.*?:\s*['"]other['"]/);
+  });
+});
+
 describe('Schema contract: owner_tax_profiles removal', () => {
   const migrationFiles = (() => {
     const { readdirSync, readFileSync } = require('fs');

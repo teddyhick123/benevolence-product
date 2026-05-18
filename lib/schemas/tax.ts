@@ -234,7 +234,7 @@ export const createDAFGrantSchema = z.object({
   // Contribution to DAF
   contribution_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD'),
   contribution_amount: z.number().positive('Amount must be positive'),
-  contribution_type: z.enum(['cash', 'stock', 'crypto', 'other']).optional().nullable(),
+  contribution_type: contributionTypeSchema.optional().nullable(),
   tax_contribution_id: z.string().uuid().optional().nullable(),
 
   // Grant from DAF

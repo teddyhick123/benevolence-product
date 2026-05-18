@@ -23,6 +23,11 @@ import {
   completeWorkflowTask,
   scheduleReminder,
 } from './executors/grants';
+import {
+  runTaxScenario,
+  calculateDeduction,
+  getCarryforward,
+} from './executors/tax';
 
 export type AssistantToolParams = {
   supabase: ReturnType<typeof createClient>;
@@ -1990,199 +1995,14 @@ export async function executeAssistantTool(params: AssistantToolParams): Promise
       }
 
       // ==================== TAX OPTIMIZATION MODULE ====================
-      case 'run_tax_scenario': {
-        const scenarioType = args.scenario_type;
-        const donationAmount = args.donation_amount;
-        const taxYear = args.tax_year || new Date().getFullYear();
+      case 'run_tax_scenario':
+        return runTaxScenario(supabase, args, portfolioId);
 
-        // TODO(Task 6): read AGI from tax_years.adjusted_gross_income
-        // AGI must be provided by the user via Tax Center before running scenarios.
-        const agi: number | undefined = undefined;
-        if (!agi) {
-          return {
-            output: {
-              error: 'AGI not configured',
-              message: 'Please set your Adjusted Gross Income in the Tax Center (Tax Profile tab) before running tax scenarios.',
-            },
-          };
-        }
-        const taxBracket = 0.37;
+      case 'calculate_deduction':
+        return calculateDeduction(supabase, args, portfolioId);
 
-        let result: any = {
-          scenario_type: scenarioType,
-          donation_amount: donationAmount,
-          tax_year: taxYear,
-          agi,
-          tax_bracket: taxBracket,
-        };
-
-        switch (scenarioType) {
-          case 'cash_vs_stock': {
-            // Cash donation
-            const cashDeductionLimit = agi * 0.6;
-            const cashDeduction = Math.min(donationAmount, cashDeductionLimit);
-            const cashTaxSavings = cashDeduction * taxBracket;
-            const cashCarryforward = Math.max(0, donationAmount - cashDeductionLimit);
-
-            // Stock donation (assuming long-term appreciated)
-            const stockDeductionLimit = agi * 0.3;
-            const stockDeduction = Math.min(donationAmount, stockDeductionLimit);
-            // Stock also avoids capital gains
-            const assets = args.assets || [];
-            let totalGainAvoided = 0;
-            assets.forEach((a: any) => {
-              if (a.holding_period === 'long') {
-                totalGainAvoided += (a.current_value - a.cost_basis);
-              }
-            });
-            const capGainsTaxAvoided = totalGainAvoided * 0.20; // Assume 20% LTCG rate
-            const stockTaxSavings = (stockDeduction * taxBracket) + capGainsTaxAvoided;
-            const stockCarryforward = Math.max(0, donationAmount - stockDeductionLimit);
-
-            result.scenarios = {
-              cash: {
-                deduction: cashDeduction,
-                tax_savings: cashTaxSavings,
-                carryforward: cashCarryforward,
-                effective_cost: donationAmount - cashTaxSavings,
-              },
-              appreciated_stock: {
-                deduction: stockDeduction,
-                tax_savings: stockTaxSavings,
-                capital_gains_avoided: capGainsTaxAvoided,
-                carryforward: stockCarryforward,
-                effective_cost: donationAmount - stockTaxSavings,
-              },
-            };
-            result.recommendation = stockTaxSavings > cashTaxSavings
-              ? 'Donating appreciated stock saves more in taxes'
-              : 'Cash donation provides better tax benefits in this case';
-            break;
-          }
-
-          case 'bunching': {
-            // Compare spreading over 2 years vs bunching in 1
-            const standardDeduction = 29200; // 2024 MFJ
-            const spreadYearlyDonation = donationAmount / 2;
-            const spreadDeduction = Math.max(0, spreadYearlyDonation - standardDeduction) * 2;
-            const bunchedDeduction = Math.max(0, donationAmount - standardDeduction);
-
-            result.scenarios = {
-              spread_over_2_years: {
-                yearly_donation: spreadYearlyDonation,
-                total_itemized_benefit: spreadDeduction,
-                tax_savings: spreadDeduction * taxBracket,
-              },
-              bunched_in_1_year: {
-                donation: donationAmount,
-                itemized_benefit: bunchedDeduction,
-                tax_savings: bunchedDeduction * taxBracket,
-              },
-            };
-            result.recommendation = bunchedDeduction > spreadDeduction
-              ? 'Bunching donations in one year provides better tax benefits'
-              : 'Spreading donations may work better for your situation';
-            break;
-          }
-
-          default:
-            result.message = `Scenario type '${scenarioType}' analysis would be performed here`;
-        }
-
-        return { action: null, output: result };
-      }
-
-      case 'calculate_deduction': {
-        const amount = args.amount;
-        const assetType = args.asset_type;
-        const recipientType = args.recipient_type;
-
-        // TODO(Task 6): replace with a read from tax_years.adjusted_gross_income when AGI is not provided.
-        const agi: number | undefined = args.agi;
-        if (!agi) {
-          return {
-            output: {
-              error: 'AGI not configured',
-              message: 'Please set your Adjusted Gross Income in the Tax Center (Tax Profile tab) before running tax scenarios.',
-            },
-          };
-        }
-
-        // Determine AGI limit based on asset and recipient type
-        let agiLimitPercent = 0.6; // Default for cash to public charity
-
-        if (assetType === 'cash' && recipientType === 'public_charity') {
-          agiLimitPercent = 0.6;
-        } else if (assetType === 'cash' && recipientType === 'private_foundation') {
-          agiLimitPercent = 0.3;
-        } else if (assetType === 'public_stock' && recipientType === 'public_charity') {
-          agiLimitPercent = 0.3;
-        } else if (assetType === 'public_stock' && recipientType === 'private_foundation') {
-          agiLimitPercent = 0.2;
-        } else {
-          agiLimitPercent = 0.3; // Default for other assets
-        }
-
-        const maxDeduction = agi * agiLimitPercent;
-        const allowedDeduction = Math.min(amount, maxDeduction);
-        const carryforward = Math.max(0, amount - maxDeduction);
-
-        return {
-          action: null,
-          output: {
-            contribution_amount: amount,
-            asset_type: assetType,
-            recipient_type: recipientType,
-            agi,
-            agi_limit_percent: agiLimitPercent * 100,
-            max_deduction_this_year: maxDeduction,
-            allowed_deduction: allowedDeduction,
-            carryforward_amount: carryforward,
-            carryforward_years: carryforward > 0 ? 5 : 0,
-          },
-        };
-      }
-
-      case 'get_carryforward': {
-        const taxYear = args.tax_year || new Date().getFullYear();
-
-        // Query carryforward data from tax_contributions
-        const { data: contributions } = await supabase
-          .from('tax_contributions')
-          .select('*')
-          .eq('portfolio_id', portfolioId)
-          .eq('is_carryforward', true);
-
-        const carryforwards = (contributions || [])
-          .filter((c: any) => {
-            const contribYear = c.carryforward_year || new Date(c.contribution_date).getFullYear();
-            const yearsAgo = taxYear - contribYear;
-            return yearsAgo > 0 && yearsAgo <= 5; // Within 5-year window
-          })
-          .map((c: any) => ({
-            contribution_date: c.contribution_date,
-            original_amount: c.fair_market_value,
-            carryforward_amount: c.deductible_amount || c.fair_market_value,
-            years_remaining: 5 - (taxYear - (c.carryforward_year || new Date(c.contribution_date).getFullYear())),
-          }));
-
-        const totalCarryforward = carryforwards.reduce(
-          (sum: number, c: any) => sum + (c.carryforward_amount || 0),
-          0
-        );
-
-        return {
-          action: null,
-          output: {
-            tax_year: taxYear,
-            total_carryforward: totalCarryforward,
-            carryforwards,
-            message: totalCarryforward > 0
-              ? `You have $${totalCarryforward.toLocaleString()} in charitable contribution carryforwards available`
-              : 'No carryforward amounts found',
-          },
-        };
-      }
+      case 'get_carryforward':
+        return getCarryforward(supabase, args, portfolioId);
 
       // ==================== ANALYTICS MODULE ====================
       case 'project_metric_trend': {

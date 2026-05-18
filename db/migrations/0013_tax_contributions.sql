@@ -666,9 +666,16 @@ RETURNS TABLE (
   used_50_pct NUMERIC,
   remaining_50_pct NUMERIC
 )
-LANGUAGE sql
+LANGUAGE plpgsql
 STABLE
 AS $$
+BEGIN
+  IF NOT public.can_view_portfolio(p_portfolio_id) THEN
+    RAISE EXCEPTION 'Insufficient permissions to view portfolio %', p_portfolio_id
+      USING ERRCODE = '42501';
+  END IF;
+
+  RETURN QUERY
   SELECT
     s.tax_year,
     s.agi,
@@ -687,6 +694,7 @@ AS $$
   FROM public.v_portfolio_tax_summary s
   WHERE s.portfolio_id = p_portfolio_id
     AND s.tax_year = p_tax_year;
+END;
 $$;
 
 -- ---------------------------------------------------------------------------

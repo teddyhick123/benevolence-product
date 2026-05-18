@@ -27,14 +27,12 @@ export async function GET(
   const { id: portfolioId, contributionId } = await ctx.params;
   const supabase = await getSupabase();
 
-  // Check permission via RLS - if we can read the portfolio, we have access
-  const { data: portfolio, error: permError } = await supabase
-    .from('portfolios')
-    .select('id')
-    .eq('id', portfolioId)
-    .single();
+  // Explicitly check portfolio view access
+  const { data: canView, error: canViewErr } = await supabase.rpc('can_view_portfolio', {
+    p_portfolio_id: portfolioId,
+  });
 
-  if (permError || !portfolio) {
+  if (canViewErr || !canView) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 

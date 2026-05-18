@@ -267,6 +267,27 @@ describe('Schema contract: DB cleanup fixes (2026-05-15)', () => {
   });
 });
 
+describe('Schema contract: get_donation_capacity security guard', () => {
+  it('get_donation_capacity uses plpgsql (not sql) so it can execute the permission guard', () => {
+    // A LANGUAGE sql function cannot contain IF/RAISE statements — must be plpgsql
+    expect(migrationsSrc).toMatch(
+      /CREATE\s+OR\s+REPLACE\s+FUNCTION\s+public\.get_donation_capacity[\s\S]{0,600}LANGUAGE\s+plpgsql/i
+    );
+  });
+
+  it('get_donation_capacity calls can_view_portfolio before returning rows', () => {
+    expect(migrationsSrc).toMatch(
+      /CREATE\s+OR\s+REPLACE\s+FUNCTION\s+public\.get_donation_capacity[\s\S]{0,600}can_view_portfolio\s*\(\s*p_portfolio_id\s*\)/i
+    );
+  });
+
+  it('get_donation_capacity raises an exception when the caller lacks portfolio access', () => {
+    expect(migrationsSrc).toMatch(
+      /CREATE\s+OR\s+REPLACE\s+FUNCTION\s+public\.get_donation_capacity[\s\S]{0,800}RAISE\s+EXCEPTION[\s\S]{0,200}42501/i
+    );
+  });
+});
+
 describe('Schema contract: owner_tax_profiles removal', () => {
   const migrationFiles = (() => {
     const { readdirSync, readFileSync } = require('fs');

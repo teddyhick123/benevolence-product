@@ -12,6 +12,17 @@ export async function GET(
   const { id: portfolio_id, contributionId: contribution_id, documentId: doc_id } = await ctx.params;
   const sb = await supabasePublic();
 
+  const { data: canView, error: canViewErr } = await sb.rpc('can_view_portfolio', {
+    p_portfolio_id: portfolio_id,
+  });
+
+  if (canViewErr || !canView) {
+    return NextResponse.json(
+      { error: 'Forbidden' },
+      { status: 403, headers: { 'Cache-Control': 'no-store' } }
+    );
+  }
+
   try {
     // Fetch document
     const { data: document, error } = await sb

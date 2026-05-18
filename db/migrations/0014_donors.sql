@@ -4,8 +4,8 @@
 -- Scoped at org level (donors are org-wide, not per-portfolio).
 -- Module-gated: org_has_module(org_id, 'donors').
 --
--- NOT to be confused with owner_tax_profiles (0012), which is the portfolio
--- owner's personal tax data. This table is about external donors.
+-- This table is about external donors (the people/entities who give TO this organization).
+-- The portfolio owner's personal tax data lives in tax_profiles and tax_years (0013).
 -- Depends on: 0001, 0002
 -- =============================================================================
 

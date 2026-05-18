@@ -266,3 +266,28 @@ describe('Schema contract: DB cleanup fixes (2026-05-15)', () => {
     expect(migrationsSrc).toMatch(/CREATE OR REPLACE FUNCTION public\.get_donation_capacity/);
   });
 });
+
+describe('Schema contract: owner_tax_profiles removal', () => {
+  const migrationFiles = (() => {
+    const { readdirSync, readFileSync } = require('fs');
+    const { join } = require('path');
+    try {
+      return readdirSync('db/migrations')
+        .filter((f: string) => f.endsWith('.sql'))
+        .map((f: string) => ({ name: f, content: readFileSync(join('db/migrations', f), 'utf-8') }));
+    } catch {
+      return [];
+    }
+  })();
+
+  it('no migration file contains owner_tax_profiles', () => {
+    const offending = migrationFiles
+      .filter(({ content }: { content: string }) => content.includes('owner_tax_profiles'))
+      .map(({ name }: { name: string }) => name);
+    expect(offending).toEqual([]);
+  });
+
+  it('application source code does not reference owner_tax_profiles', () => {
+    expect(appSrc).not.toContain('owner_tax_profiles');
+  });
+});

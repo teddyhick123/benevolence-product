@@ -1995,14 +1995,10 @@ export async function executeAssistantTool(params: AssistantToolParams): Promise
         const donationAmount = args.donation_amount;
         const taxYear = args.tax_year || new Date().getFullYear();
 
-        // Get tax profile for context
-        const { data: taxProfile } = await supabase
-          .from('owner_tax_profiles')
-          .select('agi')
-          .eq('portfolio_id', portfolioId)
-          .maybeSingle();
-
-        const agi = taxProfile?.agi || 500000; // Default if no profile
+        // AGI is sourced from tax_years.adjusted_gross_income (canonical source).
+        // A full read is handled by Task 6; for now we fall back to a default
+        // so existing callers are not broken during migration.
+        const agi = 500000; // TODO(Task 6): read from tax_years.adjusted_gross_income
         const taxBracket = 0.37;
 
         let result: any = {
@@ -2094,15 +2090,11 @@ export async function executeAssistantTool(params: AssistantToolParams): Promise
         const assetType = args.asset_type;
         const recipientType = args.recipient_type;
 
-        // Get AGI from args or tax profile
+        // Get AGI from args; canonical source is tax_years.adjusted_gross_income.
+        // TODO(Task 6): replace fallback with a read from tax_years.adjusted_gross_income.
         let agi = args.agi;
         if (!agi) {
-          const { data: taxProfile } = await supabase
-            .from('owner_tax_profiles')
-            .select('agi')
-            .eq('portfolio_id', portfolioId)
-            .maybeSingle();
-          agi = taxProfile?.agi || 500000;
+          agi = 500000; // fallback default until Task 6 wires canonical AGI read
         }
 
         // Determine AGI limit based on asset and recipient type

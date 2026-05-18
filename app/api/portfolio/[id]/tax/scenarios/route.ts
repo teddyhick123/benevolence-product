@@ -62,12 +62,10 @@ export async function POST(
       );
     }
 
-    // Fetch donor profile for age (QCD eligibility)
-    const { data: donorProfile } = await sb
-      .from('owner_tax_profiles')
-      .select('*')
-      .eq('portfolio_id', portfolio_id)
-      .maybeSingle();
+    // NOTE: The legacy personal tax profile table has been removed. Age (for QCD
+    // eligibility) is no longer available here. Canonical AGI source is
+    // tax_years.adjusted_gross_income.
+    // TODO(Task 6): expose date_of_birth via tax_profiles if QCD scenarios are needed.
 
     // Fetch existing contributions for the year
     const { data: summary } = await sb
@@ -79,8 +77,8 @@ export async function POST(
 
     const baseInput = {
       agi: taxYear.adjusted_gross_income,
-      filing_status: taxYear.filing_status || donorProfile?.filing_status,
-      age: donorProfile?.date_of_birth ? calculateAge(donorProfile.date_of_birth) : undefined,
+      filing_status: taxYear.filing_status,
+      age: undefined as number | undefined, // TODO(Task 6): derive from tax_profiles DOB field
       existing_contributions_60_pct: summary?.contributed_60_pct || 0,
       existing_contributions_50_pct: summary?.contributed_50_pct || 0,
       existing_contributions_30_pct: summary?.contributed_30_pct || 0,
@@ -185,20 +183,6 @@ export async function POST(
       { status: 500, headers: { 'Cache-Control': 'no-store' } }
     );
   }
-}
-
-/**
- * Helper: Calculate age from date of birth
- */
-function calculateAge(dateOfBirth: string): number {
-  const today = new Date();
-  const birthDate = new Date(dateOfBirth);
-  let age = today.getFullYear() - birthDate.getFullYear();
-  const monthDiff = today.getMonth() - birthDate.getMonth();
-  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
-    age--;
-  }
-  return age;
 }
 
 /**

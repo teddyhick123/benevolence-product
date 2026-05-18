@@ -19,16 +19,9 @@ export async function GET(
   const sb = await supabasePublic();
 
   try {
-    // Fetch donor profile
-    const { data: donorProfile, error: donorError } = await sb
-      .from('owner_tax_profiles')
-      .select('*')
-      .eq('portfolio_id', portfolio_id)
-      .maybeSingle();
-
-    if (donorError && donorError.code !== 'PGRST116') {
-      console.error('Error fetching donor profile:', donorError);
-    }
+    // NOTE: The legacy personal tax profile table has been removed. Canonical AGI
+    // source is tax_years.adjusted_gross_income. TODO(Task 6): expose age/DOB via
+    // tax_profiles or a dedicated field if QCD eligibility display is needed.
 
     // Fetch tax year data
     const { data: taxYear, error: taxYearError } = await sb
@@ -94,7 +87,7 @@ export async function GET(
       {
         data: {
           taxYear: year,
-          donorProfile: donorProfile ?? null,
+          donorProfile: null,
           taxYearData: taxYear ?? null,
           summary: summary ?? null,
           contributions: contributions ?? [],

@@ -34,12 +34,9 @@ export async function GET(
       );
     }
 
-    // Fetch donor profile
-    const { data: donorProfile } = await sb
-      .from('owner_tax_profiles')
-      .select('*')
-      .eq('portfolio_id', portfolio_id)
-      .maybeSingle();
+    // NOTE: The legacy personal tax profile table has been removed. The donor name
+    // for Form 8283 comes from the portfolio name (fetched above), so no separate
+    // profile fetch is needed.
 
     // Fetch noncash contributions from Phase 1 views
     const { data: contributions, error: contribError } = await sb

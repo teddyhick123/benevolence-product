@@ -1,23 +1,16 @@
 import { AssetType } from '@/lib/schemas/portfolio';
+import { contributionTypeSchema } from '@/lib/schemas/tax';
 
 /**
- * Contribution type for tax contributions
+ * Canonical contribution types — must match the DB CHECK constraint on tax_contributions.
+ * Derived from contributionTypeSchema to ensure no drift.
  */
-export type ContributionType =
-  | 'cash'
-  | 'check'
-  | 'wire'
-  | 'ach'
-  | 'stock'
-  | 'crypto'
-  | 'other_property'
-  | 'real_estate'
-  | 'vehicle'
-  | 'art'
-  | 'other';
+export type ContributionType = typeof contributionTypeSchema._type;
 
 /**
- * Maps asset types to recommended contribution types
+ * Maps asset types to recommended contribution types.
+ * All values must be canonical DB contribution types:
+ * 'cash' | 'check' | 'wire' | 'stock' | 'crypto' | 'real_estate' | 'other_property'
  */
 export const ASSET_TYPE_TO_CONTRIBUTION_TYPE: Record<AssetType, ContributionType> = {
   // Investment types
@@ -37,9 +30,11 @@ export const ASSET_TYPE_TO_CONTRIBUTION_TYPE: Record<AssetType, ContributionType
   // Donation types
   donation: 'cash',
   real_estate_donation: 'real_estate',
-  qcd_distribution: 'ach',
+  // QCDs are IRA distributions paid directly to charity — map to 'wire' (closest canonical cash-adjacent type)
+  qcd_distribution: 'wire',
   cryptocurrency_donation: 'crypto',
-  artwork_collectible_donation: 'art',
+  // Artwork/collectibles are non-cash property — no separate DB type, use other_property
+  artwork_collectible_donation: 'other_property',
 
   // Other
   other: 'other_property',
@@ -53,7 +48,8 @@ export function suggestContributionType(assetType: AssetType): ContributionType 
 }
 
 /**
- * Validates if a contribution type is compatible with an asset type
+ * Validates if a contribution type is compatible with an asset type.
+ * Only uses canonical DB contribution types (no ach/art/vehicle/other).
  */
 export function isContributionTypeValid(
   assetType: AssetType,
@@ -110,10 +106,11 @@ export function isContributionTypeValid(
 
     case 'foundation_grant':
     case 'daf_grant':
-      if (!['cash', 'check', 'wire', 'ach'].includes(contributionType)) {
+      // Canonical cash-adjacent types available in the DB
+      if (!['cash', 'check', 'wire'].includes(contributionType)) {
         return {
           valid: false,
-          reason: 'Foundation and DAF grants should use cash-based contribution types',
+          reason: 'Foundation and DAF grants should use cash-based contribution types (cash, check, or wire)',
         };
       }
       break;
@@ -128,10 +125,11 @@ export function isContributionTypeValid(
       break;
 
     case 'qcd_distribution':
-      if (contributionType !== 'ach') {
+      // QCDs are IRA distributions — nearest canonical cash-adjacent types
+      if (!['cash', 'check', 'wire'].includes(contributionType)) {
         return {
           valid: false,
-          reason: 'QCD distributions must come directly from IRA via ACH (cannot go to DAF or supporting organization)',
+          reason: 'QCD distributions must come directly from IRA (cash, check, or wire — cannot go to DAF or supporting organization)',
         };
       }
       break;
@@ -146,10 +144,10 @@ export function isContributionTypeValid(
       break;
 
     case 'artwork_collectible_donation':
-      if (contributionType !== 'art') {
+      if (contributionType !== 'other_property') {
         return {
           valid: false,
-          reason: 'Artwork/collectible donations must use art contribution type',
+          reason: 'Artwork/collectible donations must use other_property contribution type',
         };
       }
       break;
@@ -182,7 +180,8 @@ export interface HoldingForTax {
 }
 
 /**
- * Interface for auto-populated tax contribution data
+ * Interface for auto-populated tax contribution data.
+ * All field names match the canonical tax_contributions schema.
  */
 export interface TaxContributionDraft {
   holding_id: string;
@@ -191,18 +190,28 @@ export interface TaxContributionDraft {
   cost_basis?: number | null;
   fmv_at_donation?: number | null;
   recipient_name: string;
-  donation_date?: string;
-  deduction_year?: number;
+  /** ISO date string YYYY-MM-DD */
+  contribution_date: string;
+  /** Derived from contribution_date year */
+  tax_year: number;
+  property_description?: string;
   notes?: string;
 }
 
 /**
- * Creates a draft tax contribution from a holding
- * This suggests values but doesn't persist to database
+ * Creates a draft tax contribution from a holding.
+ * Uses canonical schema field names (contribution_date, tax_year) — not stale
+ * donation_date / deduction_year.
+ * This suggests values but doesn't persist to database.
  */
 export function createTaxContributionDraft(holding: HoldingForTax): TaxContributionDraft {
   const assetType = holding.asset_type || 'other';
   const contributionType = suggestContributionType(assetType);
+
+  // Derive contribution_date and tax_year from holding creation date (or now)
+  const referenceDate = holding.created_at ? new Date(holding.created_at) : new Date();
+  const contributionDate = referenceDate.toISOString().split('T')[0];
+  const taxYear = referenceDate.getFullYear();
 
   // Base draft
   const draft: TaxContributionDraft = {
@@ -210,6 +219,9 @@ export function createTaxContributionDraft(holding: HoldingForTax): TaxContribut
     contribution_type: contributionType,
     amount_usd: holding.funds_allocated || 0,
     recipient_name: holding.name,
+    contribution_date: contributionDate,
+    tax_year: taxYear,
+    property_description: holding.name,
   };
 
   // For investments with cost basis and NAV, populate those fields
@@ -225,18 +237,6 @@ export function createTaxContributionDraft(holding: HoldingForTax): TaxContribut
   if (assetType === 'equity_investment' && !draft.cost_basis) {
     draft.cost_basis = holding.funds_allocated || 0;
     draft.fmv_at_donation = holding.funds_allocated || 0;
-  }
-
-  // Suggest donation date based on holding creation date
-  if (holding.created_at) {
-    const createdDate = new Date(holding.created_at);
-    draft.donation_date = createdDate.toISOString().split('T')[0];
-    draft.deduction_year = createdDate.getFullYear();
-  } else {
-    // Default to current year
-    const now = new Date();
-    draft.donation_date = now.toISOString().split('T')[0];
-    draft.deduction_year = now.getFullYear();
   }
 
   // Add helpful note
@@ -259,20 +259,17 @@ export function calculateCapitalGainsAvoided(
 }
 
 /**
- * Gets display label for contribution type
+ * Gets display label for contribution type.
+ * Covers only canonical DB types: cash | check | wire | stock | crypto | real_estate | other_property
  */
 export const CONTRIBUTION_TYPE_LABELS: Record<ContributionType, string> = {
   cash: 'Cash',
   check: 'Check',
   wire: 'Wire Transfer',
-  ach: 'ACH Transfer',
   stock: 'Publicly Traded Stock',
   crypto: 'Cryptocurrency',
-  other_property: 'Other Property',
   real_estate: 'Real Estate',
-  vehicle: 'Vehicle',
-  art: 'Art/Collectibles',
-  other: 'Other',
+  other_property: 'Other Property',
 };
 
 /**

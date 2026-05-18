@@ -6,7 +6,8 @@ const getSupabase = createSupabaseServerClient;
 
 /**
  * POST /api/holdings/[id]/create-tax-record
- * Creates a tax contribution record from a holding with auto-populated data
+ * Creates a tax contribution record from a holding with auto-populated data.
+ * Authorization: uses can_edit_portfolio RPC (not direct portfolio_members role check).
  */
 export async function POST(
   req: NextRequest,
@@ -22,7 +23,7 @@ export async function POST(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Get the holding with permission check
+    // Get the holding (RLS enforces view access automatically)
     const { data: holding, error: holdingError } = await supabase
       .from('holdings')
       .select(`
@@ -31,11 +32,10 @@ export async function POST(
         asset_type,
         funds_allocated,
         created_at,
-        portfolio_id,
-        portfolios!inner(id)
+        portfolio_id
       `)
       .eq('id', holdingId)
-      .single();
+      .maybeSingle();
 
     if (holdingError || !holding) {
       return NextResponse.json(
@@ -44,33 +44,27 @@ export async function POST(
       );
     }
 
-    // Verify user has edit access to this portfolio
-    const { data: member } = await supabase
-      .from('portfolio_members')
-      .select('role')
-      .eq('portfolio_id', holding.portfolio_id)
-      .eq('user_id', user.id)
-      .single();
-
-    if (!member || !['owner', 'editor'].includes(member.role)) {
-      return NextResponse.json(
-        { error: 'Insufficient permissions' },
-        { status: 403 }
-      );
+    // Verify user has edit access to this portfolio via canonical RPC
+    const { data: canEdit } = await supabase.rpc('can_edit_portfolio', {
+      p_portfolio_id: holding.portfolio_id,
+    });
+    if (!canEdit) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    // Check if this holding already has a tax contribution
+    // Check if this holding already has a tax contribution.
+    // Use maybeSingle() so "no row" is null (not an error).
     const { data: existingTax } = await supabase
       .from('tax_contributions')
       .select('id')
       .eq('holding_id', holdingId)
-      .single();
+      .maybeSingle();
 
     if (existingTax) {
       return NextResponse.json(
         {
-          error: 'This holding already has a tax contribution record',
-          tax_contribution_id: existingTax.id,
+          error: 'Tax contribution already exists for this holding',
+          existing_id: existingTax.id,
         },
         { status: 409 }
       );
@@ -85,7 +79,7 @@ export async function POST(
         .from('v_investment_performance')
         .select('cost_basis, current_nav')
         .eq('id', holdingId)
-        .single();
+        .maybeSingle();
 
       if (perfData) {
         costBasis = perfData.cost_basis;
@@ -93,7 +87,7 @@ export async function POST(
       }
     }
 
-    // Create draft with auto-populated data
+    // Build the HoldingForTax struct
     const holdingForTax: HoldingForTax = {
       id: holding.id,
       name: holding.name,
@@ -106,20 +100,24 @@ export async function POST(
 
     const draft = createTaxContributionDraft(holdingForTax);
 
-    // Create the tax contribution record
+    // Derive tax_year from contribution_date (canonical: no deduction_year column)
+    const taxYear = new Date(draft.contribution_date).getFullYear();
+
+    // Insert canonical tax_contributions row — no stale donation_date / deduction_year
     const { data: taxContribution, error: insertError } = await supabase
       .from('tax_contributions')
       .insert({
         portfolio_id: holding.portfolio_id,
         holding_id: draft.holding_id,
+        contribution_date: draft.contribution_date,
+        tax_year: taxYear,
         contribution_type: draft.contribution_type,
         amount_usd: draft.amount_usd,
-        cost_basis: draft.cost_basis,
-        fmv_at_donation: draft.fmv_at_donation,
+        fmv_at_donation: draft.fmv_at_donation ?? null,
+        cost_basis: draft.cost_basis ?? null,
         recipient_name: draft.recipient_name,
-        donation_date: draft.donation_date,
-        deduction_year: draft.deduction_year,
-        notes: draft.notes,
+        property_description: draft.property_description ?? null,
+        notes: draft.notes ?? null,
       })
       .select()
       .single();
@@ -164,7 +162,7 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Get the holding
+    // Get the holding (RLS enforces view access)
     const { data: holding, error: holdingError } = await supabase
       .from('holdings')
       .select(`
@@ -176,7 +174,7 @@ export async function GET(
         portfolio_id
       `)
       .eq('id', holdingId)
-      .single();
+      .maybeSingle();
 
     if (holdingError || !holding) {
       return NextResponse.json(
@@ -194,7 +192,7 @@ export async function GET(
         .from('v_investment_performance')
         .select('cost_basis, current_nav')
         .eq('id', holdingId)
-        .single();
+        .maybeSingle();
 
       if (perfData) {
         costBasis = perfData.cost_basis;
@@ -215,12 +213,12 @@ export async function GET(
 
     const draft = createTaxContributionDraft(holdingForTax);
 
-    // Check if already has tax record
+    // Check if already has tax record — maybeSingle() returns null if no row (not an error)
     const { data: existingTax } = await supabase
       .from('tax_contributions')
       .select('id')
       .eq('holding_id', holdingId)
-      .single();
+      .maybeSingle();
 
     return NextResponse.json({
       preview: draft,

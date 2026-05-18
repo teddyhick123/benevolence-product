@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { supabasePublic } from '@/lib/supabase';
+import { supabasePublic, createAdminClient } from '@/lib/supabase';
 
 /**
  * GET /api/portfolio/[id]/tax/contributions/[contributionId]/documents/[documentId]
@@ -98,7 +98,7 @@ export async function DELETE(
   }
 
   try {
-    // Fetch document to get storage path
+    // Fetch document to get storage path (user-session client)
     const { data: document, error: fetchError } = await sb
       .from('tax_documents')
       .select('*')
@@ -113,8 +113,9 @@ export async function DELETE(
       );
     }
 
-    // Delete from storage
-    const { error: storageError } = await sb.storage
+    // Delete from storage (admin client — avoids RLS policy issues)
+    const sbAdmin = createAdminClient();
+    const { error: storageError } = await sbAdmin.storage
       .from('tax-documents')
       .remove([document.storage_path]);
 
@@ -123,7 +124,7 @@ export async function DELETE(
       // Continue anyway to delete database record
     }
 
-    // Delete database record
+    // Delete database record (user-session client)
     const { error: deleteError } = await sb
       .from('tax_documents')
       .delete()
@@ -133,7 +134,7 @@ export async function DELETE(
       throw deleteError;
     }
 
-    // Clear the storage path field on the contribution if this was a primary document
+    // Clear the storage path field on the contribution if this was a primary document (user-session client)
     const updateField = getStoragePathField(document.document_type);
     if (updateField) {
       await sb

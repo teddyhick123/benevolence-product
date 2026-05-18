@@ -32,7 +32,9 @@ export async function POST(
         asset_type,
         funds_allocated,
         created_at,
-        portfolio_id
+        portfolio_id,
+        ein,
+        portfolios!inner(org_id)
       `)
       .eq('id', holdingId)
       .maybeSingle();
@@ -50,6 +52,16 @@ export async function POST(
     });
     if (!canEdit) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    // Check that the tax module is enabled for this org
+    const orgId = (holding.portfolios as any).org_id as string;
+    const { data: hasModule } = await supabase.rpc('org_has_module', {
+      p_org_id: orgId,
+      p_module: 'tax',
+    });
+    if (!hasModule) {
+      return NextResponse.json({ error: 'Tax module not enabled' }, { status: 403 });
     }
 
     // Check if this holding already has a tax contribution.
@@ -94,11 +106,20 @@ export async function POST(
       asset_type: holding.asset_type,
       funds_allocated: holding.funds_allocated,
       created_at: holding.created_at,
+      ein: holding.ein,
       cost_basis: costBasis,
       current_nav: currentNav,
     };
 
     const draft = createTaxContributionDraft(holdingForTax);
+
+    // Guard: amount_usd must be > 0 to satisfy the DB CHECK constraint
+    if (!draft.amount_usd || draft.amount_usd <= 0) {
+      return NextResponse.json(
+        { error: 'Holding has no allocated funds — set a value before creating a tax record' },
+        { status: 400 }
+      );
+    }
 
     // Derive tax_year from contribution_date (canonical: no deduction_year column)
     const taxYear = new Date(draft.contribution_date).getFullYear();
@@ -110,12 +131,13 @@ export async function POST(
         portfolio_id: holding.portfolio_id,
         holding_id: draft.holding_id,
         contribution_date: draft.contribution_date,
-        tax_year: taxYear,
+        tax_year: draft.tax_year,
         contribution_type: draft.contribution_type,
         amount_usd: draft.amount_usd,
         fmv_at_donation: draft.fmv_at_donation ?? null,
         cost_basis: draft.cost_basis ?? null,
         recipient_name: draft.recipient_name,
+        recipient_ein: draft.recipient_ein ?? null,
         property_description: draft.property_description ?? null,
         notes: draft.notes ?? null,
       })

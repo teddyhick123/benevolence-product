@@ -21,7 +21,7 @@ export const ASSET_TYPE_TO_CONTRIBUTION_TYPE: Record<AssetType, ContributionType
   impact_bond: 'other_property',
   conservation_investment: 'other_property',
   pri: 'other_property',
-  mri: 'stock',
+  mri: 'other_property',
 
   // Grant types
   foundation_grant: 'cash',
@@ -174,6 +174,7 @@ export interface HoldingForTax {
   asset_type?: AssetType | null;
   funds_allocated?: number | null;
   created_at?: string;
+  ein?: string | null;
   // Optional fields from investment tracking
   cost_basis?: number | null;
   current_nav?: number | null;
@@ -190,6 +191,7 @@ export interface TaxContributionDraft {
   cost_basis?: number | null;
   fmv_at_donation?: number | null;
   recipient_name: string;
+  recipient_ein?: string | null;
   /** ISO date string YYYY-MM-DD */
   contribution_date: string;
   /** Derived from contribution_date year */
@@ -219,6 +221,7 @@ export function createTaxContributionDraft(holding: HoldingForTax): TaxContribut
     contribution_type: contributionType,
     amount_usd: holding.funds_allocated || 0,
     recipient_name: holding.name,
+    recipient_ein: holding.ein ?? null,
     contribution_date: contributionDate,
     tax_year: taxYear,
     property_description: holding.name,

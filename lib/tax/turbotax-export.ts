@@ -11,6 +11,7 @@ import { getQCDLimit } from './constants';
 export interface TaxContributionExport {
   id: string;
   contribution_date: string;
+  tax_year?: number | null;
   recipient_name: string;
   recipient_ein?: string | null;
   recipient_type?: string | null;
@@ -18,6 +19,7 @@ export interface TaxContributionExport {
   amount_usd: number;
   fmv_at_donation?: number | null;
   cost_basis?: number | null;
+  /** User-entered description of the donated property — use for CPA exports, NOT notes. */
   property_description?: string | null;
   deductible_amount?: number | null;
   agi_limit_percentage?: number | null;
@@ -25,6 +27,9 @@ export interface TaxContributionExport {
   qcd_qualified?: boolean | null;
   requires_appraisal?: boolean | null;
   appraisal_value?: number | null;
+  /** Substantiation status: 'pending' | 'received' | 'not_required' */
+  substantiation_status?: string | null;
+  /** Internal notes — NOT for CPA/tax-prep export output. */
   notes?: string | null;
 }
 
@@ -57,8 +62,17 @@ export function generateTXF(
     const isQCD = contrib.qcd_qualified === true;
 
     if (isQCD) {
-      // QCDs are not deducted on Schedule A - they're excluded from income
-      // Skip them in the TXF export or add as informational
+      // QCDs are excluded from income (not deducted on Schedule A).
+      // Include as an informational entry so CPAs can see them in context.
+      lines.push(`T686`); // IRA distributions (informational)
+      lines.push(`C1`);
+      lines.push(`N${contrib.recipient_name}${contrib.recipient_ein ? ` (EIN: ${contrib.recipient_ein})` : ''}`);
+      const date = new Date(contrib.contribution_date);
+      const formattedDate = `${String(date.getMonth() + 1).padStart(2, '0')}/${String(date.getDate()).padStart(2, '0')}/${date.getFullYear()}`;
+      lines.push(`D${formattedDate}`);
+      lines.push(`$${contrib.amount_usd.toFixed(2)}`);
+      lines.push(`MQCD - Excluded from income, counts toward RMD`);
+      lines.push('^');
       continue;
     }
 
@@ -70,7 +84,7 @@ export function generateTXF(
     // Entry header
     lines.push(`T${lineCode}`); // Transaction type
     lines.push(`C1`); // Category (1 = current year)
-    lines.push(`N${contrib.recipient_name}`); // Recipient name
+    lines.push(`N${contrib.recipient_name}${contrib.recipient_ein ? ` (EIN: ${contrib.recipient_ein})` : ''}`); // Recipient name
 
     // Parse date (YYYY-MM-DD to MM/DD/YYYY)
     const date = new Date(contrib.contribution_date);
@@ -208,8 +222,8 @@ export function generateForm8283Summary(
   });
 
   if (sectionAContribs.length > 0) {
-    lines.push('Property Description | Recipient | Date | FMV | Cost Basis | Gain');
-    lines.push('-'.repeat(80));
+    lines.push('Property Description | Recipient | EIN | Date | FMV | Cost Basis | Gain | Substantiation');
+    lines.push('-'.repeat(100));
 
     for (const contrib of sectionAContribs) {
       const fmv = contrib.fmv_at_donation ?? contrib.amount_usd;
@@ -219,15 +233,17 @@ export function generateForm8283Summary(
       lines.push(
         `${contrib.property_description || contrib.contribution_type} | ` +
         `${contrib.recipient_name} | ` +
+        `${contrib.recipient_ein || 'N/A'} | ` +
         `${contrib.contribution_date} | ` +
         `$${fmv.toFixed(2)} | ` +
         `$${costBasis.toFixed(2)} | ` +
-        `$${gain.toFixed(2)}`
+        `$${gain.toFixed(2)} | ` +
+        `${contrib.substantiation_status || 'N/A'}`
       );
     }
 
     const totalFMV = sectionAContribs.reduce((sum, c) => sum + (c.fmv_at_donation ?? c.amount_usd), 0);
-    lines.push('-'.repeat(80));
+    lines.push('-'.repeat(100));
     lines.push(`Total Section A: $${totalFMV.toFixed(2)}`);
   } else {
     lines.push('No Section A contributions');
@@ -244,8 +260,8 @@ export function generateForm8283Summary(
   });
 
   if (sectionBContribs.length > 0) {
-    lines.push('Property Description | Recipient | Date | Appraised Value | Cost Basis | Gain | Appraisal Date');
-    lines.push('-'.repeat(100));
+    lines.push('Property Description | Recipient | EIN | Date | Appraised Value | Cost Basis | Gain | Appraisal Required | Substantiation');
+    lines.push('-'.repeat(120));
 
     for (const contrib of sectionBContribs) {
       const fmv = contrib.appraisal_value ?? contrib.fmv_at_donation ?? contrib.amount_usd;
@@ -255,19 +271,21 @@ export function generateForm8283Summary(
       lines.push(
         `${contrib.property_description || contrib.contribution_type} | ` +
         `${contrib.recipient_name} | ` +
+        `${contrib.recipient_ein || 'N/A'} | ` +
         `${contrib.contribution_date} | ` +
         `$${fmv.toFixed(2)} | ` +
         `$${costBasis.toFixed(2)} | ` +
         `$${gain.toFixed(2)} | ` +
-        `${contrib.requires_appraisal ? 'Required' : 'N/A'}`
+        `${contrib.requires_appraisal ? 'Required' : 'N/A'} | ` +
+        `${contrib.substantiation_status || 'N/A'}`
       );
     }
 
     const totalFMV = sectionBContribs.reduce((sum, c) => sum + (c.appraisal_value ?? c.fmv_at_donation ?? c.amount_usd), 0);
-    lines.push('-'.repeat(100));
+    lines.push('-'.repeat(120));
     lines.push(`Total Section B: $${totalFMV.toFixed(2)}`);
     lines.push('');
-    lines.push('⚠️  REMINDER: Section B contributions require a qualified appraisal and appraiser declaration.');
+    lines.push('NOTE: Section B contributions require a qualified appraisal and appraiser declaration.');
   } else {
     lines.push('No Section B contributions');
   }
@@ -279,23 +297,24 @@ export function generateForm8283Summary(
   const qcdContribs = contributions.filter(c => c.qcd_qualified === true);
 
   if (qcdContribs.length > 0) {
-    lines.push('Recipient | Date | Amount');
-    lines.push('-'.repeat(60));
+    lines.push('Recipient | EIN | Date | Amount');
+    lines.push('-'.repeat(70));
 
     for (const contrib of qcdContribs) {
       lines.push(
         `${contrib.recipient_name} | ` +
+        `${contrib.recipient_ein || 'N/A'} | ` +
         `${contrib.contribution_date} | ` +
         `$${contrib.amount_usd.toFixed(2)}`
       );
     }
 
     const totalQCD = qcdContribs.reduce((sum, c) => sum + c.amount_usd, 0);
-    lines.push('-'.repeat(60));
+    lines.push('-'.repeat(70));
     lines.push(`Total QCD: $${totalQCD.toFixed(2)}`);
     lines.push('');
     const qcdLimit = getQCDLimit(taxYear);
-    lines.push(`ℹ️  QCDs count toward RMD and are excluded from income. ${taxYear} limit: $${qcdLimit.toLocaleString()}/year per person.`);
+    lines.push(`QCDs count toward RMD and are excluded from income. ${taxYear} limit: $${qcdLimit.toLocaleString()}/year per person.`);
   } else {
     lines.push('No QCD contributions');
   }
@@ -324,16 +343,18 @@ export function generateCarryforwardReport(
 
   lines.push('The following contributions exceeded AGI limits and are eligible for carryforward:');
   lines.push('');
-  lines.push('Recipient | Date | Amount | AGI Limit % | Carryforward Period');
-  lines.push('-'.repeat(90));
+  lines.push('Recipient | EIN | Date | Amount | Property Description | AGI Limit % | Carryforward Period');
+  lines.push('-'.repeat(110));
 
   for (const contrib of carryforwardContribs) {
     const period = contrib.contribution_type === 'conservation_easement' ? '15 years' : '5 years';
 
     lines.push(
       `${contrib.recipient_name} | ` +
+      `${contrib.recipient_ein || 'N/A'} | ` +
       `${contrib.contribution_date} | ` +
       `$${contrib.amount_usd.toFixed(2)} | ` +
+      `${contrib.property_description || contrib.contribution_type} | ` +
       `${contrib.agi_limit_percentage}% | ` +
       `${period}`
     );

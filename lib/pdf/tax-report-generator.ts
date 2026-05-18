@@ -22,12 +22,19 @@ export interface TaxReportData {
     date: string;
     recipient: string;
     recipientEIN: string;
+    recipientType?: string;
     type: string;
     amount: number;
     deductibleAmount: number;
+    fmv?: number | null;
+    costBasis?: number | null;
+    propertyDescription?: string;
+    qcdQualified?: string;
+    substantiationStatus?: string;
     acknowledgmentReceived: string;
+    appraisalPresent?: string;
     isCompliant: string;
-    notes: string;
+    substantiationRequired?: string;
   }>;
   carryforwards: Array<{
     originatingYear: number;

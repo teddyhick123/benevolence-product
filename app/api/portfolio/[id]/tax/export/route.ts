@@ -94,6 +94,16 @@ export async function GET(
     0
   );
 
+  // Sort contributions: non-cash first (CPAs review these first), then cash;
+  // within each group sort by amount descending.
+  const isCashType = (type: string) => ['cash', 'check', 'wire'].includes(type);
+  const sortedContributions = [...(contributions || [])].sort((a, b) => {
+    const aCash = isCashType(a.contribution_type) ? 1 : 0;
+    const bCash = isCashType(b.contribution_type) ? 1 : 0;
+    if (aCash !== bCash) return aCash - bCash; // non-cash first
+    return (b.amount_usd || 0) - (a.amount_usd || 0); // amount desc within group
+  });
+
   // Build export data structure
   const exportData = {
     meta: {
@@ -124,7 +134,7 @@ export async function GET(
           : null,
       totalCarryforwardAvailable: totalCarryforward,
     },
-    contributions: (contributions || []).map((c) => ({
+    contributions: sortedContributions.map((c) => ({
       date: c.contribution_date,
       recipient: c.recipient_name,
       recipientEIN: c.recipient_ein || '',
@@ -136,10 +146,13 @@ export async function GET(
       deductibleAmount: c.calculated_deductible_amount || c.amount_usd,
       fmv: c.fmv_at_donation,
       costBasis: c.cost_basis,
+      propertyDescription: c.property_description || '',
+      qcdQualified: c.qcd_qualified ? 'Yes' : 'No',
+      substantiationStatus: c.substantiation_status || '',
       acknowledgmentReceived: c.acknowledgment_received ? 'Yes' : 'No',
       isCompliant: c.is_compliant ? 'Yes' : 'No',
       substantiationRequired: c.substantiation_requirement,
-      notes: c.notes || '',
+      appraisalPresent: c.appraisal_storage_path ? 'Yes' : 'No',
     })),
     carryforwards: (carryforwards || []).map((cf) => ({
       originatingYear: cf.originating_tax_year,
@@ -195,7 +208,7 @@ export async function GET(
       amount_usd: c.amount_usd,
       fmv_at_donation: c.fmv_at_donation,
       cost_basis: c.cost_basis,
-      property_description: c.notes,
+      property_description: c.property_description,
       deductible_amount: c.deductible_this_year ?? c.original_deductible_amount,
       agi_limit_percentage: c.agi_limit_percentage,
       carryforward_eligible: c.carryforward_eligible,
@@ -233,7 +246,7 @@ export async function GET(
       amount_usd: c.amount_usd,
       fmv_at_donation: c.fmv_at_donation,
       cost_basis: c.cost_basis,
-      property_description: c.notes,
+      property_description: c.property_description,
       deductible_amount: c.deductible_this_year ?? c.original_deductible_amount,
       agi_limit_percentage: c.agi_limit_percentage,
       carryforward_eligible: c.carryforward_eligible,
@@ -300,7 +313,7 @@ export async function GET(
       amount_usd: c.amount_usd,
       fmv_at_donation: c.fmv_at_donation,
       cost_basis: c.cost_basis,
-      property_description: c.notes,
+      property_description: c.property_description,
       deductible_amount: c.deductible_this_year ?? c.original_deductible_amount,
       agi_limit_percentage: c.agi_limit_percentage,
       carryforward_eligible: c.carryforward_eligible,
@@ -320,6 +333,13 @@ export async function GET(
   }
 
   return NextResponse.json({ error: 'Invalid format' }, { status: 400 });
+}
+
+function csvCell(value: any): string {
+  const s = String(value ?? '');
+  return s.includes(',') || s.includes('"') || s.includes('\n')
+    ? `"${s.replace(/"/g, '""')}"`
+    : s;
 }
 
 function generateCSV(data: any): string {
@@ -344,21 +364,32 @@ function generateCSV(data: any): string {
   }
   lines.push('');
 
-  // Contributions table
+  // Contributions table — non-cash appear first (already sorted), then cash
   lines.push('CONTRIBUTIONS');
-  lines.push('Date,Recipient,EIN,Type,Amount,Deductible,Acknowledgment,Compliant,Notes');
+  lines.push(
+    'Date,Recipient,EIN,Recipient Type,Contribution Type,Amount,Deductible Amount,' +
+    'FMV at Donation,Cost Basis,Property Description,QCD,Substantiation Status,' +
+    'Acknowledgment Received,Appraisal Present,Compliant,Substantiation Required'
+  );
   for (const c of data.contributions) {
     lines.push(
       [
-        c.date,
-        `"${c.recipient.replace(/"/g, '""')}"`,
-        c.recipientEIN,
-        c.type,
-        c.amount,
-        c.deductibleAmount,
-        c.acknowledgmentReceived,
-        c.isCompliant,
-        `"${(c.notes || '').replace(/"/g, '""')}"`,
+        csvCell(c.date),
+        csvCell(c.recipient),
+        csvCell(c.recipientEIN),
+        csvCell(c.recipientType),
+        csvCell(c.type),
+        csvCell(c.amount),
+        csvCell(c.deductibleAmount),
+        csvCell(c.fmv ?? ''),
+        csvCell(c.costBasis ?? ''),
+        csvCell(c.propertyDescription),
+        csvCell(c.qcdQualified),
+        csvCell(c.substantiationStatus),
+        csvCell(c.acknowledgmentReceived),
+        csvCell(c.appraisalPresent),
+        csvCell(c.isCompliant),
+        csvCell(c.substantiationRequired),
       ].join(',')
     );
   }
@@ -367,15 +398,16 @@ function generateCSV(data: any): string {
   // Carryforwards table
   if (data.carryforwards.length > 0) {
     lines.push('CARRYFORWARDS');
-    lines.push('Originating Year,Expires Year,Category,Original Amount,Remaining Amount');
+    lines.push('Originating Year,Expires Year,Category,Original Amount,Remaining Amount,Recipient');
     for (const cf of data.carryforwards) {
       lines.push(
         [
-          cf.originatingYear,
-          cf.expiresYear,
-          cf.category,
-          cf.originalAmount,
-          cf.remainingAmount,
+          csvCell(cf.originatingYear),
+          csvCell(cf.expiresYear),
+          csvCell(cf.category),
+          csvCell(cf.originalAmount),
+          csvCell(cf.remainingAmount),
+          csvCell(cf.recipient),
         ].join(',')
       );
     }
@@ -418,7 +450,7 @@ function generateXLSX(data: any): Buffer {
   const summarySheet = XLSX.utils.aoa_to_sheet(summaryData);
   XLSX.utils.book_append_sheet(wb, summarySheet, 'Summary');
 
-  // Contributions sheet
+  // Contributions sheet — non-cash first (already sorted), then cash
   const contributionsHeader = [
     'Date',
     'Recipient',
@@ -427,12 +459,15 @@ function generateXLSX(data: any): Buffer {
     'Contribution Type',
     'Amount',
     'Deductible Amount',
-    'FMV',
+    'FMV at Donation',
     'Cost Basis',
-    'Acknowledgment',
+    'Property Description',
+    'QCD',
+    'Substantiation Status',
+    'Acknowledgment Received',
+    'Appraisal Present',
     'Compliant',
     'Substantiation Required',
-    'Notes',
   ];
   const contributionsData = [
     contributionsHeader,
@@ -444,12 +479,15 @@ function generateXLSX(data: any): Buffer {
       c.type,
       c.amount,
       c.deductibleAmount,
-      c.fmv || '',
-      c.costBasis || '',
+      c.fmv ?? '',
+      c.costBasis ?? '',
+      c.propertyDescription,
+      c.qcdQualified,
+      c.substantiationStatus,
       c.acknowledgmentReceived,
+      c.appraisalPresent,
       c.isCompliant,
       c.substantiationRequired,
-      c.notes,
     ]),
   ];
   const contributionsSheet = XLSX.utils.aoa_to_sheet(contributionsData);

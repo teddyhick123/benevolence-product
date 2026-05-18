@@ -407,6 +407,65 @@ export default async function NewModulePage() {
 
 ---
 
+## Tax Center Module
+
+### Canonical Tax Center tables
+
+- `tax_profiles` — portfolio owner's tax filing context (filing status, state)
+- `tax_years` — per-year actuals: `adjusted_gross_income`, `total_charitable_deductions`, `standard_deduction_taken`, `filing_status`
+- `tax_contributions` — individual charitable contributions; canonical columns: `contribution_date`, `tax_year`, `contribution_type`, `amount_usd`, `fmv_at_donation`, `cost_basis`, `recipient_name`, `recipient_ein`, `property_description`, `notes`, `qcd_qualified`, `substantiation_status`
+- `holding_contributions` — M:M join between `holdings` and `tax_contributions`
+- `tax_carryforwards` — multi-year carryforward tracking; canonical columns: `amount` (original), `amount_remaining`, `originating_tax_year`, `expires_tax_year`
+- `daf_grants` — donor-advised fund grant records
+- `foundation_990pf_data` — Form 990-PF data for private foundations
+- `tax_documents` — uploaded substantiation files (receipts, acknowledgments, appraisals)
+- `cpa_share_links` — CPA collaboration portal share links (Phase A, UI behind feature flag)
+- `cpa_access_logs` — append-only access log for CPA share activity
+
+### Dropped tables (must not be recreated)
+
+- `owner_tax_profiles` — **DROPPED** (migration 0012 tombstone). The canonical split is `tax_profiles` (filing context) + `tax_years` (per-year actuals). Do not recreate `owner_tax_profiles`.
+
+### Canonical contribution types
+
+The `contribution_type` column on `tax_contributions` and `daf_grants` accepts exactly these 7 values:
+
+```
+cash | check | wire | stock | crypto | real_estate | other_property
+```
+
+The old 4-value set (`cash`, `stock`, `crypto`, `other`) is stale — do not use it.
+
+### Tax documents storage
+
+- Bucket name: `tax-documents` (private, `public = false`)
+- Always use `createAdminClient()` for storage operations (upload, `createSignedUrl`, remove). Never use the user-session client for storage — it causes an RLS deadlock because the storage policy needs the DB record that doesn't exist yet at upload time.
+- Always return `signed_url` (from `createSignedUrl(path, 3600)`). Never call `getPublicUrl` for tax documents.
+
+### Tax views (security invoker — not SECURITY DEFINER)
+
+Views: `v_tax_contributions_enriched`, `v_tax_contributions_with_limits`, `v_tax_deduction_summary`, `v_portfolio_tax_summary`, `v_carryforward_schedule`, `v_active_carryforwards`
+
+These views are security invoker (Postgres default). Do NOT add `SECURITY DEFINER` — that would bypass RLS and leak cross-portfolio data.
+
+### CPA sharing (Phase A)
+
+- Schema: `cpa_share_links` + `cpa_access_logs` (migration 0043)
+- Always store `share_token` as a SHA-256 hash of the raw token. Never store the raw token.
+- UI is behind `const cpaCollaborationEnabled = false` in `CPACollaborationPortal.tsx`. Phase B (rate limiting, email delivery) is not yet implemented.
+
+### AI tools and carryforward data source
+
+- AGI source chain: `tax_years.adjusted_gross_income` → `tax_profiles.estimated_agi` → explicit error (never silently default)
+- Carryforward data source: query `tax_carryforwards` directly. Never filter by `is_carryforward` on `tax_contributions` — that column is a legacy flag and must not be used as the primary data source.
+- AI tax tools live in `lib/ai/assistant/executors/tax.ts`
+
+### RLS helpers for tax routes
+
+`can_view_portfolio(p_portfolio_id)` and `can_edit_portfolio(p_portfolio_id)` are defined in `db/migrations/0001_extensions_and_shared_infra.sql`. Use these (not `is_org_member`, which does not exist) in all portfolio-scoped tax API routes.
+
+---
+
 ## Key Patterns
 
 ### Authentication & Authorization

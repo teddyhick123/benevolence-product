@@ -3,11 +3,18 @@
 import * as React from 'react';
 import { CPAShareLink, getExpirationDisplay } from '@/lib/tax/cpa-collaboration';
 
+// Phase B not yet implemented — hide until public portal, token hashing, and access logging are complete
+const cpaCollaborationEnabled = false;
+
 export interface CPACollaborationPortalProps {
   portfolioId: string;
 }
 
 export default function CPACollaborationPortal({ portfolioId }: CPACollaborationPortalProps) {
+  if (!cpaCollaborationEnabled) {
+    return null;
+  }
+
   const [shareLinks, setShareLinks] = React.useState<CPAShareLink[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);

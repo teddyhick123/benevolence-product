@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeAll } from 'vitest';
 import { readFileSync, readdirSync, statSync } from 'fs';
 import { join } from 'path';
 
@@ -313,6 +313,28 @@ describe('Schema contract: tax document storage privacy', () => {
 
   it('upload route uses createSignedUrl to return private document URLs', () => {
     expect(uploadRouteSrc).toMatch(/createSignedUrl/);
+  });
+});
+
+describe('Schema contract: CPA sharing', () => {
+  const migPath = join(process.cwd(), 'db/migrations/0043_tax_cpa_sharing.sql');
+  let src: string;
+  beforeAll(() => { src = readFileSync(migPath, 'utf-8'); });
+
+  it('creates cpa_share_links table', () => {
+    expect(src).toMatch(/CREATE TABLE.*cpa_share_links/i);
+  });
+
+  it('creates cpa_access_logs table', () => {
+    expect(src).toMatch(/CREATE TABLE.*cpa_access_logs/i);
+  });
+
+  it('stores only token_hash (no plain token column)', () => {
+    expect(src).toContain('token_hash');
+    // Ensure there is no bare `token` column definition (e.g. `token TEXT NOT NULL`).
+    // Column definitions are indented and start the line after whitespace.
+    // This deliberately excludes comments (which start with --) and token_hash.
+    expect(src).not.toMatch(/^\s+token\s+\w/m);
   });
 });
 

@@ -568,7 +568,7 @@ export const PORTFOLIO_TOOLS: ToolDefinition[] = [
         },
         agi: {
           type: 'number',
-          description: 'Adjusted Gross Income (optional - uses tax profile if not provided)',
+          description: 'Adjusted Gross Income. Required for accurate calculation — if not provided, a placeholder value is used until tax year data is configured.',
         },
       },
       required: ['amount', 'asset_type', 'recipient_type'],

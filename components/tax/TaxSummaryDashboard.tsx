@@ -2,7 +2,6 @@
 
 import * as React from 'react';
 import type { PortfolioTaxSummary, DonorProfile, TaxYearDetail, DonationCapacity } from '@/lib/schemas/tax';
-import { calculateAge } from '@/lib/schemas/tax';
 
 export interface TaxSummaryDashboardProps {
   portfolioId: string;
@@ -86,11 +85,11 @@ export default function TaxSummaryDashboard({
 
   const { donorProfile, taxYearData, summary, contributions, carryforwards, capacity } = data;
 
-  // Calculate donor age if DOB exists
-  const donorAge = donorProfile?.date_of_birth
-    ? calculateAge(donorProfile.date_of_birth)
-    : null;
-  const qcdEligible = donorAge !== null && donorAge >= 70.5;
+  // TODO(Task 6): restore donor age display once DOB is available via tax_profiles
+  // donorProfile is always null until Task 6 wires the new tax_profiles table.
+  // The donorAge / qcdEligible block below can never render until then.
+  const donorAge = null;
+  const qcdEligible = false;
 
   // Check if AGI is set
   const hasAGI = taxYearData?.adjusted_gross_income && taxYearData.adjusted_gross_income > 0;
@@ -108,6 +107,7 @@ export default function TaxSummaryDashboard({
               AGI-based deduction limits and carryforward tracking
             </p>
           </div>
+          {/* TODO(Task 6): restore donor age display once DOB is available via tax_profiles */}
           {donorProfile && donorAge !== null && (
             <div className="text-right">
               <p className="text-sm text-neutral-600">Donor Age</p>

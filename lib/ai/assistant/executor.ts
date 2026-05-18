@@ -1995,10 +1995,17 @@ export async function executeAssistantTool(params: AssistantToolParams): Promise
         const donationAmount = args.donation_amount;
         const taxYear = args.tax_year || new Date().getFullYear();
 
-        // AGI is sourced from tax_years.adjusted_gross_income (canonical source).
-        // A full read is handled by Task 6; for now we fall back to a default
-        // so existing callers are not broken during migration.
-        const agi = 500000; // TODO(Task 6): read from tax_years.adjusted_gross_income
+        // TODO(Task 6): read AGI from tax_years.adjusted_gross_income
+        // AGI must be provided by the user via Tax Center before running scenarios.
+        const agi: number | undefined = undefined;
+        if (!agi) {
+          return {
+            output: {
+              error: 'AGI not configured',
+              message: 'Please set your Adjusted Gross Income in the Tax Center (Tax Profile tab) before running tax scenarios.',
+            },
+          };
+        }
         const taxBracket = 0.37;
 
         let result: any = {
@@ -2090,11 +2097,15 @@ export async function executeAssistantTool(params: AssistantToolParams): Promise
         const assetType = args.asset_type;
         const recipientType = args.recipient_type;
 
-        // Get AGI from args; canonical source is tax_years.adjusted_gross_income.
-        // TODO(Task 6): replace fallback with a read from tax_years.adjusted_gross_income.
-        let agi = args.agi;
+        // TODO(Task 6): replace with a read from tax_years.adjusted_gross_income when AGI is not provided.
+        const agi: number | undefined = args.agi;
         if (!agi) {
-          agi = 500000; // fallback default until Task 6 wires canonical AGI read
+          return {
+            output: {
+              error: 'AGI not configured',
+              message: 'Please set your Adjusted Gross Income in the Tax Center (Tax Profile tab) before running tax scenarios.',
+            },
+          };
         }
 
         // Determine AGI limit based on asset and recipient type

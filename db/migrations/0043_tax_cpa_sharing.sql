@@ -14,14 +14,14 @@ CREATE TABLE IF NOT EXISTS public.cpa_share_links (
   id                UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
   portfolio_id      UUID        NOT NULL REFERENCES public.portfolios(id) ON DELETE CASCADE,
   org_id            UUID        NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
-  token_hash        TEXT        NOT NULL UNIQUE, -- SHA-256 of raw token; raw token is never stored
+  share_token       TEXT        NOT NULL UNIQUE, -- SHA-256 token_hash of the raw bearer token; raw token is never stored
   cpa_name          TEXT,
   cpa_email         TEXT,
   cpa_firm          TEXT,
-  allowed_tax_years INTEGER[]   NOT NULL DEFAULT '{}',
+  tax_years         INTEGER[]   NOT NULL DEFAULT '{}',
   permissions       JSONB       NOT NULL DEFAULT '{}',
   expires_at        TIMESTAMPTZ,
-  max_access_count  INTEGER     CHECK (max_access_count IS NULL OR max_access_count > 0),
+  max_accesses      INTEGER     CHECK (max_accesses IS NULL OR max_accesses > 0),
   access_count      INTEGER     NOT NULL DEFAULT 0 CHECK (access_count >= 0),
   revoked_at        TIMESTAMPTZ,
   created_by        UUID        REFERENCES auth.users(id) ON DELETE SET NULL,
@@ -55,6 +55,9 @@ CREATE TABLE IF NOT EXISTS public.cpa_access_logs (
 
 CREATE INDEX IF NOT EXISTS idx_cpa_access_logs_share_link_id
   ON public.cpa_access_logs(share_link_id);
+
+CREATE INDEX IF NOT EXISTS idx_cpa_access_logs_created_at
+  ON public.cpa_access_logs(created_at DESC);
 
 -- ---------------------------------------------------------------------------
 -- RLS
@@ -98,15 +101,7 @@ CREATE POLICY "cpa_access_logs_read" ON public.cpa_access_logs
   );
 
 CREATE POLICY "cpa_access_logs_write" ON public.cpa_access_logs
-  FOR ALL TO authenticated
-  USING (
-    EXISTS (
-      SELECT 1
-      FROM public.cpa_share_links l
-      WHERE l.id = share_link_id
-        AND public.can_edit_portfolio(l.portfolio_id)
-    )
-  )
+  FOR INSERT TO authenticated
   WITH CHECK (
     EXISTS (
       SELECT 1
@@ -129,6 +124,33 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON public.cpa_access_logs  TO authenticated
 GRANT ALL ON public.cpa_share_links TO service_role;
 GRANT ALL ON public.cpa_access_logs  TO service_role;
 
-COMMENT ON TABLE  public.cpa_share_links IS 'Secure share links for CPA/tax-professional access to portfolio tax data. Stores only a SHA-256 token_hash — the raw bearer token is never persisted.';
-COMMENT ON COLUMN public.cpa_share_links.token_hash IS 'SHA-256 hex digest of the raw bearer token. The raw token is shown once at creation and must not be stored anywhere.';
+-- ---------------------------------------------------------------------------
+-- revoke_share_link — soft-revoke a share link by setting revoked_at.
+-- Requires the caller to be a portfolio editor for the owning portfolio.
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.revoke_share_link(p_share_link_id UUID)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM public.cpa_share_links l
+    WHERE l.id = p_share_link_id
+      AND public.can_edit_portfolio(l.portfolio_id)
+  ) THEN
+    RAISE EXCEPTION 'Insufficient permissions' USING ERRCODE = '42501';
+  END IF;
+
+  UPDATE public.cpa_share_links
+  SET revoked_at = NOW(), updated_at = NOW()
+  WHERE id = p_share_link_id;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.revoke_share_link(UUID) TO authenticated, service_role;
+
+COMMENT ON TABLE  public.cpa_share_links IS 'Secure share links for CPA/tax-professional access to portfolio tax data. Stores only a SHA-256 token_hash in the share_token column — the raw bearer token is never persisted.';
+COMMENT ON COLUMN public.cpa_share_links.share_token IS 'SHA-256 hex digest of the raw bearer token (token_hash). The raw token is shown once at creation and must not be stored anywhere.';
 COMMENT ON TABLE  public.cpa_access_logs IS 'Append-only audit log of every CPA portal action against a share link.';

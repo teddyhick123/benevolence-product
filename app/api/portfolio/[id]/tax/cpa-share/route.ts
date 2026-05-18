@@ -118,11 +118,26 @@ export async function POST(
     const expiresAt = createExpirationDate(expiration);
     const finalPermissions = permissions || createDefaultPermissions();
 
+    // Look up org_id from portfolio
+    const { data: portfolioRow, error: portfolioErr } = await sb
+      .from('portfolios')
+      .select('org_id')
+      .eq('id', portfolio_id)
+      .single();
+
+    if (portfolioErr || !portfolioRow) {
+      return NextResponse.json(
+        { error: 'Portfolio not found' },
+        { status: 404, headers: { 'Cache-Control': 'no-store' } }
+      );
+    }
+
     // Create share link
     const { data: shareLink, error: insertError } = await sb
       .from('cpa_share_links')
       .insert({
         portfolio_id,
+        org_id: portfolioRow.org_id,
         share_token: shareToken,
         cpa_name,
         cpa_email,

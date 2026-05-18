@@ -45,7 +45,7 @@ export interface CPAShareLink {
 export interface CPAAccessLog {
   id: string;
   share_link_id: string;
-  accessed_at: string;
+  created_at: string;
   ip_address?: string;
   user_agent?: string;
   action: 'view' | 'download_form8283' | 'download_turbotax' | 'download_csv';
@@ -204,7 +204,7 @@ export function createAccessLog(
 ): Omit<CPAAccessLog, 'id'> {
   return {
     share_link_id: shareLinkId,
-    accessed_at: new Date().toISOString(),
+    created_at: new Date().toISOString(),
     ip_address: ipAddress,
     user_agent: userAgent,
     action,

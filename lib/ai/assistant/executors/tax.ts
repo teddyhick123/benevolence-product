@@ -11,6 +11,8 @@
 //   Filing status: tax_years.filing_status
 
 import type { ToolResult } from '@/lib/ai/types';
+import { getStandardDeduction } from '@/lib/tax/constants';
+import type { FilingStatus } from '@/lib/schemas/tax';
 
 type DB = any; // supabase client
 
@@ -64,16 +66,6 @@ async function readAGI(
   return { agi: null, filingStatus: null };
 }
 
-/** Standard deduction amounts by filing status and approximate tax year. */
-function standardDeductionForYear(taxYear: number, filingStatus: string | null): number {
-  // Use 2024 values as baseline; close enough for planning scenarios.
-  const mfj = filingStatus === 'married_joint' || filingStatus === 'married_filing_jointly';
-  const hoh = filingStatus === 'head_of_household';
-  if (mfj) return 29_200;
-  if (hoh) return 21_900;
-  return 14_600; // single / married_separate / default
-}
-
 /** Resolve AGI-limit percentage based on asset type and recipient type. */
 function agiLimitPercent(assetType: string, recipientType: string): number {
   if (assetType === 'cash' && recipientType === 'public_charity') return 0.6;
@@ -121,6 +113,7 @@ export async function runTaxScenario(
     agi,
     filing_status: filingStatus,
     tax_bracket: taxBracket,
+    tax_bracket_note: 'Estimated at 37%; actual marginal rate may vary. Update in Tax Center for precise scenarios.',
   };
 
   switch (scenarioType) {
@@ -168,7 +161,14 @@ export async function runTaxScenario(
     }
 
     case 'bunching': {
-      const stdDeduction = standardDeductionForYear(taxYear, filingStatus);
+      const knownFilingStatuses: FilingStatus[] = [
+        'single', 'married_joint', 'married_separate', 'head_of_household',
+      ];
+      const resolvedFilingStatus: FilingStatus =
+        knownFilingStatuses.includes(filingStatus as FilingStatus)
+          ? (filingStatus as FilingStatus)
+          : 'single';
+      const stdDeduction = getStandardDeduction(taxYear, resolvedFilingStatus);
       const spreadYearlyDonation = donationAmount / 2;
       const spreadDeduction = Math.max(0, spreadYearlyDonation - stdDeduction) * 2;
       const bunchedDeduction = Math.max(0, donationAmount - stdDeduction);
@@ -265,14 +265,18 @@ export async function getCarryforward(
 ): Promise<ToolResult> {
   const taxYear: number = args.tax_year ?? new Date().getFullYear();
 
-  // Read active carryforwards from the canonical view.
-  // v_active_carryforwards already filters amount_remaining > 0 and non-expired.
+  // Query tax_carryforwards directly so we can filter by the requested taxYear.
+  // v_active_carryforwards filters on CURRENT_DATE at the DB level, which
+  // ignores the caller's taxYear argument — use the base table instead.
   const { data: rows, error } = await supabase
-    .from('v_active_carryforwards')
+    .from('tax_carryforwards')
     .select(
-      'id, portfolio_id, originating_tax_year, expires_tax_year, original_amount, amount_remaining, agi_limit_category, recipient_name, status, years_until_expiry'
+      'id, portfolio_id, originating_tax_year, expires_tax_year, amount, amount_remaining, agi_limit_category, recipient_name'
     )
-    .eq('portfolio_id', portfolioId);
+    .eq('portfolio_id', portfolioId)
+    .gt('amount_remaining', 0)
+    .gte('expires_tax_year', taxYear)       // not yet expired for the requested year
+    .lte('originating_tax_year', taxYear);  // already originated by the requested year
 
   if (error) {
     return {
@@ -284,17 +288,26 @@ export async function getCarryforward(
     };
   }
 
-  const carryforwards = (rows ?? []).map((cf: any) => ({
-    id: cf.id,
-    originating_tax_year: cf.originating_tax_year,
-    expires_tax_year: cf.expires_tax_year,
-    original_amount: cf.original_amount,
-    amount_remaining: cf.amount_remaining,
-    agi_limit_category: cf.agi_limit_category,
-    recipient_name: cf.recipient_name,
-    status: cf.status,
-    years_until_expiry: cf.years_until_expiry,
-  }));
+  const carryforwards = (rows ?? []).map((cf: any) => {
+    const yearsUntilExpiry = cf.expires_tax_year - taxYear;
+    const status =
+      cf.amount_remaining <= 0
+        ? 'fully_used'
+        : cf.amount_remaining < cf.amount
+        ? 'partially_used'
+        : 'available';
+    return {
+      id: cf.id,
+      originating_tax_year: cf.originating_tax_year,
+      expires_tax_year: cf.expires_tax_year,
+      original_amount: cf.amount,
+      amount_remaining: cf.amount_remaining,
+      agi_limit_category: cf.agi_limit_category,
+      recipient_name: cf.recipient_name,
+      status,
+      years_until_expiry: yearsUntilExpiry,
+    };
+  });
 
   // Also include expiring-soon carryforwards as a heads-up
   const expiringSoon = carryforwards.filter(

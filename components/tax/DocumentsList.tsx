@@ -11,7 +11,6 @@ interface TaxDocument {
   mime_type: string | null;
   storage_path: string;
   created_at: string;
-  public_url?: string;
   signed_url?: string;
 }
 
@@ -91,7 +90,7 @@ export default function DocumentsList({
       if (!res.ok) throw new Error('Failed to get document URL');
 
       const json = await res.json();
-      const url = json.data?.signed_url || json.data?.public_url;
+      const url = json.data?.signed_url;
 
       if (url) {
         window.open(url, '_blank');

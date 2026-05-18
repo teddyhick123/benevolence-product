@@ -1,9 +1,7 @@
 import { NextResponse } from 'next/server';
-import { createSupabaseServerClient } from '@/lib/supabase';
+import { createServerClient, createAdminClient } from '@/lib/supabase';
 import { documentTypeSchema } from '@/lib/schemas/tax';
 import type { DocumentType } from '@/lib/schemas/tax';
-
-const getSupabase = createSupabaseServerClient;
 
 // Allowed MIME types for tax documents
 const ALLOWED_MIME_TYPES = [
@@ -25,7 +23,7 @@ export async function GET(
   ctx: { params: Promise<{ id: string; contributionId: string }> }
 ) {
   const { id: portfolioId, contributionId } = await ctx.params;
-  const supabase = await getSupabase();
+  const supabase = await createServerClient();
 
   // Explicitly check portfolio view access
   const { data: canView, error: canViewErr } = await supabase.rpc('can_view_portfolio', {
@@ -60,9 +58,9 @@ export async function POST(
   ctx: { params: Promise<{ id: string; contributionId: string }> }
 ) {
   const { id: portfolioId, contributionId } = await ctx.params;
-  const supabase = await getSupabase();
+  const supabase = await createServerClient();
 
-  // Check edit permission
+  // Check edit permission (user-session client enforces RLS)
   const { data: canEdit, error: permError } = await supabase.rpc(
     'can_edit_portfolio',
     { p_portfolio_id: portfolioId }
@@ -72,7 +70,7 @@ export async function POST(
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
-  // Verify contribution exists and belongs to portfolio
+  // Verify contribution exists and belongs to portfolio (user-session client)
   const { data: contribution, error: contribError } = await supabase
     .from('tax_contributions')
     .select('id, tax_year')
@@ -83,6 +81,11 @@ export async function POST(
   if (contribError || !contribution) {
     return NextResponse.json({ error: 'Contribution not found' }, { status: 404 });
   }
+
+  // Admin client for storage operations — the storage INSERT RLS policy gates on
+  // a tax_documents row existing, which doesn't exist yet at upload time. Security
+  // is maintained at the app layer via the can_edit_portfolio check above.
+  const sb = createAdminClient();
 
   try {
     const formData = await req.formData();
@@ -128,8 +131,8 @@ export async function POST(
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
-    // Upload to Supabase Storage
-    const { data: uploadData, error: uploadError } = await supabase.storage
+    // Upload to Supabase Storage (admin client — see note above)
+    const { error: uploadError } = await sb.storage
       .from('tax-documents')
       .upload(storagePath, buffer, {
         contentType: file.type,
@@ -144,18 +147,18 @@ export async function POST(
       );
     }
 
-    // Generate a signed URL valid for 1 hour — documents are private
-    const { data: signedData, error: signedError } = await supabase.storage
+    // Generate a signed URL valid for 1 hour — documents are private (admin client)
+    const { data: signedData, error: signedError } = await sb.storage
       .from('tax-documents')
       .createSignedUrl(storagePath, 3600);
 
     if (signedError || !signedData?.signedUrl) {
-      // Clean up the uploaded file before returning the error
-      await supabase.storage.from('tax-documents').remove([storagePath]);
+      // Clean up the uploaded file before returning the error (admin client)
+      await sb.storage.from('tax-documents').remove([storagePath]);
       return NextResponse.json({ error: 'Failed to generate document URL' }, { status: 500 });
     }
 
-    // Create document record
+    // Create document record (user-session client — RLS applies)
     const { data: docRecord, error: docError } = await supabase
       .from('tax_documents')
       .insert({
@@ -173,12 +176,12 @@ export async function POST(
       .single();
 
     if (docError) {
-      // Try to clean up uploaded file
-      await supabase.storage.from('tax-documents').remove([storagePath]);
+      // Try to clean up uploaded file (admin client)
+      await sb.storage.from('tax-documents').remove([storagePath]);
       return NextResponse.json({ error: docError.message }, { status: 500 });
     }
 
-    // Update contribution storage path based on document type
+    // Update contribution storage path based on document type (user-session client)
     const updateField = getStoragePathField(documentType as DocumentType);
     if (updateField) {
       await supabase

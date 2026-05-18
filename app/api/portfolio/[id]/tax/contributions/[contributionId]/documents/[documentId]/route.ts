@@ -30,6 +30,7 @@ export async function GET(
       .select('*')
       .eq('id', doc_id)
       .eq('tax_contribution_id', contribution_id)
+      .eq('portfolio_id', portfolio_id)
       .single();
 
     if (error) {
@@ -44,15 +45,22 @@ export async function GET(
     }
 
     // Generate signed URL for private access (valid for 1 hour)
-    const { data: signedData } = await sb.storage
+    const { data: signedData, error: signedError } = await sb.storage
       .from('tax-documents')
       .createSignedUrl(document.storage_path, 3600);
+
+    if (signedError || !signedData?.signedUrl) {
+      return NextResponse.json(
+        { error: 'Failed to generate document URL' },
+        { status: 500, headers: { 'Cache-Control': 'no-store' } }
+      );
+    }
 
     return NextResponse.json(
       {
         data: {
           ...document,
-          signed_url: signedData?.signedUrl,
+          signed_url: signedData.signedUrl,
         },
       },
       { headers: { 'Cache-Control': 'private, max-age=3600' } }

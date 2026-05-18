@@ -33,7 +33,7 @@ describe('AI tax executor contract', () => {
     expect(src).not.toContain('owner_tax_profiles');
   });
 
-  it('does not use is_carryforward column (stale — column removed from schema)', () => {
+  it('does not use is_carryforward column (legacy flag — do not use as primary carryforward data source)', () => {
     expect(src).not.toContain('is_carryforward');
   });
 

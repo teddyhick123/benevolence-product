@@ -28,6 +28,9 @@ function readSource(relPath: string): string {
 
 const exportRouteSrc = readSource('app/api/portfolio/[id]/tax/export/route.ts');
 const turbotaxExportSrc = readSource('lib/tax/turbotax-export.ts');
+const documentDownloadRouteSrc = readSource(
+  'app/api/portfolio/[id]/tax/contributions/[contributionId]/documents/[documentId]/route.ts'
+);
 
 // ── Storage URL safety ────────────────────────────────────────────────────────
 
@@ -38,6 +41,10 @@ describe('Tax export contract: no getPublicUrl in export/document routes', () =>
 
   it('turbotax-export.ts does not call getPublicUrl', () => {
     expect(turbotaxExportSrc).not.toContain('getPublicUrl');
+  });
+
+  it('[documentId]/route.ts does not call getPublicUrl (download must use signed URL)', () => {
+    expect(documentDownloadRouteSrc).not.toContain('getPublicUrl');
   });
 });
 
@@ -148,15 +155,15 @@ describe('Tax export contract: TaxContributionExport interface includes required
     expect(turbotaxExportSrc).toContain('export interface TaxContributionExport');
   });
 
-  it('TaxContributionExport includes property_description field with JSDoc noting it is for CPA export', () => {
-    expect(turbotaxExportSrc).toContain('property_description');
-    // The field should note it is the canonical field for CPA/tax-prep output, not notes
-    expect(turbotaxExportSrc).toMatch(/property_description[\s\S]{0,200}CPA|CPA[\s\S]{0,200}property_description/i);
+  it('TaxContributionExport property_description JSDoc says "use for CPA exports, NOT notes"', () => {
+    // Exact wording prevents silent drift — if the field is renamed or the comment
+    // is deleted, the test fails immediately.
+    expect(turbotaxExportSrc).toContain('use for CPA exports, NOT notes');
   });
 
-  it('TaxContributionExport includes notes field marked as internal (not for CPA export)', () => {
-    expect(turbotaxExportSrc).toContain('notes');
-    // The notes field comment should warn it is NOT for CPA/tax-prep output
-    expect(turbotaxExportSrc).toMatch(/notes[\s\S]{0,100}NOT for CPA|Internal notes/i);
+  it('TaxContributionExport notes JSDoc says "NOT for CPA/tax-prep export output"', () => {
+    // Exact wording distinguishes this field from property_description and prevents
+    // a future developer from accidentally including internal notes in CPA packages.
+    expect(turbotaxExportSrc).toContain('NOT for CPA/tax-prep export output');
   });
 });

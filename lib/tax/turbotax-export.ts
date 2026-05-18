@@ -343,8 +343,8 @@ export function generateCarryforwardReport(
 
   lines.push('The following contributions exceeded AGI limits and are eligible for carryforward:');
   lines.push('');
-  lines.push('Recipient | EIN | Date | Amount | Property Description | AGI Limit % | Carryforward Period');
-  lines.push('-'.repeat(110));
+  lines.push('Recipient | EIN | Date | Amount | Property Description | AGI Limit % | Substantiation Status | Carryforward Period');
+  lines.push('-'.repeat(130));
 
   for (const contrib of carryforwardContribs) {
     const period = contrib.contribution_type === 'conservation_easement' ? '15 years' : '5 years';
@@ -356,6 +356,7 @@ export function generateCarryforwardReport(
       `$${contrib.amount_usd.toFixed(2)} | ` +
       `${contrib.property_description || contrib.contribution_type} | ` +
       `${contrib.agi_limit_percentage}% | ` +
+      `${contrib.substantiation_status ?? ''} | ` +
       `${period}`
     );
   }

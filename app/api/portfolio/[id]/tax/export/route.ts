@@ -317,9 +317,10 @@ export async function GET(
       deductible_amount: c.deductible_this_year ?? c.original_deductible_amount,
       agi_limit_percentage: c.agi_limit_percentage,
       carryforward_eligible: c.carryforward_eligible,
-      qcd_qualified: false,
-      requires_appraisal: false,
-      appraisal_value: null,
+      qcd_qualified: c.qcd_qualified ?? false,
+      requires_appraisal: c.requires_appraisal ?? false,
+      appraisal_value: c.appraisal_value ?? null,
+      substantiation_status: c.substantiation_status,
       notes: c.notes,
     }));
 

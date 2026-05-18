@@ -62,17 +62,8 @@ export function generateTXF(
     const isQCD = contrib.qcd_qualified === true;
 
     if (isQCD) {
-      // QCDs are excluded from income (not deducted on Schedule A).
-      // Include as an informational entry so CPAs can see them in context.
-      lines.push(`T686`); // IRA distributions (informational)
-      lines.push(`C1`);
-      lines.push(`N${contrib.recipient_name}${contrib.recipient_ein ? ` (EIN: ${contrib.recipient_ein})` : ''}`);
-      const date = new Date(contrib.contribution_date);
-      const formattedDate = `${String(date.getMonth() + 1).padStart(2, '0')}/${String(date.getDate()).padStart(2, '0')}/${date.getFullYear()}`;
-      lines.push(`D${formattedDate}`);
-      lines.push(`$${contrib.amount_usd.toFixed(2)}`);
-      lines.push(`MQCD - Excluded from income, counts toward RMD`);
-      lines.push('^');
+      // QCDs are excluded from income (Form 1040 line 4, not Schedule A).
+      // Skip TXF output entirely — TurboTax/TaxAct handles QCDs outside Schedule A deductions.
       continue;
     }
 

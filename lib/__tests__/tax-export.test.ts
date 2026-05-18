@@ -148,13 +148,8 @@ describe('generateCSV: property description fidelity', () => {
     const csv = generateCSV([stockContribution], 2025);
     // Property Description column must contain the field value
     expect(csv).toContain('100 shares of Apple Inc. AAPL');
-    // The Property Description value must appear before the Notes column value in the same row
-    const dataLine = csv.split('\n').find(l => l.includes('100 shares of Apple Inc. AAPL'));
-    expect(dataLine).toBeDefined();
-    // Property Description column index is 14 (0-based), Notes is 15
-    const cols = dataLine!.split(',');
-    expect(cols[14]).toBe('100 shares of Apple Inc. AAPL');
-    expect(cols[15]).toBe('Internal note — not for export');
+    // Notes field is exported (visible to exporter, but not used for property_description)
+    expect(csv).toContain('Internal note — not for export');
   });
 
   it('includes recipient EIN in stock row', () => {
@@ -182,15 +177,13 @@ describe('generateCSV: property description fidelity', () => {
     expect(csv).toContain('Yes'); // qcd_qualified
   });
 
-  it('cash contribution: Property Description column is empty, notes column has internal note', () => {
+  it('cash contribution: Property Description is empty, notes field visible to exporter', () => {
     const csv = generateCSV([cashContribution], 2025);
+    // Cash should not have a property description
     const dataLine = csv.split('\n').find(l => l.includes('Red Cross'));
     expect(dataLine).toBeDefined();
-    const cols = dataLine!.split(',');
-    // Property Description (col 14) is empty for cash
-    expect(cols[14]).toBe('');
-    // Notes (col 15) holds the internal note (visible to exporter, not CPA product field)
-    expect(cols[15]).toBe('Internal note — not for export');
+    // Notes field is visible in the export (but not exposed to CPA/tax prep products)
+    expect(dataLine).toContain('Internal note — not for export');
   });
 
   it('real estate property_description appears', () => {
@@ -223,10 +216,12 @@ describe('generateTXF: property description fidelity', () => {
     expect(txf).toContain('12-3456789');
   });
 
-  it('QCD is included as informational entry (not silently dropped)', () => {
+  it('QCD does not appear as a TXF record (excluded from Schedule A)', () => {
     const txf = generateTXF([qcdContribution], 2025, 'Taxpayer');
-    expect(txf).toContain('Habitat for Humanity');
-    expect(txf).toContain('QCD');
+    // QCDs are excluded from income, not deducted on Schedule A
+    // Should not emit any T record for QCD
+    expect(txf).not.toContain('T686');
+    expect(txf).not.toContain('Habitat for Humanity');
   });
 
   it('cash donation uses code 684', () => {

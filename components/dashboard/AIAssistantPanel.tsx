@@ -3,8 +3,8 @@
 import { useState, useRef, useEffect } from 'react';
 import { ArrowPathIcon, ChatBubbleLeftRightIcon, XMarkIcon, MicrophoneIcon, StopIcon } from '@heroicons/react/24/outline';
 import { useAudioRecorder } from '@/hooks/useAudioRecorder';
-import TrefoilLoader from '../ui/TrefoilLoader';
-import InlineWidget from '../ui/InlineWidget';
+import TrefoilLoader from '@/components/ui/TrefoilLoader';
+import InlineWidget from '@/components/ui/InlineWidget';
 import ReactMarkdown from 'react-markdown';
 import { branding } from '@/lib/config';
 

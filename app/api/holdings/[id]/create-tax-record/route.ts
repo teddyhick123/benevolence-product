@@ -194,7 +194,8 @@ export async function GET(
         asset_type,
         funds_allocated,
         created_at,
-        portfolio_id
+        portfolio_id,
+        portfolios!inner(org_id)
       `)
       .eq('id', holdingId)
       .maybeSingle();
@@ -204,6 +205,24 @@ export async function GET(
         { error: 'Holding not found or access denied' },
         { status: 404 }
       );
+    }
+
+    // Verify user has edit access to this portfolio via canonical RPC
+    const { data: canEdit } = await supabase.rpc('can_edit_portfolio', {
+      p_portfolio_id: holding.portfolio_id,
+    });
+    if (!canEdit) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    // Check that the tax module is enabled for this org
+    const orgId = (holding.portfolios as any).org_id as string;
+    const { data: hasModule } = await supabase.rpc('org_has_module', {
+      p_org_id: orgId,
+      p_module: 'tax',
+    });
+    if (!hasModule) {
+      return NextResponse.json({ error: 'Tax module not enabled' }, { status: 403 });
     }
 
     // Try to get investment performance data if available

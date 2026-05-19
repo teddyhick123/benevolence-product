@@ -104,6 +104,7 @@ export async function DELETE(
       .select('*')
       .eq('id', doc_id)
       .eq('tax_contribution_id', contribution_id)
+      .eq('portfolio_id', portfolio_id)
       .single();
 
     if (fetchError || !document) {

@@ -62,7 +62,7 @@ export async function GET(
 
     return NextResponse.json(
       { data: shareLinks || [] },
-      { headers: { 'Cache-Control': 'private, s-maxage=60' } }
+      { headers: { 'Cache-Control': 'no-store' } }
     );
   } catch (error) {
     console.error('Error fetching share links:', error);

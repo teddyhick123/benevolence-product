@@ -66,6 +66,25 @@ async function readAGI(
   return { agi: null, filingStatus: null };
 }
 
+/**
+ * Normalize a filing_status value from the DB to the 4-value TypeScript enum.
+ * tax_years.filing_status accepts both the short form (married_joint) and the
+ * longer IRS form (married_filing_jointly). getStandardDeduction only accepts
+ * the short form; apply this mapping before calling it.
+ */
+function normalizeFilingStatus(raw: string | null): FilingStatus {
+  switch (raw) {
+    case 'married_filing_jointly':   return 'married_joint';
+    case 'married_filing_separately': return 'married_separate';
+    case 'qualifying_widow':          return 'single';
+    case 'single':                    return 'single';
+    case 'married_joint':             return 'married_joint';
+    case 'married_separate':          return 'married_separate';
+    case 'head_of_household':         return 'head_of_household';
+    default:                          return 'single';
+  }
+}
+
 /** Resolve AGI-limit percentage based on asset type and recipient type. */
 function agiLimitPercent(assetType: string, recipientType: string): number {
   if (assetType === 'cash' && recipientType === 'public_charity') return 0.6;
@@ -161,13 +180,7 @@ export async function runTaxScenario(
     }
 
     case 'bunching': {
-      const knownFilingStatuses: FilingStatus[] = [
-        'single', 'married_joint', 'married_separate', 'head_of_household',
-      ];
-      const resolvedFilingStatus: FilingStatus =
-        knownFilingStatuses.includes(filingStatus as FilingStatus)
-          ? (filingStatus as FilingStatus)
-          : 'single';
+      const resolvedFilingStatus: FilingStatus = normalizeFilingStatus(filingStatus);
       const stdDeduction = getStandardDeduction(taxYear, resolvedFilingStatus);
       const spreadYearlyDonation = donationAmount / 2;
       const spreadDeduction = Math.max(0, spreadYearlyDonation - stdDeduction) * 2;

@@ -1,7 +1,7 @@
 'use client';
 
 import InlineEdit from '../ui/InlineEdit';
-import AddToTaxTrackerButton from '../AddToTaxTrackerButton';
+import AddToTaxTrackerButton from '@/components/tax/AddToTaxTrackerButton';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 

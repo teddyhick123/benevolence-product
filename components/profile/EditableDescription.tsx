@@ -1,6 +1,6 @@
 'use client';
 
-import InlineTextArea from './ui/InlineTextArea';
+import InlineTextArea from '../ui/InlineTextArea';
 import { useRouter } from 'next/navigation';
 
 type EditableDescriptionProps = {

@@ -67,12 +67,6 @@ export async function POST(
       );
     }
 
-    // NOTE: age (for QCD eligibility) was previously read from a legacy personal
-    // tax profile table that has been removed. Canonical AGI source is
-    // tax_years.adjusted_gross_income (already read above).
-    // TODO(Task 6): expose date_of_birth via tax_profiles so age can be calculated.
-    const age: number | undefined = undefined;
-
     // Fetch existing contributions summary
     const { data: summary } = await sb
       .from('v_portfolio_tax_summary')
@@ -84,7 +78,6 @@ export async function POST(
     // Build tax situation
     const taxSituation: TaxSituation = {
       agi: taxYear.adjusted_gross_income,
-      age,
       filing_status: taxYear.filing_status,
       existing_contributions_60_pct: summary?.contributed_60_pct || 0,
       existing_contributions_50_pct: summary?.contributed_50_pct || 0,

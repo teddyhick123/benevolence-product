@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import type { PortfolioTaxSummary, DonorProfile, TaxYearDetail, DonationCapacity } from '@/lib/schemas/tax';
+import type { PortfolioTaxSummary, TaxYearDetail, DonationCapacity } from '@/lib/schemas/tax';
 
 export interface TaxSummaryDashboardProps {
   portfolioId: string;
@@ -10,7 +10,6 @@ export interface TaxSummaryDashboardProps {
 
 interface TaxSummaryData {
   taxYear: number;
-  donorProfile: DonorProfile | null;
   taxYearData: TaxYearDetail | null;
   summary: PortfolioTaxSummary | null;
   contributions: any[];
@@ -83,13 +82,7 @@ export default function TaxSummaryDashboard({
     return null;
   }
 
-  const { donorProfile, taxYearData, summary, contributions, carryforwards, capacity } = data;
-
-  // TODO(Task 6): restore donor age display once DOB is available via tax_profiles
-  // donorProfile is always null until Task 6 wires the new tax_profiles table.
-  // The donorAge / qcdEligible block below can never render until then.
-  const donorAge = null;
-  const qcdEligible = false;
+  const { taxYearData, summary, contributions, carryforwards, capacity } = data;
 
   // Check if AGI is set
   const hasAGI = taxYearData?.adjusted_gross_income && taxYearData.adjusted_gross_income > 0;
@@ -107,18 +100,6 @@ export default function TaxSummaryDashboard({
               AGI-based deduction limits and carryforward tracking
             </p>
           </div>
-          {/* TODO(Task 6): restore donor age display once DOB is available via tax_profiles */}
-          {donorProfile && donorAge !== null && (
-            <div className="text-right">
-              <p className="text-sm text-neutral-600">Donor Age</p>
-              <p className="text-xl font-bold text-neutral-900">{donorAge}</p>
-              {qcdEligible && (
-                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 mt-1">
-                  QCD Eligible
-                </span>
-              )}
-            </div>
-          )}
         </div>
       </div>
 
@@ -222,7 +203,7 @@ export default function TaxSummaryDashboard({
       )}
 
       {/* QCD Summary */}
-      {qcdEligible && summary && (summary.total_qcd_amount ?? 0) > 0 && (
+      {summary && (summary.total_qcd_amount ?? 0) > 0 && (
         <div className="bg-green-50 border border-green-200 rounded-lg p-4">
           <div className="flex gap-3">
             <div className="text-2xl">💰</div>

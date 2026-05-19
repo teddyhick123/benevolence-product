@@ -8,8 +8,6 @@ import { NextResponse } from 'next/server';
  * in tax_years.adjusted_gross_income and tax_profiles — see migration
  * 0013_tax_contributions.sql.
  *
- * TODO(Task 6): if date_of_birth or other personal fields are needed for QCD
- * eligibility calculations, add them to tax_profiles and wire a new route.
  */
 export const runtime = 'nodejs';
 

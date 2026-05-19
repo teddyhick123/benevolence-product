@@ -382,28 +382,6 @@ export const DONOR_FILING_STATUS_LABELS: Record<DonorFilingStatus, string> = {
   qualifying_widow: 'Qualifying Widow(er)',
 };
 
-/**
- * Donor Profile — shape of the object returned by the tax summary API response.
- * NOTE: The legacy personal tax profile DB table has been removed. The canonical
- * sources for AGI and filing status are tax_years.adjusted_gross_income and
- * tax_years.filing_status (see 0013_tax_contributions.sql). This type is
- * retained for API response typing only; the API currently returns null for
- * donorProfile (see tax/summary/route.ts).
- * TODO(Task 6): update or remove once the canonical AGI read is wired.
- */
-const donorProfileSchema = z.object({
-  date_of_birth: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD').optional().nullable(),
-  filing_status: donorFilingStatusSchema.optional().nullable(),
-  notes: z.string().max(1000).optional().nullable(),
-});
-
-export type DonorProfile = z.infer<typeof donorProfileSchema> & {
-  id: string;
-  portfolio_id: string;
-  age_as_of_date?: string | null;
-  created_at: string;
-  updated_at: string;
-};
 
 /**
  * Tax Year Schema (with AGI tracking)

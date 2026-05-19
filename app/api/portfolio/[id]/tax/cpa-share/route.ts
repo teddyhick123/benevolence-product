@@ -197,8 +197,6 @@ export async function POST(
     let emailData = null;
     if (send_email && cpa_email) {
       emailData = formatCPAEmailInvite(shareLink, shareURL);
-      // TODO: Integrate with email service (SendGrid, AWS SES, etc.)
-      // await sendEmail(cpa_email, emailData.subject, emailData.body);
     }
 
     return NextResponse.json(

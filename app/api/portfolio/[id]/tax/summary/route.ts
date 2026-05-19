@@ -19,10 +19,6 @@ export async function GET(
   const sb = await supabasePublic();
 
   try {
-    // NOTE: The legacy personal tax profile table has been removed. Canonical AGI
-    // source is tax_years.adjusted_gross_income. TODO(Task 6): expose age/DOB via
-    // tax_profiles or a dedicated field if QCD eligibility display is needed.
-
     // Fetch tax year data
     const { data: taxYear, error: taxYearError } = await sb
       .from('tax_years')
@@ -87,7 +83,6 @@ export async function GET(
       {
         data: {
           taxYear: year,
-          donorProfile: null,
           taxYearData: taxYear ?? null,
           summary: summary ?? null,
           contributions: contributions ?? [],
@@ -95,7 +90,7 @@ export async function GET(
           capacity: capacity ?? null,
         },
       },
-      { headers: { 'Cache-Control': 'private, s-maxage=60' } }
+      { headers: { 'Cache-Control': 'no-store' } }
     );
   } catch (error) {
     console.error('Error fetching tax summary:', error);

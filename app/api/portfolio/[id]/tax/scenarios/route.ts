@@ -62,11 +62,6 @@ export async function POST(
       );
     }
 
-    // NOTE: The legacy personal tax profile table has been removed. Age (for QCD
-    // eligibility) is no longer available here. Canonical AGI source is
-    // tax_years.adjusted_gross_income.
-    // TODO(Task 6): expose date_of_birth via tax_profiles if QCD scenarios are needed.
-
     // Fetch existing contributions for the year
     const { data: summary } = await sb
       .from('v_portfolio_tax_summary')
@@ -78,7 +73,6 @@ export async function POST(
     const baseInput = {
       agi: taxYear.adjusted_gross_income,
       filing_status: taxYear.filing_status,
-      age: undefined as number | undefined, // TODO(Task 6): derive from tax_profiles DOB field
       existing_contributions_60_pct: summary?.contributed_60_pct || 0,
       existing_contributions_50_pct: summary?.contributed_50_pct || 0,
       existing_contributions_30_pct: summary?.contributed_30_pct || 0,

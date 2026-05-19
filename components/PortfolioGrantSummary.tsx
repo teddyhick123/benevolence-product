@@ -3,7 +3,7 @@
 import React from 'react';
 import { PortfolioGrantSummary } from '@/lib/schemas/grant';
 import { formatCurrency } from '@/lib/schemas/investment';
-import MetricItem from '@/components/MetricItem';
+import MetricItem from '@/components/ui/MetricItem';
 
 type Props = {
   summary: PortfolioGrantSummary;

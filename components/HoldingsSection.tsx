@@ -3,7 +3,7 @@
 'use client';
 
 import * as React from 'react';
-import SectionHeader from '@/components/SectionHeader';
+import SectionHeader from '@/components/ui/SectionHeader';
 import HoldingsTable from '@/components/HoldingsTable';
 import EditHoldingsModal, { HoldingInput } from '@/components/EditHoldingsModal';
 import { AssetType } from '@/lib/schemas/portfolio';

@@ -9,7 +9,7 @@ import EditableDescription from '@/components/EditableDescription';
 import EditableContactNotes from '@/components/EditableContactNotes';
 import HoldingWidgetsSection from '@/components/vis/HoldingWidgetsSection';
 import NewsSection from '@/components/NewsSection';
-import FactRow from '@/components/FactRow';
+import FactRow from '@/components/ui/FactRow';
 import LocationsManagerWrapper from '@/components/holdings/LocationsManagerWrapper';
 import FinancialProfileSection from '@/components/holdings/FinancialProfileSection';
 import ReportUploader from '@/components/holdings/ReportUploader';

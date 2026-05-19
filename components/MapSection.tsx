@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import useSWR from 'swr';
-import SectionHeader from '@/components/SectionHeader';
+import SectionHeader from '@/components/ui/SectionHeader';
 import ImpactMap from '@/components/ImpactMap';
 import MapModeSelector, { MapMode } from '@/components/map/MapModeSelector';
 import { useRouter } from 'next/navigation';

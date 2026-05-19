@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { PortfolioInvestmentSummary, formatCurrency, formatMultiple, formatPercentage, getMOICColorClass, getGainColorClass } from '@/lib/schemas/investment';
-import MetricItem from '@/components/MetricItem';
+import MetricItem from '@/components/ui/MetricItem';
 
 type Props = {
   summary: PortfolioInvestmentSummary;

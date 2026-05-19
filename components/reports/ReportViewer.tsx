@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import InlineWidget from '@/components/InlineWidget';
+import InlineWidget from '@/components/ui/InlineWidget';
 
 type ContentBlock = {
   type: 'text' | 'chart';

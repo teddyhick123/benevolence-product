@@ -2,7 +2,7 @@
 
 import useSWR from 'swr';
 import GrantSummaryCard, { type Grant } from '@/components/grants/GrantSummaryCard';
-import SectionHeader from '@/components/SectionHeader';
+import SectionHeader from '@/components/ui/SectionHeader';
 
 const fetcher = (url: string) => fetch(url, { cache: 'no-store' }).then(r => r.json());
 

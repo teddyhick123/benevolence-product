@@ -3,7 +3,7 @@ import DashboardKpiWithFilter from '@/components/DashboardKpiWithFilter';
 import HoldingsSection from '@/components/HoldingsSection';
 import WidgetsSection from '@/components/vis/WidgetsSection';
 import MapSection from '@/components/MapSection';
-import Reveal from '@/components/Reveal';
+import Reveal from '@/components/ui/Reveal';
 import { headers } from 'next/headers';
 import AIAssistantButton from '@/components/AIAssistantButton';
 import PortfolioSummarySection from '@/components/PortfolioSummarySection';

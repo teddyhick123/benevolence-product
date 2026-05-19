@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import SectionHeader from '@/components/SectionHeader';
+import SectionHeader from '@/components/ui/SectionHeader';
 import AISummaryCard from '@/components/AISummaryCard';
 
 export default function SummarySection({ portfolioId }: { portfolioId: string }) {

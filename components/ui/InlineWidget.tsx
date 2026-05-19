@@ -4,18 +4,18 @@ import { Suspense, lazy, useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 
 // Dynamically import widget renderers
-const KpiTrend = lazy(() => import('./vis/KpiTrend'));
-const RadialProgress = lazy(() => import('./vis/RadialProgress'));
-const D3JsonWidget = lazy(() => import('./vis/D3JsonWidget'));
-const HoldingsPieWidget = dynamic(() => import('./vis/HoldingsPieWidget'), { ssr: false });
-const PeopleGridWidget = dynamic(() => import('./vis/PeopleGridWidget'), { ssr: false });
-const SectorEmissionsBar = dynamic(() => import('./vis/SectorEmissionsBar'), { ssr: false });
-const SmallMultiples = dynamic(() => import('./vis/SmallMultiples'), { ssr: false });
-const PerformanceHeatMap = dynamic(() => import('./vis/PerformanceHeatMap'), { ssr: false });
-const HoldingsComparisonTable = dynamic(() => import('./vis/HoldingsComparisonTable'), { ssr: false });
-const ImpactTimeline = dynamic(() => import('./vis/ImpactTimeline'), { ssr: false });
-const WaterfallChart = dynamic(() => import('./vis/WaterfallChart'), { ssr: false });
-const ImpactBubbleChart = dynamic(() => import('./vis/ImpactBubbleChart'), { ssr: false });
+const KpiTrend = lazy(() => import('../vis/KpiTrend'));
+const RadialProgress = lazy(() => import('../vis/RadialProgress'));
+const D3JsonWidget = lazy(() => import('../vis/D3JsonWidget'));
+const HoldingsPieWidget = dynamic(() => import('../vis/HoldingsPieWidget'), { ssr: false });
+const PeopleGridWidget = dynamic(() => import('../vis/PeopleGridWidget'), { ssr: false });
+const SectorEmissionsBar = dynamic(() => import('../vis/SectorEmissionsBar'), { ssr: false });
+const SmallMultiples = dynamic(() => import('../vis/SmallMultiples'), { ssr: false });
+const PerformanceHeatMap = dynamic(() => import('../vis/PerformanceHeatMap'), { ssr: false });
+const HoldingsComparisonTable = dynamic(() => import('../vis/HoldingsComparisonTable'), { ssr: false });
+const ImpactTimeline = dynamic(() => import('../vis/ImpactTimeline'), { ssr: false });
+const WaterfallChart = dynamic(() => import('../vis/WaterfallChart'), { ssr: false });
+const ImpactBubbleChart = dynamic(() => import('../vis/ImpactBubbleChart'), { ssr: false });
 
 // Auto-fetching renderer for people grid
 function PeopleGridAutoRenderer({ portfolioId, title, config }: { portfolioId: string; title?: string | null; config?: any }) {

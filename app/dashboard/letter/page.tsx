@@ -2,7 +2,7 @@
 
 import { useEffect, useState, Suspense, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
-import InlineWidget from '@/components/InlineWidget';
+import InlineWidget from '@/components/ui/InlineWidget';
 
 type PortfolioData = {
   id: string;

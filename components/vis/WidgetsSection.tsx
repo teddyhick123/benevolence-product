@@ -5,7 +5,7 @@
 import * as React from 'react';
 import useSWR from 'swr';
 import dynamic from 'next/dynamic';
-import SectionHeader from '@/components/SectionHeader';
+import SectionHeader from '@/components/ui/SectionHeader';
 import VisualCarousel from '@/components/vis/VisualCarousel';
 
 // Lazy load modal to reduce initial bundle size

@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
-import TrefoilLoader from '@/components/TrefoilLoader';
+import TrefoilLoader from '@/components/ui/TrefoilLoader';
 import type { ConstructorSSEEvent } from '@/app/api/constructor/chat/route';
 
 type ToolCard = {

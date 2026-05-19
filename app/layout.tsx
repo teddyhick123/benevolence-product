@@ -2,7 +2,7 @@ import "./globals.css";
 import type { Metadata } from "next";
 import LoadingScreen from "@/components/ui/LoadingScreen";
 import SWRProvider from "@/components/ui/SWRProvider";
-import ConditionalHeader from "@/components/ConditionalHeader";
+import ConditionalHeader from "@/components/dashboard/ConditionalHeader";
 import { Montserrat, Playfair_Display } from "next/font/google";
 import { branding } from "@/lib/config";
 

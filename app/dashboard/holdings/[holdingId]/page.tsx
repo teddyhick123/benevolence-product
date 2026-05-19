@@ -8,7 +8,7 @@ import ContactPhotoUpload from '@/components/ContactPhotoUpload';
 import EditableDescription from '@/components/EditableDescription';
 import EditableContactNotes from '@/components/EditableContactNotes';
 import HoldingWidgetsSection from '@/components/vis/HoldingWidgetsSection';
-import NewsSection from '@/components/NewsSection';
+import NewsSection from '@/components/dashboard/NewsSection';
 import FactRow from '@/components/ui/FactRow';
 import LocationsManagerWrapper from '@/components/holdings/LocationsManagerWrapper';
 import FinancialProfileSection from '@/components/holdings/FinancialProfileSection';

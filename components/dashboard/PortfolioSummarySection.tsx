@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import AssetTypeTabs, { AssetTypeTab } from './AssetTypeTabs';
+import AssetTypeTabs, { AssetTypeTab } from '../AssetTypeTabs';
 import PortfolioInvestmentSummaryCard from './PortfolioInvestmentSummary';
 import PortfolioGrantSummaryCard from './PortfolioGrantSummary';
 import PortfolioDonationSummaryCard from './PortfolioDonationSummary';

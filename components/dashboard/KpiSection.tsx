@@ -4,8 +4,8 @@ import * as React from 'react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import useSWR from 'swr';
 import SectionHeader from '@/components/ui/SectionHeader';
-import KpiCard from '@/components/KpiCard';
-import EditKpiModal, { KpiInput } from '@/components/EditKpiModal';
+import KpiCard from '@/components/dashboard/KpiCard';
+import EditKpiModal, { KpiInput } from '@/components/dashboard/EditKpiModal';
 
 const fetcher = (url: string) => fetch(url, { cache: 'no-store' }).then(r => r.json());
 

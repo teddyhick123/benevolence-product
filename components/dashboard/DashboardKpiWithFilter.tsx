@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import KpiSection from '@/components/KpiSection';
+import KpiSection from '@/components/dashboard/KpiSection';
 
 const CURRENT_YEAR = new Date().getFullYear();
 const YEAR_OPTIONS = [

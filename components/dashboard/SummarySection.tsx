@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import SectionHeader from '@/components/ui/SectionHeader';
-import AISummaryCard from '@/components/AISummaryCard';
+import AISummaryCard from '@/components/dashboard/AISummaryCard';
 
 export default function SummarySection({ portfolioId }: { portfolioId: string }) {
   return (

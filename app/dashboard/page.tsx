@@ -1,12 +1,12 @@
 import { createSupabaseServerClient } from '@/lib/supabase';
-import DashboardKpiWithFilter from '@/components/DashboardKpiWithFilter';
+import DashboardKpiWithFilter from '@/components/dashboard/DashboardKpiWithFilter';
 import HoldingsSection from '@/components/HoldingsSection';
 import WidgetsSection from '@/components/vis/WidgetsSection';
 import MapSection from '@/components/MapSection';
 import Reveal from '@/components/ui/Reveal';
 import { headers } from 'next/headers';
-import AIAssistantButton from '@/components/AIAssistantButton';
-import PortfolioSummarySection from '@/components/PortfolioSummarySection';
+import AIAssistantButton from '@/components/dashboard/AIAssistantButton';
+import PortfolioSummarySection from '@/components/dashboard/PortfolioSummarySection';
 import GrantsList from '@/components/grants/GrantsList';
 import PayoutMiniGauge from '@/components/compliance/PayoutMiniGauge';
 

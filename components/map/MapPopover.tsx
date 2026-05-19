@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import type { ImpactMapPoint } from '@/components/ImpactMap';
+import type { ImpactMapPoint } from '@/components/map/ImpactMap';
 
 /**
  * Enhanced Map Popover with KPIs

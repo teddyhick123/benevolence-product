@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import useSWR from 'swr';
-import HoldingsTable from '@/components/HoldingsTable';
-import EditHoldingsModal, { HoldingInput } from '@/components/EditHoldingsModal';
+import HoldingsTable from '@/components/holdings/HoldingsTable';
+import EditHoldingsModal, { HoldingInput } from '@/components/holdings/EditHoldingsModal';
 import { AssetType } from '@/lib/schemas/portfolio';
 
 const fetcher = (url: string) => fetch(url, { cache: 'no-store' }).then(r => r.json());

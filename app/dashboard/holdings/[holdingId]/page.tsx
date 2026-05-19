@@ -3,7 +3,7 @@ import { createSupabaseServerClient } from '@/lib/supabase';
 import { assetTypeSchema, ASSET_TYPE_LABELS } from '@/lib/schemas/portfolio';
 import React from 'react';
 import { revalidatePath } from 'next/cache';
-import HoldingHeader from '@/components/HoldingHeader';
+import HoldingHeader from '@/components/holdings/HoldingHeader';
 import ContactPhotoUpload from '@/components/ContactPhotoUpload';
 import EditableDescription from '@/components/EditableDescription';
 import EditableContactNotes from '@/components/EditableContactNotes';

@@ -1,6 +1,6 @@
 import { createSupabaseServerClient } from '@/lib/supabase';
 import DashboardKpiWithFilter from '@/components/dashboard/DashboardKpiWithFilter';
-import HoldingsSection from '@/components/HoldingsSection';
+import HoldingsSection from '@/components/holdings/HoldingsSection';
 import WidgetsSection from '@/components/vis/WidgetsSection';
 import MapSection from '@/components/MapSection';
 import Reveal from '@/components/ui/Reveal';

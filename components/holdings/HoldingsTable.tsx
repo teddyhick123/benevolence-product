@@ -3,7 +3,7 @@ import React, { useMemo, useState, useCallback } from 'react';
 import { useRouter, useParams, useSearchParams } from 'next/navigation';
 import EditHoldingsModal from './EditHoldingsModal';
 import { ASSET_TYPE_LABELS, AssetType } from '@/lib/schemas/portfolio';
-import AssetTypeFilter from '@/components/AssetTypeFilter';
+import AssetTypeFilter from '@/components/holdings/AssetTypeFilter';
 
 function parseDateISO(d?: string | null) {
   if (!d) return null;

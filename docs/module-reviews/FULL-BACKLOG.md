@@ -1,6 +1,6 @@
 # Impact Platform — Open Backlog
 
-**Status:** Backlog reconciled 2026-05-15 after brand-agnostic pass and task/workflow sweep.
+**Status:** Backlog reconciled 2026-05-15 after brand-agnostic pass and task/workflow sweep. Updated 2026-05-19 with a codebase/schema alignment sweep. Updated 2026-05-28 to remove shipped pledge/task foundation items from the open count.
 
 For resolved-issue history, see `git log docs/module-reviews/FULL-BACKLOG.md` and individual `*-review.md` files in this directory.
 
@@ -26,6 +26,13 @@ For resolved-issue history, see `git log docs/module-reviews/FULL-BACKLOG.md` an
 ---
 
 ## Holdings
+
+### Bugs (P1)
+
+| # | Issue | Location |
+|---|-------|----------|
+| H-B1 | Investment performance endpoints query `v_investment_performance` and `v_portfolio_investment_summary`, but no active migration creates either view | `app/api/portfolio/[id]/performance/route.ts`, `app/api/holdings/[id]/create-tax-record/route.ts` |
+| H-B2 | Financial profile routes depend on `generated_financial_analyses`, but no active migration creates the table | `app/api/holdings/[id]/financial-profile/route.ts`, `app/api/holdings/[id]/financial-profile/generate/route.ts` |
 
 ### UX Gaps (P2)
 
@@ -65,6 +72,13 @@ For resolved-issue history, see `git log docs/module-reviews/FULL-BACKLOG.md` an
 
 ## Compliance
 
+### Bugs (P1)
+
+| # | Issue | Location |
+|---|-------|----------|
+| Cm-B1 | Rich compliance dashboard routes query missing schema objects: `v_compliance_dashboard`, `v_upcoming_filing_deadlines`, `self_dealing_incidents`, `compliance_profiles`, and `disqualified_persons` | `app/api/org/[orgId]/compliance/dashboard/route.ts`, `app/api/org/[orgId]/compliance/disqualified-persons/route.ts` |
+| Cm-B2 | Payout forecast and expenditure responsibility routes depend on missing tables/views: `payout_history`, `qualifying_distributions`, `expenditure_responsibility_grants`, and `v_er_grant_compliance` | `app/api/portfolio/[id]/compliance/payout-forecast/route.ts`, `app/api/portfolio/[id]/compliance/er-grants/route.ts` |
+
 ### UX Gaps (P2)
 
 | # | Issue |
@@ -83,6 +97,12 @@ For resolved-issue history, see `git log docs/module-reviews/FULL-BACKLOG.md` an
 
 ## QuickBooks
 
+### Bugs (P1)
+
+| # | Issue | Location |
+|---|-------|----------|
+| QB-B1 | Settings UI expects account fields `qb_account_id`, `name`, and `type`, but the accounts API returns `qb_id`, `qb_name`, and `qb_type`, leaving account selects with undefined values | `components/integrations/QuickBooksSettings.tsx`, `app/api/integrations/quickbooks/accounts/route.ts` |
+
 ### Missing Features (P2–P3)
 
 | # | Feature |
@@ -95,26 +115,43 @@ For resolved-issue history, see `git log docs/module-reviews/FULL-BACKLOG.md` an
 
 ## Donor CRM
 
+### Bugs (P1)
+
+| # | Issue | Location |
+|---|-------|----------|
+| Dr-B1 | Donor dashboard/detail surfaces query `v_contribution_with_donor` and `donor_communications`, but no active migration creates them | `components/donors/DonorDashboard.tsx`, `components/donors/DonorDetail.tsx` |
+
 ### UX Gaps (P2)
 
 | # | Issue |
 |---|-------|
-| Dr-U3 | No pledge tracking UI despite DB supporting it |
 | Dr-U4 | Donor acknowledgment letter generator at `/dashboard/letter` is a portfolio narrative tool — not connected to Donor CRM |
 
 ### Missing Features (P2–P3)
 
 | # | Feature |
 |---|---------|
-| Dr-F6 | Pledge tracking + installment schedule UI |
 | Dr-F7 | Household / relationship grouping |
 | Dr-F8 | LYBUNT / SYBUNT queries and segmentation |
 | Dr-F9 | Year-end letter batch generation |
 | Dr-F10 | Soft credit attribution |
 
+### Shipped / Removed From Open Count
+
+| # | Former Issue | Status |
+|---|--------------|--------|
+| Dr-U3 | ~~No pledge tracking UI despite DB supporting it~~ | Shipped before 2026-05-28: pledge dashboard, create modal, detail panel, donor profile integration, org settings toggle |
+| Dr-F6 | ~~Pledge tracking + installment schedule UI~~ | Shipped before 2026-05-28: pledge pipeline plus installment schedule UI/API |
+
 ---
 
 ## Charities
+
+### Bugs (P1)
+
+| # | Issue | Location |
+|---|-------|----------|
+| Ch-B1 | External data services reference missing cache tables/RPCs (`charity_rating_cache`, `geocode_cache`, `get_geocode_cache_stats`, `clean_expired_geocode_cache`), so enrichment/geocoding cache paths fail on a clean DB | `lib/services/candid.ts`, `lib/services/charity-navigator.ts`, `lib/services/google-maps.ts` |
 
 ### UX Gaps (P2)
 
@@ -153,6 +190,17 @@ For resolved-issue history, see `git log docs/module-reviews/FULL-BACKLOG.md` an
 
 ---
 
+## Reporting
+
+### Bugs (P1)
+
+| # | Issue | Location |
+|---|-------|----------|
+| R-B1 | Reporting APIs depend on missing `report_templates`, `generated_documents`, `report_schedules`, and `generate_share_token`; template save/list, report generation, document listing, schedules, and public share links fail on a clean DB | `app/api/portfolio/[id]/reports/**` |
+| R-B2 | Reporting export still queries legacy `contributions` and `transactions` tables instead of canonical `tax_contributions` / `holding_transactions` or donor contribution tables | `app/api/portfolio/[id]/reports/export/route.ts` |
+
+---
+
 ## White-Label / Branding
 
 ### Missing Features (P2)
@@ -165,13 +213,15 @@ For resolved-issue history, see `git log docs/module-reviews/FULL-BACKLOG.md` an
 
 ## Task / Workflow Management
 
-### Missing Features (P2)
+No active task/workflow foundation items remain open after the 2026-05-28 backlog hygiene pass. Future task work should be tracked under the relevant module if it depends on module-specific schema or producer coverage.
 
-| # | Feature |
-|---|---------|
-| Tw-F1 | Unified org task inbox across grants, compliance, pledges, imports, donor follow-up, and board reporting |
-| Tw-F4 | Automation producers for compliance reminders, pledge follow-up, grant reports/milestones, import review, and report approvals |
-| Tw-F5 | Notification event queue and digest delivery driven by task events and `organization_members.notification_prefs` |
+### Shipped / Removed From Open Count
+
+| # | Former Feature | Status |
+|---|----------------|--------|
+| Tw-F1 | ~~Unified org task inbox across grants, compliance, pledges, imports, donor follow-up, and board reporting~~ | Shipped: org task inbox exists at `/org/[orgId]/tasks`; remaining module-specific coverage belongs under the owning module |
+| Tw-F4 | ~~Automation producers for compliance reminders, pledge follow-up, grant reports/milestones, import review, and report approvals~~ | Shipped: producer framework exists for compliance, pledges, grants, imports, and reports |
+| Tw-F5 | ~~Notification event queue and digest delivery driven by task events and `organization_members.notification_prefs`~~ | Shipped: `notification_events`, fanout/send/digest jobs, delivery helpers, and member preferences exist |
 
 Specs:
 
@@ -182,6 +232,13 @@ Specs:
 ---
 
 ## Visualizations / Widgets
+
+### Bugs (P1)
+
+| # | Issue | Location |
+|---|-------|----------|
+| Vis-B1 | Widget APIs and AI widget display paths use a missing `widgets` table, while the active schema only creates `holding_widgets` | `app/api/portfolio/[id]/widgets/**`, `app/api/ai/chat/route.ts`, `app/api/ai/chat/stream/route.ts`, `lib/ai-action-executor.ts` |
+| Vis-B2 | Map/location features depend on missing `holding_locations`, so map routes, holding detail location edits, upload geocoding, and AI `add_location` fail on a clean DB | `app/api/portfolio/[id]/map/route.ts`, `app/dashboard/holdings/[holdingId]/page.tsx`, `app/api/admin/upload/route.ts`, `lib/ai-action-executor.ts` |
 
 ### UX Gaps (P2)
 
@@ -204,6 +261,15 @@ Specs:
 ---
 
 ## Admin / Import
+
+### Bugs (P1)
+
+| # | Issue | Location |
+|---|-------|----------|
+| Adm-B7 | Stale import watchdog calls `mark_stale_import_jobs`, but no active migration creates that RPC | `app/api/admin/imports/watchdog/route.ts`, `lib/import/stale-job-watchdog.ts` |
+| Adm-B8 | Import upload/extract paths use Supabase Storage bucket `imports`, but no active migration creates the bucket or storage policies | `app/api/admin/imports/route.ts`, `lib/import/csv-extractor.ts` |
+| Adm-B9 | Import AI suggestion UI/API uses `import_ai_suggestions`, but no active migration creates the table | `app/admin/imports/[id]/page.tsx`, `app/api/admin/import/ai/suggest/route.ts` |
+| Adm-B10 | Import loader and grant creation still depend on an `investees` table that does not exist in the active schema | `lib/import/loader.ts`, `app/api/org/[orgId]/grants/route.ts` |
 
 ### Bugs (P2)
 
@@ -250,6 +316,7 @@ Shipped 2026-05-16: 14-stage lifecycle, org-scoped CRUD APIs, Pipeline/Table/Cal
 |---|----------|-------|
 | X7 | ~~P2~~ | ~~No grant lifecycle management~~ — **SHIPPED 2026-05-16**: 14-stage lifecycle, decisions, pipeline view, AI tools, task automation |
 | X8 | P3 | No board portal — no structured quarterly reporting pathway for foundations |
+| X9 | P1 | `MODULE_REGISTRY.tables` still lists nonexistent tables across impact tracking, reporting, tax, donor, external data, and compliance modules; generated module docs/tool gating can inherit stale schema assumptions. Currently tracked missing registry refs: `agi_estimates`, `charity_ratings`, `compliance_profiles`, `contributions`, `disqualified_persons`, `donor_communications`, `expenditure_responsibility_grants`, `external_data_cache`, `generated_documents`, `holding_locations`, `holding_news`, `payout_history`, `qualifying_distributions`, `report_schedules`, `report_templates`, `self_dealing_incidents`. |
 
 ---
 
@@ -272,16 +339,17 @@ Shipped 2026-05-16: 14-stage lifecycle, org-scoped CRUD APIs, Pipeline/Table/Cal
 | Module | P1 (correctness) | P2 | P3 | Total |
 |--------|------------------|----|----|-------|
 | Dashboard         | — |  2 | — |  2 |
-| Holdings          | — |  4 | — |  4 |
+| Holdings          | 2 |  4 | — |  6 |
 | Tax Center        | — |  5 | — |  5 |
-| Compliance        | — |  4 | — |  4 |
-| QuickBooks        | — |  3 | — |  3 |
-| Donor CRM         | — |  7 | — |  7 |
-| Charities         | — |  5 | — |  5 |
+| Compliance        | 2 |  4 | — |  6 |
+| QuickBooks        | 1 |  3 | — |  4 |
+| Donor CRM         | 1 |  5 | — |  6 |
+| Charities         | 1 |  5 | — |  6 |
 | AI Assistant      | — |  6 | — |  6 |
-| Visualizations    | — |  2 | 6 |  8 |
-| Admin / Import    | — |  8 | — |  8 |
+| Reporting         | 2 |  — | — |  2 |
+| Visualizations    | 2 |  2 | 6 | 10 |
+| Admin / Import    | 4 |  8 | — | 12 |
 | White-Label / Branding | — |  1 | — |  1 |
-| Task / Workflow Management | — |  3 | — |  3 |
-| Cross-Cutting     | — |  1 | 1 |  2 |
-| **Total**         | **—** | **51** | **7** | **58** |
+| Task / Workflow Management | — |  — | — |  0 |
+| Cross-Cutting     | 1 |  1 | 1 |  3 |
+| **Total**         | **16** | **46** | **7** | **69** |

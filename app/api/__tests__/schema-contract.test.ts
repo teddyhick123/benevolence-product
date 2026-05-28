@@ -54,6 +54,20 @@ const appSrc = readAllSources([
 ]);
 
 const migrationsSrc = readAllSources(['db/migrations'], ['.sql']);
+const moduleRegistrySrc = (() => {
+  try {
+    return readFileSync('lib/modules/registry.ts', 'utf-8');
+  } catch {
+    return '';
+  }
+})();
+const backlogSrc = (() => {
+  try {
+    return readFileSync('docs/module-reviews/FULL-BACKLOG.md', 'utf-8');
+  } catch {
+    return '';
+  }
+})();
 const agentDocsSrc = ['CLAUDE.md', 'AGENTS.md']
   .map(file => {
     try {
@@ -63,6 +77,35 @@ const agentDocsSrc = ['CLAUDE.md', 'AGENTS.md']
     }
   })
   .join('\n');
+
+function extractCreatedRelations(sql: string): Set<string> {
+  const relations = new Set<string>();
+  const patterns = [
+    /CREATE\s+TABLE\s+IF\s+NOT\s+EXISTS\s+(?:public\.)?([a-zA-Z_][a-zA-Z0-9_]*)/gi,
+    /CREATE\s+OR\s+REPLACE\s+VIEW\s+(?:public\.)?([a-zA-Z_][a-zA-Z0-9_]*)/gi,
+    /CREATE\s+VIEW\s+(?:public\.)?([a-zA-Z_][a-zA-Z0-9_]*)/gi,
+  ];
+
+  for (const pattern of patterns) {
+    for (const match of sql.matchAll(pattern)) {
+      relations.add(match[1]);
+    }
+  }
+
+  return relations;
+}
+
+function extractModuleRegistryTables(src: string): Set<string> {
+  const tables = new Set<string>();
+
+  for (const block of src.matchAll(/tables:\s*\[([\s\S]*?)\]/g)) {
+    for (const table of block[1].matchAll(/['"]([a-zA-Z_][a-zA-Z0-9_]*)['"]/g)) {
+      tables.add(table[1]);
+    }
+  }
+
+  return tables;
+}
 
 describe('Schema contract: RPC function names', () => {
   it('no calls to non-existent org_role RPC', () => {
@@ -89,6 +132,24 @@ describe('Schema contract: module storage', () => {
 
   it('agent docs do not describe organization_modules as active storage', () => {
     expect(agentDocsSrc).not.toMatch(/organization_modules` table tracks/i);
+  });
+});
+
+describe('Schema contract: module registry table metadata', () => {
+  const createdRelations = extractCreatedRelations(migrationsSrc);
+  const registryTables = extractModuleRegistryTables(moduleRegistrySrc);
+
+  it('has module table metadata to validate', () => {
+    expect(registryTables.size).toBeGreaterThan(0);
+  });
+
+  it('missing registry table references are explicitly tracked in the backlog', () => {
+    const untrackedMissingTables = Array.from(registryTables)
+      .filter(table => !createdRelations.has(table))
+      .filter(table => !backlogSrc.includes(`\`${table}\``))
+      .sort();
+
+    expect(untrackedMissingTables).toEqual([]);
   });
 });
 

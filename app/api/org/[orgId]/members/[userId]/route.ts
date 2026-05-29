@@ -19,7 +19,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     }
 
     const { role } = await req.json();
-    const validRoles = ['owner', 'admin', 'member', 'viewer'];
+    const validRoles = ['admin', 'member', 'viewer'];
     if (!role || !validRoles.includes(role)) {
       return NextResponse.json({ error: 'Invalid role' }, { status: 400 });
     }

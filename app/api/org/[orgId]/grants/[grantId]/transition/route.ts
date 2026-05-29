@@ -4,6 +4,7 @@ import {
   transitionGrant,
   InvalidTransitionError,
   DecisionRequiredError,
+  GrantNotFoundError,
   type LifecycleStage,
   type DecisionPayload,
 } from '@/lib/grants/lifecycle';
@@ -46,6 +47,9 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
   } catch (err: any) {
     if (err instanceof InvalidTransitionError || err instanceof DecisionRequiredError) {
       return NextResponse.json({ error: err.message }, { status: 422 });
+    }
+    if (err instanceof GrantNotFoundError) {
+      return NextResponse.json({ error: err.message }, { status: 404 });
     }
     return NextResponse.json({ error: err?.message ?? 'Internal error' }, { status: 500 });
   }

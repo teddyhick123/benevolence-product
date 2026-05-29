@@ -86,6 +86,13 @@ export class DecisionRequiredError extends Error {
   }
 }
 
+export class GrantNotFoundError extends Error {
+  constructor(grantId: string) {
+    super(`Grant not found: ${grantId}`);
+    this.name = 'GrantNotFoundError';
+  }
+}
+
 /**
  * Transitions a grant to a new lifecycle stage.
  * Validates the transition, optionally inserts a grant_decisions row,
@@ -108,8 +115,11 @@ export async function transitionGrant(
     .eq('id', grantId)
     .single();
 
-  if (fetchErr || !grant) {
-    throw new Error(fetchErr?.message ?? 'Grant not found');
+  if (fetchErr) {
+    throw new Error(fetchErr.message);
+  }
+  if (!grant) {
+    throw new GrantNotFoundError(grantId);
   }
 
   const fromStage = grant.lifecycle_stage as LifecycleStage;

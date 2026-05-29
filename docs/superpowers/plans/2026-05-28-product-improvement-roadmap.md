@@ -10,18 +10,33 @@
 
 ---
 
+## What Has Shipped Since This Roadmap Was Written
+
+Before reading further, note these items from the original sprint plan are **complete** as of 2026-05-28:
+
+- **Grant Lifecycle Management** — 14-stage lifecycle, org-scoped CRUD, Pipeline/Table/Calendar/Attention views, AI tools, task automation, decisions, transitions, export. This was Phase 2.3 and the "Sprint D" item in MASTER-SUMMARY.
+- **Task / Workflow / Approvals** — org task inbox, automation producer framework, notification event queue, fanout/send/digest jobs, member notification preferences.
+- **Tax Center hardening** — canonical schema, signed URLs for all document storage, admin-client storage operations, CPA sharing schema (Phase A), AI tool alignment, export repair.
+- **Test suite** — 261 tests across 11 route files covering auth, contract, business logic, signed-URL security, and lifecycle invariants. Relevant to Task 0.2.
+- **Task 0.1 (backlog hygiene)** — shipped pledge/task foundation items removed from open count. Backlog currently stands at 16 P1 / 46 P2 / 7 P3 = 69 open.
+
+MASTER-SUMMARY (`docs/module-reviews/MASTER-SUMMARY.md`) predates all of the above and still lists Grant Lifecycle and Task/Workflow as missing P0 modules. Treat that document as historical context, not current state.
+
+---
+
 ## Strategy
 
 The product is now broad enough that the main risk is not a single missing feature; it is drift between schema, routes, module registry, AI tools, docs, and backlog. The best path is to make the platform internally coherent before adding more surfaces.
 
 Execution order:
 
-1. Make the backlog truthful and enforceable.
-2. Add guardrails that catch new schema-reference drift.
-3. Resolve P1 schema/product gaps by domain.
-4. Build the core operating system: tasks, compliance, reports, grants, imports.
-5. Layer in relationship, document, board, and integration workflows.
-6. Add advanced analytics and polish once the product foundation is reliable.
+1. ~~Make the backlog truthful and enforceable.~~ **Done (Task 0.1 complete).**
+2. Close no-migration quick wins and security issues immediately (Phase 0.5).
+3. Add guardrails that catch new schema-reference drift.
+4. Resolve P1 schema/product gaps by domain.
+5. Build the core operating system: compliance, reports, imports.
+6. Layer in relationship, document, board, and integration workflows.
+7. Add advanced analytics and polish once the product foundation is reliable.
 
 ---
 
@@ -51,24 +66,106 @@ The P1 list is the execution spine. P2 and P3 work should not be started when it
 
 ---
 
+## Phase 0.5: Quick Wins And Security Issues (No Migrations Required)
+
+**Goal:** Close correctness and security gaps that require no schema changes — single-file or two-file fixes that should ship before any Phase 1 work begins.
+
+### Task 0.5.1: Fix QuickBooks Account Field Name Mismatch
+
+**Backlog:** `QB-B1`
+
+**Files:**
+- `components/integrations/QuickBooksSettings.tsx`
+- `app/api/integrations/quickbooks/accounts/route.ts`
+
+- [ ] Remap UI field references `qb_account_id`, `name`, `type` to match API response fields `qb_id`, `qb_name`, `qb_type` (or normalize in the API response — pick one direction and be consistent).
+
+Acceptance: QB account selector renders actual account names, not `undefined`.
+
+---
+
+### Task 0.5.2: Remove AGI Console Log Leak From Tax Routes
+
+**Files:**
+- `app/api/portfolio/[id]/tax/optimize/route.ts`
+- `app/api/portfolio/[id]/tax/scenarios/route.ts`
+
+- [ ] Remove `console.error` / `console.log` calls that emit raw `adjusted_gross_income` values. AGI is sensitive financial data that must not appear in server logs.
+
+Acceptance: Production logs contain no raw AGI values from these routes.
+
+---
+
+### Task 0.5.3: Fix Donor Acknowledgment Insert Column
+
+**Files:**
+- `app/api/org/[orgId]/acknowledgments/route.ts`
+
+- [ ] Change `contribution_id: args.contribution_id` to `contribution_ids: [args.contribution_id]` (or accept an array upstream). The `acknowledgments` table schema defines `contribution_ids` as a UUID array; the singular insert violates the DB constraint on every write.
+
+Acceptance: Creating an acknowledgment from the UI inserts a row successfully.
+
+---
+
+### Task 0.5.4: Replace Donor PDF Public URL With Signed URL
+
+**Files:**
+- `app/api/org/[orgId]/acknowledgments/[id]/generate-pdf/route.ts` (or wherever the PDF URL is returned)
+
+- [ ] Replace `getPublicUrl()` with `createSignedUrl(path, 3600)` for acknowledgment PDFs. Donor names, addresses, and giving amounts must not be accessible via an unauthenticated permanent URL. Pattern already established in Tax Center document routes.
+
+Acceptance: Acknowledgment PDF links are signed, expire in 1 hour, and are not guessable permanent URLs.
+
+---
+
+### Task 0.5.5: Fix Timeline Cross-Portfolio Data Leak
+
+**Backlog:** Add as `Vis-B3` (P0 security)
+
+**Files:**
+- `app/api/portfolio/[id]/timeline/route.ts`
+
+- [ ] Add `.eq('portfolio_id', portfolio_id)` filter to the `events` table query at line 46. Without it, the endpoint returns events across all organizations to any authenticated user.
+
+Acceptance: Timeline API returns only events belonging to the requested portfolio.
+
+---
+
+### Task 0.5.6: Elevate QuickBooks Token Encryption To P1
+
+**Files:**
+- `app/api/integrations/quickbooks/callback/route.ts` (or wherever tokens are stored)
+- Relevant migration for `quickbooks_connections`
+
+- [ ] Encrypt access tokens before storing in the `TEXT` column, or use Supabase Vault. Plaintext OAuth tokens in Postgres are a compliance risk for any fiduciary-grade product. This does not require a new table — it requires an encryption layer on the existing write path.
+
+Acceptance: `quickbooks_connections` rows never contain plaintext access tokens.
+
+---
+
+### Task 0.5.7: Note CPA Collaboration Portal Status
+
+**Files:**
+- `components/tax/CPACollaborationPortal.tsx`
+- `lib/tax/cpa-collaboration.ts`
+
+- [ ] The portal is fully built (schema 0043, Phase A token hashing complete, tested). It is blocked behind `const cpaCollaborationEnabled = false`. Make an explicit decision: set to `true` when Phase B (rate limiting, email delivery) is scoped, OR document the flag as a deliberate hold with a clear trigger condition.
+- [ ] Fix the hardcoded `app.benevolence.com` URL in `lib/tax/cpa-collaboration.ts:64` — replace with an environment variable.
+
+Acceptance: The flag is documented with a trigger condition and the URL is configurable.
+
+---
+
 ## Phase 0: Backlog Hygiene And Guardrails
 
 **Goal:** Make the backlog a reliable execution source and add tests that stop new schema drift.
 
-### Task 0.1: Remove Shipped Items From Open Backlog Counts
+### Task 0.1: Remove Shipped Items From Open Backlog Counts ✅ COMPLETE
 
 **Files:**
 - `docs/module-reviews/FULL-BACKLOG.md`
 
-- [ ] Move pledge tracking UI items out of active Donor CRM gaps now that pledge dashboard, create modal, detail panel, donor profile integration, and org settings toggle exist.
-- [ ] Move task inbox, automation producer, and notification event queue items out of active Task / Workflow gaps now that the foundation exists.
-- [ ] Update issue counts to the active open count.
-- [ ] Keep shipped history visible so future reviewers understand why the count changed.
-
-Acceptance:
-
-- The backlog no longer presents shipped pledge/task foundation work as open.
-- The count summary matches the active open tables.
+Done 2026-05-28. Pledge tracking, task foundation, and grant lifecycle items moved to shipped history. Backlog currently at 16 P1 / 46 P2 / 7 P3 = 69 open.
 
 ### Task 0.2: Add Schema Reference Guardrails
 
@@ -191,6 +288,8 @@ Acceptance:
 
 **Backlog:** `Dr-B1`
 
+Note: `Dr-B2` (acknowledgment insert column fix) and `Dr-B3` (PDF signed URL) are handled in Phase 0.5 Tasks 0.5.3 and 0.5.4 above — they require no schema changes.
+
 - [ ] Add `v_contribution_with_donor` or rewrite donor components to canonical contribution queries.
 - [ ] Add `donor_communications` if communications are part of the CRM surface.
 - [ ] Add contract tests for donor dashboard/detail queries.
@@ -201,15 +300,16 @@ Acceptance:
 
 ### Task 1.8: External Charity And QuickBooks Integrity
 
-**Backlog:** `Ch-B1`, `QB-B1`
+**Backlog:** `Ch-B1`
 
-- [ ] Add external cache tables/RPCs or disable caching paths until schema exists.
-- [ ] Align QuickBooks account API/UI field names.
-- [ ] Add tests covering cache paths and QuickBooks account payload shape.
+Note: `QB-B1` (account field name mismatch) is a no-migration fix handled in Phase 0.5 Task 0.5.1. QuickBooks token encryption is Task 0.5.6.
+
+- [ ] Add external cache tables/RPCs (`charity_rating_cache`, `geocode_cache`, `get_geocode_cache_stats`, `clean_expired_geocode_cache`) or disable caching paths until schema exists.
+- [ ] Add tests covering cache paths.
 
 Acceptance:
 
-- External enrichment/geocoding and QuickBooks account selectors do not fail or render undefined values.
+- External enrichment/geocoding cache paths do not fail on a clean DB.
 
 ---
 
@@ -325,8 +425,11 @@ Do not start a P2 feature that depends on unresolved P1 schema. Fix or hide the 
 
 ## Immediate Execution Queue
 
-1. Task 0.1: Backlog shipped-item cleanup.
-2. Task 0.2: Backlog-aware schema reference guardrail tests.
-3. Task 1.1: Module registry/table canon.
-4. Task 1.2: Reporting schema and export repair.
-5. Task 1.3: Widgets and locations schema decision.
+1. ~~Task 0.1: Backlog shipped-item cleanup.~~ **Done.**
+2. **Phase 0.5 quick wins (no migrations):** QB-B1 field names, AGI console log, acknowledgment insert, donor PDF signed URL, timeline portfolio_id filter, QB token encryption, CPA portal URL.
+3. Task 0.2: Backlog-aware schema reference guardrail tests. (261-test baseline already in place from 2026-05-28 sprint.)
+4. Task 1.1: Module registry/table canon.
+5. Task 1.3: Widgets and locations schema decision (Vis-B1, Vis-B2 — affects dashboard).
+6. Task 1.2: Reporting schema and export repair (R-B1, R-B2).
+
+**Do not start Phase 2 items until all Phase 1 P1 schema gaps are fixed or explicitly hidden.**

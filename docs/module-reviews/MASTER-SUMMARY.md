@@ -1,6 +1,16 @@
 # Benevolence Module Review — Master Summary
 
-Reviewed: 2026-04-26 | Updated: 2026-04-30 (Sprint A complete)
+> ⚠️ **This document is historical context only.** It was written 2026-04-26 and reflects the product state before Sprints B–D. The following items listed here as missing or critical have since shipped:
+>
+> - **Grant Lifecycle Management** — 14-stage lifecycle, org-scoped APIs, Pipeline/Table/Calendar/Attention views, AI tools, decisions, transitions, export. Listed here as a missing P0 module. **Shipped 2026-05-16.**
+> - **Task / Workflow / Approvals** — task inbox, automation producer framework, notification event queue, digest delivery. Listed here as a missing P0 module. **Shipped 2026-05-15.**
+> - **Tax Center hardening** — canonical schema, signed URLs, admin-client storage, CPA sharing schema (Phase A), AI tool alignment, export repair. **Shipped 2026-05-28.**
+> - **Test suite** — 261 tests covering auth, contract, business logic, security invariants. **Added 2026-05-28.**
+> - Several Sprint B critical bugs (see below) may be fixed; verify before acting on them.
+>
+> For current product state, use `docs/module-reviews/FULL-BACKLOG.md` and the roadmap at `docs/superpowers/plans/2026-05-28-product-improvement-roadmap.md`.
+
+Reviewed: 2026-04-26 | Updated: 2026-04-30 (Sprint A complete) | Staleness notice added: 2026-05-28
 Scope: All 10 active product modules, reviewed by parallel subagent inspection of source code.
 Individual reviews: `docs/module-reviews/*.md`
 

@@ -1,6 +1,6 @@
 # Impact Platform — Open Backlog
 
-**Status:** Backlog reconciled 2026-05-15 after brand-agnostic pass and task/workflow sweep. Updated 2026-05-19 with a codebase/schema alignment sweep. Updated 2026-05-28 to remove shipped pledge/task foundation items from the open count.
+**Status:** Backlog reconciled 2026-05-15 after brand-agnostic pass and task/workflow sweep. Updated 2026-05-19 with a codebase/schema alignment sweep. Updated 2026-05-28 to remove shipped pledge/task foundation items from open count and add security bugs (Vis-B3, QB-B2, Dr-B2, Dr-B3) surfaced by roadmap review.
 
 For resolved-issue history, see `git log docs/module-reviews/FULL-BACKLOG.md` and individual `*-review.md` files in this directory.
 
@@ -102,6 +102,7 @@ For resolved-issue history, see `git log docs/module-reviews/FULL-BACKLOG.md` an
 | # | Issue | Location |
 |---|-------|----------|
 | QB-B1 | Settings UI expects account fields `qb_account_id`, `name`, and `type`, but the accounts API returns `qb_id`, `qb_name`, and `qb_type`, leaving account selects with undefined values | `components/integrations/QuickBooksSettings.tsx`, `app/api/integrations/quickbooks/accounts/route.ts` |
+| QB-B2 | OAuth access tokens stored as plaintext `TEXT` in `quickbooks_connections` — credential exposure risk for a fiduciary product. Requires encryption-at-rest layer or Supabase Vault on the write path. | `app/api/integrations/quickbooks/callback/route.ts` |
 
 ### Missing Features (P2–P3)
 
@@ -120,6 +121,8 @@ For resolved-issue history, see `git log docs/module-reviews/FULL-BACKLOG.md` an
 | # | Issue | Location |
 |---|-------|----------|
 | Dr-B1 | Donor dashboard/detail surfaces query `v_contribution_with_donor` and `donor_communications`, but no active migration creates them | `components/donors/DonorDashboard.tsx`, `components/donors/DonorDetail.tsx` |
+| Dr-B2 | Acknowledgment route inserts `contribution_id` (singular UUID) but the `acknowledgments` table schema defines `contribution_ids` (UUID array) — every new acknowledgment write fails at the DB constraint. No-migration fix: change to `contribution_ids: [args.contribution_id]`. | `app/api/org/[orgId]/acknowledgments/route.ts` |
+| Dr-B3 | Acknowledgment PDFs returned via `getPublicUrl()` — produces an unauthenticated permanent URL exposing donor names, addresses, and giving amounts to anyone with the link. Replace with `createSignedUrl(path, 3600)` per the Tax Center pattern. | `app/api/org/[orgId]/acknowledgments/[id]/generate-pdf/route.ts` |
 
 ### UX Gaps (P2)
 
@@ -239,6 +242,7 @@ Specs:
 |---|-------|----------|
 | Vis-B1 | Widget APIs and AI widget display paths use a missing `widgets` table, while the active schema only creates `holding_widgets` | `app/api/portfolio/[id]/widgets/**`, `app/api/ai/chat/route.ts`, `app/api/ai/chat/stream/route.ts`, `lib/ai-action-executor.ts` |
 | Vis-B2 | Map/location features depend on missing `holding_locations`, so map routes, holding detail location edits, upload geocoding, and AI `add_location` fail on a clean DB | `app/api/portfolio/[id]/map/route.ts`, `app/dashboard/holdings/[holdingId]/page.tsx`, `app/api/admin/upload/route.ts`, `lib/ai-action-executor.ts` |
+| Vis-B3 | **Security:** Timeline route at `app/api/portfolio/[id]/timeline/route.ts:46` queries the `events` table with no `portfolio_id` filter — returns events across all organizations to any authenticated user. No-migration fix: add `.eq('portfolio_id', portfolio_id)` | `app/api/portfolio/[id]/timeline/route.ts` |
 
 ### UX Gaps (P2)
 
@@ -336,20 +340,22 @@ Shipped 2026-05-16: 14-stage lifecycle, org-scoped CRUD APIs, Pipeline/Table/Cal
 
 ## Issue Count Summary
 
+_Updated 2026-05-28: added Vis-B3 (timeline data leak), QB-B2 (plaintext token storage), Dr-B2 (acknowledgment insert), Dr-B3 (donor PDF PII)._
+
 | Module | P1 (correctness) | P2 | P3 | Total |
 |--------|------------------|----|----|-------|
 | Dashboard         | — |  2 | — |  2 |
 | Holdings          | 2 |  4 | — |  6 |
 | Tax Center        | — |  5 | — |  5 |
 | Compliance        | 2 |  4 | — |  6 |
-| QuickBooks        | 1 |  3 | — |  4 |
-| Donor CRM         | 1 |  5 | — |  6 |
+| QuickBooks        | 2 |  3 | — |  5 |
+| Donor CRM         | 3 |  5 | — |  8 |
 | Charities         | 1 |  5 | — |  6 |
 | AI Assistant      | — |  6 | — |  6 |
 | Reporting         | 2 |  — | — |  2 |
-| Visualizations    | 2 |  2 | 6 | 10 |
+| Visualizations    | 3 |  2 | 6 | 11 |
 | Admin / Import    | 4 |  8 | — | 12 |
 | White-Label / Branding | — |  1 | — |  1 |
 | Task / Workflow Management | — |  — | — |  0 |
 | Cross-Cutting     | 1 |  1 | 1 |  3 |
-| **Total**         | **16** | **46** | **7** | **69** |
+| **Total**         | **20** | **46** | **7** | **73** |

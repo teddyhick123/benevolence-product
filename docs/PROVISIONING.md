@@ -149,29 +149,42 @@ In Vercel dashboard, add all environment variables from `.env.local`
 ## Step 6: Initial Data Setup
 
 ### 6.1 Create Admin User
-1. Client signs up through the app
-2. In Supabase dashboard, update their user role:
-```sql
-UPDATE auth.users
-SET raw_app_meta_data = raw_app_meta_data || '{"role": "admin"}'::jsonb
-WHERE email = 'admin@client.com';
-```
+1. Client signs up through the app and completes onboarding (creates their org).
+2. Bootstrap app-admin access by calling the bootstrap endpoint once:
+   ```bash
+   curl -X POST https://your-app.vercel.app/api/admin/bootstrap \
+     -H "Cookie: <session cookie>"
+   ```
+   This only succeeds when no app admin exists yet — idempotent and safe.
+3. Alternatively, set directly in Supabase SQL editor:
+   ```sql
+   UPDATE public.profiles SET is_app_admin = true
+   WHERE id = (SELECT id FROM auth.users WHERE email = 'admin@client.com');
+   ```
 
 ### 6.2 Create Organization
-Either through onboarding flow or manually:
+Preferred: use the onboarding flow — it calls `provision_organization()` which creates
+the org, adds the owner, and sets default modules in one transaction.
+
+Manual (SQL editor):
 ```sql
-INSERT INTO organizations (id, name, type)
-VALUES (gen_random_uuid(), 'Client Organization', 'foundation');
+SELECT provision_organization(
+  'Client Organization',
+  'private_foundation',   -- org_type_enum value
+  '<owner-user-uuid>',
+  NULL,                   -- EIN (optional)
+  NULL                    -- modules JSONB (null = org-type defaults)
+);
 ```
 
-### 6.3 Enable Modules
-Based on client needs:
+### 6.3 Enable or Change Modules
+Modules are stored as a JSONB object in `organizations.modules` — there is no
+`organization_modules` table. Update via the org settings UI at `/org/[orgId]/settings/modules`,
+or directly in SQL:
 ```sql
-INSERT INTO organization_modules (organization_id, module_id, enabled_by)
-SELECT
-  'org-uuid-here',
-  unnest(ARRAY['impact_tracking', 'reporting', 'grant_management']),
-  'admin-user-uuid';
+UPDATE public.organizations
+SET modules = modules || '{"grant_management": true, "impact_tracking": true}'::jsonb
+WHERE id = 'org-uuid-here';
 ```
 
 ---

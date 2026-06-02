@@ -33,7 +33,7 @@ Create a `.env` file in the root of the `benevolence-product` directory and popu
 | -------------------------------- | -------- | ------------------------------------------------------------------------------ |
 | `NEXT_PUBLIC_SUPABASE_URL`       | Yes      | Your Supabase project URL (e.g., `https://abcdefghjklmno.supabase.co`)         |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY`  | Yes      | Your Supabase anon/public key                                                  |
-| `SUPABASE_SERVICE_ROLE_KEY`      | Yes      | Your Supabase service role key (for server-side operations)                     |
+| `SUPABASE_SERVICE_ROLE`          | Yes      | Your Supabase service role key (for server-side operations)                     |
 | `AI_PROVIDER`                    | No       | AI provider to use. Defaults to `anthropic`                                    |
 | `ANTHROPIC_API_KEY`              | Yes*     | Required when `AI_PROVIDER=anthropic`                                          |
 | `QB_CLIENT_ID`                   | No       | QuickBooks app client ID (for integration)                                    |
@@ -78,8 +78,19 @@ Access the application at `http://localhost:3000`.
 ## First Login and Setup
 
 1.  **Create an Account:** Navigate to your deployed application's URL and create a new user account via the sign-up page.
-2.  **Promote to Admin:** An existing administrator must promote the newly created user to an admin role within the admin panel.
-3.  **Load Demo Data (if not done):** If you haven't already, ensure demo data is loaded to populate the portfolio for the user. This step can also be performed after the user logs in if needed.
+2.  **Complete Onboarding:** Follow the onboarding flow to create your organization and initial portfolio.
+3.  **Bootstrap Admin Access:** On a fresh deployment with no existing admin, call the bootstrap endpoint to promote yourself:
+    ```bash
+    curl -X POST https://your-app.vercel.app/api/admin/bootstrap \
+      -H "Cookie: <your session cookie>"
+    ```
+    Or from the browser console after logging in:
+    ```js
+    await fetch('/api/admin/bootstrap', { method: 'POST' }).then(r => r.json())
+    ```
+    This endpoint only works when **no app admin exists yet** — it is a no-op (returns 403) on any subsequent call, so it cannot be used to self-promote after an admin is established.
+4.  **Load Demo Data (optional):** In the admin console at `/admin`, use "Load Demo Data" to populate sample holdings and metrics.
+5.  **Invite Users:** From the admin console, create additional user accounts and assign them to your organization.
 
 ## Deploying for a Client
 

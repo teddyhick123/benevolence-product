@@ -1,6 +1,6 @@
 # Impact Platform — Open Backlog
 
-**Status:** Backlog reconciled 2026-05-15 after brand-agnostic pass and task/workflow sweep. Updated 2026-05-19 with a codebase/schema alignment sweep. Updated 2026-05-28 to remove shipped pledge/task foundation items from open count and add security bugs (Vis-B3, QB-B2, Dr-B2, Dr-B3) surfaced by roadmap review. Updated 2026-06-02: Phase 1 P1 schema gap sprint — closed 13 P1s (X9, Vis-B1, Vis-B2, R-B1, R-B2, H-B1, H-B2, Cm-B1, Cm-B2, QB-B1, Dr-B1–B3, Ch-B1, Adm-B7–B10). 2 P1s remain: QB-B2 (token encryption), Vis-B3 (timeline RLS gap).
+**Status:** Backlog reconciled 2026-05-15 after brand-agnostic pass and task/workflow sweep. Updated 2026-05-19 with a codebase/schema alignment sweep. Updated 2026-05-28 to remove shipped pledge/task foundation items from open count and add security bugs (Vis-B3, QB-B2, Dr-B2, Dr-B3) surfaced by roadmap review. Updated 2026-06-02: Phase 1 P1 sprint complete — all 15 P1s resolved across 8 commits (migrations 0044–0051). Zero open P1s remain; 53 items open (all P2/P3).
 
 For resolved-issue history, see `git log docs/module-reviews/FULL-BACKLOG.md` and individual `*-review.md` files in this directory.
 
@@ -102,7 +102,7 @@ For resolved-issue history, see `git log docs/module-reviews/FULL-BACKLOG.md` an
 | # | Issue | Location |
 |---|-------|----------|
 | ~~QB-B1~~ | ~~Settings UI expects account fields `qb_account_id`, `name`, and `type`, but the accounts API returns `qb_id`, `qb_name`, and `qb_type`, leaving account selects with undefined values~~ | **FIXED 2026-06-02**: updated `QBAccount` interface and all 6 field references in `QuickBooksSettings.tsx` to use `qb_id/qb_name/qb_type`. |
-| QB-B2 | OAuth access tokens stored as plaintext `TEXT` in `quickbooks_connections` — credential exposure risk for a fiduciary product. Requires encryption-at-rest layer or Supabase Vault on the write path. | `app/api/integrations/quickbooks/callback/route.ts` |
+| ~~QB-B2~~ | ~~OAuth access tokens stored as plaintext `TEXT` in `quickbooks_connections`~~ | **ALREADY FIXED** (verified 2026-06-02): `lib/integrations/quickbooks/token-crypto.ts` implements AES-256-GCM encryption; callback encrypts on write; `client.ts` and disconnect route decrypt with `isEncrypted()` guard for legacy rows. Requires `QB_TOKEN_ENCRYPTION_KEY` env var (32-byte hex). |
 
 ### Missing Features (P2–P3)
 
@@ -242,7 +242,7 @@ Specs:
 |---|-------|----------|
 | ~~Vis-B1~~ | ~~Widget APIs use missing `widgets` table~~ | **FIXED 2026-06-02**: created `widgets` table (migration 0044); updated `executor.ts` and `context.ts` to use `widgets` for portfolio-level operations; fixed `holding_widgets` schema in migration 0006 (was using wrong `portfolio_id/widget_type` columns — now `holding_id/type/title/position`). |
 | ~~Vis-B2~~ | ~~Map/location features depend on missing `holding_locations`~~ | **FIXED 2026-06-02**: created `holding_locations` table with `holding_id, portfolio_id, name, status, lat, lon, tags` (migration 0044). Map route already gracefully degraded so no route changes needed. |
-| Vis-B3 | **Security:** Timeline route at `app/api/portfolio/[id]/timeline/route.ts:46` queries the `events` table with no `portfolio_id` filter — returns events across all organizations to any authenticated user. No-migration fix: add `.eq('portfolio_id', portfolio_id)` | `app/api/portfolio/[id]/timeline/route.ts` |
+| ~~Vis-B3~~ | ~~**Security:** Timeline route queries `events` table with no `portfolio_id` filter~~ | **FIXED 2026-06-02**: migration 0051 creates `events` table with RLS policy scoping reads to users who can view a portfolio holding that investee — prevents cross-org exposure even for shared investees. Existing `IN (portfolioInvesteeIds)` filter in the route provides defense-in-depth. |
 
 ### UX Gaps (P2)
 
@@ -340,7 +340,7 @@ Shipped 2026-05-16: 14-stage lifecycle, org-scoped CRUD APIs, Pipeline/Table/Cal
 
 ## Issue Count Summary
 
-_Updated 2026-06-02: fixed H-B1/B2 (holdings analytics views/table), Cm-B1/B2 (compliance tables/views), QB-B1 (QBAccount field names), Dr-B1/B2/B3 (donor comms table+view, already-fixed acknowledgment bugs), Ch-B1 (geocode/rating cache), Adm-B7–B10 (import RPC, bucket, ai_suggestions, investees). 13 P1s closed this sprint._
+_Updated 2026-06-02: Phase 1 P1 sprint complete — all 15 open P1s resolved. QB-B2 and Vis-B3 verified/fixed (QB encryption already in place; events table created with investee-scoped RLS in migration 0051)._
 
 | Module | P1 (correctness) | P2 | P3 | Total |
 |--------|------------------|----|----|-------|
@@ -348,14 +348,14 @@ _Updated 2026-06-02: fixed H-B1/B2 (holdings analytics views/table), Cm-B1/B2 (c
 | Holdings          | — |  4 | — |  4 |
 | Tax Center        | — |  5 | — |  5 |
 | Compliance        | — |  4 | — |  4 |
-| QuickBooks        | 1 |  3 | — |  4 |
+| QuickBooks        | — |  3 | — |  3 |
 | Donor CRM         | — |  5 | — |  5 |
 | Charities         | — |  5 | — |  5 |
 | AI Assistant      | — |  6 | — |  6 |
 | Reporting         | — |  — | — |  0 |
-| Visualizations    | 1 |  2 | 6 |  9 |
+| Visualizations    | — |  2 | 6 |  8 |
 | Admin / Import    | — |  8 | — |  8 |
 | White-Label / Branding | — |  1 | — |  1 |
 | Task / Workflow Management | — |  — | — |  0 |
 | Cross-Cutting     | — |  1 | 1 |  2 |
-| **Total**         | **2** | **46** | **7** | **55** |
+| **Total**         | **0** | **46** | **7** | **53** |

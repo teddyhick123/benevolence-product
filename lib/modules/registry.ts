@@ -38,6 +38,8 @@ export const MODULE_REGISTRY: Record<ModuleId, ModuleDefinition> = {
       'portfolio_members',
       'organizations',
       'organization_members',
+      'investees',
+      'import_ai_suggestions',
     ],
     routes: [
       '/dashboard',
@@ -259,7 +261,7 @@ Payment tracking includes scheduled, approved, and completed disbursements.
       'donors',
       'contributions_received',
       'acknowledgment_letters',
-      // donor_communications not yet created — tracked as Dr-B1
+      'donor_communications',
     ],
     routes: [
       '/dashboard/donors',
@@ -312,7 +314,8 @@ Pledge tracking is enabled. Pledge AI tools are not available in this release.
       'charities',
       'news_articles',
       'portfolio_charities',
-      // external_data_cache, holding_news, charity_ratings do not exist — tracked as Ch-B1
+      'charity_rating_cache',
+      'geocode_cache',
     ],
     routes: [],
     systemPromptAddition: `
@@ -349,6 +352,7 @@ External data sources:
       'metric_projections_cache',
       'portfolio_risk_snapshots',
       'analytics_insights',
+      'generated_financial_analyses',
     ],
     routes: [
       '/dashboard/analytics',
@@ -412,8 +416,12 @@ Insights are categorized by:
       'filing_calendar',
       'state_registrations',
       'foundation_990pf_data',
-      // compliance_profiles, disqualified_persons, self_dealing_incidents — tracked as Cm-B1
-      // expenditure_responsibility_grants, qualifying_distributions, payout_history — tracked as Cm-B2
+      'compliance_profiles',
+      'disqualified_persons',
+      'self_dealing_incidents',
+      'expenditure_responsibility_grants',
+      'qualifying_distributions',
+      'payout_history',
     ],
     routes: [
       '/dashboard/compliance',

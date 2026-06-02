@@ -16,9 +16,9 @@ interface QBStatus {
 
 interface QBAccount {
   id: string;
-  qb_account_id: string;
-  name: string;
-  type: string;
+  qb_id: string;
+  qb_name: string;
+  qb_type: string;
 }
 
 interface SyncLogEntry {
@@ -94,12 +94,12 @@ export default function QuickBooksSettings({ orgId }: Props) {
     if (accounts.length === 0) return;
     const expenseAcct = accounts.find(
       (a) =>
-        a.type === 'Expense' &&
-        a.name.toLowerCase().includes('charit')
+        a.qb_type === 'Expense' &&
+        a.qb_name.toLowerCase().includes('charit')
     );
-    const bankAcct = accounts.find((a) => a.type === 'Bank');
-    if (expenseAcct && !expenseAccountId) setExpenseAccountId(expenseAcct.qb_account_id);
-    if (bankAcct && !bankAccountId) setBankAccountId(bankAcct.qb_account_id);
+    const bankAcct = accounts.find((a) => a.qb_type === 'Bank');
+    if (expenseAcct && !expenseAccountId) setExpenseAccountId(expenseAcct.qb_id);
+    if (bankAcct && !bankAccountId) setBankAccountId(bankAcct.qb_id);
   }, [accounts, expenseAccountId, bankAccountId]);
 
   function showMsg(type: 'success' | 'error', text: string) {
@@ -408,10 +408,10 @@ export default function QuickBooksSettings({ orgId }: Props) {
                   >
                     <option value="">Select account…</option>
                     {accounts
-                      .filter((a) => a.type === 'Expense')
+                      .filter((a) => a.qb_type === 'Expense')
                       .map((a) => (
-                        <option key={a.qb_account_id} value={a.qb_account_id}>
-                          {a.name}
+                        <option key={a.qb_id} value={a.qb_id}>
+                          {a.qb_name}
                         </option>
                       ))}
                   </select>
@@ -427,10 +427,10 @@ export default function QuickBooksSettings({ orgId }: Props) {
                   >
                     <option value="">Select account…</option>
                     {accounts
-                      .filter((a) => ['Bank', 'Credit Card'].includes(a.type))
+                      .filter((a) => ['Bank', 'Credit Card'].includes(a.qb_type))
                       .map((a) => (
-                        <option key={a.qb_account_id} value={a.qb_account_id}>
-                          {a.name}
+                        <option key={a.qb_id} value={a.qb_id}>
+                          {a.qb_name}
                         </option>
                       ))}
                   </select>

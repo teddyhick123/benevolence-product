@@ -131,19 +131,20 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
 
     case 'contributions': {
       const { data, error } = await sb
-        .from('contributions')
+        .from('tax_contributions')
         .select(`
           id,
           holding_id,
           holdings(name),
           contribution_date,
-          amount,
-          asset_type,
+          amount_usd,
+          contribution_type,
           cost_basis,
           fair_market_value,
-          acquisition_date,
+          date_acquired,
           tax_year,
-          status,
+          recipient_name,
+          recipient_ein,
           notes,
           created_at
         `)
@@ -157,38 +158,37 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
         holding_id: c.holding_id,
         holding_name: c.holdings?.name,
         contribution_date: c.contribution_date,
-        amount: c.amount,
-        asset_type: c.asset_type,
+        amount_usd: c.amount_usd,
+        contribution_type: c.contribution_type,
         cost_basis: c.cost_basis,
         fair_market_value: c.fair_market_value,
-        acquisition_date: c.acquisition_date,
+        date_acquired: c.date_acquired,
         tax_year: c.tax_year,
-        status: c.status,
+        recipient_name: c.recipient_name,
+        recipient_ein: c.recipient_ein,
         notes: c.notes,
         created_at: c.created_at,
       }));
       filename = `contributions_export_${new Date().toISOString().split('T')[0]}`;
-      columns = ['id', 'holding_id', 'holding_name', 'contribution_date', 'amount', 'asset_type', 'cost_basis', 'fair_market_value', 'acquisition_date', 'tax_year', 'status', 'notes', 'created_at'];
+      columns = ['id', 'holding_id', 'holding_name', 'contribution_date', 'amount_usd', 'contribution_type', 'cost_basis', 'fair_market_value', 'date_acquired', 'tax_year', 'recipient_name', 'recipient_ein', 'notes', 'created_at'];
       break;
     }
 
     case 'transactions': {
       const { data, error } = await sb
-        .from('transactions')
+        .from('holding_transactions')
         .select(`
           id,
           holding_id,
-          holdings(name),
+          holdings!inner(name, portfolio_id),
           transaction_date,
           transaction_type,
           amount,
-          shares,
-          price_per_share,
-          fees,
+          currency,
           notes,
           created_at
         `)
-        .eq('portfolio_id', portfolio_id)
+        .eq('holdings.portfolio_id', portfolio_id)
         .order('transaction_date', { ascending: false });
 
       if (error) throw new Error(error.message);
@@ -200,14 +200,12 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
         transaction_date: t.transaction_date,
         transaction_type: t.transaction_type,
         amount: t.amount,
-        shares: t.shares,
-        price_per_share: t.price_per_share,
-        fees: t.fees,
+        currency: t.currency,
         notes: t.notes,
         created_at: t.created_at,
       }));
       filename = `transactions_export_${new Date().toISOString().split('T')[0]}`;
-      columns = ['id', 'holding_id', 'holding_name', 'transaction_date', 'transaction_type', 'amount', 'shares', 'price_per_share', 'fees', 'notes', 'created_at'];
+      columns = ['id', 'holding_id', 'holding_name', 'transaction_date', 'transaction_type', 'amount', 'currency', 'notes', 'created_at'];
       break;
     }
 

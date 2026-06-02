@@ -199,8 +199,8 @@ For resolved-issue history, see `git log docs/module-reviews/FULL-BACKLOG.md` an
 
 | # | Issue | Location |
 |---|-------|----------|
-| R-B1 | Reporting APIs depend on missing `report_templates`, `generated_documents`, `report_schedules`, and `generate_share_token`; template save/list, report generation, document listing, schedules, and public share links fail on a clean DB | `app/api/portfolio/[id]/reports/**` |
-| R-B2 | Reporting export still queries legacy `contributions` and `transactions` tables instead of canonical `tax_contributions` / `holding_transactions` or donor contribution tables | `app/api/portfolio/[id]/reports/export/route.ts` |
+| ~~R-B1~~ | ~~Reporting APIs depend on missing `report_templates`, `generated_documents`, `report_schedules`, and `generate_share_token`~~ | **FIXED 2026-06-02**: created all three tables plus `generate_share_token()` RPC in migration 0045. |
+| ~~R-B2~~ | ~~Reporting export queries legacy `contributions` / `transactions` tables~~ | **FIXED 2026-06-02**: export route now queries `tax_contributions` (columns: `amount_usd`, `contribution_type`, `date_acquired`, `recipient_name`, `recipient_ein`) and `holding_transactions` (via `holdings!inner` join for `portfolio_id` filter). |
 
 ---
 
@@ -352,10 +352,10 @@ _Updated 2026-05-28: added Vis-B3 (timeline data leak), QB-B2 (plaintext token s
 | Donor CRM         | 3 |  5 | — |  8 |
 | Charities         | 1 |  5 | — |  6 |
 | AI Assistant      | — |  6 | — |  6 |
-| Reporting         | 2 |  — | — |  2 |
+| Reporting         | — |  — | — |  0 |
 | Visualizations    | 1 |  2 | 6 |  9 |
 | Admin / Import    | 4 |  8 | — | 12 |
 | White-Label / Branding | — |  1 | — |  1 |
 | Task / Workflow Management | — |  — | — |  0 |
 | Cross-Cutting     | — |  1 | 1 |  2 |
-| **Total**         | **17** | **46** | **7** | **70** |
+| **Total**         | **15** | **46** | **7** | **68** |

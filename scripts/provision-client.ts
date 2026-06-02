@@ -36,6 +36,7 @@
 
 import { createClient } from '@supabase/supabase-js';
 import * as fs from 'fs';
+import * as path from 'path';
 
 const APP_NAME = process.env.NEXT_PUBLIC_APP_NAME || 'Impact Platform';
 
@@ -310,6 +311,26 @@ async function main() {
   if (!userId) throw new Error('Could not determine admin user ID');
   console.log(`  User ID: ${userId}`);
 
+  // Step 1b: Grant app-admin to this user
+  console.log('Granting app-admin access…');
+  const { error: adminErr } = await adminClient
+    .from('profiles')
+    .update({ is_app_admin: true })
+    .eq('id', userId);
+  if (adminErr) {
+    // Profile row is created by a DB trigger on user creation — if the user was
+    // just created it may not exist yet. Retry once after a brief wait.
+    await new Promise(r => setTimeout(r, 2000));
+    const { error: retryErr } = await adminClient
+      .from('profiles')
+      .update({ is_app_admin: true })
+      .eq('id', userId);
+    if (retryErr) console.warn(`  Warning: could not set is_app_admin — ${retryErr.message}`);
+    else console.log('  App-admin granted (on retry)');
+  } else {
+    console.log('  App-admin granted');
+  }
+
   // Step 2: Provision org via RPC (creates org + owner membership in one transaction,
   //          picks correct default modules for the org type)
   console.log('Provisioning organization…');
@@ -325,6 +346,54 @@ async function main() {
   if (provisionError) throw new Error(`Failed to provision org: ${provisionError.message}`);
   const orgIdStr = orgId as string;
   console.log(`  Org ID: ${orgIdStr}`);
+
+  // Step 3: Run all migrations
+  console.log('\nRunning database migrations…');
+  const accessToken = process.env.SUPABASE_ACCESS_TOKEN;
+  const projectRef = supabaseUrl.match(/https:\/\/([a-z0-9]+)\.supabase\.co/)?.[1];
+
+  if (projectRef && accessToken) {
+    const migrationsDir = path.join(__dirname, '..', 'db', 'migrations');
+    const migrationFiles = fs.readdirSync(migrationsDir)
+      .filter(f => f.endsWith('.sql') && /^\d{4}_/.test(f))
+      .sort();
+
+    let applied = 0;
+    let failed = 0;
+    for (const filename of migrationFiles) {
+      const sql = fs.readFileSync(path.join(migrationsDir, filename), 'utf-8');
+      process.stdout.write(`  ${filename}… `);
+      try {
+        const res = await fetch(`https://api.supabase.com/v1/projects/${projectRef}/database/query`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ query: sql }),
+        });
+        if (!res.ok) {
+          const err = await res.text();
+          console.log('FAILED');
+          console.error(`    ${err}`);
+          failed++;
+        } else {
+          console.log('OK');
+          applied++;
+        }
+      } catch (err: any) {
+        console.log('FAILED');
+        console.error(`    ${err.message}`);
+        failed++;
+      }
+    }
+    console.log(`\n  Migrations: ${applied} applied, ${failed} failed`);
+    if (failed > 0) console.warn('  Warning: some migrations failed — check output above');
+  } else if (mode === 'demo') {
+    console.log('  Skipping migrations in demo mode — run `pnpm migrate-client` separately if needed.');
+  } else {
+    console.warn('  Warning: could not run migrations (need SUPABASE_ACCESS_TOKEN + parseable project URL)');
+  }
 
   // Write .env file
   const envFile = `deployment-${slug}.env`;

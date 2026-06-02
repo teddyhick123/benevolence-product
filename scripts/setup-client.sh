@@ -94,14 +94,41 @@ fi
 
 echo ""
 echo "=================================================="
-echo "  Configuration Complete!"
+echo "  Running database migrations…"
+echo "=================================================="
+echo ""
+
+# Run all migrations via Supabase Management API (requires SUPABASE_ACCESS_TOKEN)
+# or fall back to instructions if not available.
+read -p "Supabase Management API token (from supabase.com/dashboard/account/tokens, or press enter to skip): " access_token
+
+if [ -n "$access_token" ]; then
+  SUPABASE_URL="$supabase_url" \
+  SUPABASE_ACCESS_TOKEN="$access_token" \
+  SUPABASE_SERVICE_KEY="$supabase_service" \
+  npx --yes ts-node --project "$(dirname "$0")/../tsconfig.scripts.json" \
+    "$(dirname "$0")/migrate-client.ts" --to latest
+else
+  echo ""
+  echo "Skipped. Run migrations manually when ready:"
+  echo "  SUPABASE_URL=$supabase_url \\"
+  echo "  SUPABASE_ACCESS_TOKEN=<token> \\"
+  echo "  pnpm migrate-client --to latest"
+fi
+
+echo ""
+echo "=================================================="
+echo "  Setup Complete!"
 echo "=================================================="
 echo ""
 echo "Next steps:"
-echo "1. Add logo files to /public/ (logo.svg, logo-light.svg, icon.svg)"
-echo "2. Update colors in tailwind.config.js if needed"
-echo "3. Run database migrations: supabase db push"
-echo "4. Install dependencies: npm install"
-echo "5. Start development server: npm run dev"
+echo "1. Run: pnpm install && pnpm dev"
+echo "2. Open http://localhost:3000, sign up, complete onboarding"
+echo "3. In browser console: fetch('/api/admin/bootstrap',{method:'POST'}).then(r=>r.json())"
+echo "4. Reload — you now have admin access at /admin"
 echo ""
-echo "For full setup guide, see: docs/PROVISIONING.md"
+echo "Optional:"
+echo "- Add logo files to /public/ (logo.svg, logo-light.svg, icon.svg)"
+echo "- Load demo data from /admin after bootstrapping"
+echo ""
+echo "For full deployment guide, see: docs/PROVISIONING.md"

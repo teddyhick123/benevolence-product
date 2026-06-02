@@ -12,9 +12,10 @@
     "test": "vitest",
     "test:ui": "vitest --ui",
     "test:run": "vitest run",
-    "provision": "ts-node scripts/provision-client.ts",
-    "handoff": "ts-node scripts/export-client-package.ts",
-    "migrate-client": "ts-node scripts/migrate-client.ts"
+    "setup": "bash scripts/setup-client.sh",
+    "provision": "ts-node --project tsconfig.scripts.json scripts/provision-client.ts",
+    "handoff": "ts-node --project tsconfig.scripts.json scripts/export-client-package.ts",
+    "migrate-client": "ts-node --project tsconfig.scripts.json scripts/migrate-client.ts"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.2.68",

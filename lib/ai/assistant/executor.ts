@@ -470,21 +470,16 @@ export async function executeAssistantTool(params: AssistantToolParams): Promise
       case 'list_widgets': {
         const limit = args.limit || 50;
         const { data } = await supabase
-          .from('holding_widgets')
-          .select('id, widget_type, config, position, is_active, created_at')
+          .from('widgets')
+          .select('id, type, title, config, position, created_at')
           .eq('portfolio_id', portfolioId)
-          .eq('is_active', true)
-          .order('created_at', { ascending: true })
+          .order('position', { ascending: true })
           .limit(limit);
 
         return {
           action: null,
           output: {
-            widgets: (data || []).map((w: any) => ({
-              ...w,
-              type: w.widget_type,
-              title: w.config?.title || w.widget_type,
-            })),
+            widgets: data || [],
             count: data?.length || 0,
           },
         };
@@ -492,25 +487,19 @@ export async function executeAssistantTool(params: AssistantToolParams): Promise
 
       case 'display_widget': {
         const { data: widget } = await supabase
-          .from('holding_widgets')
-          .select('id, widget_type, config, position, is_active, portfolio_id')
+          .from('widgets')
+          .select('id, type, title, config, position, portfolio_id')
           .eq('id', args.widget_id)
-          .eq('is_active', true)
           .maybeSingle();
 
         if (!widget) {
           throw new Error(`Widget with ID ${args.widget_id} not found`);
         }
 
-        // display_widget is read-only — no action record needed
         return {
           action: null,
           output: {
-            widget: {
-              ...widget,
-              type: widget.widget_type,
-              title: widget.config?.title || widget.widget_type,
-            },
+            widget,
             displayed: true,
           },
         };

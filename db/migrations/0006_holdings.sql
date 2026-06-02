@@ -165,21 +165,21 @@ CREATE INDEX idx_holding_facts_metric_name  ON holding_facts (metric_name);
 CREATE INDEX idx_holding_facts_period       ON holding_facts (period_start, period_end);
 
 -- ---------------------------------------------------------------------------
--- holding_widgets — dashboard widget configuration per portfolio
+-- holding_widgets — per-holding widget configuration (charts, gauges, etc.)
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS holding_widgets (
-  id              uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
-  created_at      timestamptz NOT NULL DEFAULT now(),
-  updated_at      timestamptz NOT NULL DEFAULT now(),
+  id          uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  created_at  timestamptz NOT NULL DEFAULT now(),
+  updated_at  timestamptz NOT NULL DEFAULT now(),
 
-  portfolio_id    uuid NOT NULL REFERENCES portfolios(id) ON DELETE CASCADE,
-  widget_type     text NOT NULL,   -- matches widget registry key
-  config          jsonb NOT NULL DEFAULT '{}',
-  position        jsonb,           -- { "x": 0, "y": 0, "w": 4, "h": 3 }
-  is_active       boolean NOT NULL DEFAULT true
+  holding_id  uuid NOT NULL REFERENCES holdings(id) ON DELETE CASCADE,
+  type        text NOT NULL,
+  title       text,
+  config      jsonb NOT NULL DEFAULT '{}',
+  position    integer NOT NULL DEFAULT 0
 );
 
-CREATE INDEX idx_holding_widgets_portfolio_id ON holding_widgets (portfolio_id);
+CREATE INDEX idx_holding_widgets_holding_id ON holding_widgets (holding_id);
 
 CREATE TRIGGER trg_holding_widgets_updated_at
   BEFORE UPDATE ON holding_widgets
@@ -240,11 +240,15 @@ CREATE POLICY "holding_facts: portfolio members (member+) can manage"
 -- ---------------------------------------------------------------------------
 ALTER TABLE holding_widgets ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "holding_widgets: portfolio members can view"
+CREATE POLICY "holding_widgets: can view via holding"
   ON holding_widgets FOR SELECT
-  USING (can_view_portfolio(portfolio_id));
+  USING (can_view_portfolio((SELECT portfolio_id FROM holdings WHERE id = holding_id)));
 
-CREATE POLICY "holding_widgets: portfolio admins can manage"
+CREATE POLICY "holding_widgets: can manage via holding"
   ON holding_widgets FOR ALL
-  USING (user_portfolio_role(portfolio_id) IN ('admin','owner'))
-  WITH CHECK (user_portfolio_role(portfolio_id) IN ('admin','owner'));
+  USING (can_edit_portfolio((SELECT portfolio_id FROM holdings WHERE id = holding_id)))
+  WITH CHECK (can_edit_portfolio((SELECT portfolio_id FROM holdings WHERE id = holding_id)));
+
+CREATE POLICY "holding_widgets: service role full access"
+  ON holding_widgets FOR ALL TO service_role
+  USING (true) WITH CHECK (true);

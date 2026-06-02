@@ -240,8 +240,8 @@ Specs:
 
 | # | Issue | Location |
 |---|-------|----------|
-| Vis-B1 | Widget APIs and AI widget display paths use a missing `widgets` table, while the active schema only creates `holding_widgets` | `app/api/portfolio/[id]/widgets/**`, `app/api/ai/chat/route.ts`, `app/api/ai/chat/stream/route.ts`, `lib/ai-action-executor.ts` |
-| Vis-B2 | Map/location features depend on missing `holding_locations`, so map routes, holding detail location edits, upload geocoding, and AI `add_location` fail on a clean DB | `app/api/portfolio/[id]/map/route.ts`, `app/dashboard/holdings/[holdingId]/page.tsx`, `app/api/admin/upload/route.ts`, `lib/ai-action-executor.ts` |
+| ~~Vis-B1~~ | ~~Widget APIs use missing `widgets` table~~ | **FIXED 2026-06-02**: created `widgets` table (migration 0044); updated `executor.ts` and `context.ts` to use `widgets` for portfolio-level operations; fixed `holding_widgets` schema in migration 0006 (was using wrong `portfolio_id/widget_type` columns — now `holding_id/type/title/position`). |
+| ~~Vis-B2~~ | ~~Map/location features depend on missing `holding_locations`~~ | **FIXED 2026-06-02**: created `holding_locations` table with `holding_id, portfolio_id, name, status, lat, lon, tags` (migration 0044). Map route already gracefully degraded so no route changes needed. |
 | Vis-B3 | **Security:** Timeline route at `app/api/portfolio/[id]/timeline/route.ts:46` queries the `events` table with no `portfolio_id` filter — returns events across all organizations to any authenticated user. No-migration fix: add `.eq('portfolio_id', portfolio_id)` | `app/api/portfolio/[id]/timeline/route.ts` |
 
 ### UX Gaps (P2)
@@ -353,9 +353,9 @@ _Updated 2026-05-28: added Vis-B3 (timeline data leak), QB-B2 (plaintext token s
 | Charities         | 1 |  5 | — |  6 |
 | AI Assistant      | — |  6 | — |  6 |
 | Reporting         | 2 |  — | — |  2 |
-| Visualizations    | 3 |  2 | 6 | 11 |
+| Visualizations    | 1 |  2 | 6 |  9 |
 | Admin / Import    | 4 |  8 | — | 12 |
 | White-Label / Branding | — |  1 | — |  1 |
 | Task / Workflow Management | — |  — | — |  0 |
 | Cross-Cutting     | — |  1 | 1 |  2 |
-| **Total**         | **19** | **46** | **7** | **72** |
+| **Total**         | **17** | **46** | **7** | **70** |

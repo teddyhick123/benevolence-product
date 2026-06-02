@@ -38,11 +38,10 @@ export async function getPortfolioContext(supabase: ReturnType<typeof createClie
             .order('display_order', { ascending: true })
         : Promise.resolve({ data: [] as any[] }),
       supabase
-        .from('holding_widgets')
-        .select('id, widget_type, config')
+        .from('widgets')
+        .select('id, type, title, config')
         .eq('portfolio_id', portfolioId)
-        .eq('is_active', true)
-        .order('created_at', { ascending: true }),
+        .order('position', { ascending: true }),
       supabase
         .from('metric_facts')
         .select('metric_code, value, unit, period_end, holdings!inner(portfolio_id)')
@@ -274,11 +273,7 @@ export async function getPortfolioContext(supabase: ReturnType<typeof createClie
       holdings: holdingsData,
       availableMetrics: kpiDefsData,
       metricsWithData,
-      widgets: (portfolioWidgets.data || []).map((w: any) => ({
-        ...w,
-        type: w.widget_type,
-        title: w.config?.title || w.widget_type,
-      })),
+      widgets: portfolioWidgets.data || [],
       summary: {
         totalHoldings: holdingsData.length,
         activeHoldings: statusBreakdown['Active'] || 0,

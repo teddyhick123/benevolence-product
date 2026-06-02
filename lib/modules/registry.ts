@@ -76,7 +76,7 @@ You can help manage the portfolio and holdings. Available actions include:
       'metric_facts',
       'staging_metric_facts',
       'holding_widgets',
-      'holding_locations',
+      // holding_locations not yet created — tracked as Vis-B2
     ],
     routes: [
       '/dashboard/metrics',
@@ -113,9 +113,9 @@ Common metric types:
       'export_data',
     ],
     tables: [
-      'report_templates',
-      'generated_documents',
-      'report_schedules',
+      'reports',
+      'letter_templates',
+      // report_templates, generated_documents, report_schedules not yet created — tracked as R-B1
     ],
     routes: [
       '/dashboard/reports',
@@ -147,9 +147,16 @@ Generated documents are stored and can be shared via public links.
     ],
     tables: [
       'tax_profiles',
-      'contributions',
+      'tax_years',
+      'tax_contributions',
+      'tax_carryforwards',
       'tax_documents',
-      'agi_estimates',
+      'holding_contributions',
+      'daf_grants',
+      'foundation_990pf_data',
+      'cpa_share_links',
+      'cpa_access_logs',
+      // contributions (old name) and agi_estimates do not exist — data lives in tax_contributions and tax_years
     ],
     routes: [
       '/dashboard/tax',
@@ -191,14 +198,20 @@ Tax limits:
       'grants',
       'grant_milestones',
       'grant_reports',
-      'workflow_templates',
-      'workflow_instances',
-      'workflow_tasks',
       'grant_payments',
       'grant_budget_items',
       'grant_communications',
       'grant_contacts',
       'grant_documents',
+      'grant_decisions',
+      'grant_status_history',
+      'workflow_templates',
+      'workflow_instances',
+      'workflow_tasks',
+      'tasks',
+      'task_events',
+      'task_comments',
+      'task_entity_links',
       'reminders',
     ],
     routes: [
@@ -246,7 +259,7 @@ Payment tracking includes scheduled, approved, and completed disbursements.
       'donors',
       'contributions_received',
       'acknowledgment_letters',
-      'donor_communications',
+      // donor_communications not yet created — tracked as Dr-B1
     ],
     routes: [
       '/dashboard/donors',
@@ -296,9 +309,10 @@ Pledge tracking is enabled. Pledge AI tools are not available in this release.
       'get_charity_financials',
     ],
     tables: [
-      'external_data_cache',
-      'holding_news',
-      'charity_ratings',
+      'charities',
+      'news_articles',
+      'portfolio_charities',
+      // external_data_cache, holding_news, charity_ratings do not exist — tracked as Ch-B1
     ],
     routes: [],
     systemPromptAddition: `
@@ -395,14 +409,11 @@ Insights are categorized by:
       'get_state_registration_status',
     ],
     tables: [
-      'compliance_profiles',
-      'disqualified_persons',
       'filing_calendar',
-      'self_dealing_incidents',
       'state_registrations',
-      'expenditure_responsibility_grants',
-      'qualifying_distributions',
-      'payout_history',
+      'foundation_990pf_data',
+      // compliance_profiles, disqualified_persons, self_dealing_incidents — tracked as Cm-B1
+      // expenditure_responsibility_grants, qualifying_distributions, payout_history — tracked as Cm-B2
     ],
     routes: [
       '/dashboard/compliance',

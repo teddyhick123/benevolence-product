@@ -320,7 +320,7 @@ Shipped 2026-05-16: 14-stage lifecycle, org-scoped CRUD APIs, Pipeline/Table/Cal
 |---|----------|-------|
 | X7 | ~~P2~~ | ~~No grant lifecycle management~~ — **SHIPPED 2026-05-16**: 14-stage lifecycle, decisions, pipeline view, AI tools, task automation |
 | X8 | P3 | No board portal — no structured quarterly reporting pathway for foundations |
-| X9 | P1 | `MODULE_REGISTRY.tables` still lists nonexistent tables across impact tracking, reporting, tax, donor, external data, and compliance modules; generated module docs/tool gating can inherit stale schema assumptions. Currently tracked missing registry refs: `agi_estimates`, `charity_ratings`, `compliance_profiles`, `contributions`, `disqualified_persons`, `donor_communications`, `expenditure_responsibility_grants`, `external_data_cache`, `generated_documents`, `holding_locations`, `holding_news`, `payout_history`, `qualifying_distributions`, `report_schedules`, `report_templates`, `self_dealing_incidents`. |
+| X9 | ~~P1~~ | ~~`MODULE_REGISTRY.tables` lists nonexistent tables~~ — **FIXED 2026-06-02**: removed all 16 stale refs, replaced with correct existing table names, added newly-shipped tables (`grant_decisions`, `grant_status_history`, `tasks`/task ops, `tax_years`, `tax_carryforwards`, `daf_grants`, `cpa_share_links`, `cpa_access_logs`, etc.). Tables still absent from schema are noted with inline backlog-ref comments (`Cm-B1`, `Cm-B2`, `Dr-B1`, `R-B1`, `Vis-B2`, `Ch-B1`). |
 
 ---
 
@@ -357,5 +357,5 @@ _Updated 2026-05-28: added Vis-B3 (timeline data leak), QB-B2 (plaintext token s
 | Admin / Import    | 4 |  8 | — | 12 |
 | White-Label / Branding | — |  1 | — |  1 |
 | Task / Workflow Management | — |  — | — |  0 |
-| Cross-Cutting     | 1 |  1 | 1 |  3 |
-| **Total**         | **20** | **46** | **7** | **73** |
+| Cross-Cutting     | — |  1 | 1 |  2 |
+| **Total**         | **19** | **46** | **7** | **72** |

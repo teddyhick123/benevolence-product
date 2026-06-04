@@ -70,7 +70,7 @@ export default function GrantExportButton({ portfolioId, grantId }: GrantExportB
     <div className="relative">
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium text-sm shadow-sm flex items-center gap-2"
+        className="px-4 py-2 bg-white border border-black/10 text-neutral-700 rounded-2xl hover:bg-neutral-50 transition-colors font-medium text-sm shadow-sm flex items-center gap-2"
       >
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
@@ -82,18 +82,18 @@ export default function GrantExportButton({ portfolioId, grantId }: GrantExportB
       {isOpen && (
         <>
           <div className="fixed inset-0 z-10" onClick={() => setIsOpen(false)} />
-          <div className="absolute right-0 mt-2 w-80 bg-white border border-gray-200 rounded-lg shadow-lg z-20">
-            <div className="p-4 border-b border-gray-200">
-              <h3 className="font-semibold text-gray-900 text-sm">
+          <div className="absolute right-0 mt-2 w-80 bg-white border border-black/5 rounded-2xl shadow-xl z-20">
+            <div className="p-4 border-b border-black/5">
+              <h3 className="font-semibold text-ink text-sm">
                 Export Grant Data
               </h3>
-              <p className="text-xs text-gray-500 mt-0.5">
+              <p className="text-xs text-neutral-500 mt-0.5">
                 {grantId ? 'Single grant export' : 'Portfolio-wide export'}
               </p>
             </div>
 
             {error && (
-              <div className="mx-4 mt-3 p-3 bg-red-50 border border-red-200 rounded-md text-sm text-red-700">
+              <div className="mx-4 mt-3 p-3 bg-red-50 border border-red-200 rounded-2xl text-sm text-red-700">
                 {error}
               </div>
             )}
@@ -104,7 +104,7 @@ export default function GrantExportButton({ portfolioId, grantId }: GrantExportB
                   key={option.format}
                   onClick={() => handleExport(option.format)}
                   disabled={exporting}
-                  className="w-full text-left p-3 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full text-left p-3 rounded-2xl hover:bg-neutral-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <div className="flex items-start gap-3">
                     <div className="mt-0.5">
@@ -114,19 +114,19 @@ export default function GrantExportButton({ portfolioId, grantId }: GrantExportB
                         </svg>
                       )}
                       {option.format === 'xlsx' && (
-                        <svg className="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
                         </svg>
                       )}
                       {option.format === 'json' && (
-                        <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="w-5 h-5 text-azure" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
                         </svg>
                       )}
                     </div>
                     <div>
-                      <p className="text-sm font-medium text-gray-900">{option.label}</p>
-                      <p className="text-xs text-gray-500 mt-0.5">{option.description}</p>
+                      <p className="text-sm font-medium text-ink">{option.label}</p>
+                      <p className="text-xs text-neutral-500 mt-0.5">{option.description}</p>
                     </div>
                   </div>
                 </button>
@@ -134,7 +134,7 @@ export default function GrantExportButton({ portfolioId, grantId }: GrantExportB
             </div>
 
             {exporting && (
-              <div className="px-4 pb-3 text-xs text-gray-500 text-center">
+              <div className="px-4 pb-3 text-xs text-neutral-500 text-center">
                 Preparing export...
               </div>
             )}

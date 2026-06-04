@@ -20,12 +20,12 @@ interface Props {
 }
 
 const EVENT_TYPE_COLORS: Record<string, { bg: string; text: string; dot: string }> = {
-  milestone: { bg: 'bg-blue-50',   text: 'text-blue-700',   dot: 'bg-blue-400' },
-  report:    { bg: 'bg-purple-50', text: 'text-purple-700', dot: 'bg-purple-400' },
-  payment:   { bg: 'bg-green-50',  text: 'text-green-700',  dot: 'bg-green-500' },
-  renewal:   { bg: 'bg-amber-50',  text: 'text-amber-700',  dot: 'bg-amber-400' },
-  closeout:  { bg: 'bg-rose-50',   text: 'text-rose-700',   dot: 'bg-rose-400' },
-  period_end:{ bg: 'bg-gray-100',  text: 'text-gray-600',   dot: 'bg-gray-400' },
+  milestone:  { bg: 'bg-azure/10',  text: 'text-azure-deep', dot: 'bg-azure' },
+  report:     { bg: 'bg-sunset/15', text: 'text-ink',        dot: 'bg-sunset' },
+  payment:    { bg: 'bg-green-50',  text: 'text-green-700',  dot: 'bg-green-500' },
+  renewal:    { bg: 'bg-sunset/15', text: 'text-ink',        dot: 'bg-sunset' },
+  closeout:   { bg: 'bg-coral/10',  text: 'text-coral',      dot: 'bg-coral' },
+  period_end: { bg: 'bg-neutral-100', text: 'text-neutral-600', dot: 'bg-neutral-400' },
 };
 
 const EVENT_LABELS: Record<string, string> = {
@@ -95,9 +95,9 @@ export default function GrantCalendarView({ orgId, portfolioId }: Props) {
       <div className="space-y-4">
         {[1, 2, 3].map(i => (
           <div key={i} className="animate-pulse">
-            <div className="h-5 w-32 bg-gray-200 rounded mb-3" />
+            <div className="h-5 w-32 bg-neutral-200 rounded mb-3" />
             <div className="space-y-2">
-              {[1, 2].map(j => <div key={j} className="h-12 bg-gray-100 rounded-lg" />)}
+              {[1, 2].map(j => <div key={j} className="h-12 bg-neutral-100 rounded-2xl" />)}
             </div>
           </div>
         ))}
@@ -106,7 +106,7 @@ export default function GrantCalendarView({ orgId, portfolioId }: Props) {
   }
 
   if (error) {
-    return <div className="rounded-lg bg-red-50 text-red-700 p-4 text-sm">{error}</div>;
+    return <div className="rounded-2xl bg-red-50 text-red-700 p-4 text-sm">{error}</div>;
   }
 
   return (
@@ -120,13 +120,13 @@ export default function GrantCalendarView({ orgId, portfolioId }: Props) {
             className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
               typeFilter === t
                 ? 'bg-azure text-white'
-                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'
             }`}
           >
             {t === '' ? 'All' : EVENT_LABELS[t]}
           </button>
         ))}
-        <span className="ml-auto text-xs text-gray-400">{filtered.length} upcoming event{filtered.length !== 1 ? 's' : ''}</span>
+        <span className="ml-auto text-xs text-neutral-400">{filtered.length} upcoming event{filtered.length !== 1 ? 's' : ''}</span>
       </div>
 
       {months.length === 0 ? (
@@ -137,8 +137,8 @@ export default function GrantCalendarView({ orgId, portfolioId }: Props) {
             </svg>
           </div>
           <div>
-            <p className="font-medium text-gray-900">No upcoming events</p>
-            <p className="text-sm text-gray-500 mt-1">
+            <p className="font-medium text-ink">No upcoming events</p>
+            <p className="text-sm text-neutral-500 mt-1">
               Events appear here once grants have milestones, reports, or payments scheduled.
             </p>
           </div>
@@ -149,10 +149,10 @@ export default function GrantCalendarView({ orgId, portfolioId }: Props) {
             const monthEvents = byMonth.get(monthKey)!;
             return (
               <div key={monthKey}>
-                <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                <h3 className="text-sm font-semibold text-neutral-700 mb-3 flex items-center gap-2">
                   <span className="w-2 h-2 rounded-full bg-azure" />
                   {formatMonthKey(monthKey)}
-                  <span className="font-normal text-gray-400">· {monthEvents.length}</span>
+                  <span className="font-normal text-neutral-400">· {monthEvents.length}</span>
                 </h3>
 
                 <div className="space-y-2">
@@ -165,13 +165,13 @@ export default function GrantCalendarView({ orgId, portfolioId }: Props) {
                     return (
                       <div
                         key={ev.id}
-                        className={`flex items-start gap-3 rounded-lg border p-3 transition-shadow hover:shadow-sm ${
+                        className={`flex items-start gap-3 rounded-2xl border p-3 transition-shadow hover:shadow-sm ${
                           isOverdue ? 'border-red-200 bg-red-50/50' : 'border-black/5 bg-white'
                         }`}
                       >
                         {/* Date pill */}
                         <div className="shrink-0 text-center min-w-[40px]">
-                          <div className="text-xs font-semibold text-gray-500">{dayOfMonth(ev.due_date)}</div>
+                          <div className="text-xs font-semibold text-neutral-500">{dayOfMonth(ev.due_date)}</div>
                         </div>
 
                         {/* Type dot */}
@@ -191,13 +191,13 @@ export default function GrantCalendarView({ orgId, portfolioId }: Props) {
                               </span>
                             )}
                             {isUrgent && !isOverdue && (
-                              <span className="text-xs rounded-full px-2 py-0.5 bg-amber-100 text-amber-700 font-medium">
+                              <span className="text-xs rounded-full px-2 py-0.5 bg-sunset/15 text-ink font-medium">
                                 Due soon
                               </span>
                             )}
                           </div>
-                          <p className="mt-0.5 text-sm font-medium text-gray-900 truncate">{ev.title}</p>
-                          <p className="text-xs text-gray-400">{ev.grantee_name}</p>
+                          <p className="mt-0.5 text-sm font-medium text-ink truncate">{ev.title}</p>
+                          <p className="text-xs text-neutral-400">{ev.grantee_name}</p>
                         </div>
 
                         {ev.grant_id && (

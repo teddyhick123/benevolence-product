@@ -161,8 +161,8 @@ export default function ReportsPage() {
     return (
       <div className="p-8">
         <div className="animate-pulse space-y-6">
-          <div className="h-8 w-48 bg-gray-200 rounded"></div>
-          <div className="h-64 bg-gray-200 rounded-lg"></div>
+          <div className="h-8 w-48 rounded-2xl bg-neutral-200"></div>
+          <div className="h-64 rounded-2xl bg-neutral-200"></div>
         </div>
       </div>
     );
@@ -171,8 +171,8 @@ export default function ReportsPage() {
   if (!portfolioId) {
     return (
       <div className="p-8 text-center">
-        <h1 className="text-xl font-semibold text-gray-900">No portfolio found</h1>
-        <p className="text-gray-500 mt-2">Please create a portfolio first.</p>
+        <h1 className="font-serif text-xl font-medium text-ink">No portfolio found</h1>
+        <p className="mt-2 text-neutral-600">Please create a portfolio first.</p>
       </div>
     );
   }
@@ -189,43 +189,43 @@ export default function ReportsPage() {
   }
 
   return (
-    <div className="p-6 lg:p-8">
+    <div className="space-y-6 p-6 lg:p-8">
       {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900">Reports</h1>
-        <p className="text-gray-500 mt-1">
+      <div>
+        <h1 className="font-serif text-3xl font-medium text-ink">Reports</h1>
+        <p className="mt-1 text-sm text-neutral-600">
           Generate reports, manage templates, and export your data
         </p>
       </div>
 
       {/* Quick Actions */}
-      <div className="flex items-center gap-3 mb-6">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
         <button
           onClick={handleQuickGenerate}
           disabled={generating}
-          className="px-4 py-2 bg-azure text-white rounded-lg hover:bg-azure/90 disabled:opacity-50"
+          className="rounded-2xl bg-azure px-4 py-2 text-sm font-medium text-white shadow-soft transition-opacity hover:opacity-90 disabled:opacity-50"
         >
           {generating ? 'Generating...' : 'Quick Report'}
         </button>
         <button
           onClick={() => setShowExportModal(true)}
-          className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+          className="rounded-2xl border border-black/10 bg-white px-4 py-2 text-sm font-medium text-neutral-800 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow will-change-transform rm:transition-none rm:transform-none"
         >
           Export Data
         </button>
       </div>
 
       {/* Tabs */}
-      <div className="border-b border-gray-200 mb-6">
-        <nav className="flex gap-8">
+      <div className="rounded-2xl border border-black/5 bg-white p-1.5 shadow-soft">
+        <nav className="flex gap-1 overflow-x-auto" aria-label="Report views">
           {tabs.map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-2 pb-4 border-b-2 text-sm font-medium transition-colors ${
+              className={`flex items-center gap-2 whitespace-nowrap rounded-2xl px-3 py-2 text-sm font-medium transition-all ${
                 activeTab === tab.id
-                  ? 'border-azure text-azure'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  ? 'bg-azure text-white shadow-sm'
+                  : 'text-neutral-600 hover:bg-azure/5 hover:text-azure'
               }`}
             >
               {tab.icon}
@@ -247,10 +247,10 @@ export default function ReportsPage() {
       {activeTab === 'templates' && (
         <div className="space-y-6">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-gray-900">Report Templates</h2>
+            <h2 className="font-serif text-xl font-medium text-ink">Report Templates</h2>
             <button
               onClick={handleCreateTemplate}
-              className="px-4 py-2 bg-azure text-white rounded-lg hover:bg-azure/90"
+              className="rounded-2xl bg-azure px-4 py-2 text-sm font-medium text-white shadow-soft transition-opacity hover:opacity-90"
             >
               Create Template
             </button>
@@ -265,7 +265,7 @@ export default function ReportsPage() {
 
       {activeTab === 'documents' && (
         <div className="space-y-6">
-          <h2 className="text-lg font-semibold text-gray-900">Generated Documents</h2>
+          <h2 className="font-serif text-xl font-medium text-ink">Generated Documents</h2>
           <DocumentList portfolioId={portfolioId} />
         </div>
       )}
@@ -273,9 +273,9 @@ export default function ReportsPage() {
       {/* Template Editor Modal */}
       {showTemplateEditor && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b">
-              <h2 className="text-xl font-semibold">
+          <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white shadow-soft">
+            <div className="border-b border-black/5 p-6">
+              <h2 className="font-serif text-xl font-medium text-ink">
                 {editingTemplate ? 'Edit Template' : 'Create Template'}
               </h2>
             </div>

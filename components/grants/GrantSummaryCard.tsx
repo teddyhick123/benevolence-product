@@ -54,7 +54,7 @@ export default function GrantSummaryCard({ grant, onViewDetails, loading = false
           <h3 className="text-base font-semibold text-neutral-900 truncate">{grant.name}</h3>
           <div className="flex items-center gap-2 mt-1 text-xs text-neutral-600">
             {grant.grant_type && (
-              <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-200">
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-azure/10 text-azure-deep border border-azure/20">
                 {GRANT_TYPE_LABELS[grant.grant_type]}
               </span>
             )}

@@ -226,7 +226,7 @@ export default function CommunicationLog({ portfolioId }: Props) {
     return (
       <div className="animate-pulse space-y-4">
         {[1, 2, 3, 4].map((i) => (
-          <div key={i} className="h-20 bg-gray-200 rounded-lg"></div>
+          <div key={i} className="h-20 bg-neutral-200 rounded-2xl"></div>
         ))}
       </div>
     );
@@ -240,23 +240,23 @@ export default function CommunicationLog({ portfolioId }: Props) {
           <select
             value={filter}
             onChange={(e) => setFilter(e.target.value as any)}
-            className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-azure focus:border-azure"
+            className="px-3 py-2 border border-black/10 rounded-2xl text-sm focus:ring-azure/30 focus:border-azure"
           >
             <option value="all">All Communications</option>
             <option value="inbound">Inbound</option>
             <option value="outbound">Outbound</option>
             <option value="follow_up">Needs Follow-up</option>
           </select>
-          <span className="text-sm text-gray-500">{filteredComms.length} entries</span>
+          <span className="text-sm text-neutral-500">{filteredComms.length} entries</span>
           {followUpCount > 0 && (
-            <span className="px-2 py-1 bg-amber-100 text-amber-800 rounded-full text-xs font-medium">
+            <span className="px-2 py-1 bg-sunset/15 text-ink border border-sunset/30 rounded-full text-xs font-medium">
               {followUpCount} follow-ups pending
             </span>
           )}
         </div>
         <button
           onClick={() => setShowAddComm(true)}
-          className="inline-flex items-center gap-2 px-4 py-2 bg-azure text-white rounded-md hover:bg-azure/90 text-sm font-medium"
+          className="inline-flex items-center gap-2 px-4 py-2 bg-azure text-white rounded-2xl hover:bg-azure/90 text-sm font-medium"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -268,16 +268,16 @@ export default function CommunicationLog({ portfolioId }: Props) {
       {/* Add Communication Modal */}
       {showAddComm && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-lg w-full mx-4 p-6 max-h-[90vh] overflow-y-auto">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Log Communication</h3>
+          <div className="bg-white rounded-2xl shadow-xl max-w-lg w-full mx-4 p-6 max-h-[90vh] overflow-y-auto">
+            <h3 className="text-lg font-semibold text-ink mb-4">Log Communication</h3>
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Grant *</label>
+                  <label className="block text-sm font-medium text-neutral-700 mb-1">Grant *</label>
                   <select
                     value={newComm.holdingId}
                     onChange={(e) => setNewComm({ ...newComm, holdingId: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-azure focus:border-azure"
+                    className="w-full px-3 py-2 border border-black/10 rounded-2xl focus:ring-azure/30 focus:border-azure"
                   >
                     <option value="">Select a grant...</option>
                     {holdings.map((h) => (
@@ -286,11 +286,11 @@ export default function CommunicationLog({ portfolioId }: Props) {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Direction</label>
+                  <label className="block text-sm font-medium text-neutral-700 mb-1">Direction</label>
                   <select
                     value={newComm.direction}
                     onChange={(e) => setNewComm({ ...newComm, direction: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-azure focus:border-azure"
+                    className="w-full px-3 py-2 border border-black/10 rounded-2xl focus:ring-azure/30 focus:border-azure"
                   >
                     <option value="outbound">Outbound (to grantee)</option>
                     <option value="inbound">Inbound (from grantee)</option>
@@ -299,11 +299,11 @@ export default function CommunicationLog({ portfolioId }: Props) {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
+                  <label className="block text-sm font-medium text-neutral-700 mb-1">Type</label>
                   <select
                     value={newComm.commType}
                     onChange={(e) => setNewComm({ ...newComm, commType: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-azure focus:border-azure"
+                    className="w-full px-3 py-2 border border-black/10 rounded-2xl focus:ring-azure/30 focus:border-azure"
                   >
                     <option value="email">Email</option>
                     <option value="phone">Phone Call</option>
@@ -315,64 +315,64 @@ export default function CommunicationLog({ portfolioId }: Props) {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Contact Name</label>
+                  <label className="block text-sm font-medium text-neutral-700 mb-1">Contact Name</label>
                   <input
                     type="text"
                     value={newComm.contactName}
                     onChange={(e) => setNewComm({ ...newComm, contactName: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-azure focus:border-azure"
+                    className="w-full px-3 py-2 border border-black/10 rounded-2xl focus:ring-azure/30 focus:border-azure"
                     placeholder="Contact person"
                   />
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Subject</label>
+                <label className="block text-sm font-medium text-neutral-700 mb-1">Subject</label>
                 <input
                   type="text"
                   value={newComm.subject}
                   onChange={(e) => setNewComm({ ...newComm, subject: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-azure focus:border-azure"
+                  className="w-full px-3 py-2 border border-black/10 rounded-2xl focus:ring-azure/30 focus:border-azure"
                   placeholder="Communication subject"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Summary *</label>
+                <label className="block text-sm font-medium text-neutral-700 mb-1">Summary *</label>
                 <textarea
                   value={newComm.summary}
                   onChange={(e) => setNewComm({ ...newComm, summary: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-azure focus:border-azure"
+                  className="w-full px-3 py-2 border border-black/10 rounded-2xl focus:ring-azure/30 focus:border-azure"
                   rows={3}
                   placeholder="Brief summary of the communication..."
                 />
               </div>
-              <div className="border-t border-gray-200 pt-4">
+              <div className="border-t border-black/5 pt-4">
                 <label className="flex items-center gap-2">
                   <input
                     type="checkbox"
                     checked={newComm.followUpRequired}
                     onChange={(e) => setNewComm({ ...newComm, followUpRequired: e.target.checked })}
-                    className="rounded border-gray-300 text-azure focus:ring-azure"
+                    className="rounded border-black/10 text-azure focus:ring-azure/30"
                   />
-                  <span className="text-sm font-medium text-gray-700">Follow-up required</span>
+                  <span className="text-sm font-medium text-neutral-700">Follow-up required</span>
                 </label>
                 {newComm.followUpRequired && (
                   <div className="mt-3 grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Follow-up Date</label>
+                      <label className="block text-sm font-medium text-neutral-700 mb-1">Follow-up Date</label>
                       <input
                         type="date"
                         value={newComm.followUpDate}
                         onChange={(e) => setNewComm({ ...newComm, followUpDate: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-azure focus:border-azure"
+                        className="w-full px-3 py-2 border border-black/10 rounded-2xl focus:ring-azure/30 focus:border-azure"
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Follow-up Notes</label>
+                      <label className="block text-sm font-medium text-neutral-700 mb-1">Follow-up Notes</label>
                       <input
                         type="text"
                         value={newComm.followUpNotes}
                         onChange={(e) => setNewComm({ ...newComm, followUpNotes: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-azure focus:border-azure"
+                        className="w-full px-3 py-2 border border-black/10 rounded-2xl focus:ring-azure/30 focus:border-azure"
                         placeholder="Action items..."
                       />
                     </div>
@@ -383,13 +383,13 @@ export default function CommunicationLog({ portfolioId }: Props) {
             <div className="mt-6 flex items-center justify-end gap-3">
               <button
                 onClick={() => setShowAddComm(false)}
-                className="px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900"
+                className="px-4 py-2 text-sm font-medium text-neutral-700 hover:text-ink"
               >
                 Cancel
               </button>
               <button
                 onClick={handleAddComm}
-                className="px-4 py-2 bg-azure text-white rounded-md hover:bg-azure/90 text-sm font-medium"
+                className="px-4 py-2 bg-azure text-white rounded-2xl hover:bg-azure/90 text-sm font-medium"
               >
                 Log Communication
               </button>
@@ -400,11 +400,11 @@ export default function CommunicationLog({ portfolioId }: Props) {
 
       {/* Communication Timeline */}
       {filteredComms.length === 0 ? (
-        <div className="bg-white rounded-lg border border-gray-200 p-8 text-center">
-          <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div className="rounded-2xl border border-black/5 bg-white shadow-soft p-8 text-center">
+          <svg className="mx-auto h-12 w-12 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
           </svg>
-          <p className="mt-2 text-gray-500">No communications logged yet.</p>
+          <p className="mt-2 text-neutral-500">No communications logged yet.</p>
           <button
             onClick={() => setShowAddComm(true)}
             className="mt-4 text-azure hover:text-azure/80 text-sm font-medium"
@@ -413,13 +413,13 @@ export default function CommunicationLog({ portfolioId }: Props) {
           </button>
         </div>
       ) : (
-        <div className="bg-white rounded-lg border border-gray-200 divide-y divide-gray-200">
+        <div className="rounded-2xl border border-black/5 bg-white shadow-soft divide-y divide-black/5">
           {filteredComms.map((comm) => (
             <div key={comm.id} className="p-6">
               <div className="flex items-start gap-4">
                 {/* Direction Icon */}
                 <div className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center ${
-                  comm.direction === 'inbound' ? 'bg-blue-100 text-blue-600' : 'bg-green-100 text-green-600'
+                  comm.direction === 'inbound' ? 'bg-azure/10 text-azure-deep' : 'bg-green-50 text-green-600'
                 }`}>
                   {comm.direction === 'inbound' ? (
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -435,34 +435,34 @@ export default function CommunicationLog({ portfolioId }: Props) {
                 {/* Content */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="inline-flex items-center gap-1 text-sm font-medium text-gray-900 capitalize">
+                    <span className="inline-flex items-center gap-1 text-sm font-medium text-ink capitalize">
                       {getCommTypeIcon(comm.comm_type)}
                       {comm.comm_type.replace(/_/g, ' ')}
                     </span>
-                    <span className="text-sm text-gray-500">with {comm.grant_name}</span>
+                    <span className="text-sm text-neutral-500">with {comm.grant_name}</span>
                     {comm.contact_name && (
-                      <span className="text-sm text-gray-500">({comm.contact_name})</span>
+                      <span className="text-sm text-neutral-500">({comm.contact_name})</span>
                     )}
                     {comm.follow_up_required && (
-                      <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
+                      <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-sunset/15 text-ink border border-sunset/30">
                         Follow-up {comm.follow_up_date ? formatDate(comm.follow_up_date) : 'needed'}
                       </span>
                     )}
                   </div>
                   {comm.subject && (
-                    <p className="mt-1 text-sm font-medium text-gray-700">{comm.subject}</p>
+                    <p className="mt-1 text-sm font-medium text-neutral-700">{comm.subject}</p>
                   )}
-                  <p className="mt-1 text-sm text-gray-600">{comm.summary}</p>
+                  <p className="mt-1 text-sm text-neutral-600">{comm.summary}</p>
                   {expandedComm === comm.id && comm.full_content && (
-                    <div className="mt-3 p-3 bg-gray-50 rounded-md">
-                      <p className="text-sm text-gray-600 whitespace-pre-wrap">{comm.full_content}</p>
+                    <div className="mt-3 p-3 bg-neutral-50 rounded-2xl">
+                      <p className="text-sm text-neutral-600 whitespace-pre-wrap">{comm.full_content}</p>
                     </div>
                   )}
                   {comm.follow_up_notes && (
-                    <p className="mt-2 text-xs text-amber-700 italic">Follow-up: {comm.follow_up_notes}</p>
+                    <p className="mt-2 text-xs text-coral italic">Follow-up: {comm.follow_up_notes}</p>
                   )}
                   <div className="mt-2 flex items-center gap-4">
-                    <span className="text-xs text-gray-400">{formatDateTime(comm.occurred_at)}</span>
+                    <span className="text-xs text-neutral-400">{formatDateTime(comm.occurred_at)}</span>
                     {comm.full_content && (
                       <button
                         onClick={() => setExpandedComm(expandedComm === comm.id ? null : comm.id)}

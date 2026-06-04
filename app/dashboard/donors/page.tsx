@@ -12,19 +12,19 @@ const TIER_LABELS: Record<string, string> = {
 };
 
 const TIER_COLORS: Record<string, string> = {
-  major: 'bg-violet-100 text-violet-800',
-  mid_major: 'bg-blue-100 text-blue-800',
-  regular: 'bg-green-100 text-green-800',
-  small: 'bg-gray-100 text-gray-700',
-  prospect: 'bg-yellow-100 text-yellow-800',
+  major: 'bg-coral/10 text-ink border border-coral/20',
+  mid_major: 'bg-azure/10 text-azure-deep border border-azure/20',
+  regular: 'bg-azure/10 text-azure-deep border border-azure/20',
+  small: 'bg-neutral-100 text-neutral-700 border border-neutral-200',
+  prospect: 'bg-sunset/10 text-ink border border-sunset/20',
 };
 
 const RECENCY_COLORS: Record<string, string> = {
-  new: 'bg-emerald-100 text-emerald-800',
-  active: 'bg-green-100 text-green-800',
-  lapsed: 'bg-amber-100 text-amber-800',
+  new: 'bg-azure/10 text-azure-deep border border-azure/20',
+  active: 'bg-azure/10 text-azure-deep border border-azure/20',
+  lapsed: 'bg-sunset/10 text-ink border border-sunset/20',
   lost: 'bg-red-100 text-red-700',
-  prospect: 'bg-gray-100 text-gray-600',
+  prospect: 'bg-neutral-100 text-neutral-600 border border-neutral-200',
 };
 
 export default function DonorsPage() {
@@ -116,45 +116,45 @@ export default function DonorsPage() {
 
   if (moduleEnabled === false) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="flex min-h-screen items-center justify-center">
         <div className="text-center max-w-sm">
-          <h2 className="text-xl font-semibold text-gray-800 mb-2">Donor Management not enabled</h2>
-          <p className="text-sm text-gray-500">The Donor Management module is not enabled for your organization. Contact your administrator to enable it.</p>
+          <h2 className="mb-2 font-serif text-xl font-medium text-ink">Donor Management not enabled</h2>
+          <p className="text-sm text-neutral-600">The Donor Management module is not enabled for your organization. Contact your administrator to enable it.</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
         <div className="mb-6 flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Donors</h1>
-            <p className="text-sm text-gray-500 mt-1">{`${total !== null ? total.toLocaleString() : donors.length} total records`}</p>
+            <h1 className="font-serif text-3xl font-medium text-ink">Donors</h1>
+            <p className="mt-1 text-sm text-neutral-600">{`${total !== null ? total.toLocaleString() : donors.length} total records`}</p>
           </div>
           <a
             href={orgId ? `/dashboard/donors/new?org=${orgId}` : '#'}
-            className="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-md hover:bg-indigo-700 transition-colors"
+            className="rounded-2xl bg-azure px-4 py-2 text-sm font-medium text-white shadow-soft transition-opacity hover:opacity-90"
           >
             + Add Donor
           </a>
         </div>
 
         {/* Filters */}
-        <div className="bg-white rounded-lg border border-gray-200 p-4 mb-6 flex flex-wrap gap-3">
+        <div className="mb-6 flex flex-wrap gap-3 rounded-2xl border border-black/5 bg-white p-4 shadow-soft">
           <input
             type="text"
             placeholder="Search by name…"
             value={search}
             onChange={e => setSearch(e.target.value)}
-            className="flex-1 min-w-[180px] px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className="min-w-[180px] flex-1 rounded-2xl border border-black/10 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-azure/30"
           />
           <select
             value={tierFilter}
             onChange={e => setTierFilter(e.target.value)}
-            className="px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className="rounded-2xl border border-black/10 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-azure/30"
           >
             <option value="">All Tiers</option>
             {Object.entries(TIER_LABELS).map(([k, v]) => (
@@ -164,7 +164,7 @@ export default function DonorsPage() {
           <select
             value={recencyFilter}
             onChange={e => setRecencyFilter(e.target.value)}
-            className="px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className="rounded-2xl border border-black/10 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-azure/30"
           >
             <option value="">All Recency</option>
             <option value="new">New</option>
@@ -176,16 +176,16 @@ export default function DonorsPage() {
         </div>
 
         {/* Table */}
-        <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+        <div className="overflow-hidden rounded-2xl border border-black/5 bg-white shadow-soft">
           {loading ? (
-            <div className="p-12 text-center text-gray-400">Loading donors…</div>
+            <div className="p-12 text-center text-neutral-400">Loading donors…</div>
           ) : error ? (
             <div className="p-12 text-center text-red-500">{error}</div>
           ) : donors.length === 0 ? (
-            <div className="p-12 text-center text-gray-400">No donors found.</div>
+            <div className="p-12 text-center text-neutral-400">No donors found.</div>
           ) : (
             <table className="w-full text-sm">
-              <thead className="bg-gray-50 border-b border-gray-200">
+              <thead className="border-b border-black/5 bg-neutral-50">
                 <tr>
                   {[
                     { key: 'display_name', label: 'Name', align: 'left' },
@@ -196,7 +196,7 @@ export default function DonorsPage() {
                     { key: 'last_gift_date', label: 'Last Gift', align: 'left' },
                   ].map(({ key, label, align }) => (
                     <th key={key}
-                      className={`text-${align} px-4 py-3 font-medium text-gray-600 cursor-pointer select-none hover:text-gray-900`}
+                      className={`${align === 'right' ? 'text-right' : 'text-left'} cursor-pointer select-none px-4 py-3 font-medium text-neutral-600 hover:text-ink`}
                       onClick={() => toggleSort(key)}
                     >
                       {label}<SortIcon col={key} />
@@ -204,28 +204,28 @@ export default function DonorsPage() {
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-black/5">
                 {sortedDonors.map(donor => (
                   <tr
                     key={donor.id}
-                    className="hover:bg-gray-50 cursor-pointer transition-colors"
+                    className="cursor-pointer transition-colors hover:bg-neutral-50"
                     onClick={() => window.location.href = `/dashboard/donors/${donor.id}`}
                   >
                     <td className="px-4 py-3">
-                      <span className="font-medium text-gray-900">
+                      <span className="font-medium text-ink">
                         {donor.is_anonymous ? 'Anonymous' : donor.display_name || '—'}
                       </span>
                       {donor.email && (
-                        <div className="text-xs text-gray-400">{donor.email}</div>
+                        <div className="text-xs text-neutral-400">{donor.email}</div>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-gray-600 capitalize">{donor.is_organization ? 'Organization' : 'Individual'}</td>
+                    <td className="px-4 py-3 text-neutral-600 capitalize">{donor.is_organization ? 'Organization' : 'Individual'}</td>
                     <td className="px-4 py-3">
                       <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${TIER_COLORS[donor.computed_tier] || TIER_COLORS.prospect}`}>
                         {TIER_LABELS[donor.computed_tier] || donor.computed_tier}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-right font-medium text-gray-900">
+                    <td className="px-4 py-3 text-right font-medium text-ink">
                       ${Number(donor.total_lifetime_giving || 0).toLocaleString()}
                     </td>
                     <td className="px-4 py-3">
@@ -233,7 +233,7 @@ export default function DonorsPage() {
                         {donor.recency_status ? donor.recency_status.charAt(0).toUpperCase() + donor.recency_status.slice(1) : '—'}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-gray-500">
+                    <td className="px-4 py-3 text-neutral-500">
                       {donor.last_gift_date
                         ? new Date(donor.last_gift_date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
                         : '—'}

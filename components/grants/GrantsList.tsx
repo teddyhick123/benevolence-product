@@ -13,14 +13,14 @@ interface GrantsResponse {
 
 function SkeletonCard() {
   return (
-    <div className="rounded-xl border border-black/5 bg-white shadow-sm p-4 animate-pulse space-y-2">
+    <div className="rounded-2xl border border-black/5 bg-white shadow-sm p-4 animate-pulse space-y-2">
       <div className="flex justify-between">
-        <div className="h-4 w-40 bg-gray-200 rounded" />
-        <div className="h-4 w-16 bg-gray-100 rounded-full" />
+        <div className="h-4 w-40 bg-neutral-200 rounded" />
+        <div className="h-4 w-16 bg-neutral-100 rounded-full" />
       </div>
       <div className="flex justify-between">
-        <div className="h-3 w-24 bg-gray-100 rounded" />
-        <div className="h-3 w-20 bg-gray-100 rounded" />
+        <div className="h-3 w-24 bg-neutral-100 rounded" />
+        <div className="h-3 w-20 bg-neutral-100 rounded" />
       </div>
     </div>
   );

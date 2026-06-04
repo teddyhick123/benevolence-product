@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase-browser';
+import { grantStatusBadgeClass } from './grantPalette';
 
 type WorkflowTemplate = {
   id: string;
@@ -127,28 +128,12 @@ export default function WorkflowManager({ portfolioId, orgId }: Props) {
   };
 
   const getStatusBadge = (status: string) => {
-    const colors: Record<string, string> = {
-      active: 'bg-blue-100 text-blue-800',
-      paused: 'bg-amber-100 text-amber-800',
-      completed: 'bg-green-100 text-green-800',
-      cancelled: 'bg-gray-100 text-gray-500',
-      pending: 'bg-gray-100 text-gray-700',
-      in_progress: 'bg-blue-100 text-blue-700',
-      skipped: 'bg-gray-100 text-gray-500',
-      blocked: 'bg-red-100 text-red-700',
-    };
-    return colors[status] || 'bg-gray-100 text-gray-700';
+    return grantStatusBadgeClass(status);
   };
 
   const getOutcomeBadge = (outcome: string | null) => {
     if (!outcome) return null;
-    const colors: Record<string, string> = {
-      pass: 'bg-green-100 text-green-800',
-      fail: 'bg-red-100 text-red-800',
-      conditional: 'bg-amber-100 text-amber-800',
-      'n/a': 'bg-gray-100 text-gray-500',
-    };
-    return colors[outcome] || 'bg-gray-100 text-gray-700';
+    return grantStatusBadgeClass(outcome);
   };
 
   const calculateProgress = (tasks: WorkflowTask[]) => {
@@ -221,7 +206,7 @@ export default function WorkflowManager({ portfolioId, orgId }: Props) {
     return (
       <div className="animate-pulse space-y-4">
         {[1, 2, 3].map((i) => (
-          <div key={i} className="h-24 bg-gray-200 rounded-lg"></div>
+          <div key={i} className="h-24 bg-neutral-200 rounded-2xl"></div>
         ))}
       </div>
     );
@@ -235,17 +220,17 @@ export default function WorkflowManager({ portfolioId, orgId }: Props) {
           <select
             value={filter}
             onChange={(e) => setFilter(e.target.value as any)}
-            className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-azure focus:border-azure"
+            className="px-3 py-2 border border-black/10 rounded-2xl text-sm focus:ring-azure/30 focus:border-azure"
           >
             <option value="active">Active Workflows</option>
             <option value="completed">Completed</option>
             <option value="all">All Workflows</option>
           </select>
-          <span className="text-sm text-gray-500">{filteredWorkflows.length} workflows</span>
+          <span className="text-sm text-neutral-500">{filteredWorkflows.length} workflows</span>
         </div>
         <button
           onClick={() => setShowNewWorkflow(true)}
-          className="inline-flex items-center gap-2 px-4 py-2 bg-azure text-white rounded-md hover:bg-azure/90 text-sm font-medium"
+          className="inline-flex items-center gap-2 px-4 py-2 bg-azure text-white rounded-2xl hover:bg-azure/90 text-sm font-medium"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -257,15 +242,15 @@ export default function WorkflowManager({ portfolioId, orgId }: Props) {
       {/* New Workflow Modal */}
       {showNewWorkflow && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Start New Workflow</h3>
+          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full mx-4 p-6">
+            <h3 className="text-lg font-semibold text-ink mb-4">Start New Workflow</h3>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Grant</label>
+                <label className="block text-sm font-medium text-neutral-700 mb-1">Grant</label>
                 <select
                   value={newWorkflowData.holdingId}
                   onChange={(e) => setNewWorkflowData({ ...newWorkflowData, holdingId: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-azure focus:border-azure"
+                  className="w-full px-3 py-2 border border-black/10 rounded-2xl focus:ring-azure/30 focus:border-azure"
                 >
                   <option value="">Select a grant...</option>
                   {holdings.map((h) => (
@@ -274,11 +259,11 @@ export default function WorkflowManager({ portfolioId, orgId }: Props) {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Workflow Template</label>
+                <label className="block text-sm font-medium text-neutral-700 mb-1">Workflow Template</label>
                 <select
                   value={newWorkflowData.templateId}
                   onChange={(e) => setNewWorkflowData({ ...newWorkflowData, templateId: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-azure focus:border-azure"
+                  className="w-full px-3 py-2 border border-black/10 rounded-2xl focus:ring-azure/30 focus:border-azure"
                 >
                   <option value="">Select a template...</option>
                   {templates.map((t) => (
@@ -289,25 +274,25 @@ export default function WorkflowManager({ portfolioId, orgId }: Props) {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Due Date (optional)</label>
+                <label className="block text-sm font-medium text-neutral-700 mb-1">Due Date (optional)</label>
                 <input
                   type="date"
                   value={newWorkflowData.dueDate}
                   onChange={(e) => setNewWorkflowData({ ...newWorkflowData, dueDate: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-azure focus:border-azure"
+                  className="w-full px-3 py-2 border border-black/10 rounded-2xl focus:ring-azure/30 focus:border-azure"
                 />
               </div>
             </div>
             <div className="mt-6 flex items-center justify-end gap-3">
               <button
                 onClick={() => setShowNewWorkflow(false)}
-                className="px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900"
+                className="px-4 py-2 text-sm font-medium text-neutral-700 hover:text-ink"
               >
                 Cancel
               </button>
               <button
                 onClick={handleStartWorkflow}
-                className="px-4 py-2 bg-azure text-white rounded-md hover:bg-azure/90 text-sm font-medium"
+                className="px-4 py-2 bg-azure text-white rounded-2xl hover:bg-azure/90 text-sm font-medium"
               >
                 Start Workflow
               </button>
@@ -318,11 +303,11 @@ export default function WorkflowManager({ portfolioId, orgId }: Props) {
 
       {/* Workflow List */}
       {filteredWorkflows.length === 0 ? (
-        <div className="bg-white rounded-lg border border-gray-200 p-8 text-center">
-          <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div className="rounded-2xl border border-black/5 bg-white shadow-soft p-8 text-center">
+          <svg className="mx-auto h-12 w-12 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
           </svg>
-          <p className="mt-2 text-gray-500">No {filter !== 'all' ? filter : ''} workflows found.</p>
+          <p className="mt-2 text-neutral-500">No {filter !== 'all' ? filter : ''} workflows found.</p>
           <button
             onClick={() => setShowNewWorkflow(true)}
             className="mt-4 text-azure hover:text-azure/80 text-sm font-medium"
@@ -333,16 +318,16 @@ export default function WorkflowManager({ portfolioId, orgId }: Props) {
       ) : (
         <div className="space-y-4">
           {filteredWorkflows.map((workflow) => (
-            <div key={workflow.id} className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+            <div key={workflow.id} className="rounded-2xl border border-black/5 bg-white shadow-soft overflow-hidden">
               {/* Workflow Header */}
               <div
-                className="px-6 py-4 cursor-pointer hover:bg-gray-50"
+                className="px-6 py-4 cursor-pointer hover:bg-neutral-50"
                 onClick={() => setExpandedWorkflow(expandedWorkflow === workflow.id ? null : workflow.id)}
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-4">
                     <svg
-                      className={`w-5 h-5 text-gray-400 transition-transform ${expandedWorkflow === workflow.id ? 'rotate-90' : ''}`}
+                      className={`w-5 h-5 text-neutral-400 transition-transform ${expandedWorkflow === workflow.id ? 'rotate-90' : ''}`}
                       fill="none"
                       stroke="currentColor"
                       viewBox="0 0 24 24"
@@ -350,8 +335,8 @@ export default function WorkflowManager({ portfolioId, orgId }: Props) {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                     </svg>
                     <div>
-                      <h3 className="text-sm font-medium text-gray-900">{workflow.name}</h3>
-                      <p className="text-xs text-gray-500">
+                      <h3 className="text-sm font-medium text-ink">{workflow.name}</h3>
+                      <p className="text-xs text-neutral-500">
                         {workflow.grant_name} | {workflow.template_name}
                       </p>
                     </div>
@@ -359,19 +344,19 @@ export default function WorkflowManager({ portfolioId, orgId }: Props) {
                   <div className="flex items-center gap-4">
                     <div className="text-right">
                       <div className="flex items-center gap-2">
-                        <div className="w-24 bg-gray-200 rounded-full h-2">
+                        <div className="w-24 bg-neutral-200 rounded-full h-2">
                           <div
                             className="h-2 rounded-full bg-azure"
                             style={{ width: `${calculateProgress(workflow.tasks)}%` }}
                           />
                         </div>
-                        <span className="text-xs text-gray-500">{calculateProgress(workflow.tasks)}%</span>
+                        <span className="text-xs text-neutral-500">{calculateProgress(workflow.tasks)}%</span>
                       </div>
-                      <p className="text-xs text-gray-500 mt-1">
+                      <p className="text-xs text-neutral-500 mt-1">
                         {workflow.tasks.filter(t => t.status === 'completed').length}/{workflow.tasks.length} tasks
                       </p>
                     </div>
-                    <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusBadge(workflow.status)}`}>
+                    <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${getStatusBadge(workflow.status)}`}>
                       {workflow.status}
                     </span>
                   </div>
@@ -380,22 +365,22 @@ export default function WorkflowManager({ portfolioId, orgId }: Props) {
 
               {/* Expanded Task List */}
               {expandedWorkflow === workflow.id && (
-                <div className="border-t border-gray-200 bg-gray-50">
-                  <div className="px-6 py-3 border-b border-gray-200">
-                    <div className="flex items-center justify-between text-xs text-gray-500">
+                <div className="border-t border-black/5 bg-neutral-50">
+                  <div className="px-6 py-3 border-b border-black/5">
+                    <div className="flex items-center justify-between text-xs text-neutral-500">
                       <span>Started: {formatDate(workflow.started_at)}</span>
                       <span>Due: {formatDate(workflow.due_date)}</span>
                     </div>
                   </div>
-                  <ul className="divide-y divide-gray-200">
+                  <ul className="divide-y divide-black/5">
                     {workflow.tasks.map((task) => (
                       <li key={task.id} className="px-6 py-4 bg-white">
                         <div className="flex items-start justify-between">
                           <div className="flex items-start gap-3">
                             <div className={`mt-0.5 w-5 h-5 rounded-full flex items-center justify-center ${
                               task.status === 'completed' ? 'bg-green-100 text-green-600' :
-                              task.status === 'in_progress' ? 'bg-blue-100 text-blue-600' :
-                              'bg-gray-100 text-gray-400'
+                              task.status === 'in_progress' ? 'bg-azure/10 text-azure-deep' :
+                              'bg-neutral-100 text-neutral-400'
                             }`}>
                               {task.status === 'completed' ? (
                                 <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
@@ -407,29 +392,29 @@ export default function WorkflowManager({ portfolioId, orgId }: Props) {
                             </div>
                             <div>
                               <div className="flex items-center gap-2">
-                                <span className={`text-sm font-medium ${task.status === 'completed' ? 'text-gray-500 line-through' : 'text-gray-900'}`}>
+                                <span className={`text-sm font-medium ${task.status === 'completed' ? 'text-neutral-500 line-through' : 'text-ink'}`}>
                                   {task.name}
                                 </span>
                                 {task.is_required && (
                                   <span className="text-xs text-red-500">Required</span>
                                 )}
                                 {task.outcome && (
-                                  <span className={`px-2 py-0.5 rounded text-xs font-medium ${getOutcomeBadge(task.outcome)}`}>
+                                  <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${getOutcomeBadge(task.outcome)}`}>
                                     {task.outcome}
                                   </span>
                                 )}
                               </div>
                               {task.description && (
-                                <p className="text-xs text-gray-500 mt-1">{task.description}</p>
+                                <p className="text-xs text-neutral-500 mt-1">{task.description}</p>
                               )}
                               {task.outcome_notes && (
-                                <p className="text-xs text-gray-600 mt-1 italic">{task.outcome_notes}</p>
+                                <p className="text-xs text-neutral-600 mt-1 italic">{task.outcome_notes}</p>
                               )}
                             </div>
                           </div>
                           <div className="flex items-center gap-2">
                             {task.due_date && (
-                              <span className="text-xs text-gray-500">{formatDate(task.due_date)}</span>
+                              <span className="text-xs text-neutral-500">{formatDate(task.due_date)}</span>
                             )}
                             {task.status !== 'completed' && workflow.status === 'active' && (
                               <div className="flex items-center gap-1">

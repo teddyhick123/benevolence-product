@@ -140,7 +140,7 @@ export default function RiskAlerts({ grants, portfolioId }: Props) {
 
   if (alerts.length === 0) {
     return (
-      <div className="flex items-center gap-3 px-4 py-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-700">
+      <div className="flex items-center gap-3 px-4 py-3 bg-green-50 border border-green-200 rounded-2xl text-sm text-green-700">
         <svg className="w-5 h-5 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
@@ -159,16 +159,16 @@ export default function RiskAlerts({ grants, portfolioId }: Props) {
         return (
           <div
             key={alert.id}
-            className={`rounded-lg border px-4 py-3 ${
+            className={`rounded-2xl border px-4 py-3 ${
               isCritical
                 ? 'bg-red-50 border-red-200'
-                : 'bg-amber-50 border-amber-200'
+                : 'bg-sunset/15 border-sunset/30'
             }`}
           >
             <div className="flex items-start justify-between gap-3">
               <div className="flex items-start gap-3 min-w-0">
                 <svg
-                  className={`w-5 h-5 flex-shrink-0 mt-0.5 ${isCritical ? 'text-red-500' : 'text-amber-500'}`}
+                  className={`w-5 h-5 flex-shrink-0 mt-0.5 ${isCritical ? 'text-red-500' : 'text-coral'}`}
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -183,7 +183,7 @@ export default function RiskAlerts({ grants, portfolioId }: Props) {
                   />
                 </svg>
                 <div className="min-w-0">
-                  <p className={`text-sm font-medium ${isCritical ? 'text-red-800' : 'text-amber-800'}`}>
+                  <p className={`text-sm font-medium ${isCritical ? 'text-red-800' : 'text-ink'}`}>
                     {alert.message}
                   </p>
                   {isExpanded && (
@@ -192,7 +192,7 @@ export default function RiskAlerts({ grants, portfolioId }: Props) {
                         <li key={g.id}>
                           <a
                             href={`/dashboard/grants/${g.id}?portfolio_id=${portfolioId}`}
-                            className={`text-xs underline ${isCritical ? 'text-red-700 hover:text-red-900' : 'text-amber-700 hover:text-amber-900'}`}
+                            className={`text-xs underline ${isCritical ? 'text-red-700 hover:text-red-900' : 'text-coral hover:text-coral/80'}`}
                           >
                             {g.name}
                           </a>
@@ -203,7 +203,7 @@ export default function RiskAlerts({ grants, portfolioId }: Props) {
                   {alert.grants.length > 0 && (
                     <button
                       onClick={() => toggleExpand(alert.id)}
-                      className={`mt-1 text-xs underline ${isCritical ? 'text-red-600' : 'text-amber-600'}`}
+                      className={`mt-1 text-xs underline ${isCritical ? 'text-red-600' : 'text-coral'}`}
                     >
                       {isExpanded ? 'Hide grants' : `View ${alert.grants.length} grant${alert.grants.length > 1 ? 's' : ''}`}
                     </button>
@@ -212,7 +212,7 @@ export default function RiskAlerts({ grants, portfolioId }: Props) {
               </div>
               <button
                 onClick={() => handleDismiss(alert.id)}
-                className={`flex-shrink-0 p-1 rounded ${isCritical ? 'text-red-400 hover:text-red-600' : 'text-amber-400 hover:text-amber-600'}`}
+                className={`flex-shrink-0 p-1 rounded-full ${isCritical ? 'text-red-400 hover:text-red-600 hover:bg-red-100' : 'text-coral hover:text-coral/80 hover:bg-sunset/20'}`}
                 title="Dismiss"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

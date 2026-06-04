@@ -7,30 +7,9 @@ import DocumentManager from '@/components/grants/DocumentManager';
 import BudgetTracker from '@/components/grants/BudgetTracker';
 import GrantExportButton from '@/components/grants/GrantExportButton';
 import { LIFECYCLE_STAGES, type LifecycleStage } from '@/lib/grants/lifecycle-shared';
+import { GRANT_RISK_BADGE, grantStageBadgeClass, grantStageLabel } from '@/components/grants/grantPalette';
 
 type WorkspaceSection = 'overview' | 'milestones' | 'decisions' | 'history' | 'tasks' | 'contacts' | 'communications' | 'documents' | 'budget';
-
-const STAGE_COLORS: Record<string, string> = {
-  draft: 'bg-gray-100 text-gray-600',
-  prospect: 'bg-blue-50 text-blue-700',
-  invited: 'bg-indigo-50 text-indigo-700',
-  application_received: 'bg-violet-50 text-violet-700',
-  due_diligence: 'bg-amber-50 text-amber-700',
-  recommended: 'bg-orange-50 text-orange-700',
-  approved: 'bg-emerald-50 text-emerald-700',
-  agreement: 'bg-teal-50 text-teal-700',
-  active: 'bg-green-100 text-green-700',
-  renewal_review: 'bg-sky-50 text-sky-700',
-  closeout: 'bg-rose-50 text-rose-700',
-  closed: 'bg-gray-200 text-gray-500',
-  declined: 'bg-red-100 text-red-700',
-  cancelled: 'bg-gray-200 text-gray-400',
-};
-
-function stageBadge(stage: string) {
-  const cls = STAGE_COLORS[stage] ?? 'bg-gray-100 text-gray-600';
-  return `${cls} px-2.5 py-0.5 rounded-full text-xs font-semibold capitalize`;
-}
 
 function fmt(date: string | null | undefined) {
   if (!date) return '—';
@@ -200,11 +179,11 @@ export default function GrantDetailPage() {
               </svg>
             </Link>
             <h1 className="text-2xl font-serif text-gray-900">{grant.holdings?.name ?? '—'}</h1>
-            <span className={stageBadge(currentStage)}>
-              {currentStage.replace(/_/g, ' ')}
+            <span className={grantStageBadgeClass(currentStage)}>
+              {grantStageLabel(currentStage)}
             </span>
             {grant.risk_level && (
-              <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${grant.risk_level === 'high' ? 'bg-red-100 text-red-700' : grant.risk_level === 'medium' ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700'}`}>
+              <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${GRANT_RISK_BADGE[grant.risk_level] ?? 'border border-neutral-200 bg-neutral-100 text-neutral-600'}`}>
                 {grant.risk_level} risk
               </span>
             )}
@@ -235,7 +214,7 @@ export default function GrantDetailPage() {
             {grant.approved_amount && (
               <div>
                 <div className="text-xs text-gray-400 font-medium uppercase tracking-wide mb-1">Approved</div>
-                <div className="text-lg font-bold text-emerald-700">{fmtMoney(grant.approved_amount, grant.currency)}</div>
+                <div className="text-lg font-bold text-green-700">{fmtMoney(grant.approved_amount, grant.currency)}</div>
               </div>
             )}
             {grant.grant_period_end && (
@@ -438,7 +417,7 @@ export default function GrantDetailPage() {
                   <div className="flex items-start justify-between gap-4">
                     <div>
                       <div className="flex items-center gap-2">
-                        <span className={`px-2 py-0.5 rounded text-xs font-semibold ${d.decision === 'approved' ? 'bg-emerald-100 text-emerald-700' : d.decision === 'declined' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600'}`}>
+                        <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${d.decision === 'approved' ? 'border border-green-200 bg-green-100 text-green-700' : d.decision === 'declined' ? 'border border-red-200 bg-red-100 text-red-700' : 'border border-neutral-200 bg-neutral-100 text-neutral-600'}`}>
                           {d.decision}
                         </span>
                         <span className="text-sm text-gray-600 capitalize">{d.decision_type?.replace(/_/g, ' ')}</span>
@@ -474,7 +453,7 @@ export default function GrantDetailPage() {
                   <div className="flex items-center justify-between gap-4">
                     <div>
                       <div className="flex items-center gap-2">
-                        <span className={`w-2 h-2 rounded-full flex-shrink-0 ${t.tasks?.priority === 'urgent' ? 'bg-red-500' : t.tasks?.priority === 'high' ? 'bg-orange-400' : 'bg-gray-300'}`} />
+                        <span className={`w-2 h-2 rounded-full flex-shrink-0 ${t.tasks?.priority === 'urgent' ? 'bg-red-500' : t.tasks?.priority === 'high' ? 'bg-coral' : 'bg-neutral-300'}`} />
                         <span className="text-sm font-medium text-gray-900">{t.tasks?.title}</span>
                         <span className={`px-1.5 py-0.5 rounded text-xs ${t.tasks?.status === 'completed' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
                           {t.tasks?.status?.replace(/_/g, ' ')}
@@ -556,7 +535,7 @@ export default function GrantDetailPage() {
               {communications.map((c: any) => (
                 <li key={c.id} className="px-5 py-4">
                   <div className="flex items-start gap-3">
-                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs flex-shrink-0 ${c.direction === 'inbound' ? 'bg-blue-100 text-blue-600' : 'bg-green-100 text-green-600'}`}>
+                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs flex-shrink-0 ${c.direction === 'inbound' ? 'bg-azure/10 text-azure-deep' : 'bg-green-100 text-green-600'}`}>
                       {c.direction === 'inbound' ? '↓' : '↑'}
                     </div>
                     <div className="flex-1 min-w-0">

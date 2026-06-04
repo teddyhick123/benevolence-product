@@ -3,39 +3,8 @@
 import { useState, useMemo, useCallback } from 'react';
 import Link from 'next/link';
 import { LIFECYCLE_STAGES } from '@/lib/grants/lifecycle-shared';
+import { GRANT_RISK_BADGE, grantStageBadgeClass, grantStageLabel } from './grantPalette';
 import type { GrantListItem } from './GrantPipelineView';
-
-const STAGE_LABELS: Record<string, string> = {
-  draft: 'Draft', prospect: 'Prospect', invited: 'Invited',
-  application_received: 'Application', due_diligence: 'Due Diligence',
-  recommended: 'Recommended', approved: 'Approved', agreement: 'Agreement',
-  active: 'Active', renewal_review: 'Renewal', closeout: 'Closeout',
-  closed: 'Closed', declined: 'Declined', cancelled: 'Cancelled',
-};
-
-const STAGE_BADGE: Record<string, string> = {
-  draft:                'bg-gray-100 text-gray-500',
-  prospect:             'bg-blue-100 text-blue-700',
-  invited:              'bg-indigo-100 text-indigo-700',
-  application_received: 'bg-purple-100 text-purple-700',
-  due_diligence:        'bg-yellow-100 text-yellow-700',
-  recommended:          'bg-orange-100 text-orange-700',
-  approved:             'bg-emerald-100 text-emerald-700',
-  agreement:            'bg-teal-100 text-teal-700',
-  active:               'bg-green-100 text-green-700',
-  renewal_review:       'bg-amber-100 text-amber-700',
-  closeout:             'bg-rose-100 text-rose-700',
-  closed:               'bg-gray-200 text-gray-500',
-  declined:             'bg-red-100 text-red-600',
-  cancelled:            'bg-gray-100 text-gray-400',
-};
-
-const RISK_BADGE: Record<string, string> = {
-  low:      'bg-green-100 text-green-700',
-  medium:   'bg-yellow-100 text-yellow-700',
-  high:     'bg-red-100 text-red-700',
-  critical: 'bg-red-200 text-red-800',
-};
 
 function fmt(v: number | null | undefined, currency = 'USD'): string {
   if (v == null) return '—';
@@ -114,11 +83,11 @@ export default function GrantTableView({ grants, members = [], onNewGrant }: Pro
   }, [grants, search, stageFilter, riskFilter, ownerFilter, sortKey, sortDir]);
 
   function SortIcon({ col }: { col: SortKey }) {
-    if (sortKey !== col) return <span className="text-gray-300 ml-1">↕</span>;
+    if (sortKey !== col) return <span className="text-neutral-300 ml-1">↕</span>;
     return <span className="text-azure ml-1">{sortDir === 'asc' ? '↑' : '↓'}</span>;
   }
 
-  const th = 'px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide cursor-pointer select-none hover:text-gray-700';
+  const th = 'px-4 py-3 text-left text-xs font-semibold text-neutral-500 uppercase tracking-wide cursor-pointer select-none hover:text-neutral-700';
 
   if (grants.length === 0) {
     return (
@@ -129,11 +98,11 @@ export default function GrantTableView({ grants, members = [], onNewGrant }: Pro
           </svg>
         </div>
         <div>
-          <p className="font-medium text-gray-900">No grants yet</p>
-          <p className="text-sm text-gray-500 mt-1">Add grants to see them in the table view.</p>
+          <p className="font-medium text-ink">No grants yet</p>
+          <p className="text-sm text-neutral-500 mt-1">Add grants to see them in the table view.</p>
         </div>
         {onNewGrant && (
-          <button onClick={onNewGrant} className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-azure rounded-lg hover:bg-azure/90">
+          <button onClick={onNewGrant} className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-azure rounded-2xl hover:bg-azure/90">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
             </svg>
@@ -149,7 +118,7 @@ export default function GrantTableView({ grants, members = [], onNewGrant }: Pro
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative flex-1 min-w-48 max-w-xs">
-          <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
           </svg>
           <input
@@ -157,25 +126,25 @@ export default function GrantTableView({ grants, members = [], onNewGrant }: Pro
             placeholder="Search grantees…"
             value={search}
             onChange={e => setSearch(e.target.value)}
-            className="w-full pl-9 pr-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-azure/30"
+            className="w-full pl-9 pr-3 py-1.5 text-sm border border-black/5 rounded-2xl focus:outline-none focus:ring-2 focus:ring-azure/30"
           />
         </div>
 
         <select
           value={stageFilter}
           onChange={e => setStageFilter(e.target.value)}
-          className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-azure/30 bg-white"
+          className="text-sm border border-black/5 rounded-2xl px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-azure/30 bg-white"
         >
           <option value="">All Stages</option>
           {LIFECYCLE_STAGES.map(s => (
-            <option key={s} value={s}>{STAGE_LABELS[s]}</option>
+            <option key={s} value={s}>{grantStageLabel(s)}</option>
           ))}
         </select>
 
         <select
           value={riskFilter}
           onChange={e => setRiskFilter(e.target.value)}
-          className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-azure/30 bg-white"
+          className="text-sm border border-black/5 rounded-2xl px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-azure/30 bg-white"
         >
           <option value="">All Risk</option>
           <option value="critical">Critical</option>
@@ -188,7 +157,7 @@ export default function GrantTableView({ grants, members = [], onNewGrant }: Pro
           <select
             value={ownerFilter}
             onChange={e => setOwnerFilter(e.target.value)}
-            className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-azure/30 bg-white"
+            className="text-sm border border-black/5 rounded-2xl px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-azure/30 bg-white"
           >
             <option value="">All Owners</option>
             {members.map(m => (
@@ -200,23 +169,23 @@ export default function GrantTableView({ grants, members = [], onNewGrant }: Pro
         {(search || stageFilter || riskFilter || ownerFilter) && (
           <button
             onClick={() => { setSearch(''); setStageFilter(''); setRiskFilter(''); setOwnerFilter(''); }}
-            className="text-xs text-gray-400 hover:text-gray-600"
+            className="text-xs text-neutral-400 hover:text-neutral-600"
           >
             Clear filters
           </button>
         )}
 
-        <span className="ml-auto text-xs text-gray-400">{filtered.length} grant{filtered.length !== 1 ? 's' : ''}</span>
+        <span className="ml-auto text-xs text-neutral-400">{filtered.length} grant{filtered.length !== 1 ? 's' : ''}</span>
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-xl border border-black/5 shadow-sm overflow-hidden">
+      <div className="rounded-2xl border border-black/5 bg-white shadow-soft shadow-sm overflow-hidden">
         {filtered.length === 0 ? (
-          <div className="p-8 text-center text-sm text-gray-400">No grants match your filters.</div>
+          <div className="p-8 text-center text-sm text-neutral-400">No grants match your filters.</div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="bg-gray-50 border-b border-gray-100">
+              <thead className="bg-neutral-50 border-b border-black/5">
                 <tr>
                   <th className={th} onClick={() => handleSort('name')}>
                     Grantee <SortIcon col="name" />
@@ -237,40 +206,40 @@ export default function GrantTableView({ grants, members = [], onNewGrant }: Pro
                   <th className="px-4 py-3" />
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-50">
+              <tbody className="divide-y divide-black/5">
                 {filtered.map(g => {
                   const amount = g.approved_amount ?? g.requested_amount;
                   const days = daysUntil(g.grant_period_end);
                   return (
-                    <tr key={g.id} className="hover:bg-gray-50/60 transition-colors">
+                    <tr key={g.id} className="hover:bg-neutral-50/60 transition-colors">
                       <td className="px-4 py-3">
-                        <Link href={`/dashboard/grants/${g.id}`} className="font-medium text-gray-900 hover:text-azure truncate block max-w-[200px]">
+                        <Link href={`/dashboard/grants/${g.id}`} className="font-medium text-ink hover:text-azure truncate block max-w-[200px]">
                           {g.holdings?.name ?? 'Unnamed'}
                         </Link>
                       </td>
                       <td className="px-4 py-3">
-                        <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${STAGE_BADGE[g.lifecycle_stage] ?? 'bg-gray-100 text-gray-500'}`}>
-                          {STAGE_LABELS[g.lifecycle_stage] ?? g.lifecycle_stage}
+                        <span className={grantStageBadgeClass(g.lifecycle_stage)}>
+                          {grantStageLabel(g.lifecycle_stage)}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-gray-700 font-medium">{fmt(amount, g.currency ?? 'USD')}</td>
+                      <td className="px-4 py-3 text-neutral-700 font-medium">{fmt(amount, g.currency ?? 'USD')}</td>
                       <td className="px-4 py-3">
                         {g.risk_level ? (
-                          <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium capitalize ${RISK_BADGE[g.risk_level] ?? 'bg-gray-100 text-gray-500'}`}>
+                          <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium capitalize ${GRANT_RISK_BADGE[g.risk_level] ?? 'border border-neutral-200 bg-neutral-100 text-neutral-600'}`}>
                             {g.risk_level}
                           </span>
-                        ) : <span className="text-gray-300">—</span>}
+                        ) : <span className="text-neutral-300">—</span>}
                       </td>
                       <td className="px-4 py-3">
-                        <span className="text-gray-600">{fmtDate(g.grant_period_end)}</span>
+                        <span className="text-neutral-600">{fmtDate(g.grant_period_end)}</span>
                         {days !== null && (
-                          <span className={`ml-1.5 text-xs ${days < 0 ? 'text-red-500' : days < 30 ? 'text-amber-500' : 'text-gray-400'}`}>
+                          <span className={`ml-1.5 text-xs ${days < 0 ? 'text-red-500' : days < 30 ? 'text-coral' : 'text-neutral-400'}`}>
                             ({days < 0 ? `${Math.abs(days)}d ago` : `${days}d`})
                           </span>
                         )}
                       </td>
                       {members.length > 0 && (
-                        <td className="px-4 py-3 text-gray-500 text-xs">
+                        <td className="px-4 py-3 text-neutral-500 text-xs">
                           {g.internal_owner_id ? (memberMap.get(g.internal_owner_id) ?? '—') : '—'}
                         </td>
                       )}

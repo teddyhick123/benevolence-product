@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase-browser';
+import { grantStatusBadgeClass } from './grantPalette';
 
 type Payment = {
   id: string;
@@ -136,15 +137,7 @@ export default function PaymentSchedule({ portfolioId }: Props) {
   };
 
   const getStatusBadge = (status: string) => {
-    const colors: Record<string, string> = {
-      scheduled: 'bg-gray-100 text-gray-700',
-      approved: 'bg-blue-100 text-blue-700',
-      processing: 'bg-amber-100 text-amber-700',
-      completed: 'bg-green-100 text-green-700',
-      cancelled: 'bg-gray-200 text-gray-500',
-      returned: 'bg-red-100 text-red-700',
-    };
-    return colors[status] || 'bg-gray-100 text-gray-700';
+    return grantStatusBadgeClass(status);
   };
 
   const handleAddPayment = async () => {
@@ -237,10 +230,10 @@ export default function PaymentSchedule({ portfolioId }: Props) {
       <div className="animate-pulse space-y-4">
         <div className="grid grid-cols-4 gap-4">
           {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="h-24 bg-gray-200 rounded-lg"></div>
+            <div key={i} className="h-24 bg-neutral-200 rounded-2xl"></div>
           ))}
         </div>
-        <div className="h-64 bg-gray-200 rounded-lg"></div>
+        <div className="h-64 bg-neutral-200 rounded-2xl"></div>
       </div>
     );
   }
@@ -249,21 +242,21 @@ export default function PaymentSchedule({ portfolioId }: Props) {
     <div className="space-y-6">
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
-          <span className="text-sm font-medium text-gray-500">Total Scheduled</span>
-          <div className="mt-2 text-2xl font-bold text-gray-900">{formatCurrency(summary.totalScheduled)}</div>
+        <div className="rounded-2xl border border-black/5 bg-white shadow-soft p-6">
+          <span className="text-sm font-medium text-neutral-500">Total Scheduled</span>
+          <div className="mt-2 text-2xl font-bold text-ink">{formatCurrency(summary.totalScheduled)}</div>
         </div>
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
-          <span className="text-sm font-medium text-gray-500">Total Disbursed</span>
+        <div className="rounded-2xl border border-black/5 bg-white shadow-soft p-6">
+          <span className="text-sm font-medium text-neutral-500">Total Disbursed</span>
           <div className="mt-2 text-2xl font-bold text-green-600">{formatCurrency(summary.totalDisbursed)}</div>
         </div>
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
-          <span className="text-sm font-medium text-gray-500">Pending Payments</span>
-          <div className="mt-2 text-2xl font-bold text-amber-600">{summary.pendingCount}</div>
+        <div className="rounded-2xl border border-black/5 bg-white shadow-soft p-6">
+          <span className="text-sm font-medium text-neutral-500">Pending Payments</span>
+          <div className="mt-2 text-2xl font-bold text-coral">{summary.pendingCount}</div>
         </div>
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
-          <span className="text-sm font-medium text-gray-500">Upcoming Amount</span>
-          <div className="mt-2 text-2xl font-bold text-gray-900">{formatCurrency(summary.upcomingAmount)}</div>
+        <div className="rounded-2xl border border-black/5 bg-white shadow-soft p-6">
+          <span className="text-sm font-medium text-neutral-500">Upcoming Amount</span>
+          <div className="mt-2 text-2xl font-bold text-ink">{formatCurrency(summary.upcomingAmount)}</div>
         </div>
       </div>
 
@@ -273,17 +266,17 @@ export default function PaymentSchedule({ portfolioId }: Props) {
           <select
             value={filter}
             onChange={(e) => setFilter(e.target.value as any)}
-            className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-azure focus:border-azure"
+            className="px-3 py-2 border border-black/10 rounded-2xl text-sm focus:ring-azure/30 focus:border-azure"
           >
             <option value="all">All Payments</option>
             <option value="scheduled">Pending</option>
             <option value="completed">Completed</option>
           </select>
-          <span className="text-sm text-gray-500">{filteredPayments.length} payments</span>
+          <span className="text-sm text-neutral-500">{filteredPayments.length} payments</span>
         </div>
         <button
           onClick={() => setShowAddPayment(true)}
-          className="inline-flex items-center gap-2 px-4 py-2 bg-azure text-white rounded-md hover:bg-azure/90 text-sm font-medium"
+          className="inline-flex items-center gap-2 px-4 py-2 bg-azure text-white rounded-2xl hover:bg-azure/90 text-sm font-medium"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -295,15 +288,15 @@ export default function PaymentSchedule({ portfolioId }: Props) {
       {/* Add Payment Modal */}
       {showAddPayment && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Schedule Payment</h3>
+          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full mx-4 p-6">
+            <h3 className="text-lg font-semibold text-ink mb-4">Schedule Payment</h3>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Grant *</label>
+                <label className="block text-sm font-medium text-neutral-700 mb-1">Grant *</label>
                 <select
                   value={newPayment.holdingId}
                   onChange={(e) => setNewPayment({ ...newPayment, holdingId: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-azure focus:border-azure"
+                  className="w-full px-3 py-2 border border-black/10 rounded-2xl focus:ring-azure/30 focus:border-azure"
                 >
                   <option value="">Select a grant...</option>
                   {holdings.map((h) => (
@@ -312,33 +305,33 @@ export default function PaymentSchedule({ portfolioId }: Props) {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Amount *</label>
+                <label className="block text-sm font-medium text-neutral-700 mb-1">Amount *</label>
                 <div className="relative">
-                  <span className="absolute left-3 top-2 text-gray-500">$</span>
+                  <span className="absolute left-3 top-2 text-neutral-500">$</span>
                   <input
                     type="number"
                     value={newPayment.amount}
                     onChange={(e) => setNewPayment({ ...newPayment, amount: e.target.value })}
-                    className="w-full pl-7 pr-3 py-2 border border-gray-300 rounded-md focus:ring-azure focus:border-azure"
+                    className="w-full pl-7 pr-3 py-2 border border-black/10 rounded-2xl focus:ring-azure/30 focus:border-azure"
                     placeholder="0"
                   />
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Scheduled Date</label>
+                <label className="block text-sm font-medium text-neutral-700 mb-1">Scheduled Date</label>
                 <input
                   type="date"
                   value={newPayment.scheduledDate}
                   onChange={(e) => setNewPayment({ ...newPayment, scheduledDate: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-azure focus:border-azure"
+                  className="w-full px-3 py-2 border border-black/10 rounded-2xl focus:ring-azure/30 focus:border-azure"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Payment Method</label>
+                <label className="block text-sm font-medium text-neutral-700 mb-1">Payment Method</label>
                 <select
                   value={newPayment.paymentMethod}
                   onChange={(e) => setNewPayment({ ...newPayment, paymentMethod: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-azure focus:border-azure"
+                  className="w-full px-3 py-2 border border-black/10 rounded-2xl focus:ring-azure/30 focus:border-azure"
                 >
                   <option value="">Select method...</option>
                   <option value="check">Check</option>
@@ -347,11 +340,11 @@ export default function PaymentSchedule({ portfolioId }: Props) {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+                <label className="block text-sm font-medium text-neutral-700 mb-1">Notes</label>
                 <textarea
                   value={newPayment.notes}
                   onChange={(e) => setNewPayment({ ...newPayment, notes: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-azure focus:border-azure"
+                  className="w-full px-3 py-2 border border-black/10 rounded-2xl focus:ring-azure/30 focus:border-azure"
                   rows={2}
                 />
               </div>
@@ -359,13 +352,13 @@ export default function PaymentSchedule({ portfolioId }: Props) {
             <div className="mt-6 flex items-center justify-end gap-3">
               <button
                 onClick={() => setShowAddPayment(false)}
-                className="px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900"
+                className="px-4 py-2 text-sm font-medium text-neutral-700 hover:text-ink"
               >
                 Cancel
               </button>
               <button
                 onClick={handleAddPayment}
-                className="px-4 py-2 bg-azure text-white rounded-md hover:bg-azure/90 text-sm font-medium"
+                className="px-4 py-2 bg-azure text-white rounded-2xl hover:bg-azure/90 text-sm font-medium"
               >
                 Schedule Payment
               </button>
@@ -375,48 +368,48 @@ export default function PaymentSchedule({ portfolioId }: Props) {
       )}
 
       {/* Payment List */}
-      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+      <div className="rounded-2xl border border-black/5 bg-white shadow-soft overflow-hidden">
         {filteredPayments.length === 0 ? (
-          <div className="p-8 text-center text-gray-500">
-            <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div className="p-8 text-center text-neutral-500">
+            <svg className="mx-auto h-12 w-12 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
             <p className="mt-2">No payments found.</p>
           </div>
         ) : (
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+          <table className="min-w-full divide-y divide-black/5">
+            <thead className="bg-neutral-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Grant</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Payment #</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Scheduled</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actual</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Grant</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Payment #</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Amount</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Scheduled</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Actual</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Status</th>
+                <th className="px-6 py-3 text-right text-xs font-medium text-neutral-500 uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
+            <tbody className="bg-white divide-y divide-black/5">
               {filteredPayments.map((payment) => (
-                <tr key={payment.id} className="hover:bg-gray-50">
+                <tr key={payment.id} className="hover:bg-neutral-50">
                   <td className="px-6 py-4">
                     <a
                       href={`/dashboard/holdings/${payment.holding_id}?portfolio_id=${portfolioId}`}
-                      className="text-sm font-medium text-gray-900 hover:text-azure"
+                      className="text-sm font-medium text-ink hover:text-azure"
                     >
                       {payment.grant_name}
                     </a>
                   </td>
-                  <td className="px-6 py-4 text-sm text-gray-500">
+                  <td className="px-6 py-4 text-sm text-neutral-500">
                     #{payment.payment_number}
                   </td>
-                  <td className="px-6 py-4 text-sm font-medium text-gray-900">
+                  <td className="px-6 py-4 text-sm font-medium text-ink">
                     {formatCurrency(payment.amount)}
                   </td>
-                  <td className="px-6 py-4 text-sm text-gray-500">
+                  <td className="px-6 py-4 text-sm text-neutral-500">
                     {formatDate(payment.scheduled_date)}
                   </td>
-                  <td className="px-6 py-4 text-sm text-gray-500">
+                  <td className="px-6 py-4 text-sm text-neutral-500">
                     {formatDate(payment.actual_date)}
                   </td>
                   <td className="px-6 py-4">

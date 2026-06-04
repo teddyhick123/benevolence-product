@@ -246,9 +246,9 @@ export default function QuickBooksSettings({ orgId }: Props) {
 
   if (loading) {
     return (
-      <div className="animate-pulse rounded-xl border border-gray-200 bg-white p-6">
-        <div className="h-4 w-48 rounded bg-gray-200" />
-        <div className="mt-3 h-3 w-32 rounded bg-gray-100" />
+      <div className="animate-pulse rounded-2xl border border-black/5 bg-white p-6 shadow-soft">
+        <div className="h-4 w-48 rounded bg-neutral-200" />
+        <div className="mt-3 h-3 w-32 rounded bg-neutral-100" />
       </div>
     );
   }
@@ -256,19 +256,19 @@ export default function QuickBooksSettings({ orgId }: Props) {
   const isConnected = status?.connected ?? false;
 
   return (
-    <div className="rounded-xl border border-gray-200 bg-white shadow-sm">
+    <div className="rounded-2xl border border-black/5 bg-white shadow-soft">
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
+      <div className="flex items-center justify-between border-b border-black/5 px-6 py-4">
         <div className="flex items-center gap-3">
           {/* QuickBooks logo mark */}
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#2CA01C] text-white">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#2CA01C] text-white">
             <svg viewBox="0 0 24 24" fill="currentColor" className="h-5 w-5">
               <path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2zm-1 14.5v-2.25H9A2.75 2.75 0 019 8.25h2V6l4 4-4 4v-1.5zm2-4h2a.75.75 0 000-1.5h-2v1.5zm0 2.5v-1h2A2.75 2.75 0 0015 8.75h-2V7l-4 4 4 4v-1.5h-1.5z" />
             </svg>
           </div>
           <div>
-            <h2 className="text-sm font-semibold text-gray-900">QuickBooks Online</h2>
-            <p className="text-xs text-gray-500">
+            <h2 className="font-serif text-lg font-medium text-ink">QuickBooks Online</h2>
+            <p className="text-xs text-neutral-500">
               Sync accounts and export transactions to QBO
             </p>
           </div>
@@ -279,12 +279,12 @@ export default function QuickBooksSettings({ orgId }: Props) {
           className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ${
             isConnected
               ? 'bg-green-50 text-green-700'
-              : 'bg-gray-100 text-gray-500'
+              : 'bg-neutral-100 text-neutral-500'
           }`}
         >
           <span
             className={`h-1.5 w-1.5 rounded-full ${
-              isConnected ? 'bg-green-500' : 'bg-gray-400'
+              isConnected ? 'bg-green-500' : 'bg-neutral-400'
             }`}
           />
           {isConnected ? 'Connected' : 'Not connected'}
@@ -296,10 +296,10 @@ export default function QuickBooksSettings({ orgId }: Props) {
         {/* Inline message */}
         {message && (
           <div
-            className={`rounded-lg px-4 py-3 text-sm ${
+            className={`rounded-2xl border px-4 py-3 text-sm ${
               message.type === 'success'
-                ? 'bg-green-50 text-green-800'
-                : 'bg-red-50 text-red-800'
+                ? 'border-green-200 bg-green-50 text-green-800'
+                : 'border-red-200 bg-red-50 text-red-800'
             }`}
           >
             {message.text}
@@ -309,14 +309,14 @@ export default function QuickBooksSettings({ orgId }: Props) {
         {!isConnected ? (
           /* ---- Not connected state ---- */
           <div className="flex flex-col items-start gap-3">
-            <p className="text-sm text-gray-600">
+            <p className="text-sm text-neutral-600">
               Connect your QuickBooks Online account to export charitable contributions and
               grants as journal entries.
             </p>
             <button
               onClick={handleConnect}
               disabled={actionLoading}
-              className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 disabled:opacity-50"
+              className="inline-flex items-center gap-2 rounded-2xl bg-azure px-4 py-2 text-sm font-medium text-white shadow-soft transition hover:-translate-y-0.5 hover:bg-azure/90 disabled:opacity-50"
             >
               Connect to QuickBooks
             </button>
@@ -326,8 +326,8 @@ export default function QuickBooksSettings({ orgId }: Props) {
           <div className="space-y-5">
             {/* Token-expired warning */}
             {status?.token_expired && (
-              <div className="flex items-start gap-3 rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800">
-                <span className="mt-0.5 text-base leading-none">⚠️</span>
+              <div className="flex items-start gap-3 rounded-2xl border border-sunset/30 bg-sunset/10 px-4 py-3 text-sm text-ink">
+                <span className="mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-sunset text-xs font-semibold text-white">!</span>
                 <div className="flex-1">
                   <p className="font-medium">QuickBooks token has expired.</p>
                   <p className="text-xs mt-0.5">Exports are disabled until you reconnect. Click &quot;Reconnect&quot; to authorize again.</p>
@@ -335,7 +335,7 @@ export default function QuickBooksSettings({ orgId }: Props) {
                 <button
                   onClick={handleConnect}
                   disabled={actionLoading}
-                  className="shrink-0 rounded-md bg-amber-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-amber-700 disabled:opacity-50"
+                  className="shrink-0 rounded-2xl bg-azure px-3 py-1.5 text-xs font-medium text-white hover:bg-azure/90 disabled:opacity-50"
                 >
                   Reconnect
                 </button>
@@ -344,29 +344,29 @@ export default function QuickBooksSettings({ orgId }: Props) {
             {/* Meta */}
             <div className="grid grid-cols-2 gap-3 text-xs">
               <div>
-                <span className="text-gray-500">Company ID</span>
-                <p className="mt-0.5 font-mono text-gray-800">{status?.realm_id ?? '—'}</p>
+                <span className="text-neutral-500">Company ID</span>
+                <p className="mt-0.5 font-mono text-neutral-800">{status?.realm_id ?? '—'}</p>
               </div>
               <div>
-                <span className="text-gray-500">Connected</span>
-                <p className="mt-0.5 text-gray-800">
+                <span className="text-neutral-500">Connected</span>
+                <p className="mt-0.5 text-neutral-800">
                   {status?.connected_at
                     ? new Date(status.connected_at).toLocaleDateString()
                     : '—'}
                 </p>
               </div>
               <div>
-                <span className="text-gray-500">Last sync</span>
-                <p className="mt-0.5 text-gray-800">
+                <span className="text-neutral-500">Last sync</span>
+                <p className="mt-0.5 text-neutral-800">
                   {status?.last_sync_at
                     ? new Date(status.last_sync_at).toLocaleString()
                     : 'Never'}
                 </p>
               </div>
               <div>
-                <span className="text-gray-500">Token expires</span>
+                <span className="text-neutral-500">Token expires</span>
                 <p
-                  className={`mt-0.5 ${status?.token_expired ? 'text-red-600' : 'text-gray-800'}`}
+                  className={`mt-0.5 ${status?.token_expired ? 'text-red-600' : 'text-neutral-800'}`}
                 >
                   {status?.token_expiry
                     ? new Date(status.token_expiry).toLocaleDateString()
@@ -377,10 +377,10 @@ export default function QuickBooksSettings({ orgId }: Props) {
             </div>
 
             {/* Account sync */}
-            <div className="flex items-center justify-between rounded-lg border border-gray-100 bg-gray-50 px-4 py-3">
+            <div className="flex items-center justify-between rounded-2xl border border-black/5 bg-neutral-50 px-4 py-3">
               <div>
-                <p className="text-sm font-medium text-gray-800">Chart of Accounts</p>
-                <p className="text-xs text-gray-500">
+                <p className="text-sm font-medium text-ink">Chart of Accounts</p>
+                <p className="text-xs text-neutral-500">
                   Pull account list from QBO to use in exports
                 </p>
               </div>
@@ -388,7 +388,7 @@ export default function QuickBooksSettings({ orgId }: Props) {
                 onClick={handleSyncAccounts}
                 disabled={actionLoading || !!status?.token_expired}
                 title={status?.token_expired ? 'Reconnect QuickBooks to enable sync' : undefined}
-                className="rounded-lg border border-indigo-200 bg-white px-3 py-1.5 text-xs font-medium text-indigo-700 hover:bg-indigo-50 disabled:opacity-50"
+                className="rounded-2xl border border-azure/30 bg-white px-3 py-1.5 text-xs font-medium text-azure hover:bg-azure/10 disabled:opacity-50"
               >
                 Sync Accounts
               </button>
@@ -398,13 +398,13 @@ export default function QuickBooksSettings({ orgId }: Props) {
             {accounts.length > 0 && (
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-gray-700">
+                  <label className="block text-xs font-medium text-neutral-700">
                     Expense Account
                   </label>
                   <select
                     value={expenseAccountId}
                     onChange={(e) => setExpenseAccountId(e.target.value)}
-                    className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs text-gray-800 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                    className="mt-1 w-full rounded-2xl border border-black/10 bg-white px-3 py-1.5 text-xs text-neutral-800 focus:outline-none focus:ring-2 focus:ring-azure/30"
                   >
                     <option value="">Select account…</option>
                     {accounts
@@ -417,13 +417,13 @@ export default function QuickBooksSettings({ orgId }: Props) {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-700">
+                  <label className="block text-xs font-medium text-neutral-700">
                     Bank / Credit Account
                   </label>
                   <select
                     value={bankAccountId}
                     onChange={(e) => setBankAccountId(e.target.value)}
-                    className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs text-gray-800 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                    className="mt-1 w-full rounded-2xl border border-black/10 bg-white px-3 py-1.5 text-xs text-neutral-800 focus:outline-none focus:ring-2 focus:ring-azure/30"
                   >
                     <option value="">Select account…</option>
                     {accounts
@@ -439,11 +439,11 @@ export default function QuickBooksSettings({ orgId }: Props) {
             )}
 
             {/* Contribution export */}
-            <div className="rounded-lg border border-gray-100 bg-gray-50 px-4 py-3">
+            <div className="rounded-2xl border border-black/5 bg-neutral-50 px-4 py-3">
               <div className="flex items-center justify-between">
                 <div className="flex-1">
-                  <p className="text-sm font-medium text-gray-800">Export Contributions</p>
-                  <p className="text-xs text-gray-500">
+                  <p className="text-sm font-medium text-ink">Export Contributions</p>
+                  <p className="text-xs text-neutral-500">
                     Create journal entries for charitable contributions across all portfolios
                   </p>
                 </div>
@@ -451,7 +451,7 @@ export default function QuickBooksSettings({ orgId }: Props) {
                   <select
                     value={exportYear}
                     onChange={(e) => setExportYear(Number(e.target.value))}
-                    className="rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-xs text-gray-700 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                    className="rounded-2xl border border-black/10 bg-white px-2 py-1.5 text-xs text-neutral-700 focus:outline-none focus:ring-2 focus:ring-azure/30"
                   >
                     {YEAR_OPTIONS.map((y) => (
                       <option key={y} value={y}>
@@ -463,7 +463,7 @@ export default function QuickBooksSettings({ orgId }: Props) {
                     onClick={handleExportContributions}
                     disabled={actionLoading || !!status?.token_expired}
                     title={status?.token_expired ? 'Reconnect QuickBooks to enable export' : undefined}
-                    className="rounded-lg border border-indigo-200 bg-white px-3 py-1.5 text-xs font-medium text-indigo-700 hover:bg-indigo-50 disabled:opacity-50"
+                    className="rounded-2xl border border-azure/30 bg-white px-3 py-1.5 text-xs font-medium text-azure hover:bg-azure/10 disabled:opacity-50"
                   >
                     Export
                   </button>
@@ -472,10 +472,10 @@ export default function QuickBooksSettings({ orgId }: Props) {
             </div>
 
             {/* Grants export */}
-            <div className="flex items-center justify-between rounded-lg border border-gray-100 bg-gray-50 px-4 py-3">
+            <div className="flex items-center justify-between rounded-2xl border border-black/5 bg-neutral-50 px-4 py-3">
               <div>
-                <p className="text-sm font-medium text-gray-800">Export Grants</p>
-                <p className="text-xs text-gray-500">
+                <p className="text-sm font-medium text-ink">Export Grants</p>
+                <p className="text-xs text-neutral-500">
                   Create journal entries for all org grants
                 </p>
               </div>
@@ -483,7 +483,7 @@ export default function QuickBooksSettings({ orgId }: Props) {
                 onClick={handleExportGrants}
                 disabled={actionLoading || !!status?.token_expired}
                 title={status?.token_expired ? 'Reconnect QuickBooks to enable export' : undefined}
-                className="rounded-lg border border-indigo-200 bg-white px-3 py-1.5 text-xs font-medium text-indigo-700 hover:bg-indigo-50 disabled:opacity-50"
+                className="rounded-2xl border border-azure/30 bg-white px-3 py-1.5 text-xs font-medium text-azure hover:bg-azure/10 disabled:opacity-50"
               >
                 Export Grants
               </button>
@@ -494,7 +494,7 @@ export default function QuickBooksSettings({ orgId }: Props) {
               <button
                 onClick={handleDisconnect}
                 disabled={actionLoading}
-                className="text-xs text-gray-400 underline underline-offset-2 hover:text-red-600 disabled:opacity-50"
+                className="text-xs text-neutral-400 underline underline-offset-2 hover:text-red-600 disabled:opacity-50"
               >
                 Disconnect QuickBooks
               </button>
@@ -502,21 +502,21 @@ export default function QuickBooksSettings({ orgId }: Props) {
 
             {/* Sync History */}
             <div className="pt-2">
-              <p className="mb-2 text-xs font-semibold text-gray-700">Sync History</p>
+              <p className="mb-2 text-xs font-semibold text-neutral-700">Sync History</p>
               {syncLog.length === 0 ? (
-                <p className="text-xs text-gray-400">No sync events yet.</p>
+                <p className="text-xs text-neutral-400">No sync events yet.</p>
               ) : (
-                <div className="overflow-x-auto rounded-lg border border-gray-100">
-                  <table className="w-full text-xs text-gray-700">
-                    <thead className="bg-gray-50">
+                <div className="overflow-x-auto rounded-2xl border border-black/5">
+                  <table className="w-full text-xs text-neutral-700">
+                    <thead className="bg-neutral-50">
                       <tr>
-                        <th className="px-3 py-2 text-left font-medium text-gray-500">Date / Time</th>
-                        <th className="px-3 py-2 text-left font-medium text-gray-500">Event</th>
-                        <th className="px-3 py-2 text-left font-medium text-gray-500">Status</th>
-                        <th className="px-3 py-2 text-left font-medium text-gray-500">Records</th>
+                        <th className="px-3 py-2 text-left font-medium text-neutral-500">Date / Time</th>
+                        <th className="px-3 py-2 text-left font-medium text-neutral-500">Event</th>
+                        <th className="px-3 py-2 text-left font-medium text-neutral-500">Status</th>
+                        <th className="px-3 py-2 text-left font-medium text-neutral-500">Records</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-100 bg-white">
+                    <tbody className="divide-y divide-black/5 bg-white">
                       {syncLog.map((entry) => {
                         const eventLabel: Record<string, string> = {
                           accounts_sync: 'Accounts Sync',
@@ -525,7 +525,7 @@ export default function QuickBooksSettings({ orgId }: Props) {
                         };
                         return (
                           <tr key={entry.id}>
-                            <td className="whitespace-nowrap px-3 py-2 text-gray-600">
+                            <td className="whitespace-nowrap px-3 py-2 text-neutral-600">
                               {new Date(entry.created_at).toLocaleString()}
                             </td>
                             <td className="px-3 py-2">
@@ -542,12 +542,12 @@ export default function QuickBooksSettings({ orgId }: Props) {
                                     Error
                                   </span>
                                   {entry.error_msg && (
-                                    <p className="mt-0.5 text-gray-400">{entry.error_msg}</p>
+                                    <p className="mt-0.5 text-neutral-400">{entry.error_msg}</p>
                                   )}
                                 </div>
                               )}
                             </td>
-                            <td className="px-3 py-2 text-gray-600">
+                            <td className="px-3 py-2 text-neutral-600">
                               {entry.record_count ?? '—'}
                             </td>
                           </tr>

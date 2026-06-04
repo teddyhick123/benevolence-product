@@ -66,10 +66,11 @@ export async function POST(_req: NextRequest, { params }: RouteParams) {
       reviewScore,
     );
 
-    await adminSupabase
+    const { error: updateErr } = await adminSupabase
       .from('builder_proposals')
       .update({ phase: 'applied', pr_url: prUrl })
       .eq('id', proposalId);
+    if (updateErr) throw updateErr;
 
     void adminSupabase.from('builder_events').insert({
       org_id: orgId,

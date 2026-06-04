@@ -43,7 +43,8 @@ export async function applyProposalToGitHub(
   // 1. Get main branch SHA
   const refRes = await fetch(`${base}/git/ref/heads/main`, { headers });
   if (!refRes.ok) {
-    throw new Error(`Failed to read main branch: ${refRes.status}`);
+    const refErr = await refRes.json().catch(() => ({})) as Record<string, unknown>;
+    throw new Error(`Failed to read main branch: ${refRes.status} — ${refErr.message ?? JSON.stringify(refErr)}`);
   }
   const refData = await refRes.json() as { object: { sha: string } };
   const mainSha = refData.object.sha;
@@ -56,7 +57,8 @@ export async function applyProposalToGitHub(
     body: JSON.stringify({ ref: `refs/heads/${branchName}`, sha: mainSha }),
   });
   if (!createBranchRes.ok) {
-    throw new Error(`Failed to create branch: ${createBranchRes.status}`);
+    const branchErr = await createBranchRes.json().catch(() => ({})) as Record<string, unknown>;
+    throw new Error(`Failed to create branch: ${createBranchRes.status} — ${branchErr.message ?? JSON.stringify(branchErr)}`);
   }
 
   // 3. Write each file (GET existing SHA first — required for updates)

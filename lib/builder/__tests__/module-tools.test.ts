@@ -101,3 +101,26 @@ describe('update_workflow_template tool', () => {
     expect(snippet).toMatch(/insert/i);
   });
 });
+
+describe('list_proposals tool', () => {
+  const src = readFileSync('lib/builder/tools.ts', 'utf8');
+
+  it('has a list_proposals tool definition', () => {
+    expect(src).toMatch(/name:\s*['"]list_proposals['"]/);
+  });
+
+  it('phase filter is optional', () => {
+    const toolIdx = src.indexOf("name: 'list_proposals'");
+    const snippet = src.slice(toolIdx, toolIdx + 400);
+    // 'required' array should be absent or empty for list_proposals
+    expect(snippet).not.toMatch(/required:\s*\[\s*['"]phase['"]/);
+  });
+
+  it('executor queries builder_proposals scoped to orgId', () => {
+    const caseIdx = src.indexOf("case 'list_proposals'");
+    expect(caseIdx).toBeGreaterThan(-1);
+    const snippet = src.slice(caseIdx, caseIdx + 600);
+    expect(snippet).toMatch(/builder_proposals/);
+    expect(snippet).toMatch(/org_id.*orgId|orgId.*org_id/);
+  });
+});

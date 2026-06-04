@@ -203,6 +203,20 @@ export const BUILDER_TOOLS: ToolDefinition[] = [
       },
     },
   },
+  {
+    name: 'list_proposals',
+    description: 'List recent builder proposals for this org. Use to check the status of prior scaffold requests.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        phase: {
+          type: 'string',
+          enum: ['pending', 'plan_ready', 'building', 'build_ready', 'reviewing', 'ready_to_apply', 'applied'],
+          description: 'Filter by phase (omit to return all recent proposals)',
+        },
+      },
+    },
+  },
 ];
 
 // ─── Tool executors ──────────────────────────────────────────────────────────
@@ -574,6 +588,44 @@ Respond with ONLY a valid JSON object matching this exact schema (no markdown, n
         const { error: updateErr } = await adminSupabase.from('workflow_templates').update({ steps }).eq('id', templateId).eq('org_id', orgId);
         if (updateErr) return { type: 'error', tool: toolName, message: updateErr.message };
         return { type: 'config_success', tool: toolName, message: `Workflow template updated with ${steps.length} steps.` };
+      }
+
+      case 'list_proposals': {
+        const phase = toolInput.phase as string | undefined;
+
+        let query = adminSupabase
+          .from('builder_proposals')
+          .select('id, phase, proposal_type, request_text, created_at, pr_url')
+          .eq('org_id', orgId)
+          .order('created_at', { ascending: false })
+          .limit(10);
+
+        if (phase) {
+          query = query.eq('phase', phase);
+        }
+
+        const { data, error: fetchErr } = await query;
+        if (fetchErr) return { type: 'error', tool: toolName, message: fetchErr.message };
+
+        if (!data || data.length === 0) {
+          return {
+            type: 'config_success',
+            tool: toolName,
+            message: phase ? `No proposals in phase "${phase}".` : 'No proposals found.',
+          };
+        }
+
+        const lines = data.map((p: any) => {
+          const summary = p.request_text?.slice(0, 80) ?? '(no description)';
+          const pr = (p as any).pr_url ? ` → ${(p as any).pr_url}` : '';
+          return `[${p.phase}] ${p.id.slice(0, 8)} — "${summary}"${pr}`;
+        }).join('\n');
+
+        return {
+          type: 'config_success',
+          tool: toolName,
+          message: `${data.length} proposal(s):\n${lines}`,
+        };
       }
 
       default:

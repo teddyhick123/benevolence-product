@@ -177,7 +177,7 @@ export default function CharityDetailPage() {
                   onClick={() => setIsWatched(toggleWatchlist(ein, charity.name))}
                   className={`text-sm px-4 py-2 rounded-lg border transition-colors ${isWatched ? 'border-amber-300 text-amber-700 bg-amber-50 hover:bg-amber-100' : 'border-gray-300 text-gray-600 hover:bg-gray-50'}`}
                 >
-                  {isWatched ? '★ Saved' : '☆ Save for Later'}
+                  {isWatched ? 'Saved' : 'Save for Later'}
                 </button>
               </div>
             </div>

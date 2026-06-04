@@ -19,7 +19,7 @@ export default function ScenarioBuilderPanel({
       {/* Tab Description */}
       <div className="bg-gradient-to-br from-azure/10 to-azure/5 border border-azure/20 rounded-xl p-6">
         <h3 className="text-lg font-bold text-ink mb-2">
-          🔬 Manual Scenario Analysis
+          Manual Scenario Analysis
         </h3>
         <p className="text-sm text-azure/90 mb-4">
           Model &ldquo;what-if&rdquo; scenarios with full control over parameters. Compare different donation

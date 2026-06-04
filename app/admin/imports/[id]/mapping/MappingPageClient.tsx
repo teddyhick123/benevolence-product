@@ -186,7 +186,7 @@ export function MappingPageClient({ job, mappingProfile, stagingPreviews }: Mapp
       {/* AI toast */}
       {aiToast && (
         <div className="fixed top-4 right-4 z-50 px-4 py-3 bg-azure text-white text-sm rounded-lg shadow-lg transition-opacity">
-          ✦ {aiToast}
+          {aiToast}
         </div>
       )}
 

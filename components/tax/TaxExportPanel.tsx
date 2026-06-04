@@ -69,18 +69,18 @@ export default function TaxExportPanel({ portfolioId, taxYear }: TaxExportPanelP
   }
 
   return (
-    <div className="border border-gray-200 rounded-lg p-6">
+    <div className="rounded-2xl border border-black/5 bg-white p-6 shadow-soft">
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h2 className="text-xl font-bold text-gray-900">Export Tax Summary</h2>
-          <p className="text-sm text-gray-600 mt-1">
+          <h2 className="font-serif text-xl font-medium text-ink">Export Tax Summary</h2>
+          <p className="text-sm text-neutral-600 mt-1">
             Download your {taxYear} tax data for your accountant or records
           </p>
         </div>
       </div>
 
       {error && (
-        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md text-sm text-red-700">
+        <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
           {error}
         </div>
       )}
@@ -88,24 +88,24 @@ export default function TaxExportPanel({ portfolioId, taxYear }: TaxExportPanelP
       <div className="space-y-4">
         {/* Phase 2 & 3: Professional Tax Software Exports */}
         <div>
-          <h3 className="text-sm font-semibold text-gray-700 mb-3">Professional Tax Software</h3>
+          <h3 className="text-sm font-semibold text-neutral-700 mb-3">Professional Tax Software</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {/* Form 8283 PDF */}
             <button
               onClick={() => handleExport('form8283')}
               disabled={exporting !== null}
-              className="flex items-center justify-center gap-3 p-4 border-2 border-indigo-200 bg-indigo-50 rounded-lg hover:bg-indigo-100 hover:border-indigo-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex items-center justify-center gap-3 rounded-2xl border-2 border-azure/20 bg-azure/10 p-4 transition hover:border-azure/30 hover:bg-azure/15 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              <div className="p-2 bg-indigo-100 rounded-lg">
-                <svg className="w-6 h-6 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="rounded-xl bg-azure/10 p-2">
+                <svg className="w-6 h-6 text-azure" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
               </div>
               <div className="text-left">
-                <div className="font-medium text-indigo-900">
+                <div className="font-medium text-ink">
                   {exporting === 'form8283' ? 'Generating...' : 'Form 8283 PDF'}
                 </div>
-                <div className="text-xs text-indigo-700">IRS noncash contributions</div>
+                <div className="text-xs text-azure-deep">IRS noncash contributions</div>
               </div>
             </button>
 
@@ -113,18 +113,18 @@ export default function TaxExportPanel({ portfolioId, taxYear }: TaxExportPanelP
             <button
               onClick={() => handleExport('turbotax')}
               disabled={exporting !== null}
-              className="flex items-center justify-center gap-3 p-4 border-2 border-indigo-200 bg-indigo-50 rounded-lg hover:bg-indigo-100 hover:border-indigo-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex items-center justify-center gap-3 rounded-2xl border-2 border-azure/20 bg-azure/10 p-4 transition hover:border-azure/30 hover:bg-azure/15 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              <div className="p-2 bg-indigo-100 rounded-lg">
-                <svg className="w-6 h-6 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="rounded-xl bg-azure/10 p-2">
+                <svg className="w-6 h-6 text-azure" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2" />
                 </svg>
               </div>
               <div className="text-left">
-                <div className="font-medium text-indigo-900">
+                <div className="font-medium text-ink">
                   {exporting === 'turbotax' ? 'Exporting...' : 'TurboTax (.txf)'}
                 </div>
-                <div className="text-xs text-indigo-700">Direct import to TurboTax</div>
+                <div className="text-xs text-azure-deep">Direct import to TurboTax</div>
               </div>
             </button>
           </div>
@@ -132,24 +132,24 @@ export default function TaxExportPanel({ portfolioId, taxYear }: TaxExportPanelP
 
         {/* General Exports */}
         <div>
-          <h3 className="text-sm font-semibold text-gray-700 mb-3">General Exports</h3>
+          <h3 className="text-sm font-semibold text-neutral-700 mb-3">General Exports</h3>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             {/* Excel Export */}
             <button
               onClick={() => handleExport('xlsx')}
               disabled={exporting !== null}
-              className="flex items-center justify-center gap-3 p-4 border border-gray-200 rounded-lg hover:bg-gray-50 hover:border-gray-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex items-center justify-center gap-3 rounded-2xl border border-black/5 bg-white p-4 shadow-sm transition hover:border-black/10 hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              <div className="p-2 bg-green-100 rounded-lg">
+              <div className="rounded-xl bg-green-100 p-2">
                 <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
               </div>
               <div className="text-left">
-                <div className="font-medium text-gray-900">
+                <div className="font-medium text-ink">
                   {exporting === 'xlsx' ? 'Exporting...' : 'Excel (.xlsx)'}
                 </div>
-                <div className="text-xs text-gray-500">Multi-sheet workbook</div>
+                <div className="text-xs text-neutral-500">Multi-sheet workbook</div>
               </div>
             </button>
 
@@ -157,18 +157,18 @@ export default function TaxExportPanel({ portfolioId, taxYear }: TaxExportPanelP
             <button
               onClick={() => handleExport('csv')}
               disabled={exporting !== null}
-              className="flex items-center justify-center gap-3 p-4 border border-gray-200 rounded-lg hover:bg-gray-50 hover:border-gray-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex items-center justify-center gap-3 rounded-2xl border border-black/5 bg-white p-4 shadow-sm transition hover:border-black/10 hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              <div className="p-2 bg-azure/10 rounded-lg">
+              <div className="rounded-xl bg-azure/10 p-2">
                 <svg className="w-6 h-6 text-azure" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
                 </svg>
               </div>
               <div className="text-left">
-                <div className="font-medium text-gray-900">
+                <div className="font-medium text-ink">
                   {exporting === 'csv' ? 'Exporting...' : 'CSV File'}
                 </div>
-                <div className="text-xs text-gray-500">Simple spreadsheet</div>
+                <div className="text-xs text-neutral-500">Simple spreadsheet</div>
               </div>
             </button>
 
@@ -176,23 +176,23 @@ export default function TaxExportPanel({ portfolioId, taxYear }: TaxExportPanelP
             <button
               onClick={() => handleExport('print')}
               disabled={exporting !== null}
-              className="flex items-center justify-center gap-3 p-4 border border-gray-200 rounded-lg hover:bg-gray-50 hover:border-gray-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex items-center justify-center gap-3 rounded-2xl border border-black/5 bg-white p-4 shadow-sm transition hover:border-black/10 hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              <div className="p-2 bg-purple-100 rounded-lg">
-                <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="rounded-xl bg-coral/10 p-2">
+                <svg className="w-6 h-6 text-coral" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
                 </svg>
               </div>
               <div className="text-left">
-                <div className="font-medium text-gray-900">Print / PDF</div>
-                <div className="text-xs text-gray-500">Formatted report</div>
+                <div className="font-medium text-ink">Print / PDF</div>
+                <div className="text-xs text-neutral-500">Formatted report</div>
               </div>
             </button>
           </div>
         </div>
       </div>
 
-      <div className="mt-4 text-xs text-gray-500">
+      <div className="mt-4 text-xs text-neutral-500">
         <strong>Tip:</strong> Use Excel for detailed analysis. Print/PDF includes a formatted summary
         suitable for sharing with your tax professional.
       </div>

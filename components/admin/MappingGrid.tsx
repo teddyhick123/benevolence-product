@@ -188,7 +188,7 @@ export function MappingGrid({
               </>
             ) : (
               <>
-                ✦ Ask AI
+                Ask AI
               </>
             )}
           </button>
@@ -199,7 +199,7 @@ export function MappingGrid({
       {/* AI suggestions banner */}
       {aiSuggestions && (
         <div className="p-3 bg-azure/5 border border-azure/20 rounded-lg text-sm text-azure flex items-center gap-2">
-          <span>✦</span>
+          <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
           <span>
             AI analyzed {aiSuggestions.mappings.length} fields.{' '}
             <strong>{highConfidence} mapped with high confidence (≥85%)</strong>

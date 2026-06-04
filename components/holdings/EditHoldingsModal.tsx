@@ -449,7 +449,7 @@ export default function EditHoldingsModal({ portfolioId, initial, open, onClose,
           {/* Location fields for map geocoding */}
           <div className="mt-4 pt-4 border-t border-black/5">
             <div className="mb-2 text-sm font-medium text-neutral-700">
-              📍 Location (for map display)
+              Location (for map display)
             </div>
             <div className="text-xs text-neutral-500 mb-3">
               Add location details to display this holding on the map. The system will automatically geocode the address.

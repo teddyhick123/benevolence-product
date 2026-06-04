@@ -60,7 +60,7 @@ export default function TaxOptimizationEngine({
     <div className="space-y-6">
       {/* Header */}
       <div className="bg-white rounded-xl border border-neutral-200 p-6">
-        <h2 className="text-2xl font-bold text-neutral-900">🤖 Tax Optimization Engine</h2>
+        <h2 className="text-2xl font-bold text-neutral-900">Tax Optimization Engine</h2>
         <p className="text-sm text-neutral-600 mt-1">
           AI-powered advisor that analyzes your holdings and recommends optimal donation strategies
         </p>
@@ -116,7 +116,7 @@ export default function TaxOptimizationEngine({
             disabled={loading}
             className="px-8 py-3 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg hover:opacity-90 transition-opacity font-medium shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {loading ? '🤖 Analyzing...' : '🤖 Optimize My Strategy'}
+            {loading ? 'Analyzing...' : 'Optimize My Strategy'}
           </button>
         </div>
       </div>
@@ -134,7 +134,6 @@ export default function TaxOptimizationEngine({
           {/* Executive Summary */}
           <div className="bg-gradient-to-br from-purple-50 to-indigo-50 border border-purple-200 rounded-xl p-6">
             <div className="flex items-start gap-3">
-              <div className="text-3xl">💡</div>
               <div className="flex-1">
                 <h3 className="text-lg font-semibold text-purple-900 mb-3">
                   Optimization Summary
@@ -217,11 +216,11 @@ function StrategyCard({ strategy }: { strategy: any }) {
   const getRankBadge = (rank: number) => {
     switch (rank) {
       case 1:
-        return { emoji: '🥇', class: 'bg-yellow-100 text-yellow-800' };
+        return { emoji: '#1', class: 'bg-yellow-100 text-yellow-800' };
       case 2:
-        return { emoji: '🥈', class: 'bg-gray-100 text-gray-800' };
+        return { emoji: '#2', class: 'bg-gray-100 text-gray-800' };
       case 3:
-        return { emoji: '🥉', class: 'bg-orange-100 text-orange-800' };
+        return { emoji: '#3', class: 'bg-orange-100 text-orange-800' };
       default:
         return { emoji: `#${rank}`, class: 'bg-neutral-100 text-neutral-800' };
     }
@@ -292,7 +291,7 @@ function StrategyCard({ strategy }: { strategy: any }) {
           {strategy.warnings && strategy.warnings.length > 0 && (
             <div className="mb-4 bg-amber-50 border border-amber-200 rounded-lg p-3">
               <h5 className="font-semibold text-amber-900 mb-2 flex items-center gap-2">
-                <span>⚠️</span>
+                <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
                 <span>Considerations</span>
               </h5>
               <ul className="space-y-1">

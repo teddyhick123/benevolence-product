@@ -247,7 +247,11 @@ export default function DonorDetailPage() {
           <div className="bg-white rounded-xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
             <div className="p-6 border-b flex items-center justify-between">
               <h2 className="text-xl font-semibold">Edit Donor</h2>
-              <button onClick={() => setShowEditModal(false)} className="text-gray-400 hover:text-gray-600">✕</button>
+              <button onClick={() => setShowEditModal(false)} className="text-gray-400 hover:text-gray-600" aria-label="Close">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
             </div>
             <form
               className="p-6 space-y-4"

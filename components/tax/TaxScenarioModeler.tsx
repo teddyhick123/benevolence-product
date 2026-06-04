@@ -186,7 +186,6 @@ export default function TaxScenarioModeler({
                 : 'border-neutral-200 hover:border-neutral-300'
             }`}
           >
-            <div className="text-2xl mb-2">🎯</div>
             <div className="font-medium text-neutral-900">Single Scenario</div>
             <div className="text-xs text-neutral-600 mt-1">
               Analyze one donation
@@ -201,7 +200,6 @@ export default function TaxScenarioModeler({
                 : 'border-neutral-200 hover:border-neutral-300'
             }`}
           >
-            <div className="text-2xl mb-2">⚖️</div>
             <div className="font-medium text-neutral-900">Compare</div>
             <div className="text-xs text-neutral-600 mt-1">
               Side-by-side comparison
@@ -216,7 +214,6 @@ export default function TaxScenarioModeler({
                 : 'border-neutral-200 hover:border-neutral-300'
             }`}
           >
-            <div className="text-2xl mb-2">🎲</div>
             <div className="font-medium text-neutral-900">Optimal Amount</div>
             <div className="text-xs text-neutral-600 mt-1">
               Max AGI utilization
@@ -231,7 +228,6 @@ export default function TaxScenarioModeler({
                 : 'border-neutral-200 hover:border-neutral-300'
             }`}
           >
-            <div className="text-2xl mb-2">📅</div>
             <div className="font-medium text-neutral-900">Bunching</div>
             <div className="text-xs text-neutral-600 mt-1">
               Spread vs. bunch
@@ -492,7 +488,7 @@ function SingleScenarioResults({ results }: { results: any }) {
       {/* Recommendations */}
       {results.recommendations && results.recommendations.length > 0 && (
         <div className="bg-azure/10 border border-azure/20 rounded-lg p-4">
-          <p className="font-medium text-ink mb-2">💡 Insights</p>
+          <p className="font-medium text-ink mb-2">Insights</p>
           <ul className="space-y-2">
             {results.recommendations.map((rec: string, idx: number) => (
               <li key={idx} className="text-sm text-azure">
@@ -522,7 +518,7 @@ function CompareScenarioResults({ results }: { results: any }) {
       <div className="bg-white rounded-xl border border-neutral-200 p-6">
         <h3 className="text-lg font-semibold text-neutral-900 mb-4">Comparison Results</h3>
         <div className="bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-200 rounded-lg p-4 mb-6">
-          <p className="font-medium text-indigo-900 mb-2">🏆 Recommendation</p>
+          <p className="font-medium text-indigo-900 mb-2">Recommendation</p>
           <p className="text-sm text-indigo-800">{results.comparison.recommendation}</p>
         </div>
 
@@ -674,9 +670,9 @@ function BunchingResults({ results }: { results: any }) {
       <h3 className="text-lg font-semibold text-neutral-900 mb-4">Bunching Strategy Analysis</h3>
 
       <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4 mb-6">
-        <p className="font-medium text-indigo-900 mb-2">🎯 Recommendation</p>
+        <p className="font-medium text-indigo-900 mb-2">Recommendation</p>
         <p className="text-lg font-bold text-indigo-900">
-          {recommended === 'bunch' ? '📅 Bunching Strategy' : '📊 Spread Strategy'}
+          {recommended === 'bunch' ? 'Bunching Strategy' : 'Spread Strategy'}
         </p>
         <p className="text-sm text-indigo-700 mt-2">
           Save an additional {formatCurrency(results.savings_difference || 0)} with {recommended === 'bunch' ? 'bunching' : 'spreading'}
@@ -685,7 +681,7 @@ function BunchingResults({ results }: { results: any }) {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className={`p-4 rounded-lg border-2 ${recommended === 'spread' ? 'border-indigo-500 bg-indigo-50' : 'border-neutral-200 bg-neutral-50'}`}>
-          <p className="font-semibold text-neutral-900 mb-3">📊 Spread Strategy</p>
+          <p className="font-semibold text-neutral-900 mb-3">Spread Strategy</p>
           <div className="space-y-2 text-sm">
             <div className="flex justify-between">
               <span className="text-neutral-600">Annual Deduction:</span>
@@ -703,7 +699,7 @@ function BunchingResults({ results }: { results: any }) {
         </div>
 
         <div className={`p-4 rounded-lg border-2 ${recommended === 'bunch' ? 'border-indigo-500 bg-indigo-50' : 'border-neutral-200 bg-neutral-50'}`}>
-          <p className="font-semibold text-neutral-900 mb-3">📅 Bunching Strategy</p>
+          <p className="font-semibold text-neutral-900 mb-3">Bunching Strategy</p>
           <div className="space-y-2 text-sm">
             <div className="flex justify-between">
               <span className="text-neutral-600">Bunch Year:</span>

@@ -39,8 +39,7 @@ export default function TaxStrategyCenter({
                 : 'bg-white text-neutral-700 hover:bg-neutral-50'
             }`}
           >
-            <div className="text-2xl mb-1">⚡</div>
-            <div className="text-sm">Quick Start</div>
+            <div className="text-sm font-medium">Quick Start</div>
           </button>
 
           <button
@@ -51,8 +50,7 @@ export default function TaxStrategyCenter({
                 : 'bg-white text-neutral-700 hover:bg-neutral-50'
             }`}
           >
-            <div className="text-2xl mb-1">🤖</div>
-            <div className="text-sm">AI Strategy Advisor</div>
+            <div className="text-sm font-medium">AI Strategy Advisor</div>
           </button>
 
           <button
@@ -63,8 +61,7 @@ export default function TaxStrategyCenter({
                 : 'bg-white text-neutral-700 hover:bg-neutral-50'
             }`}
           >
-            <div className="text-2xl mb-1">🔬</div>
-            <div className="text-sm">Scenario Builder</div>
+            <div className="text-sm font-medium">Scenario Builder</div>
           </button>
         </div>
       </div>

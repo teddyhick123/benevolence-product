@@ -286,7 +286,7 @@ export function ImportErrorsTable({ importJobId }: ImportErrorsTableProps) {
               disabled={applyingBulkFix}
               className="text-xs px-3 py-1.5 border border-azure/30 rounded-md text-azure hover:bg-azure/5 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
-              {applyingBulkFix ? 'Applying fixes…' : `✦ Apply ${autoFixableCount} auto-fixable fixes`}
+              {applyingBulkFix ? 'Applying fixes…' : `Apply ${autoFixableCount} auto-fixable fixes`}
             </button>
           )}
           <button
@@ -387,7 +387,7 @@ export function ImportErrorsTable({ importJobId }: ImportErrorsTableProps) {
                                   onClick={() => fetchAIFix(row)}
                                   className="text-xs px-2 py-1 rounded border border-azure/30 text-azure hover:bg-azure/5 transition-colors whitespace-nowrap"
                                 >
-                                  ✦ Apply Fix
+                                  Apply Fix
                                 </button>
                               ) : null
                             )}

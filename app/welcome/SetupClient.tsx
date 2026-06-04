@@ -281,7 +281,7 @@ export default function SetupClient() {
               ))}
               <button onClick={handleHelpMeDecide} disabled={loadingHelp}
                 className={`${chipClass} ${chipHelp}`}>
-                {loadingHelp ? '…' : '✦ Help me decide'}
+                {loadingHelp ? '…' : 'Help me decide'}
               </button>
             </div>
           )}

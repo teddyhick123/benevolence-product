@@ -49,7 +49,9 @@ export default function InviteMemberModal({ orgId, onClose, onSuccess }: InviteM
       <div className="bg-white rounded-lg shadow-lg w-full max-w-md p-6">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold">Invite team member</h2>
-          <button onClick={onClose} aria-label="Close modal" className="text-black/40 hover:text-black">✕</button>
+          <button onClick={onClose} aria-label="Close modal" className="text-black/40 hover:text-black">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+          </button>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">

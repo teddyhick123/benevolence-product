@@ -162,8 +162,9 @@ export default function ImpactTimeline({ portfolioId, title, config }: Props) {
               <button
                 onClick={() => setSelectedEvent(null)}
                 className="text-neutral-400 hover:text-neutral-600"
+                aria-label="Close"
               >
-                ✕
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
             </div>
 

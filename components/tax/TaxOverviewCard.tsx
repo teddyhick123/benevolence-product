@@ -140,7 +140,7 @@ export default function TaxOverviewCard({ portfolioId, taxYear }: TaxOverviewCar
             </div>
             {carryforwardSummary.expiringSoon.length > 0 && (
               <div className="text-xs text-red-600 mt-1 font-medium">
-                ⚠️ {carryforwardSummary.expiringSoon.length} expiring soon
+                {carryforwardSummary.expiringSoon.length} expiring soon
               </div>
             )}
           </div>

@@ -135,7 +135,7 @@ export default function TaxYearAGIForm({
 
         {success && (
           <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-700">
-            ✅ Tax year data saved successfully
+            Tax year data saved successfully
           </div>
         )}
 
@@ -282,7 +282,7 @@ export default function TaxYearAGIForm({
         {agi && parseFloat(agi) > 0 && (
           <div className="mt-6 bg-gradient-to-br from-indigo-50 to-purple-50 border border-indigo-200 rounded-lg p-4">
             <h4 className="text-sm font-semibold text-indigo-900 mb-3">
-              📊 Calculated Deduction Limits
+              Calculated Deduction Limits
             </h4>
             <div className="grid grid-cols-2 gap-3">
               <div className="bg-white rounded-lg p-3">

@@ -107,7 +107,7 @@ export default function TaxSummaryDashboard({
       {!hasAGI && (
         <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
           <div className="flex gap-3">
-            <div className="text-2xl">⚠️</div>
+            <svg className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
             <div className="flex-1">
               <p className="font-medium text-amber-900 mb-1">
                 AGI Not Set for {year}
@@ -183,20 +183,17 @@ export default function TaxSummaryDashboard({
               label="Total Deductible This Year"
               value={formatCurrency(summary.total_deductible_this_year)}
               subtext="After AGI limits applied"
-              icon="✅"
             />
             <MetricCard
               label="Excess Carryforward"
               value={formatCurrency(summary.total_excess_carryforward)}
               subtext="Available for next 5 years"
-              icon="📅"
               highlight={(summary.total_excess_carryforward ?? 0) > 0}
             />
             <MetricCard
               label="Capital Gains Avoided"
               value={formatCurrency(summary.total_capital_gains_avoided)}
               subtext="Tax-free appreciation donated"
-              icon="📈"
             />
           </div>
         </div>
@@ -206,7 +203,7 @@ export default function TaxSummaryDashboard({
       {summary && (summary.total_qcd_amount ?? 0) > 0 && (
         <div className="bg-green-50 border border-green-200 rounded-lg p-4">
           <div className="flex gap-3">
-            <div className="text-2xl">💰</div>
+            <svg className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
             <div className="flex-1">
               <p className="font-medium text-green-900 mb-1">
                 QCD Contributions: {formatCurrency(summary.total_qcd_amount)}
@@ -379,17 +376,13 @@ interface MetricCardProps {
   label: string;
   value: string;
   subtext: string;
-  icon: string;
   highlight?: boolean;
 }
 
-function MetricCard({ label, value, subtext, icon, highlight }: MetricCardProps) {
+function MetricCard({ label, value, subtext, highlight }: MetricCardProps) {
   return (
     <div className={`p-4 rounded-lg ${highlight ? 'bg-amber-50 border border-amber-200' : 'bg-neutral-50'}`}>
-      <div className="flex items-center gap-2 mb-1">
-        <span className="text-xl">{icon}</span>
-        <p className="text-sm font-medium text-neutral-700">{label}</p>
-      </div>
+      <p className="text-sm font-medium text-neutral-700 mb-1">{label}</p>
       <p className="text-2xl font-bold text-neutral-900 mb-1">{value}</p>
       <p className="text-xs text-neutral-600">{subtext}</p>
     </div>

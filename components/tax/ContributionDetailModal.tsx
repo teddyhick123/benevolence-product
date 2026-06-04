@@ -465,7 +465,7 @@ export default function ContributionDetailModal({
                   {contribution.appraisal_storage_path ? (
                     <p className="mt-1">✓ Appraisal uploaded</p>
                   ) : (
-                    <p className="mt-1">⚠️ Upload appraisal for IRS compliance</p>
+                    <p className="mt-1">Upload appraisal for IRS compliance</p>
                   )}
                 </div>
               )}
@@ -479,7 +479,7 @@ export default function ContributionDetailModal({
                   <span className={`font-semibold ${
                     contribution.is_compliant ? 'text-green-900' : 'text-amber-900'
                   }`}>
-                    {contribution.is_compliant ? '✓ Compliant' : '⚠️ Action Required'}
+                    {contribution.is_compliant ? 'Compliant' : 'Action Required'}
                   </span>
                 </div>
                 {!contribution.is_compliant && (

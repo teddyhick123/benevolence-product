@@ -17,14 +17,15 @@ export default function CPACollaborationPortal({ portfolioId }: CPACollaboration
   const [showCreateForm, setShowCreateForm] = React.useState(false);
   const [expandedLinkId, setExpandedLinkId] = React.useState<string | null>(null);
 
+  // Load share links on mount
+  React.useEffect(() => {
+    if (!cpaCollaborationEnabled) return;
+    loadShareLinks();
+  }, [portfolioId]);
+
   if (!cpaCollaborationEnabled) {
     return null;
   }
-
-  // Load share links on mount
-  React.useEffect(() => {
-    loadShareLinks();
-  }, [portfolioId]);
 
   async function loadShareLinks() {
     setLoading(true);
@@ -70,18 +71,18 @@ export default function CPACollaborationPortal({ portfolioId }: CPACollaboration
 
   function getStatusBadge(link: CPAShareLink) {
     if (link.revoked_at) {
-      return <span className="px-2 py-1 bg-red-100 text-red-700 text-xs font-medium rounded">Revoked</span>;
+      return <span className="rounded-full bg-red-100 px-2 py-1 text-xs font-medium text-red-700">Revoked</span>;
     }
 
     if (link.expires_at && new Date(link.expires_at) < new Date()) {
-      return <span className="px-2 py-1 bg-gray-100 text-gray-700 text-xs font-medium rounded">Expired</span>;
+      return <span className="rounded-full bg-neutral-100 px-2 py-1 text-xs font-medium text-neutral-700">Expired</span>;
     }
 
     if (link.max_accesses && link.access_count >= link.max_accesses) {
-      return <span className="px-2 py-1 bg-gray-100 text-gray-700 text-xs font-medium rounded">Max Access Reached</span>;
+      return <span className="rounded-full bg-neutral-100 px-2 py-1 text-xs font-medium text-neutral-700">Max Access Reached</span>;
     }
 
-    return <span className="px-2 py-1 bg-green-100 text-green-700 text-xs font-medium rounded">Active</span>;
+    return <span className="rounded-full bg-green-100 px-2 py-1 text-xs font-medium text-green-700">Active</span>;
   }
 
   const activeLinks = shareLinks.filter(l => !l.revoked_at && (!l.expires_at || new Date(l.expires_at) > new Date()));
@@ -90,17 +91,17 @@ export default function CPACollaborationPortal({ portfolioId }: CPACollaboration
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="bg-white rounded-xl border border-neutral-200 p-6">
+      <div className="rounded-2xl border border-black/5 bg-white p-6 shadow-soft">
         <div className="flex items-start justify-between">
           <div>
-            <h2 className="text-2xl font-bold text-neutral-900">CPA Collaboration Portal</h2>
+            <h2 className="font-serif text-2xl font-medium text-ink">CPA Collaboration Portal</h2>
             <p className="text-sm text-neutral-600 mt-1">
               Securely share tax data with your CPA or tax professional
             </p>
           </div>
           <button
             onClick={() => setShowCreateForm(!showCreateForm)}
-            className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium"
+            className="rounded-2xl bg-azure px-4 py-2 font-medium text-white shadow-soft transition-opacity hover:opacity-90"
           >
             {showCreateForm ? 'Cancel' : '+ New Share Link'}
           </button>
@@ -170,15 +171,14 @@ export default function CPACollaborationPortal({ portfolioId }: CPACollaboration
 
           {/* Empty State */}
           {shareLinks.length === 0 && (
-            <div className="bg-white rounded-xl border border-neutral-200 p-12 text-center">
-              <div className="text-4xl mb-4">🔗</div>
-              <h3 className="text-lg font-semibold text-neutral-900 mb-2">No Share Links Yet</h3>
+            <div className="rounded-2xl border border-black/5 bg-white p-12 text-center shadow-soft">
+              <h3 className="mb-2 font-serif text-lg font-medium text-ink">No Share Links Yet</h3>
               <p className="text-neutral-600 mb-6">
                 Create a secure share link to give your CPA access to your tax data
               </p>
               <button
                 onClick={() => setShowCreateForm(true)}
-                className="px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium"
+                className="rounded-2xl bg-azure px-6 py-3 font-medium text-white shadow-soft transition hover:-translate-y-0.5 hover:bg-azure/90"
               >
                 Create First Share Link
               </button>
@@ -218,22 +218,22 @@ function ShareLinkCard({ link, expanded, onToggleExpand, onRevoke }: ShareLinkCa
 
   function getStatusBadge() {
     if (link.revoked_at) {
-      return <span className="px-2 py-1 bg-red-100 text-red-700 text-xs font-medium rounded">Revoked</span>;
+      return <span className="rounded-full bg-red-100 px-2 py-1 text-xs font-medium text-red-700">Revoked</span>;
     }
 
     if (link.expires_at && new Date(link.expires_at) < new Date()) {
-      return <span className="px-2 py-1 bg-gray-100 text-gray-700 text-xs font-medium rounded">Expired</span>;
+      return <span className="rounded-full bg-neutral-100 px-2 py-1 text-xs font-medium text-neutral-700">Expired</span>;
     }
 
     if (link.max_accesses && link.access_count >= link.max_accesses) {
-      return <span className="px-2 py-1 bg-gray-100 text-gray-700 text-xs font-medium rounded">Max Access Reached</span>;
+      return <span className="rounded-full bg-neutral-100 px-2 py-1 text-xs font-medium text-neutral-700">Max Access Reached</span>;
     }
 
-    return <span className="px-2 py-1 bg-green-100 text-green-700 text-xs font-medium rounded">Active</span>;
+    return <span className="rounded-full bg-green-100 px-2 py-1 text-xs font-medium text-green-700">Active</span>;
   }
 
   return (
-    <div className={`bg-white rounded-xl border-2 transition-colors ${isActive ? 'border-neutral-200 hover:border-indigo-300' : 'border-neutral-100'}`}>
+    <div className={`rounded-2xl border bg-white shadow-soft transition-colors ${isActive ? 'border-black/5 hover:border-azure/30' : 'border-black/5'}`}>
       <button
         onClick={onToggleExpand}
         className="w-full p-6 text-left"
@@ -241,7 +241,7 @@ function ShareLinkCard({ link, expanded, onToggleExpand, onRevoke }: ShareLinkCa
         <div className="flex items-start justify-between">
           <div className="flex-1">
             <div className="flex items-center gap-3 mb-2">
-              <h4 className="text-lg font-semibold text-neutral-900">
+              <h4 className="text-lg font-semibold text-ink">
                 {link.cpa_name || 'Unnamed CPA'}
               </h4>
               {getStatusBadge()}
@@ -254,14 +254,14 @@ function ShareLinkCard({ link, expanded, onToggleExpand, onRevoke }: ShareLinkCa
               <p>Access Count: {link.access_count}{link.max_accesses ? ` / ${link.max_accesses}` : ''}</p>
             </div>
           </div>
-          <div className="text-sm text-indigo-600 ml-4">
+          <div className="ml-4 text-sm text-azure">
             {expanded ? '▼ Hide Details' : '▶ Show Details'}
           </div>
         </div>
       </button>
 
       {expanded && (
-        <div className="px-6 pb-6 border-t border-neutral-200 pt-4 space-y-4">
+        <div className="space-y-4 border-t border-black/5 px-6 pb-6 pt-4">
           {/* Share URL */}
           <div>
             <label className="block text-sm font-medium text-neutral-700 mb-2">Share URL</label>
@@ -271,11 +271,11 @@ function ShareLinkCard({ link, expanded, onToggleExpand, onRevoke }: ShareLinkCa
                   type="text"
                   value={shareURL}
                   readOnly
-                  className="flex-1 px-3 py-2 border border-neutral-300 rounded-lg bg-neutral-50 text-sm font-mono"
+                  className="flex-1 rounded-2xl border border-black/10 bg-neutral-50 px-3 py-2 font-mono text-sm"
                 />
                 <button
                   onClick={copyToClipboard}
-                  className="px-4 py-2 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 rounded-lg transition-colors font-medium text-sm"
+                  className="rounded-2xl bg-neutral-100 px-4 py-2 text-sm font-medium text-neutral-700 transition-colors hover:bg-neutral-200"
                 >
                   {copied ? '✓ Copied!' : 'Copy'}
                 </button>
@@ -332,12 +332,12 @@ function ShareLinkCard({ link, expanded, onToggleExpand, onRevoke }: ShareLinkCa
           {link.notes && (
             <div>
               <label className="block text-sm font-medium text-neutral-700 mb-2">Notes</label>
-              <p className="text-sm text-neutral-600 bg-neutral-50 p-3 rounded-lg">{link.notes}</p>
+              <p className="rounded-2xl bg-neutral-50 p-3 text-sm text-neutral-600">{link.notes}</p>
             </div>
           )}
 
           {/* Metadata */}
-          <div className="grid grid-cols-2 gap-4 pt-4 border-t border-neutral-200">
+          <div className="grid grid-cols-2 gap-4 border-t border-black/5 pt-4">
             <div>
               <p className="text-xs text-neutral-600">Created</p>
               <p className="text-sm text-neutral-900">{new Date(link.created_at).toLocaleDateString()}</p>
@@ -352,13 +352,13 @@ function ShareLinkCard({ link, expanded, onToggleExpand, onRevoke }: ShareLinkCa
 
           {/* Actions */}
           {isActive && (
-            <div className="pt-4 border-t border-neutral-200">
+            <div className="border-t border-black/5 pt-4">
               <button
                 onClick={(e) => {
                   e.stopPropagation();
                   onRevoke();
                 }}
-                className="px-4 py-2 bg-red-50 hover:bg-red-100 text-red-700 rounded-lg transition-colors font-medium text-sm"
+                className="rounded-2xl bg-red-50 px-4 py-2 text-sm font-medium text-red-700 transition-colors hover:bg-red-100"
               >
                 Revoke Access
               </button>
@@ -456,11 +456,13 @@ function CreateShareLinkForm({ portfolioId, onSuccess, onCancel }: CreateShareLi
   // If link created, show success screen
   if (createdLink) {
     return (
-      <div className="bg-green-50 border border-green-200 rounded-xl p-6">
+      <div className="rounded-2xl border border-green-200 bg-green-50 p-6">
         <div className="flex items-start gap-3 mb-4">
-          <div className="text-3xl">✓</div>
+          <div className="w-8 h-8 rounded-full bg-green-600 flex items-center justify-center flex-shrink-0">
+            <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
+          </div>
           <div className="flex-1">
-            <h3 className="text-lg font-semibold text-green-900 mb-2">Share Link Created!</h3>
+            <h3 className="mb-2 text-lg font-semibold text-green-900">Share Link Created!</h3>
             <p className="text-sm text-green-800 mb-4">
               Send this link to {createdLink.cpa_name || 'your CPA'} to grant access to your tax data.
             </p>
@@ -472,14 +474,14 @@ function CreateShareLinkForm({ portfolioId, onSuccess, onCancel }: CreateShareLi
                   type="text"
                   value={createdLink.share_url}
                   readOnly
-                  className="flex-1 px-3 py-2 border border-green-300 rounded-lg bg-white text-sm font-mono"
+                  className="flex-1 rounded-2xl border border-green-300 bg-white px-3 py-2 font-mono text-sm"
                 />
                 <button
                   onClick={() => {
                     navigator.clipboard.writeText(createdLink.share_url);
                     alert('Copied to clipboard!');
                   }}
-                  className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors font-medium text-sm"
+                  className="rounded-2xl bg-green-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-green-700"
                 >
                   Copy
                 </button>
@@ -487,7 +489,7 @@ function CreateShareLinkForm({ portfolioId, onSuccess, onCancel }: CreateShareLi
             </div>
 
             {createdLink.email_preview && (
-              <div className="bg-white rounded-lg p-4 border border-green-200 mb-4">
+              <div className="mb-4 rounded-2xl border border-green-200 bg-white p-4">
                 <p className="text-xs text-green-700 font-medium mb-2">EMAIL PREVIEW</p>
                 <p className="text-sm font-semibold text-neutral-900 mb-2">
                   Subject: {createdLink.email_preview.subject}
@@ -500,7 +502,7 @@ function CreateShareLinkForm({ portfolioId, onSuccess, onCancel }: CreateShareLi
 
             <button
               onClick={onSuccess}
-              className="px-6 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors font-medium"
+              className="rounded-2xl bg-green-600 px-6 py-2 font-medium text-white transition-colors hover:bg-green-700"
             >
               Done
             </button>
@@ -511,8 +513,8 @@ function CreateShareLinkForm({ portfolioId, onSuccess, onCancel }: CreateShareLi
   }
 
   return (
-    <div className="bg-white rounded-xl border border-neutral-200 p-6">
-      <h3 className="text-lg font-semibold text-neutral-900 mb-4">Create New Share Link</h3>
+    <div className="rounded-2xl border border-black/5 bg-white p-6 shadow-soft">
+      <h3 className="mb-4 font-serif text-lg font-medium text-ink">Create New Share Link</h3>
 
       <div className="space-y-4">
         {/* CPA Details */}
@@ -524,7 +526,7 @@ function CreateShareLinkForm({ portfolioId, onSuccess, onCancel }: CreateShareLi
               value={formData.cpa_name}
               onChange={(e) => updateFormData({ cpa_name: e.target.value })}
               placeholder="John Smith"
-              className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              className="w-full rounded-2xl border border-black/10 px-3 py-2 focus:border-transparent focus:ring-2 focus:ring-azure/30"
             />
           </div>
           <div>
@@ -534,7 +536,7 @@ function CreateShareLinkForm({ portfolioId, onSuccess, onCancel }: CreateShareLi
               value={formData.cpa_email}
               onChange={(e) => updateFormData({ cpa_email: e.target.value })}
               placeholder="john@cpafirm.com"
-              className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              className="w-full rounded-2xl border border-black/10 px-3 py-2 focus:border-transparent focus:ring-2 focus:ring-azure/30"
             />
           </div>
           <div>
@@ -544,7 +546,7 @@ function CreateShareLinkForm({ portfolioId, onSuccess, onCancel }: CreateShareLi
               value={formData.cpa_firm}
               onChange={(e) => updateFormData({ cpa_firm: e.target.value })}
               placeholder="Smith & Associates"
-              className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              className="w-full rounded-2xl border border-black/10 px-3 py-2 focus:border-transparent focus:ring-2 focus:ring-azure/30"
             />
           </div>
         </div>
@@ -559,9 +561,9 @@ function CreateShareLinkForm({ portfolioId, onSuccess, onCancel }: CreateShareLi
               <button
                 key={year}
                 onClick={() => toggleTaxYear(year)}
-                className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors ${
+                className={`rounded-2xl px-4 py-2 text-sm font-medium transition-colors ${
                   formData.tax_years.includes(year)
-                    ? 'bg-indigo-600 text-white'
+                    ? 'bg-azure text-white shadow-soft'
                     : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
                 }`}
               >
@@ -578,7 +580,7 @@ function CreateShareLinkForm({ portfolioId, onSuccess, onCancel }: CreateShareLi
             <select
               value={formData.expiration}
               onChange={(e) => updateFormData({ expiration: e.target.value as any })}
-              className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              className="w-full rounded-2xl border border-black/10 px-3 py-2 focus:border-transparent focus:ring-2 focus:ring-azure/30"
             >
               <option value="7days">7 days</option>
               <option value="30days">30 days</option>
@@ -597,7 +599,7 @@ function CreateShareLinkForm({ portfolioId, onSuccess, onCancel }: CreateShareLi
               onChange={(e) => updateFormData({ max_accesses: e.target.value ? parseInt(e.target.value) : undefined })}
               placeholder="Unlimited"
               min="1"
-              className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              className="w-full rounded-2xl border border-black/10 px-3 py-2 focus:border-transparent focus:ring-2 focus:ring-azure/30"
             />
           </div>
         </div>
@@ -612,7 +614,7 @@ function CreateShareLinkForm({ portfolioId, onSuccess, onCancel }: CreateShareLi
                   type="checkbox"
                   checked={value}
                   onChange={() => togglePermission(key as any)}
-                  className="w-4 h-4 text-indigo-600 border-neutral-300 rounded focus:ring-2 focus:ring-indigo-500"
+                  className="h-4 w-4 rounded border-black/10 text-azure focus:ring-2 focus:ring-azure/30"
                 />
                 <span className="text-sm text-neutral-700">
                   {key.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase())}
@@ -630,30 +632,30 @@ function CreateShareLinkForm({ portfolioId, onSuccess, onCancel }: CreateShareLi
             onChange={(e) => updateFormData({ notes: e.target.value })}
             placeholder="Internal notes about this share link..."
             rows={3}
-            className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+            className="w-full rounded-2xl border border-black/10 px-3 py-2 focus:border-transparent focus:ring-2 focus:ring-azure/30"
           />
         </div>
 
         {/* Error Display */}
         {error && (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-red-700 text-sm">
+          <div className="rounded-2xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
             {error}
           </div>
         )}
 
         {/* Actions */}
-        <div className="flex gap-3 pt-4 border-t border-neutral-200">
+        <div className="flex gap-3 border-t border-black/5 pt-4">
           <button
             onClick={createShareLink}
             disabled={creating}
-            className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+            className="rounded-2xl bg-azure px-6 py-2 font-medium text-white shadow-soft transition hover:bg-azure/90 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {creating ? 'Creating...' : 'Create Share Link'}
           </button>
           <button
             onClick={onCancel}
             disabled={creating}
-            className="px-6 py-2 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 rounded-lg transition-colors font-medium"
+            className="rounded-2xl bg-neutral-100 px-6 py-2 font-medium text-neutral-700 transition-colors hover:bg-neutral-200"
           >
             Cancel
           </button>

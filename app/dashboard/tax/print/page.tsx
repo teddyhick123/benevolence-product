@@ -246,7 +246,7 @@ function PrintContent() {
                   <td className="p-2 text-right">${c.amount.toLocaleString()}</td>
                   <td className="p-2 text-right">${c.deductibleAmount.toLocaleString()}</td>
                   <td className="p-2 text-center">
-                    {c.acknowledgmentReceived === 'Yes' ? '✓' : '-'}
+                    {c.acknowledgmentReceived === 'Yes' ? 'Yes' : '—'}
                   </td>
                 </tr>
               ))}

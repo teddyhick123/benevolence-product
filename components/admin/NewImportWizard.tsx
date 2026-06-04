@@ -106,7 +106,7 @@ export function NewImportWizard({ portfolios, onClose }: NewImportWizardProps) {
             className="text-neutral-400 hover:text-neutral-700 transition-colors"
             aria-label="Close"
           >
-            ✕
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
           </button>
         </div>
 
@@ -188,7 +188,7 @@ export function NewImportWizard({ portfolios, onClose }: NewImportWizardProps) {
                   {FILE_SLOTS.map(({ key, label }) => (
                     <div key={key} className="flex items-center gap-3">
                       <label className="flex-1 flex items-center gap-2 px-3 py-2 border border-dashed border-neutral-300 rounded-lg cursor-pointer hover:border-azure/50 transition-colors text-sm">
-                        <span className="text-neutral-400">📄</span>
+                        <svg className="w-4 h-4 text-neutral-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
                         <span className="text-neutral-500 truncate">
                           {files[key] ? files[key]!.name : label}
                         </span>
@@ -210,9 +210,9 @@ export function NewImportWizard({ portfolios, onClose }: NewImportWizardProps) {
                       {files[key] && (
                         <button
                           onClick={() => setFiles((prev) => { const next = { ...prev }; delete next[key]; return next; })}
-                          className="text-neutral-400 hover:text-red-500 text-xs"
+                          className="text-neutral-400 hover:text-red-500"
                         >
-                          ✕
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                         </button>
                       )}
                     </div>

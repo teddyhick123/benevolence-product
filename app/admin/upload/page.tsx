@@ -443,7 +443,7 @@ function UploadPageContent() {
       {status === 'done' && (
         <div className="space-y-4">
           <div className="p-3 rounded-2xl bg-green-50 border border-green-200">
-            ✅ Processing complete! {factsCount > 0 && `Extracted ${factsCount} facts.`}
+            Processing complete. {factsCount > 0 && `Extracted ${factsCount} facts.`}
             {stagedFacts.length > 0 && (
               <button
                 onClick={() => setShowReview(!showReview)}
@@ -489,13 +489,13 @@ function UploadPageContent() {
                           onClick={() => approveFact(fact.id)}
                           className="px-3 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700 transition"
                         >
-                          ✓ Approve
+                          Approve
                         </button>
                         <button
                           onClick={() => rejectFact(fact.id)}
                           className="px-3 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700 transition"
                         >
-                          ✕ Reject
+                          Reject
                         </button>
                       </div>
                     </div>

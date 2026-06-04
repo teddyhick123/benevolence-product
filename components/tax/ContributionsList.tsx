@@ -129,7 +129,7 @@ export default function ContributionsList({
                   )}
                   {!contribution.is_compliant && (
                     <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-amber-100 text-amber-800">
-                      ⚠️ Missing docs
+                      Missing docs
                     </span>
                   )}
                 </div>

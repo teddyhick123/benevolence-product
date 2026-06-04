@@ -166,7 +166,6 @@ export default function PeopleGridConfig({ initialConfig, onSave, onCancel, port
 
       <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4">
         <div className="flex gap-3">
-          <div className="text-2xl">💡</div>
           <div className="text-sm text-indigo-900">
             <p className="font-medium mb-1">Preview</p>
             <p>Each 👤 icon will represent {perUnit} people. The last icon can be partially filled to show exact progress.</p>

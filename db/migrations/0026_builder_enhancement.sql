@@ -18,3 +18,7 @@ ALTER TABLE public.builder_proposals
 
 CREATE INDEX IF NOT EXISTS builder_proposals_phase_idx
   ON public.builder_proposals (phase, created_at DESC);
+
+-- 3. GitHub pull request URL for Builder v2 apply path
+ALTER TABLE public.builder_proposals
+  ADD COLUMN IF NOT EXISTS pr_url TEXT;

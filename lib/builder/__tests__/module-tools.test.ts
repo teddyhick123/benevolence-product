@@ -39,3 +39,30 @@ describe('update_module_config tool', () => {
     expect(snippet).not.toMatch(/'core'|"core"/);
   });
 });
+
+describe('list_modules tool', () => {
+  const src = readFileSync('lib/builder/tools.ts', 'utf8');
+
+  it('has a list_modules tool definition', () => {
+    expect(src).toMatch(/name:\s*['"]list_modules['"]/);
+  });
+
+  it('executor calls getOrgEnabledModules', () => {
+    const caseIdx = src.indexOf("case 'list_modules'");
+    expect(caseIdx).toBeGreaterThan(-1);
+    const snippet = src.slice(caseIdx, caseIdx + 500);
+    expect(snippet).toMatch(/getOrgEnabledModules/);
+  });
+
+  it('executor returns canToggle field', () => {
+    const caseIdx = src.indexOf("case 'list_modules'");
+    const snippet = src.slice(caseIdx, caseIdx + 800);
+    expect(snippet).toMatch(/canToggle/);
+  });
+
+  it('core module is listed but canToggle is false', () => {
+    const caseIdx = src.indexOf("case 'list_modules'");
+    const snippet = src.slice(caseIdx, caseIdx + 800);
+    expect(snippet).toMatch(/isCore|is_core/);
+  });
+});

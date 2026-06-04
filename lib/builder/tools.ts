@@ -7,7 +7,8 @@ import { buildScaffoldContext, formatScaffoldContextForPrompt } from './scaffold
 import { getCodebaseIndex, formatIndexForPrompt } from './codebase-index';
 import { branding } from '@/lib/config';
 import type { ModuleId } from '@/lib/modules/types';
-import { enableModule, disableModule } from '@/lib/modules/tool-filter';
+import { MODULE_REGISTRY, canDisableModule } from '@/lib/modules/registry';
+import { getOrgEnabledModules, enableModule, disableModule } from '@/lib/modules/tool-filter';
 import { InputValidator } from '@/lib/ai/validators';
 
 const MUTABLE_MODULE_IDS: readonly ModuleId[] = [
@@ -45,6 +46,14 @@ export const BUILDER_TOOLS: ToolDefinition[] = [
         enabled: { type: 'boolean', description: 'true to enable, false to disable' },
       },
       required: ['module', 'enabled'],
+    },
+  },
+  {
+    name: 'list_modules',
+    description: 'List all available modules and their current enabled/disabled state for this org. Call this before update_module_config.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {},
     },
   },
   {
@@ -472,6 +481,38 @@ Respond with ONLY a valid JSON object matching this exact schema (no markdown, n
           type: 'scaffold_plan_ready',
           proposalId: proposal.id,
           planContent,
+        };
+      }
+
+      case 'list_modules': {
+        const enabledIds = await getOrgEnabledModules(adminSupabase, orgId);
+        const enabledSet = new Set(enabledIds);
+
+        const modules = Object.values(MODULE_REGISTRY).map(mod => {
+          const enabled = enabledSet.has(mod.id);
+          // canToggle: false for core; false for enabled modules whose removal would break dependents
+          const canToggle = mod.isCore
+            ? false
+            : !enabled || canDisableModule(mod.id, enabledIds).canDisable;
+          return {
+            id: mod.id,
+            name: mod.name,
+            description: mod.description,
+            enabled,
+            isCore: mod.isCore,
+            dependencies: mod.dependencies ?? [],
+            canToggle,
+          };
+        });
+
+        const lines = modules.map(m =>
+          `${m.enabled ? '[ON] ' : '[OFF]'} ${m.id} — ${m.name}${m.isCore ? ' (core, always on)' : ''}${m.dependencies.length ? ` (requires: ${m.dependencies.join(', ')})` : ''}`
+        ).join('\n');
+
+        return {
+          type: 'config_success',
+          tool: toolName,
+          message: `Modules for this org:\n${lines}`,
         };
       }
 

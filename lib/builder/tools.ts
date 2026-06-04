@@ -595,7 +595,7 @@ Respond with ONLY a valid JSON object matching this exact schema (no markdown, n
 
         let query = adminSupabase
           .from('builder_proposals')
-          .select('id, phase, proposal_type, request_text, created_at, pr_url')
+          .select('id, phase, proposal_type, request_text, created_at')
           .eq('org_id', orgId)
           .order('created_at', { ascending: false })
           .limit(10);
@@ -615,10 +615,9 @@ Respond with ONLY a valid JSON object matching this exact schema (no markdown, n
           };
         }
 
-        const lines = data.map((p: any) => {
-          const summary = p.request_text?.slice(0, 80) ?? '(no description)';
-          const pr = (p as any).pr_url ? ` → ${(p as any).pr_url}` : '';
-          return `[${p.phase}] ${p.id.slice(0, 8)} — "${summary}"${pr}`;
+        const lines = data.map(p => {
+          const summary = (p.request_text as string | null)?.slice(0, 80) ?? '(no description)';
+          return `[${p.phase}] ${(p.id as string).slice(0, 8)} — "${summary}"`;
         }).join('\n');
 
         return {

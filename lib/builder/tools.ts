@@ -7,15 +7,14 @@ import { buildScaffoldContext, formatScaffoldContextForPrompt } from './scaffold
 import { getCodebaseIndex, formatIndexForPrompt } from './codebase-index';
 import { branding } from '@/lib/config';
 import type { ModuleId } from '@/lib/modules/types';
-import { MODULE_REGISTRY, canDisableModule } from '@/lib/modules/registry';
-import { getOrgEnabledModules, enableModule, disableModule } from '@/lib/modules/tool-filter';
+import { enableModule, disableModule } from '@/lib/modules/tool-filter';
 import { InputValidator } from '@/lib/ai/validators';
 
 const MUTABLE_MODULE_IDS: readonly ModuleId[] = [
   'impact_tracking', 'reporting', 'tax_optimization', 'grant_management',
   'donor_management', 'pledge_tracking', 'external_data', 'analytics',
   'compliance_regulatory',
-] as const;
+];
 
 // ─── Tool definitions ────────────────────────────────────────────────────────
 

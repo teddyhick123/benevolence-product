@@ -39,7 +39,11 @@ describe('0044_builder_events migration', () => {
     expect(snippet).toMatch(/is_app_admin/);
   });
 
-  it('creates v_builder_ai_requests with security_invoker', () => {
-    expect(sql).toMatch(/v_builder_ai_requests/);
+  it('creates v_builder_ai_requests with security_invoker and is_app_admin gate', () => {
+    const idx = sql.indexOf('v_builder_ai_requests');
+    expect(idx).toBeGreaterThan(-1);
+    const snippet = sql.slice(idx, idx + 600);
+    expect(snippet).toMatch(/security_invoker\s*=\s*true/i);
+    expect(snippet).toMatch(/is_app_admin/);
   });
 });

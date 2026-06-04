@@ -230,14 +230,14 @@ export default function CharitiesPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-neutral-50">
       {/* Header */}
-      <div className="bg-white border-b border-gray-200">
+      <div className="bg-white border-b border-neutral-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
             <div>
-              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Charities</h1>
-              <p className="text-gray-600 mt-1 text-sm sm:text-base">
+              <h1 className="text-2xl sm:text-3xl font-bold text-ink">Charities</h1>
+              <p className="text-neutral-600 mt-1 text-sm sm:text-base">
                 {viewMode === 'discovery'
                   ? 'Search and discover charitable organizations'
                   : 'Manage charities in your portfolio'}
@@ -254,7 +254,7 @@ export default function CharitiesPage() {
                 className={`flex-1 sm:flex-none px-3 sm:px-4 py-2 rounded-lg font-medium text-sm sm:text-base transition-colors ${
                   viewMode === 'discovery'
                     ? 'bg-azure text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
                 }`}
               >
                 All Charities
@@ -267,7 +267,7 @@ export default function CharitiesPage() {
                 className={`flex-1 sm:flex-none px-3 sm:px-4 py-2 rounded-lg font-medium text-sm sm:text-base transition-colors ${
                   viewMode === 'portfolio'
                     ? 'bg-azure text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
                 }`}
               >
                 My Portfolio
@@ -280,7 +280,7 @@ export default function CharitiesPage() {
                 className={`flex-1 sm:flex-none px-3 sm:px-4 py-2 rounded-lg font-medium text-sm sm:text-base transition-colors ${
                   viewMode === 'saved'
                     ? 'bg-amber-500 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
                 }`}
               >
                 Saved
@@ -291,7 +291,7 @@ export default function CharitiesPage() {
           {/* Search Bar */}
           <form onSubmit={handleSearch} className="flex flex-col sm:flex-row gap-3">
             <div ref={searchContainerRef} className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-neutral-400" />
               <input
                 type="text"
                 value={searchQuery}
@@ -299,10 +299,10 @@ export default function CharitiesPage() {
                 onFocus={() => suggestions.length > 0 && setSuggestionsVisible(true)}
                 onKeyDown={(e) => e.key === 'Escape' && setSuggestionsVisible(false)}
                 placeholder="Search by name, EIN, or location..."
-                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-azure focus:border-azure"
+                className="w-full pl-10 pr-4 py-3 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-azure focus:border-azure"
               />
               {suggestionsVisible && suggestions.length > 0 && (
-                <div className="absolute z-50 top-full mt-1 w-full bg-white rounded-lg border border-gray-200 shadow-lg max-h-72 overflow-y-auto">
+                <div className="absolute z-50 top-full mt-1 w-full bg-white rounded-lg border border-neutral-200 shadow-lg max-h-72 overflow-y-auto">
                   {suggestions.map((s) => (
                     <button
                       key={s.id}
@@ -313,10 +313,10 @@ export default function CharitiesPage() {
                         setSuggestionsVisible(false);
                         setPage(1);
                       }}
-                      className="w-full px-4 py-2.5 text-left hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-b-0"
+                      className="w-full px-4 py-2.5 text-left hover:bg-neutral-50 transition-colors border-b border-neutral-100 last:border-b-0"
                     >
-                      <p className="text-sm font-medium text-gray-900 truncate">{s.name}</p>
-                      <p className="text-xs text-gray-500">EIN: {s.ein}{s.location ? ` · ${s.location}` : ''}</p>
+                      <p className="text-sm font-medium text-ink truncate">{s.name}</p>
+                      <p className="text-xs text-neutral-500">EIN: {s.ein}{s.location ? ` · ${s.location}` : ''}</p>
                     </button>
                   ))}
                 </div>
@@ -327,10 +327,10 @@ export default function CharitiesPage() {
               <button
                 type="button"
                 onClick={() => setMobileFiltersOpen(true)}
-                className="lg:hidden flex items-center gap-2 px-4 py-3 border border-gray-300 rounded-lg bg-white hover:bg-gray-50 transition-colors"
+                className="lg:hidden flex items-center gap-2 px-4 py-3 border border-neutral-300 rounded-lg bg-white hover:bg-neutral-50 transition-colors"
               >
-                <SlidersHorizontal className="w-5 h-5 text-gray-600" />
-                <span className="text-gray-700">Filters</span>
+                <SlidersHorizontal className="w-5 h-5 text-neutral-600" />
+                <span className="text-neutral-700">Filters</span>
                 {Object.keys(filters).length > 0 && (
                   <span className="bg-azure text-white text-xs px-2 py-0.5 rounded-full">
                     {Object.keys(filters).length}
@@ -341,14 +341,14 @@ export default function CharitiesPage() {
                 <select
                   value={sortBy}
                   onChange={(e) => setSortBy(e.target.value)}
-                  className="w-full sm:w-auto appearance-none pl-4 pr-10 py-3 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-azure focus:border-azure"
+                  className="w-full sm:w-auto appearance-none pl-4 pr-10 py-3 border border-neutral-300 rounded-lg bg-white focus:ring-2 focus:ring-azure focus:border-azure"
                 >
                   <option value="relevance">Relevance</option>
                   <option value="rating">Rating (High to Low)</option>
                   <option value="revenue">Revenue (High to Low)</option>
                   <option value="name">Name (A-Z)</option>
                 </select>
-                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
+                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-neutral-400 pointer-events-none" />
               </div>
             </div>
           </form>
@@ -372,7 +372,7 @@ export default function CharitiesPage() {
           <div className="flex-1">
             {/* Results Header */}
             <div className="mb-6">
-              <p className="text-gray-600">
+              <p className="text-neutral-600">
                 {isLoading ? (
                   'Loading...'
                 ) : (
@@ -387,14 +387,14 @@ export default function CharitiesPage() {
             {/* Saved watchlist view */}
             {viewMode === 'saved' ? (
               savedItems.length === 0 ? (
-                <div className="text-center py-16 bg-white rounded-lg border border-gray-200">
+                <div className="text-center py-16 bg-white rounded-lg border border-neutral-200">
                   <div className="w-14 h-14 rounded-full bg-amber-50 flex items-center justify-center mx-auto mb-4">
                     <svg className="w-7 h-7 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
                     </svg>
                   </div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">No saved charities</h3>
-                  <p className="text-sm text-gray-500 mb-4">Click &quot;Save for Later&quot; on any charity detail page to bookmark it here.</p>
+                  <h3 className="text-lg font-semibold text-ink mb-2">No saved charities</h3>
+                  <p className="text-sm text-neutral-500 mb-4">Click &quot;Save for Later&quot; on any charity detail page to bookmark it here.</p>
                   <button onClick={() => setViewMode('discovery')} className="px-4 py-2 bg-azure text-white rounded-lg text-sm font-medium">
                     Discover Charities
                   </button>
@@ -403,10 +403,10 @@ export default function CharitiesPage() {
                 <div className="space-y-2">
                   {savedItems.map(item => (
                     <a key={item.ein} href={`/charities/${item.ein}`}
-                      className="flex items-center justify-between bg-white border border-gray-200 rounded-lg px-4 py-3 hover:border-azure/40 hover:shadow-sm transition-all">
+                      className="flex items-center justify-between bg-white border border-neutral-200 rounded-lg px-4 py-3 hover:border-azure/40 hover:shadow-sm transition-all">
                       <div>
-                        <p className="text-sm font-medium text-gray-900">{item.name}</p>
-                        <p className="text-xs text-gray-400">EIN {item.ein}</p>
+                        <p className="text-sm font-medium text-ink">{item.name}</p>
+                        <p className="text-xs text-neutral-400">EIN {item.ein}</p>
                       </div>
                       <svg className="w-4 h-4 text-amber-400 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
                         <path d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
@@ -418,10 +418,10 @@ export default function CharitiesPage() {
             ) : isLoading ? (
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
                 {[...Array(6)].map((_, i) => (
-                  <div key={i} className="bg-white border border-gray-200 rounded-lg p-4 animate-pulse">
-                    <div className="h-6 bg-gray-200 rounded w-3/4 mb-4"></div>
-                    <div className="h-4 bg-gray-200 rounded w-1/2 mb-2"></div>
-                    <div className="h-4 bg-gray-200 rounded w-full"></div>
+                  <div key={i} className="bg-white border border-neutral-200 rounded-lg p-4 animate-pulse">
+                    <div className="h-6 bg-neutral-200 rounded w-3/4 mb-4"></div>
+                    <div className="h-4 bg-neutral-200 rounded w-1/2 mb-2"></div>
+                    <div className="h-4 bg-neutral-200 rounded w-full"></div>
                   </div>
                 ))}
               </div>
@@ -444,7 +444,7 @@ export default function CharitiesPage() {
                     <button
                       onClick={() => setPage(Math.max(1, page - 1))}
                       disabled={page === 1}
-                      className="px-3 sm:px-4 py-2 text-sm sm:text-base border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="px-3 sm:px-4 py-2 text-sm sm:text-base border border-neutral-300 rounded-md hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       Previous
                     </button>
@@ -460,13 +460,13 @@ export default function CharitiesPage() {
                       if (right < totalPages) { if (right < totalPages - 1) pages.push('...'); pages.push(totalPages); }
                       return pages.map((p, i) =>
                         p === '...' ? (
-                          <span key={`ellipsis-${i}`} className="hidden sm:block px-2 py-2 text-gray-500">…</span>
+                          <span key={`ellipsis-${i}`} className="hidden sm:block px-2 py-2 text-neutral-500">…</span>
                         ) : (
                           <button
                             key={p}
                             onClick={() => setPage(p as number)}
                             className={`hidden sm:block px-4 py-2 rounded-md ${
-                              page === p ? 'bg-azure text-white' : 'border border-gray-300 hover:bg-gray-50'
+                              page === p ? 'bg-azure text-white' : 'border border-neutral-300 hover:bg-neutral-50'
                             }`}
                           >
                             {p}
@@ -476,14 +476,14 @@ export default function CharitiesPage() {
                     })()}
 
                     {/* Mobile: show current page indicator */}
-                    <span className="sm:hidden px-3 py-2 text-sm text-gray-600">
+                    <span className="sm:hidden px-3 py-2 text-sm text-neutral-600">
                       Page {page} of {totalPages}
                     </span>
 
                     <button
                       onClick={() => setPage(Math.min(totalPages, page + 1))}
                       disabled={page === totalPages}
-                      className="px-3 sm:px-4 py-2 text-sm sm:text-base border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="px-3 sm:px-4 py-2 text-sm sm:text-base border border-neutral-300 rounded-md hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       Next
                     </button>
@@ -491,26 +491,26 @@ export default function CharitiesPage() {
                 )}
               </>
             ) : (
-              <div className="text-center py-16 bg-white rounded-lg border border-gray-200">
+              <div className="text-center py-16 bg-white rounded-lg border border-neutral-200">
                 {viewMode === 'discovery' && total === 0 && !searchQuery && Object.keys(filters).length === 0 ? (
                   // Empty database state
                   <div className="max-w-md mx-auto px-6">
-                    <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4">
-                      <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <div className="w-16 h-16 rounded-full bg-neutral-100 flex items-center justify-center mx-auto mb-4">
+                      <svg className="w-8 h-8 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
                       </svg>
                     </div>
-                    <h3 className="text-xl font-semibold text-gray-900 mb-2">No Charities Yet</h3>
-                    <p className="text-gray-600 mb-6">
+                    <h3 className="text-xl font-semibold text-ink mb-2">No Charities Yet</h3>
+                    <p className="text-neutral-600 mb-6">
                       The charity database is currently empty. Import charities from ProPublica to get started.
                     </p>
-                    <div className="bg-gray-50 rounded-lg p-4 mb-6 text-left">
-                      <p className="text-sm text-gray-700 font-medium mb-2">Run the import script:</p>
+                    <div className="bg-neutral-50 rounded-lg p-4 mb-6 text-left">
+                      <p className="text-sm text-neutral-700 font-medium mb-2">Run the import script:</p>
                       <code className="text-xs bg-gray-900 text-green-400 px-3 py-2 rounded block font-mono">
                         npx ts-node scripts/import-charities-propublica.ts
                       </code>
                     </div>
-                    <p className="text-xs text-gray-500">
+                    <p className="text-xs text-neutral-500">
                       This will import charity data from the ProPublica API
                     </p>
                   </div>
@@ -522,8 +522,8 @@ export default function CharitiesPage() {
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                       </svg>
                     </div>
-                    <h3 className="text-xl font-semibold text-gray-900 mb-2">Your Portfolio is Empty</h3>
-                    <p className="text-gray-600 mb-6">
+                    <h3 className="text-xl font-semibold text-ink mb-2">Your Portfolio is Empty</h3>
+                    <p className="text-neutral-600 mb-6">
                       You haven&apos;t added any charities to your portfolio yet. Browse all charities to discover and add organizations.
                     </p>
                     <button
@@ -536,21 +536,21 @@ export default function CharitiesPage() {
                 ) : (
                   // No search results state
                   <div className="max-w-md mx-auto px-6">
-                    <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4">
-                      <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <div className="w-16 h-16 rounded-full bg-neutral-100 flex items-center justify-center mx-auto mb-4">
+                      <svg className="w-8 h-8 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                       </svg>
                     </div>
-                    <h3 className="text-xl font-semibold text-gray-900 mb-2">No Results Found</h3>
-                    <p className="text-gray-600 mb-6">
+                    <h3 className="text-xl font-semibold text-ink mb-2">No Results Found</h3>
+                    <p className="text-neutral-600 mb-6">
                       No charities match your current search and filters. Try adjusting your criteria.
                     </p>
                     {(searchQuery || Object.keys(filters).length > 0) && (
                       <div className="space-y-3">
                         {searchQuery && (
                           <div className="flex items-center justify-center gap-2 text-sm">
-                            <span className="text-gray-500">Search:</span>
-                            <span className="px-3 py-1 bg-gray-100 rounded-full text-gray-700">{searchQuery}</span>
+                            <span className="text-neutral-500">Search:</span>
+                            <span className="px-3 py-1 bg-neutral-100 rounded-full text-neutral-700">{searchQuery}</span>
                             <button
                               onClick={() => setSearchQuery('')}
                               className="text-azure hover:text-azure/80"

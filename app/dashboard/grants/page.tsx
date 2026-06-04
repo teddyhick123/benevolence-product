@@ -220,15 +220,14 @@ export default function GrantsDashboard() {
       </div>
 
       {/* Navigation */}
-      <div className="rounded-2xl border border-black/5 bg-white p-1.5 shadow-soft">
-        {/* Center views */}
-        <nav className="flex gap-1 overflow-x-auto" aria-label="Center views">
-          <span className="self-center px-2 py-2 text-xs font-semibold uppercase tracking-wide text-neutral-400">Views</span>
+      <div className="rounded-2xl border border-black/5 bg-white p-1.5 shadow-soft overflow-x-auto">
+        <nav className="flex gap-1 min-w-max" aria-label="Grant views">
+          <span className="self-center px-2 py-2 text-xs font-semibold uppercase tracking-wide text-neutral-400 whitespace-nowrap">Views</span>
           {centerViews.map(view => (
             <button
               key={view.id}
               onClick={() => handleViewChange(view.id)}
-              className={`group relative inline-flex items-center gap-1.5 rounded-2xl px-3 py-2 text-sm font-medium transition-all ${
+              className={`group relative inline-flex items-center gap-1.5 rounded-2xl px-3 py-2 text-sm font-medium whitespace-nowrap transition-all ${
                 activeView === view.id
                   ? 'bg-azure text-white shadow-sm'
                   : 'text-neutral-600 hover:bg-azure/5 hover:text-azure'
@@ -245,13 +244,13 @@ export default function GrantsDashboard() {
               )}
             </button>
           ))}
-          <span className="flex-1" />
-          <span className="self-center px-2 py-2 text-xs font-semibold uppercase tracking-wide text-neutral-400">Operations</span>
+          <span className="flex-1 min-w-4" />
+          <span className="self-center px-2 py-2 text-xs font-semibold uppercase tracking-wide text-neutral-400 whitespace-nowrap">Operations</span>
           {opsViews.map(view => (
             <button
               key={view.id}
               onClick={() => handleViewChange(view.id)}
-              className={`group inline-flex items-center gap-1.5 rounded-2xl px-3 py-2 text-sm font-medium transition-all ${
+              className={`group inline-flex items-center gap-1.5 rounded-2xl px-3 py-2 text-sm font-medium whitespace-nowrap transition-all ${
                 activeView === view.id
                   ? 'bg-azure text-white shadow-sm'
                   : 'text-neutral-600 hover:bg-azure/5 hover:text-azure'

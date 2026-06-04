@@ -77,22 +77,22 @@ export default function NewDonorPage() {
     }
   }
 
-  const inputCls = 'w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-azure/50 bg-white';
-  const labelCls = 'block text-sm font-medium text-gray-700 mb-1';
+  const inputCls = 'w-full px-3 py-2 text-sm border border-black/15 rounded-2xl focus:outline-none focus:ring-2 focus:ring-azure/30 bg-white';
+  const labelCls = 'block text-sm font-medium text-neutral-700 mb-1';
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-8">
       <div className="mb-6">
         <button
           onClick={() => router.back()}
-          className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1"
+          className="text-sm text-neutral-500 hover:text-neutral-700 flex items-center gap-1"
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
           </svg>
           Back
         </button>
-        <h1 className="text-2xl font-bold text-gray-900 mt-3">Add Donor</h1>
+        <h1 className="text-2xl font-bold text-ink mt-3">Add Donor</h1>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
@@ -101,21 +101,21 @@ export default function NewDonorPage() {
           <button
             type="button"
             onClick={() => setIsOrg(false)}
-            className={`px-4 py-2 text-sm rounded-md border transition-colors ${!isOrg ? 'bg-azure text-white border-azure' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}
+            className={`px-4 py-2 text-sm rounded-2xl border transition-colors ${!isOrg ? 'bg-azure text-white border-azure' : 'bg-white text-neutral-700 border-black/15 hover:bg-neutral-50'}`}
           >
             Individual
           </button>
           <button
             type="button"
             onClick={() => setIsOrg(true)}
-            className={`px-4 py-2 text-sm rounded-md border transition-colors ${isOrg ? 'bg-azure text-white border-azure' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}
+            className={`px-4 py-2 text-sm rounded-2xl border transition-colors ${isOrg ? 'bg-azure text-white border-azure' : 'bg-white text-neutral-700 border-black/15 hover:bg-neutral-50'}`}
           >
             Organization
           </button>
         </div>
 
-        <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
-          <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Identity</h2>
+        <div className="bg-white rounded-2xl border border-black/10 p-6 space-y-4">
+          <h2 className="text-sm font-semibold text-ink uppercase tracking-wide">Identity</h2>
 
           {isOrg ? (
             <div>
@@ -166,8 +166,8 @@ export default function NewDonorPage() {
           </div>
         </div>
 
-        <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
-          <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Contact</h2>
+        <div className="bg-white rounded-2xl border border-black/10 p-6 space-y-4">
+          <h2 className="text-sm font-semibold text-ink uppercase tracking-wide">Contact</h2>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className={labelCls}>Email</label>
@@ -245,8 +245,8 @@ export default function NewDonorPage() {
           </div>
         </div>
 
-        <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
-          <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Classification</h2>
+        <div className="bg-white rounded-2xl border border-black/10 p-6 space-y-4">
+          <h2 className="text-sm font-semibold text-ink uppercase tracking-wide">Classification</h2>
           <div>
             <label className={labelCls}>Donor Tier</label>
             <select
@@ -272,7 +272,7 @@ export default function NewDonorPage() {
         </div>
 
         {error && (
-          <div className="rounded-md bg-red-50 border border-red-200 p-3 text-sm text-red-700">
+          <div className="rounded-2xl bg-red-50 border border-red-200 p-3 text-sm text-red-700">
             {error}
           </div>
         )}
@@ -281,14 +281,14 @@ export default function NewDonorPage() {
           <button
             type="button"
             onClick={() => router.back()}
-            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+            className="px-4 py-2 text-sm font-medium text-neutral-700 bg-white border border-black/15 rounded-2xl hover:bg-neutral-50 transition-colors"
           >
             Cancel
           </button>
           <button
             type="submit"
             disabled={saving || !orgId}
-            className="px-4 py-2 text-sm font-medium text-white bg-azure rounded-md hover:bg-azure/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-4 py-2 text-sm font-medium text-white bg-azure rounded-2xl hover:bg-azure/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {saving ? 'Saving…' : 'Add Donor'}
           </button>

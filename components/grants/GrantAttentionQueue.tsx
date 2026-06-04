@@ -44,11 +44,19 @@ type FilterMode = 'all' | 'overdue' | 'high_risk' | 'stage_attention';
 export default function GrantAttentionQueue({ grants, loading, onNewGrant }: Props) {
   const [mode, setMode] = useState<FilterMode>('all');
 
+  const isAtRisk = (g: GrantListItem) => {
+    const d = daysUntil(g.grant_period_end);
+    return (d !== null && d < 0) ||
+      g.risk_level === 'high' || g.risk_level === 'critical' ||
+      Object.keys(STAGE_ATTENTION).includes(g.lifecycle_stage);
+  };
+
   const sorted = useMemo(() => {
     let rows = [...grants];
 
-    // Apply mode filter
-    if (mode === 'overdue') {
+    if (mode === 'all') {
+      rows = rows.filter(isAtRisk);
+    } else if (mode === 'overdue') {
       rows = rows.filter(g => {
         const d = daysUntil(g.grant_period_end);
         return d !== null && d < 0;
@@ -59,7 +67,6 @@ export default function GrantAttentionQueue({ grants, loading, onNewGrant }: Pro
       rows = rows.filter(g => Object.keys(STAGE_ATTENTION).includes(g.lifecycle_stage));
     }
 
-    // Sort: critical first, then by period_end (overdue first, then nearest)
     rows.sort((a, b) => {
       const ra = RISK_ORDER[a.risk_level ?? ''] ?? 4;
       const rb = RISK_ORDER[b.risk_level ?? ''] ?? 4;
@@ -70,13 +77,15 @@ export default function GrantAttentionQueue({ grants, loading, onNewGrant }: Pro
     });
 
     return rows;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [grants, mode]);
 
   const counts = useMemo(() => ({
-    all: grants.length,
+    all: grants.filter(isAtRisk).length,
     overdue: grants.filter(g => { const d = daysUntil(g.grant_period_end); return d !== null && d < 0; }).length,
     high_risk: grants.filter(g => g.risk_level === 'high' || g.risk_level === 'critical').length,
     stage_attention: grants.filter(g => Object.keys(STAGE_ATTENTION).includes(g.lifecycle_stage)).length,
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }), [grants]);
 
   if (loading && grants.length === 0) {

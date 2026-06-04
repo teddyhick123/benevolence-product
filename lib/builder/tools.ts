@@ -178,6 +178,31 @@ export const BUILDER_TOOLS: ToolDefinition[] = [
       required: ['description'],
     },
   },
+  {
+    name: 'update_workflow_template',
+    description: 'Add, remove, or reorder steps in a grant workflow template. Replaces existing steps.',
+    input_schema: {
+      type: 'object' as const,
+      required: ['template_id', 'steps'],
+      properties: {
+        template_id: { type: 'string', description: 'UUID of the workflow template to update' },
+        steps: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              name:        { type: 'string' },
+              description: { type: 'string' },
+              order:       { type: 'number' },
+              required:    { type: 'boolean' },
+            },
+            required: ['name', 'order'],
+          },
+          description: 'Complete ordered list of steps (replaces existing)',
+        },
+      },
+    },
+  },
 ];
 
 // ─── Tool executors ──────────────────────────────────────────────────────────
@@ -514,6 +539,38 @@ Respond with ONLY a valid JSON object matching this exact schema (no markdown, n
           tool: toolName,
           message: `Modules for this org:\n${lines}`,
         };
+      }
+
+      case 'update_workflow_template': {
+        // Validate inputs
+        const templateId = toolInput.template_id as string;
+        const steps = toolInput.steps as Array<{ name: string; description?: string; order: number; required?: boolean }>;
+        try { InputValidator.validateUUID(templateId, 'template_id'); }
+        catch (e) { return { type: 'error', tool: toolName, message: e instanceof Error ? e.message : 'Invalid template_id' }; }
+        if (!Array.isArray(steps) || steps.length === 0) return { type: 'error', tool: toolName, message: 'steps must be a non-empty array' };
+        const stepErr = steps.reduce<string | null>((acc, s) => {
+          if (acc) return acc;
+          try { InputValidator.validateString(s.name, 'step.name', { maxLength: 200 }); } catch (e) { return e instanceof Error ? e.message : 'Invalid step.name'; }
+          if (!s.name) return 'Each step.name must be non-empty'; if (typeof s.order !== 'number') return 'Each step must have a numeric order';
+          return null;
+        }, null);
+        if (stepErr) return { type: 'error', tool: toolName, message: stepErr };
+        // Fetch template and enforce org boundaries: cross-org is Forbidden, is_system triggers clone-on-write insert
+        const { data: tmpl, error: fetchErr } = await adminSupabase.from('workflow_templates')
+          .select('id, org_id, is_system, name, workflow_type, description').eq('id', templateId).maybeSingle();
+        if (fetchErr) return { type: 'error', tool: toolName, message: fetchErr.message };
+        if (!tmpl) return { type: 'error', tool: toolName, message: `Workflow template ${templateId} not found` };
+        if (tmpl.org_id && tmpl.org_id !== orgId) return { type: 'error', tool: toolName, message: 'Forbidden: that template belongs to another org' };
+        if (!tmpl.org_id || tmpl.is_system) {
+          const { data: cloned, error: cloneErr } = await adminSupabase.from('workflow_templates')
+            .insert({ org_id: orgId, is_system: false, name: tmpl.name, workflow_type: tmpl.workflow_type, description: tmpl.description, steps })
+            .select('id').single();
+          if (cloneErr) return { type: 'error', tool: toolName, message: cloneErr.message };
+          return { type: 'config_success', tool: toolName, message: `System template cloned as org-specific template (id: ${cloned.id}) with ${steps.length} steps.` };
+        }
+        const { error: updateErr } = await adminSupabase.from('workflow_templates').update({ steps }).eq('id', templateId).eq('org_id', orgId);
+        if (updateErr) return { type: 'error', tool: toolName, message: updateErr.message };
+        return { type: 'config_success', tool: toolName, message: `Workflow template updated with ${steps.length} steps.` };
       }
 
       default:

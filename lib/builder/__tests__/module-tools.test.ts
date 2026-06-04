@@ -66,3 +66,38 @@ describe('list_modules tool', () => {
     expect(snippet).toMatch(/isCore|is_core/);
   });
 });
+
+describe('update_workflow_template tool', () => {
+  const src = readFileSync('lib/builder/tools.ts', 'utf8');
+
+  it('has an update_workflow_template tool definition', () => {
+    expect(src).toMatch(/name:\s*['"]update_workflow_template['"]/);
+  });
+
+  it('requires template_id and steps', () => {
+    const toolIdx = src.indexOf("name: 'update_workflow_template'");
+    const snippet = src.slice(toolIdx, toolIdx + 600);
+    expect(snippet).toMatch(/required.*template_id/s);
+    expect(snippet).toMatch(/required.*steps/s);
+  });
+
+  it('executor validates template_id as UUID', () => {
+    const caseIdx = src.indexOf("case 'update_workflow_template'");
+    expect(caseIdx).toBeGreaterThan(-1);
+    const snippet = src.slice(caseIdx, caseIdx + 600);
+    expect(snippet).toMatch(/validateUUID/);
+  });
+
+  it('executor rejects cross-org templates', () => {
+    const caseIdx = src.indexOf("case 'update_workflow_template'");
+    const snippet = src.slice(caseIdx, caseIdx + 1500);
+    expect(snippet).toMatch(/forbidden|cross.org|another org/i);
+  });
+
+  it('executor performs clone-on-write for system templates', () => {
+    const caseIdx = src.indexOf("case 'update_workflow_template'");
+    const snippet = src.slice(caseIdx, caseIdx + 1500);
+    expect(snippet).toMatch(/is_system|isSystem/);
+    expect(snippet).toMatch(/insert/i);
+  });
+});

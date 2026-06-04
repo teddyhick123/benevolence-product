@@ -280,13 +280,13 @@ Returns `503` with `{ error: 'GitHub integration not configured' }` if env vars 
 ALTER TABLE builder_proposals ADD COLUMN IF NOT EXISTS pr_url TEXT;
 ```
 
-Added to `0026_builder_enhancement.sql` as a fold-in (prerelease schema, no migration archaeology needed), or as a new `0028_builder_pr_url.sql` — your call at run time.
+Add to `0026_builder_enhancement.sql` as a fold-in — per CLAUDE.md prerelease policy, patch columns belong in the canonical migration, not a separate file.
 
 ### UI change: `ReviewReportCard.tsx`
 
 - Add "Open PR" button visible when `phase === 'ready_to_apply'` and `githubEnabled` prop is `true`
 - On click: `POST .../apply`, show loading state, then replace button with "View PR on GitHub" link
-- Pass `githubEnabled` from the settings page (derived from a `GET /api/builder/config` endpoint or a simpler env-var-to-prop pattern via the server component)
+- Pass `githubEnabled` from the settings server component: `const githubEnabled = !!(process.env.GITHUB_TOKEN && process.env.GITHUB_REPO_OWNER && process.env.GITHUB_REPO_NAME)` — no extra API route needed
 
 **We do not auto-merge.** The PR always requires a human review and merge. This is a hard constraint.
 

@@ -23,7 +23,7 @@ async function emitBuilderEvent(
   adminSupabase: SupabaseClient,
   orgId: string,
   userId: string,
-  eventType: 'tool_call' | 'proposal_created' | 'proposal_applied' | 'proposal_rejected',
+  eventType: 'tool_call' | 'ai_request' | 'proposal_created' | 'proposal_applied' | 'proposal_rejected',
   extra: {
     tool_name?: string;
     payload?: Record<string, unknown>;

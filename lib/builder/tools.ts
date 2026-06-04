@@ -6,6 +6,15 @@ import { AI_MODELS } from '@/lib/ai/models';
 import { buildScaffoldContext, formatScaffoldContextForPrompt } from './scaffold-context';
 import { getCodebaseIndex, formatIndexForPrompt } from './codebase-index';
 import { branding } from '@/lib/config';
+import type { ModuleId } from '@/lib/modules/types';
+import { MODULE_REGISTRY, canDisableModule } from '@/lib/modules/registry';
+import { getOrgEnabledModules, enableModule, disableModule } from '@/lib/modules/tool-filter';
+
+const MUTABLE_MODULE_IDS: readonly ModuleId[] = [
+  'impact_tracking', 'reporting', 'tax_optimization', 'grant_management',
+  'donor_management', 'pledge_tracking', 'external_data', 'analytics',
+  'compliance_regulatory',
+] as const;
 
 // ─── Tool definitions ────────────────────────────────────────────────────────
 
@@ -24,14 +33,14 @@ export const BUILDER_TOOLS: ToolDefinition[] = [
   },
   {
     name: 'update_module_config',
-    description: 'Enable or disable a feature module for this organization.',
+    description: 'Enable or disable a feature module for this organization. Use list_modules first to check current state.',
     input_schema: {
       type: 'object' as const,
       properties: {
         module: {
           type: 'string',
-          enum: ['tax', 'donors', 'compliance', 'quickbooks'],
-          description: 'Module key to toggle',
+          enum: [...MUTABLE_MODULE_IDS],
+          description: 'Canonical module ID to toggle',
         },
         enabled: { type: 'boolean', description: 'true to enable, false to disable' },
       },
@@ -230,27 +239,27 @@ export async function executeTool(
       }
 
       case 'update_module_config': {
-        const moduleKey = toolInput.module as string;
+        const moduleId = toolInput.module as ModuleId;
         const enabled = toolInput.enabled as boolean;
 
-        const { data: org } = await supabase
-          .from('organizations')
-          .select('modules')
-          .eq('id', orgId)
-          .single();
+        if (!moduleId || !(MUTABLE_MODULE_IDS as readonly string[]).includes(moduleId)) {
+          return { type: 'error', tool: toolName, message: `module must be one of: ${MUTABLE_MODULE_IDS.join(', ')}` };
+        }
+        if (typeof enabled !== 'boolean') {
+          return { type: 'error', tool: toolName, message: 'enabled must be a boolean' };
+        }
 
-        const modules = { ...(org?.modules ?? {}), [moduleKey]: enabled };
+        const result = enabled
+          ? await enableModule(adminSupabase, orgId, moduleId, userId)
+          : await disableModule(adminSupabase, orgId, moduleId);
 
-        const { error } = await supabase
-          .from('organizations')
-          .update({ modules })
-          .eq('id', orgId);
-
-        if (error) return { type: 'error', tool: toolName, message: error.message };
+        if (!result.success) {
+          return { type: 'error', tool: toolName, message: result.error ?? 'Module update failed' };
+        }
         return {
           type: 'config_success',
           tool: toolName,
-          message: `Module "${moduleKey}" ${enabled ? 'enabled' : 'disabled'}.`,
+          message: `Module "${moduleId}" ${enabled ? 'enabled' : 'disabled'}.`,
         };
       }
 

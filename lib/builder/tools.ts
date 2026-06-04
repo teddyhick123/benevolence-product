@@ -550,8 +550,9 @@ Respond with ONLY a valid JSON object matching this exact schema (no markdown, n
         if (!Array.isArray(steps) || steps.length === 0) return { type: 'error', tool: toolName, message: 'steps must be a non-empty array' };
         const stepErr = steps.reduce<string | null>((acc, s) => {
           if (acc) return acc;
+          if (!s.name || typeof s.name !== 'string') return 'Each step.name must be a non-empty string';
           try { InputValidator.validateString(s.name, 'step.name', { maxLength: 200 }); } catch (e) { return e instanceof Error ? e.message : 'Invalid step.name'; }
-          if (!s.name) return 'Each step.name must be non-empty'; if (typeof s.order !== 'number') return 'Each step must have a numeric order';
+          if (typeof s.order !== 'number') return 'Each step must have a numeric order field';
           return null;
         }, null);
         if (stepErr) return { type: 'error', tool: toolName, message: stepErr };
@@ -561,6 +562,8 @@ Respond with ONLY a valid JSON object matching this exact schema (no markdown, n
         if (fetchErr) return { type: 'error', tool: toolName, message: fetchErr.message };
         if (!tmpl) return { type: 'error', tool: toolName, message: `Workflow template ${templateId} not found` };
         if (tmpl.org_id && tmpl.org_id !== orgId) return { type: 'error', tool: toolName, message: 'Forbidden: that template belongs to another org' };
+        // Clone-on-write: spec requires cloning for system templates (is_system=true) regardless of org ownership.
+        // This prevents mutating shared system templates; org-owned system templates also get cloned per spec.
         if (!tmpl.org_id || tmpl.is_system) {
           const { data: cloned, error: cloneErr } = await adminSupabase.from('workflow_templates')
             .insert({ org_id: orgId, is_system: false, name: tmpl.name, workflow_type: tmpl.workflow_type, description: tmpl.description, steps })

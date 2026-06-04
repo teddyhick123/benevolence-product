@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
 
-describe('apply endpoint', () => {
+describe('admin apply endpoint (retired)', () => {
   const src = readFileSync(
     'app/api/admin/builder/proposals/[proposalId]/apply/route.ts',
     'utf8'
@@ -11,19 +11,19 @@ describe('apply endpoint', () => {
     expect(src).toMatch(/export async function POST/);
   });
 
-  it('requires super_admin', () => {
-    expect(src).toMatch(/is_super_admin/);
+  it('returns 410 Gone', () => {
+    expect(src).toMatch(/410/);
   });
 
-  it('uses fs.writeFileSync to write files', () => {
-    expect(src).toMatch(/writeFileSync|writeFile/);
+  it('response body points to org-scoped apply route', () => {
+    expect(src).toMatch(/org.*builder.*apply|apply.*org.*builder/i);
   });
 
-  it('updates phase to applied', () => {
-    expect(src).toMatch(/applied/);
+  it('does NOT write to the filesystem', () => {
+    expect(src).not.toMatch(/writeFileSync|writeFile\b/);
   });
 
-  it('does not run git commands', () => {
-    expect(src).not.toMatch(/git add|git commit|execSync.*git/);
+  it('does NOT check is_super_admin (no longer needs auth — always 410)', () => {
+    expect(src).not.toMatch(/is_super_admin/);
   });
 });

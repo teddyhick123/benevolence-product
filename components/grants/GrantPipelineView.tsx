@@ -2,7 +2,7 @@
 
 import { useMemo } from 'react';
 import Link from 'next/link';
-import { LIFECYCLE_STAGES, type LifecycleStage } from '@/lib/grants/lifecycle';
+import { LIFECYCLE_STAGES, type LifecycleStage } from '@/lib/grants/lifecycle-shared';
 
 export interface GrantListItem {
   id: string;

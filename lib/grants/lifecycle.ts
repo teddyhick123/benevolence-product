@@ -5,25 +5,9 @@
 // Stages that require a grant_decisions record are listed in DECISION_REQUIRED_TRANSITIONS.
 
 import { createAdminClient } from '@/lib/supabase';
+import { LIFECYCLE_STAGES, type LifecycleStage } from './lifecycle-shared';
 
-export const LIFECYCLE_STAGES = [
-  'draft',
-  'prospect',
-  'invited',
-  'application_received',
-  'due_diligence',
-  'recommended',
-  'approved',
-  'agreement',
-  'active',
-  'renewal_review',
-  'closeout',
-  'closed',
-  'declined',
-  'cancelled',
-] as const;
-
-export type LifecycleStage = typeof LIFECYCLE_STAGES[number];
+export { LIFECYCLE_STAGES, type LifecycleStage } from './lifecycle-shared';
 
 export const ALLOWED_TRANSITIONS: Record<LifecycleStage, LifecycleStage[]> = {
   draft:                ['prospect', 'cancelled'],

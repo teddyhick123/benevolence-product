@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useCallback } from 'react';
 import Link from 'next/link';
-import { LIFECYCLE_STAGES } from '@/lib/grants/lifecycle';
+import { LIFECYCLE_STAGES } from '@/lib/grants/lifecycle-shared';
 import type { GrantListItem } from './GrantPipelineView';
 
 const STAGE_LABELS: Record<string, string> = {

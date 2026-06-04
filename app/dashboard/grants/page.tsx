@@ -158,11 +158,11 @@ export default function GrantsDashboard() {
     return (
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="animate-pulse">
-          <div className="h-8 bg-gray-200 rounded w-1/4 mb-4"></div>
-          <div className="h-4 bg-gray-200 rounded w-1/2 mb-8"></div>
+          <div className="mb-4 h-8 w-1/4 rounded-2xl bg-neutral-200"></div>
+          <div className="mb-8 h-4 w-1/2 rounded-2xl bg-neutral-200"></div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {[1, 2, 3].map(i => (
-              <div key={i} className="h-32 bg-gray-200 rounded-lg"></div>
+              <div key={i} className="h-32 rounded-2xl bg-neutral-200"></div>
             ))}
           </div>
         </div>
@@ -174,11 +174,11 @@ export default function GrantsDashboard() {
     return (
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="text-center py-12">
-          <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="mx-auto h-12 w-12 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
           </svg>
-          <h3 className="mt-2 text-lg font-medium text-gray-900">No Portfolio Found</h3>
-          <p className="mt-1 text-sm text-gray-500">Please select a portfolio and organization to view grant management.</p>
+          <h3 className="mt-2 font-serif text-lg font-medium text-ink">No Portfolio Found</h3>
+          <p className="mt-1 text-sm text-neutral-600">Please select a portfolio and organization to view grant management.</p>
         </div>
       </div>
     );
@@ -192,15 +192,15 @@ export default function GrantsDashboard() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-serif text-gray-900">Grant Management</h1>
-          <p className="mt-1 text-sm text-gray-500">
+          <h1 className="font-serif text-3xl font-medium text-ink">Grant Management</h1>
+          <p className="mt-1 text-sm text-neutral-600">
             {grantsLoading ? 'Loading…' : `${grants.length} grant${grants.length !== 1 ? 's' : ''} · Track lifecycle, obligations, and payments`}
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
           <button
             onClick={() => setShowWizard(true)}
-            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-azure rounded-lg hover:bg-azure/90 transition-colors"
+            className="inline-flex items-center justify-center gap-2 rounded-2xl bg-azure px-4 py-2 text-sm font-medium text-white shadow-soft transition-opacity hover:opacity-90"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -209,7 +209,7 @@ export default function GrantsDashboard() {
           </button>
           <a
             href={`/dashboard?portfolio_id=${portfolioId}`}
-            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+            className="inline-flex items-center justify-center gap-2 rounded-2xl border border-black/10 bg-white px-4 py-2 text-sm font-medium text-neutral-800 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow will-change-transform rm:transition-none rm:transform-none"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
@@ -220,21 +220,21 @@ export default function GrantsDashboard() {
       </div>
 
       {/* Navigation */}
-      <div className="flex flex-col gap-0 border-b border-gray-200">
+      <div className="rounded-2xl border border-black/5 bg-white p-1.5 shadow-soft">
         {/* Center views */}
-        <nav className="-mb-px flex space-x-1" aria-label="Center views">
-          <span className="py-3 px-2 text-xs font-semibold text-gray-400 uppercase tracking-wide self-center">Views</span>
+        <nav className="flex gap-1 overflow-x-auto" aria-label="Center views">
+          <span className="self-center px-2 py-2 text-xs font-semibold uppercase tracking-wide text-neutral-400">Views</span>
           {centerViews.map(view => (
             <button
               key={view.id}
               onClick={() => handleViewChange(view.id)}
-              className={`relative group inline-flex items-center gap-1.5 py-3 px-3 border-b-2 font-medium text-sm transition-colors ${
+              className={`group relative inline-flex items-center gap-1.5 rounded-2xl px-3 py-2 text-sm font-medium transition-all ${
                 activeView === view.id
-                  ? 'border-azure text-azure'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  ? 'bg-azure text-white shadow-sm'
+                  : 'text-neutral-600 hover:bg-azure/5 hover:text-azure'
               }`}
             >
-              <span className={activeView === view.id ? 'text-azure' : 'text-gray-400 group-hover:text-gray-500'}>
+              <span className={activeView === view.id ? 'text-white' : 'text-neutral-400 group-hover:text-azure'}>
                 {view.icon}
               </span>
               {view.label}
@@ -246,18 +246,18 @@ export default function GrantsDashboard() {
             </button>
           ))}
           <span className="flex-1" />
-          <span className="py-3 px-2 text-xs font-semibold text-gray-400 uppercase tracking-wide self-center">Operations</span>
+          <span className="self-center px-2 py-2 text-xs font-semibold uppercase tracking-wide text-neutral-400">Operations</span>
           {opsViews.map(view => (
             <button
               key={view.id}
               onClick={() => handleViewChange(view.id)}
-              className={`group inline-flex items-center gap-1.5 py-3 px-3 border-b-2 font-medium text-sm transition-colors ${
+              className={`group inline-flex items-center gap-1.5 rounded-2xl px-3 py-2 text-sm font-medium transition-all ${
                 activeView === view.id
-                  ? 'border-azure text-azure'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  ? 'bg-azure text-white shadow-sm'
+                  : 'text-neutral-600 hover:bg-azure/5 hover:text-azure'
               }`}
             >
-              <span className={activeView === view.id ? 'text-azure' : 'text-gray-400 group-hover:text-gray-500'}>
+              <span className={activeView === view.id ? 'text-white' : 'text-neutral-400 group-hover:text-azure'}>
                 {view.icon}
               </span>
               {view.label}

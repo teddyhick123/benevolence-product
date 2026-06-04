@@ -6,7 +6,7 @@ import Link from 'next/link';
 import DocumentManager from '@/components/grants/DocumentManager';
 import BudgetTracker from '@/components/grants/BudgetTracker';
 import GrantExportButton from '@/components/grants/GrantExportButton';
-import { LIFECYCLE_STAGES, type LifecycleStage } from '@/lib/grants/lifecycle';
+import { LIFECYCLE_STAGES, type LifecycleStage } from '@/lib/grants/lifecycle-shared';
 
 type WorkspaceSection = 'overview' | 'milestones' | 'decisions' | 'history' | 'tasks' | 'contacts' | 'communications' | 'documents' | 'budget';
 

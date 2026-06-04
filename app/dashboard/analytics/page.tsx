@@ -100,13 +100,13 @@ export default function AnalyticsPage() {
     return (
       <div className="p-8">
         <div className="animate-pulse space-y-6">
-          <div className="h-8 w-48 bg-gray-200 rounded"></div>
+          <div className="h-8 w-48 rounded-2xl bg-neutral-200"></div>
           <div className="grid grid-cols-4 gap-4">
             {[1, 2, 3, 4].map((i) => (
-              <div key={i} className="h-32 bg-gray-200 rounded-lg"></div>
+              <div key={i} className="h-32 rounded-2xl bg-neutral-200"></div>
             ))}
           </div>
-          <div className="h-64 bg-gray-200 rounded-lg"></div>
+          <div className="h-64 rounded-2xl bg-neutral-200"></div>
         </div>
       </div>
     );
@@ -115,33 +115,33 @@ export default function AnalyticsPage() {
   if (!portfolioId) {
     return (
       <div className="p-8 text-center">
-        <h1 className="text-xl font-semibold text-gray-900">No portfolio found</h1>
-        <p className="text-gray-500 mt-2">Please create a portfolio first.</p>
+        <h1 className="font-serif text-xl font-medium text-ink">No portfolio found</h1>
+        <p className="mt-2 text-neutral-600">Please create a portfolio first.</p>
       </div>
     );
   }
 
   return (
-    <div className="p-6 lg:p-8">
+    <div className="space-y-6 p-6 lg:p-8">
       {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900">Analytics</h1>
-        <p className="text-gray-500 mt-1">
+      <div>
+        <h1 className="font-serif text-3xl font-medium text-ink">Analytics</h1>
+        <p className="mt-1 text-sm text-neutral-600">
           Portfolio insights, projections, benchmarks, and risk analysis
         </p>
       </div>
 
       {/* Tabs */}
-      <div className="border-b border-gray-200 mb-6">
-        <nav className="flex gap-6 overflow-x-auto">
+      <div className="rounded-2xl border border-black/5 bg-white p-1.5 shadow-soft">
+        <nav className="flex gap-1 overflow-x-auto" aria-label="Analytics views">
           {tabs.map((tab) => (
             <button
               key={tab.id}
               onClick={() => handleNavigate(tab.id)}
-              className={`flex items-center gap-2 pb-4 border-b-2 text-sm font-medium transition-colors whitespace-nowrap ${
+              className={`flex items-center gap-2 whitespace-nowrap rounded-2xl px-3 py-2 text-sm font-medium transition-all ${
                 activeTab === tab.id
-                  ? 'border-azure text-azure'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  ? 'bg-azure text-white shadow-sm'
+                  : 'text-neutral-600 hover:bg-azure/5 hover:text-azure'
               }`}
             >
               {tab.icon}
@@ -166,8 +166,8 @@ export default function AnalyticsPage() {
         <div className="space-y-6">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-lg font-semibold text-gray-900">Metric Projections</h2>
-              <p className="text-sm text-gray-500 mt-1">
+              <h2 className="font-serif text-xl font-medium text-ink">Metric Projections</h2>
+              <p className="mt-1 text-sm text-neutral-600">
                 Forecast future metrics using historical data and trend analysis
               </p>
             </div>
@@ -198,8 +198,8 @@ export default function AnalyticsPage() {
       {activeTab === 'benchmarks' && (
         <div className="space-y-6">
           <div>
-            <h2 className="text-lg font-semibold text-gray-900">Benchmark Comparison</h2>
-            <p className="text-sm text-gray-500 mt-1">
+            <h2 className="font-serif text-xl font-medium text-ink">Benchmark Comparison</h2>
+            <p className="mt-1 text-sm text-neutral-600">
               Compare holdings and portfolio metrics against sector and industry benchmarks
             </p>
           </div>
@@ -210,8 +210,8 @@ export default function AnalyticsPage() {
       {activeTab === 'risk' && (
         <div className="space-y-6">
           <div>
-            <h2 className="text-lg font-semibold text-gray-900">Risk Analysis</h2>
-            <p className="text-sm text-gray-500 mt-1">
+            <h2 className="font-serif text-xl font-medium text-ink">Risk Analysis</h2>
+            <p className="mt-1 text-sm text-neutral-600">
               Analyze portfolio concentration, sector distribution, and geographic exposure
             </p>
           </div>
@@ -222,8 +222,8 @@ export default function AnalyticsPage() {
       {activeTab === 'insights' && (
         <div className="space-y-6">
           <div>
-            <h2 className="text-lg font-semibold text-gray-900">Insights & Recommendations</h2>
-            <p className="text-sm text-gray-500 mt-1">
+            <h2 className="font-serif text-xl font-medium text-ink">Insights & Recommendations</h2>
+            <p className="mt-1 text-sm text-neutral-600">
               AI-generated insights and actionable recommendations for your portfolio
             </p>
           </div>

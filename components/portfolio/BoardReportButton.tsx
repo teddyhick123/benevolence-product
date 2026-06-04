@@ -43,7 +43,7 @@ export default function BoardReportButton({ portfolioId, asOfDate }: BoardReport
       <button
         onClick={handleDownload}
         disabled={loading}
-        className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+        className="flex items-center gap-2 rounded-2xl bg-azure px-4 py-2 font-medium text-white shadow-soft transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
       >
         {loading ? (
           <>
@@ -55,7 +55,9 @@ export default function BoardReportButton({ portfolioId, asOfDate }: BoardReport
           </>
         ) : (
           <>
-            <span>📄</span>
+            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.5L19 9.5V19a2 2 0 01-2 2z" />
+            </svg>
             Board Report PDF
           </>
         )}

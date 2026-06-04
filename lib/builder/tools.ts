@@ -557,7 +557,7 @@ Respond with ONLY a valid JSON object matching this exact schema (no markdown, n
         if (stepErr) return { type: 'error', tool: toolName, message: stepErr };
         // Fetch template and enforce org boundaries: cross-org is Forbidden, is_system triggers clone-on-write insert
         const { data: tmpl, error: fetchErr } = await adminSupabase.from('workflow_templates')
-          .select('id, org_id, is_system, name, workflow_type, description').eq('id', templateId).maybeSingle();
+          .select('id, org_id, is_system, name, workflow_type, description, steps').eq('id', templateId).maybeSingle();
         if (fetchErr) return { type: 'error', tool: toolName, message: fetchErr.message };
         if (!tmpl) return { type: 'error', tool: toolName, message: `Workflow template ${templateId} not found` };
         if (tmpl.org_id && tmpl.org_id !== orgId) return { type: 'error', tool: toolName, message: 'Forbidden: that template belongs to another org' };

@@ -9,6 +9,7 @@ import { branding } from '@/lib/config';
 import type { ModuleId } from '@/lib/modules/types';
 import { MODULE_REGISTRY, canDisableModule } from '@/lib/modules/registry';
 import { getOrgEnabledModules, enableModule, disableModule } from '@/lib/modules/tool-filter';
+import { InputValidator } from '@/lib/ai/validators';
 
 const MUTABLE_MODULE_IDS: readonly ModuleId[] = [
   'impact_tracking', 'reporting', 'tax_optimization', 'grant_management',
@@ -239,15 +240,17 @@ export async function executeTool(
       }
 
       case 'update_module_config': {
+        try {
+          InputValidator.validateRequired(toolInput.module, 'module');
+          InputValidator.validateEnum(toolInput.module, 'module', MUTABLE_MODULE_IDS);
+          InputValidator.validateRequired(toolInput.enabled, 'enabled');
+          InputValidator.validateEnum(toolInput.enabled, 'enabled', [true, false] as const);
+        } catch (e) {
+          return { type: 'error', tool: toolName, message: e instanceof Error ? e.message : 'Invalid input' };
+        }
+
         const moduleId = toolInput.module as ModuleId;
         const enabled = toolInput.enabled as boolean;
-
-        if (!moduleId || !(MUTABLE_MODULE_IDS as readonly string[]).includes(moduleId)) {
-          return { type: 'error', tool: toolName, message: `module must be one of: ${MUTABLE_MODULE_IDS.join(', ')}` };
-        }
-        if (typeof enabled !== 'boolean') {
-          return { type: 'error', tool: toolName, message: 'enabled must be a boolean' };
-        }
 
         const result = enabled
           ? await enableModule(adminSupabase, orgId, moduleId, userId)

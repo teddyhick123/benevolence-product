@@ -112,10 +112,10 @@ export default function PortfolioSettingsPage({ params }: { params: Promise<{ id
       </div>
 
       {error && (
-        <div className="card p-4 text-sm text-rose-700 bg-rose-50 border border-rose-200">{error}</div>
+        <div className="card p-4 text-sm text-red-700 bg-red-50 border border-red-200">{error}</div>
       )}
       {ok && (
-        <div className="card p-4 text-sm text-emerald-700 bg-emerald-50 border border-emerald-200">{ok}</div>
+        <div className="card p-4 text-sm text-green-700 bg-green-50 border border-green-200">{ok}</div>
       )}
 
       <form onSubmit={onSave} className="space-y-6">
@@ -132,7 +132,7 @@ export default function PortfolioSettingsPage({ params }: { params: Promise<{ id
               onChange={(e) => setPortfolioName(e.target.value)}
               placeholder="Enter portfolio name"
               required
-              className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-azure focus:border-transparent text-sm"
+              className="w-full px-3 py-2 border border-neutral-300 rounded-2xl focus:outline-none focus:ring-2 focus:ring-azure/30 focus:border-azure text-sm"
             />
             <p className="text-xs text-neutral-500">
               This name appears in the dashboard header and admin lists.

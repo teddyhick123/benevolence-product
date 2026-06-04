@@ -143,14 +143,14 @@ export default function DocumentUploader({
     <div className="space-y-4">
       {/* Document Type Selector */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
+        <label className="block text-sm font-medium text-neutral-700 mb-1">
           Document Type
         </label>
         <select
           value={documentType}
           onChange={(e) => setDocumentType(e.target.value as DocumentType)}
           disabled={uploading}
-          className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-azure"
+          className="w-full px-3 py-2 border border-black/10 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-azure/30"
         >
           {Object.entries(DOCUMENT_TYPE_LABELS).map(([value, label]) => (
             <option key={value} value={value}>
@@ -168,10 +168,10 @@ export default function DocumentUploader({
           onDrop={handleDrop}
           onClick={() => fileInputRef.current?.click()}
           className={`
-            border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors
+            border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition-colors
             ${isDragging
               ? 'border-azure bg-azure/10'
-              : 'border-gray-300 hover:border-gray-400 hover:bg-gray-50'
+              : 'border-black/10 hover:border-azure/40 hover:bg-neutral-50'
             }
           `}
         >
@@ -183,7 +183,7 @@ export default function DocumentUploader({
             className="hidden"
           />
           <svg
-            className="mx-auto h-12 w-12 text-gray-400"
+            className="mx-auto h-12 w-12 text-neutral-400"
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"
@@ -195,19 +195,19 @@ export default function DocumentUploader({
               d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
             />
           </svg>
-          <p className="mt-2 text-sm text-gray-600">
+          <p className="mt-2 text-sm text-neutral-600">
             <span className="font-medium text-azure">Click to upload</span> or drag and drop
           </p>
-          <p className="mt-1 text-xs text-gray-500">
+          <p className="mt-1 text-xs text-neutral-500">
             PDF, JPEG, PNG, or WebP up to {MAX_SIZE_MB}MB
           </p>
         </div>
       ) : (
         /* Selected File Preview */
-        <div className="border border-gray-200 rounded-lg p-4">
+        <div className="border border-black/5 rounded-2xl p-4">
           <div className="flex items-start justify-between">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-azure/10 rounded-lg">
+              <div className="p-2 bg-azure/10 rounded-2xl">
                 {selectedFile.type === 'application/pdf' ? (
                   <svg className="w-6 h-6 text-azure" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -219,10 +219,10 @@ export default function DocumentUploader({
                 )}
               </div>
               <div>
-                <p className="text-sm font-medium text-gray-900 truncate max-w-xs">
+                <p className="text-sm font-medium text-ink truncate max-w-xs">
                   {selectedFile.name}
                 </p>
-                <p className="text-xs text-gray-500">
+                <p className="text-xs text-neutral-500">
                   {formatFileSize(selectedFile.size)}
                 </p>
               </div>
@@ -230,7 +230,7 @@ export default function DocumentUploader({
             {!uploading && (
               <button
                 onClick={handleCancel}
-                className="text-gray-400 hover:text-gray-600"
+                className="text-neutral-400 hover:text-neutral-600"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -242,13 +242,13 @@ export default function DocumentUploader({
           {/* Progress Bar */}
           {uploading && (
             <div className="mt-3">
-              <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+              <div className="h-2 bg-neutral-200 rounded-full overflow-hidden">
                 <div
                   className="h-full bg-azure transition-all duration-300"
                   style={{ width: `${progress}%` }}
                 />
               </div>
-              <p className="text-xs text-gray-500 mt-1">Uploading... {progress}%</p>
+              <p className="text-xs text-neutral-500 mt-1">Uploading... {progress}%</p>
             </div>
           )}
 
@@ -257,13 +257,13 @@ export default function DocumentUploader({
             <div className="mt-4 flex gap-2">
               <button
                 onClick={handleUpload}
-                className="flex-1 px-4 py-2 bg-azure text-white rounded-md hover:opacity-90 font-medium text-sm"
+                className="flex-1 px-4 py-2 bg-azure text-white rounded-2xl hover:opacity-90 font-medium text-sm"
               >
                 Upload {DOCUMENT_TYPE_LABELS[documentType]}
               </button>
               <button
                 onClick={handleCancel}
-                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 text-sm"
+                className="px-4 py-2 border border-black/10 text-neutral-700 rounded-2xl hover:bg-neutral-50 text-sm"
               >
                 Cancel
               </button>
@@ -274,7 +274,7 @@ export default function DocumentUploader({
 
       {/* Error Message */}
       {error && (
-        <div className="p-3 bg-red-50 border border-red-200 rounded-md text-sm text-red-700">
+        <div className="p-3 bg-red-50 border border-red-200 rounded-2xl text-sm text-red-700">
           {error}
         </div>
       )}

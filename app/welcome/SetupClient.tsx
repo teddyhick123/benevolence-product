@@ -319,7 +319,7 @@ export default function SetupClient() {
                   Continue →
                 </button>
               </div>
-              {error && <p className="text-xs text-rose-600" role="alert">{error}</p>}
+              {error && <p className="text-xs text-red-600" role="alert">{error}</p>}
               <button
                 onClick={() => { setInputValue(''); handleEinSubmit(true); }}
                 className="text-xs text-ink-30 hover:text-ink-60 underline text-left w-fit">
@@ -362,7 +362,7 @@ export default function SetupClient() {
                   Customize
                 </button>
               </div>
-              {error && <p className="text-xs text-rose-600 mt-1" role="alert">{error}</p>}
+              {error && <p className="text-xs text-red-600 mt-1" role="alert">{error}</p>}
             </div>
           )}
 

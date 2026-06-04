@@ -61,7 +61,7 @@ export function ImportDashboardClient({ initialJobs, portfolios }: Props) {
         <h1 className="text-2xl font-semibold">Data Imports</h1>
         <button
           onClick={() => setShowWizard(true)}
-          className="px-4 py-2 rounded-md bg-gradient-to-r from-azure via-azure/90 to-azure/70 text-white shadow-soft hover:opacity-90 transition-transform duration-200 hover:-translate-y-0.5 will-change-transform rm:transition-none rm:transform-none text-sm font-medium"
+          className="px-4 py-2 rounded-2xl bg-gradient-to-r from-azure via-azure/90 to-azure/70 text-white shadow-soft hover:opacity-90 transition-transform duration-200 hover:-translate-y-0.5 will-change-transform rm:transition-none rm:transform-none text-sm font-medium"
         >
           New Import
         </button>
@@ -126,7 +126,7 @@ export function ImportDashboardClient({ initialJobs, portfolios }: Props) {
                         <button
                           onClick={() => handleResume(job.id)}
                           disabled={actionInProgress === job.id}
-                          className="text-yellow-700 hover:underline text-xs disabled:opacity-50"
+                          className="text-ink hover:underline text-xs disabled:opacity-50"
                         >
                           {actionInProgress === job.id ? 'Resuming…' : 'Resume'}
                         </button>
@@ -135,7 +135,7 @@ export function ImportDashboardClient({ initialJobs, portfolios }: Props) {
                         <button
                           onClick={() => handleRollback(job.id)}
                           disabled={actionInProgress === job.id}
-                          className="text-orange-600 hover:underline text-xs disabled:opacity-50"
+                          className="text-coral hover:underline text-xs disabled:opacity-50"
                         >
                           {actionInProgress === job.id ? 'Rolling back…' : 'Rollback'}
                         </button>

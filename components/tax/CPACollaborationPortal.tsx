@@ -122,14 +122,14 @@ export default function CPACollaborationPortal({ portfolioId }: CPACollaboration
 
       {/* Error Display */}
       {error && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700">
+        <div className="bg-red-50 border border-red-200 rounded-2xl p-4 text-red-700">
           {error}
         </div>
       )}
 
       {/* Loading State */}
       {loading && (
-        <div className="bg-white rounded-xl border border-neutral-200 p-12 text-center">
+        <div className="bg-white rounded-2xl border border-neutral-200 p-12 text-center">
           <div className="text-neutral-500">Loading share links...</div>
         </div>
       )}
@@ -526,7 +526,7 @@ function CreateShareLinkForm({ portfolioId, onSuccess, onCancel }: CreateShareLi
               value={formData.cpa_name}
               onChange={(e) => updateFormData({ cpa_name: e.target.value })}
               placeholder="John Smith"
-              className="w-full rounded-2xl border border-black/10 px-3 py-2 focus:border-transparent focus:ring-2 focus:ring-azure/30"
+              className="w-full rounded-2xl border border-black/10 px-3 py-2 focus:border-azure focus:ring-2 focus:ring-azure/30"
             />
           </div>
           <div>
@@ -536,7 +536,7 @@ function CreateShareLinkForm({ portfolioId, onSuccess, onCancel }: CreateShareLi
               value={formData.cpa_email}
               onChange={(e) => updateFormData({ cpa_email: e.target.value })}
               placeholder="john@cpafirm.com"
-              className="w-full rounded-2xl border border-black/10 px-3 py-2 focus:border-transparent focus:ring-2 focus:ring-azure/30"
+              className="w-full rounded-2xl border border-black/10 px-3 py-2 focus:border-azure focus:ring-2 focus:ring-azure/30"
             />
           </div>
           <div>
@@ -546,7 +546,7 @@ function CreateShareLinkForm({ portfolioId, onSuccess, onCancel }: CreateShareLi
               value={formData.cpa_firm}
               onChange={(e) => updateFormData({ cpa_firm: e.target.value })}
               placeholder="Smith & Associates"
-              className="w-full rounded-2xl border border-black/10 px-3 py-2 focus:border-transparent focus:ring-2 focus:ring-azure/30"
+              className="w-full rounded-2xl border border-black/10 px-3 py-2 focus:border-azure focus:ring-2 focus:ring-azure/30"
             />
           </div>
         </div>
@@ -580,7 +580,7 @@ function CreateShareLinkForm({ portfolioId, onSuccess, onCancel }: CreateShareLi
             <select
               value={formData.expiration}
               onChange={(e) => updateFormData({ expiration: e.target.value as any })}
-              className="w-full rounded-2xl border border-black/10 px-3 py-2 focus:border-transparent focus:ring-2 focus:ring-azure/30"
+              className="w-full rounded-2xl border border-black/10 px-3 py-2 focus:border-azure focus:ring-2 focus:ring-azure/30"
             >
               <option value="7days">7 days</option>
               <option value="30days">30 days</option>
@@ -599,7 +599,7 @@ function CreateShareLinkForm({ portfolioId, onSuccess, onCancel }: CreateShareLi
               onChange={(e) => updateFormData({ max_accesses: e.target.value ? parseInt(e.target.value) : undefined })}
               placeholder="Unlimited"
               min="1"
-              className="w-full rounded-2xl border border-black/10 px-3 py-2 focus:border-transparent focus:ring-2 focus:ring-azure/30"
+              className="w-full rounded-2xl border border-black/10 px-3 py-2 focus:border-azure focus:ring-2 focus:ring-azure/30"
             />
           </div>
         </div>
@@ -632,7 +632,7 @@ function CreateShareLinkForm({ portfolioId, onSuccess, onCancel }: CreateShareLi
             onChange={(e) => updateFormData({ notes: e.target.value })}
             placeholder="Internal notes about this share link..."
             rows={3}
-            className="w-full rounded-2xl border border-black/10 px-3 py-2 focus:border-transparent focus:ring-2 focus:ring-azure/30"
+            className="w-full rounded-2xl border border-black/10 px-3 py-2 focus:border-azure focus:ring-2 focus:ring-azure/30"
           />
         </div>
 

@@ -248,7 +248,7 @@ export function ImportCopilot({ importJobId, initialStatus }: ImportCopilotProps
   }
 
   return (
-    <div className="fixed bottom-6 right-6 z-50 w-96 flex flex-col bg-white border border-neutral-200 rounded-xl shadow-xl overflow-hidden max-h-[600px]">
+    <div className="fixed bottom-6 right-6 z-50 w-96 flex flex-col bg-white border border-neutral-200 rounded-2xl shadow-xl overflow-hidden max-h-[600px]">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 bg-azure text-white">
         <div className="flex items-center gap-2">
@@ -274,7 +274,7 @@ export function ImportCopilot({ importJobId, initialStatus }: ImportCopilotProps
         {messages.map((msg, i) => (
           <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             <div
-              className={`max-w-[85%] rounded-lg px-3 py-2 text-sm ${
+              className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm ${
                 msg.role === 'user'
                   ? 'bg-azure text-white'
                   : 'bg-neutral-100 text-neutral-800'
@@ -344,12 +344,12 @@ export function ImportCopilot({ importJobId, initialStatus }: ImportCopilotProps
           }}
           placeholder="Ask anything about your import..."
           disabled={sending}
-          className="flex-1 text-sm px-3 py-2 border border-neutral-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-azure/30 disabled:opacity-50"
+          className="flex-1 text-sm px-3 py-2 border border-neutral-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-azure/30 disabled:opacity-50"
         />
         <button
           onClick={() => sendMessage(input)}
           disabled={sending || !input.trim()}
-          className="px-3 py-2 bg-azure text-white rounded-lg text-sm hover:bg-azure/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          className="px-3 py-2 bg-azure text-white rounded-2xl text-sm hover:bg-azure/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
         >
           Send
         </button>

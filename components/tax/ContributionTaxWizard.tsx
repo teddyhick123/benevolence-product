@@ -111,21 +111,21 @@ export default function ContributionTaxWizard({
     : '';
 
   return (
-    <div className="border border-gray-200 rounded-lg bg-white">
+    <div className="border border-black/5 rounded-2xl bg-white">
       {/* Header */}
-      <div className="border-b border-gray-200 px-6 py-4">
-        <h2 className="text-xl font-bold text-gray-900">Add Tax Contribution</h2>
-        <p className="text-sm text-gray-600 mt-1">Step {step} of 3</p>
+      <div className="border-b border-black/5 px-6 py-4">
+        <h2 className="text-xl font-bold text-ink">Add Tax Contribution</h2>
+        <p className="text-sm text-neutral-600 mt-1">Step {step} of 3</p>
       </div>
 
       {/* Progress Bar */}
-      <div className="px-6 py-4 border-b border-gray-200">
+      <div className="px-6 py-4 border-b border-black/5">
         <div className="flex items-center gap-2">
           {[1, 2, 3].map((s) => (
             <div
               key={s}
               className={`flex-1 h-2 rounded-full ${
-                s <= step ? 'bg-azure' : 'bg-gray-200'
+                s <= step ? 'bg-azure' : 'bg-neutral-200'
               }`}
             />
           ))}
@@ -135,7 +135,7 @@ export default function ContributionTaxWizard({
       {/* Content */}
       <div className="px-6 py-6">
         {error && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md text-sm text-red-700">
+          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-2xl text-sm text-red-700">
             {error}
           </div>
         )}
@@ -143,10 +143,10 @@ export default function ContributionTaxWizard({
         {/* Step 1: Basic Info */}
         {step === 1 && (
           <div className="space-y-4">
-            <h3 className="font-semibold text-gray-900">Basic Information</h3>
+            <h3 className="font-semibold text-ink">Basic Information</h3>
 
             <div>
-              <label htmlFor="contrib-date" className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="contrib-date" className="block text-sm font-medium text-neutral-700 mb-2">
                 Contribution Date *
               </label>
               <input
@@ -155,12 +155,12 @@ export default function ContributionTaxWizard({
                 value={contributionDate}
                 onChange={(e) => setContributionDate(e.target.value)}
                 max={`${taxYear}-12-31`}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-azure focus:border-azure"
+                className="w-full px-3 py-2 border border-black/10 rounded-2xl shadow-sm focus:outline-none focus:ring-2 focus:ring-azure/30 focus:border-azure"
               />
             </div>
 
             <div>
-              <label htmlFor="recipient-name" className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="recipient-name" className="block text-sm font-medium text-neutral-700 mb-2">
                 Recipient Name *
               </label>
               <input
@@ -169,12 +169,12 @@ export default function ContributionTaxWizard({
                 value={recipientName}
                 onChange={(e) => setRecipientName(e.target.value)}
                 placeholder="e.g., American Red Cross"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-azure focus:border-azure"
+                className="w-full px-3 py-2 border border-black/10 rounded-2xl shadow-sm focus:outline-none focus:ring-2 focus:ring-azure/30 focus:border-azure"
               />
             </div>
 
             <div>
-              <label htmlFor="recipient-ein" className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="recipient-ein" className="block text-sm font-medium text-neutral-700 mb-2">
                 EIN (Employer Identification Number)
               </label>
               <input
@@ -184,20 +184,20 @@ export default function ContributionTaxWizard({
                 onChange={(e) => setRecipientEIN(e.target.value)}
                 placeholder={EIN_PLACEHOLDER}
                 maxLength={10}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-azure focus:border-azure"
+                className="w-full px-3 py-2 border border-black/10 rounded-2xl shadow-sm focus:outline-none focus:ring-2 focus:ring-azure/30 focus:border-azure"
               />
-              <p className="mt-1 text-xs text-gray-500">Format: XX-XXXXXXX</p>
+              <p className="mt-1 text-xs text-neutral-500">Format: XX-XXXXXXX</p>
             </div>
 
             <div>
-              <label htmlFor="recipient-type" className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="recipient-type" className="block text-sm font-medium text-neutral-700 mb-2">
                 Recipient Type
               </label>
               <select
                 id="recipient-type"
                 value={recipientType}
                 onChange={(e) => setRecipientType(e.target.value as RecipientType | '')}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-azure focus:border-azure"
+                className="w-full px-3 py-2 border border-black/10 rounded-2xl shadow-sm focus:outline-none focus:ring-2 focus:ring-azure/30 focus:border-azure"
               >
                 <option value="">Select type</option>
                 {Object.entries(RECIPIENT_TYPE_LABELS).map(([value, label]) => (
@@ -209,14 +209,14 @@ export default function ContributionTaxWizard({
             </div>
 
             <div>
-              <label htmlFor="contrib-type" className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="contrib-type" className="block text-sm font-medium text-neutral-700 mb-2">
                 Contribution Type *
               </label>
               <select
                 id="contrib-type"
                 value={contributionType}
                 onChange={(e) => setContributionType(e.target.value as ContributionType)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-azure focus:border-azure"
+                className="w-full px-3 py-2 border border-black/10 rounded-2xl shadow-sm focus:outline-none focus:ring-2 focus:ring-azure/30 focus:border-azure"
               >
                 {Object.entries(CONTRIBUTION_TYPE_LABELS).map(([value, label]) => (
                   <option key={value} value={value}>
@@ -227,11 +227,11 @@ export default function ContributionTaxWizard({
             </div>
 
             <div>
-              <label htmlFor="amount" className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="amount" className="block text-sm font-medium text-neutral-700 mb-2">
                 Amount *
               </label>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500">$</span>
                 <input
                   type="number"
                   id="amount"
@@ -239,7 +239,7 @@ export default function ContributionTaxWizard({
                   onChange={(e) => setAmount(e.target.value)}
                   placeholder="0.00"
                   step="0.01"
-                  className="w-full pl-7 pr-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-azure focus:border-azure"
+                  className="w-full pl-7 pr-3 py-2 border border-black/10 rounded-2xl shadow-sm focus:outline-none focus:ring-2 focus:ring-azure/30 focus:border-azure"
                 />
               </div>
             </div>
@@ -249,22 +249,22 @@ export default function ContributionTaxWizard({
         {/* Step 2: Additional Details (for non-cash) */}
         {step === 2 && (
           <div className="space-y-4">
-            <h3 className="font-semibold text-gray-900">
+            <h3 className="font-semibold text-ink">
               {isNonCash ? 'Non-Cash Contribution Details' : 'Additional Information'}
             </h3>
 
             {isNonCash ? (
               <>
-                <div className="bg-azure/10 border border-azure/20 rounded-md p-3 text-sm text-azure">
+                <div className="bg-azure/10 border border-azure/20 rounded-2xl p-3 text-sm text-azure">
                   Non-cash contributions require additional documentation for IRS compliance.
                 </div>
 
                 <div>
-                  <label htmlFor="fmv" className="block text-sm font-medium text-gray-700 mb-2">
+                  <label htmlFor="fmv" className="block text-sm font-medium text-neutral-700 mb-2">
                     Fair Market Value (FMV) at Donation {amountNum > 500 ? '*' : ''}
                   </label>
                   <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500">$</span>
                     <input
                       type="number"
                       id="fmv"
@@ -272,20 +272,20 @@ export default function ContributionTaxWizard({
                       onChange={(e) => setFmv(e.target.value)}
                       placeholder="0.00"
                       step="0.01"
-                      className="w-full pl-7 pr-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-azure focus:border-azure"
+                      className="w-full pl-7 pr-3 py-2 border border-black/10 rounded-2xl shadow-sm focus:outline-none focus:ring-2 focus:ring-azure/30 focus:border-azure"
                     />
                   </div>
-                  <p className="mt-1 text-xs text-gray-500">
+                  <p className="mt-1 text-xs text-neutral-500">
                     The value of the property on the date of donation
                   </p>
                 </div>
 
                 <div>
-                  <label htmlFor="cost-basis" className="block text-sm font-medium text-gray-700 mb-2">
+                  <label htmlFor="cost-basis" className="block text-sm font-medium text-neutral-700 mb-2">
                     Cost Basis
                   </label>
                   <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500">$</span>
                     <input
                       type="number"
                       id="cost-basis"
@@ -293,16 +293,16 @@ export default function ContributionTaxWizard({
                       onChange={(e) => setCostBasis(e.target.value)}
                       placeholder="0.00"
                       step="0.01"
-                      className="w-full pl-7 pr-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-azure focus:border-azure"
+                      className="w-full pl-7 pr-3 py-2 border border-black/10 rounded-2xl shadow-sm focus:outline-none focus:ring-2 focus:ring-azure/30 focus:border-azure"
                     />
                   </div>
-                  <p className="mt-1 text-xs text-gray-500">
+                  <p className="mt-1 text-xs text-neutral-500">
                     What you originally paid for the property
                   </p>
                 </div>
 
                 <div>
-                  <label htmlFor="date-acquired" className="block text-sm font-medium text-gray-700 mb-2">
+                  <label htmlFor="date-acquired" className="block text-sm font-medium text-neutral-700 mb-2">
                     Date Acquired
                   </label>
                   <input
@@ -311,15 +311,15 @@ export default function ContributionTaxWizard({
                     value={dateAcquired}
                     onChange={(e) => setDateAcquired(e.target.value)}
                     max={contributionDate || undefined}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-azure focus:border-azure"
+                    className="w-full px-3 py-2 border border-black/10 rounded-2xl shadow-sm focus:outline-none focus:ring-2 focus:ring-azure/30 focus:border-azure"
                   />
-                  <p className="mt-1 text-xs text-gray-500">
+                  <p className="mt-1 text-xs text-neutral-500">
                     When you acquired the property (for capital gains calculation)
                   </p>
                 </div>
 
                 <div>
-                  <label htmlFor="property-desc" className="block text-sm font-medium text-gray-700 mb-2">
+                  <label htmlFor="property-desc" className="block text-sm font-medium text-neutral-700 mb-2">
                     Property Description
                   </label>
                   <textarea
@@ -328,12 +328,12 @@ export default function ContributionTaxWizard({
                     onChange={(e) => setPropertyDescription(e.target.value)}
                     rows={3}
                     placeholder="e.g., 100 shares of Apple Inc. (AAPL) common stock"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-azure focus:border-azure"
+                    className="w-full px-3 py-2 border border-black/10 rounded-2xl shadow-sm focus:outline-none focus:ring-2 focus:ring-azure/30 focus:border-azure"
                   />
                 </div>
 
                 {requiresAppraisal && (
-                  <div className="bg-amber-50 border border-amber-200 rounded-md p-3 text-sm text-amber-800">
+                  <div className="bg-sunset/15 border border-sunset/30 rounded-2xl p-3 text-sm text-ink">
                     <strong>Qualified Appraisal Required:</strong> For non-cash contributions over $5,000,
                     the IRS requires a qualified appraisal by an independent appraiser. You&apos;ll need to upload
                     this documentation later.
@@ -342,7 +342,7 @@ export default function ContributionTaxWizard({
               </>
             ) : (
               <div>
-                <label htmlFor="notes-step2" className="block text-sm font-medium text-gray-700 mb-2">
+                <label htmlFor="notes-step2" className="block text-sm font-medium text-neutral-700 mb-2">
                   Notes (Optional)
                 </label>
                 <textarea
@@ -351,7 +351,7 @@ export default function ContributionTaxWizard({
                   onChange={(e) => setNotes(e.target.value)}
                   rows={4}
                   placeholder="Add any additional notes about this contribution..."
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-azure focus:border-azure"
+                  className="w-full px-3 py-2 border border-black/10 rounded-2xl shadow-sm focus:outline-none focus:ring-2 focus:ring-azure/30 focus:border-azure"
                 />
               </div>
             )}
@@ -361,16 +361,16 @@ export default function ContributionTaxWizard({
         {/* Step 3: Substantiation & Review */}
         {step === 3 && (
           <div className="space-y-4">
-            <h3 className="font-semibold text-gray-900">Substantiation & Review</h3>
+            <h3 className="font-semibold text-ink">Substantiation & Review</h3>
 
             {substantiationText && (
-              <div className="bg-azure/10 border border-azure/20 rounded-md p-4 text-sm text-ink">
+              <div className="bg-azure/10 border border-azure/20 rounded-2xl p-4 text-sm text-ink">
                 <strong className="block mb-2">IRS Documentation Requirements:</strong>
                 {substantiationText}
               </div>
             )}
 
-            <div className="flex items-start gap-3 p-3 bg-gray-50 rounded-md">
+            <div className="flex items-start gap-3 p-3 bg-neutral-50 rounded-2xl">
               <input
                 type="checkbox"
                 id="acknowledgment"
@@ -378,7 +378,7 @@ export default function ContributionTaxWizard({
                 onChange={(e) => setAcknowledgmentReceived(e.target.checked)}
                 className="mt-1"
               />
-              <label htmlFor="acknowledgment" className="text-sm text-gray-700">
+              <label htmlFor="acknowledgment" className="text-sm text-neutral-700">
                 I have received (or will receive) a written acknowledgment from the charity
                 {amountNum >= SUBSTANTIATION_THRESHOLDS.ACKNOWLEDGMENT_REQUIRED && (
                   <span className="text-red-600"> (required for contributions $250+)</span>
@@ -388,7 +388,7 @@ export default function ContributionTaxWizard({
 
             {!isNonCash && (
               <div>
-                <label htmlFor="notes-step3" className="block text-sm font-medium text-gray-700 mb-2">
+                <label htmlFor="notes-step3" className="block text-sm font-medium text-neutral-700 mb-2">
                   Notes (Optional)
                 </label>
                 <textarea
@@ -397,32 +397,32 @@ export default function ContributionTaxWizard({
                   onChange={(e) => setNotes(e.target.value)}
                   rows={3}
                   placeholder="Add any additional notes..."
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-azure focus:border-azure"
+                  className="w-full px-3 py-2 border border-black/10 rounded-2xl shadow-sm focus:outline-none focus:ring-2 focus:ring-azure/30 focus:border-azure"
                 />
               </div>
             )}
 
             {/* Review Summary */}
-            <div className="border-t border-gray-200 pt-4">
-              <h4 className="text-sm font-semibold text-gray-900 mb-3">Summary</h4>
+            <div className="border-t border-black/5 pt-4">
+              <h4 className="text-sm font-semibold text-ink mb-3">Summary</h4>
               <dl className="space-y-2 text-sm">
                 <div className="flex justify-between">
-                  <dt className="text-gray-600">Date:</dt>
-                  <dd className="font-medium text-gray-900">{contributionDate}</dd>
+                  <dt className="text-neutral-600">Date:</dt>
+                  <dd className="font-medium text-ink">{contributionDate}</dd>
                 </div>
                 <div className="flex justify-between">
-                  <dt className="text-gray-600">Recipient:</dt>
-                  <dd className="font-medium text-gray-900">{recipientName}</dd>
+                  <dt className="text-neutral-600">Recipient:</dt>
+                  <dd className="font-medium text-ink">{recipientName}</dd>
                 </div>
                 <div className="flex justify-between">
-                  <dt className="text-gray-600">Type:</dt>
-                  <dd className="font-medium text-gray-900">
+                  <dt className="text-neutral-600">Type:</dt>
+                  <dd className="font-medium text-ink">
                     {contributionType && CONTRIBUTION_TYPE_LABELS[contributionType]}
                   </dd>
                 </div>
                 <div className="flex justify-between">
-                  <dt className="text-gray-600">Amount:</dt>
-                  <dd className="font-semibold text-gray-900 text-lg">
+                  <dt className="text-neutral-600">Amount:</dt>
+                  <dd className="font-semibold text-ink text-lg">
                     ${parseFloat(amount).toLocaleString()}
                   </dd>
                 </div>
@@ -433,13 +433,13 @@ export default function ContributionTaxWizard({
       </div>
 
       {/* Footer */}
-      <div className="border-t border-gray-200 px-6 py-4 flex items-center justify-between">
+      <div className="border-t border-black/5 px-6 py-4 flex items-center justify-between">
         <div>
           {step > 1 && (
             <button
               onClick={prevStep}
               disabled={saving}
-              className="text-sm text-gray-600 hover:text-gray-900 disabled:opacity-50"
+              className="text-sm text-neutral-600 hover:text-ink disabled:opacity-50"
             >
               ← Back
             </button>
@@ -450,7 +450,7 @@ export default function ContributionTaxWizard({
             <button
               onClick={onCancel}
               disabled={saving}
-              className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 disabled:opacity-50 text-sm"
+              className="px-4 py-2 border border-black/10 text-neutral-700 rounded-2xl hover:bg-neutral-50 disabled:opacity-50 text-sm"
             >
               Cancel
             </button>
@@ -462,7 +462,7 @@ export default function ContributionTaxWizard({
                 (step === 1 && !canProceedFromStep1()) ||
                 (step === 2 && !canProceedFromStep2())
               }
-              className="px-4 py-2 bg-azure text-white rounded-md hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed font-medium text-sm"
+              className="px-4 py-2 bg-azure text-white rounded-2xl hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed font-medium text-sm"
             >
               Next →
             </button>
@@ -470,7 +470,7 @@ export default function ContributionTaxWizard({
             <button
               onClick={handleSubmit}
               disabled={saving}
-              className="px-4 py-2 bg-azure text-white rounded-md hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed font-medium text-sm"
+              className="px-4 py-2 bg-azure text-white rounded-2xl hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed font-medium text-sm"
             >
               {saving ? 'Saving...' : 'Save Contribution'}
             </button>

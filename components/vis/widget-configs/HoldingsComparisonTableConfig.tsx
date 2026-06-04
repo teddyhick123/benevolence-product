@@ -77,7 +77,7 @@ export default function HoldingsComparisonTableConfig({ initialConfig, onSave, o
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="e.g., Holdings Performance Comparison"
-            className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+            className="w-full px-4 py-2 border border-neutral-300 rounded-2xl focus:ring-2 focus:ring-azure/30 focus:border-azure"
           />
         </div>
 
@@ -86,21 +86,21 @@ export default function HoldingsComparisonTableConfig({ initialConfig, onSave, o
             Select Metrics to Compare <span className="text-red-500">*</span>
           </label>
           {availableMetrics.length > 0 ? (
-            <div className="border border-neutral-300 rounded-lg p-3 max-h-48 overflow-y-auto space-y-2">
+            <div className="border border-neutral-300 rounded-2xl p-3 max-h-48 overflow-y-auto space-y-2">
               {availableMetrics.map(m => (
                 <label key={m.metric_code} className="flex items-center gap-2 cursor-pointer hover:bg-neutral-50 p-2 rounded">
                   <input
                     type="checkbox"
                     checked={selectedMetrics.includes(m.metric_code)}
                     onChange={() => handleMetricToggle(m.metric_code)}
-                    className="w-4 h-4 text-indigo-600 border-neutral-300 rounded focus:ring-indigo-500"
+                    className="w-4 h-4 text-azure border-neutral-300 rounded focus:ring-azure/30"
                   />
                   <span className="text-sm text-neutral-700">{m.display_name} ({m.metric_code})</span>
                 </label>
               ))}
             </div>
           ) : (
-            <p className="text-sm text-neutral-500 border border-neutral-200 rounded-lg p-3">
+            <p className="text-sm text-neutral-500 border border-neutral-200 rounded-2xl p-3">
               Loading metrics...
             </p>
           )}
@@ -116,7 +116,7 @@ export default function HoldingsComparisonTableConfig({ initialConfig, onSave, o
               id="includeHoldingName"
               checked={includeHoldingName}
               onChange={(e) => setIncludeHoldingName(e.target.checked)}
-              className="w-4 h-4 text-indigo-600 border-neutral-300 rounded focus:ring-indigo-500"
+              className="w-4 h-4 text-azure border-neutral-300 rounded focus:ring-azure/30"
             />
             <label htmlFor="includeHoldingName" className="text-sm text-neutral-700">
               Show holding name column
@@ -129,7 +129,7 @@ export default function HoldingsComparisonTableConfig({ initialConfig, onSave, o
               id="includeSector"
               checked={includeSector}
               onChange={(e) => setIncludeSector(e.target.checked)}
-              className="w-4 h-4 text-indigo-600 border-neutral-300 rounded focus:ring-indigo-500"
+              className="w-4 h-4 text-azure border-neutral-300 rounded focus:ring-azure/30"
             />
             <label htmlFor="includeSector" className="text-sm text-neutral-700">
               Show sector column
@@ -142,7 +142,7 @@ export default function HoldingsComparisonTableConfig({ initialConfig, onSave, o
               id="highlightBest"
               checked={highlightBest}
               onChange={(e) => setHighlightBest(e.target.checked)}
-              className="w-4 h-4 text-indigo-600 border-neutral-300 rounded focus:ring-indigo-500"
+              className="w-4 h-4 text-azure border-neutral-300 rounded focus:ring-azure/30"
             />
             <label htmlFor="highlightBest" className="text-sm text-neutral-700">
               Highlight best values
@@ -158,7 +158,7 @@ export default function HoldingsComparisonTableConfig({ initialConfig, onSave, o
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value)}
-              className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              className="w-full px-4 py-2 border border-neutral-300 rounded-2xl focus:ring-2 focus:ring-azure/30 focus:border-azure"
             >
               <option value="name">Holding Name</option>
               {selectedMetrics.map(metric => (
@@ -174,7 +174,7 @@ export default function HoldingsComparisonTableConfig({ initialConfig, onSave, o
             <select
               value={sortDirection}
               onChange={(e) => setSortDirection(e.target.value as 'asc' | 'desc')}
-              className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              className="w-full px-4 py-2 border border-neutral-300 rounded-2xl focus:ring-2 focus:ring-azure/30 focus:border-azure"
             >
               <option value="asc">Ascending</option>
               <option value="desc">Descending</option>
@@ -192,7 +192,7 @@ export default function HoldingsComparisonTableConfig({ initialConfig, onSave, o
             onChange={(e) => setMinHoldings(Number(e.target.value))}
             min={1}
             max={10}
-            className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+            className="w-full px-4 py-2 border border-neutral-300 rounded-2xl focus:ring-2 focus:ring-azure/30 focus:border-azure"
           />
           <p className="mt-1 text-xs text-neutral-500">Minimum holdings required to display widget</p>
         </div>
@@ -209,7 +209,7 @@ export default function HoldingsComparisonTableConfig({ initialConfig, onSave, o
         <button
           type="submit"
           disabled={selectedMetrics.length === 0}
-          className="px-6 py-2 bg-gradient-to-r from-azure via-azure/90 to-azure/70 text-white rounded-lg hover:opacity-90 transition-opacity font-medium shadow-soft disabled:opacity-50 disabled:cursor-not-allowed"
+          className="px-6 py-2 bg-gradient-to-r from-azure via-azure/90 to-azure/70 text-white rounded-2xl hover:opacity-90 transition-opacity font-medium shadow-soft disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {initialConfig ? 'Update Widget' : 'Create Widget'}
         </button>

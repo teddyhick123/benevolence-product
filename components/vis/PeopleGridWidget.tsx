@@ -136,16 +136,16 @@ export default function PeopleGridWidget({
 
       <div
         ref={gridRef}
-        className={`flex-1 min-h-0 min-w-0 overflow-hidden relative ${DEBUG_GRID ? 'border border-dashed border-rose-400' : ''}`}
+        className={`flex-1 min-h-0 min-w-0 overflow-hidden relative ${DEBUG_GRID ? 'border border-dashed border-red-400' : ''}`}
         aria-label={ariaLabel}
       >
         {DEBUG_GRID && (
-          <div className="absolute top-1 right-1 z-10 text-[10px] bg-white/80 rounded px-1 py-0.5 border border-dashed border-rose-300">
+          <div className="absolute top-1 right-1 z-10 text-[10px] bg-white/80 rounded px-1 py-0.5 border border-dashed border-red-300">
             {`w:${dims.w} h:${dims.h} cols:${layout.cols} rows:${layout.rows} sz:${layout.size}`}
           </div>
         )}
         <div
-          className={`grid ${DEBUG_GRID ? 'border border-dashed border-blue-400' : ''}`}
+          className={`grid ${DEBUG_GRID ? 'border border-dashed border-azure/40' : ''}`}
           style={{
             gridTemplateColumns: `repeat(${layout.cols}, ${layout.size}px)`,
             gap: `${gap}px`,

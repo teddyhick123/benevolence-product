@@ -77,7 +77,7 @@ export default function EmailLookupAdd({ portfolioId }: Props) {
       </button>
 
       {msg && (
-        <div className={`md:col-span-4 text-sm ${msg.kind === 'ok' ? 'text-emerald-600' : 'text-rose-600'}`}>
+        <div className={`md:col-span-4 text-sm ${msg.kind === 'ok' ? 'text-green-600' : 'text-red-600'}`}>
           {msg.text}
         </div>
       )}

@@ -55,8 +55,8 @@ export default function AdminRoleSelect({ portfolioId, userId, initialRole }: Pr
           <option key={r} value={r}>{r}</option>
         ))}
       </select>
-      {ok === 'saved' && <span className="text-xs text-emerald-600">Saved</span>}
-      {ok === 'error' && <span className="text-xs text-rose-600">Error</span>}
+      {ok === 'saved' && <span className="text-xs text-green-600">Saved</span>}
+      {ok === 'error' && <span className="text-xs text-red-600">Error</span>}
     </div>
   );
 }

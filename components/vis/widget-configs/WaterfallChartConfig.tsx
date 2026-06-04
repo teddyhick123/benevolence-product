@@ -75,7 +75,7 @@ export default function WaterfallChartConfig({ initialConfig, onSave, onCancel, 
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="e.g., Fund Allocation Waterfall"
-            className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+            className="w-full px-4 py-2 border border-neutral-300 rounded-2xl focus:ring-2 focus:ring-azure/30 focus:border-azure"
           />
         </div>
 
@@ -86,7 +86,7 @@ export default function WaterfallChartConfig({ initialConfig, onSave, onCancel, 
           <select
             value={mode}
             onChange={(e) => setMode(e.target.value as 'funding' | 'impact' | 'metric')}
-            className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+            className="w-full px-4 py-2 border border-neutral-300 rounded-2xl focus:ring-2 focus:ring-azure/30 focus:border-azure"
           >
             <option value="funding">Funding - Show fund allocation flow</option>
             <option value="impact">Impact - Show cumulative impact</option>
@@ -109,7 +109,7 @@ export default function WaterfallChartConfig({ initialConfig, onSave, onCancel, 
                 value={metricCode}
                 onChange={(e) => setMetricCode(e.target.value)}
                 required
-                className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-neutral-300 rounded-2xl focus:ring-2 focus:ring-azure/30 focus:border-azure"
               >
                 <option value="">Select a metric...</option>
                 {availableMetrics.map(m => (
@@ -125,7 +125,7 @@ export default function WaterfallChartConfig({ initialConfig, onSave, onCancel, 
                 onChange={(e) => setMetricCode(e.target.value.toUpperCase())}
                 placeholder="e.g., RENEWABLE_MWH"
                 required
-                className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-neutral-300 rounded-2xl focus:ring-2 focus:ring-azure/30 focus:border-azure"
               />
             )}
             <p className="mt-1 text-xs text-neutral-500">Metric to accumulate across holdings</p>
@@ -143,7 +143,7 @@ export default function WaterfallChartConfig({ initialConfig, onSave, onCancel, 
                 type="color"
                 value={increaseColor}
                 onChange={(e) => setIncreaseColor(e.target.value)}
-                className="w-full h-10 px-2 border border-neutral-300 rounded-lg"
+                className="w-full h-10 px-2 border border-neutral-300 rounded-2xl"
               />
             </div>
             <div>
@@ -152,7 +152,7 @@ export default function WaterfallChartConfig({ initialConfig, onSave, onCancel, 
                 type="color"
                 value={decreaseColor}
                 onChange={(e) => setDecreaseColor(e.target.value)}
-                className="w-full h-10 px-2 border border-neutral-300 rounded-lg"
+                className="w-full h-10 px-2 border border-neutral-300 rounded-2xl"
               />
             </div>
             <div>
@@ -161,7 +161,7 @@ export default function WaterfallChartConfig({ initialConfig, onSave, onCancel, 
                 type="color"
                 value={totalColor}
                 onChange={(e) => setTotalColor(e.target.value)}
-                className="w-full h-10 px-2 border border-neutral-300 rounded-lg"
+                className="w-full h-10 px-2 border border-neutral-300 rounded-2xl"
               />
             </div>
           </div>
@@ -174,7 +174,7 @@ export default function WaterfallChartConfig({ initialConfig, onSave, onCancel, 
               id="showLabels"
               checked={showLabels}
               onChange={(e) => setShowLabels(e.target.checked)}
-              className="w-4 h-4 text-indigo-600 border-neutral-300 rounded focus:ring-indigo-500"
+              className="w-4 h-4 text-azure border-neutral-300 rounded focus:ring-azure/30"
             />
             <label htmlFor="showLabels" className="text-sm text-neutral-700">
               Show value labels on bars
@@ -187,7 +187,7 @@ export default function WaterfallChartConfig({ initialConfig, onSave, onCancel, 
               id="showConnectors"
               checked={showConnectors}
               onChange={(e) => setShowConnectors(e.target.checked)}
-              className="w-4 h-4 text-indigo-600 border-neutral-300 rounded focus:ring-indigo-500"
+              className="w-4 h-4 text-azure border-neutral-300 rounded focus:ring-azure/30"
             />
             <label htmlFor="showConnectors" className="text-sm text-neutral-700">
               Show connector lines between bars
@@ -205,7 +205,7 @@ export default function WaterfallChartConfig({ initialConfig, onSave, onCancel, 
             onChange={(e) => setMinItems(Number(e.target.value))}
             min={2}
             max={10}
-            className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+            className="w-full px-4 py-2 border border-neutral-300 rounded-2xl focus:ring-2 focus:ring-azure/30 focus:border-azure"
           />
           <p className="mt-1 text-xs text-neutral-500">Minimum items required to display widget</p>
         </div>
@@ -222,7 +222,7 @@ export default function WaterfallChartConfig({ initialConfig, onSave, onCancel, 
         <button
           type="submit"
           disabled={mode === 'metric' && !metricCode}
-          className="px-6 py-2 bg-gradient-to-r from-azure via-azure/90 to-azure/70 text-white rounded-lg hover:opacity-90 transition-opacity font-medium shadow-soft disabled:opacity-50 disabled:cursor-not-allowed"
+          className="px-6 py-2 bg-gradient-to-r from-azure via-azure/90 to-azure/70 text-white rounded-2xl hover:opacity-90 transition-opacity font-medium shadow-soft disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {initialConfig ? 'Update Widget' : 'Create Widget'}
         </button>

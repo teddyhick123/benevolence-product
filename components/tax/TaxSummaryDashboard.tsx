@@ -72,7 +72,7 @@ export default function TaxSummaryDashboard({
 
   if (error) {
     return (
-      <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700">
+      <div className="bg-red-50 border border-red-200 rounded-2xl p-4 text-red-700">
         {error}
       </div>
     );
@@ -90,7 +90,7 @@ export default function TaxSummaryDashboard({
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="bg-white rounded-xl border border-neutral-200 p-6">
+      <div className="bg-white rounded-2xl border border-neutral-200 p-6">
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-2xl font-bold text-neutral-900">
@@ -105,14 +105,14 @@ export default function TaxSummaryDashboard({
 
       {/* AGI Setup Warning */}
       {!hasAGI && (
-        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+        <div className="bg-sunset/15 border border-sunset/30 rounded-2xl p-4">
           <div className="flex gap-3">
-            <svg className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+            <svg className="w-5 h-5 text-coral flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
             <div className="flex-1">
-              <p className="font-medium text-amber-900 mb-1">
+              <p className="font-medium text-ink mb-1">
                 AGI Not Set for {year}
               </p>
-              <p className="text-sm text-amber-800">
+              <p className="text-sm text-ink">
                 Enter your Adjusted Gross Income to calculate precise deduction limits and
                 remaining capacity. Without AGI, we cannot determine if contributions exceed limits
                 or generate carryforward schedules.
@@ -124,7 +124,7 @@ export default function TaxSummaryDashboard({
 
       {/* AGI Limits Overview */}
       {hasAGI && summary && (
-        <div className="bg-white rounded-xl border border-neutral-200 p-6">
+        <div className="bg-white rounded-2xl border border-neutral-200 p-6">
           <h3 className="text-lg font-semibold text-neutral-900 mb-4">
             Deduction Limits & Utilization
           </h3>
@@ -136,7 +136,7 @@ export default function TaxSummaryDashboard({
               limit={summary.agi_limit_60_pct ?? 0}
               used={summary.contributed_60_pct ?? 0}
               remaining={capacity?.remaining_60_pct ?? 0}
-              color="indigo"
+              color="azure"
             />
 
             {/* 30% - Appreciated Property */}
@@ -146,7 +146,7 @@ export default function TaxSummaryDashboard({
               limit={summary.agi_limit_30_pct ?? 0}
               used={summary.contributed_30_pct ?? 0}
               remaining={capacity?.remaining_30_pct ?? 0}
-              color="purple"
+              color="coral"
             />
 
             {/* 50% - Conservation Easements */}
@@ -174,7 +174,7 @@ export default function TaxSummaryDashboard({
 
       {/* Key Metrics */}
       {hasAGI && summary && (
-        <div className="bg-white rounded-xl border border-neutral-200 p-6">
+        <div className="bg-white rounded-2xl border border-neutral-200 p-6">
           <h3 className="text-lg font-semibold text-neutral-900 mb-4">
             Tax Impact Summary
           </h3>
@@ -201,7 +201,7 @@ export default function TaxSummaryDashboard({
 
       {/* QCD Summary */}
       {summary && (summary.total_qcd_amount ?? 0) > 0 && (
-        <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+        <div className="bg-green-50 border border-green-200 rounded-2xl p-4">
           <div className="flex gap-3">
             <svg className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
             <div className="flex-1">
@@ -219,7 +219,7 @@ export default function TaxSummaryDashboard({
 
       {/* Carryforward Schedule */}
       {carryforwards && carryforwards.length > 0 && (
-        <div className="bg-white rounded-xl border border-neutral-200 p-6">
+        <div className="bg-white rounded-2xl border border-neutral-200 p-6">
           <h3 className="text-lg font-semibold text-neutral-900 mb-4">
             Carryforward Schedule
           </h3>
@@ -227,7 +227,7 @@ export default function TaxSummaryDashboard({
             {carryforwards.map((cf: any) => (
               <div
                 key={cf.id}
-                className="flex items-center justify-between p-3 bg-neutral-50 rounded-lg"
+                className="flex items-center justify-between p-3 bg-neutral-50 rounded-2xl"
               >
                 <div className="flex-1">
                   <p className="font-medium text-neutral-900">
@@ -256,7 +256,7 @@ export default function TaxSummaryDashboard({
 
       {/* Contributions List */}
       {contributions && contributions.length > 0 && (
-        <div className="bg-white rounded-xl border border-neutral-200 p-6">
+        <div className="bg-white rounded-2xl border border-neutral-200 p-6">
           <h3 className="text-lg font-semibold text-neutral-900 mb-4">
             Contributions ({contributions.length})
           </h3>
@@ -264,7 +264,7 @@ export default function TaxSummaryDashboard({
             {contributions.map((contrib: any) => (
               <div
                 key={contrib.id}
-                className="flex items-center justify-between p-3 border border-neutral-200 rounded-lg hover:bg-neutral-50"
+                className="flex items-center justify-between p-3 border border-neutral-200 rounded-2xl hover:bg-neutral-50"
               >
                 <div className="flex-1">
                   <p className="font-medium text-neutral-900">{contrib.recipient_name}</p>
@@ -282,7 +282,7 @@ export default function TaxSummaryDashboard({
                     </p>
                   )}
                   {contrib.excess_for_carryforward && contrib.excess_for_carryforward > 0 && (
-                    <p className="text-xs text-amber-600">
+                    <p className="text-xs text-coral">
                       Carryforward: {formatCurrency(contrib.excess_for_carryforward)}
                     </p>
                   )}
@@ -295,7 +295,7 @@ export default function TaxSummaryDashboard({
 
       {/* Empty State */}
       {contributions.length === 0 && (
-        <div className="bg-white rounded-xl border border-neutral-200 p-12 text-center">
+        <div className="bg-white rounded-2xl border border-neutral-200 p-12 text-center">
           <p className="text-neutral-500">
             No contributions recorded for {year}. Add contributions to see tax impact calculations.
           </p>
@@ -313,7 +313,7 @@ interface LimitCardProps {
   limit: number;
   used: number;
   remaining: number;
-  color: 'indigo' | 'purple' | 'green' | 'amber';
+  color: 'azure' | 'coral' | 'green' | 'sunset';
 }
 
 function LimitCard({ title, percentage, limit, used, remaining, color }: LimitCardProps) {
@@ -330,21 +330,21 @@ function LimitCard({ title, percentage, limit, used, remaining, color }: LimitCa
   const isOverLimit = used > limit;
 
   const colorClasses = {
-    indigo: 'bg-indigo-100 text-indigo-800',
-    purple: 'bg-purple-100 text-purple-800',
+    azure: 'bg-azure/10 text-azure-deep border border-azure/20',
+    coral: 'bg-coral/10 text-coral border border-coral/25',
     green: 'bg-green-100 text-green-800',
-    amber: 'bg-amber-100 text-amber-800',
+    sunset: 'bg-sunset/15 text-ink border border-sunset/30',
   };
 
   const barColors = {
-    indigo: 'bg-indigo-500',
-    purple: 'bg-purple-500',
+    azure: 'bg-azure',
+    coral: 'bg-coral',
     green: 'bg-green-500',
-    amber: 'bg-amber-500',
+    sunset: 'bg-sunset',
   };
 
   return (
-    <div className="bg-neutral-50 rounded-lg p-4">
+    <div className="bg-neutral-50 rounded-2xl p-4">
       <div className="flex items-center justify-between mb-2">
         <p className="text-sm font-medium text-neutral-700">{title}</p>
         <span className={`px-2 py-0.5 rounded text-xs font-medium ${colorClasses[color]}`}>
@@ -381,7 +381,7 @@ interface MetricCardProps {
 
 function MetricCard({ label, value, subtext, highlight }: MetricCardProps) {
   return (
-    <div className={`p-4 rounded-lg ${highlight ? 'bg-amber-50 border border-amber-200' : 'bg-neutral-50'}`}>
+    <div className={`p-4 rounded-2xl ${highlight ? 'bg-sunset/15 border border-sunset/30' : 'bg-neutral-50'}`}>
       <p className="text-sm font-medium text-neutral-700 mb-1">{label}</p>
       <p className="text-2xl font-bold text-neutral-900 mb-1">{value}</p>
       <p className="text-xs text-neutral-600">{subtext}</p>

@@ -67,7 +67,7 @@ export default function SmallMultiplesConfig({ initialConfig, onSave, onCancel, 
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="e.g., Energy Production Comparison"
-            className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+            className="w-full px-4 py-2 border border-neutral-300 rounded-2xl focus:ring-2 focus:ring-azure/30 focus:border-azure"
           />
           <p className="mt-1 text-xs text-neutral-500">Leave blank to auto-generate from metric</p>
         </div>
@@ -81,7 +81,7 @@ export default function SmallMultiplesConfig({ initialConfig, onSave, onCancel, 
               value={metricCode}
               onChange={(e) => setMetricCode(e.target.value)}
               required
-              className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              className="w-full px-4 py-2 border border-neutral-300 rounded-2xl focus:ring-2 focus:ring-azure/30 focus:border-azure"
             >
               <option value="">Select a metric...</option>
               {availableMetrics.map(m => (
@@ -97,7 +97,7 @@ export default function SmallMultiplesConfig({ initialConfig, onSave, onCancel, 
               onChange={(e) => setMetricCode(e.target.value.toUpperCase())}
               placeholder="e.g., RENEWABLE_MWH"
               required
-              className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              className="w-full px-4 py-2 border border-neutral-300 rounded-2xl focus:ring-2 focus:ring-azure/30 focus:border-azure"
             />
           )}
           <p className="mt-1 text-xs text-neutral-500">Compare this metric across all holdings</p>
@@ -110,7 +110,7 @@ export default function SmallMultiplesConfig({ initialConfig, onSave, onCancel, 
           <select
             value={window}
             onChange={(e) => setWindow(e.target.value)}
-            className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+            className="w-full px-4 py-2 border border-neutral-300 rounded-2xl focus:ring-2 focus:ring-azure/30 focus:border-azure"
           >
             <option value="3m">Last 3 months</option>
             <option value="6m">Last 6 months</option>
@@ -131,7 +131,7 @@ export default function SmallMultiplesConfig({ initialConfig, onSave, onCancel, 
               onChange={(e) => setColumns(Number(e.target.value))}
               min={1}
               max={6}
-              className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              className="w-full px-4 py-2 border border-neutral-300 rounded-2xl focus:ring-2 focus:ring-azure/30 focus:border-azure"
             />
             <p className="mt-1 text-xs text-neutral-500">Grid layout columns (1-6)</p>
           </div>
@@ -147,7 +147,7 @@ export default function SmallMultiplesConfig({ initialConfig, onSave, onCancel, 
               min={40}
               max={200}
               step={10}
-              className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              className="w-full px-4 py-2 border border-neutral-300 rounded-2xl focus:ring-2 focus:ring-azure/30 focus:border-azure"
             />
             <p className="mt-1 text-xs text-neutral-500">Sparkline height (px)</p>
           </div>
@@ -163,7 +163,7 @@ export default function SmallMultiplesConfig({ initialConfig, onSave, onCancel, 
             onChange={(e) => setMinHoldings(Number(e.target.value))}
             min={1}
             max={10}
-            className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+            className="w-full px-4 py-2 border border-neutral-300 rounded-2xl focus:ring-2 focus:ring-azure/30 focus:border-azure"
           />
           <p className="mt-1 text-xs text-neutral-500">Minimum holdings required to display widget</p>
         </div>
@@ -175,7 +175,7 @@ export default function SmallMultiplesConfig({ initialConfig, onSave, onCancel, 
               id="showBenchmark"
               checked={showBenchmark}
               onChange={(e) => setShowBenchmark(e.target.checked)}
-              className="w-4 h-4 text-indigo-600 border-neutral-300 rounded focus:ring-indigo-500"
+              className="w-4 h-4 text-azure border-neutral-300 rounded focus:ring-azure/30"
             />
             <label htmlFor="showBenchmark" className="text-sm text-neutral-700">
               Show benchmark line
@@ -192,7 +192,7 @@ export default function SmallMultiplesConfig({ initialConfig, onSave, onCancel, 
                 value={benchmarkValue}
                 onChange={(e) => setBenchmarkValue(Number(e.target.value))}
                 step="any"
-                className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-neutral-300 rounded-2xl focus:ring-2 focus:ring-azure/30 focus:border-azure"
               />
               <p className="mt-1 text-xs text-neutral-500">Reference line to compare against</p>
             </div>
@@ -210,7 +210,7 @@ export default function SmallMultiplesConfig({ initialConfig, onSave, onCancel, 
         </button>
         <button
           type="submit"
-          className="px-6 py-2 bg-gradient-to-r from-azure via-azure/90 to-azure/70 text-white rounded-lg hover:opacity-90 transition-opacity font-medium shadow-soft"
+          className="px-6 py-2 bg-gradient-to-r from-azure via-azure/90 to-azure/70 text-white rounded-2xl hover:opacity-90 transition-opacity font-medium shadow-soft"
         >
           {initialConfig ? 'Update Widget' : 'Create Widget'}
         </button>

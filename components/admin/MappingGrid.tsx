@@ -179,7 +179,7 @@ export function MappingGrid({
           <button
             onClick={onRequestAISuggestions}
             disabled={isLoadingAI}
-            className="inline-flex items-center gap-2 px-3 py-1.5 text-xs border border-azure/30 bg-azure/5 text-azure rounded-md hover:bg-azure/10 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="inline-flex items-center gap-2 px-3 py-1.5 text-xs border border-azure/30 bg-azure/5 text-azure rounded-2xl hover:bg-azure/10 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {isLoadingAI ? (
               <>
@@ -198,7 +198,7 @@ export function MappingGrid({
 
       {/* AI suggestions banner */}
       {aiSuggestions && (
-        <div className="p-3 bg-azure/5 border border-azure/20 rounded-lg text-sm text-azure flex items-center gap-2">
+        <div className="p-3 bg-azure/5 border border-azure/20 rounded-2xl text-sm text-azure flex items-center gap-2">
           <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
           <span>
             AI analyzed {aiSuggestions.mappings.length} fields.{' '}
@@ -209,7 +209,7 @@ export function MappingGrid({
       )}
 
       {unmappedRequired.length > 0 && (
-        <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+        <div className="p-3 bg-red-50 border border-red-200 rounded-2xl text-sm text-red-700">
           Required fields not mapped:{' '}
           <span className="font-medium">{unmappedRequired.map((f) => f.label).join(', ')}</span>
         </div>
@@ -269,7 +269,7 @@ export function MappingGrid({
                       <select
                         value={currentTarget}
                         onChange={(e) => handleAssign(sf, e.target.value)}
-                        className={`w-full px-2 py-1.5 text-xs border rounded-md focus:outline-none focus:ring-2 focus:ring-azure/30 ${
+                        className={`w-full px-2 py-1.5 text-xs border rounded-2xl focus:outline-none focus:ring-2 focus:ring-azure/30 ${
                           isRequired
                             ? 'border-azure/30 bg-azure/5'
                             : 'border-neutral-200'
@@ -320,7 +320,7 @@ export function MappingGrid({
             <button
               onClick={handleSave}
               disabled={saving || unmappedRequired.length > 0}
-              className="px-4 py-2 text-sm rounded-lg bg-gradient-to-r from-azure via-azure/90 to-azure/70 text-white font-medium hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed transition-opacity"
+              className="px-4 py-2 text-sm rounded-2xl bg-gradient-to-r from-azure via-azure/90 to-azure/70 text-white font-medium hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed transition-opacity"
             >
               {saving ? 'Saving…' : 'Save Mapping'}
             </button>

@@ -221,10 +221,10 @@ export default function OrgSettingsPage({ params }: { params: Promise<{ orgId: s
       </div>
 
       {error && (
-        <div className="card p-4 text-sm text-rose-700 bg-rose-50 border border-rose-200">{error}</div>
+        <div className="card p-4 text-sm text-red-700 bg-red-50 border border-red-200">{error}</div>
       )}
       {ok && (
-        <div className="card p-4 text-sm text-emerald-700 bg-emerald-50 border border-emerald-200">{ok}</div>
+        <div className="card p-4 text-sm text-green-700 bg-green-50 border border-green-200">{ok}</div>
       )}
 
       {/* Tab bar */}
@@ -249,7 +249,7 @@ export default function OrgSettingsPage({ params }: { params: Promise<{ orgId: s
         <form onSubmit={saveOverview} className="card p-4 space-y-4">
           <div className="grid gap-3">
             <label className="text-sm">
-              <div className="text-neutral-600 mb-1">Name <span className="text-rose-500">*</span></div>
+              <div className="text-neutral-600 mb-1">Name <span className="text-red-500">*</span></div>
               <input value={name} onChange={e => setName(e.target.value)} required disabled={!isAdmin}
                 className="border rounded-2xl px-3 py-2 w-full disabled:bg-neutral-50" />
             </label>
@@ -321,7 +321,7 @@ export default function OrgSettingsPage({ params }: { params: Promise<{ orgId: s
                 <div className="flex items-center gap-2">
                   {isAdmin ? (
                     <select value={m.role} onChange={e => updateMemberRole(m.user_id, e.target.value as OrgRole)}
-                      className="text-xs border rounded-lg px-2 py-1 bg-white">
+                      className="text-xs border rounded-2xl px-2 py-1 bg-white">
                       {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
                     </select>
                   ) : (
@@ -329,7 +329,7 @@ export default function OrgSettingsPage({ params }: { params: Promise<{ orgId: s
                   )}
                   {isAdmin && (
                     <button onClick={() => removeMember(m.user_id)}
-                      className="text-xs text-rose-500 hover:text-rose-700 transition">
+                      className="text-xs text-red-500 hover:text-red-700 transition">
                       Remove
                     </button>
                   )}

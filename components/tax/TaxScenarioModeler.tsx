@@ -167,7 +167,7 @@ export default function TaxScenarioModeler({
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="bg-white rounded-xl border border-neutral-200 p-6">
+      <div className="bg-white rounded-2xl border border-neutral-200 p-6">
         <h2 className="text-2xl font-bold text-neutral-900">Tax Scenario Modeler</h2>
         <p className="text-sm text-neutral-600 mt-1">
           Explore &ldquo;what-if&rdquo; scenarios to optimize your charitable giving strategy
@@ -175,14 +175,14 @@ export default function TaxScenarioModeler({
       </div>
 
       {/* Mode Selector */}
-      <div className="bg-white rounded-xl border border-neutral-200 p-6">
+      <div className="bg-white rounded-2xl border border-neutral-200 p-6">
         <h3 className="font-semibold text-neutral-900 mb-4">Analysis Mode</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
           <button
             onClick={() => setMode('single')}
-            className={`p-4 rounded-lg border-2 transition-all ${
+            className={`p-4 rounded-2xl border-2 transition-all ${
               mode === 'single'
-                ? 'border-indigo-500 bg-indigo-50'
+                ? 'border-azure bg-azure/10'
                 : 'border-neutral-200 hover:border-neutral-300'
             }`}
           >
@@ -194,9 +194,9 @@ export default function TaxScenarioModeler({
 
           <button
             onClick={() => setMode('compare')}
-            className={`p-4 rounded-lg border-2 transition-all ${
+            className={`p-4 rounded-2xl border-2 transition-all ${
               mode === 'compare'
-                ? 'border-indigo-500 bg-indigo-50'
+                ? 'border-azure bg-azure/10'
                 : 'border-neutral-200 hover:border-neutral-300'
             }`}
           >
@@ -208,9 +208,9 @@ export default function TaxScenarioModeler({
 
           <button
             onClick={() => setMode('optimal')}
-            className={`p-4 rounded-lg border-2 transition-all ${
+            className={`p-4 rounded-2xl border-2 transition-all ${
               mode === 'optimal'
-                ? 'border-indigo-500 bg-indigo-50'
+                ? 'border-azure bg-azure/10'
                 : 'border-neutral-200 hover:border-neutral-300'
             }`}
           >
@@ -222,9 +222,9 @@ export default function TaxScenarioModeler({
 
           <button
             onClick={() => setMode('bunching')}
-            className={`p-4 rounded-lg border-2 transition-all ${
+            className={`p-4 rounded-2xl border-2 transition-all ${
               mode === 'bunching'
-                ? 'border-indigo-500 bg-indigo-50'
+                ? 'border-azure bg-azure/10'
                 : 'border-neutral-200 hover:border-neutral-300'
             }`}
           >
@@ -238,13 +238,13 @@ export default function TaxScenarioModeler({
 
       {/* Input Forms */}
       {(mode === 'single' || mode === 'compare') && (
-        <div className="bg-white rounded-xl border border-neutral-200 p-6">
+        <div className="bg-white rounded-2xl border border-neutral-200 p-6">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-semibold text-neutral-900">Scenarios</h3>
             {mode === 'compare' && (
               <button
                 onClick={addScenario}
-                className="px-3 py-1 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+                className="px-3 py-1 text-sm bg-azure text-white rounded-2xl hover:bg-azure/90 transition-colors"
               >
                 + Add Scenario
               </button>
@@ -253,7 +253,7 @@ export default function TaxScenarioModeler({
 
           <div className="space-y-4">
             {scenarios.map((scenario, index) => (
-              <div key={scenario.id} className="p-4 bg-neutral-50 rounded-lg">
+              <div key={scenario.id} className="p-4 bg-neutral-50 rounded-2xl">
                 <div className="flex items-center justify-between mb-3">
                   <input
                     type="text"
@@ -286,7 +286,7 @@ export default function TaxScenarioModeler({
                             donation_amount: parseFloat(e.target.value) || 0,
                           })
                         }
-                        className="w-full pl-7 pr-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                        className="w-full pl-7 pr-3 py-2 border border-neutral-300 rounded-2xl focus:ring-2 focus:ring-azure/30 focus:border-azure"
                       />
                     </div>
                   </div>
@@ -302,7 +302,7 @@ export default function TaxScenarioModeler({
                           donation_type: e.target.value as DonationType,
                         })
                       }
-                      className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      className="w-full px-3 py-2 border border-neutral-300 rounded-2xl focus:ring-2 focus:ring-azure/30 focus:border-azure"
                     >
                       {Object.entries(DONATION_TYPE_LABELS).map(([value, label]) => (
                         <option key={value} value={value}>
@@ -328,7 +328,7 @@ export default function TaxScenarioModeler({
                             })
                           }
                           placeholder="0"
-                          className="w-full pl-7 pr-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                          className="w-full pl-7 pr-3 py-2 border border-neutral-300 rounded-2xl focus:ring-2 focus:ring-azure/30 focus:border-azure"
                         />
                       </div>
                     </div>
@@ -342,7 +342,7 @@ export default function TaxScenarioModeler({
 
       {/* Bunching Inputs */}
       {mode === 'bunching' && (
-        <div className="bg-white rounded-xl border border-neutral-200 p-6">
+        <div className="bg-white rounded-2xl border border-neutral-200 p-6">
           <h3 className="font-semibold text-neutral-900 mb-4">Bunching Strategy Parameters</h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
@@ -355,7 +355,7 @@ export default function TaxScenarioModeler({
                   type="number"
                   value={annualAmount}
                   onChange={(e) => setAnnualAmount(parseFloat(e.target.value) || 0)}
-                  className="w-full pl-7 pr-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  className="w-full pl-7 pr-3 py-2 border border-neutral-300 rounded-2xl focus:ring-2 focus:ring-azure/30 focus:border-azure"
                 />
               </div>
               <p className="text-xs text-neutral-500 mt-1">
@@ -370,7 +370,7 @@ export default function TaxScenarioModeler({
               <select
                 value={bunchingType}
                 onChange={(e) => setBunchingType(e.target.value as DonationType)}
-                className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-neutral-300 rounded-2xl focus:ring-2 focus:ring-azure/30 focus:border-azure"
               >
                 {Object.entries(DONATION_TYPE_LABELS).map(([value, label]) => (
                   <option key={value} value={value}>
@@ -390,7 +390,7 @@ export default function TaxScenarioModeler({
                 onChange={(e) => setBunchingYears(parseInt(e.target.value) || 4)}
                 min="2"
                 max="10"
-                className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-neutral-300 rounded-2xl focus:ring-2 focus:ring-azure/30 focus:border-azure"
               />
               <p className="text-xs text-neutral-500 mt-1">
                 Projection period (2-10 years)
@@ -405,7 +405,7 @@ export default function TaxScenarioModeler({
         <button
           onClick={runScenarios}
           disabled={loading}
-          className="px-8 py-3 bg-gradient-to-r from-indigo-600 to-indigo-500 text-white rounded-lg hover:opacity-90 transition-opacity font-medium shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+          className="px-8 py-3 bg-gradient-to-r from-azure to-azure/80 text-white rounded-2xl hover:opacity-90 transition-opacity font-medium shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {loading ? 'Calculating...' : 'Run Analysis'}
         </button>
@@ -413,7 +413,7 @@ export default function TaxScenarioModeler({
 
       {/* Error Display */}
       {error && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700">
+        <div className="bg-red-50 border border-red-200 rounded-2xl p-4 text-red-700">
           {error}
         </div>
       )}
@@ -445,22 +445,22 @@ function SingleScenarioResults({ results }: { results: any }) {
   };
 
   return (
-    <div className="bg-white rounded-xl border border-neutral-200 p-6">
+    <div className="bg-white rounded-2xl border border-neutral-200 p-6">
       <h3 className="text-lg font-semibold text-neutral-900 mb-4">Analysis Results</h3>
 
       {/* Key Metrics */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        <div className="p-4 bg-indigo-50 rounded-lg">
-          <p className="text-sm text-indigo-700 mb-1">Deductible This Year</p>
-          <p className="text-2xl font-bold text-indigo-900">
+        <div className="p-4 bg-azure/10 rounded-2xl">
+          <p className="text-sm text-azure-deep mb-1">Deductible This Year</p>
+          <p className="text-2xl font-bold text-ink">
             {formatCurrency(results.deductible_this_year)}
           </p>
-          <p className="text-xs text-indigo-600 mt-1">
+          <p className="text-xs text-azure mt-1">
             {results.agi_limit_category} AGI limit
           </p>
         </div>
 
-        <div className="p-4 bg-green-50 rounded-lg">
+        <div className="p-4 bg-green-50 rounded-2xl">
           <p className="text-sm text-green-700 mb-1">Total Tax Savings</p>
           <p className="text-2xl font-bold text-green-900">
             {formatCurrency(results.total_tax_savings)}
@@ -473,12 +473,12 @@ function SingleScenarioResults({ results }: { results: any }) {
         </div>
 
         {results.excess_carryforward > 0 && (
-          <div className="p-4 bg-amber-50 rounded-lg">
-            <p className="text-sm text-amber-700 mb-1">Carryforward</p>
-            <p className="text-2xl font-bold text-amber-900">
+          <div className="p-4 bg-sunset/15 rounded-2xl">
+            <p className="text-sm text-ink mb-1">Carryforward</p>
+            <p className="text-2xl font-bold text-ink">
               {formatCurrency(results.excess_carryforward)}
             </p>
-            <p className="text-xs text-amber-600 mt-1">
+            <p className="text-xs text-coral mt-1">
               {results.years_to_fully_deduct} years to fully deduct
             </p>
           </div>
@@ -487,7 +487,7 @@ function SingleScenarioResults({ results }: { results: any }) {
 
       {/* Recommendations */}
       {results.recommendations && results.recommendations.length > 0 && (
-        <div className="bg-azure/10 border border-azure/20 rounded-lg p-4">
+        <div className="bg-azure/10 border border-azure/20 rounded-2xl p-4">
           <p className="font-medium text-ink mb-2">Insights</p>
           <ul className="space-y-2">
             {results.recommendations.map((rec: string, idx: number) => (
@@ -515,15 +515,15 @@ function CompareScenarioResults({ results }: { results: any }) {
   return (
     <div className="space-y-6">
       {/* Comparison Summary */}
-      <div className="bg-white rounded-xl border border-neutral-200 p-6">
+      <div className="bg-white rounded-2xl border border-neutral-200 p-6">
         <h3 className="text-lg font-semibold text-neutral-900 mb-4">Comparison Results</h3>
-        <div className="bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-200 rounded-lg p-4 mb-6">
-          <p className="font-medium text-indigo-900 mb-2">Recommendation</p>
-          <p className="text-sm text-indigo-800">{results.comparison.recommendation}</p>
+        <div className="bg-gradient-to-r from-azure/10 to-coral/10 border border-azure/20 rounded-2xl p-4 mb-6">
+          <p className="font-medium text-ink mb-2">Recommendation</p>
+          <p className="text-sm text-ink">{results.comparison.recommendation}</p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="p-4 bg-green-50 rounded-lg">
+          <div className="p-4 bg-green-50 rounded-2xl">
             <p className="text-sm text-green-700 mb-1">Best Tax Savings</p>
             <p className="font-bold text-green-900">
               {results.comparison.best_tax_savings.scenario_name}
@@ -533,7 +533,7 @@ function CompareScenarioResults({ results }: { results: any }) {
             </p>
           </div>
 
-          <div className="p-4 bg-azure/10 rounded-lg">
+          <div className="p-4 bg-azure/10 rounded-2xl">
             <p className="text-sm text-azure/90 mb-1">Best AGI Utilization</p>
             <p className="font-bold text-ink">
               {results.comparison.best_agi_utilization.scenario_name}
@@ -543,12 +543,12 @@ function CompareScenarioResults({ results }: { results: any }) {
             </p>
           </div>
 
-          <div className="p-4 bg-purple-50 rounded-lg">
-            <p className="text-sm text-purple-700 mb-1">Fastest Full Deduction</p>
-            <p className="font-bold text-purple-900">
+          <div className="p-4 bg-coral/10 rounded-2xl">
+            <p className="text-sm text-coral mb-1">Fastest Full Deduction</p>
+            <p className="font-bold text-ink">
               {results.comparison.fastest_full_deduction.scenario_name}
             </p>
-            <p className="text-xl font-bold text-purple-900 mt-2">
+            <p className="text-xl font-bold text-ink mt-2">
               {results.comparison.fastest_full_deduction.years} year{results.comparison.fastest_full_deduction.years !== 1 ? 's' : ''}
             </p>
           </div>
@@ -556,7 +556,7 @@ function CompareScenarioResults({ results }: { results: any }) {
       </div>
 
       {/* Detailed Table */}
-      <div className="bg-white rounded-xl border border-neutral-200 p-6 overflow-x-auto">
+      <div className="bg-white rounded-2xl border border-neutral-200 p-6 overflow-x-auto">
         <table className="w-full">
           <thead>
             <tr className="border-b border-neutral-200">
@@ -615,9 +615,9 @@ function OptimalResults({ results }: { results: any }) {
   };
 
   return (
-    <div className="bg-white rounded-xl border border-neutral-200 p-6">
+    <div className="bg-white rounded-2xl border border-neutral-200 p-6">
       <h3 className="text-lg font-semibold text-neutral-900 mb-4">Optimal Donation Amount</h3>
-      <div className="bg-gradient-to-br from-green-50 to-emerald-50 border border-green-200 rounded-lg p-6">
+      <div className="bg-gradient-to-br from-green-50 to-green-100 border border-green-200 rounded-2xl p-6">
         <div className="text-center mb-4">
           <p className="text-sm text-green-700 mb-2">Maximum Donation (No Carryforward)</p>
           <p className="text-5xl font-bold text-green-900">
@@ -656,7 +656,7 @@ function BunchingResults({ results }: { results: any }) {
   // Add null/undefined checks
   if (!results || !results.spread_strategy || !results.bunching_strategy) {
     return (
-      <div className="bg-white rounded-xl border border-neutral-200 p-6">
+      <div className="bg-white rounded-2xl border border-neutral-200 p-6">
         <h3 className="text-lg font-semibold text-neutral-900 mb-4">Bunching Strategy Analysis</h3>
         <p className="text-neutral-600">No bunching analysis results available.</p>
       </div>
@@ -666,21 +666,21 @@ function BunchingResults({ results }: { results: any }) {
   const recommended = results.recommendation;
 
   return (
-    <div className="bg-white rounded-xl border border-neutral-200 p-6">
+    <div className="bg-white rounded-2xl border border-neutral-200 p-6">
       <h3 className="text-lg font-semibold text-neutral-900 mb-4">Bunching Strategy Analysis</h3>
 
-      <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4 mb-6">
-        <p className="font-medium text-indigo-900 mb-2">Recommendation</p>
-        <p className="text-lg font-bold text-indigo-900">
+      <div className="bg-azure/10 border border-azure/20 rounded-2xl p-4 mb-6">
+        <p className="font-medium text-ink mb-2">Recommendation</p>
+        <p className="text-lg font-bold text-ink">
           {recommended === 'bunch' ? 'Bunching Strategy' : 'Spread Strategy'}
         </p>
-        <p className="text-sm text-indigo-700 mt-2">
+        <p className="text-sm text-azure-deep mt-2">
           Save an additional {formatCurrency(results.savings_difference || 0)} with {recommended === 'bunch' ? 'bunching' : 'spreading'}
         </p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className={`p-4 rounded-lg border-2 ${recommended === 'spread' ? 'border-indigo-500 bg-indigo-50' : 'border-neutral-200 bg-neutral-50'}`}>
+        <div className={`p-4 rounded-2xl border-2 ${recommended === 'spread' ? 'border-azure bg-azure/10' : 'border-neutral-200 bg-neutral-50'}`}>
           <p className="font-semibold text-neutral-900 mb-3">Spread Strategy</p>
           <div className="space-y-2 text-sm">
             <div className="flex justify-between">
@@ -698,7 +698,7 @@ function BunchingResults({ results }: { results: any }) {
           </div>
         </div>
 
-        <div className={`p-4 rounded-lg border-2 ${recommended === 'bunch' ? 'border-indigo-500 bg-indigo-50' : 'border-neutral-200 bg-neutral-50'}`}>
+        <div className={`p-4 rounded-2xl border-2 ${recommended === 'bunch' ? 'border-azure bg-azure/10' : 'border-neutral-200 bg-neutral-50'}`}>
           <p className="font-semibold text-neutral-900 mb-3">Bunching Strategy</p>
           <div className="space-y-2 text-sm">
             <div className="flex justify-between">

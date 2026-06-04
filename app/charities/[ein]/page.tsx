@@ -82,10 +82,10 @@ export default function CharityDetailPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-neutral-50 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-azure mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading charity details...</p>
+          <p className="text-neutral-600">Loading charity details...</p>
         </div>
       </div>
     );
@@ -93,13 +93,13 @@ export default function CharityDetailPage() {
 
   if (error || !charity) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-neutral-50 flex items-center justify-center">
         <div className="text-center">
-          <h2 className="text-2xl font-bold text-gray-900 mb-4">
+          <h2 className="text-2xl font-bold text-ink mb-4">
             {error || 'Charity not found'}
           </h2>
           <Link href="/charities">
-            <button className="px-4 py-2 bg-azure text-white rounded-lg hover:bg-azure/90">
+            <button className="px-4 py-2 bg-azure text-white rounded-2xl hover:bg-azure/90">
               Back to Charities
             </button>
           </Link>
@@ -113,9 +113,9 @@ export default function CharityDetailPage() {
   const ratingGrade = charity.charity_navigator_rating?.rating;
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-neutral-50">
       {/* Header */}
-      <div className="bg-white border-b border-gray-200">
+      <div className="bg-white border-b border-black/5">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           {/* Back Button */}
           <Link
@@ -129,8 +129,8 @@ export default function CharityDetailPage() {
           {/* Charity Header */}
           <div className="flex items-start justify-between">
             <div className="flex-1">
-              <h1 className="text-3xl font-bold text-gray-900 mb-2">{charity.name}</h1>
-              <div className="flex items-center gap-4 text-gray-600 mb-3">
+              <h1 className="text-3xl font-bold text-ink mb-2">{charity.name}</h1>
+              <div className="flex items-center gap-4 text-neutral-600 mb-3">
                 {charity.sector && (
                   <span className="inline-block px-3 py-1 bg-azure/10 text-azure text-sm font-medium rounded">
                     {charity.sector}
@@ -147,7 +147,7 @@ export default function CharityDetailPage() {
 
               {/* Mission Statement */}
               {charity.mission && (
-                <p className="text-lg text-gray-700 italic max-w-3xl">
+                <p className="text-lg text-neutral-700 italic max-w-3xl">
                   &ldquo;{charity.mission}&rdquo;
                 </p>
               )}
@@ -156,15 +156,15 @@ export default function CharityDetailPage() {
             {/* Rating & Action */}
             <div className="ml-6 flex flex-col items-end gap-3">
               {rating && (
-                <div className="bg-yellow-50 p-4 rounded-lg text-center">
+                <div className="bg-sunset/15 p-4 rounded-2xl text-center">
                   <div className="flex items-center justify-center mb-1">
-                    <Star className="w-6 h-6 text-yellow-500 fill-yellow-500 mr-2" />
-                    <span className="text-3xl font-bold text-gray-900">{rating}</span>
+                    <Star className="w-6 h-6 text-sunset fill-sunset mr-2" />
+                    <span className="text-3xl font-bold text-ink">{rating}</span>
                   </div>
                   {ratingGrade && (
-                    <div className="text-sm text-gray-600">Grade: {ratingGrade}</div>
+                    <div className="text-sm text-neutral-600">Grade: {ratingGrade}</div>
                   )}
-                  <div className="text-xs text-gray-500 mt-1">Charity Navigator</div>
+                  <div className="text-xs text-neutral-500 mt-1">Charity Navigator</div>
                 </div>
               )}
 
@@ -172,14 +172,14 @@ export default function CharityDetailPage() {
               <div className="relative flex flex-col items-end gap-2">
                 <button
                   onClick={() => setAddToPortfolioModal(true)}
-                  className="px-6 py-3 bg-azure text-white font-medium rounded-lg hover:bg-azure/90 transition-colors flex items-center gap-2"
+                  className="px-6 py-3 bg-azure text-white font-medium rounded-2xl hover:bg-azure/90 transition-colors flex items-center gap-2"
                 >
                   Add to Portfolio
                   <Plus className="w-4 h-4" />
                 </button>
                 <button
                   onClick={() => setIsWatched(toggleWatchlist(ein, charity.name))}
-                  className={`text-sm px-4 py-2 rounded-lg border transition-colors ${isWatched ? 'border-amber-300 text-amber-700 bg-amber-50 hover:bg-amber-100' : 'border-gray-300 text-gray-600 hover:bg-gray-50'}`}
+                  className={`text-sm px-4 py-2 rounded-2xl border transition-colors ${isWatched ? 'border-sunset/40 text-ink bg-sunset/15 hover:bg-sunset/15' : 'border-black/10 text-neutral-600 hover:bg-neutral-50'}`}
                 >
                   {isWatched ? 'Saved' : 'Save for Later'}
                 </button>
@@ -196,16 +196,16 @@ export default function CharityDetailPage() {
 
       {/* Research Notes */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-8">
-        <div className="bg-white border border-gray-200 rounded-lg p-5">
-          <h2 className="text-sm font-semibold text-gray-900 mb-2">My Research Notes</h2>
+        <div className="rounded-2xl border border-black/5 bg-white shadow-soft p-5">
+          <h2 className="text-sm font-semibold text-ink mb-2">My Research Notes</h2>
           <textarea
             rows={4}
             value={notes}
             onChange={e => handleNotesChange(e.target.value)}
             placeholder="Record why you're considering this charity, concerns, questions to follow up on…"
-            className="w-full px-3 py-2 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-azure resize-none"
+            className="w-full px-3 py-2 text-sm border border-black/5 rounded-2xl focus:outline-none focus:ring-2 focus:ring-azure/30 resize-none"
           />
-          <p className="text-xs text-gray-400 mt-1">Saved locally in your browser — not shared with others.</p>
+          <p className="text-xs text-neutral-400 mt-1">Saved locally in your browser — not shared with others.</p>
         </div>
       </div>
 

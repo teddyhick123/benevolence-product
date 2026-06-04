@@ -2,7 +2,7 @@
 -- 0035_analytics_module.sql
 -- Analytics module: benchmarks, metric projections, portfolio risk snapshots,
 -- and AI-generated insights.
--- Depends on: 0004, 0006, 0008
+-- Depends on: 0004, 0006, 0008, 0010
 -- =============================================================================
 
 -- ---------------------------------------------------------------------------
@@ -135,8 +135,86 @@ CREATE INDEX IF NOT EXISTS idx_analytics_insights_active    ON public.analytics_
 CREATE INDEX IF NOT EXISTS idx_analytics_insights_severity  ON public.analytics_insights(severity) WHERE is_active = true;
 
 -- ---------------------------------------------------------------------------
+-- generated_financial_analyses — AI-generated financial analysis snapshots
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.generated_financial_analyses (
+  id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+  holding_id          UUID REFERENCES public.holdings(id) ON DELETE CASCADE,
+  charity_id          UUID REFERENCES public.charities(id) ON DELETE SET NULL,
+  generated_by        UUID REFERENCES auth.users(id),
+
+  analysis_content    JSONB NOT NULL DEFAULT '{}',
+  financial_snapshot  JSONB NOT NULL DEFAULT '{}',
+  generated_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  version             INTEGER NOT NULL DEFAULT 1
+);
+
+CREATE INDEX IF NOT EXISTS idx_gen_fin_analyses_holding_id ON public.generated_financial_analyses(holding_id);
+CREATE INDEX IF NOT EXISTS idx_gen_fin_analyses_charity_id ON public.generated_financial_analyses(charity_id);
+CREATE INDEX IF NOT EXISTS idx_gen_fin_analyses_version ON public.generated_financial_analyses(holding_id, version DESC);
+
+-- ---------------------------------------------------------------------------
 -- Views
 -- ---------------------------------------------------------------------------
+CREATE OR REPLACE VIEW public.v_investment_performance
+  WITH (security_invoker = true)
+AS
+SELECT
+  h.portfolio_id,
+  h.id AS holding_id,
+  h.name,
+  h.asset_type,
+  h.status,
+  h.funds_allocated AS cost_basis,
+  COALESCE(h.current_value, h.fmv, h.funds_allocated) AS current_nav,
+  CASE
+    WHEN h.funds_allocated > 0
+    THEN ROUND((COALESCE(h.current_value, h.fmv, h.funds_allocated) / h.funds_allocated)::numeric, 4)
+    ELSE NULL
+  END AS moic,
+  CASE
+    WHEN h.funds_allocated > 0
+    THEN ROUND(((COALESCE(h.current_value, h.fmv, h.funds_allocated) - h.funds_allocated) / h.funds_allocated * 100)::numeric, 2)
+    ELSE NULL
+  END AS return_pct,
+  h.sector,
+  h.country,
+  h.created_at AS invested_at,
+  h.ein
+FROM public.holdings h
+WHERE h.deleted_at IS NULL;
+
+GRANT SELECT ON public.v_investment_performance TO authenticated, service_role;
+
+CREATE OR REPLACE VIEW public.v_portfolio_investment_summary
+  WITH (security_invoker = true)
+AS
+SELECT
+  h.portfolio_id,
+  COUNT(*) AS total_holdings,
+  COUNT(*) FILTER (WHERE h.status = 'active') AS active_holdings,
+  COALESCE(SUM(h.funds_allocated), 0) AS total_cost_basis,
+  COALESCE(SUM(COALESCE(h.current_value, h.fmv, h.funds_allocated)), 0) AS total_nav,
+  CASE
+    WHEN SUM(h.funds_allocated) > 0
+    THEN ROUND((SUM(COALESCE(h.current_value, h.fmv, h.funds_allocated)) / SUM(h.funds_allocated))::numeric, 4)
+    ELSE NULL
+  END AS portfolio_moic,
+  CASE
+    WHEN SUM(h.funds_allocated) > 0
+    THEN ROUND(((SUM(COALESCE(h.current_value, h.fmv, h.funds_allocated)) - SUM(h.funds_allocated)) / SUM(h.funds_allocated) * 100)::numeric, 2)
+    ELSE NULL
+  END AS portfolio_return_pct,
+  COUNT(DISTINCT h.sector) FILTER (WHERE h.sector IS NOT NULL) AS sector_count,
+  COUNT(DISTINCT h.country) FILTER (WHERE h.country IS NOT NULL) AS country_count
+FROM public.holdings h
+WHERE h.deleted_at IS NULL
+GROUP BY h.portfolio_id;
+
+GRANT SELECT ON public.v_portfolio_investment_summary TO authenticated, service_role;
+
 CREATE OR REPLACE VIEW public.v_latest_risk_snapshot AS
 SELECT DISTINCT ON (portfolio_id) *
 FROM public.portfolio_risk_snapshots
@@ -229,6 +307,7 @@ ALTER TABLE public.benchmark_data            ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.metric_projections_cache  ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.portfolio_risk_snapshots  ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.analytics_insights        ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.generated_financial_analyses ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "benchmark_data_read" ON public.benchmark_data
   FOR SELECT TO authenticated USING (true);
@@ -261,6 +340,28 @@ CREATE POLICY "insights_write" ON public.analytics_insights
   WITH CHECK (public.can_edit_portfolio(portfolio_id));
 CREATE POLICY "insights_service" ON public.analytics_insights
   FOR ALL TO service_role USING (true) WITH CHECK (true);
+
+CREATE POLICY "generated_financial_analyses_read" ON public.generated_financial_analyses
+  FOR SELECT TO authenticated
+  USING (
+    holding_id IS NULL
+    OR public.can_view_portfolio((SELECT portfolio_id FROM public.holdings WHERE id = holding_id))
+  );
+CREATE POLICY "generated_financial_analyses_write" ON public.generated_financial_analyses
+  FOR ALL TO authenticated
+  USING (
+    holding_id IS NOT NULL
+    AND public.can_edit_portfolio((SELECT portfolio_id FROM public.holdings WHERE id = holding_id))
+  )
+  WITH CHECK (
+    holding_id IS NOT NULL
+    AND public.can_edit_portfolio((SELECT portfolio_id FROM public.holdings WHERE id = holding_id))
+  );
+CREATE POLICY "generated_financial_analyses_service" ON public.generated_financial_analyses
+  FOR ALL TO service_role USING (true) WITH CHECK (true);
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.generated_financial_analyses TO authenticated;
+GRANT ALL ON public.generated_financial_analyses TO service_role;
 
 -- ---------------------------------------------------------------------------
 -- Grants

@@ -8,9 +8,12 @@
 -- Extensions
 -- ---------------------------------------------------------------------------
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";      -- gen_random_bytes / share tokens
 CREATE EXTENSION IF NOT EXISTS "pg_trgm";       -- trigram search on charity names
 CREATE EXTENSION IF NOT EXISTS "unaccent";       -- accent-insensitive charity search
 CREATE EXTENSION IF NOT EXISTS "btree_gist";     -- exclusion constraints
+CREATE EXTENSION IF NOT EXISTS "cube";           -- earthdistance dependency
+CREATE EXTENSION IF NOT EXISTS "earthdistance";  -- map distance indexes
 
 -- ---------------------------------------------------------------------------
 -- Shared enums

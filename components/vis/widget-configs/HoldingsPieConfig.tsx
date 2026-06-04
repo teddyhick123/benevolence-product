@@ -40,7 +40,7 @@ export default function HoldingsPieConfig({ initialConfig, onSave, onCancel }: H
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="e.g., Portfolio Allocation"
-            className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+            className="w-full px-4 py-2 border border-neutral-300 rounded-2xl focus:ring-2 focus:ring-azure/30 focus:border-azure"
           />
         </div>
 
@@ -50,7 +50,7 @@ export default function HoldingsPieConfig({ initialConfig, onSave, onCancel }: H
             id="showLegend"
             checked={showLegend}
             onChange={(e) => setShowLegend(e.target.checked)}
-            className="w-4 h-4 text-indigo-600 border-neutral-300 rounded focus:ring-indigo-500"
+            className="w-4 h-4 text-azure border-neutral-300 rounded focus:ring-azure/30"
           />
           <label htmlFor="showLegend" className="text-sm text-neutral-700">
             Show legend with holding names
@@ -58,7 +58,7 @@ export default function HoldingsPieConfig({ initialConfig, onSave, onCancel }: H
         </div>
       </div>
 
-      <div className="bg-neutral-50 border border-neutral-200 rounded-lg p-4">
+      <div className="bg-neutral-50 border border-neutral-200 rounded-2xl p-4">
         <h4 className="text-sm font-medium text-neutral-900 mb-2">Auto-Configuration</h4>
         <p className="text-sm text-neutral-600">
           This widget automatically fetches your holdings and creates a pie chart showing allocation by funds allocated (or NAV as fallback).
@@ -75,7 +75,7 @@ export default function HoldingsPieConfig({ initialConfig, onSave, onCancel }: H
         </button>
         <button
           type="submit"
-          className="px-6 py-2 bg-gradient-to-r from-azure via-azure/90 to-azure/70 text-white rounded-lg hover:opacity-90 transition-opacity font-medium shadow-soft"
+          className="px-6 py-2 bg-gradient-to-r from-azure via-azure/90 to-azure/70 text-white rounded-2xl hover:opacity-90 transition-opacity font-medium shadow-soft"
         >
           Create Widget
         </button>

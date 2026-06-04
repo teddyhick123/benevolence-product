@@ -96,7 +96,7 @@ export default function TaxExportPanel({ portfolioId, taxYear }: TaxExportPanelP
               disabled={exporting !== null}
               className="flex items-center justify-center gap-3 rounded-2xl border-2 border-azure/20 bg-azure/10 p-4 transition hover:border-azure/30 hover:bg-azure/15 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              <div className="rounded-xl bg-azure/10 p-2">
+              <div className="rounded-2xl bg-azure/10 p-2">
                 <svg className="w-6 h-6 text-azure" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
@@ -115,7 +115,7 @@ export default function TaxExportPanel({ portfolioId, taxYear }: TaxExportPanelP
               disabled={exporting !== null}
               className="flex items-center justify-center gap-3 rounded-2xl border-2 border-azure/20 bg-azure/10 p-4 transition hover:border-azure/30 hover:bg-azure/15 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              <div className="rounded-xl bg-azure/10 p-2">
+              <div className="rounded-2xl bg-azure/10 p-2">
                 <svg className="w-6 h-6 text-azure" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2" />
                 </svg>
@@ -140,7 +140,7 @@ export default function TaxExportPanel({ portfolioId, taxYear }: TaxExportPanelP
               disabled={exporting !== null}
               className="flex items-center justify-center gap-3 rounded-2xl border border-black/5 bg-white p-4 shadow-sm transition hover:border-black/10 hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              <div className="rounded-xl bg-green-100 p-2">
+              <div className="rounded-2xl bg-green-100 p-2">
                 <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
@@ -159,7 +159,7 @@ export default function TaxExportPanel({ portfolioId, taxYear }: TaxExportPanelP
               disabled={exporting !== null}
               className="flex items-center justify-center gap-3 rounded-2xl border border-black/5 bg-white p-4 shadow-sm transition hover:border-black/10 hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              <div className="rounded-xl bg-azure/10 p-2">
+              <div className="rounded-2xl bg-azure/10 p-2">
                 <svg className="w-6 h-6 text-azure" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
                 </svg>
@@ -178,7 +178,7 @@ export default function TaxExportPanel({ portfolioId, taxYear }: TaxExportPanelP
               disabled={exporting !== null}
               className="flex items-center justify-center gap-3 rounded-2xl border border-black/5 bg-white p-4 shadow-sm transition hover:border-black/10 hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              <div className="rounded-xl bg-coral/10 p-2">
+              <div className="rounded-2xl bg-coral/10 p-2">
                 <svg className="w-6 h-6 text-coral" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
                 </svg>

@@ -81,8 +81,8 @@ export default function HoldingsPage() {
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Holdings</h1>
-          <p className="text-sm text-gray-500 mt-1">
+          <h1 className="text-2xl font-bold text-ink">Holdings</h1>
+          <p className="text-sm text-neutral-500 mt-1">
             {isLoading ? 'Loading…' : `${rows.length} holding${rows.length !== 1 ? 's' : ''}`}
           </p>
         </div>
@@ -90,7 +90,7 @@ export default function HoldingsPage() {
           {rows.length > 0 && (
             <button
               onClick={exportCsv}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-300 text-gray-700 text-sm font-medium hover:bg-gray-50 transition-colors"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl border border-black/10 text-neutral-700 text-sm font-medium hover:bg-neutral-50 transition-colors"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -101,7 +101,7 @@ export default function HoldingsPage() {
           {canEdit && (
             <button
               onClick={onAdd}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-azure text-white text-sm font-medium hover:bg-azure/90 transition-colors"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl bg-azure text-white text-sm font-medium hover:bg-azure/90 transition-colors"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
@@ -118,11 +118,11 @@ export default function HoldingsPage() {
         </div>
       ) : rows.length === 0 ? (
         <div className="rounded-2xl bg-white border border-black/5 shadow-soft p-12 text-center">
-          <div className="text-gray-400 text-sm">No holdings yet.</div>
+          <div className="text-neutral-400 text-sm">No holdings yet.</div>
           {canEdit && (
             <button
               onClick={onAdd}
-              className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-azure text-white text-sm font-medium hover:bg-azure/90 transition-colors"
+              className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-2xl bg-azure text-white text-sm font-medium hover:bg-azure/90 transition-colors"
             >
               Add your first holding
             </button>

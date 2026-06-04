@@ -164,12 +164,12 @@ export default function ContributionDetailModal({
   if (loading) {
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-        <div className="bg-white rounded-lg p-8 max-w-2xl w-full">
+        <div className="bg-white rounded-2xl p-8 max-w-2xl w-full">
           <div className="animate-pulse space-y-4">
-            <div className="h-8 bg-gray-200 rounded w-1/3"></div>
+            <div className="h-8 bg-neutral-200 rounded w-1/3"></div>
             <div className="space-y-3">
               {[1, 2, 3, 4].map((i) => (
-                <div key={i} className="h-16 bg-gray-100 rounded"></div>
+                <div key={i} className="h-16 bg-neutral-100 rounded"></div>
               ))}
             </div>
           </div>
@@ -181,12 +181,12 @@ export default function ContributionDetailModal({
   if (error && !contribution) {
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-        <div className="bg-white rounded-lg p-6 max-w-md w-full">
+        <div className="bg-white rounded-2xl p-6 max-w-md w-full">
           <h3 className="text-lg font-semibold text-red-900 mb-2">Error</h3>
           <p className="text-sm text-red-700 mb-4">{error}</p>
           <button
             onClick={onClose}
-            className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700"
+            className="px-4 py-2 bg-neutral-600 text-white rounded-2xl hover:bg-neutral-700"
           >
             Close
           </button>
@@ -212,14 +212,14 @@ export default function ContributionDetailModal({
       aria-labelledby="contribution-detail-title"
       onKeyDown={handleDialogKeyDown}
     >
-      <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+      <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
         {/* Header */}
-        <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+        <div className="sticky top-0 bg-white border-b border-black/5 px-6 py-4 flex items-center justify-between">
           <div>
-            <h2 id="contribution-detail-title" className="text-2xl font-bold text-gray-900">
+            <h2 id="contribution-detail-title" className="text-2xl font-bold text-ink">
               {contribution.recipient_name}
             </h2>
-            <p className="text-sm text-gray-600 mt-1">
+            <p className="text-sm text-neutral-600 mt-1">
               {new Date(contribution.contribution_date).toLocaleDateString()} •{' '}
               {CONTRIBUTION_TYPE_LABELS[contribution.contribution_type]}
             </p>
@@ -229,13 +229,13 @@ export default function ContributionDetailModal({
               <>
                 <button
                   onClick={() => setEditing(true)}
-                  className="px-4 py-2 bg-azure text-white rounded-md hover:opacity-90 text-sm font-medium"
+                  className="px-4 py-2 bg-azure text-white rounded-2xl hover:opacity-90 text-sm font-medium"
                 >
                   Edit
                 </button>
                 <button
                   onClick={onClose}
-                  className="text-gray-400 hover:text-gray-600"
+                  className="text-neutral-400 hover:text-neutral-600"
                   aria-label="Close"
                 >
                   <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
@@ -248,14 +248,14 @@ export default function ContributionDetailModal({
                 <button
                   onClick={handleSave}
                   disabled={saving}
-                  className="px-4 py-2 bg-azure text-white rounded-md hover:opacity-90 disabled:opacity-50 text-sm font-medium"
+                  className="px-4 py-2 bg-azure text-white rounded-2xl hover:opacity-90 disabled:opacity-50 text-sm font-medium"
                 >
                   {saving ? 'Saving...' : 'Save'}
                 </button>
                 <button
                   onClick={handleCancel}
                   disabled={saving}
-                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 disabled:opacity-50 text-sm"
+                  className="px-4 py-2 border border-black/10 text-neutral-700 rounded-2xl hover:bg-neutral-50 disabled:opacity-50 text-sm"
                 >
                   Cancel
                 </button>
@@ -267,19 +267,19 @@ export default function ContributionDetailModal({
         {/* Content */}
         <div className="px-6 py-6 space-y-6">
           {error && editing && (
-            <div className="p-3 bg-red-50 border border-red-200 rounded-md text-sm text-red-700" role="alert">
+            <div className="p-3 bg-red-50 border border-red-200 rounded-2xl text-sm text-red-700" role="alert">
               {error}
             </div>
           )}
 
           {/* Amount */}
-          <div className="bg-gray-50 rounded-lg p-6">
-            <div className="text-sm text-gray-600 mb-1">Contribution Amount</div>
-            <div className="text-4xl font-bold text-gray-900">
+          <div className="bg-neutral-50 rounded-2xl p-6">
+            <div className="text-sm text-neutral-600 mb-1">Contribution Amount</div>
+            <div className="text-4xl font-bold text-ink">
               ${contribution.amount_usd.toLocaleString()}
             </div>
             {contribution.deductible_amount && contribution.deductible_amount !== contribution.amount_usd && (
-              <div className="text-sm text-gray-600 mt-2">
+              <div className="text-sm text-neutral-600 mt-2">
                 Deductible: ${contribution.deductible_amount.toLocaleString()}
               </div>
             )}
@@ -287,10 +287,10 @@ export default function ContributionDetailModal({
 
           {/* Basic Info */}
           <div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Basic Information</h3>
+            <h3 className="text-lg font-semibold text-ink mb-4">Basic Information</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-neutral-700 mb-1">
                   Contribution Date
                 </label>
                 {editing ? (
@@ -298,24 +298,24 @@ export default function ContributionDetailModal({
                     type="date"
                     value={formData.contribution_date || ''}
                     onChange={(e) => setFormData({ ...formData, contribution_date: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                    className="w-full px-3 py-2 border border-black/10 rounded-2xl"
                   />
                 ) : (
-                  <div className="text-gray-900">
+                  <div className="text-ink">
                     {new Date(contribution.contribution_date).toLocaleDateString()}
                   </div>
                 )}
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-neutral-700 mb-1">
                   Tax Year
                 </label>
-                <div className="text-gray-900">{contribution.tax_year}</div>
+                <div className="text-ink">{contribution.tax_year}</div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-neutral-700 mb-1">
                   Recipient Name
                 </label>
                 {editing ? (
@@ -323,15 +323,15 @@ export default function ContributionDetailModal({
                     type="text"
                     value={formData.recipient_name || ''}
                     onChange={(e) => setFormData({ ...formData, recipient_name: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                    className="w-full px-3 py-2 border border-black/10 rounded-2xl"
                   />
                 ) : (
-                  <div className="text-gray-900">{contribution.recipient_name}</div>
+                  <div className="text-ink">{contribution.recipient_name}</div>
                 )}
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-neutral-700 mb-1">
                   EIN
                 </label>
                 {editing ? (
@@ -340,22 +340,22 @@ export default function ContributionDetailModal({
                     value={formData.recipient_ein || ''}
                     onChange={(e) => setFormData({ ...formData, recipient_ein: e.target.value })}
                     placeholder={EIN_PLACEHOLDER}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                    className="w-full px-3 py-2 border border-black/10 rounded-2xl"
                   />
                 ) : (
-                  <div className="text-gray-900">{contribution.recipient_ein || 'Not provided'}</div>
+                  <div className="text-ink">{contribution.recipient_ein || 'Not provided'}</div>
                 )}
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-neutral-700 mb-1">
                   Recipient Type
                 </label>
                 {editing ? (
                   <select
                     value={formData.recipient_type || ''}
                     onChange={(e) => setFormData({ ...formData, recipient_type: e.target.value as RecipientType })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                    className="w-full px-3 py-2 border border-black/10 rounded-2xl"
                   >
                     <option value="">Select type</option>
                     {Object.entries(RECIPIENT_TYPE_LABELS).map(([value, label]) => (
@@ -365,7 +365,7 @@ export default function ContributionDetailModal({
                     ))}
                   </select>
                 ) : (
-                  <div className="text-gray-900">
+                  <div className="text-ink">
                     {contribution.recipient_type
                       ? RECIPIENT_TYPE_LABELS[contribution.recipient_type]
                       : 'Not specified'}
@@ -375,10 +375,10 @@ export default function ContributionDetailModal({
 
               {contribution.holding_name && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-neutral-700 mb-1">
                     Linked Holding
                   </label>
-                  <div className="text-gray-900">{contribution.holding_name}</div>
+                  <div className="text-ink">{contribution.holding_name}</div>
                 </div>
               )}
             </div>
@@ -387,32 +387,32 @@ export default function ContributionDetailModal({
           {/* Non-Cash Details */}
           {isNonCash && (
             <div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Non-Cash Details</h3>
+              <h3 className="text-lg font-semibold text-ink mb-4">Non-Cash Details</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-neutral-700 mb-1">
                     Fair Market Value
                   </label>
-                  <div className="text-gray-900">
+                  <div className="text-ink">
                     ${contribution.fmv_at_donation?.toLocaleString() || 'Not provided'}
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-neutral-700 mb-1">
                     Cost Basis
                   </label>
-                  <div className="text-gray-900">
+                  <div className="text-ink">
                     ${contribution.cost_basis?.toLocaleString() || 'Not provided'}
                   </div>
                 </div>
 
                 {contribution.date_acquired && (
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-neutral-700 mb-1">
                       Date Acquired
                     </label>
-                    <div className="text-gray-900">
+                    <div className="text-ink">
                       {new Date(contribution.date_acquired).toLocaleDateString()}
                     </div>
                   </div>
@@ -420,10 +420,10 @@ export default function ContributionDetailModal({
 
                 {contribution.property_description && (
                   <div className="md:col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-neutral-700 mb-1">
                       Property Description
                     </label>
-                    <div className="text-gray-900">{contribution.property_description}</div>
+                    <div className="text-ink">{contribution.property_description}</div>
                   </div>
                 )}
               </div>
@@ -432,9 +432,9 @@ export default function ContributionDetailModal({
 
           {/* Substantiation */}
           <div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Substantiation</h3>
+            <h3 className="text-lg font-semibold text-ink mb-4">Substantiation</h3>
 
-            <div className="bg-azure/10 border border-azure/20 rounded-md p-4 mb-4 text-sm text-ink">
+            <div className="bg-azure/10 border border-azure/20 rounded-2xl p-4 mb-4 text-sm text-ink">
               <strong>IRS Requirements:</strong>
               <p className="mt-1">{substantiationText}</p>
             </div>
@@ -449,10 +449,10 @@ export default function ContributionDetailModal({
                   disabled={!editing}
                   className="mt-1"
                 />
-                <label htmlFor="acknowledgment" className="text-sm text-gray-700">
+                <label htmlFor="acknowledgment" className="text-sm text-neutral-700">
                   Written acknowledgment received from charity
                   {contribution.acknowledgment_date && (
-                    <span className="text-gray-500 ml-2">
+                    <span className="text-neutral-500 ml-2">
                       (on {new Date(contribution.acknowledgment_date).toLocaleDateString()})
                     </span>
                   )}
@@ -460,7 +460,7 @@ export default function ContributionDetailModal({
               </div>
 
               {contribution.requires_appraisal && (
-                <div className="p-3 bg-amber-50 border border-amber-200 rounded-md text-sm text-amber-800">
+                <div className="p-3 bg-sunset/15 border border-sunset/30 rounded-2xl text-sm text-ink">
                   <strong>Qualified Appraisal Required</strong>
                   {contribution.appraisal_storage_path ? (
                     <p className="mt-1">✓ Appraisal uploaded</p>
@@ -470,21 +470,21 @@ export default function ContributionDetailModal({
                 </div>
               )}
 
-              <div className={`p-4 rounded-lg ${
+              <div className={`p-4 rounded-2xl ${
                 contribution.is_compliant
                   ? 'bg-green-50 border border-green-200'
-                  : 'bg-amber-50 border border-amber-200'
+                  : 'bg-sunset/15 border border-sunset/30'
               }`}>
                 <div className="flex items-center gap-2">
                   <span className={`font-semibold ${
-                    contribution.is_compliant ? 'text-green-900' : 'text-amber-900'
+                    contribution.is_compliant ? 'text-green-900' : 'text-ink'
                   }`}>
                     {contribution.is_compliant ? 'Compliant' : 'Action Required'}
                   </span>
                 </div>
                 {!contribution.is_compliant && (
                   <p className={`text-sm mt-2 ${
-                    contribution.is_compliant ? 'text-green-800' : 'text-amber-800'
+                    contribution.is_compliant ? 'text-green-800' : 'text-ink'
                   }`}>
                     Required: {contribution.substantiation_requirement}
                   </p>
@@ -496,11 +496,11 @@ export default function ContributionDetailModal({
           {/* Documents */}
           <div>
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">Documents</h3>
+              <h3 className="text-lg font-semibold text-ink">Documents</h3>
               {!showUploader && (
                 <button
                   onClick={() => setShowUploader(true)}
-                  className="px-3 py-1.5 bg-azure text-white rounded-md hover:opacity-90 text-sm font-medium"
+                  className="px-3 py-1.5 bg-azure text-white rounded-2xl hover:opacity-90 text-sm font-medium"
                 >
                   + Upload Document
                 </button>
@@ -508,12 +508,12 @@ export default function ContributionDetailModal({
             </div>
 
             {showUploader && (
-              <div className="mb-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
+              <div className="mb-4 p-4 bg-neutral-50 rounded-2xl border border-black/5">
                 <div className="flex items-center justify-between mb-3">
-                  <span className="text-sm font-medium text-gray-700">Upload New Document</span>
+                  <span className="text-sm font-medium text-neutral-700">Upload New Document</span>
                   <button
                     onClick={() => setShowUploader(false)}
-                    className="text-gray-400 hover:text-gray-600"
+                    className="text-neutral-400 hover:text-neutral-600"
                   >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -544,7 +544,7 @@ export default function ContributionDetailModal({
 
           {/* Notes */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-neutral-700 mb-2">
               Notes
             </label>
             {editing ? (
@@ -552,20 +552,20 @@ export default function ContributionDetailModal({
                 value={formData.notes || ''}
                 onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
                 rows={3}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                className="w-full px-3 py-2 border border-black/10 rounded-2xl"
                 placeholder="Add notes about this contribution..."
               />
             ) : contribution.notes ? (
-              <div className="text-gray-900 whitespace-pre-wrap">{contribution.notes}</div>
+              <div className="text-ink whitespace-pre-wrap">{contribution.notes}</div>
             ) : (
-              <div className="text-gray-500 italic">No notes</div>
+              <div className="text-neutral-500 italic">No notes</div>
             )}
           </div>
         </div>
 
         {/* Footer */}
-        <div className="sticky bottom-0 bg-gray-50 border-t border-gray-200 px-6 py-4">
-          <div className="text-xs text-gray-500">
+        <div className="sticky bottom-0 bg-neutral-50 border-t border-black/5 px-6 py-4">
+          <div className="text-xs text-neutral-500">
             Created: {new Date(contribution.contribution_date).toLocaleDateString()} •
             ID: {contribution.id.slice(0, 8)}...
           </div>

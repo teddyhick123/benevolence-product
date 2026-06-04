@@ -247,7 +247,7 @@ export function ImportErrorsTable({ importJobId }: ImportErrorsTableProps) {
             <button
               key={e}
               onClick={() => { setEntity(e); setOffset(0); }}
-              className={`px-3 py-1.5 text-xs rounded-md border transition-colors capitalize ${
+              className={`px-3 py-1.5 text-xs rounded-2xl border transition-colors capitalize ${
                 entity === e
                   ? 'border-azure bg-azure/10 text-azure font-medium'
                   : 'border-neutral-200 text-neutral-500 hover:bg-neutral-50'
@@ -264,12 +264,12 @@ export function ImportErrorsTable({ importJobId }: ImportErrorsTableProps) {
             <button
               key={s}
               onClick={() => { setSeverity(s); setOffset(0); }}
-              className={`px-3 py-1.5 text-xs rounded-md border transition-colors ${
+              className={`px-3 py-1.5 text-xs rounded-2xl border transition-colors ${
                 severity === s
                   ? s === 'error'
                     ? 'border-red-300 bg-red-50 text-red-700 font-medium'
                     : s === 'warning'
-                    ? 'border-yellow-300 bg-yellow-50 text-yellow-700 font-medium'
+                    ? 'border-sunset/40 bg-sunset/15 text-ink font-medium'
                     : 'border-azure bg-azure/10 text-azure font-medium'
                   : 'border-neutral-200 text-neutral-500 hover:bg-neutral-50'
               }`}
@@ -284,7 +284,7 @@ export function ImportErrorsTable({ importJobId }: ImportErrorsTableProps) {
             <button
               onClick={applyAllAutoFixable}
               disabled={applyingBulkFix}
-              className="text-xs px-3 py-1.5 border border-azure/30 rounded-md text-azure hover:bg-azure/5 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="text-xs px-3 py-1.5 border border-azure/30 rounded-2xl text-azure hover:bg-azure/5 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {applyingBulkFix ? 'Applying fixes…' : `Apply ${autoFixableCount} auto-fixable fixes`}
             </button>
@@ -292,7 +292,7 @@ export function ImportErrorsTable({ importJobId }: ImportErrorsTableProps) {
           <button
             onClick={handleExportCSV}
             disabled={rows.length === 0}
-            className="text-xs px-3 py-1.5 border border-neutral-200 rounded-md hover:bg-neutral-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            className="text-xs px-3 py-1.5 border border-neutral-200 rounded-2xl hover:bg-neutral-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
             Export errors as CSV
           </button>
@@ -305,7 +305,7 @@ export function ImportErrorsTable({ importJobId }: ImportErrorsTableProps) {
       </p>
 
       {bulkFixFeedback && (
-        <div className="p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-700 flex items-center justify-between">
+        <div className="p-3 bg-green-50 border border-green-200 rounded-2xl text-sm text-green-700 flex items-center justify-between">
           <span>{bulkFixFeedback}</span>
           <button
             onClick={() => setBulkFixFeedback(null)}
@@ -317,7 +317,7 @@ export function ImportErrorsTable({ importJobId }: ImportErrorsTableProps) {
       )}
 
       {error && (
-        <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+        <div className="p-3 bg-red-50 border border-red-200 rounded-2xl text-sm text-red-700">
           {error}
         </div>
       )}
@@ -353,7 +353,7 @@ export function ImportErrorsTable({ importJobId }: ImportErrorsTableProps) {
                       key={`${row.id}-${idx}`}
                       className={`border-b border-neutral-50 ${
                         hasAutoFixable ? 'bg-azure/2' :
-                        e.severity === 'error' ? 'bg-red-50/30' : 'bg-yellow-50/30'
+                        e.severity === 'error' ? 'bg-red-50/30' : 'bg-sunset/15/30'
                       }`}
                     >
                       <td className="px-3 py-2 font-mono tabular-nums">{row.row_number}</td>
@@ -364,7 +364,7 @@ export function ImportErrorsTable({ importJobId }: ImportErrorsTableProps) {
                           className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${
                             e.severity === 'error'
                               ? 'bg-red-100 text-red-700'
-                              : 'bg-yellow-100 text-yellow-700'
+                              : 'bg-sunset/15 text-ink'
                           }`}
                         >
                           {e.severity}
@@ -446,14 +446,14 @@ export function ImportErrorsTable({ importJobId }: ImportErrorsTableProps) {
             <button
               onClick={() => setOffset(Math.max(0, offset - PAGE_SIZE))}
               disabled={offset === 0}
-              className="px-3 py-1.5 border border-neutral-200 rounded-md hover:bg-neutral-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              className="px-3 py-1.5 border border-neutral-200 rounded-2xl hover:bg-neutral-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             >
               Previous
             </button>
             <button
               onClick={() => setOffset(offset + PAGE_SIZE)}
               disabled={offset + PAGE_SIZE >= total}
-              className="px-3 py-1.5 border border-neutral-200 rounded-md hover:bg-neutral-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              className="px-3 py-1.5 border border-neutral-200 rounded-2xl hover:bg-neutral-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             >
               Next
             </button>

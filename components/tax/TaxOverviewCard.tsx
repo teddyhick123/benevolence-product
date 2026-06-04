@@ -54,12 +54,12 @@ export default function TaxOverviewCard({ portfolioId, taxYear }: TaxOverviewCar
 
   if (loading) {
     return (
-      <div className="border border-gray-200 rounded-lg p-6 animate-pulse">
-        <div className="h-6 bg-gray-200 rounded w-1/3 mb-4"></div>
+      <div className="border border-black/5 rounded-2xl p-6 animate-pulse">
+        <div className="h-6 bg-neutral-200 rounded w-1/3 mb-4"></div>
         <div className="space-y-3">
-          <div className="h-4 bg-gray-200 rounded w-full"></div>
-          <div className="h-4 bg-gray-200 rounded w-5/6"></div>
-          <div className="h-4 bg-gray-200 rounded w-4/6"></div>
+          <div className="h-4 bg-neutral-200 rounded w-full"></div>
+          <div className="h-4 bg-neutral-200 rounded w-5/6"></div>
+          <div className="h-4 bg-neutral-200 rounded w-4/6"></div>
         </div>
       </div>
     );
@@ -67,7 +67,7 @@ export default function TaxOverviewCard({ portfolioId, taxYear }: TaxOverviewCar
 
   if (error) {
     return (
-      <div className="border border-red-200 bg-red-50 rounded-lg p-6">
+      <div className="border border-red-200 bg-red-50 rounded-2xl p-6">
         <h3 className="text-lg font-semibold text-red-900 mb-2">Error Loading Tax Data</h3>
         <p className="text-sm text-red-700">{error}</p>
       </div>
@@ -84,16 +84,16 @@ export default function TaxOverviewCard({ portfolioId, taxYear }: TaxOverviewCar
   const getComplianceStatus = () => {
     if (!summary.complianceScore) return { label: 'Unknown', color: 'gray' };
     if (summary.complianceScore >= 80) return { label: 'Compliant', color: 'green' };
-    if (summary.complianceScore >= 50) return { label: 'Needs Attention', color: 'yellow' };
+    if (summary.complianceScore >= 50) return { label: 'Needs Attention', color: 'sunset' };
     return { label: 'Non-Compliant', color: 'red' };
   };
 
   const complianceStatus = getComplianceStatus();
 
   return (
-    <div className="border border-gray-200 rounded-lg p-6 hover:shadow-md transition-shadow">
+    <div className="border border-black/5 rounded-2xl p-6 hover:shadow-md transition-shadow">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-semibold text-gray-900">
+        <h3 className="text-lg font-semibold text-ink">
           {year} Tax Summary
         </h3>
         <Link
@@ -107,11 +107,11 @@ export default function TaxOverviewCard({ portfolioId, taxYear }: TaxOverviewCar
       <div className="space-y-4">
         {/* Total Contributions */}
         <div>
-          <div className="text-sm text-gray-600 mb-1">Total Contributions</div>
-          <div className="text-2xl font-bold text-gray-900">
+          <div className="text-sm text-neutral-600 mb-1">Total Contributions</div>
+          <div className="text-2xl font-bold text-ink">
             ${summary.totalContributions.toLocaleString()}
           </div>
-          <div className="text-xs text-gray-500 mt-1">
+          <div className="text-xs text-neutral-500 mt-1">
             {summary.contributionCount} {summary.contributionCount === 1 ? 'contribution' : 'contributions'}
           </div>
         </div>
@@ -119,12 +119,12 @@ export default function TaxOverviewCard({ portfolioId, taxYear }: TaxOverviewCar
         {/* Deductible Amount */}
         {summary.totalDeductible !== summary.totalContributions && (
           <div>
-            <div className="text-sm text-gray-600 mb-1">Deductible This Year</div>
-            <div className="text-xl font-semibold text-gray-900">
+            <div className="text-sm text-neutral-600 mb-1">Deductible This Year</div>
+            <div className="text-xl font-semibold text-ink">
               ${summary.totalDeductible.toLocaleString()}
             </div>
             {summary.totalContributions > summary.totalDeductible && (
-              <div className="text-xs text-amber-600 mt-1">
+              <div className="text-xs text-coral mt-1">
                 ${(summary.totalContributions - summary.totalDeductible).toLocaleString()} carryforward
               </div>
             )}
@@ -133,9 +133,9 @@ export default function TaxOverviewCard({ portfolioId, taxYear }: TaxOverviewCar
 
         {/* Carryforwards */}
         {carryforwardSummary && carryforwardSummary.totalAvailable > 0 && (
-          <div className="pt-3 border-t border-gray-200">
-            <div className="text-sm text-gray-600 mb-1">Available Carryforwards</div>
-            <div className="text-xl font-semibold text-gray-900">
+          <div className="pt-3 border-t border-black/5">
+            <div className="text-sm text-neutral-600 mb-1">Available Carryforwards</div>
+            <div className="text-xl font-semibold text-ink">
               ${carryforwardSummary.totalAvailable.toLocaleString()}
             </div>
             {carryforwardSummary.expiringSoon.length > 0 && (
@@ -148,25 +148,25 @@ export default function TaxOverviewCard({ portfolioId, taxYear }: TaxOverviewCar
 
         {/* Compliance Status */}
         {summary.complianceScore !== null && (
-          <div className="pt-3 border-t border-gray-200">
+          <div className="pt-3 border-t border-black/5">
             <div className="flex items-center justify-between">
-              <div className="text-sm text-gray-600">Documentation</div>
+              <div className="text-sm text-neutral-600">Documentation</div>
               <span
                 className={`text-xs font-medium px-2 py-1 rounded ${
                   complianceStatus.color === 'green'
                     ? 'bg-green-100 text-green-800'
-                    : complianceStatus.color === 'yellow'
-                    ? 'bg-yellow-100 text-yellow-800'
+                    : complianceStatus.color === 'sunset'
+                    ? 'bg-sunset/15 text-ink border border-sunset/30'
                     : complianceStatus.color === 'red'
                     ? 'bg-red-100 text-red-800'
-                    : 'bg-gray-100 text-gray-800'
+                    : 'bg-neutral-100 text-neutral-800'
                 }`}
               >
                 {complianceStatus.label}
               </span>
             </div>
             {summary.missingDocumentation > 0 && (
-              <div className="text-xs text-amber-600 mt-2">
+              <div className="text-xs text-coral mt-2">
                 {summary.missingDocumentation} {summary.missingDocumentation === 1 ? 'contribution needs' : 'contributions need'} documentation
               </div>
             )}
@@ -176,7 +176,7 @@ export default function TaxOverviewCard({ portfolioId, taxYear }: TaxOverviewCar
 
       {/* Call to Action */}
       {summary.contributionCount === 0 && (
-        <div className="mt-4 pt-4 border-t border-gray-200">
+        <div className="mt-4 pt-4 border-t border-black/5">
           <Link
             href={`/dashboard/tax?year=${year}`}
             className="inline-block text-sm text-azure hover:text-azure font-medium"

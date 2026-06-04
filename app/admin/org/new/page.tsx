@@ -52,13 +52,13 @@ export default function NewOrgPage() {
       <h1 className="text-2xl font-semibold">New Organization</h1>
 
       {error && (
-        <div className="card p-4 text-sm text-rose-700 bg-rose-50 border border-rose-200">{error}</div>
+        <div className="card p-4 text-sm text-red-700 bg-red-50 border border-red-200">{error}</div>
       )}
 
       <form onSubmit={onCreate} className="card p-4 space-y-4">
         <div className="grid gap-3">
           <label className="text-sm">
-            <div className="text-neutral-600 mb-1">Organization name <span className="text-rose-500">*</span></div>
+            <div className="text-neutral-600 mb-1">Organization name <span className="text-red-500">*</span></div>
             <input
               value={name}
               onChange={e => setName(e.target.value)}

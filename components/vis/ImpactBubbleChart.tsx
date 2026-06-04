@@ -113,7 +113,7 @@ export default function ImpactBubbleChart({ portfolioId, title, config }: Props)
 
   if (error) {
     return (
-      <div className="w-full p-6 rounded-lg border border-red-200 bg-red-50 text-red-700">
+      <div className="w-full p-6 rounded-2xl border border-red-200 bg-red-50 text-red-700">
         <p className="font-medium text-sm">Error loading bubble chart</p>
         <p className="text-xs mt-1">{error}</p>
       </div>
@@ -122,7 +122,7 @@ export default function ImpactBubbleChart({ portfolioId, title, config }: Props)
 
   if (data.length < minHoldings) {
     return (
-      <div className="w-full p-6 rounded-lg border border-neutral-200 bg-neutral-50 text-neutral-600">
+      <div className="w-full p-6 rounded-2xl border border-neutral-200 bg-neutral-50 text-neutral-600">
         <p className="text-sm">
           Need at least {minHoldings} holdings with data to show bubble chart.
         </p>
@@ -421,7 +421,7 @@ function BubbleChartD3({
       <svg ref={svgRef} className="w-full h-full" role="img" aria-label="Impact bubble chart" />
       <div
         ref={tooltipRef}
-        className="absolute pointer-events-none opacity-0 bg-white rounded-lg shadow-lg border border-neutral-200 p-3 text-sm transition-opacity"
+        className="absolute pointer-events-none opacity-0 bg-white rounded-2xl shadow-lg border border-neutral-200 p-3 text-sm transition-opacity"
         style={{ maxWidth: '250px' }}
       />
     </div>

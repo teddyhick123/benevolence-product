@@ -59,7 +59,7 @@ export default function TaxOptimizationEngine({
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="bg-white rounded-xl border border-neutral-200 p-6">
+      <div className="bg-white rounded-2xl border border-neutral-200 p-6">
         <h2 className="text-2xl font-bold text-neutral-900">Tax Optimization Engine</h2>
         <p className="text-sm text-neutral-600 mt-1">
           AI-powered advisor that analyzes your holdings and recommends optimal donation strategies
@@ -67,7 +67,7 @@ export default function TaxOptimizationEngine({
       </div>
 
       {/* Input Parameters */}
-      <div className="bg-white rounded-xl border border-neutral-200 p-6">
+      <div className="bg-white rounded-2xl border border-neutral-200 p-6">
         <h3 className="font-semibold text-neutral-900 mb-4">Optimization Parameters</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
@@ -81,7 +81,7 @@ export default function TaxOptimizationEngine({
                 value={donationGoal}
                 onChange={(e) => setDonationGoal(parseFloat(e.target.value) || 0)}
                 placeholder="500000"
-                className="w-full pl-7 pr-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                className="w-full pl-7 pr-3 py-2 border border-neutral-300 rounded-2xl focus:ring-2 focus:ring-azure/30 focus:border-azure"
               />
             </div>
             <p className="text-xs text-neutral-500 mt-1">
@@ -96,7 +96,7 @@ export default function TaxOptimizationEngine({
             <select
               value={timeHorizon}
               onChange={(e) => setTimeHorizon(parseInt(e.target.value))}
-              className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              className="w-full px-3 py-2 border border-neutral-300 rounded-2xl focus:ring-2 focus:ring-azure/30 focus:border-azure"
             >
               <option value="1">This year only</option>
               <option value="2">2 years</option>
@@ -114,7 +114,7 @@ export default function TaxOptimizationEngine({
           <button
             onClick={runOptimization}
             disabled={loading}
-            className="px-8 py-3 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg hover:opacity-90 transition-opacity font-medium shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-8 py-3 bg-gradient-to-r from-azure to-azure/80 text-white rounded-2xl hover:opacity-90 transition-opacity font-medium shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading ? 'Analyzing...' : 'Optimize My Strategy'}
           </button>
@@ -123,7 +123,7 @@ export default function TaxOptimizationEngine({
 
       {/* Error Display */}
       {error && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700">
+        <div className="bg-red-50 border border-red-200 rounded-2xl p-4 text-red-700">
           {error}
         </div>
       )}
@@ -132,13 +132,13 @@ export default function TaxOptimizationEngine({
       {results && (
         <div className="space-y-6">
           {/* Executive Summary */}
-          <div className="bg-gradient-to-br from-purple-50 to-indigo-50 border border-purple-200 rounded-xl p-6">
+          <div className="bg-gradient-to-br from-coral/10 to-azure/10 border border-coral/25 rounded-2xl p-6">
             <div className="flex items-start gap-3">
               <div className="flex-1">
-                <h3 className="text-lg font-semibold text-purple-900 mb-3">
+                <h3 className="text-lg font-semibold text-ink mb-3">
                   Optimization Summary
                 </h3>
-                <pre className="text-sm text-purple-800 whitespace-pre-wrap font-sans">
+                <pre className="text-sm text-coral whitespace-pre-wrap font-sans">
                   {results.summary}
                 </pre>
               </div>
@@ -147,7 +147,7 @@ export default function TaxOptimizationEngine({
 
           {/* Tax Situation Summary */}
           {results.tax_situation && (
-            <div className="bg-white rounded-xl border border-neutral-200 p-6">
+            <div className="bg-white rounded-2xl border border-neutral-200 p-6">
               <h3 className="font-semibold text-neutral-900 mb-4">Your Tax Situation</h3>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div>
@@ -216,11 +216,11 @@ function StrategyCard({ strategy }: { strategy: any }) {
   const getRankBadge = (rank: number) => {
     switch (rank) {
       case 1:
-        return { emoji: '#1', class: 'bg-yellow-100 text-yellow-800' };
+        return { emoji: '#1', class: 'bg-sunset/15 text-ink' };
       case 2:
-        return { emoji: '#2', class: 'bg-gray-100 text-gray-800' };
+        return { emoji: '#2', class: 'bg-neutral-100 text-neutral-800' };
       case 3:
-        return { emoji: '#3', class: 'bg-orange-100 text-orange-800' };
+        return { emoji: '#3', class: 'bg-coral/10 text-coral border border-coral/25' };
       default:
         return { emoji: `#${rank}`, class: 'bg-neutral-100 text-neutral-800' };
     }
@@ -229,7 +229,7 @@ function StrategyCard({ strategy }: { strategy: any }) {
   const badge = getRankBadge(strategy.rank);
 
   return (
-    <div className="bg-white rounded-xl border-2 border-neutral-200 hover:border-indigo-300 transition-colors">
+    <div className="bg-white rounded-2xl border-2 border-neutral-200 hover:border-azure/30 transition-colors">
       <button
         onClick={() => setExpanded(!expanded)}
         className="w-full p-6 text-left"
@@ -256,7 +256,7 @@ function StrategyCard({ strategy }: { strategy: any }) {
             <div className="flex items-center gap-2 mt-1">
               <div className="w-16 h-2 bg-neutral-200 rounded-full overflow-hidden">
                 <div
-                  className="h-full bg-indigo-600"
+                  className="h-full bg-azure"
                   style={{ width: `${strategy.confidence_score}%` }}
                 />
               </div>
@@ -267,7 +267,7 @@ function StrategyCard({ strategy }: { strategy: any }) {
           </div>
         </div>
 
-        <div className="mt-4 text-sm text-indigo-600">
+        <div className="mt-4 text-sm text-azure">
           {expanded ? '▼ Hide Details' : '▶ Show Details'}
         </div>
       </button>
@@ -280,7 +280,7 @@ function StrategyCard({ strategy }: { strategy: any }) {
             <ul className="space-y-1">
               {strategy.rationale.map((reason: string, idx: number) => (
                 <li key={idx} className="text-sm text-neutral-700 flex items-start gap-2">
-                  <span className="text-indigo-600 mt-0.5">•</span>
+                  <span className="text-azure mt-0.5">•</span>
                   <span>{reason}</span>
                 </li>
               ))}
@@ -289,14 +289,14 @@ function StrategyCard({ strategy }: { strategy: any }) {
 
           {/* Warnings */}
           {strategy.warnings && strategy.warnings.length > 0 && (
-            <div className="mb-4 bg-amber-50 border border-amber-200 rounded-lg p-3">
-              <h5 className="font-semibold text-amber-900 mb-2 flex items-center gap-2">
+            <div className="mb-4 bg-sunset/15 border border-sunset/30 rounded-2xl p-3">
+              <h5 className="font-semibold text-ink mb-2 flex items-center gap-2">
                 <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
                 <span>Considerations</span>
               </h5>
               <ul className="space-y-1">
                 {strategy.warnings.map((warning: string, idx: number) => (
-                  <li key={idx} className="text-sm text-amber-800">
+                  <li key={idx} className="text-sm text-ink">
                     {warning}
                   </li>
                 ))}
@@ -311,7 +311,7 @@ function StrategyCard({ strategy }: { strategy: any }) {
               {strategy.recommendations.map((rec: any, idx: number) => (
                 <div
                   key={idx}
-                  className="p-4 bg-neutral-50 rounded-lg border border-neutral-200"
+                  className="p-4 bg-neutral-50 rounded-2xl border border-neutral-200"
                 >
                   <div className="flex items-start justify-between mb-2">
                     <div className="flex-1">
@@ -338,7 +338,7 @@ function StrategyCard({ strategy }: { strategy: any }) {
                     {rec.tax_impact.carryforward > 0 && (
                       <div>
                         <p className="text-xs text-neutral-600">Carryforward</p>
-                        <p className="text-sm font-medium text-amber-600">
+                        <p className="text-sm font-medium text-coral">
                           {formatCurrency(rec.tax_impact.carryforward)}
                         </p>
                       </div>

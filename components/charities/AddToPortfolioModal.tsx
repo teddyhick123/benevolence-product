@@ -153,17 +153,17 @@ export default function AddToPortfolioModal({
       aria-labelledby="add-portfolio-modal-title"
       onKeyDown={handleDialogKeyDown}
     >
-      <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+      <div className="bg-white rounded-2xl shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200">
-          <h2 id="add-portfolio-modal-title" className="text-xl font-semibold text-gray-900">Add to Portfolio</h2>
+        <div className="flex items-center justify-between p-6 border-b border-black/5">
+          <h2 id="add-portfolio-modal-title" className="text-xl font-semibold text-ink">Add to Portfolio</h2>
           <button
             onClick={onClose}
-            className="p-1 hover:bg-gray-100 rounded-full transition-colors"
+            className="p-1 hover:bg-neutral-100 rounded-full transition-colors"
             disabled={isLoading}
             aria-label="Close"
           >
-            <X className="w-6 h-6 text-gray-600" />
+            <X className="w-6 h-6 text-neutral-600" />
           </button>
         </div>
 
@@ -191,14 +191,14 @@ export default function AddToPortfolioModal({
         {!success && (
           <form onSubmit={handleSubmit} className="p-6 space-y-6">
             {/* Charity Info */}
-            <div className="bg-gray-50 p-4 rounded-lg">
-              <h3 className="font-semibold text-gray-900">{charityName}</h3>
-              <p className="text-sm text-gray-600 mt-1">EIN: {charityEin}</p>
+            <div className="bg-neutral-50 p-4 rounded-2xl">
+              <h3 className="font-semibold text-ink">{charityName}</h3>
+              <p className="text-sm text-neutral-600 mt-1">EIN: {charityEin}</p>
             </div>
 
             {/* Portfolio Selection */}
             <div>
-              <label htmlFor="portfolio" className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="portfolio" className="block text-sm font-medium text-neutral-700 mb-2">
                 Select Portfolio <span className="text-red-500">*</span>
               </label>
               {portfolios.length > 0 ? (
@@ -207,7 +207,7 @@ export default function AddToPortfolioModal({
                   value={selectedPortfolioId}
                   onChange={(e) => setSelectedPortfolioId(e.target.value)}
                   required
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-azure focus:border-azure"
+                  className="w-full px-3 py-2 border border-black/10 rounded-2xl focus:ring-azure/30 focus:border-azure"
                 >
                   {portfolios.map((portfolio) => (
                     <option key={portfolio.id} value={portfolio.id}>
@@ -216,13 +216,13 @@ export default function AddToPortfolioModal({
                   ))}
                 </select>
               ) : (
-                <div className="text-sm text-gray-500 italic">No portfolios available. Please create a portfolio first.</div>
+                <div className="text-sm text-neutral-500 italic">No portfolios available. Please create a portfolio first.</div>
               )}
             </div>
 
             {/* Note */}
             <div>
-              <label htmlFor="note" className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="note" className="block text-sm font-medium text-neutral-700 mb-2">
                 Recommendation Note
               </label>
               <textarea
@@ -231,23 +231,23 @@ export default function AddToPortfolioModal({
                 onChange={(e) => setNote(e.target.value)}
                 rows={3}
                 placeholder="Why are you recommending this charity? Any specific programs or initiatives of interest?"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-3 py-2 border border-black/10 rounded-2xl focus:ring-azure/30 focus:border-azure"
               />
-              <p className="mt-1 text-sm text-gray-500">Optional: Add context for your team</p>
+              <p className="mt-1 text-sm text-neutral-500">Optional: Add context for your team</p>
             </div>
 
             {/* Investment Range */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-neutral-700 mb-2">
                 Suggested Investment Range (Optional)
               </label>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label htmlFor="minInvestment" className="block text-xs text-gray-500 mb-1">
+                  <label htmlFor="minInvestment" className="block text-xs text-neutral-500 mb-1">
                     Minimum
                   </label>
                   <div className="relative">
-                    <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400" />
                     <input
                       type="number"
                       id="minInvestment"
@@ -256,16 +256,16 @@ export default function AddToPortfolioModal({
                       placeholder="10000"
                       min="0"
                       step="1000"
-                      className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                      className="w-full pl-10 pr-3 py-2 border border-black/10 rounded-2xl focus:ring-azure/30 focus:border-azure"
                     />
                   </div>
                 </div>
                 <div>
-                  <label htmlFor="maxInvestment" className="block text-xs text-gray-500 mb-1">
+                  <label htmlFor="maxInvestment" className="block text-xs text-neutral-500 mb-1">
                     Maximum
                   </label>
                   <div className="relative">
-                    <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400" />
                     <input
                       type="number"
                       id="maxInvestment"
@@ -274,7 +274,7 @@ export default function AddToPortfolioModal({
                       placeholder="50000"
                       min="0"
                       step="1000"
-                      className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                      className="w-full pl-10 pr-3 py-2 border border-black/10 rounded-2xl focus:ring-azure/30 focus:border-azure"
                     />
                   </div>
                 </div>
@@ -282,19 +282,19 @@ export default function AddToPortfolioModal({
             </div>
 
             {/* Actions */}
-            <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
+            <div className="flex justify-end gap-3 pt-4 border-t border-black/5">
               <button
                 type="button"
                 onClick={onClose}
                 disabled={isLoading}
-                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors disabled:opacity-50"
+                className="px-4 py-2 border border-black/10 text-neutral-700 rounded-2xl hover:bg-neutral-50 transition-colors disabled:opacity-50"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={isLoading || portfolios.length === 0}
-                className="px-4 py-2 bg-azure text-white rounded-md hover:bg-azure/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-4 py-2 bg-azure text-white rounded-2xl hover:bg-azure/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isLoading ? 'Adding...' : 'Add to Portfolio'}
               </button>

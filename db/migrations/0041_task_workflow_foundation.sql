@@ -261,6 +261,81 @@ CREATE TRIGGER trg_grant_payments_updated_at
   BEFORE UPDATE ON public.grant_payments
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 
+CREATE TABLE IF NOT EXISTS public.qualifying_distributions (
+  id                  uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  created_at          timestamptz NOT NULL DEFAULT now(),
+  updated_at          timestamptz NOT NULL DEFAULT now(),
+
+  portfolio_id        uuid NOT NULL REFERENCES public.portfolios(id) ON DELETE CASCADE,
+  grant_id            uuid REFERENCES public.grants(id) ON DELETE SET NULL,
+  grant_payment_id    uuid REFERENCES public.grant_payments(id) ON DELETE SET NULL,
+  tax_year            integer NOT NULL,
+  distribution_date   date NOT NULL,
+  qualifying_amount   numeric(15,2) NOT NULL CHECK (qualifying_amount > 0),
+  distribution_type   text CHECK (distribution_type IN (
+                         'grant', 'program_expense', 'asset_purchase',
+                         'set_aside', 'other'
+                       )),
+  description         text,
+  notes               text
+);
+
+CREATE INDEX IF NOT EXISTS idx_qualifying_distributions_portfolio_id
+  ON public.qualifying_distributions (portfolio_id);
+CREATE INDEX IF NOT EXISTS idx_qualifying_distributions_tax_year
+  ON public.qualifying_distributions (portfolio_id, tax_year);
+CREATE INDEX IF NOT EXISTS idx_qualifying_distributions_grant_payment
+  ON public.qualifying_distributions (grant_payment_id)
+  WHERE grant_payment_id IS NOT NULL;
+
+DROP TRIGGER IF EXISTS trg_qualifying_distributions_updated_at ON public.qualifying_distributions;
+CREATE TRIGGER trg_qualifying_distributions_updated_at
+  BEFORE UPDATE ON public.qualifying_distributions
+  FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+
+CREATE TABLE IF NOT EXISTS public.expenditure_responsibility_grants (
+  id                          uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  created_at                  timestamptz NOT NULL DEFAULT now(),
+  updated_at                  timestamptz NOT NULL DEFAULT now(),
+
+  portfolio_id                uuid NOT NULL REFERENCES public.portfolios(id) ON DELETE CASCADE,
+  grant_id                    uuid NOT NULL UNIQUE REFERENCES public.grants(id) ON DELETE CASCADE,
+
+  grantee_ein                 text,
+  grantee_is_public_charity   boolean NOT NULL DEFAULT false,
+  grantee_501c3_verified      boolean NOT NULL DEFAULT false,
+  grantee_501c3_verified_at   date,
+
+  er_agreement_signed_date    date,
+  er_agreement_url            text,
+
+  er_reports_required         boolean NOT NULL DEFAULT true,
+  er_report_frequency         text CHECK (er_report_frequency IN ('monthly', 'quarterly', 'semi_annual', 'annual')),
+  er_reports_required_count   integer NOT NULL DEFAULT 0,
+  er_reports_received_count   integer NOT NULL DEFAULT 0,
+
+  terminal_report_required    boolean NOT NULL DEFAULT true,
+  terminal_report_received    boolean NOT NULL DEFAULT false,
+  terminal_report_date        date,
+
+  er_status                   text NOT NULL DEFAULT 'pending_agreement'
+                              CHECK (er_status IN (
+                                'pending_agreement', 'active', 'reporting_overdue',
+                                'completed', 'terminated'
+                              )),
+  notes                       text
+);
+
+CREATE INDEX IF NOT EXISTS idx_er_grants_portfolio_id
+  ON public.expenditure_responsibility_grants (portfolio_id);
+CREATE INDEX IF NOT EXISTS idx_er_grants_status
+  ON public.expenditure_responsibility_grants (portfolio_id, er_status);
+
+DROP TRIGGER IF EXISTS trg_er_grants_updated_at ON public.expenditure_responsibility_grants;
+CREATE TRIGGER trg_er_grants_updated_at
+  BEFORE UPDATE ON public.expenditure_responsibility_grants
+  FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+
 CREATE TABLE IF NOT EXISTS public.grant_budget_items (
   id               uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
   created_at       timestamptz NOT NULL DEFAULT now(),
@@ -723,6 +798,8 @@ CREATE POLICY "grant_reports: service role can manage"
   ON public.grant_reports FOR ALL TO service_role USING (true) WITH CHECK (true);
 
 ALTER TABLE public.grant_payments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.qualifying_distributions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.expenditure_responsibility_grants ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.grant_budget_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.grant_communications ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.grant_documents ENABLE ROW LEVEL SECURITY;
@@ -741,6 +818,37 @@ CREATE POLICY "grant_payments: org admins can manage"
 DROP POLICY IF EXISTS "grant_payments: service role can manage" ON public.grant_payments;
 CREATE POLICY "grant_payments: service role can manage"
   ON public.grant_payments FOR ALL TO service_role USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "qualifying_distributions: portfolio members can view" ON public.qualifying_distributions;
+CREATE POLICY "qualifying_distributions: portfolio members can view"
+  ON public.qualifying_distributions FOR SELECT TO authenticated
+  USING (public.can_view_portfolio(portfolio_id));
+DROP POLICY IF EXISTS "qualifying_distributions: portfolio editors can manage" ON public.qualifying_distributions;
+CREATE POLICY "qualifying_distributions: portfolio editors can manage"
+  ON public.qualifying_distributions FOR ALL TO authenticated
+  USING (public.can_edit_portfolio(portfolio_id))
+  WITH CHECK (public.can_edit_portfolio(portfolio_id));
+DROP POLICY IF EXISTS "qualifying_distributions: service role can manage" ON public.qualifying_distributions;
+CREATE POLICY "qualifying_distributions: service role can manage"
+  ON public.qualifying_distributions FOR ALL TO service_role USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "er_grants: portfolio members can view" ON public.expenditure_responsibility_grants;
+CREATE POLICY "er_grants: portfolio members can view"
+  ON public.expenditure_responsibility_grants FOR SELECT TO authenticated
+  USING (public.can_view_portfolio(portfolio_id));
+DROP POLICY IF EXISTS "er_grants: portfolio editors can manage" ON public.expenditure_responsibility_grants;
+CREATE POLICY "er_grants: portfolio editors can manage"
+  ON public.expenditure_responsibility_grants FOR ALL TO authenticated
+  USING (public.can_edit_portfolio(portfolio_id))
+  WITH CHECK (public.can_edit_portfolio(portfolio_id));
+DROP POLICY IF EXISTS "er_grants: service role can manage" ON public.expenditure_responsibility_grants;
+CREATE POLICY "er_grants: service role can manage"
+  ON public.expenditure_responsibility_grants FOR ALL TO service_role USING (true) WITH CHECK (true);
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.qualifying_distributions TO authenticated;
+GRANT ALL ON public.qualifying_distributions TO service_role;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.expenditure_responsibility_grants TO authenticated;
+GRANT ALL ON public.expenditure_responsibility_grants TO service_role;
 
 DROP POLICY IF EXISTS "grant_budget_items: org members can view" ON public.grant_budget_items;
 CREATE POLICY "grant_budget_items: org members can view"
@@ -1068,6 +1176,32 @@ LEFT JOIN (
   WHERE wi.grant_id IS NOT NULL
   GROUP BY wi.grant_id
 ) wf ON wf.grant_id = vg.grant_id;
+
+CREATE OR REPLACE VIEW public.v_er_grant_compliance
+  WITH (security_invoker = true)
+AS
+SELECT
+  er.portfolio_id,
+  er.created_at,
+  er.id,
+  er.grant_id,
+  h.name AS grant_name,
+  er.grantee_ein,
+  er.grantee_is_public_charity,
+  er.grantee_501c3_verified,
+  er.er_agreement_signed_date,
+  er.er_reports_required_count,
+  er.er_reports_received_count,
+  (er.er_reports_required_count - er.er_reports_received_count) AS reports_outstanding,
+  er.terminal_report_required,
+  er.terminal_report_received,
+  er.er_status,
+  er.notes
+FROM public.expenditure_responsibility_grants er
+JOIN public.grants g ON g.id = er.grant_id
+JOIN public.holdings h ON h.id = g.holding_id;
+
+GRANT SELECT ON public.v_er_grant_compliance TO authenticated, service_role;
 
 CREATE OR REPLACE FUNCTION public.get_upcoming_deadlines(
   p_portfolio_id uuid,

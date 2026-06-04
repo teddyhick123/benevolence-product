@@ -13,19 +13,19 @@ const STATUS_CONFIG: Record<
   },
   processing: {
     label: 'Processing',
-    classes: 'bg-blue-50 text-blue-700 border-blue-200',
+    classes: 'bg-azure/10 text-azure-deep border-azure/20',
   },
   needs_review: {
     label: 'Needs Review',
-    classes: 'bg-yellow-50 text-yellow-700 border-yellow-200',
+    classes: 'bg-sunset/15 text-ink border-sunset/30',
   },
   approved: {
     label: 'Approved',
-    classes: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+    classes: 'bg-green-50 text-green-700 border-green-200',
   },
   committing: {
     label: 'Committing',
-    classes: 'bg-blue-50 text-blue-700 border-blue-200',
+    classes: 'bg-azure/10 text-azure-deep border-azure/20',
   },
   completed: {
     label: 'Completed',
@@ -41,7 +41,7 @@ const STATUS_CONFIG: Record<
   },
   rolled_back: {
     label: 'Rolled Back',
-    classes: 'bg-orange-50 text-orange-700 border-orange-200',
+    classes: 'bg-coral/10 text-coral border-coral/25',
   },
 };
 

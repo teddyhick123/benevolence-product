@@ -28,7 +28,7 @@ const WIDGET_TYPES: WidgetType[] = [
     name: 'KPI Trend Line',
     description: 'Track a metric over time with a line chart',
     icon: (
-      <svg className="w-8 h-8 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <svg className="w-8 h-8 text-azure" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z" />
       </svg>
     ),
@@ -39,7 +39,7 @@ const WIDGET_TYPES: WidgetType[] = [
     name: 'Radial Progress',
     description: 'Beautiful circular progress indicator',
     icon: (
-      <svg className="w-8 h-8 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
       </svg>
     ),
@@ -50,7 +50,7 @@ const WIDGET_TYPES: WidgetType[] = [
     name: 'People Helped',
     description: 'Visualize impact with people icons',
     icon: (
-      <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <svg className="w-8 h-8 text-azure" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
       </svg>
     ),
@@ -63,7 +63,7 @@ const WIDGET_TYPES: WidgetType[] = [
     name: 'Small Multiples',
     description: 'Compare one metric across all holdings with sparklines',
     icon: (
-      <svg className="w-8 h-8 text-violet-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <svg className="w-8 h-8 text-azure" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 5a1 1 0 011-1h4a1 1 0 011 1v7a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM14 5a1 1 0 011-1h4a1 1 0 011 1v7a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM4 16a1 1 0 011-1h4a1 1 0 011 1v3a1 1 0 01-1 1H5a1 1 0 01-1-1v-3zM14 16a1 1 0 011-1h4a1 1 0 011 1v3a1 1 0 01-1 1h-4a1 1 0 01-1-1v-3z" />
       </svg>
     ),
@@ -74,7 +74,7 @@ const WIDGET_TYPES: WidgetType[] = [
     name: 'Performance Heat Map',
     description: 'Color-coded grid showing metrics over time or by holding',
     icon: (
-      <svg className="w-8 h-8 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <svg className="w-8 h-8 text-coral" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 5h16M4 9h16M4 13h16M4 17h16" />
       </svg>
     ),
@@ -120,7 +120,7 @@ const WIDGET_TYPES: WidgetType[] = [
     name: 'Bubble Chart',
     description: 'Multi-dimensional view with size, color, and position',
     icon: (
-      <svg className="w-8 h-8 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <svg className="w-8 h-8 text-coral" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 12a5 5 0 1110 0 5 5 0 01-10 0zm12-5a3 3 0 11-6 0 3 3 0 016 0z" />
       </svg>
     ),
@@ -133,7 +133,7 @@ const WIDGET_TYPES: WidgetType[] = [
     name: 'Holdings Breakdown',
     description: 'Pie chart of portfolio allocation',
     icon: (
-      <svg className="w-8 h-8 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <svg className="w-8 h-8 text-coral" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z" />
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z" />
       </svg>
@@ -323,13 +323,13 @@ function SelectWidgetType({ onSelect }: { onSelect: (typeId: string) => void }) 
                 <button
                   key={widget.id}
                   onClick={() => onSelect(widget.id)}
-                  className="group relative flex flex-col items-start p-5 rounded-2xl border-2 border-neutral-200 bg-white hover:border-indigo-500 hover:shadow-lg transition-all text-left"
+                  className="group relative flex flex-col items-start p-5 rounded-2xl border-2 border-neutral-200 bg-white hover:border-azure hover:shadow-lg transition-all text-left"
                 >
                   <div className="mb-3">{widget.icon}</div>
                   <h4 className="text-base font-semibold text-neutral-900 mb-1">{widget.name}</h4>
                   <p className="text-sm text-neutral-600 leading-relaxed">{widget.description}</p>
                   <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <svg className="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-5 h-5 text-azure" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                     </svg>
                   </div>
@@ -426,14 +426,14 @@ function ConfigureWidget({
       )}
 
       {error && (
-        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-2xl text-sm text-red-700">
           {error}
         </div>
       )}
 
       {isLoading ? (
         <div className="bg-neutral-50 border border-neutral-200 rounded-2xl p-8 text-center">
-          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mb-4"></div>
+          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-azure mb-4"></div>
           <p className="text-neutral-600">Creating widget...</p>
         </div>
       ) : (
@@ -551,7 +551,7 @@ function WidgetConfigForm({
             </p>
             <button
               onClick={onCancel}
-              className="px-6 py-2 bg-neutral-200 text-neutral-700 rounded-lg hover:bg-neutral-300 transition-colors"
+              className="px-6 py-2 bg-neutral-200 text-neutral-700 rounded-2xl hover:bg-neutral-300 transition-colors"
             >
               {editing ? 'Close' : 'Go Back'}
             </button>

@@ -17,21 +17,21 @@ export default function DonorsPage() {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Donors</h1>
-          <p className="text-sm text-gray-500 mt-1">
+          <h1 className="text-2xl font-bold text-ink">Donors</h1>
+          <p className="text-sm text-neutral-500 mt-1">
             Manage your donors and track contributions
           </p>
         </div>
         <div className="flex items-center gap-3">
           <a
             href={`/org/${organizationId}/donors/new`}
-            className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
+            className="px-4 py-2 text-neutral-700 border border-black/10 rounded-2xl hover:bg-neutral-50"
           >
             Add Donor
           </a>
           <button
             onClick={() => setShowContributionForm(true)}
-            className="px-4 py-2 bg-azure text-white rounded-lg hover:bg-azure/90"
+            className="px-4 py-2 bg-azure text-white rounded-2xl hover:bg-azure/90"
           >
             Log Contribution
           </button>
@@ -42,20 +42,20 @@ export default function DonorsPage() {
       <div className="flex items-center gap-2 mb-6">
         <button
           onClick={() => setView('dashboard')}
-          className={`px-4 py-2 text-sm font-medium rounded-lg ${
+          className={`px-4 py-2 text-sm font-medium rounded-2xl ${
             view === 'dashboard'
               ? 'bg-azure text-white'
-              : 'text-gray-600 hover:bg-gray-100'
+              : 'text-neutral-600 hover:bg-neutral-100'
           }`}
         >
           Dashboard
         </button>
         <button
           onClick={() => setView('list')}
-          className={`px-4 py-2 text-sm font-medium rounded-lg ${
+          className={`px-4 py-2 text-sm font-medium rounded-2xl ${
             view === 'list'
               ? 'bg-azure text-white'
-              : 'text-gray-600 hover:bg-gray-100'
+              : 'text-neutral-600 hover:bg-neutral-100'
           }`}
         >
           All Donors
@@ -72,7 +72,7 @@ export default function DonorsPage() {
       {/* Contribution Form Modal */}
       {showContributionForm && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <div className="p-6 border-b">
               <h2 className="text-xl font-semibold">Log Contribution</h2>
             </div>

@@ -136,17 +136,17 @@ export default function HoldingsImporter({
 
   if (!expanded) {
     return (
-      <div className="border border-gray-200 rounded-lg p-6">
+      <div className="border border-black/5 rounded-2xl p-6">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-xl font-bold text-gray-900">Import from Holdings</h2>
-            <p className="text-sm text-gray-600 mt-1">
+            <h2 className="text-xl font-bold text-ink">Import from Holdings</h2>
+            <p className="text-sm text-neutral-600 mt-1">
               Add existing holdings as tax contributions
             </p>
           </div>
           <button
             onClick={() => setExpanded(true)}
-            className="px-4 py-2 bg-azure text-white rounded-md hover:opacity-90 font-medium text-sm"
+            className="px-4 py-2 bg-azure text-white rounded-2xl hover:opacity-90 font-medium text-sm"
           >
             Show Holdings
           </button>
@@ -157,13 +157,13 @@ export default function HoldingsImporter({
 
   if (loading) {
     return (
-      <div className="border border-gray-200 rounded-lg p-6">
+      <div className="border border-black/5 rounded-2xl p-6">
         <div className="animate-pulse space-y-3">
-          <div className="h-6 bg-gray-200 rounded w-1/3"></div>
-          <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+          <div className="h-6 bg-neutral-200 rounded w-1/3"></div>
+          <div className="h-4 bg-neutral-200 rounded w-1/2"></div>
           <div className="space-y-2">
             {[1, 2, 3].map((i) => (
-              <div key={i} className="h-16 bg-gray-100 rounded"></div>
+              <div key={i} className="h-16 bg-neutral-100 rounded"></div>
             ))}
           </div>
         </div>
@@ -173,17 +173,17 @@ export default function HoldingsImporter({
 
   if (holdings.length === 0) {
     return (
-      <div className="border border-gray-200 rounded-lg p-6">
+      <div className="border border-black/5 rounded-2xl p-6">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-bold text-gray-900">Import from Holdings</h2>
+          <h2 className="text-xl font-bold text-ink">Import from Holdings</h2>
           <button
             onClick={() => setExpanded(false)}
-            className="text-sm text-gray-600 hover:text-gray-900"
+            className="text-sm text-neutral-600 hover:text-ink"
           >
             Hide
           </button>
         </div>
-        <p className="text-gray-600">No holdings found in your portfolio.</p>
+        <p className="text-neutral-600">No holdings found in your portfolio.</p>
       </div>
     );
   }
@@ -191,13 +191,13 @@ export default function HoldingsImporter({
   const notImportedCount = holdings.filter((h) => !imported.has(h.id)).length;
 
   return (
-    <div className="border border-gray-200 rounded-lg">
+    <div className="border border-black/5 rounded-2xl">
       {/* Header */}
-      <div className="px-6 py-4 border-b border-gray-200">
+      <div className="px-6 py-4 border-b border-black/5">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-xl font-bold text-gray-900">Import from Holdings</h2>
-            <p className="text-sm text-gray-600 mt-1">
+            <h2 className="text-xl font-bold text-ink">Import from Holdings</h2>
+            <p className="text-sm text-neutral-600 mt-1">
               {holdings.length} holdings • {imported.size} already imported
             </p>
           </div>
@@ -206,14 +206,14 @@ export default function HoldingsImporter({
               <button
                 onClick={handleImportAll}
                 disabled={importing.size > 0}
-                className="px-4 py-2 bg-azure text-white rounded-md hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed font-medium text-sm"
+                className="px-4 py-2 bg-azure text-white rounded-2xl hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed font-medium text-sm"
               >
                 Import All ({notImportedCount})
               </button>
             )}
             <button
               onClick={() => setExpanded(false)}
-              className="text-sm text-gray-600 hover:text-gray-900"
+              className="text-sm text-neutral-600 hover:text-ink"
             >
               Hide
             </button>
@@ -228,7 +228,7 @@ export default function HoldingsImporter({
       )}
 
       {/* Holdings List */}
-      <div className="divide-y divide-gray-200 max-h-96 overflow-y-auto">
+      <div className="divide-y divide-black/5 max-h-96 overflow-y-auto">
         {holdings.map((holding) => {
           const isImporting = importing.has(holding.id);
           const isImported = imported.has(holding.id);
@@ -236,12 +236,12 @@ export default function HoldingsImporter({
           return (
             <div
               key={holding.id}
-              className={`px-6 py-4 ${isImported ? 'bg-gray-50' : 'hover:bg-gray-50'} transition-colors`}
+              className={`px-6 py-4 ${isImported ? 'bg-neutral-50' : 'hover:bg-neutral-50'} transition-colors`}
             >
               <div className="flex items-start justify-between">
                 <div className="flex-1">
                   <div className="flex items-center gap-3">
-                    <h3 className="font-semibold text-gray-900">{holding.name}</h3>
+                    <h3 className="font-semibold text-ink">{holding.name}</h3>
                     {isImported && (
                       <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-green-100 text-green-800">
                         ✓ Imported
@@ -252,14 +252,14 @@ export default function HoldingsImporter({
                         holding.status === 'Active'
                           ? 'bg-azure/10 text-azure'
                           : holding.status === 'Exited'
-                          ? 'bg-gray-100 text-gray-800'
-                          : 'bg-yellow-100 text-yellow-800'
+                          ? 'bg-neutral-100 text-neutral-800'
+                          : 'bg-sunset/15 text-ink'
                       }`}
                     >
                       {holding.status}
                     </span>
                   </div>
-                  <div className="mt-2 flex items-center gap-4 text-sm text-gray-600">
+                  <div className="mt-2 flex items-center gap-4 text-sm text-neutral-600">
                     {holding.asset_type && (
                       <>
                         <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-neutral-100 text-xs">
@@ -277,7 +277,7 @@ export default function HoldingsImporter({
                     {holding.country && <span>{holding.country}</span>}
                   </div>
                   {holding.funds_allocated !== null && (
-                    <div className="mt-1 text-lg font-semibold text-gray-900">
+                    <div className="mt-1 text-lg font-semibold text-ink">
                       ${holding.funds_allocated.toLocaleString()}
                     </div>
                   )}
@@ -291,7 +291,7 @@ export default function HoldingsImporter({
                     <button
                       onClick={() => handleImportHolding(holding)}
                       disabled={isImporting}
-                      className="px-4 py-2 bg-azure text-white rounded-md hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed font-medium text-sm"
+                      className="px-4 py-2 bg-azure text-white rounded-2xl hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed font-medium text-sm"
                     >
                       {isImporting ? 'Importing...' : 'Add to Tax'}
                     </button>

@@ -209,6 +209,76 @@ CREATE INDEX idx_import_audit_log_job_id ON import_audit_log (import_job_id, cre
 CREATE INDEX idx_import_audit_log_table_record ON import_audit_log (table_name, record_id);
 
 -- ---------------------------------------------------------------------------
+-- import_ai_suggestions — per-field AI suggestions during import review
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS import_ai_suggestions (
+  id                uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  created_at        timestamptz NOT NULL DEFAULT now(),
+  updated_at        timestamptz NOT NULL DEFAULT now(),
+
+  import_job_id     uuid NOT NULL REFERENCES import_jobs(id) ON DELETE CASCADE,
+  staging_table     text NOT NULL,   -- e.g. 'staging_import_holdings'
+  staging_row_id    uuid NOT NULL,
+  field             text NOT NULL,
+
+  suggestion_type   text NOT NULL
+                    CHECK (suggestion_type IN (
+                      'fill_missing', 'fix_format', 'fix_value',
+                      'map_enum', 'deduplicate', 'other'
+                    )),
+  confidence        numeric(4,3) CHECK (confidence BETWEEN 0 AND 1),
+  explanation       text,
+  proposed_value    text,
+  auto_fixable      boolean NOT NULL DEFAULT false,
+  bulk_applicable   boolean NOT NULL DEFAULT false,
+  bulk_condition    jsonb,
+
+  status            text NOT NULL DEFAULT 'pending'
+                    CHECK (status IN ('pending', 'accepted', 'rejected', 'applied')),
+
+  UNIQUE (staging_row_id, field)
+);
+
+CREATE INDEX idx_import_ai_suggestions_job_id ON import_ai_suggestions (import_job_id);
+CREATE INDEX idx_import_ai_suggestions_status ON import_ai_suggestions (import_job_id, status);
+
+CREATE TRIGGER trg_import_ai_suggestions_updated_at
+  BEFORE UPDATE ON import_ai_suggestions
+  FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+-- ---------------------------------------------------------------------------
+-- mark_stale_import_jobs() — fail jobs stuck in active states >30 min
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION mark_stale_import_jobs(
+  p_stale_threshold_minutes integer DEFAULT 30
+)
+RETURNS integer
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  updated_count integer;
+BEGIN
+  UPDATE import_jobs
+  SET
+    status = 'failed',
+    updated_at = now(),
+    error_message = COALESCE(
+      error_message,
+      'Job marked failed by mark_stale_import_jobs: no activity for '
+        || p_stale_threshold_minutes || ' minutes'
+    )
+  WHERE status IN ('pending', 'processing', 'committing')
+    AND updated_at < (now() - (p_stale_threshold_minutes || ' minutes')::interval);
+
+  GET DIAGNOSTICS updated_count = ROW_COUNT;
+  RETURN updated_count;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION mark_stale_import_jobs(integer) TO service_role;
+
+-- ---------------------------------------------------------------------------
 -- Add FK back-references from earlier tables
 -- ---------------------------------------------------------------------------
 
@@ -258,6 +328,29 @@ CREATE POLICY "import_jobs: org admins can manage"
 
 CREATE POLICY "import_jobs: service role full access"
   ON import_jobs FOR ALL TO service_role
+  USING (true) WITH CHECK (true);
+
+ALTER TABLE import_ai_suggestions ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "import_ai_suggestions: org admins can manage"
+  ON import_ai_suggestions FOR ALL TO authenticated
+  USING (
+    EXISTS (
+      SELECT 1 FROM import_jobs ij
+      WHERE ij.id = import_job_id
+        AND is_org_admin(ij.org_id)
+    )
+  )
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM import_jobs ij
+      WHERE ij.id = import_job_id
+        AND is_org_admin(ij.org_id)
+    )
+  );
+
+CREATE POLICY "import_ai_suggestions: service role full access"
+  ON import_ai_suggestions FOR ALL TO service_role
   USING (true) WITH CHECK (true);
 
 ALTER TABLE staging_import_donors ENABLE ROW LEVEL SECURITY;
@@ -323,6 +416,9 @@ GRANT ALL ON import_mapping_profiles TO service_role;
 GRANT SELECT, INSERT, UPDATE, DELETE ON import_jobs TO authenticated;
 GRANT ALL ON import_jobs TO service_role;
 
+GRANT SELECT, INSERT, UPDATE, DELETE ON import_ai_suggestions TO authenticated;
+GRANT ALL ON import_ai_suggestions TO service_role;
+
 GRANT SELECT, INSERT, UPDATE, DELETE ON staging_import_donors TO authenticated;
 GRANT ALL ON staging_import_donors TO service_role;
 
@@ -340,3 +436,59 @@ GRANT ALL ON staging_import_metrics TO service_role;
 
 GRANT SELECT ON import_audit_log TO authenticated;
 GRANT ALL ON import_audit_log TO service_role;
+
+-- ---------------------------------------------------------------------------
+-- imports storage bucket — private bucket for import file uploads.
+-- Wrapped for local databases that do not install Supabase Storage.
+-- ---------------------------------------------------------------------------
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.schemata WHERE schema_name = 'storage') THEN
+    INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+    VALUES (
+      'imports',
+      'imports',
+      false,
+      52428800,
+      ARRAY[
+        'text/csv',
+        'application/vnd.ms-excel',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'application/json',
+        'text/plain'
+      ]
+    )
+    ON CONFLICT (id) DO NOTHING;
+
+    DROP POLICY IF EXISTS "imports bucket: org admins can upload" ON storage.objects;
+    CREATE POLICY "imports bucket: org admins can upload"
+      ON storage.objects FOR INSERT TO authenticated
+      WITH CHECK (
+        bucket_id = 'imports'
+        AND public.is_org_admin((storage.foldername(name))[1]::uuid)
+      );
+
+    DROP POLICY IF EXISTS "imports bucket: org admins can read" ON storage.objects;
+    CREATE POLICY "imports bucket: org admins can read"
+      ON storage.objects FOR SELECT TO authenticated
+      USING (
+        bucket_id = 'imports'
+        AND public.is_org_admin((storage.foldername(name))[1]::uuid)
+      );
+
+    DROP POLICY IF EXISTS "imports bucket: org admins can delete" ON storage.objects;
+    CREATE POLICY "imports bucket: org admins can delete"
+      ON storage.objects FOR DELETE TO authenticated
+      USING (
+        bucket_id = 'imports'
+        AND public.is_org_admin((storage.foldername(name))[1]::uuid)
+      );
+
+    DROP POLICY IF EXISTS "imports bucket: service role full access" ON storage.objects;
+    CREATE POLICY "imports bucket: service role full access"
+      ON storage.objects FOR ALL TO service_role
+      USING (bucket_id = 'imports')
+      WITH CHECK (bucket_id = 'imports');
+  END IF;
+END;
+$$;

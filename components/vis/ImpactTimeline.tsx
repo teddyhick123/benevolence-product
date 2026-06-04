@@ -100,7 +100,7 @@ export default function ImpactTimeline({ portfolioId, title, config }: Props) {
 
   if (error) {
     return (
-      <div className="w-full p-6 rounded-lg border border-red-200 bg-red-50 text-red-700">
+      <div className="w-full p-6 rounded-2xl border border-red-200 bg-red-50 text-red-700">
         <p className="font-medium text-sm">Error loading timeline</p>
         <p className="text-xs mt-1">{error}</p>
       </div>
@@ -109,7 +109,7 @@ export default function ImpactTimeline({ portfolioId, title, config }: Props) {
 
   if (data.length === 0) {
     return (
-      <div className="w-full p-6 rounded-lg border border-neutral-200 bg-neutral-50 text-neutral-600">
+      <div className="w-full p-6 rounded-2xl border border-neutral-200 bg-neutral-50 text-neutral-600">
         <p className="text-sm">No timeline events to display.</p>
       </div>
     );
@@ -185,7 +185,7 @@ export default function ImpactTimeline({ portfolioId, title, config }: Props) {
             )}
 
             {selectedEvent.value !== undefined && (
-              <div className="bg-neutral-50 rounded-lg p-3">
+              <div className="bg-neutral-50 rounded-2xl p-3">
                 <p className="text-xs text-neutral-500 mb-1">Value</p>
                 <p className="text-xl font-bold text-neutral-900">
                   {selectedEvent.value.toLocaleString()}
@@ -203,13 +203,13 @@ export default function ImpactTimeline({ portfolioId, title, config }: Props) {
 function getEventTypeStyle(type: string): string {
   switch (type) {
     case 'milestone':
-      return 'bg-blue-100 text-blue-700';
+      return 'bg-azure/10 text-azure-deep';
     case 'achievement':
       return 'bg-green-100 text-green-700';
     case 'funding':
-      return 'bg-purple-100 text-purple-700';
+      return 'bg-coral/10 text-coral';
     case 'metric':
-      return 'bg-amber-100 text-amber-700';
+      return 'bg-sunset/15 text-ink';
     default:
       return 'bg-neutral-100 text-neutral-700';
   }
@@ -404,7 +404,7 @@ function VerticalTimeline({ events, showValues, onEventClick, groupByHolding }: 
                 />
 
                 {/* Event card */}
-                <div className="bg-white rounded-lg border border-neutral-200 p-4 hover:shadow-md transition-shadow">
+                <div className="bg-white rounded-2xl border border-neutral-200 p-4 hover:shadow-md transition-shadow">
                   <div className="flex items-start justify-between mb-2">
                     <div className="flex-1">
                       <h5 className="font-semibold text-neutral-900">{event.title}</h5>

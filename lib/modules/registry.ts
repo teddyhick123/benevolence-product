@@ -78,7 +78,8 @@ You can help manage the portfolio and holdings. Available actions include:
       'metric_facts',
       'staging_metric_facts',
       'holding_widgets',
-      // holding_locations not yet created — tracked as Vis-B2
+      'holding_locations',
+      'widgets',
     ],
     routes: [
       '/dashboard/metrics',
@@ -117,7 +118,9 @@ Common metric types:
     tables: [
       'reports',
       'letter_templates',
-      // report_templates, generated_documents, report_schedules not yet created — tracked as R-B1
+      'report_templates',
+      'generated_documents',
+      'report_schedules',
     ],
     routes: [
       '/dashboard/reports',

@@ -93,19 +93,19 @@ export default function NewDonorPage() {
       <nav className="mb-6">
         <ol className="flex items-center gap-2 text-sm">
           <li>
-            <a href={`/org/${organizationId}/donors`} className="text-gray-500 hover:text-gray-700">
+            <a href={`/org/${organizationId}/donors`} className="text-neutral-500 hover:text-neutral-700">
               Donors
             </a>
           </li>
-          <li className="text-gray-400">/</li>
-          <li className="text-gray-900 font-medium">New Donor</li>
+          <li className="text-neutral-400">/</li>
+          <li className="text-ink font-medium">New Donor</li>
         </ol>
       </nav>
 
-      <h1 className="text-2xl font-bold text-gray-900 mb-6">Add New Donor</h1>
+      <h1 className="text-2xl font-bold text-ink mb-6">Add New Donor</h1>
 
       {error && (
-        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
+        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-2xl text-red-700">
           {error}
         </div>
       )}
@@ -113,14 +113,14 @@ export default function NewDonorPage() {
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Donor Type */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
+          <label className="block text-sm font-medium text-neutral-700 mb-2">
             Donor Type
           </label>
           <select
             name="is_organization"
             value={formData.is_organization ? 'organization' : 'individual'}
             onChange={(e) => setFormData((prev) => ({ ...prev, is_organization: e.target.value !== 'individual' }))}
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-azure focus:border-transparent"
+            className="w-full px-4 py-2 border border-black/10 rounded-2xl focus:ring-2 focus:ring-azure/30 focus:border-azure"
           >
             <option value="individual">Individual</option>
             <option value="organization">Organization / Foundation / Corporation</option>
@@ -131,7 +131,7 @@ export default function NewDonorPage() {
         {isOrganization ? (
           <>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-neutral-700 mb-2">
                 Organization Name *
               </label>
               <input
@@ -140,11 +140,11 @@ export default function NewDonorPage() {
                 value={formData.organization_name}
                 onChange={handleChange}
                 required
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-azure focus:border-transparent"
+                className="w-full px-4 py-2 border border-black/10 rounded-2xl focus:ring-2 focus:ring-azure/30 focus:border-azure"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-neutral-700 mb-2">
                 Contact Name
               </label>
               <input
@@ -152,14 +152,14 @@ export default function NewDonorPage() {
                 name="contact_name"
                 value={formData.contact_name}
                 onChange={handleChange}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-azure focus:border-transparent"
+                className="w-full px-4 py-2 border border-black/10 rounded-2xl focus:ring-2 focus:ring-azure/30 focus:border-azure"
               />
             </div>
           </>
         ) : (
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-neutral-700 mb-2">
                 First Name
               </label>
               <input
@@ -167,11 +167,11 @@ export default function NewDonorPage() {
                 name="first_name"
                 value={formData.first_name}
                 onChange={handleChange}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-azure focus:border-transparent"
+                className="w-full px-4 py-2 border border-black/10 rounded-2xl focus:ring-2 focus:ring-azure/30 focus:border-azure"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-neutral-700 mb-2">
                 Last Name
               </label>
               <input
@@ -179,7 +179,7 @@ export default function NewDonorPage() {
                 name="last_name"
                 value={formData.last_name}
                 onChange={handleChange}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-azure focus:border-transparent"
+                className="w-full px-4 py-2 border border-black/10 rounded-2xl focus:ring-2 focus:ring-azure/30 focus:border-azure"
               />
             </div>
           </div>
@@ -188,7 +188,7 @@ export default function NewDonorPage() {
         {/* Contact Info */}
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-neutral-700 mb-2">
               Email
             </label>
             <input
@@ -196,11 +196,11 @@ export default function NewDonorPage() {
               name="email"
               value={formData.email}
               onChange={handleChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-azure focus:border-transparent"
+              className="w-full px-4 py-2 border border-black/10 rounded-2xl focus:ring-2 focus:ring-azure/30 focus:border-azure"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-neutral-700 mb-2">
               Phone
             </label>
             <input
@@ -208,14 +208,14 @@ export default function NewDonorPage() {
               name="phone"
               value={formData.phone}
               onChange={handleChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-azure focus:border-transparent"
+              className="w-full px-4 py-2 border border-black/10 rounded-2xl focus:ring-2 focus:ring-azure/30 focus:border-azure"
             />
           </div>
         </div>
 
         {/* Address */}
         <div className="space-y-4">
-          <h3 className="text-sm font-medium text-gray-900">Address</h3>
+          <h3 className="text-sm font-medium text-ink">Address</h3>
           <div>
             <input
               type="text"
@@ -223,7 +223,7 @@ export default function NewDonorPage() {
               value={formData.address_line1}
               onChange={handleChange}
               placeholder="Street Address"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-azure focus:border-transparent"
+              className="w-full px-4 py-2 border border-black/10 rounded-2xl focus:ring-2 focus:ring-azure/30 focus:border-azure"
             />
           </div>
           <div>
@@ -233,7 +233,7 @@ export default function NewDonorPage() {
               value={formData.address_line2}
               onChange={handleChange}
               placeholder="Apt, Suite, etc. (optional)"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-azure focus:border-transparent"
+              className="w-full px-4 py-2 border border-black/10 rounded-2xl focus:ring-2 focus:ring-azure/30 focus:border-azure"
             />
           </div>
           <div className="grid grid-cols-6 gap-4">
@@ -244,7 +244,7 @@ export default function NewDonorPage() {
                 value={formData.city}
                 onChange={handleChange}
                 placeholder="City"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-azure focus:border-transparent"
+                className="w-full px-4 py-2 border border-black/10 rounded-2xl focus:ring-2 focus:ring-azure/30 focus:border-azure"
               />
             </div>
             <div className="col-span-1">
@@ -254,7 +254,7 @@ export default function NewDonorPage() {
                 value={formData.state}
                 onChange={handleChange}
                 placeholder="State"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-azure focus:border-transparent"
+                className="w-full px-4 py-2 border border-black/10 rounded-2xl focus:ring-2 focus:ring-azure/30 focus:border-azure"
               />
             </div>
             <div className="col-span-2">
@@ -264,7 +264,7 @@ export default function NewDonorPage() {
                 value={formData.zip}
                 onChange={handleChange}
                 placeholder="ZIP Code"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-azure focus:border-transparent"
+                className="w-full px-4 py-2 border border-black/10 rounded-2xl focus:ring-2 focus:ring-azure/30 focus:border-azure"
               />
             </div>
           </div>
@@ -272,16 +272,16 @@ export default function NewDonorPage() {
 
         {/* Preferences */}
         <div className="space-y-4">
-          <h3 className="text-sm font-medium text-gray-900">Preferences</h3>
+          <h3 className="text-sm font-medium text-ink">Preferences</h3>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-neutral-700 mb-2">
               Communication Preference
             </label>
             <select
               name="communication_preference"
               value={formData.communication_preference}
               onChange={handleChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-azure focus:border-transparent"
+              className="w-full px-4 py-2 border border-black/10 rounded-2xl focus:ring-2 focus:ring-azure/30 focus:border-azure"
             >
               <option value="email">Email</option>
               <option value="phone">Phone</option>
@@ -298,7 +298,7 @@ export default function NewDonorPage() {
                 onChange={handleChange}
                 className="rounded text-azure"
               />
-              <span className="text-sm text-gray-700">Anonymous donor</span>
+              <span className="text-sm text-neutral-700">Anonymous donor</span>
             </label>
             <label className="flex items-center gap-2">
               <input
@@ -308,14 +308,14 @@ export default function NewDonorPage() {
                 onChange={handleChange}
                 className="rounded text-azure"
               />
-              <span className="text-sm text-gray-700">Do not contact</span>
+              <span className="text-sm text-neutral-700">Do not contact</span>
             </label>
           </div>
         </div>
 
         {/* Notes */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
+          <label className="block text-sm font-medium text-neutral-700 mb-2">
             Notes
           </label>
           <textarea
@@ -323,13 +323,13 @@ export default function NewDonorPage() {
             value={formData.notes}
             onChange={handleChange}
             rows={3}
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-azure focus:border-transparent"
+            className="w-full px-4 py-2 border border-black/10 rounded-2xl focus:ring-2 focus:ring-azure/30 focus:border-azure"
           />
         </div>
 
         {/* Tags */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
+          <label className="block text-sm font-medium text-neutral-700 mb-2">
             Tags
           </label>
           <div className="flex items-center gap-2 mb-2">
@@ -339,12 +339,12 @@ export default function NewDonorPage() {
               onChange={(e) => setTagInput(e.target.value)}
               onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddTag())}
               placeholder="Add a tag..."
-              className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-azure focus:border-transparent"
+              className="flex-1 px-4 py-2 border border-black/10 rounded-2xl focus:ring-2 focus:ring-azure/30 focus:border-azure"
             />
             <button
               type="button"
               onClick={handleAddTag}
-              className="px-4 py-2 text-azure border border-azure rounded-lg hover:bg-azure/10"
+              className="px-4 py-2 text-azure border border-azure rounded-2xl hover:bg-azure/10"
             >
               Add
             </button>
@@ -354,13 +354,13 @@ export default function NewDonorPage() {
               {formData.tags.map((tag) => (
                 <span
                   key={tag}
-                  className="px-3 py-1 bg-gray-100 rounded-full text-sm flex items-center gap-1"
+                  className="px-3 py-1 bg-neutral-100 rounded-full text-sm flex items-center gap-1"
                 >
                   {tag}
                   <button
                     type="button"
                     onClick={() => handleRemoveTag(tag)}
-                    className="text-gray-400 hover:text-gray-600"
+                    className="text-neutral-400 hover:text-neutral-600"
                   >
                     &times;
                   </button>
@@ -375,14 +375,14 @@ export default function NewDonorPage() {
           <button
             type="button"
             onClick={() => router.back()}
-            className="px-6 py-2 text-gray-700 hover:bg-gray-100 rounded-lg"
+            className="px-6 py-2 text-neutral-700 hover:bg-neutral-100 rounded-2xl"
           >
             Cancel
           </button>
           <button
             type="submit"
             disabled={loading}
-            className="px-6 py-2 bg-azure text-white rounded-lg hover:bg-azure/90 disabled:opacity-50"
+            className="px-6 py-2 bg-azure text-white rounded-2xl hover:bg-azure/90 disabled:opacity-50"
           >
             {loading ? 'Creating...' : 'Create Donor'}
           </button>

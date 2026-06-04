@@ -59,7 +59,7 @@ export default function KpiTrendConfig({ initialConfig, onSave, onCancel, portfo
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="e.g., Renewable Energy Production"
-            className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+            className="w-full px-4 py-2 border border-neutral-300 rounded-2xl focus:ring-2 focus:ring-azure/30 focus:border-azure"
           />
           <p className="mt-1 text-xs text-neutral-500">Leave blank to auto-generate from metric</p>
         </div>
@@ -73,7 +73,7 @@ export default function KpiTrendConfig({ initialConfig, onSave, onCancel, portfo
               value={metricCode}
               onChange={(e) => setMetricCode(e.target.value)}
               required
-              className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              className="w-full px-4 py-2 border border-neutral-300 rounded-2xl focus:ring-2 focus:ring-azure/30 focus:border-azure"
             >
               <option value="">Select a metric...</option>
               {availableMetrics.map(m => (
@@ -89,7 +89,7 @@ export default function KpiTrendConfig({ initialConfig, onSave, onCancel, portfo
               onChange={(e) => setMetricCode(e.target.value.toUpperCase())}
               placeholder="e.g., RENEWABLE_MWH"
               required
-              className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              className="w-full px-4 py-2 border border-neutral-300 rounded-2xl focus:ring-2 focus:ring-azure/30 focus:border-azure"
             />
           )}
           <p className="mt-1 text-xs text-neutral-500">The metric code to track over time</p>
@@ -102,7 +102,7 @@ export default function KpiTrendConfig({ initialConfig, onSave, onCancel, portfo
           <select
             value={window}
             onChange={(e) => setWindow(e.target.value)}
-            className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+            className="w-full px-4 py-2 border border-neutral-300 rounded-2xl focus:ring-2 focus:ring-azure/30 focus:border-azure"
           >
             <option value="3m">Last 3 months</option>
             <option value="6m">Last 6 months</option>
@@ -118,7 +118,7 @@ export default function KpiTrendConfig({ initialConfig, onSave, onCancel, portfo
             id="smooth"
             checked={smooth}
             onChange={(e) => setSmooth(e.target.checked)}
-            className="w-4 h-4 text-indigo-600 border-neutral-300 rounded focus:ring-indigo-500"
+            className="w-4 h-4 text-azure border-neutral-300 rounded focus:ring-azure/30"
           />
           <label htmlFor="smooth" className="text-sm text-neutral-700">
             Smooth line (interpolated curve)
@@ -136,7 +136,7 @@ export default function KpiTrendConfig({ initialConfig, onSave, onCancel, portfo
         </button>
         <button
           type="submit"
-          className="px-6 py-2 bg-gradient-to-r from-azure via-azure/90 to-azure/70 text-white rounded-lg hover:opacity-90 transition-opacity font-medium shadow-soft"
+          className="px-6 py-2 bg-gradient-to-r from-azure via-azure/90 to-azure/70 text-white rounded-2xl hover:opacity-90 transition-opacity font-medium shadow-soft"
         >
           Create Widget
         </button>

@@ -102,7 +102,7 @@ export default function SmallMultiples({ portfolioId, title, config }: Props) {
 
   if (error) {
     return (
-      <div className="w-full p-6 rounded-lg border border-red-200 bg-red-50 text-red-700">
+      <div className="w-full p-6 rounded-2xl border border-red-200 bg-red-50 text-red-700">
         <p className="font-medium text-sm">Error loading comparison</p>
         <p className="text-xs mt-1">{error}</p>
       </div>
@@ -111,7 +111,7 @@ export default function SmallMultiples({ portfolioId, title, config }: Props) {
 
   if (data.length < minHoldings) {
     return (
-      <div className="w-full p-6 rounded-lg border border-neutral-200 bg-neutral-50 text-neutral-600">
+      <div className="w-full p-6 rounded-2xl border border-neutral-200 bg-neutral-50 text-neutral-600">
         <p className="text-sm">
           Need at least {minHoldings} holdings with <strong>{metricCode}</strong> data to show comparison.
         </p>
@@ -284,7 +284,7 @@ function SmallChart({ holding, height, showBenchmark, benchmarkValue, onClick }:
 
   return (
     <div
-      className="group cursor-pointer rounded-xl border border-neutral-200 bg-white p-4 transition-all hover:shadow-lg hover:-translate-y-1"
+      className="group cursor-pointer rounded-2xl border border-neutral-200 bg-white p-4 transition-all hover:shadow-lg hover:-translate-y-1"
       onClick={onClick}
     >
       {/* Header */}

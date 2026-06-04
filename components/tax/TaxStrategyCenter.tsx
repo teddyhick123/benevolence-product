@@ -21,7 +21,7 @@ export default function TaxStrategyCenter({
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="bg-white rounded-xl border border-neutral-200 p-6">
+      <div className="bg-white rounded-2xl border border-neutral-200 p-6">
         <h2 className="text-2xl font-bold text-neutral-900">Tax Strategy Center</h2>
         <p className="text-sm text-neutral-600 mt-1">
           AI-powered optimization, scenario modeling, and strategic planning for your charitable giving
@@ -29,13 +29,13 @@ export default function TaxStrategyCenter({
       </div>
 
       {/* Tab Navigation */}
-      <div className="bg-white rounded-xl border border-neutral-200 p-2">
+      <div className="bg-white rounded-2xl border border-neutral-200 p-2">
         <div className="grid grid-cols-3 gap-2">
           <button
             onClick={() => setActiveTab('quick-start')}
-            className={`px-4 py-3 rounded-lg font-medium transition-all ${
+            className={`px-4 py-3 rounded-2xl font-medium transition-all ${
               activeTab === 'quick-start'
-                ? 'bg-indigo-600 text-white shadow-md'
+                ? 'bg-azure text-white shadow-md'
                 : 'bg-white text-neutral-700 hover:bg-neutral-50'
             }`}
           >
@@ -44,9 +44,9 @@ export default function TaxStrategyCenter({
 
           <button
             onClick={() => setActiveTab('ai-advisor')}
-            className={`px-4 py-3 rounded-lg font-medium transition-all ${
+            className={`px-4 py-3 rounded-2xl font-medium transition-all ${
               activeTab === 'ai-advisor'
-                ? 'bg-indigo-600 text-white shadow-md'
+                ? 'bg-azure text-white shadow-md'
                 : 'bg-white text-neutral-700 hover:bg-neutral-50'
             }`}
           >
@@ -55,9 +55,9 @@ export default function TaxStrategyCenter({
 
           <button
             onClick={() => setActiveTab('scenario-builder')}
-            className={`px-4 py-3 rounded-lg font-medium transition-all ${
+            className={`px-4 py-3 rounded-2xl font-medium transition-all ${
               activeTab === 'scenario-builder'
-                ? 'bg-indigo-600 text-white shadow-md'
+                ? 'bg-azure text-white shadow-md'
                 : 'bg-white text-neutral-700 hover:bg-neutral-50'
             }`}
           >

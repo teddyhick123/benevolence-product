@@ -280,7 +280,7 @@ function UploadPageContent() {
       </div>
 
       {!portfolioId && (
-        <div className="p-3 rounded-2xl bg-yellow-50 text-yellow-800 text-sm border border-yellow-200">
+        <div className="p-3 rounded-2xl bg-sunset/15 text-ink text-sm border border-sunset/30">
           We couldn’t determine a <b>portfolio</b> to upload into.
           {process.env.NEXT_PUBLIC_PORTFOLIO_ID_DEFAULT
             ? ' Using your default ID will fix this.'
@@ -296,7 +296,7 @@ function UploadPageContent() {
         </div>
         <div className="mt-2">
           <select
-            className="w-full rounded-xl border border-black/10 px-3 py-2 text-sm bg-white"
+            className="w-full rounded-2xl border border-black/10 px-3 py-2 text-sm bg-white"
             disabled={!portfolioId || holdingsLoading || holdings.length === 0}
             value={selectedHoldingId ?? ''}
             onChange={(e) => {
@@ -374,7 +374,7 @@ function UploadPageContent() {
 
       <form onSubmit={onSubmit} className="space-y-3">
         <div
-          className="flex flex-col items-center justify-center w-full p-6 border-2 border-dashed rounded-xl cursor-pointer hover:border-azure/50 bg-white text-center"
+          className="flex flex-col items-center justify-center w-full p-6 border-2 border-dashed rounded-2xl cursor-pointer hover:border-azure/50 bg-white text-center"
           onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
           onDrop={(e) => {
             e.preventDefault();
@@ -400,7 +400,7 @@ function UploadPageContent() {
         </div>
         <button
           disabled={disabled}
-          className="px-5 py-2.5 rounded-md bg-gradient-to-r from-azure via-azure/90 to-azure/70 text-white shadow-soft hover:opacity-90 disabled:opacity-50 transition"
+          className="px-5 py-2.5 rounded-2xl bg-gradient-to-r from-azure via-azure/90 to-azure/70 text-white shadow-soft hover:opacity-90 disabled:opacity-50 transition"
         >
           {status === 'uploading' ? 'Uploading…' : status === 'processing' ? 'Processing…' : 'Start Upload'}
         </button>
@@ -462,7 +462,7 @@ function UploadPageContent() {
                 <h3 className="text-lg font-semibold">Review Extracted Facts</h3>
                 <button
                   onClick={approveAll}
-                  className="px-3 py-1.5 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 transition"
+                  className="px-3 py-1.5 text-sm bg-green-600 text-white rounded-2xl hover:bg-green-700 transition"
                 >
                   Approve All ({stagedFacts.length})
                 </button>
@@ -470,7 +470,7 @@ function UploadPageContent() {
 
               <div className="space-y-2 max-h-96 overflow-y-auto">
                 {stagedFacts.map((fact) => (
-                  <div key={fact.id} className="p-3 rounded-lg border border-neutral-200 bg-white hover:border-azure/40 transition">
+                  <div key={fact.id} className="p-3 rounded-2xl border border-neutral-200 bg-white hover:border-azure/40 transition">
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-1">

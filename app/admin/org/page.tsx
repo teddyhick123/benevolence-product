@@ -5,9 +5,9 @@ import Link from 'next/link';
 import { Organization } from '@/lib/types/org';
 
 const ROLE_COLORS: Record<string, string> = {
-  owner: 'bg-purple-100 text-purple-700',
+  owner: 'bg-coral/10 text-coral',
   admin: 'bg-azure/10 text-azure',
-  member: 'bg-emerald-100 text-emerald-700',
+  member: 'bg-green-100 text-green-700',
   viewer: 'bg-neutral-100 text-neutral-600',
 };
 
@@ -40,7 +40,7 @@ export default function OrgListPage() {
       </div>
 
       {error && (
-        <div className="card p-4 text-sm text-rose-700 bg-rose-50 border border-rose-200">{error}</div>
+        <div className="card p-4 text-sm text-red-700 bg-red-50 border border-red-200">{error}</div>
       )}
 
       {loading ? (

@@ -766,7 +766,7 @@ export default async function HoldingMiniDashboard({
   const { holding, error: holdingErr } = await fetchHolding(holdingId);
   if (!holding) {
     return (
-      <div className="m-6 rounded-xl border border-amber-300 bg-amber-50 p-5 text-sm text-amber-900">
+      <div className="m-6 rounded-2xl border border-sunset/40 bg-sunset/15 p-5 text-sm text-ink">
         <div className="font-medium mb-1">Couldn’t load holding <code className="font-mono">{holdingId}</code>.</div>
         {holdingErr ? (
           <div>Supabase error: <code className="font-mono">{String(holdingErr.message || holdingErr)}</code></div>
@@ -915,7 +915,7 @@ export default async function HoldingMiniDashboard({
         const overdue = daysLeft < 0;
         const urgent = daysLeft >= 0 && daysLeft <= 30;
         return (
-          <div className={`flex items-center gap-3 rounded-lg border px-4 py-3 text-sm ${overdue ? 'bg-red-50 border-red-200 text-red-800' : urgent ? 'bg-amber-50 border-amber-200 text-amber-800' : 'bg-blue-50 border-blue-200 text-blue-800'}`}>
+          <div className={`flex items-center gap-3 rounded-2xl border px-4 py-3 text-sm ${overdue ? 'bg-red-50 border-red-200 text-red-800' : urgent ? 'bg-sunset/15 border-sunset/30 text-ink' : 'bg-azure/10 border-azure/20 text-azure-deep'}`}>
             <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
             </svg>
@@ -938,7 +938,7 @@ export default async function HoldingMiniDashboard({
         linkedOrg={linkedOrg}
       />
 
-      <details className="mt-3 rounded-xl border border-neutral-200 bg-white shadow-sm p-5 open:shadow-md transition-shadow">
+      <details className="mt-3 rounded-2xl border border-neutral-200 bg-white shadow-sm p-5 open:shadow-md transition-shadow">
         <summary className="cursor-pointer text-sm font-semibold text-neutral-800 hover:text-neutral-900">Edit Basic Information</summary>
         <form action={updateHoldingBasics} className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
           <input type="hidden" name="holding_id" value={holding.id} />
@@ -949,7 +949,7 @@ export default async function HoldingMiniDashboard({
               name="name"
               defaultValue={holding.name}
               required
-              className="mt-1.5 w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              className="mt-1.5 w-full rounded-2xl border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-azure/30 focus:border-azure"
               placeholder="Holding name"
             />
           </label>
@@ -959,7 +959,7 @@ export default async function HoldingMiniDashboard({
             <select
               name="asset_type"
               defaultValue={holding.asset_type ?? ''}
-              className="mt-1.5 w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white"
+              className="mt-1.5 w-full rounded-2xl border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-azure/30 focus:border-azure bg-white"
             >
               <option value="">— select —</option>
               {Object.entries(ASSET_TYPE_LABELS).map(([value, label]) => (
@@ -973,7 +973,7 @@ export default async function HoldingMiniDashboard({
             <input
               name="sector"
               defaultValue={holding.sector ?? ''}
-              className="mt-1.5 w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              className="mt-1.5 w-full rounded-2xl border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-azure/30 focus:border-azure"
               placeholder="e.g., Clean Energy, Healthcare"
             />
           </label>
@@ -985,7 +985,7 @@ export default async function HoldingMiniDashboard({
               defaultValue={holding.funds_allocated ?? ''}
               type="number"
               step="0.01"
-              className="mt-1.5 w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              className="mt-1.5 w-full rounded-2xl border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-azure/30 focus:border-azure"
               placeholder="0.00"
             />
           </label>
@@ -995,7 +995,7 @@ export default async function HoldingMiniDashboard({
             <select
               name="status"
               defaultValue={holding.status ?? ''}
-              className="mt-1.5 w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white"
+              className="mt-1.5 w-full rounded-2xl border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-azure/30 focus:border-azure bg-white"
             >
               <option value="">— select —</option>
               <option value="active">Active</option>
@@ -1012,7 +1012,7 @@ export default async function HoldingMiniDashboard({
               type="date"
               name="as_of"
               defaultValue={holding.as_of ?? ''}
-              className="mt-1.5 w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              className="mt-1.5 w-full rounded-2xl border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-azure/30 focus:border-azure"
             />
           </label>
 
@@ -1022,7 +1022,7 @@ export default async function HoldingMiniDashboard({
               name="description"
               defaultValue={holding.description ?? ''}
               rows={3}
-              className="mt-1.5 w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-y"
+              className="mt-1.5 w-full rounded-2xl border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-azure/30 focus:border-azure resize-y"
               placeholder="Brief description of the holding..."
             />
           </label>
@@ -1033,20 +1033,20 @@ export default async function HoldingMiniDashboard({
               name="theory_of_action"
               defaultValue={holding.theory_of_action ?? ''}
               rows={4}
-              className="mt-1.5 w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-y"
+              className="mt-1.5 w-full rounded-2xl border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-azure/30 focus:border-azure resize-y"
               placeholder="Describe the theory of change and expected impact..."
             />
           </label>
 
           <div className="col-span-full flex justify-end pt-2">
-            <button type="submit" className="rounded-lg bg-neutral-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-neutral-800 transition-colors shadow-sm">
+            <button type="submit" className="rounded-2xl bg-neutral-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-neutral-800 transition-colors shadow-sm">
               Save Changes
             </button>
           </div>
         </form>
       </details>
 
-      <details className="rounded-xl border border-neutral-200 bg-white shadow-sm p-5 open:shadow-md transition-shadow">
+      <details className="rounded-2xl border border-neutral-200 bg-white shadow-sm p-5 open:shadow-md transition-shadow">
         <summary className="cursor-pointer text-sm font-semibold text-neutral-800 hover:text-neutral-900">Edit Location</summary>
         <form action={updateHoldingLocation} className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-3">
           <input type="hidden" name="holding_id" value={holding.id} />
@@ -1056,7 +1056,7 @@ export default async function HoldingMiniDashboard({
             <input
               name="location_city"
               defaultValue={holding.location_city ?? ''}
-              className="mt-1.5 w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              className="mt-1.5 w-full rounded-2xl border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-azure/30 focus:border-azure"
               placeholder="San Francisco"
             />
           </label>
@@ -1066,7 +1066,7 @@ export default async function HoldingMiniDashboard({
             <input
               name="location_state"
               defaultValue={holding.location_state ?? ''}
-              className="mt-1.5 w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              className="mt-1.5 w-full rounded-2xl border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-azure/30 focus:border-azure"
               placeholder="California"
             />
           </label>
@@ -1076,13 +1076,13 @@ export default async function HoldingMiniDashboard({
             <input
               name="location_country"
               defaultValue={holding.location_country ?? ''}
-              className="mt-1.5 w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              className="mt-1.5 w-full rounded-2xl border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-azure/30 focus:border-azure"
               placeholder="United States"
             />
           </label>
 
           <div className="col-span-full flex justify-end pt-2">
-            <button type="submit" className="rounded-lg bg-neutral-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-neutral-800 transition-colors shadow-sm">
+            <button type="submit" className="rounded-2xl bg-neutral-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-neutral-800 transition-colors shadow-sm">
               Save Changes
             </button>
           </div>
@@ -1116,7 +1116,7 @@ export default async function HoldingMiniDashboard({
                   <svg className="w-4 h-4 text-neutral-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
                   </svg>
-                  <a className="text-indigo-600 hover:text-indigo-700 hover:underline truncate" href={contact.website} target="_blank" rel="noopener noreferrer">
+                  <a className="text-azure hover:text-azure-deep hover:underline truncate" href={contact.website} target="_blank" rel="noopener noreferrer">
                     {contact.website.replace(/^https?:\/\//, '').replace(/\/$/, '')}
                   </a>
                 </p>
@@ -1127,7 +1127,7 @@ export default async function HoldingMiniDashboard({
                   <svg className="w-4 h-4 text-neutral-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                   </svg>
-                  <a className="text-indigo-600 hover:text-indigo-700 hover:underline truncate" href={`mailto:${contact.email}`}>
+                  <a className="text-azure hover:text-azure-deep hover:underline truncate" href={`mailto:${contact.email}`}>
                     {contact.email}
                   </a>
                 </p>
@@ -1138,7 +1138,7 @@ export default async function HoldingMiniDashboard({
                   <svg className="w-4 h-4 text-neutral-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
                   </svg>
-                  <a className="text-indigo-600 hover:text-indigo-700 hover:underline" href={`tel:${contact.phone}`}>
+                  <a className="text-azure hover:text-azure-deep hover:underline" href={`tel:${contact.phone}`}>
                     {contact.phone}
                   </a>
                 </p>
@@ -1170,7 +1170,7 @@ export default async function HoldingMiniDashboard({
                 <input
                   name="primary_contact_name"
                   defaultValue={contact.name ?? ''}
-                  className="mt-1.5 w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  className="mt-1.5 w-full rounded-2xl border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-azure/30 focus:border-azure"
                   placeholder="John Doe"
                 />
               </label>
@@ -1181,7 +1181,7 @@ export default async function HoldingMiniDashboard({
                   name="primary_contact_email"
                   defaultValue={contact.email ?? ''}
                   type="email"
-                  className="mt-1.5 w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  className="mt-1.5 w-full rounded-2xl border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-azure/30 focus:border-azure"
                   placeholder="john@example.com"
                 />
               </label>
@@ -1192,7 +1192,7 @@ export default async function HoldingMiniDashboard({
                   name="primary_contact_phone"
                   defaultValue={contact.phone ?? ''}
                   type="tel"
-                  className="mt-1.5 w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  className="mt-1.5 w-full rounded-2xl border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-azure/30 focus:border-azure"
                   placeholder="+1 (555) 123-4567"
                 />
               </label>
@@ -1203,7 +1203,7 @@ export default async function HoldingMiniDashboard({
                   name="website"
                   defaultValue={contact.website ?? ''}
                   type="url"
-                  className="mt-1.5 w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  className="mt-1.5 w-full rounded-2xl border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-azure/30 focus:border-azure"
                   placeholder="https://example.org"
                 />
               </label>
@@ -1213,7 +1213,7 @@ export default async function HoldingMiniDashboard({
               </p>
 
               <div className="flex justify-end pt-2">
-                <button type="submit" className="rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800 transition-colors">
+                <button type="submit" className="rounded-2xl bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800 transition-colors">
                   Save Changes
                 </button>
               </div>
@@ -1232,13 +1232,13 @@ export default async function HoldingMiniDashboard({
                     defaultValue={holding.funds_allocated ?? ''}
                     type="number"
                     step="0.01"
-                    className="mt-1.5 w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    className="mt-1.5 w-full rounded-2xl border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-azure/30 focus:border-azure"
                     placeholder="0.00"
                   />
                 </label>
                 <p className="text-xs text-neutral-400">Note: Once contributions are added, they will override this manual value.</p>
                 <div className="flex justify-end pt-2">
-                  <button type="submit" className="rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800 transition-colors">
+                  <button type="submit" className="rounded-2xl bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800 transition-colors">
                     Save Changes
                   </button>
                 </div>
@@ -1264,7 +1264,7 @@ export default async function HoldingMiniDashboard({
                   defaultValue={holding.total_org_funding ?? ''}
                   type="number"
                   step="0.01"
-                  className="mt-1.5 w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  className="mt-1.5 w-full rounded-2xl border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-azure/30 focus:border-azure"
                   placeholder="e.g., 10000000"
                 />
               </label>
@@ -1273,7 +1273,7 @@ export default async function HoldingMiniDashboard({
                 your attributed outcomes = total outcomes × (your funding / org&apos;s total funding).
               </p>
               <div className="flex justify-end pt-2">
-                <button type="submit" className="rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800 transition-colors">
+                <button type="submit" className="rounded-2xl bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800 transition-colors">
                   Save Changes
                 </button>
               </div>
@@ -1316,13 +1316,13 @@ export default async function HoldingMiniDashboard({
       <section>
         <h3 className="text-sm font-medium text-neutral-700">Key KPIs (Latest)</h3>
         {kpiCards.length === 0 ? (
-          <div className="mt-2 rounded-xl border border-dashed border-black/10 p-6 text-sm text-neutral-600">
+          <div className="mt-2 rounded-2xl border border-dashed border-black/10 p-6 text-sm text-neutral-600">
             No KPI facts yet for this holding.
           </div>
         ) : (
           <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {kpiCards.map((m) => (
-              <div key={m.key} className="rounded-xl border border-black/10 bg-white p-4 shadow-sm">
+              <div key={m.key} className="rounded-2xl border border-black/10 bg-white p-4 shadow-sm">
                 <p className="text-xs text-neutral-500">{m.displayName}</p>
                 <p className="mt-1 text-2xl font-semibold text-neutral-900">
                   {Number.isFinite(m.value) ? m.value.toLocaleString() : '—'}
@@ -1335,7 +1335,7 @@ export default async function HoldingMiniDashboard({
                 )}
                 <p className="mt-1 text-[11px] text-neutral-500">Latest: {humanDate(m.updated_at)}</p>
                 <div className="mt-2 grid grid-cols-2 gap-2 text-[11px]">
-                  <div className="rounded-lg border border-neutral-200 p-2">
+                  <div className="rounded-2xl border border-neutral-200 p-2">
                     <p className="text-neutral-500">Cost / Outcome</p>
                     <p className="font-medium">
                       {m.costPerOutcome != null && isFinite(m.costPerOutcome)
@@ -1343,10 +1343,10 @@ export default async function HoldingMiniDashboard({
                         : '—'}
                     </p>
                     {!m.hasProportionalAttribution && m.costPerOutcome != null && (
-                      <p className="text-[9px] text-amber-600 mt-0.5">* Not scaled</p>
+                      <p className="text-[9px] text-coral mt-0.5">* Not scaled</p>
                     )}
                   </div>
-                  <div className="rounded-lg border border-neutral-200 p-2">
+                  <div className="rounded-2xl border border-neutral-200 p-2">
                     <p className="text-neutral-500">Your Outcomes / $1k</p>
                     <p className="font-medium">
                       {m.outcomesPerThousand != null && isFinite(m.outcomesPerThousand)
@@ -1425,7 +1425,7 @@ export default async function HoldingMiniDashboard({
                   name="amount"
                   type="number"
                   step="0.01"
-                  className="mt-1.5 w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  className="mt-1.5 w-full rounded-2xl border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-azure/30 focus:border-azure"
                   placeholder="50000"
                   required
                 />
@@ -1435,7 +1435,7 @@ export default async function HoldingMiniDashboard({
                 <input
                   type="date"
                   name="contributed_at"
-                  className="mt-1.5 w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  className="mt-1.5 w-full rounded-2xl border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-azure/30 focus:border-azure"
                   required
                 />
               </label>
@@ -1443,7 +1443,7 @@ export default async function HoldingMiniDashboard({
                 <span className="text-xs font-medium text-neutral-700">Memo</span>
                 <input
                   name="memo"
-                  className="mt-1.5 w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  className="mt-1.5 w-full rounded-2xl border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-azure/30 focus:border-azure"
                   placeholder="Series A investment"
                 />
               </label>
@@ -1452,12 +1452,12 @@ export default async function HoldingMiniDashboard({
                 <input
                   name="source"
                   type="url"
-                  className="mt-1.5 w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  className="mt-1.5 w-full rounded-2xl border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-azure/30 focus:border-azure"
                   placeholder="https://..."
                 />
               </label>
               <div className="flex items-end">
-                <button type="submit" className="w-full rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800 transition-colors">
+                <button type="submit" className="w-full rounded-2xl bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800 transition-colors">
                   Add Contribution
                 </button>
               </div>
@@ -1491,7 +1491,7 @@ export default async function HoldingMiniDashboard({
                       <td className="px-4 py-3 text-sm">
                         {c.source ? (
                           <a
-                            className="text-indigo-600 hover:text-indigo-700 hover:underline"
+                            className="text-azure hover:text-azure-deep hover:underline"
                             href={c.source}
                             target="_blank"
                             rel="noreferrer"
@@ -1525,14 +1525,14 @@ export default async function HoldingMiniDashboard({
                   type="date"
                   name="period_end"
                   defaultValue={new Date().toISOString().split('T')[0]}
-                  className="mt-1.5 w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  className="mt-1.5 w-full rounded-2xl border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-azure/30 focus:border-azure"
                 />
               </label>
               <label className="block">
                 <span className="text-xs font-medium text-neutral-700">Metric Code *</span>
                 <input
                   name="metric_code"
-                  className="mt-1.5 w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  className="mt-1.5 w-full rounded-2xl border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-azure/30 focus:border-azure"
                   placeholder="e.g. JOBS"
                   required
                 />
@@ -1543,7 +1543,7 @@ export default async function HoldingMiniDashboard({
                   name="value"
                   type="number"
                   step="any"
-                  className="mt-1.5 w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  className="mt-1.5 w-full rounded-2xl border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-azure/30 focus:border-azure"
                   placeholder="e.g. 12"
                   required
                 />
@@ -1553,12 +1553,12 @@ export default async function HoldingMiniDashboard({
                 <input
                   name="source"
                   type="url"
-                  className="mt-1.5 w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  className="mt-1.5 w-full rounded-2xl border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-azure/30 focus:border-azure"
                   placeholder="https://..."
                 />
               </label>
               <div className="flex items-end">
-                <button type="submit" className="w-full rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800 transition-colors">
+                <button type="submit" className="w-full rounded-2xl bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800 transition-colors">
                   Add Fact
                 </button>
               </div>

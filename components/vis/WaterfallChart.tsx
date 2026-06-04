@@ -93,7 +93,7 @@ export default function WaterfallChart({ portfolioId, title, config }: Props) {
 
   if (error) {
     return (
-      <div className="w-full p-6 rounded-lg border border-red-200 bg-red-50 text-red-700">
+      <div className="w-full p-6 rounded-2xl border border-red-200 bg-red-50 text-red-700">
         <p className="font-medium text-sm">Error loading waterfall chart</p>
         <p className="text-xs mt-1">{error}</p>
       </div>
@@ -102,7 +102,7 @@ export default function WaterfallChart({ portfolioId, title, config }: Props) {
 
   if (data.length === 0) {
     return (
-      <div className="w-full p-6 rounded-lg border border-neutral-200 bg-neutral-50 text-neutral-600">
+      <div className="w-full p-6 rounded-2xl border border-neutral-200 bg-neutral-50 text-neutral-600">
         <p className="text-sm">No data available for waterfall chart.</p>
       </div>
     );

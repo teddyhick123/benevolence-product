@@ -123,7 +123,7 @@ export default function DocumentsList({
       );
     }
     return (
-      <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <svg className="w-5 h-5 text-neutral-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
       </svg>
     );
@@ -133,7 +133,7 @@ export default function DocumentsList({
     return (
       <div className="animate-pulse space-y-2">
         {[1, 2].map((i) => (
-          <div key={i} className="h-12 bg-gray-100 rounded"></div>
+          <div key={i} className="h-12 bg-neutral-100 rounded"></div>
         ))}
       </div>
     );
@@ -141,7 +141,7 @@ export default function DocumentsList({
 
   if (error) {
     return (
-      <div className="p-3 bg-red-50 border border-red-200 rounded-md text-sm text-red-700">
+      <div className="p-3 bg-red-50 border border-red-200 rounded-2xl text-sm text-red-700">
         {error}
       </div>
     );
@@ -149,8 +149,8 @@ export default function DocumentsList({
 
   if (documents.length === 0) {
     return (
-      <div className="text-center py-6 text-gray-500 text-sm">
-        <svg className="mx-auto h-8 w-8 text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <div className="text-center py-6 text-neutral-500 text-sm">
+        <svg className="mx-auto h-8 w-8 text-neutral-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
         </svg>
         No documents uploaded yet
@@ -163,15 +163,15 @@ export default function DocumentsList({
       {documents.map((doc) => (
         <div
           key={doc.id}
-          className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200 hover:bg-gray-100 transition-colors"
+          className="flex items-center justify-between p-3 bg-neutral-50 rounded-2xl border border-black/5 hover:bg-neutral-100 transition-colors"
         >
           <div className="flex items-center gap-3 flex-1 min-w-0">
             {getFileIcon(doc.mime_type)}
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-gray-900 truncate">
+              <p className="text-sm font-medium text-ink truncate">
                 {doc.file_name}
               </p>
-              <p className="text-xs text-gray-500">
+              <p className="text-xs text-neutral-500">
                 {DOCUMENT_TYPE_LABELS[doc.document_type] || doc.document_type} •{' '}
                 {formatFileSize(doc.file_size_bytes)} •{' '}
                 {new Date(doc.created_at).toLocaleDateString()}
@@ -181,7 +181,7 @@ export default function DocumentsList({
           <div className="flex items-center gap-2 ml-2">
             <button
               onClick={() => handleView(doc)}
-              className="p-2 text-azure hover:bg-azure/10 rounded-md transition-colors"
+              className="p-2 text-azure hover:bg-azure/10 rounded-2xl transition-colors"
               title="View document"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -192,7 +192,7 @@ export default function DocumentsList({
             <button
               onClick={() => handleDelete(doc.id)}
               disabled={deleting === doc.id}
-              className="p-2 text-red-600 hover:bg-red-100 rounded-md transition-colors disabled:opacity-50"
+              className="p-2 text-red-600 hover:bg-red-100 rounded-2xl transition-colors disabled:opacity-50"
               title="Delete document"
             >
               {deleting === doc.id ? (

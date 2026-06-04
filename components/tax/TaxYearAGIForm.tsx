@@ -119,7 +119,7 @@ export default function TaxYearAGIForm({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
-      <div className="bg-white rounded-xl border border-neutral-200 p-6">
+      <div className="bg-white rounded-2xl border border-neutral-200 p-6">
         <h3 className="text-lg font-semibold text-neutral-900 mb-4">
           Tax Year {taxYear} - AGI & Limits
         </h3>
@@ -128,13 +128,13 @@ export default function TaxYearAGIForm({
         </p>
 
         {error && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-2xl text-sm text-red-700">
             {error}
           </div>
         )}
 
         {success && (
-          <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-700">
+          <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-2xl text-sm text-green-700">
             Tax year data saved successfully
           </div>
         )}
@@ -152,7 +152,7 @@ export default function TaxYearAGIForm({
               min="2000"
               max="2100"
               required
-              className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              className="w-full px-4 py-2 border border-neutral-300 rounded-2xl focus:ring-2 focus:ring-azure/30 focus:border-azure"
             />
           </div>
 
@@ -170,7 +170,7 @@ export default function TaxYearAGIForm({
                 placeholder="1000000"
                 step="0.01"
                 required
-                className="w-full pl-8 pr-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                className="w-full pl-8 pr-4 py-2 border border-neutral-300 rounded-2xl focus:ring-2 focus:ring-azure/30 focus:border-azure"
               />
             </div>
             <p className="mt-1 text-xs text-neutral-500">
@@ -186,7 +186,7 @@ export default function TaxYearAGIForm({
             <select
               value={filingStatus}
               onChange={(e) => setFilingStatus(e.target.value as DonorFilingStatus)}
-              className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              className="w-full px-4 py-2 border border-neutral-300 rounded-2xl focus:ring-2 focus:ring-azure/30 focus:border-azure"
             >
               <option value="">Select filing status...</option>
               {Object.entries(DONOR_FILING_STATUS_LABELS).map(([value, label]) => (
@@ -210,7 +210,7 @@ export default function TaxYearAGIForm({
                 onChange={(e) => setStandardDeduction(e.target.value)}
                 placeholder="14600"
                 step="0.01"
-                className="w-full pl-8 pr-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                className="w-full pl-8 pr-4 py-2 border border-neutral-300 rounded-2xl focus:ring-2 focus:ring-azure/30 focus:border-azure"
               />
             </div>
             <p className="mt-1 text-xs text-neutral-500">
@@ -231,7 +231,7 @@ export default function TaxYearAGIForm({
                 onChange={(e) => setCarryforwardPrior(e.target.value)}
                 placeholder="0"
                 step="0.01"
-                className="w-full pl-8 pr-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                className="w-full pl-8 pr-4 py-2 border border-neutral-300 rounded-2xl focus:ring-2 focus:ring-azure/30 focus:border-azure"
               />
             </div>
             <p className="mt-1 text-xs text-neutral-500">
@@ -246,7 +246,7 @@ export default function TaxYearAGIForm({
                 type="checkbox"
                 checked={amtExposure}
                 onChange={(e) => setAmtExposure(e.target.checked)}
-                className="w-4 h-4 text-indigo-600 border-neutral-300 rounded focus:ring-indigo-500"
+                className="w-4 h-4 text-azure border-neutral-300 rounded focus:ring-azure/30"
               />
               <span className="text-sm font-medium text-neutral-700">
                 Subject to Alternative Minimum Tax (AMT)
@@ -258,7 +258,7 @@ export default function TaxYearAGIForm({
                 onChange={(e) => setAmtNotes(e.target.value)}
                 rows={2}
                 placeholder="AMT notes or considerations..."
-                className="mt-2 w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm"
+                className="mt-2 w-full px-4 py-2 border border-neutral-300 rounded-2xl focus:ring-2 focus:ring-azure/30 focus:border-azure text-sm"
               />
             )}
           </div>
@@ -273,42 +273,42 @@ export default function TaxYearAGIForm({
               onChange={(e) => setNotes(e.target.value)}
               rows={3}
               placeholder="Additional tax planning notes for this year..."
-              className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              className="w-full px-4 py-2 border border-neutral-300 rounded-2xl focus:ring-2 focus:ring-azure/30 focus:border-azure"
             />
           </div>
         </div>
 
         {/* AGI Limits Preview */}
         {agi && parseFloat(agi) > 0 && (
-          <div className="mt-6 bg-gradient-to-br from-indigo-50 to-purple-50 border border-indigo-200 rounded-lg p-4">
-            <h4 className="text-sm font-semibold text-indigo-900 mb-3">
+          <div className="mt-6 bg-gradient-to-br from-azure/10 to-coral/10 border border-azure/20 rounded-2xl p-4">
+            <h4 className="text-sm font-semibold text-ink mb-3">
               Calculated Deduction Limits
             </h4>
             <div className="grid grid-cols-2 gap-3">
-              <div className="bg-white rounded-lg p-3">
+              <div className="bg-white rounded-2xl p-3">
                 <p className="text-xs text-neutral-600 mb-1">Cash to Public Charity</p>
-                <p className="text-lg font-bold text-indigo-600">
+                <p className="text-lg font-bold text-azure">
                   {formatCurrency(agiLimits.limit_60)}
                 </p>
                 <p className="text-xs text-neutral-500">60% of AGI</p>
               </div>
-              <div className="bg-white rounded-lg p-3">
+              <div className="bg-white rounded-2xl p-3">
                 <p className="text-xs text-neutral-600 mb-1">Conservation Easements</p>
                 <p className="text-lg font-bold text-green-600">
                   {formatCurrency(agiLimits.limit_50)}
                 </p>
                 <p className="text-xs text-neutral-500">50% of AGI</p>
               </div>
-              <div className="bg-white rounded-lg p-3">
+              <div className="bg-white rounded-2xl p-3">
                 <p className="text-xs text-neutral-600 mb-1">Appreciated Property</p>
-                <p className="text-lg font-bold text-purple-600">
+                <p className="text-lg font-bold text-coral">
                   {formatCurrency(agiLimits.limit_30)}
                 </p>
                 <p className="text-xs text-neutral-500">30% of AGI</p>
               </div>
-              <div className="bg-white rounded-lg p-3">
+              <div className="bg-white rounded-2xl p-3">
                 <p className="text-xs text-neutral-600 mb-1">Property to Foundation</p>
-                <p className="text-lg font-bold text-amber-600">
+                <p className="text-lg font-bold text-coral">
                   {formatCurrency(agiLimits.limit_20)}
                 </p>
                 <p className="text-xs text-neutral-500">20% of AGI</p>
@@ -333,7 +333,7 @@ export default function TaxYearAGIForm({
         <button
           type="submit"
           disabled={busy}
-          className="px-6 py-2 bg-gradient-to-r from-indigo-600 to-indigo-500 text-white rounded-lg hover:opacity-90 transition-opacity font-medium shadow-sm disabled:opacity-50"
+          className="px-6 py-2 bg-gradient-to-r from-azure to-azure/80 text-white rounded-2xl hover:opacity-90 transition-opacity font-medium shadow-sm disabled:opacity-50"
         >
           {busy ? 'Saving...' : initialData ? 'Update Tax Year' : 'Save Tax Year'}
         </button>

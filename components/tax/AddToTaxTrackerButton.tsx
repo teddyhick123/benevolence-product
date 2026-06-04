@@ -53,7 +53,7 @@ export default function AddToTaxTrackerButton({ holdingId, holdingName, portfoli
 
   if (success) {
     return (
-      <div className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-green-50 border border-green-200 text-green-700 text-sm">
+      <div className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl bg-green-50 border border-green-200 text-green-700 text-sm">
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
         </svg>
@@ -67,7 +67,7 @@ export default function AddToTaxTrackerButton({ holdingId, holdingName, portfoli
       <button
         onClick={handleAddToTax}
         disabled={loading}
-        className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-purple-200 bg-purple-50 text-purple-700 hover:bg-purple-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
+        className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl border border-coral/25 bg-coral/10 text-coral hover:bg-coral/10 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
         title="Create a tax contribution record from this holding"
       >
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

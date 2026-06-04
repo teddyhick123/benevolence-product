@@ -95,12 +95,12 @@ export default function CharityFilterSidebar({
   const sidebarContent = (
     <div className={`bg-white transition-all duration-300 ${isCollapsed ? 'w-16' : 'w-80'}`}>
       {/* Header */}
-      <div className="p-4 border-b border-gray-200 flex items-center justify-between">
+      <div className="p-4 border-b border-black/5 flex items-center justify-between">
         {!isCollapsed && (
           <>
             <div className="flex items-center">
-              <Filter className="w-5 h-5 mr-2 text-gray-600" />
-              <h2 className="text-lg font-semibold text-gray-900">Filters</h2>
+              <Filter className="w-5 h-5 mr-2 text-neutral-600" />
+              <h2 className="text-lg font-semibold text-ink">Filters</h2>
             </div>
             {hasActiveFilters && (
               <button
@@ -115,7 +115,7 @@ export default function CharityFilterSidebar({
         {/* Desktop collapse button */}
         <button
           onClick={() => setIsCollapsed(!isCollapsed)}
-          className="hidden lg:block p-1 hover:bg-gray-100 rounded"
+          className="hidden lg:block p-1 hover:bg-neutral-100 rounded"
         >
           {isCollapsed ? <Filter className="w-5 h-5" /> : <X className="w-5 h-5" />}
         </button>
@@ -123,7 +123,7 @@ export default function CharityFilterSidebar({
         {onClose && (
           <button
             onClick={onClose}
-            className="lg:hidden p-1 hover:bg-gray-100 rounded"
+            className="lg:hidden p-1 hover:bg-neutral-100 rounded"
           >
             <X className="w-5 h-5" />
           </button>
@@ -135,13 +135,13 @@ export default function CharityFilterSidebar({
         <div className="p-4 space-y-6 overflow-y-auto max-h-[calc(100vh-200px)]">
           {/* Sector Filter */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-neutral-700 mb-2">
               Sector
             </label>
             <select
               value={filters.sector || ''}
               onChange={(e) => updateFilter('sector', e.target.value || undefined)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-azure focus:border-azure"
+              className="w-full px-3 py-2 border border-black/10 rounded-2xl focus:ring-azure/30 focus:border-azure"
             >
               <option value="">All Sectors</option>
               {SECTORS.map((sector) => (
@@ -154,13 +154,13 @@ export default function CharityFilterSidebar({
 
           {/* State Filter */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-neutral-700 mb-2">
               State
             </label>
             <select
               value={filters.state || ''}
               onChange={(e) => updateFilter('state', e.target.value || undefined)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-azure focus:border-azure"
+              className="w-full px-3 py-2 border border-black/10 rounded-2xl focus:ring-azure/30 focus:border-azure"
             >
               <option value="">All States</option>
               {US_STATES.map((state) => (
@@ -173,12 +173,12 @@ export default function CharityFilterSidebar({
 
           {/* Rating Filter */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-neutral-700 mb-2">
               Charity Navigator Rating
             </label>
             <div className="space-y-2">
               <div>
-                <label className="text-xs text-gray-500">Minimum</label>
+                <label className="text-xs text-neutral-500">Minimum</label>
                 <input
                   type="range"
                   min="0"
@@ -187,10 +187,10 @@ export default function CharityFilterSidebar({
                   onChange={(e) => updateFilter('minRating', parseInt(e.target.value) || undefined)}
                   className="w-full"
                 />
-                <div className="text-sm text-gray-600">{filters.minRating || 0}</div>
+                <div className="text-sm text-neutral-600">{filters.minRating || 0}</div>
               </div>
               <div>
-                <label className="text-xs text-gray-500">Maximum</label>
+                <label className="text-xs text-neutral-500">Maximum</label>
                 <input
                   type="range"
                   min="0"
@@ -199,23 +199,23 @@ export default function CharityFilterSidebar({
                   onChange={(e) => updateFilter('maxRating', parseInt(e.target.value) || undefined)}
                   className="w-full"
                 />
-                <div className="text-sm text-gray-600">{filters.maxRating || 100}</div>
+                <div className="text-sm text-neutral-600">{filters.maxRating || 100}</div>
               </div>
             </div>
           </div>
 
           {/* Revenue Filter */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-neutral-700 mb-2">
               Annual Revenue
             </label>
             <div className="space-y-2">
               <div>
-                <label className="text-xs text-gray-500">Minimum</label>
+                <label className="text-xs text-neutral-500">Minimum</label>
                 <select
                   value={filters.minRevenue || ''}
                   onChange={(e) => updateFilter('minRevenue', e.target.value ? parseFloat(e.target.value) : undefined)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                  className="w-full px-3 py-2 border border-black/10 rounded-2xl text-sm"
                 >
                   <option value="">Any</option>
                   <option value="100000">$100K+</option>
@@ -227,11 +227,11 @@ export default function CharityFilterSidebar({
                 </select>
               </div>
               <div>
-                <label className="text-xs text-gray-500">Maximum</label>
+                <label className="text-xs text-neutral-500">Maximum</label>
                 <select
                   value={filters.maxRevenue || ''}
                   onChange={(e) => updateFilter('maxRevenue', e.target.value ? parseFloat(e.target.value) : undefined)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                  className="w-full px-3 py-2 border border-black/10 rounded-2xl text-sm"
                 >
                   <option value="">Any</option>
                   <option value="1000000">Up to $1M</option>
@@ -246,7 +246,7 @@ export default function CharityFilterSidebar({
 
           {/* Impact Focus Filter */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-neutral-700 mb-2">
               Impact Focus
             </label>
             <div className="space-y-2">
@@ -256,9 +256,9 @@ export default function CharityFilterSidebar({
                     type="checkbox"
                     checked={(filters.impactFocus || []).includes(focus)}
                     onChange={() => toggleImpactFocus(focus)}
-                    className="rounded border-gray-300 text-azure focus:ring-azure"
+                    className="rounded border-black/10 text-azure focus:ring-azure/30"
                   />
-                  <span className="ml-2 text-sm text-gray-700">{focus}</span>
+                  <span className="ml-2 text-sm text-neutral-700">{focus}</span>
                 </label>
               ))}
             </div>
@@ -267,21 +267,21 @@ export default function CharityFilterSidebar({
           {/* Portfolio-Specific Filters */}
           {view === 'portfolio' && (
             <>
-              <div className="border-t border-gray-200 pt-6">
-                <h3 className="text-sm font-semibold text-gray-900 mb-4">
+              <div className="border-t border-black/5 pt-6">
+                <h3 className="text-sm font-semibold text-ink mb-4">
                   Portfolio Filters
                 </h3>
               </div>
 
               {/* Interaction Status Filter */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-neutral-700 mb-2">
                   Interaction Status
                 </label>
                 <select
                   value={filters.interactionStatus || ''}
                   onChange={(e) => updateFilter('interactionStatus', e.target.value || undefined)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-azure focus:border-azure"
+                  className="w-full px-3 py-2 border border-black/10 rounded-2xl focus:ring-azure/30 focus:border-azure"
                 >
                   <option value="">All Statuses</option>
                   {INTERACTION_STATUSES.map((status) => (
@@ -301,7 +301,7 @@ export default function CharityFilterSidebar({
   return (
     <>
       {/* Desktop sidebar - always visible */}
-      <div className="hidden lg:block border-r border-gray-200 flex-shrink-0">
+      <div className="hidden lg:block border-r border-black/5 flex-shrink-0">
         {sidebarContent}
       </div>
 
@@ -314,7 +314,7 @@ export default function CharityFilterSidebar({
             onClick={onClose}
           />
           {/* Sidebar panel */}
-          <div className="relative z-10 h-full overflow-y-auto border-r border-gray-200 shadow-xl">
+          <div className="relative z-10 h-full overflow-y-auto border-r border-black/5 shadow-xl">
             {sidebarContent}
           </div>
         </div>

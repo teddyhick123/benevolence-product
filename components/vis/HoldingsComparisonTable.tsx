@@ -187,7 +187,7 @@ export default function HoldingsComparisonTable({ portfolioId, title, config }: 
 
   if (error) {
     return (
-      <div className="w-full p-6 rounded-lg border border-red-200 bg-red-50 text-red-700">
+      <div className="w-full p-6 rounded-2xl border border-red-200 bg-red-50 text-red-700">
         <p className="font-medium text-sm">Error loading comparison table</p>
         <p className="text-xs mt-1">{error}</p>
       </div>
@@ -196,7 +196,7 @@ export default function HoldingsComparisonTable({ portfolioId, title, config }: 
 
   if (sortedData.length < minHoldings) {
     return (
-      <div className="w-full p-6 rounded-lg border border-neutral-200 bg-neutral-50 text-neutral-600">
+      <div className="w-full p-6 rounded-2xl border border-neutral-200 bg-neutral-50 text-neutral-600">
         <p className="text-sm">
           Need at least {minHoldings} holdings with data to show comparison table.
         </p>
@@ -319,7 +319,7 @@ export default function HoldingsComparisonTable({ portfolioId, title, config }: 
         {sortedData.map(row => (
           <div
             key={row.holdingId}
-            className="rounded-xl border border-neutral-200 bg-white p-4 cursor-pointer hover:shadow-lg transition-shadow"
+            className="rounded-2xl border border-neutral-200 bg-white p-4 cursor-pointer hover:shadow-lg transition-shadow"
             onClick={() => router.push(`/dashboard/holdings/${row.holdingId}`)}
           >
             <div className="mb-3 pb-3 border-b border-neutral-100">

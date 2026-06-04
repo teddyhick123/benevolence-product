@@ -8,8 +8,8 @@ import type { ReconciliationAnalysis } from '@/lib/import/ai/reconcile';
 
 const SEVERITY_COLORS: Record<string, string> = {
   critical: 'bg-red-100 text-red-800 border-red-200',
-  warning: 'bg-yellow-100 text-yellow-800 border-yellow-200',
-  info: 'bg-blue-100 text-blue-800 border-blue-200',
+  warning: 'bg-sunset/15 text-ink border-sunset/30',
+  info: 'bg-azure/10 text-azure-deep border-azure/20',
 };
 
 interface ReconciliationReportProps {
@@ -52,12 +52,12 @@ export function ReconciliationReportView({ report, onCommit, onReviewErrors, imp
   return (
     <div className="space-y-6">
       {/* Summary card */}
-      <div className={`p-4 rounded-lg border ${report.overallSuccess ? 'bg-green-50 border-green-200' : 'bg-yellow-50 border-yellow-200'}`}>
+      <div className={`p-4 rounded-2xl border ${report.overallSuccess ? 'bg-green-50 border-green-200' : 'bg-sunset/15 border-sunset/30'}`}>
         <div className="flex items-start gap-3">
-          <span className={`inline-block px-2.5 py-1 rounded-full text-xs font-semibold ${report.overallSuccess ? 'bg-green-200 text-green-900' : 'bg-yellow-200 text-yellow-900'}`}>
+          <span className={`inline-block px-2.5 py-1 rounded-full text-xs font-semibold ${report.overallSuccess ? 'bg-green-200 text-green-900' : 'bg-sunset/20 text-ink'}`}>
             {report.overallSuccess ? 'PASS' : 'ISSUES FOUND'}
           </span>
-          <p className={`text-sm ${report.overallSuccess ? 'text-green-800' : 'text-yellow-800'}`}>
+          <p className={`text-sm ${report.overallSuccess ? 'text-green-800' : 'text-ink'}`}>
             {report.summary}
           </p>
         </div>
@@ -69,7 +69,7 @@ export function ReconciliationReportView({ report, onCommit, onReviewErrors, imp
       {/* Entity table */}
       <div>
         <h4 className="text-sm font-medium mb-3">Entity Breakdown</h4>
-        <div className="border border-neutral-200 rounded-lg overflow-hidden text-sm">
+        <div className="border border-neutral-200 rounded-2xl overflow-hidden text-sm">
           <table className="w-full">
             <thead className="bg-neutral-50 text-xs text-neutral-500 uppercase tracking-wide">
               <tr>
@@ -96,8 +96,8 @@ export function ReconciliationReportView({ report, onCommit, onReviewErrors, imp
           <h4 className="text-sm font-medium mb-2">Action Items</h4>
           <ul className="space-y-1.5">
             {report.actionItems.map((item, i) => (
-              <li key={i} className="flex items-start gap-2 text-sm text-yellow-800 bg-yellow-50 border border-yellow-100 rounded-md px-3 py-2">
-                <span className="mt-0.5 text-yellow-500">⚠</span>
+              <li key={i} className="flex items-start gap-2 text-sm text-ink bg-sunset/15 border border-sunset/30 rounded-2xl px-3 py-2">
+                <span className="mt-0.5 text-coral">⚠</span>
                 <span>{item}</span>
               </li>
             ))}
@@ -107,7 +107,7 @@ export function ReconciliationReportView({ report, onCommit, onReviewErrors, imp
 
       {/* AI Analysis */}
       {aiAnalysis ? (
-        <div className="bg-neutral-50 border border-neutral-200 rounded-lg p-4 space-y-3">
+        <div className="bg-neutral-50 border border-neutral-200 rounded-2xl p-4 space-y-3">
           <div className="flex items-center gap-2">
             <span className="text-xs font-medium text-neutral-500 uppercase tracking-wide">AI Analysis</span>
             <span className={`text-xs px-2 py-0.5 rounded-full ${aiAnalysis.isAcceptable ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-700'}`}>
@@ -168,14 +168,14 @@ export function ReconciliationReportView({ report, onCommit, onReviewErrors, imp
           <button
             onClick={handleCommit}
             disabled={committing}
-            className="px-4 py-2 bg-green-600 text-white text-sm rounded-md hover:bg-green-700 disabled:opacity-50 transition-colors"
+            className="px-4 py-2 bg-green-600 text-white text-sm rounded-2xl hover:bg-green-700 disabled:opacity-50 transition-colors"
           >
             {committing ? 'Committing…' : 'Looks good, Commit'}
           </button>
         ) : (
           <button
             onClick={onReviewErrors}
-            className="px-4 py-2 bg-yellow-500 text-white text-sm rounded-md hover:bg-yellow-600 transition-colors"
+            className="px-4 py-2 bg-sunset text-white text-sm rounded-2xl hover:bg-sunset/90 transition-colors"
           >
             Review Issues
           </button>
@@ -187,7 +187,7 @@ export function ReconciliationReportView({ report, onCommit, onReviewErrors, imp
 
 function EntityRow({ entity }: { entity: EntityReconciliation }) {
   const pct = (entity.matchRate * 100).toFixed(1);
-  const barColor = entity.withinTolerance ? 'bg-green-500' : 'bg-yellow-500';
+  const barColor = entity.withinTolerance ? 'bg-green-500' : 'bg-sunset';
 
   return (
     <tr className="hover:bg-neutral-50">
@@ -214,7 +214,7 @@ function EntityRow({ entity }: { entity: EntityReconciliation }) {
       </td>
       <td className="px-4 py-3 text-right text-xs">
         {entity.amountDelta !== undefined ? (
-          <span className={entity.amountDelta > 0 ? 'text-yellow-700' : 'text-neutral-400'}>
+          <span className={entity.amountDelta > 0 ? 'text-ink' : 'text-neutral-400'}>
             {entity.amountDelta > 0
               ? `$${entity.amountDelta.toFixed(2)} (${entity.amountDeltaPercent?.toFixed(2)}%)`
               : '—'}

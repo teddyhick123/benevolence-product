@@ -64,7 +64,7 @@ export default function PeopleGridConfig({ initialConfig, onSave, onCancel, port
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="e.g., People Helped"
-            className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+            className="w-full px-4 py-2 border border-neutral-300 rounded-2xl focus:ring-2 focus:ring-azure/30 focus:border-azure"
           />
         </div>
 
@@ -77,7 +77,7 @@ export default function PeopleGridConfig({ initialConfig, onSave, onCancel, port
               value={metricCode}
               onChange={(e) => setMetricCode(e.target.value)}
               required
-              className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              className="w-full px-4 py-2 border border-neutral-300 rounded-2xl focus:ring-2 focus:ring-azure/30 focus:border-azure"
             >
               <option value="">Select a metric...</option>
               {availableMetrics.map(m => (
@@ -93,7 +93,7 @@ export default function PeopleGridConfig({ initialConfig, onSave, onCancel, port
               onChange={(e) => setMetricCode(e.target.value.toUpperCase())}
               placeholder="e.g., BENEFICIARIES_REACHED"
               required
-              className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              className="w-full px-4 py-2 border border-neutral-300 rounded-2xl focus:ring-2 focus:ring-azure/30 focus:border-azure"
             />
           )}
           <p className="mt-1 text-xs text-neutral-500">
@@ -109,7 +109,7 @@ export default function PeopleGridConfig({ initialConfig, onSave, onCancel, port
             <select
               value={mode}
               onChange={(e) => setMode(e.target.value)}
-              className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              className="w-full px-4 py-2 border border-neutral-300 rounded-2xl focus:ring-2 focus:ring-azure/30 focus:border-azure"
             >
               <option value="sum">Sum over time</option>
               <option value="latest">Latest value only</option>
@@ -123,7 +123,7 @@ export default function PeopleGridConfig({ initialConfig, onSave, onCancel, port
             <select
               value={window}
               onChange={(e) => setWindow(e.target.value)}
-              className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              className="w-full px-4 py-2 border border-neutral-300 rounded-2xl focus:ring-2 focus:ring-azure/30 focus:border-azure"
             >
               <option value="3m">Last 3 months</option>
               <option value="6m">Last 6 months</option>
@@ -144,7 +144,7 @@ export default function PeopleGridConfig({ initialConfig, onSave, onCancel, port
             onChange={(e) => setPerUnit(e.target.value)}
             min="1"
             placeholder="10"
-            className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+            className="w-full px-4 py-2 border border-neutral-300 rounded-2xl focus:ring-2 focus:ring-azure/30 focus:border-azure"
           />
           <p className="mt-1 text-xs text-neutral-500">How many people each icon represents</p>
         </div>
@@ -158,15 +158,15 @@ export default function PeopleGridConfig({ initialConfig, onSave, onCancel, port
             value={target}
             onChange={(e) => setTarget(e.target.value)}
             placeholder="e.g., 20000"
-            className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+            className="w-full px-4 py-2 border border-neutral-300 rounded-2xl focus:ring-2 focus:ring-azure/30 focus:border-azure"
           />
           <p className="mt-1 text-xs text-neutral-500">Show progress toward this goal</p>
         </div>
       </div>
 
-      <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4">
+      <div className="bg-azure/10 border border-azure/20 rounded-2xl p-4">
         <div className="flex gap-3">
-          <div className="text-sm text-indigo-900">
+          <div className="text-sm text-ink">
             <p className="font-medium mb-1">Preview</p>
             <p>Each 👤 icon will represent {perUnit} people. The last icon can be partially filled to show exact progress.</p>
           </div>
@@ -183,7 +183,7 @@ export default function PeopleGridConfig({ initialConfig, onSave, onCancel, port
         </button>
         <button
           type="submit"
-          className="px-6 py-2 bg-gradient-to-r from-azure via-azure/90 to-azure/70 text-white rounded-lg hover:opacity-90 transition-opacity font-medium shadow-soft"
+          className="px-6 py-2 bg-gradient-to-r from-azure via-azure/90 to-azure/70 text-white rounded-2xl hover:opacity-90 transition-opacity font-medium shadow-soft"
         >
           Create Widget
         </button>

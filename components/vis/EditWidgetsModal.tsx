@@ -333,7 +333,7 @@ export default function EditWidgetsModal({ portfolioId, holdingId, open, onClose
         <div className="flex items-start justify-between gap-4 px-6 py-5 border-b border-neutral-200/80 bg-white/80 backdrop-blur-sm rounded-t-3xl">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-3">
-              <div className="p-2.5 rounded-xl bg-gradient-to-br from-azure via-azure/90 to-azure/70 shadow-lg">
+              <div className="p-2.5 rounded-2xl bg-gradient-to-br from-azure via-azure/90 to-azure/70 shadow-lg">
                 <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z" />
                 </svg>
@@ -351,7 +351,7 @@ export default function EditWidgetsModal({ portfolioId, holdingId, open, onClose
           <button
             type="button"
             onClick={() => !busy && onClose()}
-            className="group rounded-xl p-2 text-neutral-400 hover:text-neutral-900 hover:bg-neutral-100 transition-all duration-200"
+            className="group rounded-2xl p-2 text-neutral-400 hover:text-neutral-900 hover:bg-neutral-100 transition-all duration-200"
             aria-label="Close"
             disabled={busy}
           >
@@ -427,7 +427,7 @@ export default function EditWidgetsModal({ portfolioId, holdingId, open, onClose
                   type="button"
                   onClick={startCreate}
                   disabled={busy}
-                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-azure via-azure/90 to-azure/70 text-white text-sm font-medium shadow-lg shadow-azure/25 hover:shadow-xl hover:shadow-azure/30 hover:scale-105 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-gradient-to-r from-azure via-azure/90 to-azure/70 text-white text-sm font-medium shadow-lg shadow-azure/25 hover:shadow-xl hover:shadow-azure/30 hover:scale-105 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -449,7 +449,7 @@ export default function EditWidgetsModal({ portfolioId, holdingId, open, onClose
                   <button
                     type="button"
                     onClick={startCreate}
-                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-neutral-300 hover:bg-neutral-50 text-sm font-medium text-neutral-700 transition-colors"
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl border border-neutral-300 hover:bg-neutral-50 text-sm font-medium text-neutral-700 transition-colors"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -479,7 +479,7 @@ export default function EditWidgetsModal({ portfolioId, holdingId, open, onClose
                       <div className="flex items-start justify-between gap-4">
                         {/* Drag Handle & Widget Info */}
                         <div className="flex items-center gap-3 flex-1 min-w-0">
-                          <div className="p-1.5 rounded-lg hover:bg-neutral-100 cursor-grab active:cursor-grabbing">
+                          <div className="p-1.5 rounded-2xl hover:bg-neutral-100 cursor-grab active:cursor-grabbing">
                             <svg className="w-4 h-4 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
                             </svg>
@@ -489,7 +489,7 @@ export default function EditWidgetsModal({ portfolioId, holdingId, open, onClose
                               <h5 className="text-sm font-semibold text-neutral-900 truncate">
                                 {w.title || '(Untitled Widget)'}
                               </h5>
-                              <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-neutral-100 text-neutral-600 flex-shrink-0">
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-2xl text-xs font-medium bg-neutral-100 text-neutral-600 flex-shrink-0">
                                 {w.type}
                               </span>
                             </div>
@@ -503,7 +503,7 @@ export default function EditWidgetsModal({ portfolioId, holdingId, open, onClose
                             type="button"
                             onClick={() => move(w.id, -1)}
                             disabled={i === 0 || busy}
-                            className="p-2 rounded-lg border border-neutral-200 hover:bg-neutral-50 hover:border-neutral-300 disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-150"
+                            className="p-2 rounded-2xl border border-neutral-200 hover:bg-neutral-50 hover:border-neutral-300 disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-150"
                             aria-label="Move up"
                           >
                             <svg className="w-4 h-4 text-neutral-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -514,7 +514,7 @@ export default function EditWidgetsModal({ portfolioId, holdingId, open, onClose
                             type="button"
                             onClick={() => move(w.id, +1)}
                             disabled={i === widgets.length - 1 || busy}
-                            className="p-2 rounded-lg border border-neutral-200 hover:bg-neutral-50 hover:border-neutral-300 disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-150"
+                            className="p-2 rounded-2xl border border-neutral-200 hover:bg-neutral-50 hover:border-neutral-300 disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-150"
                             aria-label="Move down"
                           >
                             <svg className="w-4 h-4 text-neutral-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -525,7 +525,7 @@ export default function EditWidgetsModal({ portfolioId, holdingId, open, onClose
                             type="button"
                             onClick={() => startEdit(w)}
                             disabled={busy}
-                            className="px-3 py-2 rounded-lg border border-neutral-200 hover:bg-azure/5 hover:border-azure/30 hover:text-azure text-sm font-medium text-neutral-700 transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="px-3 py-2 rounded-2xl border border-neutral-200 hover:bg-azure/5 hover:border-azure/30 hover:text-azure text-sm font-medium text-neutral-700 transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
                           >
                             Edit
                           </button>
@@ -533,7 +533,7 @@ export default function EditWidgetsModal({ portfolioId, holdingId, open, onClose
                             type="button"
                             onClick={() => removeWidget(w.id)}
                             disabled={busy}
-                            className="p-2 rounded-lg border border-red-200 hover:bg-red-50 hover:border-red-300 text-red-600 transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="p-2 rounded-2xl border border-red-200 hover:bg-red-50 hover:border-red-300 text-red-600 transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
                             aria-label="Delete widget"
                           >
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

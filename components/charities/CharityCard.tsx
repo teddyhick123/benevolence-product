@@ -49,7 +49,7 @@ export default function CharityCard({
 
   return (
     <div
-      className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-lg transition-shadow duration-200 cursor-pointer"
+      className="rounded-2xl border border-black/5 bg-white shadow-soft p-4 hover:shadow-lg transition-shadow duration-200 cursor-pointer"
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
@@ -57,7 +57,7 @@ export default function CharityCard({
         {/* Header */}
         <div className="flex items-start justify-between mb-2">
           <div className="flex-1">
-            <h3 className="text-lg font-semibold text-gray-900 line-clamp-2 hover:text-azure">
+            <h3 className="text-lg font-semibold text-ink line-clamp-2 hover:text-azure">
               {charity.name}
             </h3>
             {charity.ntee_code && (
@@ -68,21 +68,21 @@ export default function CharityCard({
           </div>
           {rating != null && (
             <div className="ml-2 flex items-center">
-              <Star className="w-4 h-4 text-yellow-500 fill-yellow-500 mr-1" />
-              <span className="text-sm font-semibold text-gray-900">{rating}</span>
+              <Star className="w-4 h-4 text-sunset fill-sunset mr-1" />
+              <span className="text-sm font-semibold text-ink">{rating}</span>
             </div>
           )}
         </div>
 
         {/* Mission */}
         {charity.mission && (
-          <p className="text-sm text-gray-600 line-clamp-2 mb-2 italic">
+          <p className="text-sm text-neutral-600 line-clamp-2 mb-2 italic">
             {charity.mission}
           </p>
         )}
 
         {/* Details */}
-        <div className="flex items-center gap-4 text-sm text-gray-600 mt-3">
+        <div className="flex items-center gap-4 text-sm text-neutral-600 mt-3">
           {location && (
             <div className="flex items-center">
               <MapPin className="w-4 h-4 mr-1" />
@@ -99,8 +99,8 @@ export default function CharityCard({
 
         {/* Portfolio Status (My Portfolio view only) */}
         {view === 'portfolio' && charity.portfolio_metadata && (
-          <div className="mt-3 pt-3 border-t border-gray-100">
-            <span className="inline-block px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded">
+          <div className="mt-3 pt-3 border-t border-black/5">
+            <span className="inline-block px-2 py-1 bg-neutral-100 text-neutral-700 text-xs rounded">
               Status: {charity.portfolio_metadata.status || 'active'}
             </span>
           </div>
@@ -108,7 +108,7 @@ export default function CharityCard({
       </Link>
 
       {/* Actions */}
-      <div className="mt-3 pt-3 border-t border-gray-100">
+      <div className="mt-3 pt-3 border-t border-black/5">
         {view === 'discovery' && onAddToPortfolio && (
           <button
             onClick={(e) => {
@@ -131,7 +131,7 @@ export default function CharityCard({
                 onEdit(charity.portfolio_metadata.entry_id);
               }
             }}
-            className="w-full px-4 py-2 border border-gray-300 text-gray-700 text-sm font-medium rounded hover:bg-gray-50 transition-colors"
+            className="w-full px-4 py-2 border border-black/10 text-neutral-700 text-sm font-medium rounded hover:bg-neutral-50 transition-colors"
           >
             Edit Details
           </button>
@@ -140,7 +140,7 @@ export default function CharityCard({
 
       {/* EIN (subtle, bottom right) */}
       <div className="mt-2 text-right">
-        <span className="text-xs text-gray-400">EIN: {charity.ein}</span>
+        <span className="text-xs text-neutral-400">EIN: {charity.ein}</span>
       </div>
     </div>
   );

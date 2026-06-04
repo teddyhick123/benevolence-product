@@ -105,8 +105,8 @@ export default function DonorDetailPage() {
     return (
       <div className="max-w-4xl mx-auto px-4 py-8">
         <div className="animate-pulse space-y-6">
-          <div className="h-8 w-48 bg-gray-200 rounded"></div>
-          <div className="h-64 bg-gray-200 rounded-lg"></div>
+          <div className="h-8 w-48 bg-neutral-200 rounded"></div>
+          <div className="h-64 bg-neutral-200 rounded-2xl"></div>
         </div>
       </div>
     );
@@ -115,8 +115,8 @@ export default function DonorDetailPage() {
   if (!donor || !organization) {
     return (
       <div className="max-w-4xl mx-auto px-4 py-8 text-center">
-        <h1 className="text-xl font-semibold text-gray-900">Donor not found</h1>
-        <p className="text-gray-500 mt-2">The requested donor does not exist.</p>
+        <h1 className="text-xl font-semibold text-ink">Donor not found</h1>
+        <p className="text-neutral-500 mt-2">The requested donor does not exist.</p>
         <button
           onClick={() => router.push(`/org/${organizationId}/donors`)}
           className="mt-4 text-azure hover:underline"
@@ -137,12 +137,12 @@ export default function DonorDetailPage() {
       <nav className="mb-6">
         <ol className="flex items-center gap-2 text-sm">
           <li>
-            <a href={`/org/${organizationId}/donors`} className="text-gray-500 hover:text-gray-700">
+            <a href={`/org/${organizationId}/donors`} className="text-neutral-500 hover:text-neutral-700">
               Donors
             </a>
           </li>
-          <li className="text-gray-400">/</li>
-          <li className="text-gray-900 font-medium">{displayName}</li>
+          <li className="text-neutral-400">/</li>
+          <li className="text-ink font-medium">{displayName}</li>
         </ol>
       </nav>
 
@@ -150,13 +150,13 @@ export default function DonorDetailPage() {
       <div className="flex items-center justify-end gap-3 mb-6">
         <button
           onClick={handleSendAcknowledgment}
-          className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
+          className="px-4 py-2 text-neutral-700 border border-black/10 rounded-2xl hover:bg-neutral-50"
         >
           Send Acknowledgment
         </button>
         <button
           onClick={() => setShowContributionForm(true)}
-          className="px-4 py-2 bg-azure text-white rounded-lg hover:bg-azure/90"
+          className="px-4 py-2 bg-azure text-white rounded-2xl hover:bg-azure/90"
         >
           Log Contribution
         </button>
@@ -172,7 +172,7 @@ export default function DonorDetailPage() {
       {/* Contribution Form Modal */}
       {showContributionForm && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <div className="p-6 border-b">
               <h2 className="text-xl font-semibold">Log Contribution for {displayName}</h2>
             </div>
@@ -194,7 +194,7 @@ export default function DonorDetailPage() {
       {/* Receipt Generator Modal */}
       {showReceiptModal && selectedContribution && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <div className="p-6 border-b">
               <h2 className="text-xl font-semibold">Generate Tax Receipt</h2>
             </div>
@@ -221,7 +221,7 @@ export default function DonorDetailPage() {
       {/* Acknowledgment Letter Modal */}
       {showAckModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <div className="p-6 border-b">
               <h2 className="text-xl font-semibold">Send Acknowledgment Letter</h2>
             </div>
@@ -244,10 +244,10 @@ export default function DonorDetailPage() {
       {/* Edit Donor Modal */}
       {showEditModal && donor && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
             <div className="p-6 border-b flex items-center justify-between">
               <h2 className="text-xl font-semibold">Edit Donor</h2>
-              <button onClick={() => setShowEditModal(false)} className="text-gray-400 hover:text-gray-600" aria-label="Close">
+              <button onClick={() => setShowEditModal(false)} className="text-neutral-400 hover:text-neutral-600" aria-label="Close">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
@@ -271,45 +271,45 @@ export default function DonorDetailPage() {
               {!donor.is_organization ? (
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">First Name</label>
-                    <input type="text" value={editFields.first_name ?? ''} onChange={e => setEditFields(p => ({ ...p, first_name: e.target.value }))} className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-azure focus:border-transparent" />
+                    <label className="block text-xs font-medium text-neutral-700 mb-1">First Name</label>
+                    <input type="text" value={editFields.first_name ?? ''} onChange={e => setEditFields(p => ({ ...p, first_name: e.target.value }))} className="w-full px-3 py-2 text-sm border border-black/10 rounded-2xl focus:ring-2 focus:ring-azure/30 focus:border-azure" />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">Last Name</label>
-                    <input type="text" value={editFields.last_name ?? ''} onChange={e => setEditFields(p => ({ ...p, last_name: e.target.value }))} className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-azure focus:border-transparent" />
+                    <label className="block text-xs font-medium text-neutral-700 mb-1">Last Name</label>
+                    <input type="text" value={editFields.last_name ?? ''} onChange={e => setEditFields(p => ({ ...p, last_name: e.target.value }))} className="w-full px-3 py-2 text-sm border border-black/10 rounded-2xl focus:ring-2 focus:ring-azure/30 focus:border-azure" />
                   </div>
                 </div>
               ) : (
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Organization Name</label>
-                  <input type="text" value={editFields.organization_name ?? ''} onChange={e => setEditFields(p => ({ ...p, organization_name: e.target.value }))} className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-azure focus:border-transparent" />
+                  <label className="block text-xs font-medium text-neutral-700 mb-1">Organization Name</label>
+                  <input type="text" value={editFields.organization_name ?? ''} onChange={e => setEditFields(p => ({ ...p, organization_name: e.target.value }))} className="w-full px-3 py-2 text-sm border border-black/10 rounded-2xl focus:ring-2 focus:ring-azure/30 focus:border-azure" />
                 </div>
               )}
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">Email</label>
-                <input type="email" value={editFields.email ?? ''} onChange={e => setEditFields(p => ({ ...p, email: e.target.value }))} className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-azure focus:border-transparent" />
+                <label className="block text-xs font-medium text-neutral-700 mb-1">Email</label>
+                <input type="email" value={editFields.email ?? ''} onChange={e => setEditFields(p => ({ ...p, email: e.target.value }))} className="w-full px-3 py-2 text-sm border border-black/10 rounded-2xl focus:ring-2 focus:ring-azure/30 focus:border-azure" />
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">Address</label>
-                <input type="text" value={editFields.address_line1 ?? ''} onChange={e => setEditFields(p => ({ ...p, address_line1: e.target.value }))} placeholder="Street address" className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-azure focus:border-transparent" />
+                <label className="block text-xs font-medium text-neutral-700 mb-1">Address</label>
+                <input type="text" value={editFields.address_line1 ?? ''} onChange={e => setEditFields(p => ({ ...p, address_line1: e.target.value }))} placeholder="Street address" className="w-full px-3 py-2 text-sm border border-black/10 rounded-2xl focus:ring-2 focus:ring-azure/30 focus:border-azure" />
               </div>
               <div className="grid grid-cols-3 gap-3">
                 <div className="col-span-1">
-                  <label className="block text-xs font-medium text-gray-700 mb-1">City</label>
-                  <input type="text" value={editFields.city ?? ''} onChange={e => setEditFields(p => ({ ...p, city: e.target.value }))} className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-azure focus:border-transparent" />
+                  <label className="block text-xs font-medium text-neutral-700 mb-1">City</label>
+                  <input type="text" value={editFields.city ?? ''} onChange={e => setEditFields(p => ({ ...p, city: e.target.value }))} className="w-full px-3 py-2 text-sm border border-black/10 rounded-2xl focus:ring-2 focus:ring-azure/30 focus:border-azure" />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">State</label>
-                  <input type="text" value={editFields.state ?? ''} onChange={e => setEditFields(p => ({ ...p, state: e.target.value }))} maxLength={2} className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-azure focus:border-transparent" />
+                  <label className="block text-xs font-medium text-neutral-700 mb-1">State</label>
+                  <input type="text" value={editFields.state ?? ''} onChange={e => setEditFields(p => ({ ...p, state: e.target.value }))} maxLength={2} className="w-full px-3 py-2 text-sm border border-black/10 rounded-2xl focus:ring-2 focus:ring-azure/30 focus:border-azure" />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">ZIP</label>
-                  <input type="text" value={editFields.postal_code ?? ''} onChange={e => setEditFields(p => ({ ...p, postal_code: e.target.value }))} className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-azure focus:border-transparent" />
+                  <label className="block text-xs font-medium text-neutral-700 mb-1">ZIP</label>
+                  <input type="text" value={editFields.postal_code ?? ''} onChange={e => setEditFields(p => ({ ...p, postal_code: e.target.value }))} className="w-full px-3 py-2 text-sm border border-black/10 rounded-2xl focus:ring-2 focus:ring-azure/30 focus:border-azure" />
                 </div>
               </div>
               <div className="flex justify-end gap-3 pt-2">
-                <button type="button" onClick={() => setShowEditModal(false)} className="px-4 py-2 text-sm text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50">Cancel</button>
-                <button type="submit" disabled={editSaving} className="px-4 py-2 text-sm bg-azure text-white rounded-lg hover:bg-azure/90 disabled:opacity-50 font-medium">{editSaving ? 'Saving…' : 'Save Changes'}</button>
+                <button type="button" onClick={() => setShowEditModal(false)} className="px-4 py-2 text-sm text-neutral-700 border border-black/10 rounded-2xl hover:bg-neutral-50">Cancel</button>
+                <button type="submit" disabled={editSaving} className="px-4 py-2 text-sm bg-azure text-white rounded-2xl hover:bg-azure/90 disabled:opacity-50 font-medium">{editSaving ? 'Saving…' : 'Save Changes'}</button>
               </div>
             </form>
           </div>

@@ -1,7 +1,8 @@
 # Database Migrations
 
-Single source of truth for the schema. 41 ordered, idempotent migrations replace
-the ad-hoc legacy files and the stale consolidated module files.
+Single source of truth for the schema. 43 ordered migrations replace the ad-hoc
+legacy files and the stale consolidated module files. Late prerelease patches
+have been folded into the canonical owning migrations.
 
 ## Running migrations
 
@@ -25,19 +26,19 @@ psql $DATABASE_URL -f db/demo/seed_demo_org.sql
 | 0003_profiles | Foundation | User profiles, auto-created on signup |
 | 0004_portfolios | Foundation | Portfolios, portfolio members, membership⊆org trigger |
 | 0005_uploads_and_staging | Foundation | File uploads, staging tables for import |
-| 0006_holdings | Investment | Universal asset table, holding_facts, widgets |
+| 0006_holdings | Investment | Universal asset table, holding_facts, widgets, holding locations |
 | 0007_investment_tracking | Investment | Valuations, transactions, co-investors |
 | 0008_metrics_and_kpis | Investment | KPI definitions, metric facts, recommendations |
 | 0009_grants | Historical | Placeholder only; canonical grant lifecycle tables are created in 0041 |
-| 0010_charities_and_news | Reference | Charity lookup DB, news article cache |
-| 0011_reports | Reports | Generated portfolio reports |
+| 0010_charities_and_news | Reference | Charity lookup DB, investees, external caches, news, events |
+| 0011_reports | Reports | Reports, templates, generated documents, schedules |
 | 0012_owner_tax_profile | Tax | Portfolio owner's personal tax data (NOT the donor CRM) |
 | 0013_tax_contributions | Tax | Charitable deductions, Form 8283, carryforward |
-| 0014_donors | Donors | Donor CRM, contributions received |
+| 0014_donors | Donors | Donor CRM, contributions received, communications |
 | 0015_acknowledgments | Donors | Letter templates and acknowledgment letters |
-| 0016_compliance | Compliance | Filing calendar, state registrations |
+| 0016_compliance | Compliance | Filing calendar, registrations, profiles, self-dealing, payout history |
 | 0017_quickbooks | QuickBooks | QB OAuth tokens, accounts, transactions |
-| 0018_import_system | Import | Import jobs, mapping profiles, FK back-refs |
+| 0018_import_system | Import | Import jobs, mapping profiles, AI suggestions, stale-job watchdog, FK back-refs |
 | 0019_portfolio_summary_views | Views | Portfolio summary and holdings enriched views |
 | 0020_ai_portfolio_manager | Historical | Placeholder only; canonical AI session/action tables are created in 0033 |
 | 0021_composite_indexes | Performance | Cross-table query indexes |
@@ -47,20 +48,22 @@ psql $DATABASE_URL -f db/demo/seed_demo_org.sql
 | 0025_builder | Builder | Portfolio builder tables |
 | 0026_builder_enhancement | Builder | Builder enhancements |
 | 0027_portfolio_charities | Charities | Portfolio-level charity links |
-| 0028_foundation_payout | Foundation | Foundation payout tracking |
+| 0028_foundation_payout | Historical | Placeholder only; foundation_990pf_data is defined in 0013 |
 | 0029_ai_action_source | Historical | Placeholder only; ai_actions.initiated_by is defined in 0033 |
 | 0030_ai_usage_log | AI | Token usage log per AI chat call (cost visibility) |
 | 0031_staging_cleanup | Admin | `cleanup_staging_pii()` function (SECURITY DEFINER) |
 | 0032_fix_v_donor_summary | Fix | Rebuild v_donor_summary with correct column aliases |
 | 0033_ai_sessions | AI | ai_sessions, ai_actions, portfolio_recommendations (undo/redo) |
 | 0034_onboarding | Onboarding | Onboarding sessions, profiles, recommendations, analytics |
-| 0035_analytics_module | Analytics | Benchmarks, projections cache, risk snapshots, insights |
+| 0035_analytics_module | Analytics | Benchmarks, projections cache, risk snapshots, insights, investment performance views |
 | 0036_seeds | Seeds | Module definitions and preset bundles |
 | 0037_qb_sync_log | QuickBooks | QuickBooks sync event logging |
 | 0038_pledge_tracking | Donors | Pledge lifecycle, installments, events, and pipeline view |
 | 0039_alignment_fixes | Historical | Placeholder only; receipt fields and module aliases are folded into canonical migrations |
 | 0040_holdings_org_alignment | Fix | Holdings org alignment and compatibility fixes |
-| 0041_task_workflow_foundation | Workflow | Tasks, workflow tables, canonical grant lifecycle tables, and deadline views |
+| 0041_task_workflow_foundation | Workflow | Tasks, workflow tables, canonical grant lifecycle tables, grant-linked compliance, and deadline views |
+| 0042_task_automation_runs | Workflow | Task automation run log and advisory lock helper |
+| 0043_tax_cpa_sharing | Tax | CPA share links and access logging |
 
 ## Architecture decisions
 

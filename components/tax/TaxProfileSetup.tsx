@@ -131,11 +131,11 @@ export default function TaxProfileSetup({ portfolioId, taxYear, onSave }: TaxPro
 
   if (loading) {
     return (
-      <div className="border border-gray-200 rounded-lg p-6 animate-pulse">
-        <div className="h-6 bg-gray-200 rounded w-1/3 mb-4"></div>
+      <div className="border border-black/5 rounded-2xl p-6 animate-pulse">
+        <div className="h-6 bg-neutral-200 rounded w-1/3 mb-4"></div>
         <div className="space-y-3">
-          <div className="h-10 bg-gray-200 rounded"></div>
-          <div className="h-10 bg-gray-200 rounded"></div>
+          <div className="h-10 bg-neutral-200 rounded"></div>
+          <div className="h-10 bg-neutral-200 rounded"></div>
         </div>
       </div>
     );
@@ -145,11 +145,11 @@ export default function TaxProfileSetup({ portfolioId, taxYear, onSave }: TaxPro
   const standardDeduction = filingStatus ? getStandardDeduction(taxYear, filingStatus as FilingStatus) : 0;
 
   return (
-    <div className="border border-gray-200 rounded-lg p-6">
+    <div className="border border-black/5 rounded-2xl p-6">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h2 className="text-xl font-bold text-gray-900">Tax Profile</h2>
-          <p className="text-sm text-gray-600 mt-1">
+          <h2 className="text-xl font-bold text-ink">Tax Profile</h2>
+          <p className="text-sm text-neutral-600 mt-1">
             {taxYear} tax year information
           </p>
         </div>
@@ -164,7 +164,7 @@ export default function TaxProfileSetup({ portfolioId, taxYear, onSave }: TaxPro
       </div>
 
       {error && (
-        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md text-sm text-red-700">
+        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-2xl text-sm text-red-700">
           {error}
         </div>
       )}
@@ -173,14 +173,14 @@ export default function TaxProfileSetup({ portfolioId, taxYear, onSave }: TaxPro
         <div className="space-y-4">
           {/* Filing Status */}
           <div>
-            <label htmlFor="filing-status" className="block text-sm font-medium text-gray-700 mb-2">
+            <label htmlFor="filing-status" className="block text-sm font-medium text-neutral-700 mb-2">
               Filing Status
             </label>
             <select
               id="filing-status"
               value={filingStatus}
               onChange={(e) => setFilingStatus(e.target.value as FilingStatus | '')}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-azure focus:border-azure"
+              className="w-full px-3 py-2 border border-black/10 rounded-2xl shadow-sm focus:outline-none focus:ring-2 focus:ring-azure/30 focus:border-azure"
             >
               <option value="">Select filing status</option>
               {Object.entries(FILING_STATUS_LABELS).map(([value, label]) => (
@@ -190,7 +190,7 @@ export default function TaxProfileSetup({ portfolioId, taxYear, onSave }: TaxPro
               ))}
             </select>
             {filingStatus && (
-              <p className="mt-1 text-xs text-gray-500">
+              <p className="mt-1 text-xs text-neutral-500">
                 Standard deduction: ${standardDeduction.toLocaleString()}
               </p>
             )}
@@ -198,74 +198,74 @@ export default function TaxProfileSetup({ portfolioId, taxYear, onSave }: TaxPro
 
           {/* Estimated AGI */}
           <div>
-            <label htmlFor="estimated-agi" className="block text-sm font-medium text-gray-700 mb-2">
+            <label htmlFor="estimated-agi" className="block text-sm font-medium text-neutral-700 mb-2">
               Estimated Adjusted Gross Income (AGI)
             </label>
             <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500">$</span>
               <input
                 type="number"
                 id="estimated-agi"
                 value={estimatedAGI}
                 onChange={(e) => setEstimatedAGI(e.target.value)}
                 placeholder="0"
-                className="w-full pl-7 pr-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-azure focus:border-azure"
+                className="w-full pl-7 pr-3 py-2 border border-black/10 rounded-2xl shadow-sm focus:outline-none focus:ring-2 focus:ring-azure/30 focus:border-azure"
               />
             </div>
-            <p className="mt-1 text-xs text-gray-500">
+            <p className="mt-1 text-xs text-neutral-500">
               Your estimated AGI for {taxYear} (used to calculate deduction limits)
             </p>
           </div>
 
           {/* Carryforward from Prior Years */}
           <div>
-            <label htmlFor="carryforward" className="block text-sm font-medium text-gray-700 mb-2">
+            <label htmlFor="carryforward" className="block text-sm font-medium text-neutral-700 mb-2">
               Carryforward from Prior Years (Optional)
             </label>
             <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500">$</span>
               <input
                 type="number"
                 id="carryforward"
                 value={carryforward}
                 onChange={(e) => setCarryforward(e.target.value)}
                 placeholder="0"
-                className="w-full pl-7 pr-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-azure focus:border-azure"
+                className="w-full pl-7 pr-3 py-2 border border-black/10 rounded-2xl shadow-sm focus:outline-none focus:ring-2 focus:ring-azure/30 focus:border-azure"
               />
             </div>
-            <p className="mt-1 text-xs text-gray-500">
+            <p className="mt-1 text-xs text-neutral-500">
               Unused charitable contribution deductions from previous years
             </p>
           </div>
 
           {/* AGI Limits Preview */}
           {agiNum > 0 && (
-            <div className="pt-4 border-t border-gray-200">
-              <h3 className="text-sm font-semibold text-gray-900 mb-3">
+            <div className="pt-4 border-t border-black/5">
+              <h3 className="text-sm font-semibold text-ink mb-3">
                 Your {taxYear} Deduction Limits
               </h3>
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
-                  <span className="text-gray-600">Cash to public charities (60%):</span>
-                  <span className="font-semibold text-gray-900">
+                  <span className="text-neutral-600">Cash to public charities (60%):</span>
+                  <span className="font-semibold text-ink">
                     ${(agiNum * AGI_LIMIT_PERCENTAGES.CASH_PUBLIC_CHARITY).toLocaleString()}
                   </span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-600">Appreciated assets to public (30%):</span>
-                  <span className="font-semibold text-gray-900">
+                  <span className="text-neutral-600">Appreciated assets to public (30%):</span>
+                  <span className="font-semibold text-ink">
                     ${(agiNum * AGI_LIMIT_PERCENTAGES.APPRECIATED_ASSETS_PUBLIC).toLocaleString()}
                   </span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-600">Cash to foundations (30%):</span>
-                  <span className="font-semibold text-gray-900">
+                  <span className="text-neutral-600">Cash to foundations (30%):</span>
+                  <span className="font-semibold text-ink">
                     ${(agiNum * AGI_LIMIT_PERCENTAGES.CASH_PRIVATE_FOUNDATION).toLocaleString()}
                   </span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-600">Property to foundations (20%):</span>
-                  <span className="font-semibold text-gray-900">
+                  <span className="text-neutral-600">Property to foundations (20%):</span>
+                  <span className="font-semibold text-ink">
                     ${(agiNum * AGI_LIMIT_PERCENTAGES.PROPERTY_PRIVATE_FOUNDATION).toLocaleString()}
                   </span>
                 </div>
@@ -278,7 +278,7 @@ export default function TaxProfileSetup({ portfolioId, taxYear, onSave }: TaxPro
             <button
               onClick={handleSave}
               disabled={saving}
-              className="px-4 py-2 bg-azure text-white rounded-md hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed font-medium text-sm"
+              className="px-4 py-2 bg-azure text-white rounded-2xl hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed font-medium text-sm"
             >
               {saving ? 'Saving...' : 'Save Profile'}
             </button>
@@ -286,7 +286,7 @@ export default function TaxProfileSetup({ portfolioId, taxYear, onSave }: TaxPro
               <button
                 onClick={handleCancel}
                 disabled={saving}
-                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                className="px-4 py-2 border border-black/10 text-neutral-700 rounded-2xl hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
               >
                 Cancel
               </button>
@@ -297,14 +297,14 @@ export default function TaxProfileSetup({ portfolioId, taxYear, onSave }: TaxPro
         <div className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <div className="text-sm text-gray-600 mb-1">Filing Status</div>
-              <div className="font-semibold text-gray-900">
+              <div className="text-sm text-neutral-600 mb-1">Filing Status</div>
+              <div className="font-semibold text-ink">
                 {profile.filing_status ? FILING_STATUS_LABELS[profile.filing_status] : 'Not set'}
               </div>
             </div>
             <div>
-              <div className="text-sm text-gray-600 mb-1">Estimated AGI</div>
-              <div className="font-semibold text-gray-900">
+              <div className="text-sm text-neutral-600 mb-1">Estimated AGI</div>
+              <div className="font-semibold text-ink">
                 ${profile.estimated_agi?.toLocaleString() || '0'}
               </div>
             </div>
@@ -312,28 +312,28 @@ export default function TaxProfileSetup({ portfolioId, taxYear, onSave }: TaxPro
 
           {profile.carryforward_from_prior > 0 && (
             <div>
-              <div className="text-sm text-gray-600 mb-1">Carryforward from Prior Years</div>
-              <div className="font-semibold text-gray-900">
+              <div className="text-sm text-neutral-600 mb-1">Carryforward from Prior Years</div>
+              <div className="font-semibold text-ink">
                 ${profile.carryforward_from_prior.toLocaleString()}
               </div>
             </div>
           )}
 
           {profile.estimated_agi && (
-            <div className="pt-4 border-t border-gray-200">
-              <h3 className="text-sm font-semibold text-gray-900 mb-3">
+            <div className="pt-4 border-t border-black/5">
+              <h3 className="text-sm font-semibold text-ink mb-3">
                 Deduction Limits
               </h3>
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
-                  <span className="text-gray-600">Cash to public charities (60%):</span>
-                  <span className="font-semibold text-gray-900">
+                  <span className="text-neutral-600">Cash to public charities (60%):</span>
+                  <span className="font-semibold text-ink">
                     ${(profile.estimated_agi * AGI_LIMIT_PERCENTAGES.CASH_PUBLIC_CHARITY).toLocaleString()}
                   </span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-600">Appreciated assets (30%):</span>
-                  <span className="font-semibold text-gray-900">
+                  <span className="text-neutral-600">Appreciated assets (30%):</span>
+                  <span className="font-semibold text-ink">
                     ${(profile.estimated_agi * AGI_LIMIT_PERCENTAGES.APPRECIATED_ASSETS_PUBLIC).toLocaleString()}
                   </span>
                 </div>
@@ -343,10 +343,10 @@ export default function TaxProfileSetup({ portfolioId, taxYear, onSave }: TaxPro
         </div>
       ) : (
         <div className="text-center py-6">
-          <p className="text-gray-600 mb-4">No tax profile set up for {taxYear}</p>
+          <p className="text-neutral-600 mb-4">No tax profile set up for {taxYear}</p>
           <button
             onClick={() => setIsEditing(true)}
-            className="px-4 py-2 bg-azure text-white rounded-md hover:opacity-90 font-medium text-sm"
+            className="px-4 py-2 bg-azure text-white rounded-2xl hover:opacity-90 font-medium text-sm"
           >
             Set Up Profile
           </button>

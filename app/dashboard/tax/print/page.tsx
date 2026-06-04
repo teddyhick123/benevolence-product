@@ -106,8 +106,8 @@ function PrintContent() {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading tax summary...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-azure mx-auto"></div>
+          <p className="mt-4 text-neutral-600">Loading tax summary...</p>
         </div>
       </div>
     );
@@ -120,7 +120,7 @@ function PrintContent() {
           <p className="text-red-600">{error || 'Failed to load data'}</p>
           <button
             onClick={() => window.close()}
-            className="mt-4 px-4 py-2 bg-gray-600 text-white rounded-md"
+            className="mt-4 px-4 py-2 bg-neutral-600 text-white rounded-2xl"
           >
             Close
           </button>
@@ -135,61 +135,61 @@ function PrintContent() {
       <div className="print:hidden mb-6 flex justify-end gap-3">
         <button
           onClick={() => window.print()}
-          className="px-4 py-2 bg-azure text-white rounded-md hover:opacity-90"
+          className="px-4 py-2 bg-azure text-white rounded-2xl hover:opacity-90"
         >
           Print / Save as PDF
         </button>
         <button
           onClick={() => window.close()}
-          className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50"
+          className="px-4 py-2 border border-black/10 text-neutral-700 rounded-2xl hover:bg-neutral-50"
         >
           Close
         </button>
       </div>
 
       {/* Header */}
-      <div className="border-b-2 border-gray-800 pb-4 mb-6">
-        <h1 className="text-3xl font-bold text-gray-900">
+      <div className="border-b-2 border-ink pb-4 mb-6">
+        <h1 className="text-3xl font-bold text-ink">
           Charitable Contribution Summary
         </h1>
-        <div className="mt-2 text-lg text-gray-700">
+        <div className="mt-2 text-lg text-neutral-700">
           Tax Year {data.meta.taxYear}
         </div>
-        <div className="mt-1 text-sm text-gray-600">
+        <div className="mt-1 text-sm text-neutral-600">
           {data.meta.portfolioName}
         </div>
-        <div className="mt-1 text-xs text-gray-500">
+        <div className="mt-1 text-xs text-neutral-500">
           Generated: {new Date(data.meta.generatedAt).toLocaleString()}
         </div>
       </div>
 
       {/* Summary Section */}
       <section className="mb-8">
-        <h2 className="text-xl font-bold text-gray-900 mb-4 border-b border-gray-300 pb-2">
+        <h2 className="text-xl font-bold text-ink mb-4 border-b border-black/10 pb-2">
           Summary
         </h2>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="bg-gray-50 p-4 rounded-lg">
-            <div className="text-sm text-gray-600">Total Contributions</div>
-            <div className="text-2xl font-bold text-gray-900">
+          <div className="bg-neutral-50 p-4 rounded-2xl">
+            <div className="text-sm text-neutral-600">Total Contributions</div>
+            <div className="text-2xl font-bold text-ink">
               ${data.summary.totalContributions.toLocaleString()}
             </div>
           </div>
-          <div className="bg-gray-50 p-4 rounded-lg">
-            <div className="text-sm text-gray-600">Total Deductible</div>
-            <div className="text-2xl font-bold text-gray-900">
+          <div className="bg-neutral-50 p-4 rounded-2xl">
+            <div className="text-sm text-neutral-600">Total Deductible</div>
+            <div className="text-2xl font-bold text-ink">
               ${data.summary.totalDeductible.toLocaleString()}
             </div>
           </div>
-          <div className="bg-gray-50 p-4 rounded-lg">
-            <div className="text-sm text-gray-600">Cash Contributions</div>
-            <div className="text-2xl font-bold text-gray-900">
+          <div className="bg-neutral-50 p-4 rounded-2xl">
+            <div className="text-sm text-neutral-600">Cash Contributions</div>
+            <div className="text-2xl font-bold text-ink">
               ${data.summary.cashContributions.toLocaleString()}
             </div>
           </div>
-          <div className="bg-gray-50 p-4 rounded-lg">
-            <div className="text-sm text-gray-600">Non-Cash Contributions</div>
-            <div className="text-2xl font-bold text-gray-900">
+          <div className="bg-neutral-50 p-4 rounded-2xl">
+            <div className="text-sm text-neutral-600">Non-Cash Contributions</div>
+            <div className="text-2xl font-bold text-ink">
               ${data.summary.nonCashContributions.toLocaleString()}
             </div>
           </div>
@@ -197,11 +197,11 @@ function PrintContent() {
 
         <div className="mt-4 grid grid-cols-3 gap-4 text-sm">
           <div>
-            <span className="text-gray-600">Number of Contributions:</span>{' '}
+            <span className="text-neutral-600">Number of Contributions:</span>{' '}
             <span className="font-semibold">{data.summary.contributionCount}</span>
           </div>
           <div>
-            <span className="text-gray-600">Documentation Complete:</span>{' '}
+            <span className="text-neutral-600">Documentation Complete:</span>{' '}
             <span className="font-semibold">
               {data.summary.compliantCount} of {data.summary.contributionCount}{' '}
               ({data.summary.complianceRate}%)
@@ -209,7 +209,7 @@ function PrintContent() {
           </div>
           {data.summary.totalCarryforwardAvailable > 0 && (
             <div>
-              <span className="text-gray-600">Carryforward Available:</span>{' '}
+              <span className="text-neutral-600">Carryforward Available:</span>{' '}
               <span className="font-semibold">
                 ${data.summary.totalCarryforwardAvailable.toLocaleString()}
               </span>
@@ -220,13 +220,13 @@ function PrintContent() {
 
       {/* Contributions Table */}
       <section className="mb-8">
-        <h2 className="text-xl font-bold text-gray-900 mb-4 border-b border-gray-300 pb-2">
+        <h2 className="text-xl font-bold text-ink mb-4 border-b border-black/10 pb-2">
           Contributions Detail
         </h2>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-gray-100">
+              <tr className="bg-neutral-100">
                 <th className="text-left p-2 font-semibold">Date</th>
                 <th className="text-left p-2 font-semibold">Recipient</th>
                 <th className="text-left p-2 font-semibold">EIN</th>
@@ -238,7 +238,7 @@ function PrintContent() {
             </thead>
             <tbody>
               {data.contributions.map((c, idx) => (
-                <tr key={idx} className="border-b border-gray-200">
+                <tr key={idx} className="border-b border-black/5">
                   <td className="p-2">{new Date(c.date).toLocaleDateString()}</td>
                   <td className="p-2">{c.recipient}</td>
                   <td className="p-2 font-mono text-xs">{c.recipientEIN || '-'}</td>
@@ -252,7 +252,7 @@ function PrintContent() {
               ))}
             </tbody>
             <tfoot>
-              <tr className="bg-gray-100 font-semibold">
+              <tr className="bg-neutral-100 font-semibold">
                 <td colSpan={4} className="p-2">Total</td>
                 <td className="p-2 text-right">
                   ${data.summary.totalContributions.toLocaleString()}
@@ -270,12 +270,12 @@ function PrintContent() {
       {/* Carryforwards */}
       {data.carryforwards.length > 0 && (
         <section className="mb-8">
-          <h2 className="text-xl font-bold text-gray-900 mb-4 border-b border-gray-300 pb-2">
+          <h2 className="text-xl font-bold text-ink mb-4 border-b border-black/10 pb-2">
             Carryforwards
           </h2>
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-gray-100">
+              <tr className="bg-neutral-100">
                 <th className="text-left p-2 font-semibold">From Year</th>
                 <th className="text-left p-2 font-semibold">Expires</th>
                 <th className="text-left p-2 font-semibold">Category</th>
@@ -285,7 +285,7 @@ function PrintContent() {
             </thead>
             <tbody>
               {data.carryforwards.map((cf, idx) => (
-                <tr key={idx} className="border-b border-gray-200">
+                <tr key={idx} className="border-b border-black/5">
                   <td className="p-2">{cf.originatingYear}</td>
                   <td className="p-2">{cf.expiresYear}</td>
                   <td className="p-2">{cf.category}</td>
@@ -299,9 +299,9 @@ function PrintContent() {
       )}
 
       {/* Disclaimer */}
-      <section className="mt-8 pt-4 border-t border-gray-300">
-        <h2 className="text-sm font-bold text-gray-700 mb-2">Important Disclaimer</h2>
-        <p className="text-xs text-gray-600 whitespace-pre-line">{TAX_DISCLAIMER}</p>
+      <section className="mt-8 pt-4 border-t border-black/10">
+        <h2 className="text-sm font-bold text-neutral-700 mb-2">Important Disclaimer</h2>
+        <p className="text-xs text-neutral-600 whitespace-pre-line">{TAX_DISCLAIMER}</p>
       </section>
 
       {/* Page break for additional notes */}

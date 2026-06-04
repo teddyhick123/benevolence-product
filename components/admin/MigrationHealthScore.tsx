@@ -59,8 +59,8 @@ function getScoreBand(score: number): {
     return {
       label: 'Good',
       color: '#eab308',
-      textColor: 'text-yellow-700',
-      ringColor: 'stroke-yellow-500',
+      textColor: 'text-ink',
+      ringColor: 'stroke-sunset',
     };
   }
   return {

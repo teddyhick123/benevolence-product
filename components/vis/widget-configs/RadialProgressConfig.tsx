@@ -120,7 +120,7 @@ export default function RadialProgressConfig({ initialConfig, onSave, onCancel, 
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="e.g., Impact Progress"
-            className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+            className="w-full px-4 py-2 border border-neutral-300 rounded-2xl focus:ring-2 focus:ring-azure/30 focus:border-azure"
           />
         </div>
 
@@ -133,7 +133,7 @@ export default function RadialProgressConfig({ initialConfig, onSave, onCancel, 
               <button
                 type="button"
                 onClick={addRing}
-                className="text-sm text-indigo-600 hover:text-indigo-700 font-medium"
+                className="text-sm text-azure hover:text-azure-deep font-medium"
               >
                 + Add KPI
               </button>
@@ -142,7 +142,7 @@ export default function RadialProgressConfig({ initialConfig, onSave, onCancel, 
 
           <div className="space-y-4">
             {rings.map((ring, index) => (
-              <div key={index} className="p-4 border-2 border-neutral-200 rounded-lg space-y-3 relative">
+              <div key={index} className="p-4 border-2 border-neutral-200 rounded-2xl space-y-3 relative">
                 {rings.length > 1 && (
                   <button
                     type="button"
@@ -176,7 +176,7 @@ export default function RadialProgressConfig({ initialConfig, onSave, onCancel, 
                         value={ring.metric_code}
                         onChange={(e) => updateRing(index, 'metric_code', e.target.value)}
                         required
-                        className="w-full px-3 py-2 text-sm border border-neutral-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                        className="w-full px-3 py-2 text-sm border border-neutral-300 rounded-2xl focus:ring-2 focus:ring-azure/30 focus:border-azure"
                       >
                         <option value="">Select a metric...</option>
                         {availableMetrics.map(m => (
@@ -192,7 +192,7 @@ export default function RadialProgressConfig({ initialConfig, onSave, onCancel, 
                         onChange={(e) => updateRing(index, 'metric_code', e.target.value.toUpperCase())}
                         placeholder="e.g., CLIENTS_SERVED"
                         required
-                        className="w-full px-3 py-2 text-sm border border-neutral-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                        className="w-full px-3 py-2 text-sm border border-neutral-300 rounded-2xl focus:ring-2 focus:ring-azure/30 focus:border-azure"
                       />
                     )}
                   </div>
@@ -207,7 +207,7 @@ export default function RadialProgressConfig({ initialConfig, onSave, onCancel, 
                       onChange={(e) => updateRing(index, 'target', e.target.value)}
                       placeholder="15000"
                       required
-                      className="w-full px-3 py-2 text-sm border border-neutral-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      className="w-full px-3 py-2 text-sm border border-neutral-300 rounded-2xl focus:ring-2 focus:ring-azure/30 focus:border-azure"
                     />
                   </div>
 
@@ -220,7 +220,7 @@ export default function RadialProgressConfig({ initialConfig, onSave, onCancel, 
                       value={ring.unit}
                       onChange={(e) => updateRing(index, 'unit', e.target.value)}
                       placeholder="clients"
-                      className="w-full px-3 py-2 text-sm border border-neutral-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      className="w-full px-3 py-2 text-sm border border-neutral-300 rounded-2xl focus:ring-2 focus:ring-azure/30 focus:border-azure"
                     />
                   </div>
 
@@ -233,7 +233,7 @@ export default function RadialProgressConfig({ initialConfig, onSave, onCancel, 
                       value={ring.label}
                       onChange={(e) => updateRing(index, 'label', e.target.value)}
                       placeholder="Will use metric code if empty"
-                      className="w-full px-3 py-2 text-sm border border-neutral-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      className="w-full px-3 py-2 text-sm border border-neutral-300 rounded-2xl focus:ring-2 focus:ring-azure/30 focus:border-azure"
                     />
                   </div>
 
@@ -272,7 +272,7 @@ export default function RadialProgressConfig({ initialConfig, onSave, onCancel, 
         </button>
         <button
           type="submit"
-          className="px-6 py-2 bg-gradient-to-r from-azure via-azure/90 to-azure/70 text-white rounded-lg hover:opacity-90 transition-opacity font-medium shadow-soft"
+          className="px-6 py-2 bg-gradient-to-r from-azure via-azure/90 to-azure/70 text-white rounded-2xl hover:opacity-90 transition-opacity font-medium shadow-soft"
         >
           {initialConfig ? 'Update Widget' : 'Create Widget'}
         </button>

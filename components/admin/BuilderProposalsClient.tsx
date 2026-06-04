@@ -19,8 +19,8 @@ interface Proposal {
 }
 
 const STATUS_BADGE: Record<string, string> = {
-  pending: 'bg-amber-100 text-amber-700 border-amber-200',
-  approved: 'bg-blue-100 text-blue-700 border-blue-200',
+  pending: 'bg-sunset/15 text-ink border-sunset/30',
+  approved: 'bg-azure/10 text-azure-deep border-azure/20',
   rejected: 'bg-red-100 text-red-700 border-red-200',
   applied: 'bg-green-100 text-green-700 border-green-200',
 };
@@ -54,7 +54,7 @@ function ProposalCard({ proposal, onUpdate }: { proposal: Proposal; onUpdate: (i
   }
 
   return (
-    <div className="border border-black/10 rounded-xl bg-white overflow-hidden">
+    <div className="border border-black/10 rounded-2xl bg-white overflow-hidden">
       <div className="p-4">
         <div className="flex items-start justify-between gap-3">
           <div className="flex-1">
@@ -97,7 +97,7 @@ function ProposalCard({ proposal, onUpdate }: { proposal: Proposal; onUpdate: (i
             <button
               onClick={() => act('approved')}
               disabled={loading}
-              className="flex items-center gap-1 text-xs bg-blue-600 text-white rounded px-2.5 py-1.5 hover:bg-blue-700 disabled:opacity-50 transition-colors"
+              className="flex items-center gap-1 text-xs bg-azure text-white rounded px-2.5 py-1.5 hover:bg-azure/90 disabled:opacity-50 transition-colors"
             >
               <CheckCircle className="w-3.5 h-3.5" /> Approve
             </button>
@@ -130,7 +130,7 @@ function ProposalCard({ proposal, onUpdate }: { proposal: Proposal; onUpdate: (i
       </div>
 
       {expanded && proposal.generated_code && (
-        <div className="border-t border-black/10 bg-gray-50 p-4 space-y-4">
+        <div className="border-t border-black/10 bg-neutral-50 p-4 space-y-4">
           {proposal.generated_code.files.map(file => (
             <div key={file.path}>
               <div className="flex items-center gap-2 mb-2">
@@ -179,7 +179,7 @@ export default function BuilderProposalsClient() {
             <button
               key={s}
               onClick={() => setFilter(s)}
-              className={`text-sm px-3 py-1.5 rounded-lg capitalize transition-colors ${
+              className={`text-sm px-3 py-1.5 rounded-2xl capitalize transition-colors ${
                 filter === s
                   ? 'bg-azure text-white'
                   : 'bg-white border border-black/10 text-black/60 hover:text-black/80'

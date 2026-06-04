@@ -54,12 +54,12 @@ export default function ContributionsList({
 
   if (loading) {
     return (
-      <div className="border border-gray-200 rounded-lg p-6">
+      <div className="border border-black/5 rounded-2xl p-6">
         <div className="animate-pulse space-y-4">
-          <div className="h-6 bg-gray-200 rounded w-1/3"></div>
+          <div className="h-6 bg-neutral-200 rounded w-1/3"></div>
           <div className="space-y-3">
             {[1, 2, 3].map((i) => (
-              <div key={i} className="h-16 bg-gray-100 rounded"></div>
+              <div key={i} className="h-16 bg-neutral-100 rounded"></div>
             ))}
           </div>
         </div>
@@ -69,7 +69,7 @@ export default function ContributionsList({
 
   if (error) {
     return (
-      <div className="border border-red-200 bg-red-50 rounded-lg p-6">
+      <div className="border border-red-200 bg-red-50 rounded-2xl p-6">
         <p className="text-sm text-red-700">{error}</p>
       </div>
     );
@@ -77,8 +77,8 @@ export default function ContributionsList({
 
   if (contributions.length === 0) {
     return (
-      <div className="border border-gray-200 rounded-lg p-6 text-center">
-        <p className="text-gray-600">No contributions tracked for {taxYear} yet</p>
+      <div className="border border-black/5 rounded-2xl p-6 text-center">
+        <p className="text-neutral-600">No contributions tracked for {taxYear} yet</p>
       </div>
     );
   }
@@ -87,20 +87,20 @@ export default function ContributionsList({
   const compliantCount = contributions.filter((c) => c.is_compliant).length;
 
   return (
-    <div className="border border-gray-200 rounded-lg">
+    <div className="border border-black/5 rounded-2xl">
       {/* Header */}
-      <div className="px-6 py-4 border-b border-gray-200">
+      <div className="px-6 py-4 border-b border-black/5">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-xl font-bold text-gray-900">Contributions</h2>
-            <p className="text-sm text-gray-600 mt-1">
+            <h2 className="text-xl font-bold text-ink">Contributions</h2>
+            <p className="text-sm text-neutral-600 mt-1">
               {contributions.length} {contributions.length === 1 ? 'contribution' : 'contributions'} totaling ${totalAmount.toLocaleString()}
             </p>
           </div>
           <div className="text-right">
-            <div className="text-sm text-gray-600">Documentation</div>
+            <div className="text-sm text-neutral-600">Documentation</div>
             <div className={`text-lg font-semibold ${
-              compliantCount === contributions.length ? 'text-green-600' : 'text-amber-600'
+              compliantCount === contributions.length ? 'text-green-600' : 'text-coral'
             }`}>
               {compliantCount} / {contributions.length} compliant
             </div>
@@ -109,17 +109,17 @@ export default function ContributionsList({
       </div>
 
       {/* List */}
-      <div className="divide-y divide-gray-200">
+      <div className="divide-y divide-black/5">
         {contributions.map((contribution) => (
           <div
             key={contribution.id}
             onClick={() => setSelectedContributionId(contribution.id)}
-            className="px-6 py-4 hover:bg-gray-50 transition-colors cursor-pointer"
+            className="px-6 py-4 hover:bg-neutral-50 transition-colors cursor-pointer"
           >
             <div className="flex items-start justify-between">
               <div className="flex-1">
                 <div className="flex items-center gap-3">
-                  <h3 className="font-semibold text-gray-900">
+                  <h3 className="font-semibold text-ink">
                     {contribution.recipient_name}
                   </h3>
                   {contribution.document_count > 0 && (
@@ -128,12 +128,12 @@ export default function ContributionsList({
                     </span>
                   )}
                   {!contribution.is_compliant && (
-                    <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-amber-100 text-amber-800">
+                    <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-sunset/15 text-ink">
                       Missing docs
                     </span>
                   )}
                 </div>
-                <div className="mt-1 flex items-center gap-4 text-sm text-gray-600">
+                <div className="mt-1 flex items-center gap-4 text-sm text-neutral-600">
                   <span>
                     {new Date(contribution.contribution_date).toLocaleDateString()}
                   </span>
@@ -143,17 +143,17 @@ export default function ContributionsList({
                   </span>
                 </div>
                 {!contribution.is_compliant && (
-                  <div className="mt-2 text-xs text-amber-700">
+                  <div className="mt-2 text-xs text-ink">
                     Required: {contribution.substantiation_requirement}
                   </div>
                 )}
               </div>
               <div className="text-right ml-4">
-                <div className="text-lg font-bold text-gray-900">
+                <div className="text-lg font-bold text-ink">
                   ${contribution.amount_usd.toLocaleString()}
                 </div>
                 {contribution.calculated_deductible_amount !== contribution.amount_usd && (
-                  <div className="text-xs text-gray-500 mt-1">
+                  <div className="text-xs text-neutral-500 mt-1">
                     Deductible: ${contribution.calculated_deductible_amount.toLocaleString()}
                   </div>
                 )}

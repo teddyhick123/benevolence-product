@@ -22,14 +22,14 @@ const QUICK_ACTIONS: QuickAction[] = [
     question: 'How much can I donate without carryforward?',
     description: 'Find the optimal donation amount that maxes out your AGI limit this year',
     mode: 'optimal',
-    color: 'from-green-50 to-emerald-50 border-green-200',
+    color: 'from-green-50 to-green-100 border-green-200',
   },
   {
     id: 'bunching',
     question: 'Should I bunch my donations this year?',
     description: 'Compare spreading donations annually vs. bunching every other year',
     mode: 'bunching',
-    color: 'from-purple-50 to-violet-50 border-purple-200',
+    color: 'from-coral/10 to-azure/10 border-coral/25',
   },
   {
     id: 'asset-comparison',
@@ -43,7 +43,7 @@ const QUICK_ACTIONS: QuickAction[] = [
     question: 'What\'s my optimal giving strategy?',
     description: 'Get AI-powered recommendations based on your portfolio and tax situation',
     mode: 'ai-optimize',
-    color: 'from-indigo-50 to-purple-50 border-indigo-200',
+    color: 'from-azure/10 to-coral/10 border-azure/20',
   },
 ];
 
@@ -55,11 +55,11 @@ export default function QuickStartPanel({
   return (
     <div className="space-y-6">
       {/* Intro */}
-      <div className="bg-gradient-to-br from-azure/10 to-azure/5 border border-azure/20 rounded-xl p-6">
-        <h3 className="text-lg font-bold text-indigo-900 mb-2">
+      <div className="bg-gradient-to-br from-azure/10 to-azure/5 border border-azure/20 rounded-2xl p-6">
+        <h3 className="text-lg font-bold text-ink mb-2">
           Get Instant Answers to Common Tax Questions
         </h3>
-        <p className="text-sm text-indigo-700">
+        <p className="text-sm text-azure-deep">
           Select a question below to instantly run the appropriate analysis. Each tool is
           optimized for a specific type of tax planning scenario.
         </p>
@@ -71,11 +71,11 @@ export default function QuickStartPanel({
           <button
             key={action.id}
             onClick={() => onSelectMode(action.mode)}
-            className={`bg-gradient-to-br ${action.color} border rounded-xl p-6 text-left hover:shadow-lg transition-all transform hover:-translate-y-1`}
+            className={`bg-gradient-to-br ${action.color} border rounded-2xl p-6 text-left hover:shadow-lg transition-all transform hover:-translate-y-1`}
           >
             <h4 className="font-bold text-neutral-900 mb-2 text-lg">{action.question}</h4>
             <p className="text-sm text-neutral-700">{action.description}</p>
-            <div className="mt-4 inline-flex items-center text-sm font-medium text-indigo-600">
+            <div className="mt-4 inline-flex items-center text-sm font-medium text-azure">
               Run Analysis →
             </div>
           </button>
@@ -83,7 +83,7 @@ export default function QuickStartPanel({
       </div>
 
       {/* Help Section */}
-      <div className="bg-white border border-neutral-200 rounded-xl p-6">
+      <div className="bg-white border border-neutral-200 rounded-2xl p-6">
         <h3 className="font-semibold text-neutral-900 mb-4">Not sure which to choose?</h3>
         <div className="space-y-3 text-sm text-neutral-700">
           <div className="flex gap-3">
@@ -95,7 +95,7 @@ export default function QuickStartPanel({
             </div>
           </div>
           <div className="flex gap-3">
-            <span className="w-1.5 h-1.5 rounded-full bg-purple-500 mt-2 flex-shrink-0" />
+            <span className="w-1.5 h-1.5 rounded-full bg-coral mt-2 flex-shrink-0" />
             <div>
               <strong>Bunching Strategy:</strong> Best if your donations are close to the standard
               deduction threshold. Can save taxes by alternating between itemizing and taking the
@@ -110,7 +110,7 @@ export default function QuickStartPanel({
             </div>
           </div>
           <div className="flex gap-3">
-            <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 mt-2 flex-shrink-0" />
+            <span className="w-1.5 h-1.5 rounded-full bg-azure mt-2 flex-shrink-0" />
             <div>
               <strong>AI Strategy Advisor:</strong> Best for comprehensive optimization. Analyzes
               your actual holdings and generates ranked strategies with specific recommendations.

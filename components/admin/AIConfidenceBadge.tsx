@@ -26,8 +26,8 @@ export function AIConfidenceBadge({ confidence, showLabel = true }: AIConfidence
     colorClasses = 'border-green-200 bg-green-50 text-green-700';
     dotColor = 'bg-green-500';
   } else if (confidence >= 0.70) {
-    colorClasses = 'border-yellow-200 bg-yellow-50 text-yellow-700';
-    dotColor = 'bg-yellow-500';
+    colorClasses = 'border-sunset/30 bg-sunset/15 text-ink';
+    dotColor = 'bg-sunset';
   } else {
     colorClasses = 'border-red-200 bg-red-50 text-red-700';
     dotColor = 'bg-red-500';

@@ -186,6 +186,54 @@ CREATE TRIGGER trg_holding_widgets_updated_at
   FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
 -- ---------------------------------------------------------------------------
+-- widgets — portfolio-level dashboard widget configuration
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS widgets (
+  id           uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  created_at   timestamptz NOT NULL DEFAULT now(),
+  updated_at   timestamptz NOT NULL DEFAULT now(),
+
+  portfolio_id uuid NOT NULL REFERENCES portfolios(id) ON DELETE CASCADE,
+  type         text NOT NULL,
+  title        text,
+  config       jsonb NOT NULL DEFAULT '{}',
+  position     integer NOT NULL DEFAULT 0
+);
+
+CREATE INDEX idx_widgets_portfolio_id ON widgets (portfolio_id);
+CREATE INDEX idx_widgets_portfolio_position ON widgets (portfolio_id, position);
+
+CREATE TRIGGER trg_widgets_updated_at
+  BEFORE UPDATE ON widgets
+  FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+-- ---------------------------------------------------------------------------
+-- holding_locations — additional geocoded locations per holding
+-- Used by the map view to show multi-site holdings.
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS holding_locations (
+  id           uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  created_at   timestamptz NOT NULL DEFAULT now(),
+  updated_at   timestamptz NOT NULL DEFAULT now(),
+
+  holding_id   uuid NOT NULL REFERENCES holdings(id) ON DELETE CASCADE,
+  portfolio_id uuid NOT NULL REFERENCES portfolios(id) ON DELETE CASCADE,
+  name         text NOT NULL,
+  status       text,
+  lat          double precision NOT NULL,
+  lon          double precision NOT NULL,
+  tags         text[] NOT NULL DEFAULT '{}'
+);
+
+CREATE INDEX idx_holding_locations_holding_id ON holding_locations (holding_id);
+CREATE INDEX idx_holding_locations_portfolio_id ON holding_locations (portfolio_id);
+CREATE INDEX idx_holding_locations_coords ON holding_locations USING gist (ll_to_earth(lat, lon));
+
+CREATE TRIGGER trg_holding_locations_updated_at
+  BEFORE UPDATE ON holding_locations
+  FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+-- ---------------------------------------------------------------------------
 -- RLS: holdings
 -- ---------------------------------------------------------------------------
 ALTER TABLE holdings ENABLE ROW LEVEL SECURITY;
@@ -252,3 +300,45 @@ CREATE POLICY "holding_widgets: can manage via holding"
 CREATE POLICY "holding_widgets: service role full access"
   ON holding_widgets FOR ALL TO service_role
   USING (true) WITH CHECK (true);
+
+-- ---------------------------------------------------------------------------
+-- RLS: widgets
+-- ---------------------------------------------------------------------------
+ALTER TABLE widgets ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "widgets: portfolio members can view"
+  ON widgets FOR SELECT TO authenticated
+  USING (can_view_portfolio(portfolio_id));
+
+CREATE POLICY "widgets: portfolio editors can manage"
+  ON widgets FOR ALL TO authenticated
+  USING (can_edit_portfolio(portfolio_id))
+  WITH CHECK (can_edit_portfolio(portfolio_id));
+
+CREATE POLICY "widgets: service role full access"
+  ON widgets FOR ALL TO service_role
+  USING (true) WITH CHECK (true);
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON widgets TO authenticated;
+GRANT ALL ON widgets TO service_role;
+
+-- ---------------------------------------------------------------------------
+-- RLS: holding_locations
+-- ---------------------------------------------------------------------------
+ALTER TABLE holding_locations ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "holding_locations: portfolio members can view"
+  ON holding_locations FOR SELECT TO authenticated
+  USING (can_view_portfolio(portfolio_id));
+
+CREATE POLICY "holding_locations: portfolio editors can manage"
+  ON holding_locations FOR ALL TO authenticated
+  USING (can_edit_portfolio(portfolio_id))
+  WITH CHECK (can_edit_portfolio(portfolio_id));
+
+CREATE POLICY "holding_locations: service role full access"
+  ON holding_locations FOR ALL TO service_role
+  USING (true) WITH CHECK (true);
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON holding_locations TO authenticated;
+GRANT ALL ON holding_locations TO service_role;

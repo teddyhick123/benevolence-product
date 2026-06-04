@@ -78,9 +78,9 @@ export default function CharityDetailTabs({ charity }: CharityDetailTabsProps) {
   };
 
   return (
-    <div className="bg-white rounded-lg shadow">
+    <div className="rounded-2xl border border-black/5 bg-white shadow-soft">
       {/* Tab Navigation */}
-      <div className="border-b border-gray-200">
+      <div className="border-b border-black/5">
         <nav className="flex -mb-px">
           {tabs.map((tab) => (
             <button
@@ -88,8 +88,8 @@ export default function CharityDetailTabs({ charity }: CharityDetailTabsProps) {
               onClick={() => setActiveTab(tab.id)}
               className={`px-6 py-4 text-sm font-medium border-b-2 transition-colors ${
                 activeTab === tab.id
-                  ? 'border-blue-600 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  ? 'border-azure text-azure'
+                  : 'border-transparent text-neutral-500 hover:text-neutral-700 hover:border-black/10'
               }`}
             >
               {tab.label}
@@ -105,32 +105,32 @@ export default function CharityDetailTabs({ charity }: CharityDetailTabsProps) {
           <div className="space-y-6">
             {/* Quick Stats */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="bg-gray-50 p-4 rounded-lg">
+              <div className="bg-neutral-50 p-4 rounded-2xl">
                 <div className="flex items-center mb-2">
-                  <DollarSign className="w-5 h-5 text-gray-600 mr-2" />
-                  <h4 className="text-sm font-medium text-gray-600">Total Revenue</h4>
+                  <DollarSign className="w-5 h-5 text-neutral-600 mr-2" />
+                  <h4 className="text-sm font-medium text-neutral-600">Total Revenue</h4>
                 </div>
-                <p className="text-2xl font-bold text-gray-900">
+                <p className="text-2xl font-bold text-ink">
                   {formatCurrency(charity.total_revenue)}
                 </p>
               </div>
 
-              <div className="bg-gray-50 p-4 rounded-lg">
+              <div className="bg-neutral-50 p-4 rounded-2xl">
                 <div className="flex items-center mb-2">
-                  <TrendingUp className="w-5 h-5 text-gray-600 mr-2" />
-                  <h4 className="text-sm font-medium text-gray-600">Net Assets</h4>
+                  <TrendingUp className="w-5 h-5 text-neutral-600 mr-2" />
+                  <h4 className="text-sm font-medium text-neutral-600">Net Assets</h4>
                 </div>
-                <p className="text-2xl font-bold text-gray-900">
+                <p className="text-2xl font-bold text-ink">
                   {formatCurrency(charity.net_assets)}
                 </p>
               </div>
 
-              <div className="bg-gray-50 p-4 rounded-lg">
+              <div className="bg-neutral-50 p-4 rounded-2xl">
                 <div className="flex items-center mb-2">
-                  <Heart className="w-5 h-5 text-gray-600 mr-2" />
-                  <h4 className="text-sm font-medium text-gray-600">CN Score</h4>
+                  <Heart className="w-5 h-5 text-neutral-600 mr-2" />
+                  <h4 className="text-sm font-medium text-neutral-600">CN Score</h4>
                 </div>
-                <p className="text-2xl font-bold text-gray-900">
+                <p className="text-2xl font-bold text-ink">
                   {charity.charity_navigator_score ?? 'N/A'}
                 </p>
               </div>
@@ -139,41 +139,41 @@ export default function CharityDetailTabs({ charity }: CharityDetailTabsProps) {
             {/* Mission */}
             {charity.mission && (
               <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">Mission</h3>
-                <p className="text-gray-700 leading-relaxed">{charity.mission}</p>
+                <h3 className="text-lg font-semibold text-ink mb-2">Mission</h3>
+                <p className="text-neutral-700 leading-relaxed">{charity.mission}</p>
               </div>
             )}
 
             {/* Contact Information */}
             <div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Contact Information</h3>
+              <h3 className="text-lg font-semibold text-ink mb-4">Contact Information</h3>
               <div className="space-y-3">
                 {charity.website && (
                   <div className="flex items-center">
-                    <Globe className="w-5 h-5 text-gray-400 mr-3" />
-                    <a href={charity.website} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+                    <Globe className="w-5 h-5 text-neutral-400 mr-3" />
+                    <a href={charity.website} target="_blank" rel="noopener noreferrer" className="text-azure hover:underline">
                       {charity.website}
                     </a>
                   </div>
                 )}
                 {charity.email && (
                   <div className="flex items-center">
-                    <Mail className="w-5 h-5 text-gray-400 mr-3" />
-                    <a href={`mailto:${charity.email}`} className="text-blue-600 hover:underline">
+                    <Mail className="w-5 h-5 text-neutral-400 mr-3" />
+                    <a href={`mailto:${charity.email}`} className="text-azure hover:underline">
                       {charity.email}
                     </a>
                   </div>
                 )}
                 {charity.phone && (
                   <div className="flex items-center">
-                    <Phone className="w-5 h-5 text-gray-400 mr-3" />
-                    <span className="text-gray-700">{charity.phone}</span>
+                    <Phone className="w-5 h-5 text-neutral-400 mr-3" />
+                    <span className="text-neutral-700">{charity.phone}</span>
                   </div>
                 )}
                 {(charity.address_line1 || charity.city || charity.state) && (
                   <div className="flex items-start">
-                    <MapPin className="w-5 h-5 text-gray-400 mr-3 mt-1" />
-                    <div className="text-gray-700">
+                    <MapPin className="w-5 h-5 text-neutral-400 mr-3 mt-1" />
+                    <div className="text-neutral-700">
                       {charity.address_line1 && <div>{charity.address_line1}</div>}
                       <div>
                         {[charity.city, charity.state, charity.zip].filter(Boolean).join(', ')}
@@ -192,33 +192,33 @@ export default function CharityDetailTabs({ charity }: CharityDetailTabsProps) {
             {/* Ratings */}
             {charity.charity_navigator_score != null ? (
               <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Charity Navigator</h3>
-                <div className="bg-gradient-to-r from-blue-50 to-blue-100 p-6 rounded-lg flex items-center gap-8">
+                <h3 className="text-lg font-semibold text-ink mb-4">Charity Navigator</h3>
+                <div className="bg-gradient-to-r from-azure/10 to-azure/20 p-6 rounded-2xl flex items-center gap-8">
                   <div>
-                    <div className="text-4xl font-bold text-blue-900">{charity.charity_navigator_score}</div>
-                    <div className="text-sm text-gray-600 mt-1">Score (0–100)</div>
+                    <div className="text-4xl font-bold text-ink">{charity.charity_navigator_score}</div>
+                    <div className="text-sm text-neutral-600 mt-1">Score (0–100)</div>
                   </div>
                   {charity.charity_navigator_rating != null && (
                     <div>
                       <div className="flex gap-0.5">
                         {[1, 2, 3, 4].map(i => (
-                          <svg key={i} className={`w-5 h-5 ${i <= charity.charity_navigator_rating ? 'text-blue-600' : 'text-gray-200'}`} fill="currentColor" viewBox="0 0 24 24">
+                          <svg key={i} className={`w-5 h-5 ${i <= charity.charity_navigator_rating ? 'text-azure' : 'text-neutral-200'}`} fill="currentColor" viewBox="0 0 24 24">
                             <path d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
                           </svg>
                         ))}
                       </div>
-                      <div className="text-sm text-gray-600 mt-1">{charity.charity_navigator_rating} / 4 stars</div>
+                      <div className="text-sm text-neutral-600 mt-1">{charity.charity_navigator_rating} / 4 stars</div>
                     </div>
                   )}
                 </div>
               </div>
             ) : (
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 text-center">
-                <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center mx-auto mb-3">
-                  <svg className="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
+              <div className="bg-azure/10 border border-azure/20 rounded-2xl p-6 text-center">
+                <div className="w-12 h-12 rounded-full bg-azure/10 flex items-center justify-center mx-auto mb-3">
+                  <svg className="w-6 h-6 text-azure" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
                 </div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">Ratings Coming Soon</h3>
-                <p className="text-gray-600 text-sm">
+                <h3 className="text-lg font-semibold text-ink mb-2">Ratings Coming Soon</h3>
+                <p className="text-neutral-600 text-sm">
                   Charity ratings from Charity Navigator will be available once API keys are configured.
                 </p>
               </div>
@@ -227,36 +227,36 @@ export default function CharityDetailTabs({ charity }: CharityDetailTabsProps) {
             {/* Candid Seal */}
             {charity.candid_seal && (
               <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Candid (GuideStar) Seal</h3>
-                <div className="bg-yellow-50 p-4 rounded-lg">
-                  <span className="text-sm text-gray-600">Seal Level: </span>
-                  <span className="font-semibold text-gray-900 capitalize">{charity.candid_seal}</span>
+                <h3 className="text-lg font-semibold text-ink mb-4">Candid (GuideStar) Seal</h3>
+                <div className="bg-sunset/15 p-4 rounded-2xl">
+                  <span className="text-sm text-neutral-600">Seal Level: </span>
+                  <span className="font-semibold text-ink capitalize">{charity.candid_seal}</span>
                 </div>
               </div>
             )}
 
             {/* GiveWell */}
             {charity.give_well_top_charity && (
-              <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+              <div className="bg-green-50 border border-green-200 rounded-2xl p-4">
                 <span className="font-semibold text-green-800">GiveWell Top Charity</span>
               </div>
             )}
 
             {/* Financial Overview */}
             <div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Financial Overview</h3>
+              <h3 className="text-lg font-semibold text-ink mb-4">Financial Overview</h3>
               <div className="space-y-4">
-                <div className="flex justify-between items-center py-3 border-b border-gray-200">
-                  <span className="text-gray-600">Total Revenue</span>
-                  <span className="font-semibold text-gray-900">{formatCurrency(charity.total_revenue)}</span>
+                <div className="flex justify-between items-center py-3 border-b border-black/5">
+                  <span className="text-neutral-600">Total Revenue</span>
+                  <span className="font-semibold text-ink">{formatCurrency(charity.total_revenue)}</span>
                 </div>
-                <div className="flex justify-between items-center py-3 border-b border-gray-200">
-                  <span className="text-gray-600">Total Expenses</span>
-                  <span className="font-semibold text-gray-900">{formatCurrency(charity.total_expenses)}</span>
+                <div className="flex justify-between items-center py-3 border-b border-black/5">
+                  <span className="text-neutral-600">Total Expenses</span>
+                  <span className="font-semibold text-ink">{formatCurrency(charity.total_expenses)}</span>
                 </div>
                 <div className="flex justify-between items-center py-3">
-                  <span className="text-gray-600">Net Assets</span>
-                  <span className="font-semibold text-gray-900">{formatCurrency(charity.net_assets)}</span>
+                  <span className="text-neutral-600">Net Assets</span>
+                  <span className="font-semibold text-ink">{formatCurrency(charity.net_assets)}</span>
                 </div>
               </div>
             </div>
@@ -266,14 +266,14 @@ export default function CharityDetailTabs({ charity }: CharityDetailTabsProps) {
               const einClean = charity.ein.replace(/-/g, '');
               const propublicaUrl = `https://projects.propublica.org/nonprofits/organizations/${einClean}`;
               return (
-                <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 space-y-3">
-                  <h3 className="text-sm font-semibold text-gray-700">Public Filings &amp; Records</h3>
+                <div className="bg-neutral-50 border border-black/5 rounded-2xl p-4 space-y-3">
+                  <h3 className="text-sm font-semibold text-neutral-700">Public Filings &amp; Records</h3>
                   <div className="space-y-2">
                     <a
                       href={propublicaUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex items-center gap-2 text-sm text-blue-600 hover:underline"
+                      className="flex items-center gap-2 text-sm text-azure hover:underline"
                     >
                       <ExternalLink className="w-4 h-4 flex-shrink-0" />
                       ProPublica Nonprofit Explorer — Form 990 filings
@@ -282,13 +282,13 @@ export default function CharityDetailTabs({ charity }: CharityDetailTabsProps) {
                       href="https://www.irs.gov/charities-non-profits/tax-exempt-organization-search"
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex items-center gap-2 text-sm text-blue-600 hover:underline"
+                      className="flex items-center gap-2 text-sm text-azure hover:underline"
                     >
                       <ExternalLink className="w-4 h-4 flex-shrink-0" />
                       IRS Tax Exempt Organization Search
                     </a>
                   </div>
-                  <p className="text-xs text-gray-400">Form 990 documents are public records filed annually with the IRS.</p>
+                  <p className="text-xs text-neutral-400">Form 990 documents are public records filed annually with the IRS.</p>
                 </div>
               );
             })()}
@@ -300,16 +300,16 @@ export default function CharityDetailTabs({ charity }: CharityDetailTabsProps) {
           <div className="space-y-6">
             {charity.impact_stories && charity.impact_stories.length > 0 ? (
               <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Impact Stories</h3>
+                <h3 className="text-lg font-semibold text-ink mb-4">Impact Stories</h3>
                 <div className="space-y-4">
                   {charity.impact_stories.map((story) => (
-                    <div key={story.id} className="border border-gray-200 rounded-lg p-4">
+                    <div key={story.id} className="border border-black/5 rounded-2xl p-4">
                       {story.image_url && (
-                        <img src={story.image_url} alt={story.title} className="w-full h-48 object-cover rounded-lg mb-4" />
+                        <img src={story.image_url} alt={story.title} className="w-full h-48 object-cover rounded-2xl mb-4" />
                       )}
-                      <h4 className="text-lg font-semibold text-gray-900 mb-2">{story.title}</h4>
-                      <p className="text-gray-700 mb-3">{story.story_text}</p>
-                      <div className="flex items-center justify-between text-sm text-gray-500">
+                      <h4 className="text-lg font-semibold text-ink mb-2">{story.title}</h4>
+                      <p className="text-neutral-700 mb-3">{story.story_text}</p>
+                      <div className="flex items-center justify-between text-sm text-neutral-500">
                         {story.beneficiaries_impacted && (
                           <span>{story.beneficiaries_impacted.toLocaleString()} people impacted</span>
                         )}
@@ -321,8 +321,8 @@ export default function CharityDetailTabs({ charity }: CharityDetailTabsProps) {
               </div>
             ) : (
               <div className="text-center py-12">
-                <Heart className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-                <p className="text-gray-500">No impact stories available yet.</p>
+                <Heart className="w-12 h-12 text-neutral-300 mx-auto mb-4" />
+                <p className="text-neutral-500">No impact stories available yet.</p>
               </div>
             )}
           </div>
@@ -333,27 +333,27 @@ export default function CharityDetailTabs({ charity }: CharityDetailTabsProps) {
           <div className="space-y-6">
             {charity.recent_activity && charity.recent_activity.length > 0 ? (
               <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Recent Activity</h3>
+                <h3 className="text-lg font-semibold text-ink mb-4">Recent Activity</h3>
                 <div className="space-y-4">
                   {charity.recent_activity.map((activity) => (
-                    <div key={activity.id} className="border-l-4 border-blue-500 pl-4 py-2">
+                    <div key={activity.id} className="border-l-4 border-azure pl-4 py-2">
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
-                          <span className="inline-block px-2 py-1 bg-blue-100 text-blue-800 text-xs font-medium rounded mb-2">
+                          <span className="inline-block px-2 py-1 bg-azure/10 text-azure-deep text-xs font-medium rounded mb-2">
                             {activity.activity_type.replace('_', ' ')}
                           </span>
-                          <h4 className="text-base font-semibold text-gray-900 mb-1">{activity.title}</h4>
+                          <h4 className="text-base font-semibold text-ink mb-1">{activity.title}</h4>
                           {activity.description && (
-                            <p className="text-gray-700 mb-2">{activity.description}</p>
+                            <p className="text-neutral-700 mb-2">{activity.description}</p>
                           )}
                           {activity.source_url && (
-                            <a href={activity.source_url} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-600 hover:underline">
+                            <a href={activity.source_url} target="_blank" rel="noopener noreferrer" className="text-sm text-azure hover:underline">
                               Read more →
                             </a>
                           )}
                         </div>
                         {activity.published_date && (
-                          <span className="text-sm text-gray-500 ml-4">{formatDate(activity.published_date)}</span>
+                          <span className="text-sm text-neutral-500 ml-4">{formatDate(activity.published_date)}</span>
                         )}
                       </div>
                     </div>
@@ -362,8 +362,8 @@ export default function CharityDetailTabs({ charity }: CharityDetailTabsProps) {
               </div>
             ) : (
               <div className="text-center py-12">
-                <Activity className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-                <p className="text-gray-500">No recent activity available.</p>
+                <Activity className="w-12 h-12 text-neutral-300 mx-auto mb-4" />
+                <p className="text-neutral-500">No recent activity available.</p>
               </div>
             )}
           </div>

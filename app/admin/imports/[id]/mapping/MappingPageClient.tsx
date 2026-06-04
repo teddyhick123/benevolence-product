@@ -185,7 +185,7 @@ export function MappingPageClient({ job, mappingProfile, stagingPreviews }: Mapp
     <div className="space-y-6">
       {/* AI toast */}
       {aiToast && (
-        <div className="fixed top-4 right-4 z-50 px-4 py-3 bg-azure text-white text-sm rounded-lg shadow-lg transition-opacity">
+        <div className="fixed top-4 right-4 z-50 px-4 py-3 bg-azure text-white text-sm rounded-2xl shadow-lg transition-opacity">
           {aiToast}
         </div>
       )}
@@ -236,7 +236,7 @@ export function MappingPageClient({ job, mappingProfile, stagingPreviews }: Mapp
         <button
           onClick={handleSaveAndValidate}
           disabled={validating}
-          className="px-4 py-2 text-sm rounded-lg bg-gradient-to-r from-azure via-azure/90 to-azure/70 text-white font-medium hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed transition-opacity"
+          className="px-4 py-2 text-sm rounded-2xl bg-gradient-to-r from-azure via-azure/90 to-azure/70 text-white font-medium hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed transition-opacity"
         >
           {validating ? 'Validating…' : 'Save & Validate'}
         </button>

@@ -220,6 +220,47 @@ CREATE TRIGGER trg_update_donor_aggregates
   FOR EACH ROW EXECUTE FUNCTION update_donor_aggregates();
 
 -- ---------------------------------------------------------------------------
+-- donor_communications — interaction log for donor CRM
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS donor_communications (
+  id                   uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  created_at           timestamptz NOT NULL DEFAULT now(),
+  updated_at           timestamptz NOT NULL DEFAULT now(),
+
+  donor_id             uuid NOT NULL REFERENCES donors(id) ON DELETE CASCADE,
+  org_id               uuid NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+
+  direction            text NOT NULL DEFAULT 'outbound'
+                       CHECK (direction IN ('inbound', 'outbound')),
+  comm_type            text NOT NULL
+                       CHECK (comm_type IN (
+                         'email', 'call', 'meeting', 'letter',
+                         'text', 'event', 'note', 'other'
+                       )),
+  subject              text,
+  summary              text,
+  occurred_at          timestamptz NOT NULL DEFAULT now(),
+  logged_by            uuid REFERENCES auth.users(id),
+
+  follow_up_required   boolean NOT NULL DEFAULT false,
+  follow_up_date       date,
+  follow_up_completed  boolean NOT NULL DEFAULT false,
+
+  linked_contribution_id uuid REFERENCES contributions_received(id) ON DELETE SET NULL,
+  tags                 text[] NOT NULL DEFAULT '{}'
+);
+
+CREATE INDEX idx_donor_comms_donor_id ON donor_communications (donor_id);
+CREATE INDEX idx_donor_comms_org_id ON donor_communications (org_id);
+CREATE INDEX idx_donor_comms_occurred ON donor_communications (org_id, occurred_at DESC);
+CREATE INDEX idx_donor_comms_followup ON donor_communications (org_id, follow_up_date)
+  WHERE follow_up_required = true AND follow_up_completed = false;
+
+CREATE TRIGGER trg_donor_communications_updated_at
+  BEFORE UPDATE ON donor_communications
+  FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+-- ---------------------------------------------------------------------------
 -- v_donor_summary — rich view used by CRM list
 -- ---------------------------------------------------------------------------
 CREATE OR REPLACE VIEW v_donor_summary AS
@@ -228,6 +269,38 @@ SELECT
   d.first_name || ' ' || COALESCE(d.last_name, '') AS full_name
 FROM donors d
 WHERE d.deleted_at IS NULL;
+
+-- ---------------------------------------------------------------------------
+-- v_contribution_with_donor — enriched contribution rows for reporting
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE VIEW v_contribution_with_donor
+  WITH (security_invoker = true)
+AS
+SELECT
+  cr.id AS contribution_id,
+  cr.org_id,
+  d.id AS donor_id,
+  COALESCE(
+    NULLIF(TRIM(d.first_name || ' ' || COALESCE(d.last_name, '')), ''),
+    d.organization_name,
+    'Unknown Donor'
+  ) AS donor_name,
+  d.email AS donor_email,
+  cr.amount,
+  cr.contribution_date,
+  cr.gift_type,
+  cr.receipt_number,
+  cr.receipt_sent_at,
+  cr.receipt_status,
+  CASE WHEN cr.acknowledgment_sent THEN 'sent' ELSE 'pending' END AS acknowledgment_status,
+  cr.acknowledged_at AS acknowledgment_sent_at,
+  cr.is_pledge,
+  cr.campaign,
+  cr.notes
+FROM contributions_received cr
+JOIN donors d ON d.id = cr.donor_id;
+
+GRANT SELECT ON v_contribution_with_donor TO authenticated, service_role;
 
 -- ---------------------------------------------------------------------------
 -- RLS
@@ -257,3 +330,21 @@ CREATE POLICY "contributions_received: org members (member+) can manage"
 CREATE POLICY "contributions_received: service role"
   ON contributions_received FOR ALL TO service_role
   USING (true) WITH CHECK (true);
+
+ALTER TABLE donor_communications ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "donor_communications: org members can view"
+  ON donor_communications FOR SELECT TO authenticated
+  USING (can_view_org(org_id));
+
+CREATE POLICY "donor_communications: org admins can manage"
+  ON donor_communications FOR ALL TO authenticated
+  USING (is_org_admin(org_id))
+  WITH CHECK (is_org_admin(org_id));
+
+CREATE POLICY "donor_communications: service role full access"
+  ON donor_communications FOR ALL TO service_role
+  USING (true) WITH CHECK (true);
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON donor_communications TO authenticated;
+GRANT ALL ON donor_communications TO service_role;

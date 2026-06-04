@@ -177,25 +177,25 @@ export function ImportProgressMonitor({ importJobId, initialJob }: ImportProgres
     <div className="space-y-4">
       {/* Rollback progress message */}
       {rollbackMessage && (
-        <div className={`p-3 rounded-lg text-sm ${rollbackInProgress ? 'bg-orange-50 border border-orange-200 text-orange-800' : 'bg-neutral-50 border border-neutral-200 text-neutral-700'}`}>
-          {rollbackInProgress && <span className="inline-block w-2 h-2 rounded-full bg-orange-400 animate-pulse mr-2" />}
+        <div className={`p-3 rounded-2xl text-sm ${rollbackInProgress ? 'bg-coral/10 border border-coral/25 text-coral' : 'bg-neutral-50 border border-neutral-200 text-neutral-700'}`}>
+          {rollbackInProgress && <span className="inline-block w-2 h-2 rounded-full bg-coral animate-pulse mr-2" />}
           {rollbackMessage}
         </div>
       )}
 
       {/* Status banners */}
       {isPaused && (
-        <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg text-sm text-yellow-800">
+        <div className="p-4 bg-sunset/15 border border-sunset/30 rounded-2xl text-sm text-ink">
           <strong>Ready for review.</strong>{' '}
           {job.records_failed > 0
             ? `${job.records_failed.toLocaleString()} errors found. Review before loading.`
             : 'Mapping complete. Click Resume to begin loading.'}
-          {job.error_message && <span className="ml-1 text-yellow-700">({job.error_message})</span>}
+          {job.error_message && <span className="ml-1 text-ink">({job.error_message})</span>}
         </div>
       )}
 
       {isComplete && (
-        <div className="p-4 bg-green-50 border border-green-200 rounded-lg text-sm text-green-800">
+        <div className="p-4 bg-green-50 border border-green-200 rounded-2xl text-sm text-green-800">
           <strong>Import complete.</strong>{' '}
           {job.records_loaded.toLocaleString()} records loaded
           {job.records_failed > 0 && `, ${job.records_failed.toLocaleString()} failed`}.
@@ -203,14 +203,14 @@ export function ImportProgressMonitor({ importJobId, initialJob }: ImportProgres
       )}
 
       {isFailed && (
-        <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+        <div className="p-4 bg-red-50 border border-red-200 rounded-2xl text-sm text-red-700">
           <strong>Import failed.</strong> {job.error_message ?? 'An error occurred.'}
         </div>
       )}
 
       {/* Stats grid */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <StatCard label="Extracted" value={job.total_records_extracted} color="text-blue-700" />
+        <StatCard label="Extracted" value={job.total_records_extracted} color="text-azure-deep" />
         <StatCard label="Validated" value={job.records_validated} color="text-azure" />
         <StatCard label="Loaded" value={job.records_loaded} color="text-green-700" />
         <StatCard label="Failed" value={job.records_failed} color="text-red-600" />
@@ -266,7 +266,7 @@ export function ImportProgressMonitor({ importJobId, initialJob }: ImportProgres
         {isRunning && (
           <button
             onClick={handlePause}
-            className="px-3 py-1.5 text-xs border border-neutral-200 rounded-md hover:bg-neutral-50 transition-colors"
+            className="px-3 py-1.5 text-xs border border-neutral-200 rounded-2xl hover:bg-neutral-50 transition-colors"
           >
             Pause
           </button>
@@ -274,7 +274,7 @@ export function ImportProgressMonitor({ importJobId, initialJob }: ImportProgres
         {isPaused && (
           <button
             onClick={handleResume}
-            className="px-3 py-1.5 text-xs rounded-md bg-yellow-50 border border-yellow-200 text-yellow-700 hover:bg-yellow-100 transition-colors"
+            className="px-3 py-1.5 text-xs rounded-2xl bg-sunset/15 border border-sunset/30 text-ink hover:bg-sunset/15 transition-colors"
           >
             Resume
           </button>
@@ -284,12 +284,12 @@ export function ImportProgressMonitor({ importJobId, initialJob }: ImportProgres
             <button
               onClick={() => setShowRollbackMenu((v) => !v)}
               disabled={rollbackInProgress}
-              className="px-3 py-1.5 text-xs rounded-md bg-orange-50 border border-orange-200 text-orange-700 hover:bg-orange-100 transition-colors disabled:opacity-50"
+              className="px-3 py-1.5 text-xs rounded-2xl bg-coral/10 border border-coral/25 text-coral hover:bg-coral/10 transition-colors disabled:opacity-50"
             >
               {rollbackInProgress ? 'Rolling back…' : 'Rollback ▾'}
             </button>
             {showRollbackMenu && (
-              <div className="absolute top-full mt-1 left-0 z-10 w-52 bg-white border border-neutral-200 rounded-lg shadow-lg py-1 text-sm">
+              <div className="absolute top-full mt-1 left-0 z-10 w-52 bg-white border border-neutral-200 rounded-2xl shadow-lg py-1 text-sm">
                 {ROLLBACK_SCOPES.map(({ label, scope }) => (
                   <button
                     key={scope}

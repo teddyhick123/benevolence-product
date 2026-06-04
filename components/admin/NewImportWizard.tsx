@@ -97,7 +97,7 @@ export function NewImportWizard({ portfolios, onClose }: NewImportWizardProps) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-lg">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg">
         {/* Header */}
         <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-neutral-100">
           <h2 className="text-lg font-semibold">New Data Import</h2>
@@ -135,7 +135,7 @@ export function NewImportWizard({ portfolios, onClose }: NewImportWizardProps) {
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="e.g. Blackbaud Migration March 2026"
-                  className="w-full px-3 py-2 border border-neutral-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-azure/30"
+                  className="w-full px-3 py-2 border border-neutral-200 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-azure/30"
                 />
               </div>
 
@@ -144,7 +144,7 @@ export function NewImportWizard({ portfolios, onClose }: NewImportWizardProps) {
                 <select
                   value={portfolioId}
                   onChange={(e) => setPortfolioId(e.target.value)}
-                  className="w-full px-3 py-2 border border-neutral-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-azure/30"
+                  className="w-full px-3 py-2 border border-neutral-200 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-azure/30"
                 >
                   {portfolios.map((p) => (
                     <option key={p.id} value={p.id}>
@@ -161,7 +161,7 @@ export function NewImportWizard({ portfolios, onClose }: NewImportWizardProps) {
                     <button
                       key={value}
                       onClick={() => setSourceSystem(value as SourceSystem)}
-                      className={`text-left px-3 py-2.5 rounded-lg border text-sm transition-colors ${
+                      className={`text-left px-3 py-2.5 rounded-2xl border text-sm transition-colors ${
                         sourceSystem === value
                           ? 'border-azure bg-azure/5 text-azure font-medium'
                           : 'border-neutral-200 hover:border-neutral-300'
@@ -187,7 +187,7 @@ export function NewImportWizard({ portfolios, onClose }: NewImportWizardProps) {
                 <div className="space-y-2">
                   {FILE_SLOTS.map(({ key, label }) => (
                     <div key={key} className="flex items-center gap-3">
-                      <label className="flex-1 flex items-center gap-2 px-3 py-2 border border-dashed border-neutral-300 rounded-lg cursor-pointer hover:border-azure/50 transition-colors text-sm">
+                      <label className="flex-1 flex items-center gap-2 px-3 py-2 border border-dashed border-neutral-300 rounded-2xl cursor-pointer hover:border-azure/50 transition-colors text-sm">
                         <svg className="w-4 h-4 text-neutral-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
                         <span className="text-neutral-500 truncate">
                           {files[key] ? files[key]!.name : label}
@@ -226,7 +226,7 @@ export function NewImportWizard({ portfolios, onClose }: NewImportWizardProps) {
           {step === 2 && (
             <div className="space-y-4">
               <p className="text-sm text-neutral-500">Step 2 of 3 — Field Mapping</p>
-              <div className="p-4 bg-azure/5 border border-azure/20 rounded-lg text-sm">
+              <div className="p-4 bg-azure/5 border border-azure/20 rounded-2xl text-sm">
                 <p className="font-medium text-azure mb-1">
                   Using default mapping for {SOURCE_LABELS[sourceSystem]}
                 </p>
@@ -252,20 +252,20 @@ export function NewImportWizard({ portfolios, onClose }: NewImportWizardProps) {
                 </div>
               ) : createdJobId ? (
                 <div className="space-y-3">
-                  <div className="p-4 bg-green-50 border border-green-200 rounded-lg text-sm">
+                  <div className="p-4 bg-green-50 border border-green-200 rounded-2xl text-sm">
                     <p className="font-medium text-green-800 mb-1">Import started successfully</p>
                     <p className="text-green-700 font-mono text-xs">Job ID: {createdJobId}</p>
                   </div>
                   <a
                     href={`/admin/imports/${createdJobId}`}
-                    className="block text-center px-4 py-2 rounded-lg bg-gradient-to-r from-azure via-azure/90 to-azure/70 text-white text-sm font-medium hover:opacity-90 transition-opacity"
+                    className="block text-center px-4 py-2 rounded-2xl bg-gradient-to-r from-azure via-azure/90 to-azure/70 text-white text-sm font-medium hover:opacity-90 transition-opacity"
                     onClick={onClose}
                   >
                     View Import Progress →
                   </a>
                 </div>
               ) : error ? (
-                <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+                <div className="p-4 bg-red-50 border border-red-200 rounded-2xl text-sm text-red-700">
                   <p className="font-medium mb-1">Import failed to start</p>
                   <p>{error}</p>
                 </div>
@@ -278,7 +278,7 @@ export function NewImportWizard({ portfolios, onClose }: NewImportWizardProps) {
         <div className="flex items-center justify-between px-6 pb-6">
           <button
             onClick={() => (step > 1 && step < 3 ? setStep(step - 1) : onClose)}
-            className="px-4 py-2 text-sm rounded-lg border border-neutral-200 hover:bg-neutral-50 transition-colors"
+            className="px-4 py-2 text-sm rounded-2xl border border-neutral-200 hover:bg-neutral-50 transition-colors"
           >
             {step === 3 ? 'Close' : step === 1 ? 'Cancel' : 'Back'}
           </button>
@@ -287,7 +287,7 @@ export function NewImportWizard({ portfolios, onClose }: NewImportWizardProps) {
             <button
               onClick={() => setStep(2)}
               disabled={!name || Object.keys(files).length === 0}
-              className="px-4 py-2 text-sm rounded-lg bg-gradient-to-r from-azure via-azure/90 to-azure/70 text-white font-medium hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed transition-opacity"
+              className="px-4 py-2 text-sm rounded-2xl bg-gradient-to-r from-azure via-azure/90 to-azure/70 text-white font-medium hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed transition-opacity"
             >
               Next: Configure Mapping →
             </button>
@@ -296,7 +296,7 @@ export function NewImportWizard({ portfolios, onClose }: NewImportWizardProps) {
           {step === 2 && (
             <button
               onClick={handleStartImport}
-              className="px-4 py-2 text-sm rounded-lg bg-gradient-to-r from-azure via-azure/90 to-azure/70 text-white font-medium hover:opacity-90 transition-opacity"
+              className="px-4 py-2 text-sm rounded-2xl bg-gradient-to-r from-azure via-azure/90 to-azure/70 text-white font-medium hover:opacity-90 transition-opacity"
             >
               Start Import
             </button>
@@ -308,7 +308,7 @@ export function NewImportWizard({ portfolios, onClose }: NewImportWizardProps) {
                 router.refresh();
                 onClose();
               }}
-              className="px-4 py-2 text-sm rounded-lg bg-gradient-to-r from-azure via-azure/90 to-azure/70 text-white font-medium hover:opacity-90 transition-opacity"
+              className="px-4 py-2 text-sm rounded-2xl bg-gradient-to-r from-azure via-azure/90 to-azure/70 text-white font-medium hover:opacity-90 transition-opacity"
             >
               Done
             </button>

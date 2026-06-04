@@ -23,10 +23,10 @@ interface ImportAuditLogProps {
 
 const OPERATION_COLORS: Record<string, string> = {
   insert: 'bg-green-100 text-green-800',
-  update: 'bg-blue-100 text-blue-800',
+  update: 'bg-azure/10 text-azure-deep',
   skip: 'bg-neutral-100 text-neutral-600',
   error: 'bg-red-100 text-red-700',
-  rollback: 'bg-orange-100 text-orange-700',
+  rollback: 'bg-coral/10 text-coral',
 };
 
 const ALL_TABLES = ['donors', 'investees', 'holdings', 'contributions_received', 'metric_facts'];
@@ -75,7 +75,7 @@ export function ImportAuditLog({ importJobId }: ImportAuditLogProps) {
         <select
           value={tableFilter}
           onChange={(e) => { setTableFilter(e.target.value); handleFilterChange(); }}
-          className="text-sm border border-neutral-200 rounded-md px-2 py-1.5"
+          className="text-sm border border-neutral-200 rounded-2xl px-2 py-1.5"
         >
           <option value="">All tables</option>
           {ALL_TABLES.map((t) => (
@@ -86,7 +86,7 @@ export function ImportAuditLog({ importJobId }: ImportAuditLogProps) {
         <select
           value={opFilter}
           onChange={(e) => { setOpFilter(e.target.value); handleFilterChange(); }}
-          className="text-sm border border-neutral-200 rounded-md px-2 py-1.5"
+          className="text-sm border border-neutral-200 rounded-2xl px-2 py-1.5"
         >
           <option value="">All operations</option>
           {ALL_OPERATIONS.map((o) => (
@@ -105,7 +105,7 @@ export function ImportAuditLog({ importJobId }: ImportAuditLogProps) {
       ) : entries.length === 0 ? (
         <div className="text-sm text-neutral-500 py-4 text-center">No audit entries yet.</div>
       ) : (
-        <div className="border border-neutral-200 rounded-lg overflow-hidden text-sm">
+        <div className="border border-neutral-200 rounded-2xl overflow-hidden text-sm">
           <table className="w-full">
             <thead className="bg-neutral-50 text-xs text-neutral-500 uppercase tracking-wide">
               <tr>

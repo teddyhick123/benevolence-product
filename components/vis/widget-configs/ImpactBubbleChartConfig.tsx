@@ -82,11 +82,11 @@ export default function ImpactBubbleChartConfig({ initialConfig, onSave, onCance
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="e.g., Multi-Dimensional Impact Analysis"
-            className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+            className="w-full px-4 py-2 border border-neutral-300 rounded-2xl focus:ring-2 focus:ring-azure/30 focus:border-azure"
           />
         </div>
 
-        <div className="border border-neutral-200 rounded-lg p-4 space-y-4">
+        <div className="border border-neutral-200 rounded-2xl p-4 space-y-4">
           <h3 className="text-sm font-semibold text-neutral-900">Axis Configuration</h3>
           <p className="text-xs text-neutral-600">Select metrics for X, Y, and bubble size dimensions</p>
 
@@ -99,7 +99,7 @@ export default function ImpactBubbleChartConfig({ initialConfig, onSave, onCance
                 value={xMetric}
                 onChange={(e) => setXMetric(e.target.value)}
                 required
-                className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-neutral-300 rounded-2xl focus:ring-2 focus:ring-azure/30 focus:border-azure"
               >
                 <option value="">Select X-axis metric...</option>
                 {availableMetrics.map(m => (
@@ -115,7 +115,7 @@ export default function ImpactBubbleChartConfig({ initialConfig, onSave, onCance
                 onChange={(e) => setXMetric(e.target.value.toUpperCase())}
                 placeholder="e.g., REVENUE"
                 required
-                className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-neutral-300 rounded-2xl focus:ring-2 focus:ring-azure/30 focus:border-azure"
               />
             )}
             <input
@@ -123,7 +123,7 @@ export default function ImpactBubbleChartConfig({ initialConfig, onSave, onCance
               value={xLabel}
               onChange={(e) => setXLabel(e.target.value)}
               placeholder="Custom X-axis label (optional)"
-              className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent mt-2"
+              className="w-full px-4 py-2 border border-neutral-300 rounded-2xl focus:ring-2 focus:ring-azure/30 focus:border-azure mt-2"
             />
           </div>
 
@@ -136,7 +136,7 @@ export default function ImpactBubbleChartConfig({ initialConfig, onSave, onCance
                 value={yMetric}
                 onChange={(e) => setYMetric(e.target.value)}
                 required
-                className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-neutral-300 rounded-2xl focus:ring-2 focus:ring-azure/30 focus:border-azure"
               >
                 <option value="">Select Y-axis metric...</option>
                 {availableMetrics.map(m => (
@@ -152,7 +152,7 @@ export default function ImpactBubbleChartConfig({ initialConfig, onSave, onCance
                 onChange={(e) => setYMetric(e.target.value.toUpperCase())}
                 placeholder="e.g., IMPACT_SCORE"
                 required
-                className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-neutral-300 rounded-2xl focus:ring-2 focus:ring-azure/30 focus:border-azure"
               />
             )}
             <input
@@ -160,7 +160,7 @@ export default function ImpactBubbleChartConfig({ initialConfig, onSave, onCance
               value={yLabel}
               onChange={(e) => setYLabel(e.target.value)}
               placeholder="Custom Y-axis label (optional)"
-              className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent mt-2"
+              className="w-full px-4 py-2 border border-neutral-300 rounded-2xl focus:ring-2 focus:ring-azure/30 focus:border-azure mt-2"
             />
           </div>
 
@@ -173,7 +173,7 @@ export default function ImpactBubbleChartConfig({ initialConfig, onSave, onCance
                 value={sizeMetric}
                 onChange={(e) => setSizeMetric(e.target.value)}
                 required
-                className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-neutral-300 rounded-2xl focus:ring-2 focus:ring-azure/30 focus:border-azure"
               >
                 <option value="">Select size metric...</option>
                 {availableMetrics.map(m => (
@@ -189,14 +189,14 @@ export default function ImpactBubbleChartConfig({ initialConfig, onSave, onCance
                 onChange={(e) => setSizeMetric(e.target.value.toUpperCase())}
                 placeholder="e.g., EMPLOYEES"
                 required
-                className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-neutral-300 rounded-2xl focus:ring-2 focus:ring-azure/30 focus:border-azure"
               />
             )}
             <p className="mt-1 text-xs text-neutral-500">Metric determines bubble size</p>
           </div>
         </div>
 
-        <div className="border border-neutral-200 rounded-lg p-4 space-y-4">
+        <div className="border border-neutral-200 rounded-2xl p-4 space-y-4">
           <h3 className="text-sm font-semibold text-neutral-900">Color Configuration</h3>
 
           <div>
@@ -206,7 +206,7 @@ export default function ImpactBubbleChartConfig({ initialConfig, onSave, onCance
             <select
               value={colorMode}
               onChange={(e) => setColorMode(e.target.value as 'metric' | 'sector')}
-              className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              className="w-full px-4 py-2 border border-neutral-300 rounded-2xl focus:ring-2 focus:ring-azure/30 focus:border-azure"
             >
               <option value="sector">By Sector - Color bubbles by industry sector</option>
               <option value="metric">By Metric - Color bubbles by metric value</option>
@@ -222,7 +222,7 @@ export default function ImpactBubbleChartConfig({ initialConfig, onSave, onCance
                 <select
                   value={colorMetric}
                   onChange={(e) => setColorMetric(e.target.value)}
-                  className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  className="w-full px-4 py-2 border border-neutral-300 rounded-2xl focus:ring-2 focus:ring-azure/30 focus:border-azure"
                 >
                   <option value="">Select color metric (optional)...</option>
                   {availableMetrics.map(m => (
@@ -237,7 +237,7 @@ export default function ImpactBubbleChartConfig({ initialConfig, onSave, onCance
                   value={colorMetric}
                   onChange={(e) => setColorMetric(e.target.value.toUpperCase())}
                   placeholder="e.g., GROWTH_RATE"
-                  className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  className="w-full px-4 py-2 border border-neutral-300 rounded-2xl focus:ring-2 focus:ring-azure/30 focus:border-azure"
                 />
               )}
               <p className="mt-1 text-xs text-neutral-500">Fourth dimension - optional metric for color intensity</p>
@@ -256,7 +256,7 @@ export default function ImpactBubbleChartConfig({ initialConfig, onSave, onCance
               onChange={(e) => setMinBubbleSize(Number(e.target.value))}
               min={5}
               max={30}
-              className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              className="w-full px-4 py-2 border border-neutral-300 rounded-2xl focus:ring-2 focus:ring-azure/30 focus:border-azure"
             />
             <p className="mt-1 text-xs text-neutral-500">Pixels (5-30)</p>
           </div>
@@ -271,7 +271,7 @@ export default function ImpactBubbleChartConfig({ initialConfig, onSave, onCance
               onChange={(e) => setMaxBubbleSize(Number(e.target.value))}
               min={30}
               max={100}
-              className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              className="w-full px-4 py-2 border border-neutral-300 rounded-2xl focus:ring-2 focus:ring-azure/30 focus:border-azure"
             />
             <p className="mt-1 text-xs text-neutral-500">Pixels (30-100)</p>
           </div>
@@ -283,7 +283,7 @@ export default function ImpactBubbleChartConfig({ initialConfig, onSave, onCance
             id="showLabels"
             checked={showLabels}
             onChange={(e) => setShowLabels(e.target.checked)}
-            className="w-4 h-4 text-indigo-600 border-neutral-300 rounded focus:ring-indigo-500"
+            className="w-4 h-4 text-azure border-neutral-300 rounded focus:ring-azure/30"
           />
           <label htmlFor="showLabels" className="text-sm text-neutral-700">
             Show holding names on bubbles
@@ -300,7 +300,7 @@ export default function ImpactBubbleChartConfig({ initialConfig, onSave, onCance
             onChange={(e) => setMinHoldings(Number(e.target.value))}
             min={2}
             max={10}
-            className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+            className="w-full px-4 py-2 border border-neutral-300 rounded-2xl focus:ring-2 focus:ring-azure/30 focus:border-azure"
           />
           <p className="mt-1 text-xs text-neutral-500">Minimum holdings required to display widget</p>
         </div>
@@ -317,7 +317,7 @@ export default function ImpactBubbleChartConfig({ initialConfig, onSave, onCance
         <button
           type="submit"
           disabled={!xMetric || !yMetric || !sizeMetric}
-          className="px-6 py-2 bg-gradient-to-r from-azure via-azure/90 to-azure/70 text-white rounded-lg hover:opacity-90 transition-opacity font-medium shadow-soft disabled:opacity-50 disabled:cursor-not-allowed"
+          className="px-6 py-2 bg-gradient-to-r from-azure via-azure/90 to-azure/70 text-white rounded-2xl hover:opacity-90 transition-opacity font-medium shadow-soft disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {initialConfig ? 'Update Widget' : 'Create Widget'}
         </button>

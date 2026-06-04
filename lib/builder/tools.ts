@@ -17,6 +17,28 @@ const MUTABLE_MODULE_IDS: readonly ModuleId[] = [
   'compliance_regulatory',
 ];
 
+// ─── Telemetry helper ────────────────────────────────────────────────────────
+
+async function emitBuilderEvent(
+  adminSupabase: SupabaseClient,
+  orgId: string,
+  userId: string,
+  eventType: 'tool_call' | 'proposal_created' | 'proposal_applied' | 'proposal_rejected',
+  extra: {
+    tool_name?: string;
+    payload?: Record<string, unknown>;
+  }
+): Promise<void> {
+  // Writes to builder_events: event_type = 'tool_call' | 'proposal_created' | ...
+  void adminSupabase.from('builder_events').insert({
+    org_id: orgId,
+    user_id: userId,
+    event_type: eventType,
+    tool_name: extra.tool_name ?? null,
+    payload: extra.payload ?? null,
+  });
+}
+
 // ─── Tool definitions ────────────────────────────────────────────────────────
 
 export const BUILDER_TOOLS: ToolDefinition[] = [
@@ -283,6 +305,10 @@ export async function executeTool(
         if (toolInput.name) parts.push(`name set to "${toolInput.name}"`);
         if (patch.logo_url) parts.push('logo updated');
         if (patch.primary_color) parts.push(`color set to ${patch.primary_color}`);
+        void emitBuilderEvent(adminSupabase, orgId, userId, 'tool_call', {
+          tool_name: toolName,
+          payload: { fields: Object.keys(patch) },
+        });
         return { type: 'config_success', tool: toolName, message: `Updated: ${parts.join(', ')}.` };
       }
 
@@ -306,6 +332,10 @@ export async function executeTool(
         if (!result.success) {
           return { type: 'error', tool: toolName, message: result.error ?? 'Module update failed' };
         }
+        void emitBuilderEvent(adminSupabase, orgId, userId, 'tool_call', {
+          tool_name: toolName,
+          payload: { module: moduleId, enabled },
+        });
         return {
           type: 'config_success',
           tool: toolName,
@@ -325,6 +355,10 @@ export async function executeTool(
         });
 
         if (error) return { type: 'error', tool: toolName, message: error.message };
+        void emitBuilderEvent(adminSupabase, orgId, userId, 'tool_call', {
+          tool_name: toolName,
+          payload: { name: toolInput.name, slug: toolInput.slug },
+        });
         return {
           type: 'config_success',
           tool: toolName,
@@ -374,6 +408,10 @@ export async function executeTool(
           .eq('org_id', orgId);
 
         if (error) return { type: 'error', tool: toolName, message: error.message };
+        void emitBuilderEvent(adminSupabase, orgId, userId, 'tool_call', {
+          tool_name: toolName,
+          payload: { id: toolInput.id },
+        });
         return { type: 'config_success', tool: toolName, message: `KPI definition ${id} updated.` };
       }
 
@@ -386,6 +424,10 @@ export async function executeTool(
           .eq('org_id', orgId);
 
         if (error) return { type: 'error', tool: toolName, message: error.message };
+        void emitBuilderEvent(adminSupabase, orgId, userId, 'tool_call', {
+          tool_name: toolName,
+          payload: { id: toolInput.id },
+        });
         return {
           type: 'config_success',
           tool: toolName,
@@ -402,6 +444,10 @@ export async function executeTool(
 
         if (error) return { type: 'error', tool: toolName, message: error.message };
 
+        void emitBuilderEvent(adminSupabase, orgId, userId, 'tool_call', {
+          tool_name: toolName,
+          payload: { cleared: !toolInput.instructions },
+        });
         return {
           type: 'config_success',
           tool: toolName,
@@ -425,6 +471,10 @@ export async function executeTool(
         }).select('id').single();
 
         if (error) return { type: 'error', tool: toolName, message: error.message };
+        void emitBuilderEvent(adminSupabase, orgId, userId, 'proposal_created', {
+          tool_name: toolName,
+          payload: { proposalId: data.id, fileCount: files?.length ?? 0 },
+        });
         return {
           type: 'proposal_created',
           proposalId: data.id,
@@ -516,6 +566,10 @@ Respond with ONLY a valid JSON object matching this exact schema (no markdown, n
           return { type: 'error', tool: toolName, message: proposalError?.message ?? 'Failed to create proposal.' };
         }
 
+        void emitBuilderEvent(adminSupabase, orgId, userId, 'proposal_created', {
+          tool_name: toolName,
+          payload: { proposalId: proposal.id, description: toolInput.description },
+        });
         return {
           type: 'scaffold_plan_ready',
           proposalId: proposal.id,
@@ -583,10 +637,18 @@ Respond with ONLY a valid JSON object matching this exact schema (no markdown, n
             .insert({ org_id: orgId, is_system: false, name: tmpl.name, workflow_type: tmpl.workflow_type, description: tmpl.description, steps })
             .select('id').single();
           if (cloneErr) return { type: 'error', tool: toolName, message: cloneErr.message };
+          void emitBuilderEvent(adminSupabase, orgId, userId, 'tool_call', {
+            tool_name: toolName,
+            payload: { template_id: templateId, step_count: steps.length },
+          });
           return { type: 'config_success', tool: toolName, message: `System template cloned as org-specific template (id: ${cloned.id}) with ${steps.length} steps.` };
         }
         const { error: updateErr } = await adminSupabase.from('workflow_templates').update({ steps }).eq('id', templateId).eq('org_id', orgId);
         if (updateErr) return { type: 'error', tool: toolName, message: updateErr.message };
+        void emitBuilderEvent(adminSupabase, orgId, userId, 'tool_call', {
+          tool_name: toolName,
+          payload: { template_id: templateId, step_count: steps.length },
+        });
         return { type: 'config_success', tool: toolName, message: `Workflow template updated with ${steps.length} steps.` };
       }
 

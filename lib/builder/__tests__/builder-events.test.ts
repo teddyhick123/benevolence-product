@@ -47,3 +47,31 @@ describe('0044_builder_events migration', () => {
     expect(snippet).toMatch(/is_app_admin/);
   });
 });
+
+describe('builder_events instrumentation', () => {
+  it('executeTool emits tool_call events via adminSupabase', () => {
+    const src = readFileSync('lib/builder/tools.ts', 'utf8');
+    expect(src).toMatch(/builder_events/);
+    expect(src).toMatch(/event_type.*tool_call|tool_call.*event_type/);
+  });
+
+  it('chat route emits ai_request event', () => {
+    const src = readFileSync(
+      'app/api/org/[orgId]/builder/chat/route.ts',
+      'utf8'
+    );
+    expect(src).toMatch(/builder_events/);
+    expect(src).toMatch(/ai_request/);
+  });
+
+  it('chat route emits event after auth check', () => {
+    const src = readFileSync(
+      'app/api/org/[orgId]/builder/chat/route.ts',
+      'utf8'
+    );
+    const authIdx = src.indexOf('isAdmin');
+    const eventIdx = src.indexOf('ai_request');
+    expect(authIdx).toBeGreaterThan(-1);
+    expect(eventIdx).toBeGreaterThan(authIdx);
+  });
+});

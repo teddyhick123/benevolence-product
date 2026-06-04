@@ -44,6 +44,14 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     return NextResponse.json({ error: 'Message is required' }, { status: 400 });
   }
 
+  // Fire-and-forget — do not await; telemetry must not block the response
+  void adminSupabase.from('builder_events').insert({
+    org_id: orgId,
+    user_id: user.id,
+    event_type: 'ai_request',
+    request_text: userMessage,
+  });
+
   const [snapshot, sessionRes] = await Promise.all([
     fetchOrgSnapshot(supabase, orgId),
     supabase

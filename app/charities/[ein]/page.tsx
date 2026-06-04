@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, Star, MapPin, ChevronDown } from 'lucide-react';
+import { ArrowLeft, Star, MapPin, Plus } from 'lucide-react';
 import CharityDetailTabs from '@/components/charities/CharityDetailTabs';
 import AddToPortfolioModal from '@/components/charities/AddToPortfolioModal';
 
@@ -45,6 +45,10 @@ export default function CharityDetailPage() {
       setNotes(localStorage.getItem(NOTES_KEY(ein)) || '');
     }
   }, [ein]);
+
+  useEffect(() => {
+    return () => { if (notesSaveRef.current) clearTimeout(notesSaveRef.current); };
+  }, []);
 
   function handleNotesChange(val: string) {
     setNotes(val);
@@ -171,7 +175,7 @@ export default function CharityDetailPage() {
                   className="px-6 py-3 bg-azure text-white font-medium rounded-lg hover:bg-azure/90 transition-colors flex items-center gap-2"
                 >
                   Add to Portfolio
-                  <ChevronDown className="w-4 h-4" />
+                  <Plus className="w-4 h-4" />
                 </button>
                 <button
                   onClick={() => setIsWatched(toggleWatchlist(ein, charity.name))}

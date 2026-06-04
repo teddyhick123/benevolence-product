@@ -239,33 +239,42 @@ export default function GrantDetailPage() {
 
           {/* Transition form */}
           {!isTerminal && orgId && (
-            <div className="flex items-center gap-2 flex-wrap">
-              <select
-                value={transitionTo}
-                onChange={e => setTransitionTo(e.target.value)}
-                className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-azure/30"
-              >
-                <option value="">Move to stage…</option>
-                {LIFECYCLE_STAGES.filter(s => s !== currentStage).map(s => (
-                  <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>
-                ))}
-              </select>
-              {transitionTo && (
-                <input
-                  value={transitionReason}
-                  onChange={e => setTransitionReason(e.target.value)}
-                  placeholder="Reason (optional)"
-                  className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-azure/30 w-44"
-                />
-              )}
-              {transitionTo && (
-                <button
-                  onClick={handleTransition}
-                  disabled={transitioning}
-                  className="px-4 py-1.5 bg-azure text-white rounded-lg text-sm font-medium hover:bg-azure/90 transition-colors disabled:opacity-50"
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
+                <select
+                  value={transitionTo}
+                  onChange={e => setTransitionTo(e.target.value)}
+                  className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-azure/30"
                 >
-                  {transitioning ? 'Moving…' : 'Confirm'}
-                </button>
+                  <option value="">Move to stage…</option>
+                  {LIFECYCLE_STAGES.filter(s => s !== currentStage).map(s => (
+                    <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>
+                  ))}
+                </select>
+                {transitionTo && (
+                  <input
+                    value={transitionReason}
+                    onChange={e => setTransitionReason(e.target.value)}
+                    placeholder={terminalStages.has(transitionTo) ? 'Reason (required for closure)' : 'Reason (optional)'}
+                    className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-azure/30 w-48"
+                  />
+                )}
+                {transitionTo && (
+                  <button
+                    onClick={handleTransition}
+                    disabled={transitioning || (terminalStages.has(transitionTo) && !transitionReason.trim())}
+                    className={`px-4 py-1.5 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50 ${
+                      terminalStages.has(transitionTo) ? 'bg-red-600 hover:bg-red-700' : 'bg-azure hover:bg-azure/90'
+                    }`}
+                  >
+                    {transitioning ? 'Moving…' : 'Confirm'}
+                  </button>
+                )}
+              </div>
+              {transitionTo && terminalStages.has(transitionTo) && (
+                <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1">
+                  This is a terminal stage — the grant cannot be re-opened. A reason is required.
+                </p>
               )}
             </div>
           )}

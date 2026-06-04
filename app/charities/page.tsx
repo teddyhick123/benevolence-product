@@ -193,8 +193,9 @@ export default function CharitiesPage() {
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    setDebouncedQuery(searchQuery);
     setPage(1);
-    fetchCharities();
   };
 
   const handleClearFilters = () => {

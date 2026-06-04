@@ -113,7 +113,7 @@ export default function GrantCalendarView({ orgId, portfolioId }: Props) {
     <div className="space-y-6">
       {/* Filter bar */}
       <div className="flex items-center gap-3 flex-wrap">
-        {(['', 'milestone', 'report', 'payment', 'renewal', 'closeout'] as const).map(t => (
+        {(['', 'milestone', 'report', 'payment', 'renewal', 'closeout', 'period_end'] as const).map(t => (
           <button
             key={t}
             onClick={() => setTypeFilter(t)}

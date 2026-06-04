@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { pickActiveOrg } from '@/lib/org-cookie';
 
 const TIER_LABELS: Record<string, string> = {
@@ -28,6 +29,7 @@ const RECENCY_COLORS: Record<string, string> = {
 };
 
 export default function DonorsPage() {
+  const router = useRouter();
   const [orgId, setOrgId] = useState<string | null>(null);
   const [moduleEnabled, setModuleEnabled] = useState<boolean | null>(null);
   const [donors, setDonors] = useState<any[]>([]);
@@ -209,7 +211,7 @@ export default function DonorsPage() {
                   <tr
                     key={donor.id}
                     className="cursor-pointer transition-colors hover:bg-neutral-50"
-                    onClick={() => window.location.href = `/dashboard/donors/${donor.id}`}
+                    onClick={() => router.push(`/dashboard/donors/${donor.id}`)}
                   >
                     <td className="px-4 py-3">
                       <span className="font-medium text-ink">

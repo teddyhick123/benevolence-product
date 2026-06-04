@@ -29,6 +29,8 @@ export default function CompliancePage() {
   const [orgId, setOrgId] = useState<string | null>(null);
   const [portfolioId, setPortfolioId] = useState<string | null>(null);
   const [moduleEnabled, setModuleEnabled] = useState<boolean | null>(null);
+  const [contextLoading, setContextLoading] = useState(true);
+  const [contextError, setContextError] = useState(false);
 
   // Filing calendar
   const [filings, setFilings] = useState<any[]>([]);
@@ -64,19 +66,24 @@ export default function CompliancePage() {
   // Load org + portfolio
   useEffect(() => {
     async function fetchContext() {
-      const [orgRes, meRes] = await Promise.all([
-        fetch('/api/org'),
-        fetch('/api/me'),
-      ]);
-      if (orgRes.ok) {
+      try {
+        const [orgRes, meRes] = await Promise.all([
+          fetch('/api/org'),
+          fetch('/api/me'),
+        ]);
+        if (!orgRes.ok) { setContextError(true); return; }
         const d = await orgRes.json();
         const org = pickActiveOrg((d.organizations ?? []) as Array<{ id: string; modules?: Record<string, boolean> }>);
         setOrgId(org?.id || null);
         setModuleEnabled(!!org?.modules?.compliance);
-      }
-      if (meRes.ok) {
-        const d = await meRes.json();
-        setPortfolioId(d.portfolio_id || d.recommended_portfolio_id || null);
+        if (meRes.ok) {
+          const d2 = await meRes.json();
+          setPortfolioId(d2.portfolio_id || d2.recommended_portfolio_id || null);
+        }
+      } catch {
+        setContextError(true);
+      } finally {
+        setContextLoading(false);
       }
     }
     fetchContext();
@@ -229,6 +236,25 @@ export default function CompliancePage() {
   }
 
   const yearOptions = Array.from({ length: 6 }, (_, i) => currentYear - 1 - i);
+
+  if (contextLoading) {
+    return (
+      <div className="flex min-h-[400px] items-center justify-center">
+        <div className="animate-pulse text-sm text-neutral-400">Loading…</div>
+      </div>
+    );
+  }
+
+  if (contextError) {
+    return (
+      <div className="flex min-h-[400px] items-center justify-center">
+        <div className="text-center">
+          <p className="text-sm font-medium text-red-600">Failed to load compliance data</p>
+          <button onClick={() => window.location.reload()} className="mt-2 text-sm text-azure hover:underline">Reload</button>
+        </div>
+      </div>
+    );
+  }
 
   if (moduleEnabled === false) {
     return (

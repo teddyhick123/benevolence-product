@@ -1,7 +1,7 @@
 // app/dashboard/notifications/page.tsx
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 
 interface NotificationItem {
@@ -37,19 +37,23 @@ export default function NotificationsPage() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const nextCursorRef = useRef<string | null>(null);
   const [hasMore, setHasMore] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
-    // Get orgId from cookie
     const match = document.cookie.match(/(?:^|;\s*)x-org-id=([^;]+)/);
-    if (match) setOrgId(decodeURIComponent(match[1]));
+    if (match) {
+      setOrgId(decodeURIComponent(match[1]));
+    } else {
+      setLoading(false);
+    }
   }, []);
 
   const fetchNotifications = useCallback(async (reset = false) => {
     if (!orgId) return;
     setLoading(true);
-    const cursorParam = !reset && nextCursor ? `&cursor=${nextCursor}` : '';
+    const cursorParam = !reset && nextCursorRef.current ? `&cursor=${nextCursorRef.current}` : '';
     try {
       const res = await fetch(`/api/org/${orgId}/notifications?status=${statusFilter}&limit=30${cursorParam}`);
       if (!res.ok) return;
@@ -57,11 +61,12 @@ export default function NotificationsPage() {
       setNotifications(prev => reset ? data.data : [...prev, ...data.data]);
       setUnreadCount(data.unread_count ?? 0);
       setHasMore(!!data.next_cursor);
-      setNextCursor(data.next_cursor ?? null);
+      const cursor = data.next_cursor ?? null;
+      setNextCursor(cursor);
+      nextCursorRef.current = cursor;
     } finally {
       setLoading(false);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orgId, statusFilter]);
 
   useEffect(() => {

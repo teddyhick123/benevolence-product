@@ -42,30 +42,27 @@ export default function GrantDetailPage() {
 
   const load = useCallback(async (oid: string) => {
     try {
-      const [mainRes, decisionsRes, contactsRes, milestonesRes] = await Promise.all([
-        fetch(`/api/org/${oid}/grants/${grantId}`),
+      const mainRes = await fetch(`/api/org/${oid}/grants/${grantId}`);
+      if (!mainRes.ok) return;
+      const mainData = await mainRes.json();
+      setData(mainData);
+
+      const holdingId = mainData?.grant?.holding_id;
+      const [decisionsRes, contactsRes, milestonesRes] = await Promise.all([
         fetch(`/api/org/${oid}/grants/${grantId}/decisions`),
         fetch(`/api/org/${oid}/grants/${grantId}/contacts`).catch(() => ({ ok: false, json: async () => ({ data: [] }) })),
-        fetch(`/api/portfolio/${portfolioId ?? '_'}/holdings/${data?.grant?.holding_id ?? '_'}/milestones`).catch(() => ({ ok: false, json: async () => ({ data: [] }) })),
+        holdingId && portfolioId
+          ? fetch(`/api/portfolio/${portfolioId}/holdings/${holdingId}/milestones`).catch(() => ({ ok: false, json: async () => ({ data: [] }) }))
+          : Promise.resolve({ ok: true, json: async () => ({ data: [] }) }),
       ]);
 
-      if (mainRes.ok) setData(await mainRes.json());
-      if (decisionsRes.ok) {
-        const d = await decisionsRes.json();
-        setDecisions(d.data ?? []);
-      }
-      if ((contactsRes as any).ok) {
-        const c = await (contactsRes as any).json();
-        setContacts(c.data ?? []);
-      }
-      if ((milestonesRes as any).ok) {
-        const m = await (milestonesRes as any).json();
-        setMilestones(m.data ?? []);
-      }
+      if (decisionsRes.ok) setDecisions((await decisionsRes.json()).data ?? []);
+      if ((contactsRes as any).ok) setContacts((await (contactsRes as any).json()).data ?? []);
+      if ((milestonesRes as any).ok) setMilestones((await (milestonesRes as any).json()).data ?? []);
     } catch {
       // ignore
     }
-  }, [grantId, portfolioId, data?.grant?.holding_id]);
+  }, [grantId, portfolioId]);
 
   useEffect(() => {
     async function init() {
@@ -83,10 +80,17 @@ export default function GrantDetailPage() {
         const mainData = await mainRes.json();
         setData(mainData);
 
-        const [decisionsRes] = await Promise.all([
+        const holdingId = mainData?.grant?.holding_id;
+        const [decisionsRes, contactsRes, milestonesRes] = await Promise.all([
           fetch(`/api/org/${oid}/grants/${grantId}/decisions`),
+          fetch(`/api/org/${oid}/grants/${grantId}/contacts`).catch(() => ({ ok: false, json: async () => ({ data: [] }) })),
+          holdingId && portfolioId
+            ? fetch(`/api/portfolio/${portfolioId}/holdings/${holdingId}/milestones`).catch(() => ({ ok: false, json: async () => ({ data: [] }) }))
+            : Promise.resolve({ ok: true, json: async () => ({ data: [] }) }),
         ]);
         if (decisionsRes.ok) setDecisions((await decisionsRes.json()).data ?? []);
+        if ((contactsRes as any).ok) setContacts((await (contactsRes as any).json()).data ?? []);
+        if ((milestonesRes as any).ok) setMilestones((await (milestonesRes as any).json()).data ?? []);
       } catch {
         // ignore
       } finally {
@@ -143,7 +147,7 @@ export default function GrantDetailPage() {
 
   if (!grant) {
     return (
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 text-center py-12">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 text-center">
         <h3 className="text-lg font-medium text-gray-900">Grant Not Found</h3>
         <Link href="/dashboard/grants" className="mt-4 inline-flex items-center text-sm text-azure hover:text-azure/80">&larr; Back to Grants</Link>
       </div>
@@ -553,13 +557,17 @@ export default function GrantDetailPage() {
       )}
 
       {/* DOCUMENTS */}
-      {activeSection === 'documents' && portfolioId && (
-        <DocumentManager grantId={grantId} portfolioId={portfolioId} />
+      {activeSection === 'documents' && (
+        portfolioId
+          ? <DocumentManager grantId={grantId} portfolioId={portfolioId} />
+          : <div className="bg-white rounded-2xl border border-gray-100 shadow-soft p-8 text-center text-sm text-gray-400">Documents are available when viewing this grant from within a portfolio.</div>
       )}
 
       {/* BUDGET */}
-      {activeSection === 'budget' && portfolioId && (
-        <BudgetTracker grantId={grantId} portfolioId={portfolioId} />
+      {activeSection === 'budget' && (
+        portfolioId
+          ? <BudgetTracker grantId={grantId} portfolioId={portfolioId} />
+          : <div className="bg-white rounded-2xl border border-gray-100 shadow-soft p-8 text-center text-sm text-gray-400">Budget tracking is available when viewing this grant from within a portfolio.</div>
       )}
     </div>
   );

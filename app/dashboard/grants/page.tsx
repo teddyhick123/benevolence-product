@@ -271,12 +271,14 @@ export default function GrantsDashboard() {
         {activeView === 'pipeline' && (
           <GrantPipelineView
             grants={grants}
+            loading={grantsLoading}
             onNewGrant={() => setShowWizard(true)}
           />
         )}
         {activeView === 'table' && (
           <GrantTableView
             grants={grants}
+            loading={grantsLoading}
             members={members}
             onNewGrant={() => setShowWizard(true)}
           />
@@ -291,6 +293,7 @@ export default function GrantsDashboard() {
         {activeView === 'attention' && (
           <GrantAttentionQueue
             grants={grants}
+            loading={grantsLoading}
             onNewGrant={() => setShowWizard(true)}
           />
         )}

@@ -35,12 +35,13 @@ function fmt(v: number | null | undefined): string {
 
 interface Props {
   grants: GrantListItem[];
+  loading?: boolean;
   onNewGrant?: () => void;
 }
 
 type FilterMode = 'all' | 'overdue' | 'high_risk' | 'stage_attention';
 
-export default function GrantAttentionQueue({ grants, onNewGrant }: Props) {
+export default function GrantAttentionQueue({ grants, loading, onNewGrant }: Props) {
   const [mode, setMode] = useState<FilterMode>('all');
 
   const sorted = useMemo(() => {
@@ -77,6 +78,14 @@ export default function GrantAttentionQueue({ grants, onNewGrant }: Props) {
     high_risk: grants.filter(g => g.risk_level === 'high' || g.risk_level === 'critical').length,
     stage_attention: grants.filter(g => Object.keys(STAGE_ATTENTION).includes(g.lifecycle_stage)).length,
   }), [grants]);
+
+  if (loading && grants.length === 0) {
+    return (
+      <div className="animate-pulse space-y-3">
+        {[1,2,3].map(i => <div key={i} className="h-20 bg-neutral-100 rounded-2xl" />)}
+      </div>
+    );
+  }
 
   if (grants.length === 0) {
     return (

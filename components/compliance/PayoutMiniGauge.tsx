@@ -31,7 +31,12 @@ export default function PayoutMiniGauge({ portfolioId }: Props) {
         <div className="flex items-center justify-between mb-1">
           <span className="text-xs font-medium text-neutral-600">{year} Payout (§4942)</span>
           <span className={`text-xs font-semibold ${met ? 'text-green-700' : 'text-red-600'}`}>
-            {pct.toFixed(1)}% {met ? '✓' : '⚠'}
+            {pct.toFixed(1)}%{' '}
+            {met ? (
+              <svg className="inline w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
+            ) : (
+              <svg className="inline w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" /></svg>
+            )}
           </span>
         </div>
         <div className="h-2 w-full rounded-full bg-neutral-100 overflow-hidden">

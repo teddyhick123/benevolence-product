@@ -28,6 +28,7 @@ interface Props {
 
 export default function CommunicationLog({ portfolioId }: Props) {
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [communications, setCommunications] = useState<Communication[]>([]);
   const [filter, setFilter] = useState<'all' | 'inbound' | 'outbound' | 'follow_up'>('all');
   const [showAddComm, setShowAddComm] = useState(false);
@@ -47,63 +48,55 @@ export default function CommunicationLog({ portfolioId }: Props) {
     followUpNotes: '',
   });
 
-  useEffect(() => {
-    async function fetchData() {
-      setLoading(true);
-      try {
-        const supabase = createClient();
+  async function fetchData() {
+    setLoading(true);
+    setFetchError(null);
+    try {
+      const supabase = createClient();
 
-        // Fetch communications with grant info
-        const { data: commsData, error } = await supabase
-          .from('grant_communications')
-          .select(`
-            *,
-            grants!inner(
-              id,
-              holding_id,
-              holdings!inner(name, portfolio_id)
-            )
-          `)
-          .eq('grants.holdings.portfolio_id', portfolioId)
-          .order('occurred_at', { ascending: false });
-
-        if (error) throw error;
-
-        const processedComms = (commsData || []).map((c: any) => ({
-          ...c,
-          grant_name: c.grants?.holdings?.name || 'Unknown Grant',
-          holding_id: c.grants?.holding_id,
-        }));
-
-        setCommunications(processedComms);
-
-        // Fetch grant holdings
-        const { data: holdingsData } = await supabase
-          .from('holdings')
-          .select(`
+      const { data: commsData, error } = await supabase
+        .from('grant_communications')
+        .select(`
+          *,
+          grants!inner(
             id,
-            name,
-            grants(id)
-          `)
-          .eq('portfolio_id', portfolioId)
-          .in('asset_type', ['foundation_grant', 'daf_grant', 'pri', 'mri'])
-          .order('name');
+            holding_id,
+            holdings!inner(name, portfolio_id)
+          )
+        `)
+        .eq('grants.holdings.portfolio_id', portfolioId)
+        .order('occurred_at', { ascending: false });
 
-        const processedHoldings = (holdingsData || []).map((h: any) => ({
-          id: h.id,
-          name: h.name,
-          grant_id: h.grants?.[0]?.id,
-        }));
+      if (error) throw error;
 
-        setHoldings(processedHoldings);
-      } catch (err) {
-        console.error('Error fetching communication data:', err);
-      } finally {
-        setLoading(false);
-      }
+      setCommunications((commsData || []).map((c: any) => ({
+        ...c,
+        grant_name: c.grants?.holdings?.name || 'Unknown Grant',
+        holding_id: c.grants?.holding_id,
+      })));
+
+      const { data: holdingsData } = await supabase
+        .from('holdings')
+        .select(`id, name, grants(id)`)
+        .eq('portfolio_id', portfolioId)
+        .in('asset_type', ['foundation_grant', 'daf_grant', 'pri', 'mri'])
+        .order('name');
+
+      setHoldings((holdingsData || []).map((h: any) => ({
+        id: h.id,
+        name: h.name,
+        grant_id: h.grants?.[0]?.id,
+      })));
+    } catch (err: any) {
+      setFetchError(err?.message ?? 'Failed to load communications.');
+    } finally {
+      setLoading(false);
     }
+  }
 
+  useEffect(() => {
     fetchData();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [portfolioId]);
 
   const formatDate = (date: string | null) => {
@@ -204,11 +197,11 @@ export default function CommunicationLog({ portfolioId }: Props) {
           occurred_at: new Date().toISOString(),
         });
 
-      // Refresh
-      window.location.reload();
-    } catch (err) {
-      console.error('Error adding communication:', err);
-      alert('Failed to add communication');
+      setShowAddComm(false);
+      setNewComm({ holdingId: '', direction: 'outbound', commType: 'email', subject: '', summary: '', contactName: '', contactEmail: '', followUpRequired: false, followUpDate: '', followUpNotes: '' });
+      await fetchData();
+    } catch (err: any) {
+      alert(err?.message ?? 'Failed to add communication');
     }
   };
 
@@ -228,6 +221,16 @@ export default function CommunicationLog({ portfolioId }: Props) {
         {[1, 2, 3, 4].map((i) => (
           <div key={i} className="h-20 bg-neutral-200 rounded-2xl"></div>
         ))}
+      </div>
+    );
+  }
+
+  if (fetchError) {
+    return (
+      <div className="rounded-2xl border border-red-100 bg-red-50 p-6 text-center">
+        <p className="text-sm font-medium text-red-700">Failed to load communications</p>
+        <p className="text-xs text-red-500 mt-1">{fetchError}</p>
+        <button onClick={fetchData} className="mt-3 text-sm text-azure hover:underline">Try again</button>
       </div>
     );
   }

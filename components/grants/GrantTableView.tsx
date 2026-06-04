@@ -25,6 +25,7 @@ interface OrgMember { id: string; display_name?: string | null; email?: string |
 
 interface Props {
   grants: GrantListItem[];
+  loading?: boolean;
   members?: OrgMember[];
   onNewGrant?: () => void;
 }
@@ -32,7 +33,7 @@ interface Props {
 type SortKey = 'name' | 'stage' | 'amount' | 'period_end' | 'risk';
 type SortDir = 'asc' | 'desc';
 
-export default function GrantTableView({ grants, members = [], onNewGrant }: Props) {
+export default function GrantTableView({ grants, loading, members = [], onNewGrant }: Props) {
   const [search, setSearch] = useState('');
   const [stageFilter, setStageFilter] = useState('');
   const [riskFilter, setRiskFilter] = useState('');
@@ -88,6 +89,15 @@ export default function GrantTableView({ grants, members = [], onNewGrant }: Pro
   }
 
   const th = 'px-4 py-3 text-left text-xs font-semibold text-neutral-500 uppercase tracking-wide cursor-pointer select-none hover:text-neutral-700';
+
+  if (loading && grants.length === 0) {
+    return (
+      <div className="animate-pulse space-y-2">
+        <div className="h-10 bg-neutral-100 rounded-xl" />
+        {[1,2,3,4,5].map(i => <div key={i} className="h-14 bg-neutral-100 rounded-xl" />)}
+      </div>
+    );
+  }
 
   if (grants.length === 0) {
     return (
@@ -213,7 +223,7 @@ export default function GrantTableView({ grants, members = [], onNewGrant }: Pro
                   return (
                     <tr key={g.id} className="hover:bg-neutral-50/60 transition-colors">
                       <td className="px-4 py-3">
-                        <Link href={`/dashboard/grants/${g.id}`} className="font-medium text-ink hover:text-azure truncate block max-w-[200px]">
+                        <Link href={`/dashboard/grants/${g.id}`} title={g.holdings?.name ?? undefined} className="font-medium text-ink hover:text-azure truncate block max-w-[200px]">
                           {g.holdings?.name ?? 'Unnamed'}
                         </Link>
                       </td>

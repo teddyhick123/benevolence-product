@@ -20,6 +20,7 @@ export interface GrantListItem {
 
 interface Props {
   grants: GrantListItem[];
+  loading?: boolean;
   onNewGrant?: () => void;
 }
 
@@ -72,7 +73,7 @@ const ACTIVE_STAGES = [
   'recommended', 'approved', 'agreement', 'active', 'renewal_review', 'closeout',
 ];
 
-export default function GrantPipelineView({ grants, onNewGrant }: Props) {
+export default function GrantPipelineView({ grants, loading, onNewGrant }: Props) {
   const byStage = useMemo(() => {
     const map = new Map<string, GrantListItem[]>();
     for (const s of LIFECYCLE_STAGES) map.set(s, []);
@@ -87,6 +88,14 @@ export default function GrantPipelineView({ grants, onNewGrant }: Props) {
   const visibleStages = LIFECYCLE_STAGES.filter(
     s => ACTIVE_STAGES.includes(s) || (byStage.get(s)?.length ?? 0) > 0
   );
+
+  if (loading && grants.length === 0) {
+    return (
+      <div className="animate-pulse grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+        {[1,2,3,4].map(i => <div key={i} className="h-32 bg-neutral-100 rounded-2xl" />)}
+      </div>
+    );
+  }
 
   if (grants.length === 0) {
     return (

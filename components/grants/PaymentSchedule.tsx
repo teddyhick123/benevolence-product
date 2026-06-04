@@ -27,6 +27,7 @@ interface Props {
 
 export default function PaymentSchedule({ portfolioId }: Props) {
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [filter, setFilter] = useState<'all' | 'scheduled' | 'completed'>('all');
   const [showAddPayment, setShowAddPayment] = useState(false);
@@ -46,75 +47,68 @@ export default function PaymentSchedule({ portfolioId }: Props) {
     upcomingAmount: 0,
   });
 
-  useEffect(() => {
-    async function fetchData() {
-      setLoading(true);
-      try {
-        const supabase = createClient();
+  async function fetchData() {
+    setLoading(true);
+    setFetchError(null);
+    try {
+      const supabase = createClient();
 
-        // Fetch payments with grant info
-        const { data: paymentsData, error } = await supabase
-          .from('grant_payments')
-          .select(`
-            *,
-            grants!inner(
-              id,
-              holding_id,
-              holdings!inner(name, portfolio_id)
-            )
-          `)
-          .eq('grants.holdings.portfolio_id', portfolioId)
-          .order('scheduled_date', { ascending: true });
-
-        if (error) throw error;
-
-        const processedPayments = (paymentsData || []).map((p: any) => ({
-          ...p,
-          grant_name: p.grants?.holdings?.name || 'Unknown Grant',
-          holding_id: p.grants?.holding_id,
-        }));
-
-        setPayments(processedPayments);
-
-        // Calculate summary
-        const totalScheduled = processedPayments.reduce((sum, p) => sum + (p.amount || 0), 0);
-        const totalDisbursed = processedPayments
-          .filter(p => p.status === 'completed')
-          .reduce((sum, p) => sum + (p.amount || 0), 0);
-        const pendingCount = processedPayments.filter(p => ['scheduled', 'approved'].includes(p.status)).length;
-        const upcomingAmount = processedPayments
-          .filter(p => ['scheduled', 'approved'].includes(p.status))
-          .reduce((sum, p) => sum + (p.amount || 0), 0);
-
-        setSummary({ totalScheduled, totalDisbursed, pendingCount, upcomingAmount });
-
-        // Fetch grant holdings
-        const { data: holdingsData } = await supabase
-          .from('holdings')
-          .select(`
+      const { data: paymentsData, error } = await supabase
+        .from('grant_payments')
+        .select(`
+          *,
+          grants!inner(
             id,
-            name,
-            grants(id)
-          `)
-          .eq('portfolio_id', portfolioId)
-          .in('asset_type', ['foundation_grant', 'daf_grant', 'pri', 'mri'])
-          .order('name');
+            holding_id,
+            holdings!inner(name, portfolio_id)
+          )
+        `)
+        .eq('grants.holdings.portfolio_id', portfolioId)
+        .order('scheduled_date', { ascending: true });
 
-        const processedHoldings = (holdingsData || []).map((h: any) => ({
-          id: h.id,
-          name: h.name,
-          grant_id: h.grants?.[0]?.id,
-        }));
+      if (error) throw error;
 
-        setHoldings(processedHoldings);
-      } catch (err) {
-        console.error('Error fetching payment data:', err);
-      } finally {
-        setLoading(false);
-      }
+      const processedPayments = (paymentsData || []).map((p: any) => ({
+        ...p,
+        grant_name: p.grants?.holdings?.name || 'Unknown Grant',
+        holding_id: p.grants?.holding_id,
+      }));
+
+      setPayments(processedPayments);
+
+      const totalScheduled = processedPayments.reduce((sum, p) => sum + (p.amount || 0), 0);
+      const totalDisbursed = processedPayments
+        .filter(p => p.status === 'completed')
+        .reduce((sum, p) => sum + (p.amount || 0), 0);
+      const pendingCount = processedPayments.filter(p => ['scheduled', 'approved'].includes(p.status)).length;
+      const upcomingAmount = processedPayments
+        .filter(p => ['scheduled', 'approved'].includes(p.status))
+        .reduce((sum, p) => sum + (p.amount || 0), 0);
+
+      setSummary({ totalScheduled, totalDisbursed, pendingCount, upcomingAmount });
+
+      const { data: holdingsData } = await supabase
+        .from('holdings')
+        .select(`id, name, grants(id)`)
+        .eq('portfolio_id', portfolioId)
+        .in('asset_type', ['foundation_grant', 'daf_grant', 'pri', 'mri'])
+        .order('name');
+
+      setHoldings((holdingsData || []).map((h: any) => ({
+        id: h.id,
+        name: h.name,
+        grant_id: h.grants?.[0]?.id,
+      })));
+    } catch (err: any) {
+      setFetchError(err?.message ?? 'Failed to load payment data.');
+    } finally {
+      setLoading(false);
     }
+  }
 
+  useEffect(() => {
     fetchData();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [portfolioId]);
 
   const formatCurrency = (amount: number | null) => {
@@ -188,11 +182,11 @@ export default function PaymentSchedule({ portfolioId }: Props) {
           status: 'scheduled',
         });
 
-      // Refresh
-      window.location.reload();
-    } catch (err) {
-      console.error('Error adding payment:', err);
-      alert('Failed to add payment');
+      setShowAddPayment(false);
+      setNewPayment({ holdingId: '', amount: '', scheduledDate: '', paymentMethod: '', notes: '' });
+      await fetchData();
+    } catch (err: any) {
+      alert(err?.message ?? 'Failed to add payment');
     }
   };
 
@@ -210,11 +204,9 @@ export default function PaymentSchedule({ portfolioId }: Props) {
         .update(updateData)
         .eq('id', paymentId);
 
-      // Refresh
-      window.location.reload();
-    } catch (err) {
-      console.error('Error updating payment:', err);
-      alert('Failed to update payment');
+      await fetchData();
+    } catch (err: any) {
+      alert(err?.message ?? 'Failed to update payment');
     }
   };
 
@@ -234,6 +226,16 @@ export default function PaymentSchedule({ portfolioId }: Props) {
           ))}
         </div>
         <div className="h-64 bg-neutral-200 rounded-2xl"></div>
+      </div>
+    );
+  }
+
+  if (fetchError) {
+    return (
+      <div className="rounded-2xl border border-red-100 bg-red-50 p-6 text-center">
+        <p className="text-sm font-medium text-red-700">Failed to load payment data</p>
+        <p className="text-xs text-red-500 mt-1">{fetchError}</p>
+        <button onClick={fetchData} className="mt-3 text-sm text-azure hover:underline">Try again</button>
       </div>
     );
   }

@@ -114,7 +114,7 @@ export default function NotificationBell({ orgId }: Props) {
               <div className="px-4 py-6 text-sm text-center text-black/40">Loading...</div>
             )}
             {!loading && notifications.length === 0 && (
-              <div className="px-4 py-6 text-sm text-center text-black/40">You're all caught up</div>
+              <div className="px-4 py-6 text-sm text-center text-black/40">You&apos;re all caught up</div>
             )}
             {notifications.map(n => (
               <button

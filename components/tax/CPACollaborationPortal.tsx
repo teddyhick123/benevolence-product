@@ -11,15 +11,15 @@ export interface CPACollaborationPortalProps {
 }
 
 export default function CPACollaborationPortal({ portfolioId }: CPACollaborationPortalProps) {
-  if (!cpaCollaborationEnabled) {
-    return null;
-  }
-
   const [shareLinks, setShareLinks] = React.useState<CPAShareLink[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
   const [showCreateForm, setShowCreateForm] = React.useState(false);
   const [expandedLinkId, setExpandedLinkId] = React.useState<string | null>(null);
+
+  if (!cpaCollaborationEnabled) {
+    return null;
+  }
 
   // Load share links on mount
   React.useEffect(() => {

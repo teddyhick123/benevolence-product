@@ -35,6 +35,23 @@ export default function BulkActionBar({ grants, selectedIds, onApply, onCancel }
     byStage.set(g.lifecycle_stage, list);
   }
 
+  // Prune queued entries whose stage is no longer present in the selection
+  // byStage is derived from selectedIds, so selectedIds is the correct dependency
+  useEffect(() => {
+    setQueued(prev => {
+      const next = { ...prev };
+      let changed = false;
+      for (const stage of Object.keys(next)) {
+        if (!byStage.has(stage as LifecycleStage)) {
+          delete next[stage];
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedIds]);
+
   const hasAnyTarget = Object.values(queued).some(v => v !== null);
 
   function setTarget(stage: LifecycleStage, target: LifecycleStage | null) {

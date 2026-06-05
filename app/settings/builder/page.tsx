@@ -32,5 +32,11 @@ export default async function BuilderPage() {
     timestamp: string;
   }>) || [];
 
-  return <BuilderTab snapshot={snapshot} initialMessages={initialMessages} />;
+  const githubEnabled = !!(
+    process.env.GITHUB_TOKEN &&
+    process.env.GITHUB_REPO_OWNER &&
+    process.env.GITHUB_REPO_NAME
+  );
+
+  return <BuilderTab snapshot={snapshot} initialMessages={initialMessages} githubEnabled={githubEnabled} />;
 }

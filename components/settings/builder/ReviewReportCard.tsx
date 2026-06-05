@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { CheckCircle, AlertTriangle, XCircle, ChevronDown, ChevronRight, ExternalLink } from 'lucide-react';
+import { CheckCircle, AlertTriangle, XCircle, ChevronDown, ChevronRight, ExternalLink, GitPullRequest } from 'lucide-react';
 
 interface Finding {
   severity: 'error' | 'warning' | 'info';
@@ -12,6 +12,8 @@ interface ReviewReportCardProps {
   score: number;
   findings: Finding[];
   proposalId: string;
+  orgId: string;
+  githubEnabled: boolean;
 }
 
 function ScoreBadge({ score }: { score: number }) {
@@ -26,9 +28,30 @@ function ScoreBadge({ score }: { score: number }) {
   );
 }
 
-export default function ReviewReportCard({ score, findings, proposalId }: ReviewReportCardProps) {
+export default function ReviewReportCard({ score, findings, proposalId, orgId, githubEnabled }: ReviewReportCardProps) {
   const hasIssues = findings.some(f => f.severity === 'error' || f.severity === 'warning');
   const [expanded, setExpanded] = useState(hasIssues || score < 80);
+  const [applying, setApplying] = useState(false);
+  const [prUrl, setPrUrl] = useState<string | null>(null);
+  const [applyError, setApplyError] = useState<string | null>(null);
+
+  async function handleOpenPR() {
+    setApplying(true);
+    setApplyError(null);
+    try {
+      const res = await fetch(
+        `/api/org/${orgId}/builder/proposals/${proposalId}/apply`,
+        { method: 'POST' }
+      );
+      const data = await res.json() as { prUrl?: string; error?: string };
+      if (!res.ok) throw new Error(data.error ?? 'Apply failed');
+      setPrUrl(data.prUrl ?? null);
+    } catch (err) {
+      setApplyError(err instanceof Error ? err.message : 'Apply failed');
+    } finally {
+      setApplying(false);
+    }
+  }
 
   const errors = findings.filter(f => f.severity === 'error');
   const warnings = findings.filter(f => f.severity === 'warning');
@@ -79,6 +102,36 @@ export default function ReviewReportCard({ score, findings, proposalId }: Review
           >
             View full diff in admin <ExternalLink className="w-3 h-3" />
           </a>
+
+          {githubEnabled && (
+            <div className="mt-3 flex flex-col gap-1.5">
+              {!prUrl && (
+                <button
+                  onClick={handleOpenPR}
+                  disabled={applying}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-azure text-white text-xs font-medium hover:bg-azure/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  <GitPullRequest className="w-3.5 h-3.5" />
+                  {applying ? 'Opening PR…' : 'Open PR'}
+                </button>
+              )}
+              {prUrl && (
+                <a
+                  href={prUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-50 border border-green-200 text-green-700 text-xs font-medium hover:bg-green-100 transition-colors"
+                >
+                  <GitPullRequest className="w-3.5 h-3.5" />
+                  View PR on GitHub
+                  <ExternalLink className="w-3 h-3" />
+                </a>
+              )}
+              {applyError && (
+                <p className="text-xs text-red-600">{applyError}</p>
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>

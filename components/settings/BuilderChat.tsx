@@ -59,9 +59,10 @@ export interface StoredMessage {
 interface BuilderChatProps {
   orgId: string;
   initialMessages: StoredMessage[];
+  githubEnabled: boolean;
 }
 
-export default function BuilderChat({ orgId, initialMessages }: BuilderChatProps) {
+export default function BuilderChat({ orgId, initialMessages, githubEnabled }: BuilderChatProps) {
   const [messages, setMessages] = useState<ChatMessage[]>(() =>
     initialMessages.map(m => ({
       type: 'text' as const,
@@ -304,6 +305,8 @@ export default function BuilderChat({ orgId, initialMessages }: BuilderChatProps
                   score={msg.score}
                   findings={msg.findings}
                   proposalId={msg.proposalId}
+                  orgId={orgId}
+                  githubEnabled={githubEnabled}
                 />
               </div>
             );

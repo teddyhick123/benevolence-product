@@ -6,9 +6,10 @@ import { OrgSnapshot } from '@/lib/builder/context-bundle';
 interface BuilderTabProps {
   snapshot: OrgSnapshot;
   initialMessages: StoredMessage[];
+  githubEnabled: boolean;
 }
 
-export default function BuilderTab({ snapshot, initialMessages }: BuilderTabProps) {
+export default function BuilderTab({ snapshot, initialMessages, githubEnabled }: BuilderTabProps) {
   return (
     <div className="flex gap-6 h-[calc(100vh-280px)] min-h-[500px]">
       {/* Left: System visualization */}
@@ -48,7 +49,7 @@ export default function BuilderTab({ snapshot, initialMessages }: BuilderTabProp
           <span className="text-sm font-semibold">Builder</span>
           <span className="text-xs text-black/40">AI-powered instance customization</span>
         </div>
-        <BuilderChat orgId={snapshot.orgId} initialMessages={initialMessages} />
+        <BuilderChat orgId={snapshot.orgId} initialMessages={initialMessages} githubEnabled={githubEnabled} />
       </div>
     </div>
   );

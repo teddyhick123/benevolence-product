@@ -11,6 +11,9 @@ import GrantPipelineView, { type GrantListItem } from '@/components/grants/Grant
 import GrantTableView from '@/components/grants/GrantTableView';
 import GrantCalendarView from '@/components/grants/GrantCalendarView';
 import GrantAttentionQueue from '@/components/grants/GrantAttentionQueue';
+import BulkActionBar, { type QueuedTransitions } from '@/components/grants/BulkActionBar';
+import BulkDecisionQueue, { type BulkTransitionItem } from '@/components/grants/BulkDecisionQueue';
+import BulkTransitionResultModal, { type BulkResult } from '@/components/grants/BulkTransitionResultModal';
 
 type ViewId = 'pipeline' | 'table' | 'calendar' | 'attention' | 'workflows' | 'payments' | 'communications';
 
@@ -56,6 +59,91 @@ export default function GrantsDashboard() {
       else ids.forEach(id => next.add(id));
       return next;
     });
+  }
+
+  // Bulk apply flow state
+  type BulkPhase = 'idle' | 'confirm' | 'decisions' | 'applying' | 'result';
+  const [bulkPhase, setBulkPhase] = useState<BulkPhase>('idle');
+  const [queuedTransitions, setQueuedTransitions] = useState<QueuedTransitions>({});
+  const [bulkResults, setBulkResults] = useState<{ successCount: number; failureCount: number; results: BulkResult[] } | null>(null);
+
+  async function handleApplyTransitions(queued: QueuedTransitions) {
+    setQueuedTransitions(queued);
+    const { requiresDecision } = await import('@/lib/grants/lifecycle');
+    const needsDecision = grants.some(g => {
+      const target = queued[g.lifecycle_stage];
+      return target && selectedIds.has(g.id) && requiresDecision(g.lifecycle_stage, target);
+    });
+    setBulkPhase(needsDecision ? 'decisions' : 'confirm');
+  }
+
+  async function executeBulkTransitions(items: BulkTransitionItem[]) {
+    if (!orgId) return;
+    setBulkPhase('applying');
+
+    const body = {
+      transitions: items.map(item => ({
+        grantId: item.grantId,
+        expectedFromStage: item.fromStage,
+        targetStage: item.targetStage,
+        decision: item.decision,
+      })),
+    };
+
+    try {
+      const res = await fetch(`/api/org/${orgId}/grants/bulk-transition`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+
+      // Optimistic: update local grant stages for successes
+      const successIds = new Set(data.results.filter((r: any) => r.success).map((r: any) => r.grantId));
+      setGrants(prev =>
+        prev.map(g => {
+          if (!successIds.has(g.id)) return g;
+          const item = items.find(i => i.grantId === g.id);
+          return item ? { ...g, lifecycle_stage: item.targetStage } : g;
+        })
+      );
+
+      // Enrich results with grant names
+      const nameMap = new Map(grants.map(g => [g.id, g.holdings?.name ?? g.id]));
+      const enriched: BulkResult[] = data.results.map((r: any) => ({
+        ...r,
+        grantName: nameMap.get(r.grantId),
+      }));
+
+      setBulkResults({ successCount: data.successCount, failureCount: data.failureCount, results: enriched });
+      setBulkPhase('result');
+      setRefreshKey(k => k + 1);
+    } catch {
+      setBulkPhase('idle');
+    }
+  }
+
+  function handleDecisionQueueConfirm(items: BulkTransitionItem[]) {
+    executeBulkTransitions(items);
+  }
+
+  function handleSimpleConfirm() {
+    const items: BulkTransitionItem[] = grants
+      .filter(g => selectedIds.has(g.id) && queuedTransitions[g.lifecycle_stage])
+      .map(g => ({
+        grantId: g.id,
+        grantName: g.holdings?.name ?? 'Unnamed Grant',
+        fromStage: g.lifecycle_stage,
+        targetStage: queuedTransitions[g.lifecycle_stage] as LifecycleStage,
+        amount: g.approved_amount ?? g.requested_amount,
+      }));
+    executeBulkTransitions(items);
+  }
+
+  function closeBulkResult() {
+    setBulkResults(null);
+    setBulkPhase('idle');
+    exitSelectionMode();
   }
 
   // Grant list data (shared across pipeline/table/attention views)
@@ -222,7 +310,7 @@ export default function GrantsDashboard() {
   const opsViews = views.filter(v => v.group === 'ops');
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+    <div className={`max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6 ${selectionMode ? 'pb-36' : ''}`}>
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
@@ -366,6 +454,70 @@ export default function GrantsDashboard() {
           <CommunicationLog portfolioId={portfolioId} key={`comms-${refreshKey}`} />
         )}
       </div>
+
+      {/* Bulk selection action bar */}
+      {activeView === 'pipeline' && selectionMode && selectedIds.size > 0 && bulkPhase === 'idle' && (
+        <BulkActionBar
+          grants={grants}
+          selectedIds={selectedIds}
+          onApply={handleApplyTransitions}
+          onCancel={exitSelectionMode}
+        />
+      )}
+
+      {/* Simple confirmation dialog */}
+      {bulkPhase === 'confirm' && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm mx-4 p-6">
+            <h2 className="text-base font-semibold text-ink mb-2">Apply transitions?</h2>
+            <p className="text-sm text-neutral-500 mb-5">
+              {grants.filter(g => selectedIds.has(g.id) && queuedTransitions[g.lifecycle_stage]).length} grant
+              {grants.filter(g => selectedIds.has(g.id) && queuedTransitions[g.lifecycle_stage]).length !== 1 ? 's' : ''} will be moved.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button onClick={() => setBulkPhase('idle')} className="px-4 py-2 text-sm text-neutral-600 hover:text-neutral-900 transition-colors">
+                Back
+              </button>
+              <button
+                onClick={handleSimpleConfirm}
+                className="px-5 py-2 rounded-2xl bg-azure text-white text-sm font-medium shadow-soft hover:opacity-90 transition-opacity"
+              >
+                Confirm
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Decision queue modal */}
+      {bulkPhase === 'decisions' && (
+        <BulkDecisionQueue
+          grants={grants.filter(g => selectedIds.has(g.id))}
+          queuedTransitions={queuedTransitions}
+          onConfirm={handleDecisionQueueConfirm}
+          onCancel={() => setBulkPhase('idle')}
+        />
+      )}
+
+      {/* Applying spinner */}
+      {bulkPhase === 'applying' && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-3xl shadow-2xl px-8 py-6 flex items-center gap-4">
+            <div className="w-5 h-5 border-2 border-azure border-t-transparent rounded-full animate-spin" />
+            <span className="text-sm font-medium text-ink">Applying transitions…</span>
+          </div>
+        </div>
+      )}
+
+      {/* Result modal */}
+      {bulkPhase === 'result' && bulkResults && (
+        <BulkTransitionResultModal
+          successCount={bulkResults.successCount}
+          failureCount={bulkResults.failureCount}
+          results={bulkResults.results}
+          onClose={closeBulkResult}
+        />
+      )}
 
       {/* Create Grant Wizard */}
       {showWizard && orgId && portfolioId && (

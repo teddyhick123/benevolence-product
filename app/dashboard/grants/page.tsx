@@ -98,6 +98,11 @@ export default function GrantsDashboard() {
       });
       const data = await res.json();
 
+      if (!res.ok) {
+        setBulkPhase('idle');
+        return;
+      }
+
       // Optimistic: update local grant stages for successes
       const successIds = new Set(data.results.filter((r: any) => r.success).map((r: any) => r.grantId));
       setGrants(prev =>
@@ -108,11 +113,11 @@ export default function GrantsDashboard() {
         })
       );
 
-      // Enrich results with grant names
-      const nameMap = new Map(grants.map(g => [g.id, g.holdings?.name ?? g.id]));
+      // Enrich results with grant names from the items we sent
+      const nameByGrantId = new Map(items.map(i => [i.grantId, i.grantName]));
       const enriched: BulkResult[] = data.results.map((r: any) => ({
         ...r,
-        grantName: nameMap.get(r.grantId),
+        grantName: nameByGrantId.get(r.grantId),
       }));
 
       setBulkResults({ successCount: data.successCount, failureCount: data.failureCount, results: enriched });

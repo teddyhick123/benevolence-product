@@ -20,7 +20,10 @@ interface Props {
 
 export default function BulkTransitionResultModal({ successCount, failureCount, results, onClose }: Props) {
   const [visible, setVisible] = useState(false);
-  useEffect(() => { requestAnimationFrame(() => setVisible(true)); }, []);
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setVisible(true));
+    return () => cancelAnimationFrame(id);
+  }, []);
 
   const allSuccess = failureCount === 0;
 

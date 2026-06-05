@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
+import { type LifecycleStage } from '@/lib/grants/lifecycle-shared';
 import WorkflowManager from '@/components/grants/WorkflowManager';
 import PaymentSchedule from '@/components/grants/PaymentSchedule';
 import CommunicationLog from '@/components/grants/CommunicationLog';
@@ -24,6 +25,38 @@ export default function GrantsDashboard() {
   const [activeView, setActiveView] = useState<ViewId>('pipeline');
   const [refreshKey, setRefreshKey] = useState(0);
   const [showWizard, setShowWizard] = useState(false);
+
+  // Bulk selection state
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  function enterSelectionMode() {
+    setSelectionMode(true);
+    setSelectedIds(new Set());
+  }
+
+  function exitSelectionMode() {
+    setSelectionMode(false);
+    setSelectedIds(new Set());
+  }
+
+  function toggleSelect(id: string) {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  function selectAllInStage(stage: LifecycleStage, ids: string[]) {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      const allSelected = ids.every(id => next.has(id));
+      if (allSelected) ids.forEach(id => next.delete(id));
+      else ids.forEach(id => next.add(id));
+      return next;
+    });
+  }
 
   // Grant list data (shared across pipeline/table/attention views)
   const [grants, setGrants] = useState<GrantListItem[]>([]);
@@ -198,6 +231,28 @@ export default function GrantsDashboard() {
           </p>
         </div>
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          {activeView === 'pipeline' && !selectionMode && (
+            <button
+              onClick={enterSelectionMode}
+              className="inline-flex items-center justify-center gap-2 rounded-2xl border border-black/10 bg-white px-4 py-2 text-sm font-medium text-neutral-800 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow will-change-transform"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 11l3 3L22 4M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+              </svg>
+              Select
+            </button>
+          )}
+          {activeView === 'pipeline' && selectionMode && (
+            <div className="inline-flex items-center gap-2 rounded-2xl border border-azure/20 bg-azure/5 px-4 py-2 text-sm font-medium text-azure">
+              <span>{selectedIds.size} selected</span>
+              <button
+                onClick={exitSelectionMode}
+                className="ml-2 text-xs text-neutral-500 hover:text-neutral-800 transition-colors"
+              >
+                Exit
+              </button>
+            </div>
+          )}
           <button
             onClick={() => setShowWizard(true)}
             className="inline-flex items-center justify-center gap-2 rounded-2xl bg-azure px-4 py-2 text-sm font-medium text-white shadow-soft transition-opacity hover:opacity-90"
@@ -272,6 +327,10 @@ export default function GrantsDashboard() {
             grants={grants}
             loading={grantsLoading}
             onNewGrant={() => setShowWizard(true)}
+            selectionMode={selectionMode}
+            selectedIds={selectedIds}
+            onToggleSelect={toggleSelect}
+            onSelectAllInStage={selectAllInStage}
           />
         )}
         {activeView === 'table' && (

@@ -22,6 +22,11 @@ interface Props {
   grants: GrantListItem[];
   loading?: boolean;
   onNewGrant?: () => void;
+  // Selection mode
+  selectionMode?: boolean;
+  selectedIds?: Set<string>;
+  onToggleSelect?: (id: string) => void;
+  onSelectAllInStage?: (stage: LifecycleStage, ids: string[]) => void;
 }
 
 function fmt(v: number | null | undefined): string {
@@ -36,19 +41,37 @@ function daysUntil(dateStr: string | null): number | null {
   return Math.round((new Date(dateStr).getTime() - Date.now()) / 86_400_000);
 }
 
-function GrantCard({ grant }: { grant: GrantListItem }) {
+interface GrantCardProps {
+  grant: GrantListItem;
+  selectionMode: boolean;
+  selected: boolean;
+  onToggleSelect: (id: string) => void;
+  animDelay: number;
+}
+
+function GrantCard({ grant, selectionMode, selected, onToggleSelect, animDelay }: GrantCardProps) {
   const amount = grant.approved_amount ?? grant.requested_amount;
   const days = daysUntil(grant.grant_period_end);
 
-  return (
-    <Link
-      href={`/dashboard/grants/${grant.id}`}
-      className="block rounded-2xl border border-black/5 bg-white shadow-sm hover:shadow-md transition-shadow p-3 space-y-2"
-    >
-      <div className="text-sm font-medium text-ink leading-snug truncate">
+  const cardContent = (
+    <>
+      {selectionMode && (
+        <input
+          type="checkbox"
+          data-grant-id={grant.id}
+          checked={selected}
+          onChange={() => onToggleSelect(grant.id)}
+          onClick={e => e.stopPropagation()}
+          className="absolute top-2 left-2 w-4 h-4 rounded accent-azure cursor-pointer"
+          style={{
+            animation: `fadeIn 150ms ease-out both`,
+            animationDelay: `${animDelay}ms`,
+          }}
+        />
+      )}
+      <div className={`text-sm font-medium text-ink leading-snug truncate ${selectionMode ? 'ml-6' : ''}`}>
         {grant.holdings?.name ?? 'Unnamed Grant'}
       </div>
-
       <div className="flex items-center justify-between">
         <span className="text-xs text-neutral-500 font-semibold">{fmt(amount)}</span>
         {grant.risk_level && (
@@ -57,25 +80,58 @@ function GrantCard({ grant }: { grant: GrantListItem }) {
           </span>
         )}
       </div>
-
       {days !== null && (
         <div className={`text-xs ${days < 0 ? 'text-red-600' : days < 30 ? 'text-coral' : 'text-neutral-400'}`}>
           {days < 0 ? `${Math.abs(days)}d overdue` : `${days}d left`}
         </div>
       )}
+    </>
+  );
+
+  const cardClass = `relative block rounded-2xl border border-black/5 bg-white shadow-sm transition-shadow p-3 space-y-2 ${
+    selectionMode
+      ? selected
+        ? 'ring-2 ring-azure cursor-pointer hover:shadow-md'
+        : 'cursor-pointer hover:shadow-md'
+      : 'hover:shadow-md'
+  }`;
+
+  if (selectionMode) {
+    return (
+      <div
+        data-card
+        className={cardClass}
+        onClick={() => onToggleSelect(grant.id)}
+      >
+        {cardContent}
+      </div>
+    );
+  }
+
+  return (
+    <Link href={`/dashboard/grants/${grant.id}`} className={cardClass} data-card>
+      {cardContent}
     </Link>
   );
 }
 
 // Only show stages that have grants + key active stages
-const ACTIVE_STAGES = [
+const ACTIVE_STAGES: LifecycleStage[] = [
   'prospect', 'invited', 'application_received', 'due_diligence',
   'recommended', 'approved', 'agreement', 'active', 'renewal_review', 'closeout',
 ];
 
-export default function GrantPipelineView({ grants, loading, onNewGrant }: Props) {
+export default function GrantPipelineView({
+  grants,
+  loading,
+  onNewGrant,
+  selectionMode = false,
+  selectedIds = new Set(),
+  onToggleSelect = () => {},
+  onSelectAllInStage = () => {},
+}: Props) {
   const byStage = useMemo(() => {
-    const map = new Map<string, GrantListItem[]>();
+    const map = new Map<LifecycleStage, GrantListItem[]>();
     for (const s of LIFECYCLE_STAGES) map.set(s, []);
     for (const g of grants) {
       const list = map.get(g.lifecycle_stage);
@@ -84,7 +140,6 @@ export default function GrantPipelineView({ grants, loading, onNewGrant }: Props
     return map;
   }, [grants]);
 
-  // Show stages that have grants, plus the ACTIVE_STAGES set
   const visibleStages = LIFECYCLE_STAGES.filter(
     s => ACTIVE_STAGES.includes(s) || (byStage.get(s)?.length ?? 0) > 0
   );
@@ -125,44 +180,65 @@ export default function GrantPipelineView({ grants, loading, onNewGrant }: Props
   }
 
   return (
-    <div className="overflow-x-auto pb-4">
-      <div className="flex gap-3 min-w-max">
-        {visibleStages.map(stage => {
-          const stageGrants = byStage.get(stage) ?? [];
-          const colors = grantStagePalette(stage);
-          const totalAmount = stageGrants.reduce((s, g) => s + (g.approved_amount ?? g.requested_amount ?? 0), 0);
+    <>
+      <style>{`@keyframes fadeIn { from { opacity: 0; transform: scale(0.8); } to { opacity: 1; transform: scale(1); } }`}</style>
+      <div className="overflow-x-auto pb-4">
+        <div className="flex gap-3 min-w-max">
+          {visibleStages.map((stage, colIndex) => {
+            const stageGrants = byStage.get(stage) ?? [];
+            const colors = grantStagePalette(stage);
+            const totalAmount = stageGrants.reduce((s, g) => s + (g.approved_amount ?? g.requested_amount ?? 0), 0);
+            const allSelected = stageGrants.length > 0 && stageGrants.every(g => selectedIds.has(g.id));
+            const stageIds = stageGrants.map(g => g.id);
 
-          return (
-            <div key={stage} className="flex flex-col w-52 gap-2">
-              {/* Column header */}
-              <div className={`flex items-center justify-between rounded-2xl border px-2.5 py-1.5 ${colors.column}`}>
-                <div className="flex items-center gap-1.5">
-                  <span className={`w-2 h-2 rounded-full ${colors.dot}`} />
-                  <span className="text-xs font-semibold">{grantStageLabel(stage)}</span>
-                </div>
-                <span className="text-xs font-medium opacity-70">
-                  {stageGrants.length}
-                </span>
-              </div>
-
-              {/* Amount total */}
-              {totalAmount > 0 && (
-                <div className="text-xs text-neutral-400 text-center">{fmt(totalAmount)}</div>
-              )}
-
-              {/* Cards */}
-              <div className="space-y-2 min-h-[80px]">
-                {stageGrants.map(g => <GrantCard key={g.id} grant={g} />)}
-                {stageGrants.length === 0 && (
-                  <div className="rounded-2xl border border-dashed border-black/5 h-16 flex items-center justify-center">
-                    <span className="text-xs text-neutral-300">Empty</span>
+            return (
+              <div key={stage} className="flex flex-col w-52 gap-2">
+                {/* Column header */}
+                <div className={`flex items-center justify-between rounded-2xl border px-2.5 py-1.5 ${colors.column}`}>
+                  <div className="flex items-center gap-1.5">
+                    {selectionMode && (
+                      <input
+                        type="checkbox"
+                        data-stage-header={stage}
+                        checked={allSelected}
+                        onChange={() => onSelectAllInStage(stage, stageIds)}
+                        className="w-3.5 h-3.5 rounded accent-azure cursor-pointer"
+                      />
+                    )}
+                    <span className={`w-2 h-2 rounded-full ${colors.dot}`} />
+                    <span className="text-xs font-semibold">{grantStageLabel(stage)}</span>
                   </div>
+                  <span className="text-xs font-medium opacity-70">{stageGrants.length}</span>
+                </div>
+
+                {/* Amount total */}
+                {totalAmount > 0 && (
+                  <div className="text-xs text-neutral-400 text-center">{fmt(totalAmount)}</div>
                 )}
+
+                {/* Cards */}
+                <div className="space-y-2 min-h-[80px]">
+                  {stageGrants.map((g, cardIndex) => (
+                    <GrantCard
+                      key={g.id}
+                      grant={g}
+                      selectionMode={selectionMode}
+                      selected={selectedIds.has(g.id)}
+                      onToggleSelect={onToggleSelect}
+                      animDelay={colIndex * 20 + cardIndex * 10}
+                    />
+                  ))}
+                  {stageGrants.length === 0 && (
+                    <div className="rounded-2xl border border-dashed border-black/5 h-16 flex items-center justify-center">
+                      <span className="text-xs text-neutral-300">Empty</span>
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
-    </div>
+    </>
   );
 }

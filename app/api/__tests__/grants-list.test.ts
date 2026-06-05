@@ -43,6 +43,12 @@ let _grantInsertData: any | null = {
 };
 let _grantInsertError: { message: string } | null = null;
 
+type GrantsQueryResult = {
+  data: any[];
+  error: { message: string } | null;
+  count: number;
+};
+
 // ─── Mock infrastructure ───────────────────────────────────────────────────────
 
 const mockServerRpc = vi.fn();
@@ -70,7 +76,10 @@ function buildGrantsQueryBuilder() {
     range: vi.fn(() => b),
     ilike: vi.fn(() => b),
     lte: vi.fn(() => b),
-    then: vi.fn((resolve: Function, reject: Function) =>
+    then: vi.fn((
+      resolve: (value: GrantsQueryResult) => GrantsQueryResult | PromiseLike<GrantsQueryResult>,
+      reject?: (reason: unknown) => unknown
+    ) =>
       Promise.resolve({ data: _grantsListData, error: _grantsListError, count: _grantsListData.length })
         .then(resolve, reject)
     ),

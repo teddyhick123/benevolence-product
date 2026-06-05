@@ -166,7 +166,7 @@ export default function TaxSummaryDashboard({
               limit={summary.agi_limit_20_pct ?? 0}
               used={summary.contributed_20_pct ?? 0}
               remaining={capacity?.remaining_20_pct ?? 0}
-              color="amber"
+              color="sunset"
             />
           </div>
         </div>

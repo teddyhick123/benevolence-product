@@ -350,9 +350,10 @@ async function main() {
   // Step 3: Run all migrations
   console.log('\nRunning database migrations…');
   const accessToken = process.env.SUPABASE_ACCESS_TOKEN;
-  const projectRef = supabaseUrl.match(/https:\/\/([a-z0-9]+)\.supabase\.co/)?.[1];
+  const migrationProjectRef = supabaseUrl.match(/https:\/\/([a-z0-9]+)\.supabase\.co/)?.[1]
+    ?? (projectRef !== 'local' ? projectRef : undefined);
 
-  if (projectRef && accessToken) {
+  if (migrationProjectRef && accessToken) {
     const migrationsDir = path.join(__dirname, '..', 'db', 'migrations');
     const migrationFiles = fs.readdirSync(migrationsDir)
       .filter(f => f.endsWith('.sql') && /^\d{4}_/.test(f))
@@ -364,7 +365,7 @@ async function main() {
       const sql = fs.readFileSync(path.join(migrationsDir, filename), 'utf-8');
       process.stdout.write(`  ${filename}… `);
       try {
-        const res = await fetch(`https://api.supabase.com/v1/projects/${projectRef}/database/query`, {
+        const res = await fetch(`https://api.supabase.com/v1/projects/${migrationProjectRef}/database/query`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${accessToken}`,

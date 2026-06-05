@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { requiresDecision, type LifecycleStage, type DecisionPayload } from '@/lib/grants/lifecycle';
 import { grantStageLabel } from './grantPalette';
 import { type GrantListItem } from './GrantPipelineView';
@@ -30,42 +30,55 @@ const DECISION_TYPE_OPTIONS: DecisionType[] = ['approval', 'decline', 'defer', '
 const DECISION_VALUE_OPTIONS: DecisionValue[] = ['approved', 'declined', 'deferred', 'conditional', 'not_applicable'];
 
 export default function BulkDecisionQueue({ grants, queuedTransitions, onConfirm, onCancel }: Props) {
-  // Build all transitions that have a target stage chosen
-  const allItems: BulkTransitionItem[] = [];
-  for (const grant of grants) {
-    const target = queuedTransitions[grant.lifecycle_stage] as LifecycleStage | undefined;
-    if (!target) continue;
-    allItems.push({
-      grantId: grant.id,
-      grantName: grant.holdings?.name ?? 'Unnamed Grant',
-      fromStage: grant.lifecycle_stage,
-      targetStage: target,
-      amount: grant.approved_amount ?? grant.requested_amount,
-    });
-  }
-
-  // Separate decision-required items from simple ones
-  const decisionItems = allItems.filter(item => requiresDecision(item.fromStage, item.targetStage));
-  const simpleItems = allItems.filter(item => !requiresDecision(item.fromStage, item.targetStage));
+  // Fix 3: memoize allItems/decisionItems/simpleItems so step index stays stable
+  const { decisionItems, simpleItems } = useMemo(() => {
+    const allItems: BulkTransitionItem[] = [];
+    for (const grant of grants) {
+      const target = queuedTransitions[grant.lifecycle_stage] as LifecycleStage | undefined;
+      if (!target) continue;
+      allItems.push({
+        grantId: grant.id,
+        grantName: grant.holdings?.name ?? 'Unnamed Grant',
+        fromStage: grant.lifecycle_stage,
+        targetStage: target,
+        amount: grant.approved_amount ?? grant.requested_amount,
+      });
+    }
+    return {
+      decisionItems: allItems.filter(item => requiresDecision(item.fromStage, item.targetStage)),
+      simpleItems: allItems.filter(item => !requiresDecision(item.fromStage, item.targetStage)),
+    };
+  }, [grants, queuedTransitions]);
 
   const [step, setStep] = useState(0); // index into decisionItems; decisionItems.length = summary screen
   const [decisions, setDecisions] = useState<Record<string, Partial<DecisionPayload>>>({});
   const [skipped, setSkipped] = useState<Set<string>>(new Set());
   const [slideDir, setSlideDir] = useState<'in' | 'out'>('in');
 
+  // Fix 2: cancel pending animation timer on unmount to avoid setState on dead component
+  const slideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (slideTimer.current) clearTimeout(slideTimer.current); }, []);
+
   const onSummary = step >= decisionItems.length;
   const current = decisionItems[step];
 
   function advance(dir: 'forward' | 'back') {
     setSlideDir('out');
-    setTimeout(() => {
+    slideTimer.current = setTimeout(() => {
       setStep(s => s + (dir === 'forward' ? 1 : -1));
       setSlideDir('in');
     }, 150);
   }
 
+  // Fix 4: omit undefined keys so they never spread into the DB payload
   function saveDecision(grantId: string, partial: Partial<DecisionPayload>) {
-    setDecisions(prev => ({ ...prev, [grantId]: { ...prev[grantId], ...partial } }));
+    setDecisions(prev => {
+      const merged = { ...prev[grantId], ...partial };
+      for (const key of Object.keys(merged) as (keyof DecisionPayload)[]) {
+        if (merged[key] === undefined) delete merged[key];
+      }
+      return { ...prev, [grantId]: merged };
+    });
   }
 
   function skipCurrent() {
@@ -193,6 +206,20 @@ export default function BulkDecisionQueue({ grants, queuedTransitions, onConfirm
                     className="w-full rounded-xl border border-black/10 px-3 py-1.5 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-azure/30"
                     placeholder="Amount"
                     min={0}
+                  />
+                </div>
+
+                {/* Fix 1: decision_date is NOT NULL in DB — require it with today as default */}
+                <div>
+                  <label className="block text-xs font-medium text-neutral-500 mb-1">
+                    Decision date <span className="text-coral">*</span>
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={decisions[current.grantId]?.decision_date ?? new Date().toISOString().slice(0, 10)}
+                    onChange={e => saveDecision(current.grantId, { decision_date: e.target.value })}
+                    className="w-full rounded-xl border border-black/10 px-3 py-1.5 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-azure/30"
                   />
                 </div>
 

@@ -28,6 +28,10 @@ CREATE POLICY "builder_events: org admins read"
   ON public.builder_events FOR SELECT TO authenticated
   USING (public.is_org_admin(org_id));
 
+CREATE POLICY "builder_events: app admin read"
+  ON public.builder_events FOR SELECT TO authenticated
+  USING (public.is_app_admin());
+
 -- No INSERT/UPDATE/DELETE for authenticated role — all writes go through service_role API routes only.
 -- This prevents event spoofing: users cannot fabricate telemetry records from the client.
 CREATE POLICY "builder_events: service role"

@@ -249,12 +249,18 @@ describe('POST bulk-transition — success paths (207)', () => {
   it('defaults decision_date when not supplied and decision is provided', async () => {
     _prefetchData = [{ id: GRANT_A, lifecycle_stage: 'recommended', org_id: ORG_ID }];
     _grantFetchData = { lifecycle_stage: 'recommended', org_id: ORG_ID };
+
     const decisionInsertSpy = vi.fn(async () => ({ error: null }));
-    mockAdminFrom.mockImplementationOnce(() => ({
-      select: vi.fn(() => ({ eq: vi.fn(() => ({ in: vi.fn(async () => ({ data: _prefetchData, error: null })) })) })),
-    }));
-    // We can't deeply inspect decided_by/decision_date without tighter mocks,
-    // but we verify the request succeeds (indicating normalization didn't throw).
+
+    // Wire the spy into the mock for grant_decisions
+    const originalImpl = mockAdminFrom.getMockImplementation();
+    mockAdminFrom.mockImplementation((table: string) => {
+      if (table === 'grant_decisions') {
+        return { insert: decisionInsertSpy };
+      }
+      return originalImpl!(table);
+    });
+
     const res = await POST(makeRequest({
       transitions: [{
         grantId: GRANT_A,
@@ -263,8 +269,14 @@ describe('POST bulk-transition — success paths (207)', () => {
         decision: { decision_type: 'approval', decision: 'approved', rationale: 'Board approved' },
       }],
     }), makeParams());
-    // May be 207 success or partial — just must not be 400/500
-    expect([207, 200]).toContain(res.status);
+
+    expect(res.status).toBe(207);
+
+    expect(decisionInsertSpy).toHaveBeenCalled();
+    const inserted = decisionInsertSpy.mock.calls[0][0];
+    const today = new Date().toISOString().slice(0, 10);
+    expect(inserted.decision_date).toBe(today);
+    expect(inserted.decided_by).toBe(USER_ID);
   });
 
   it('returns mixed results for a batch with one success and one stale grant', async () => {

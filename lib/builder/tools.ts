@@ -16,6 +16,118 @@ const MUTABLE_MODULE_IDS: readonly ModuleId[] = [
   'donor_management', 'pledge_tracking', 'external_data', 'analytics',
   'compliance_regulatory',
 ];
+const METRIC_AGGREGATIONS = ['sum', 'avg', 'last', 'first'] as const;
+const METRIC_DIRECTIONS = ['higher_is_better', 'lower_is_better', 'neutral'] as const;
+const PROPOSAL_PHASES = ['pending', 'plan_ready', 'building', 'build_ready', 'reviewing', 'ready_to_apply', 'applied'] as const;
+
+function validationMessage(err: unknown, fallback = 'Invalid input'): string {
+  return err instanceof Error ? err.message : fallback;
+}
+
+function requiredString(value: unknown, fieldName: string, options?: { maxLength?: number; pattern?: RegExp; allowEmpty?: boolean }): string {
+  if (options?.allowEmpty) {
+    if (value === undefined || value === null) throw new Error(`${fieldName} is required`);
+  } else {
+    InputValidator.validateRequired(value, fieldName);
+  }
+  InputValidator.validateString(value, fieldName, { maxLength: options?.maxLength, pattern: options?.pattern });
+  return value as string;
+}
+
+function optionalString(value: unknown, fieldName: string, options?: { maxLength?: number; pattern?: RegExp; allowEmpty?: boolean }): string | undefined {
+  if (value === undefined || value === null) return undefined;
+  if (!options?.allowEmpty && value === '') throw new Error(`${fieldName} cannot be empty`);
+  InputValidator.validateString(value, fieldName, { maxLength: options?.maxLength, pattern: options?.pattern });
+  return value as string;
+}
+
+function requiredBoolean(value: unknown, fieldName: string): boolean {
+  InputValidator.validateRequired(value, fieldName);
+  if (typeof value !== 'boolean') throw new Error(`${fieldName} must be a boolean`);
+  return value;
+}
+
+function requiredUuid(value: unknown, fieldName: string): string {
+  const str = requiredString(value, fieldName);
+  InputValidator.validateUUID(str, fieldName);
+  return str;
+}
+
+function optionalEnum<T extends string>(value: unknown, fieldName: string, allowed: readonly T[]): T | undefined {
+  if (value === undefined || value === null) return undefined;
+  InputValidator.validateEnum(value, fieldName, allowed);
+  return value as T;
+}
+
+function validateUrl(value: unknown, fieldName: string): string | undefined {
+  const url = optionalString(value, fieldName, { maxLength: 2048 });
+  if (!url) return undefined;
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    throw new Error(`${fieldName} must be a valid URL`);
+  }
+  if (!['http:', 'https:'].includes(parsed.protocol)) {
+    throw new Error(`${fieldName} must use http or https`);
+  }
+  return url;
+}
+
+function validateBuilderPath(value: unknown, fieldName: string): string {
+  const path = requiredString(value, fieldName, { maxLength: 240 });
+  if (path.startsWith('/') || path.startsWith('\\')) throw new Error(`${fieldName} must be relative`);
+  if (path.includes('\\') || path.includes('\0')) throw new Error(`${fieldName} has invalid path characters`);
+  if (path.split('/').includes('..')) throw new Error(`${fieldName} cannot contain .. segments`);
+  return path.replace(/^\.\//, '');
+}
+
+function validateProposalFiles(value: unknown): Array<{ path: string; content: string; diff: string }> {
+  InputValidator.validateRequired(value, 'files');
+  InputValidator.validateArray(value, 'files', { maxLength: 50 });
+  const files = value as unknown[];
+  if (files.length === 0) throw new Error('files must contain at least one file');
+
+  return files.map((file, index) => {
+    if (!file || typeof file !== 'object' || Array.isArray(file)) {
+      throw new Error(`files[${index}] must be an object`);
+    }
+    const item = file as Record<string, unknown>;
+    return {
+      path: validateBuilderPath(item.path, `files[${index}].path`),
+      content: requiredString(item.content, `files[${index}].content`, { maxLength: 500_000, allowEmpty: true }),
+      diff: requiredString(item.diff, `files[${index}].diff`, { maxLength: 500_000, allowEmpty: true }),
+    };
+  });
+}
+
+function validateWorkflowSteps(value: unknown): Array<{ name: string; description?: string; order: number; required?: boolean }> {
+  InputValidator.validateRequired(value, 'steps');
+  InputValidator.validateArray(value, 'steps', { maxLength: 100 });
+  const rawSteps = value as unknown[];
+  if (rawSteps.length === 0) throw new Error('steps must be a non-empty array');
+
+  return rawSteps.map((step, index) => {
+    if (!step || typeof step !== 'object' || Array.isArray(step)) {
+      throw new Error(`steps[${index}] must be an object`);
+    }
+    const item = step as Record<string, unknown>;
+    const name = requiredString(item.name, `steps[${index}].name`, { maxLength: 200 });
+    const description = optionalString(item.description, `steps[${index}].description`, { maxLength: 2000 });
+    InputValidator.validateNumber(item.order, `steps[${index}].order`, { min: 1, max: 1000 });
+    const order = Number(item.order);
+    if (!Number.isFinite(order)) throw new Error(`steps[${index}].order must be a finite number`);
+    if (item.required !== undefined && typeof item.required !== 'boolean') {
+      throw new Error(`steps[${index}].required must be a boolean`);
+    }
+    return {
+      name,
+      description,
+      order,
+      required: item.required as boolean | undefined,
+    };
+  });
+}
 
 // ─── Telemetry helper ────────────────────────────────────────────────────────
 
@@ -29,14 +141,16 @@ async function emitBuilderEvent(
     payload?: Record<string, unknown>;
   }
 ): Promise<void> {
-  // Writes to builder_events: event_type = 'tool_call' | 'proposal_created' | ...
-  void adminSupabase.from('builder_events').insert({
+  const { error } = await adminSupabase.from('builder_events').insert({
     org_id: orgId,
     user_id: userId,
     event_type: eventType,
     tool_name: extra.tool_name ?? null,
     payload: extra.payload ?? null,
   });
+  if (error) {
+    console.error('Failed to emit builder event:', error.message);
+  }
 }
 
 // ─── Tool definitions ────────────────────────────────────────────────────────
@@ -274,12 +388,26 @@ export async function executeTool(
   try {
     switch (toolName) {
       case 'update_org_branding': {
+        let name: string | undefined;
+        let logoUrl: string | undefined;
+        let primaryColor: string | undefined;
+        try {
+          name = optionalString(toolInput.name, 'name', { maxLength: 160 });
+          logoUrl = validateUrl(toolInput.logo_url, 'logo_url');
+          primaryColor = optionalString(toolInput.primary_color, 'primary_color', {
+            maxLength: 7,
+            pattern: /^#[0-9a-fA-F]{6}$/,
+          });
+        } catch (e) {
+          return { type: 'error', tool: toolName, message: validationMessage(e) };
+        }
+
         const patch: Record<string, string> = {};
-        if (toolInput.logo_url !== undefined) patch.logo_url = toolInput.logo_url as string;
-        if (toolInput.primary_color !== undefined) patch.primary_color = toolInput.primary_color as string;
+        if (logoUrl !== undefined) patch.logo_url = logoUrl;
+        if (primaryColor !== undefined) patch.primary_color = primaryColor;
 
         const orgPatch: Record<string, unknown> = {};
-        if (toolInput.name !== undefined) orgPatch.name = toolInput.name as string;
+        if (name !== undefined) orgPatch.name = name;
 
         if (Object.keys(patch).length === 0 && Object.keys(orgPatch).length === 0) {
           return { type: 'error', tool: toolName, message: 'No fields provided. Pass logo_url, primary_color, or name.' };
@@ -302,28 +430,27 @@ export async function executeTool(
         if (error) return { type: 'error', tool: toolName, message: error.message };
 
         const parts: string[] = [];
-        if (toolInput.name) parts.push(`name set to "${toolInput.name}"`);
+        if (name) parts.push(`name set to "${name}"`);
         if (patch.logo_url) parts.push('logo updated');
         if (patch.primary_color) parts.push(`color set to ${patch.primary_color}`);
-        void emitBuilderEvent(adminSupabase, orgId, userId, 'tool_call', {
+        await emitBuilderEvent(adminSupabase, orgId, userId, 'tool_call', {
           tool_name: toolName,
-          payload: { fields: Object.keys(patch) },
+          payload: { fields: [...Object.keys(patch), ...(name !== undefined ? ['name'] : [])] },
         });
         return { type: 'config_success', tool: toolName, message: `Updated: ${parts.join(', ')}.` };
       }
 
       case 'update_module_config': {
+        let moduleId: ModuleId;
+        let enabled: boolean;
         try {
           InputValidator.validateRequired(toolInput.module, 'module');
           InputValidator.validateEnum(toolInput.module, 'module', MUTABLE_MODULE_IDS);
-          InputValidator.validateRequired(toolInput.enabled, 'enabled');
-          InputValidator.validateEnum(toolInput.enabled, 'enabled', [true, false] as const);
+          moduleId = toolInput.module as ModuleId;
+          enabled = requiredBoolean(toolInput.enabled, 'enabled');
         } catch (e) {
-          return { type: 'error', tool: toolName, message: e instanceof Error ? e.message : 'Invalid input' };
+          return { type: 'error', tool: toolName, message: validationMessage(e) };
         }
-
-        const moduleId = toolInput.module as ModuleId;
-        const enabled = toolInput.enabled as boolean;
 
         const result = enabled
           ? await enableModule(adminSupabase, orgId, moduleId, userId)
@@ -332,7 +459,7 @@ export async function executeTool(
         if (!result.success) {
           return { type: 'error', tool: toolName, message: result.error ?? 'Module update failed' };
         }
-        void emitBuilderEvent(adminSupabase, orgId, userId, 'tool_call', {
+        await emitBuilderEvent(adminSupabase, orgId, userId, 'tool_call', {
           tool_name: toolName,
           payload: { module: moduleId, enabled },
         });
@@ -344,25 +471,42 @@ export async function executeTool(
       }
 
       case 'create_metric_definition': {
+        let name: string;
+        let slug: string;
+        let unit: string | undefined;
+        let description: string | undefined;
+        let aggregation: typeof METRIC_AGGREGATIONS[number];
+        let direction: typeof METRIC_DIRECTIONS[number];
+        try {
+          name = requiredString(toolInput.name, 'name', { maxLength: 128 });
+          slug = requiredString(toolInput.slug, 'slug', { maxLength: 64, pattern: /^[a-z0-9_]+$/ });
+          unit = optionalString(toolInput.unit, 'unit', { maxLength: 40 });
+          description = optionalString(toolInput.description, 'description', { maxLength: 2000 });
+          aggregation = optionalEnum(toolInput.aggregation, 'aggregation', METRIC_AGGREGATIONS) ?? 'sum';
+          direction = optionalEnum(toolInput.direction, 'direction', METRIC_DIRECTIONS) ?? 'higher_is_better';
+        } catch (e) {
+          return { type: 'error', tool: toolName, message: validationMessage(e) };
+        }
+
         const { error } = await supabase.from('kpi_definitions').insert({
           org_id: orgId,
-          name: toolInput.name as string,
-          slug: toolInput.slug as string,
-          unit: (toolInput.unit as string) || null,
-          description: (toolInput.description as string) || null,
-          aggregation: (toolInput.aggregation as string) || 'sum',
-          direction: (toolInput.direction as string) || 'higher_is_better',
+          name,
+          slug,
+          unit: unit || null,
+          description: description || null,
+          aggregation,
+          direction,
         });
 
         if (error) return { type: 'error', tool: toolName, message: error.message };
-        void emitBuilderEvent(adminSupabase, orgId, userId, 'tool_call', {
+        await emitBuilderEvent(adminSupabase, orgId, userId, 'tool_call', {
           tool_name: toolName,
-          payload: { name: toolInput.name, slug: toolInput.slug },
+          payload: { name, slug },
         });
         return {
           type: 'config_success',
           tool: toolName,
-          message: `Metric "${toolInput.name}" created successfully.`,
+          message: `Metric "${name}" created successfully.`,
         };
       }
 
@@ -389,13 +533,23 @@ export async function executeTool(
       }
 
       case 'update_metric_definition': {
-        const id = toolInput.id as string;
+        let id: string;
         const patch: Record<string, unknown> = {};
-        if (toolInput.name !== undefined) patch.name = toolInput.name;
-        if (toolInput.unit !== undefined) patch.unit = toolInput.unit;
-        if (toolInput.description !== undefined) patch.description = toolInput.description;
-        if (toolInput.aggregation !== undefined) patch.aggregation = toolInput.aggregation;
-        if (toolInput.direction !== undefined) patch.direction = toolInput.direction;
+        try {
+          id = requiredUuid(toolInput.id, 'id');
+          const name = optionalString(toolInput.name, 'name', { maxLength: 128 });
+          const unit = optionalString(toolInput.unit, 'unit', { maxLength: 40, allowEmpty: true });
+          const description = optionalString(toolInput.description, 'description', { maxLength: 2000, allowEmpty: true });
+          const aggregation = optionalEnum(toolInput.aggregation, 'aggregation', METRIC_AGGREGATIONS);
+          const direction = optionalEnum(toolInput.direction, 'direction', METRIC_DIRECTIONS);
+          if (name !== undefined) patch.name = name;
+          if (unit !== undefined) patch.unit = unit || null;
+          if (description !== undefined) patch.description = description || null;
+          if (aggregation !== undefined) patch.aggregation = aggregation;
+          if (direction !== undefined) patch.direction = direction;
+        } catch (e) {
+          return { type: 'error', tool: toolName, message: validationMessage(e) };
+        }
 
         if (Object.keys(patch).length === 0) {
           return { type: 'error', tool: toolName, message: 'No fields to update provided.' };
@@ -408,15 +562,20 @@ export async function executeTool(
           .eq('org_id', orgId);
 
         if (error) return { type: 'error', tool: toolName, message: error.message };
-        void emitBuilderEvent(adminSupabase, orgId, userId, 'tool_call', {
+        await emitBuilderEvent(adminSupabase, orgId, userId, 'tool_call', {
           tool_name: toolName,
-          payload: { id: toolInput.id },
+          payload: { id },
         });
         return { type: 'config_success', tool: toolName, message: `KPI definition ${id} updated.` };
       }
 
       case 'delete_metric_definition': {
-        const id = toolInput.id as string;
+        let id: string;
+        try {
+          id = requiredUuid(toolInput.id, 'id');
+        } catch (e) {
+          return { type: 'error', tool: toolName, message: validationMessage(e) };
+        }
         const { error } = await supabase
           .from('kpi_definitions')
           .update({ is_active: false })
@@ -424,9 +583,9 @@ export async function executeTool(
           .eq('org_id', orgId);
 
         if (error) return { type: 'error', tool: toolName, message: error.message };
-        void emitBuilderEvent(adminSupabase, orgId, userId, 'tool_call', {
+        await emitBuilderEvent(adminSupabase, orgId, userId, 'tool_call', {
           tool_name: toolName,
-          payload: { id: toolInput.id },
+          payload: { id },
         });
         return {
           type: 'config_success',
@@ -436,7 +595,12 @@ export async function executeTool(
       }
 
       case 'set_ai_instructions': {
-        const instructions = toolInput.instructions as string;
+        let instructions: string;
+        try {
+          instructions = requiredString(toolInput.instructions, 'instructions', { maxLength: 12000, allowEmpty: true });
+        } catch (e) {
+          return { type: 'error', tool: toolName, message: validationMessage(e) };
+        }
         const { error } = await supabase
           .from('organizations')
           .update({ ai_instructions: instructions || null })
@@ -444,9 +608,9 @@ export async function executeTool(
 
         if (error) return { type: 'error', tool: toolName, message: error.message };
 
-        void emitBuilderEvent(adminSupabase, orgId, userId, 'tool_call', {
+        await emitBuilderEvent(adminSupabase, orgId, userId, 'tool_call', {
           tool_name: toolName,
-          payload: { cleared: !toolInput.instructions },
+          payload: { cleared: !instructions },
         });
         return {
           type: 'config_success',
@@ -458,8 +622,14 @@ export async function executeTool(
       }
 
       case 'submit_code_proposal': {
-        const files = toolInput.files as Array<{ path: string; content: string; diff: string }>;
-        const summary = toolInput.request_summary as string;
+        let files: Array<{ path: string; content: string; diff: string }>;
+        let summary: string;
+        try {
+          summary = requiredString(toolInput.request_summary, 'request_summary', { maxLength: 1000 });
+          files = validateProposalFiles(toolInput.files);
+        } catch (e) {
+          return { type: 'error', tool: toolName, message: validationMessage(e) };
+        }
 
         const { data, error } = await adminSupabase.from('builder_proposals').insert({
           org_id: orgId,
@@ -471,7 +641,7 @@ export async function executeTool(
         }).select('id').single();
 
         if (error) return { type: 'error', tool: toolName, message: error.message };
-        void emitBuilderEvent(adminSupabase, orgId, userId, 'proposal_created', {
+        await emitBuilderEvent(adminSupabase, orgId, userId, 'proposal_created', {
           tool_name: toolName,
           payload: { proposalId: data.id, fileCount: files?.length ?? 0 },
         });
@@ -484,7 +654,12 @@ export async function executeTool(
       }
 
       case 'scaffold_module': {
-        const description = toolInput.description as string;
+        let description: string;
+        try {
+          description = requiredString(toolInput.description, 'description', { maxLength: 2000 });
+        } catch (e) {
+          return { type: 'error', tool: toolName, message: validationMessage(e) };
+        }
 
         let indexStr = '';
         try {
@@ -512,7 +687,7 @@ Respond with ONLY a valid JSON object matching this exact schema (no markdown, n
       "name": "volunteer_records",
       "columns": [
         { "name": "id", "type": "uuid", "nullable": false },
-        { "name": "organization_id", "type": "uuid", "nullable": false }
+        { "name": "org_id", "type": "uuid", "nullable": false }
       ]
     }
   ],
@@ -566,9 +741,9 @@ Respond with ONLY a valid JSON object matching this exact schema (no markdown, n
           return { type: 'error', tool: toolName, message: proposalError?.message ?? 'Failed to create proposal.' };
         }
 
-        void emitBuilderEvent(adminSupabase, orgId, userId, 'proposal_created', {
+        await emitBuilderEvent(adminSupabase, orgId, userId, 'proposal_created', {
           tool_name: toolName,
-          payload: { proposalId: proposal.id, description: toolInput.description },
+          payload: { proposalId: proposal.id, description },
         });
         return {
           type: 'scaffold_plan_ready',
@@ -610,20 +785,14 @@ Respond with ONLY a valid JSON object matching this exact schema (no markdown, n
       }
 
       case 'update_workflow_template': {
-        // Validate inputs
-        const templateId = toolInput.template_id as string;
-        const steps = toolInput.steps as Array<{ name: string; description?: string; order: number; required?: boolean }>;
-        try { InputValidator.validateUUID(templateId, 'template_id'); }
-        catch (e) { return { type: 'error', tool: toolName, message: e instanceof Error ? e.message : 'Invalid template_id' }; }
-        if (!Array.isArray(steps) || steps.length === 0) return { type: 'error', tool: toolName, message: 'steps must be a non-empty array' };
-        const stepErr = steps.reduce<string | null>((acc, s) => {
-          if (acc) return acc;
-          if (!s.name || typeof s.name !== 'string') return 'Each step.name must be a non-empty string';
-          try { InputValidator.validateString(s.name, 'step.name', { maxLength: 200 }); } catch (e) { return e instanceof Error ? e.message : 'Invalid step.name'; }
-          if (typeof s.order !== 'number') return 'Each step must have a numeric order field';
-          return null;
-        }, null);
-        if (stepErr) return { type: 'error', tool: toolName, message: stepErr };
+        let templateId: string;
+        let steps: Array<{ name: string; description?: string; order: number; required?: boolean }>;
+        try {
+          templateId = requiredUuid(toolInput.template_id, 'template_id');
+          steps = validateWorkflowSteps(toolInput.steps);
+        } catch (e) {
+          return { type: 'error', tool: toolName, message: validationMessage(e) };
+        }
         // Fetch template and enforce org boundaries: cross-org is Forbidden, is_system triggers clone-on-write insert
         const { data: tmpl, error: fetchErr } = await adminSupabase.from('workflow_templates')
           .select('id, org_id, is_system, name, workflow_type, description, steps').eq('id', templateId).maybeSingle();
@@ -637,7 +806,7 @@ Respond with ONLY a valid JSON object matching this exact schema (no markdown, n
             .insert({ org_id: orgId, is_system: false, name: tmpl.name, workflow_type: tmpl.workflow_type, description: tmpl.description, steps })
             .select('id').single();
           if (cloneErr) return { type: 'error', tool: toolName, message: cloneErr.message };
-          void emitBuilderEvent(adminSupabase, orgId, userId, 'tool_call', {
+          await emitBuilderEvent(adminSupabase, orgId, userId, 'tool_call', {
             tool_name: toolName,
             payload: { template_id: templateId, step_count: steps.length },
           });
@@ -645,7 +814,7 @@ Respond with ONLY a valid JSON object matching this exact schema (no markdown, n
         }
         const { error: updateErr } = await adminSupabase.from('workflow_templates').update({ steps }).eq('id', templateId).eq('org_id', orgId);
         if (updateErr) return { type: 'error', tool: toolName, message: updateErr.message };
-        void emitBuilderEvent(adminSupabase, orgId, userId, 'tool_call', {
+        await emitBuilderEvent(adminSupabase, orgId, userId, 'tool_call', {
           tool_name: toolName,
           payload: { template_id: templateId, step_count: steps.length },
         });
@@ -653,7 +822,12 @@ Respond with ONLY a valid JSON object matching this exact schema (no markdown, n
       }
 
       case 'list_proposals': {
-        const phase = toolInput.phase as string | undefined;
+        let phase: typeof PROPOSAL_PHASES[number] | undefined;
+        try {
+          phase = optionalEnum(toolInput.phase, 'phase', PROPOSAL_PHASES);
+        } catch (e) {
+          return { type: 'error', tool: toolName, message: validationMessage(e) };
+        }
 
         let query = adminSupabase
           .from('builder_proposals')

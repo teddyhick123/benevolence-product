@@ -27,8 +27,12 @@ describe('github-apply source', () => {
 
   it('opens PR after writing files', () => {
     const contentsIdx = src.lastIndexOf('/contents/');
-    const prIdx = src.indexOf('/pulls');
+    const prIdx = src.lastIndexOf('/pulls');
     expect(prIdx).toBeGreaterThan(contentsIdx);
+  });
+
+  it('checks for an existing PR so retries are safe', () => {
+    expect(src).toMatch(/pulls\?head=/);
   });
 
   it('does not auto-merge the PR', () => {
@@ -87,28 +91,52 @@ describe('applyProposalToGitHub', () => {
     vi.unstubAllGlobals();
   });
 
-  function makeFetch(fileExists: boolean, fileSha?: string) {
-    return vi.fn().mockImplementation(async (url: string, opts?: RequestInit) => {
+  function makeFetch(
+    fileExists: boolean,
+    fileSha?: string,
+    options: { branchExists?: boolean; existingPrUrl?: string; existingContent?: string } = {}
+  ) {
+    return vi.fn().mockImplementation(async (url: string, reqOpts?: RequestInit) => {
       const u = String(url);
       // GET main branch SHA
-      if (u.includes('/git/ref/') && !opts?.method) {
+      if (u.includes('/git/ref/heads/main') && !reqOpts?.method) {
         return { ok: true, json: async () => ({ object: { sha: 'mainsha123' } }) };
       }
+      // GET builder branch SHA
+      if (u.includes('/git/ref/heads/builder/scaffold-') && !reqOpts?.method) {
+        if (options.branchExists) return { ok: true, json: async () => ({ object: { sha: 'branchsha123' } }) };
+        return { ok: false, status: 404, json: async () => ({ message: 'Not Found' }) };
+      }
       // POST create branch
-      if (u.includes('/git/refs') && opts?.method === 'POST') {
+      if (u.includes('/git/refs') && reqOpts?.method === 'POST') {
         return { ok: true, json: async () => ({}) };
       }
+      // GET existing PRs for branch
+      if (u.includes('/pulls?') && !reqOpts?.method) {
+        const existingPrUrl = options.existingPrUrl;
+        return {
+          ok: true,
+          json: async () => existingPrUrl ? [{ html_url: existingPrUrl }] : [],
+        };
+      }
       // GET existing file contents
-      if (u.includes('/contents/') && (!opts?.method || opts.method === 'GET')) {
+      if (u.includes('/contents/') && (!reqOpts?.method || reqOpts.method === 'GET')) {
         if (!fileExists) return { ok: false, status: 404, json: async () => ({}) };
-        return { ok: true, json: async () => ({ type: 'file', sha: fileSha ?? 'existingsha' }) };
+        return {
+          ok: true,
+          json: async () => ({
+            type: 'file',
+            sha: fileSha ?? 'existingsha',
+            content: options.existingContent,
+          }),
+        };
       }
       // PUT file contents
-      if (u.includes('/contents/') && opts?.method === 'PUT') {
+      if (u.includes('/contents/') && reqOpts?.method === 'PUT') {
         return { ok: true, json: async () => ({}) };
       }
       // POST create PR
-      if (u.includes('/pulls') && opts?.method === 'POST') {
+      if (u.includes('/pulls') && reqOpts?.method === 'POST') {
         return { ok: true, json: async () => ({ html_url: 'https://github.com/owner/repo/pull/1' }) };
       }
       return { ok: false, status: 500, json: async () => ({ message: 'unexpected' }) };
@@ -145,8 +173,10 @@ describe('applyProposalToGitHub', () => {
   it('throws when GET /contents returns a non-404 error', async () => {
     const mockFetch = vi.fn().mockImplementation(async (url: string, opts?: RequestInit) => {
       const u = String(url);
-      if (u.includes('/git/ref/')) return { ok: true, json: async () => ({ object: { sha: 'mainsha' } }) };
+      if (u.includes('/git/ref/heads/main')) return { ok: true, json: async () => ({ object: { sha: 'mainsha' } }) };
+      if (u.includes('/git/ref/heads/builder/scaffold-')) return { ok: false, status: 404, json: async () => ({ message: 'Not Found' }) };
       if (u.includes('/git/refs') && opts?.method === 'POST') return { ok: true, json: async () => ({}) };
+      if (u.includes('/pulls?') && !opts?.method) return { ok: true, json: async () => [] };
       if (u.includes('/contents/') && (!opts?.method || opts.method === 'GET')) {
         return { ok: false, status: 500, json: async () => ({ message: 'internal error' }) };
       }
@@ -166,5 +196,48 @@ describe('applyProposalToGitHub', () => {
 
     expect(result.prUrl).toBe('https://github.com/owner/repo/pull/1');
     expect(result.branchName).toBe('builder/scaffold-aabbccdd');
+  });
+
+  it('reuses an existing branch instead of failing on retry', async () => {
+    const mockFetch = makeFetch(false, undefined, { branchExists: true });
+    vi.stubGlobal('fetch', mockFetch as unknown as typeof fetch);
+
+    await applyProposalToGitHub('aabbccdd-1234-5678', 'MyModule', [{ path: 'lib/foo.ts', content: 'x' }], 90);
+
+    const createBranchCall = mockFetch.mock.calls.find((args: unknown[]) =>
+      String(args[0]).includes('/git/refs') && (args[1] as RequestInit)?.method === 'POST'
+    );
+    expect(createBranchCall).toBeUndefined();
+  });
+
+  it('returns an existing open PR without rewriting files', async () => {
+    const mockFetch = makeFetch(false, undefined, {
+      branchExists: true,
+      existingPrUrl: 'https://github.com/owner/repo/pull/42',
+    });
+    vi.stubGlobal('fetch', mockFetch as unknown as typeof fetch);
+
+    const result = await applyProposalToGitHub('aabbccdd-1234-5678', 'MyModule', [{ path: 'lib/foo.ts', content: 'x' }], 90);
+
+    const putCall = mockFetch.mock.calls.find((args: unknown[]) =>
+      String(args[0]).includes('/contents/') && (args[1] as RequestInit)?.method === 'PUT'
+    );
+    expect(result.prUrl).toBe('https://github.com/owner/repo/pull/42');
+    expect(putCall).toBeUndefined();
+  });
+
+  it('skips PUT when the branch already has identical file content', async () => {
+    const content = 'export const x = 1;';
+    const mockFetch = makeFetch(true, 'abc123sha', {
+      existingContent: Buffer.from(content, 'utf-8').toString('base64'),
+    });
+    vi.stubGlobal('fetch', mockFetch as unknown as typeof fetch);
+
+    await applyProposalToGitHub('aabbccdd-1234-5678', 'MyModule', [{ path: 'lib/foo.ts', content }], 90);
+
+    const putCall = mockFetch.mock.calls.find((args: unknown[]) =>
+      String(args[0]).includes('/contents/') && (args[1] as RequestInit)?.method === 'PUT'
+    );
+    expect(putCall).toBeUndefined();
   });
 });

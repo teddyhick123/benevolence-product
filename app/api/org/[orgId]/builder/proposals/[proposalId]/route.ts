@@ -21,7 +21,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     const adminSupabase = createAdminClient();
     const { data: proposal, error } = await adminSupabase
       .from('builder_proposals')
-      .select('id, phase, plan_content, generated_code, review_report, created_at')
+      .select('id, phase, plan_content, generated_code, review_report, pr_url, created_at')
       .eq('id', proposalId)
       .eq('org_id', orgId)
       .single();

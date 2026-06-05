@@ -52,7 +52,15 @@ describe('builder_events instrumentation', () => {
   it('executeTool emits tool_call events via adminSupabase', () => {
     const src = readFileSync('lib/builder/tools.ts', 'utf8');
     expect(src).toMatch(/builder_events/);
-    expect(src).toMatch(/event_type.*tool_call|tool_call.*event_type/);
+    expect(src).toMatch(/eventType:.*tool_call/s);
+    expect(src).toMatch(/event_type:\s*eventType/);
+  });
+
+  it('executeTool awaits builder event inserts and logs failures', () => {
+    const src = readFileSync('lib/builder/tools.ts', 'utf8');
+    expect(src).toMatch(/const \{ error \} = await adminSupabase\.from\('builder_events'\)\.insert/);
+    expect(src).toMatch(/Failed to emit builder event/);
+    expect(src).not.toMatch(/void\s+emitBuilderEvent/);
   });
 
   it('chat route emits ai_request event', () => {
@@ -62,6 +70,15 @@ describe('builder_events instrumentation', () => {
     );
     expect(src).toMatch(/builder_events/);
     expect(src).toMatch(/ai_request/);
+  });
+
+  it('chat route awaits ai_request event insert and logs failures', () => {
+    const src = readFileSync(
+      'app/api/org/[orgId]/builder/chat/route.ts',
+      'utf8'
+    );
+    expect(src).toMatch(/await adminSupabase\.from\('builder_events'\)\.insert/);
+    expect(src).toMatch(/Failed to emit builder ai_request event/);
   });
 
   it('chat route emits event after auth check', () => {

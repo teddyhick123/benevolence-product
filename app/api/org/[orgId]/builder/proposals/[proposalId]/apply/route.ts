@@ -68,16 +68,26 @@ export async function POST(_req: NextRequest, { params }: RouteParams) {
 
     const { error: updateErr } = await adminSupabase
       .from('builder_proposals')
-      .update({ phase: 'applied', pr_url: prUrl })
-      .eq('id', proposalId);
+      .update({
+        phase: 'applied',
+        status: 'applied',
+        pr_url: prUrl,
+        reviewed_by: user.id,
+        reviewed_at: new Date().toISOString(),
+      })
+      .eq('id', proposalId)
+      .eq('org_id', orgId);
     if (updateErr) throw updateErr;
 
-    void adminSupabase.from('builder_events').insert({
+    const { error: eventErr } = await adminSupabase.from('builder_events').insert({
       org_id: orgId,
       user_id: user.id,
       event_type: 'proposal_applied',
       payload: { proposalId, prUrl, branchName, moduleName },
     });
+    if (eventErr) {
+      console.error('Failed to emit builder proposal_applied event:', eventErr.message);
+    }
 
     return NextResponse.json({ prUrl });
   } catch (err) {

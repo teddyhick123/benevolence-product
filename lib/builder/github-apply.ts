@@ -18,6 +18,22 @@ export function isGitHubConfigured(): boolean {
   );
 }
 
+async function readGitHubError(res: Response): Promise<string> {
+  const err = await res.json().catch(() => ({})) as Record<string, unknown>;
+  return String(err.message ?? JSON.stringify(err));
+}
+
+function normalizeBase64(value: string): string {
+  return value.replace(/\s/g, '');
+}
+
+function githubContentsPath(path: string): string {
+  return path
+    .split('/')
+    .map(segment => encodeURIComponent(segment))
+    .join('/');
+}
+
 export async function applyProposalToGitHub(
   proposalId: string,
   moduleName: string,
@@ -49,36 +65,60 @@ export async function applyProposalToGitHub(
   const refData = await refRes.json() as { object: { sha: string } };
   const mainSha = refData.object.sha;
 
-  // 2. Create branch
+  // 2. Create or reuse branch. Reusing makes retries safe after partial failures.
   const branchName = `builder/scaffold-${proposalId.slice(0, 8)}`;
-  const createBranchRes = await fetch(`${base}/git/refs`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({ ref: `refs/heads/${branchName}`, sha: mainSha }),
-  });
-  if (!createBranchRes.ok) {
-    const branchErr = await createBranchRes.json().catch(() => ({})) as Record<string, unknown>;
-    throw new Error(`Failed to create branch: ${createBranchRes.status} — ${branchErr.message ?? JSON.stringify(branchErr)}`);
+  const branchRefRes = await fetch(`${base}/git/ref/heads/${branchName}`, { headers });
+  if (!branchRefRes.ok && branchRefRes.status !== 404) {
+    throw new Error(`Failed to check builder branch: ${branchRefRes.status} — ${await readGitHubError(branchRefRes)}`);
+  }
+
+  if (branchRefRes.status === 404) {
+    const createBranchRes = await fetch(`${base}/git/refs`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ ref: `refs/heads/${branchName}`, sha: mainSha }),
+    });
+    if (!createBranchRes.ok) {
+      throw new Error(`Failed to create branch: ${createBranchRes.status} — ${await readGitHubError(createBranchRes)}`);
+    }
+  } else {
+    const openPrRes = await fetch(
+      `${base}/pulls?head=${encodeURIComponent(`${owner}:${branchName}`)}&state=open`,
+      { headers }
+    );
+    if (!openPrRes.ok) {
+      throw new Error(`Failed to check existing PR: ${openPrRes.status} — ${await readGitHubError(openPrRes)}`);
+    }
+    const openPrs = await openPrRes.json() as Array<{ html_url?: string }>;
+    if (openPrs[0]?.html_url) {
+      return { prUrl: openPrs[0].html_url, branchName };
+    }
   }
 
   // 3. Write each file (GET existing SHA first — required for updates)
   for (const file of files) {
     const cleanPath = file.path.replace(/^\//, '');
     const contentB64 = Buffer.from(file.content, 'utf-8').toString('base64');
+    const encodedPath = githubContentsPath(cleanPath);
 
     // Check for existing file to get its SHA
     const existingRes = await fetch(
-      `${base}/contents/${cleanPath}?ref=${branchName}`,
+      `${base}/contents/${encodedPath}?ref=${encodeURIComponent(branchName)}`,
       { headers }
     );
     let existingSha: string | undefined;
     if (existingRes.ok) {
-      const existingData = await existingRes.json() as { type?: string; sha?: string };
+      const existingData = await existingRes.json() as { type?: string; sha?: string; content?: string };
       if (existingData.type === 'file') {
         existingSha = existingData.sha;
+        if (existingData.content && normalizeBase64(existingData.content) === contentB64) {
+          continue;
+        }
+      } else {
+        throw new Error(`Cannot write ${cleanPath}: existing GitHub object is not a file`);
       }
     } else if (existingRes.status !== 404) {
-      throw new Error(`Failed to check ${cleanPath}: ${existingRes.status}`);
+      throw new Error(`Failed to check ${cleanPath}: ${existingRes.status} — ${await readGitHubError(existingRes)}`);
     }
 
     const body: Record<string, unknown> = {
@@ -88,20 +128,31 @@ export async function applyProposalToGitHub(
     };
     if (existingSha) body.sha = existingSha;
 
-    const putRes = await fetch(`${base}/contents/${cleanPath}`, {
+    const putRes = await fetch(`${base}/contents/${encodedPath}`, {
       method: 'PUT',
       headers,
       body: JSON.stringify(body),
     });
     if (!putRes.ok) {
-      const errData = await putRes.json().catch(() => ({})) as Record<string, unknown>;
       throw new Error(
-        `Failed to write ${cleanPath}: ${putRes.status} — ${errData.message ?? JSON.stringify(errData)}`
+        `Failed to write ${cleanPath}: ${putRes.status} — ${await readGitHubError(putRes)}`
       );
     }
   }
 
   // 4. Open PR
+  const existingPrRes = await fetch(
+    `${base}/pulls?head=${encodeURIComponent(`${owner}:${branchName}`)}&state=open`,
+    { headers }
+  );
+  if (!existingPrRes.ok) {
+    throw new Error(`Failed to check existing PR: ${existingPrRes.status} — ${await readGitHubError(existingPrRes)}`);
+  }
+  const existingPrs = await existingPrRes.json() as Array<{ html_url?: string }>;
+  if (existingPrs[0]?.html_url) {
+    return { prUrl: existingPrs[0].html_url, branchName };
+  }
+
   const prBody = [
     `## AI-Generated Module: ${moduleName}`,
     '',
@@ -126,9 +177,8 @@ export async function applyProposalToGitHub(
     }),
   });
   if (!prRes.ok) {
-    const errData = await prRes.json().catch(() => ({})) as Record<string, unknown>;
     throw new Error(
-      `Failed to create PR: ${prRes.status} — ${errData.message ?? JSON.stringify(errData)}`
+      `Failed to create PR: ${prRes.status} — ${await readGitHubError(prRes)}`
     );
   }
   const prData = await prRes.json() as { html_url: string };

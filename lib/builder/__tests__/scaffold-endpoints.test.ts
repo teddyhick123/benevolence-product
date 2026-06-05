@@ -37,6 +37,11 @@ describe('proposal GET endpoint', () => {
   it('checks org admin or member access', () => {
     expect(src).toMatch(/org_role|is_org_admin|is_org_member/);
   });
+
+  it('selects pr_url so applied proposals can show review links', () => {
+    const selectIdx = src.indexOf('.select(');
+    expect(src.slice(selectIdx, selectIdx + 300)).toMatch(/pr_url/);
+  });
 });
 
 describe('org-scoped apply endpoint', () => {
@@ -64,6 +69,11 @@ describe('org-scoped apply endpoint', () => {
 
   it('stores pr_url on the proposal', () => {
     expect(src).toMatch(/pr_url/);
+  });
+
+  it('marks the proposal status as applied after opening the PR', () => {
+    expect(src).toMatch(/phase:\s*['"]applied['"]/);
+    expect(src).toMatch(/status:\s*['"]applied['"]/);
   });
 
   it('emits proposal_applied builder_event', () => {

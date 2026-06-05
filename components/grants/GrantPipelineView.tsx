@@ -180,9 +180,7 @@ export default function GrantPipelineView({
   }
 
   return (
-    <>
-      <style>{`@keyframes fadeIn { from { opacity: 0; transform: scale(0.8); } to { opacity: 1; transform: scale(1); } }`}</style>
-      <div className="overflow-x-auto pb-4">
+    <div className="overflow-x-auto pb-4">
         <div className="flex gap-3 min-w-max">
           {visibleStages.map((stage, colIndex) => {
             const stageGrants = byStage.get(stage) ?? [];
@@ -238,7 +236,6 @@ export default function GrantPipelineView({
             );
           })}
         </div>
-      </div>
-    </>
+    </div>
   );
 }

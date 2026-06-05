@@ -105,6 +105,7 @@ export default function GrantsDashboard() {
   }, [orgId, portfolioId, refreshKey]);
 
   function handleViewChange(view: ViewId) {
+    if (view !== 'pipeline') exitSelectionMode();
     setActiveView(view);
   }
 

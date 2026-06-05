@@ -993,6 +993,13 @@ CREATE POLICY "workflow_templates: org admins can manage"
   USING (org_id IS NOT NULL AND public.is_org_admin(org_id))
   WITH CHECK (org_id IS NOT NULL AND public.is_org_admin(org_id));
 
+DROP POLICY IF EXISTS "workflow_templates_service" ON public.workflow_templates;
+CREATE POLICY "workflow_templates_service" ON public.workflow_templates
+  FOR ALL TO service_role
+  USING (true) WITH CHECK (true);
+
+GRANT ALL ON public.workflow_templates TO service_role;
+
 ALTER TABLE public.workflow_instances ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "workflow_instances: org members can view" ON public.workflow_instances;
 CREATE POLICY "workflow_instances: org members can view"

@@ -70,11 +70,15 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
 
     // Preflight: fetch all requested grants scoped to this org in one query
     const adminSupabase = createAdminClient();
-    const { data: scopedGrants } = await adminSupabase
+    const { data: scopedGrants, error: prefetchErr } = await adminSupabase
       .from('grants')
       .select('id, lifecycle_stage, org_id')
       .eq('org_id', orgId)
       .in('id', grantIds);
+
+    if (prefetchErr) {
+      return NextResponse.json({ error: 'Failed to fetch grants' }, { status: 500 });
+    }
 
     const grantMap = new Map<string, { lifecycle_stage: string; org_id: string }>();
     for (const g of scopedGrants ?? []) {

@@ -18,6 +18,7 @@ let _orgRole: string | null = 'admin';
 let _prefetchData: Array<{ id: string; lifecycle_stage: string; org_id: string }> | null = [
   { id: GRANT_A, lifecycle_stage: 'draft', org_id: ORG_ID },
 ];
+let _prefetchError: { message: string } | null = null;
 
 // transitionGrant internals: single-row fetch by grantId
 let _grantFetchData: { lifecycle_stage: string; org_id: string } | null = {
@@ -53,7 +54,7 @@ function setupMocks() {
         // Preflight uses .eq().in() — transitionGrant uses .eq().single()
         select: vi.fn(() => ({
           eq: vi.fn(() => ({
-            in: vi.fn(async () => ({ data: _prefetchData, error: null })),
+            in: vi.fn(async () => ({ data: _prefetchError ? null : _prefetchData, error: _prefetchError })),
             single: vi.fn(async () => ({ data: _grantFetchData, error: _grantFetchError })),
           })),
         })),
@@ -97,6 +98,7 @@ beforeEach(() => {
   _authUser = { id: USER_ID };
   _orgRole = 'admin';
   _prefetchData = [{ id: GRANT_A, lifecycle_stage: 'draft', org_id: ORG_ID }];
+  _prefetchError = null;
   _grantFetchData = { lifecycle_stage: 'draft', org_id: ORG_ID };
   _grantFetchError = null;
   _grantUpdateError = null;
@@ -310,5 +312,15 @@ describe('POST bulk-transition — success paths (207)', () => {
     expect(body).toHaveProperty('failureCount');
     expect(body).toHaveProperty('results');
     expect(body.results).toHaveLength(1);
+  });
+});
+
+// ─── Preflight DB error ───────────────────────────────────────────────────────
+
+describe('POST bulk-transition — preflight DB error', () => {
+  it('returns 500 when the preflight DB query fails', async () => {
+    _prefetchError = { message: 'connection refused' };
+    const res = await POST(makeRequest({ transitions: [{ grantId: GRANT_A, expectedFromStage: 'draft', targetStage: 'prospect' }] }), makeParams());
+    expect(res.status).toBe(500);
   });
 });

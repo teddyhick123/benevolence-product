@@ -57,7 +57,7 @@ export default function BulkDecisionQueue({ grants, queuedTransitions, onConfirm
   const current = decisionItems[step];
 
   function advance(dir: 'forward' | 'back') {
-    setSlideDir(dir === 'forward' ? 'out' : 'in');
+    setSlideDir('out');
     setTimeout(() => {
       setStep(s => s + (dir === 'forward' ? 1 : -1));
       setSlideDir('in');

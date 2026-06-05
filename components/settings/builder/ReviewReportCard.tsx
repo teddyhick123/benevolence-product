@@ -14,6 +14,8 @@ interface ReviewReportCardProps {
   proposalId: string;
   orgId: string;
   githubEnabled: boolean;
+  phase: string;
+  initialPrUrl: string | null;
 }
 
 function ScoreBadge({ score }: { score: number }) {
@@ -28,11 +30,11 @@ function ScoreBadge({ score }: { score: number }) {
   );
 }
 
-export default function ReviewReportCard({ score, findings, proposalId, orgId, githubEnabled }: ReviewReportCardProps) {
+export default function ReviewReportCard({ score, findings, proposalId, orgId, githubEnabled, phase, initialPrUrl }: ReviewReportCardProps) {
   const hasIssues = findings.some(f => f.severity === 'error' || f.severity === 'warning');
   const [expanded, setExpanded] = useState(hasIssues || score < 80);
   const [applying, setApplying] = useState(false);
-  const [prUrl, setPrUrl] = useState<string | null>(null);
+  const [prUrl, setPrUrl] = useState<string | null>(initialPrUrl);
   const [applyError, setApplyError] = useState<string | null>(null);
 
   async function handleOpenPR() {
@@ -105,7 +107,7 @@ export default function ReviewReportCard({ score, findings, proposalId, orgId, g
 
           {githubEnabled && (
             <div className="mt-3 flex flex-col gap-1.5">
-              {!prUrl && (
+              {phase === 'ready_to_apply' && !prUrl && (
                 <button
                   onClick={handleOpenPR}
                   disabled={applying}

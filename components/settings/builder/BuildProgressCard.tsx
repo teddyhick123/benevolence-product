@@ -10,6 +10,7 @@ interface FileStatus {
 
 interface Proposal {
   phase: string;
+  pr_url: string | null;
   plan_content: { files: Array<{ path: string }> } | null;
   generated_code: { files: Array<{ path: string; content: string }> } | null;
   review_report: { score: number; findings: Array<{ severity: string; description: string }> } | null;

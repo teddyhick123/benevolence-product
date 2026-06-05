@@ -45,6 +45,8 @@ interface ReviewReportMessage {
   score: number;
   findings: Array<{ severity: 'error' | 'warning' | 'info'; description: string }>;
   proposalId: string;
+  phase: string;
+  initialPrUrl: string | null;
 }
 
 type ChatMessage = TextMessage | ConfigResultMessage | ProposalMessage
@@ -289,6 +291,8 @@ export default function BuilderChat({ orgId, initialMessages, githubEnabled }: B
                           score: proposal.review_report?.score ?? 0,
                           findings: (proposal.review_report?.findings ?? []) as Array<{ severity: 'error' | 'warning' | 'info'; description: string }>,
                           proposalId: msg.proposalId,
+                          phase: proposal.phase,
+                          initialPrUrl: proposal.pr_url ?? null,
                         }
                       : m
                     ));
@@ -307,6 +311,8 @@ export default function BuilderChat({ orgId, initialMessages, githubEnabled }: B
                   proposalId={msg.proposalId}
                   orgId={orgId}
                   githubEnabled={githubEnabled}
+                  phase={msg.phase}
+                  initialPrUrl={msg.initialPrUrl}
                 />
               </div>
             );

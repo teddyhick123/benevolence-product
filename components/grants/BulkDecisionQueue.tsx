@@ -253,12 +253,19 @@ export default function BulkDecisionQueue({ grants, queuedTransitions, onConfirm
                 >
                   Skip this grant
                 </button>
-                <button
-                  onClick={nextStep}
-                  className="px-5 py-2 rounded-2xl bg-azure text-white text-sm font-medium shadow-soft hover:opacity-90 transition-opacity"
-                >
-                  {step + 1 < decisionItems.length ? 'Next →' : 'Review →'}
-                </button>
+                {(() => {
+                  const currentDecision = decisions[current.grantId];
+                  const canAdvance = !!(currentDecision?.decision_type && currentDecision?.decision);
+                  return (
+                    <button
+                      onClick={nextStep}
+                      disabled={!canAdvance}
+                      className="px-5 py-2 rounded-2xl bg-azure text-white text-sm font-medium shadow-soft hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      {step + 1 < decisionItems.length ? 'Next →' : 'Review →'}
+                    </button>
+                  );
+                })()}
               </div>
             </div>
           )}

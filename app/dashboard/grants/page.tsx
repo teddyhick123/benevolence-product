@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { type LifecycleStage } from '@/lib/grants/lifecycle-shared';
+import { requiresDecision } from '@/lib/grants/lifecycle';
 import WorkflowManager from '@/components/grants/WorkflowManager';
 import PaymentSchedule from '@/components/grants/PaymentSchedule';
 import CommunicationLog from '@/components/grants/CommunicationLog';
@@ -67,9 +68,8 @@ export default function GrantsDashboard() {
   const [queuedTransitions, setQueuedTransitions] = useState<QueuedTransitions>({});
   const [bulkResults, setBulkResults] = useState<{ successCount: number; failureCount: number; results: BulkResult[] } | null>(null);
 
-  async function handleApplyTransitions(queued: QueuedTransitions) {
+  function handleApplyTransitions(queued: QueuedTransitions) {
     setQueuedTransitions(queued);
-    const { requiresDecision } = await import('@/lib/grants/lifecycle');
     const needsDecision = grants.some(g => {
       const target = queued[g.lifecycle_stage];
       return target && selectedIds.has(g.id) && requiresDecision(g.lifecycle_stage, target);

@@ -313,6 +313,34 @@ describe('POST bulk-transition — success paths (207)', () => {
     expect(body).toHaveProperty('results');
     expect(body.results).toHaveLength(1);
   });
+
+  it('preflight query includes org_id scope', async () => {
+    // Capture eq calls to verify org_id scoping
+    const eqSpy = vi.fn((col: string, _val: string) => ({
+      in: vi.fn(async () => ({ data: _prefetchData, error: null })),
+      single: vi.fn(async () => ({ data: _grantFetchData, error: _grantFetchError })),
+    }));
+    mockAdminFrom.mockImplementationOnce((table: string) => {
+      if (table === 'grants') {
+        return {
+          select: vi.fn(() => ({ eq: eqSpy })),
+          update: vi.fn(() => ({ eq: vi.fn(async () => ({ error: null })) })),
+        };
+      }
+      const b: any = { select: vi.fn(() => b), eq: vi.fn(() => b), insert: vi.fn(async () => ({ error: null })) };
+      return b;
+    });
+
+    await POST(
+      makeRequest({ transitions: [{ grantId: GRANT_A, expectedFromStage: 'draft', targetStage: 'prospect' }] }),
+      makeParams(),
+    );
+
+    // The first eq call on the grants table must scope to org_id
+    const firstCall = eqSpy.mock.calls[0];
+    expect(firstCall[0]).toBe('org_id');
+    expect(firstCall[1]).toBe(ORG_ID);
+  });
 });
 
 // ─── Preflight DB error ───────────────────────────────────────────────────────

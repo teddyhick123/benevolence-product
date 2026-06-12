@@ -66,11 +66,11 @@ The P1 list is the execution spine. P2 and P3 work should not be started when it
 
 ---
 
-## Phase 0.5: Quick Wins And Security Issues (No Migrations Required)
+## Phase 0.5: Quick Wins And Security Issues (No Migrations Required) ✅ COMPLETE (2026-06-12)
 
 **Goal:** Close correctness and security gaps that require no schema changes — single-file or two-file fixes that should ship before any Phase 1 work begins.
 
-### Task 0.5.1: Fix QuickBooks Account Field Name Mismatch
+### Task 0.5.1: Fix QuickBooks Account Field Name Mismatch ✅ PRE-EXISTING FIX
 
 **Backlog:** `QB-B1`
 
@@ -78,79 +78,82 @@ The P1 list is the execution spine. P2 and P3 work should not be started when it
 - `components/integrations/QuickBooksSettings.tsx`
 - `app/api/integrations/quickbooks/accounts/route.ts`
 
-- [ ] Remap UI field references `qb_account_id`, `name`, `type` to match API response fields `qb_id`, `qb_name`, `qb_type` (or normalize in the API response — pick one direction and be consistent).
+- [x] Remap UI field references `qb_account_id`, `name`, `type` to match API response fields `qb_id`, `qb_name`, `qb_type` (or normalize in the API response — pick one direction and be consistent).
 
 Acceptance: QB account selector renders actual account names, not `undefined`.
+**Status:** Already fixed before this session. Component uses `qb_id`/`qb_name`/`qb_type` matching API response.
 
 ---
 
-### Task 0.5.2: Remove AGI Console Log Leak From Tax Routes
+### Task 0.5.2: Remove AGI Console Log Leak From Tax Routes ✅ FIXED (commit 7316f1eb)
 
 **Files:**
 - `app/api/portfolio/[id]/tax/optimize/route.ts`
 - `app/api/portfolio/[id]/tax/scenarios/route.ts`
 
-- [ ] Remove `console.error` / `console.log` calls that emit raw `adjusted_gross_income` values. AGI is sensitive financial data that must not appear in server logs.
+- [x] Remove `console.error` / `console.log` calls that emit raw `adjusted_gross_income` values. AGI is sensitive financial data that must not appear in server logs.
 
 Acceptance: Production logs contain no raw AGI values from these routes.
 
 ---
 
-### Task 0.5.3: Fix Donor Acknowledgment Insert Column
+### Task 0.5.3: Fix Donor Acknowledgment Insert Column ✅ PRE-EXISTING FIX
 
 **Files:**
 - `app/api/org/[orgId]/acknowledgments/route.ts`
 
-- [ ] Change `contribution_id: args.contribution_id` to `contribution_ids: [args.contribution_id]` (or accept an array upstream). The `acknowledgments` table schema defines `contribution_ids` as a UUID array; the singular insert violates the DB constraint on every write.
+- [x] Change `contribution_id: args.contribution_id` to `contribution_ids: [args.contribution_id]` (or accept an array upstream). The `acknowledgments` table schema defines `contribution_ids` as a UUID array; the singular insert violates the DB constraint on every write.
 
 Acceptance: Creating an acknowledgment from the UI inserts a row successfully.
+**Status:** Already fixed before this session. Route uses `contribution_ids: contribution_id ? [contribution_id] : []`.
 
 ---
 
-### Task 0.5.4: Replace Donor PDF Public URL With Signed URL
+### Task 0.5.4: Replace Donor PDF Public URL With Signed URL ✅ PRE-EXISTING FIX
 
 **Files:**
-- `app/api/org/[orgId]/acknowledgments/[id]/generate-pdf/route.ts` (or wherever the PDF URL is returned)
+- `app/api/org/[orgId]/acknowledgments/[id]/generate-pdf/route.ts`
 
-- [ ] Replace `getPublicUrl()` with `createSignedUrl(path, 3600)` for acknowledgment PDFs. Donor names, addresses, and giving amounts must not be accessible via an unauthenticated permanent URL. Pattern already established in Tax Center document routes.
+- [x] Replace `getPublicUrl()` with `createSignedUrl(path, 3600)` for acknowledgment PDFs. Donor names, addresses, and giving amounts must not be accessible via an unauthenticated permanent URL. Pattern already established in Tax Center document routes.
 
 Acceptance: Acknowledgment PDF links are signed, expire in 1 hour, and are not guessable permanent URLs.
+**Status:** Already fixed before this session. Route uses `createSignedUrl(storagePath, 3600)`.
 
 ---
 
-### Task 0.5.5: Fix Timeline Cross-Portfolio Data Leak
+### Task 0.5.5: Fix Timeline Cross-Portfolio Data Leak ✅ FIXED (commit a0a5324f)
 
-**Backlog:** Add as `Vis-B3` (P0 security)
+**Backlog:** `Vis-B3` (P0 security)
 
 **Files:**
 - `app/api/portfolio/[id]/timeline/route.ts`
 
-- [ ] Add `.eq('portfolio_id', portfolio_id)` filter to the `events` table query at line 46. Without it, the endpoint returns events across all organizations to any authenticated user.
+- [x] Add org_id scope to the `events` table query. The `events` table has no `portfolio_id` column; the fix derives `org_id` from the portfolio's holdings and filters `.or('org_id.is.null,org_id.eq.{orgId}')` to return only public events + current-org events, preventing cross-org event leakage via shared investees.
 
-Acceptance: Timeline API returns only events belonging to the requested portfolio.
+Acceptance: Timeline API returns only events belonging to the requested portfolio's org (plus public `org_id = NULL` news events).
 
 ---
 
-### Task 0.5.6: Elevate QuickBooks Token Encryption To P1
+### Task 0.5.6: Elevate QuickBooks Token Encryption To P1 ✅ PRE-EXISTING FIX
 
 **Files:**
-- `app/api/integrations/quickbooks/callback/route.ts` (or wherever tokens are stored)
-- Relevant migration for `quickbooks_connections`
+- `app/api/integrations/quickbooks/callback/route.ts`
 
-- [ ] Encrypt access tokens before storing in the `TEXT` column, or use Supabase Vault. Plaintext OAuth tokens in Postgres are a compliance risk for any fiduciary-grade product. This does not require a new table — it requires an encryption layer on the existing write path.
+- [x] Encrypt access tokens before storing in the `TEXT` column, or use Supabase Vault. Plaintext OAuth tokens in Postgres are a compliance risk for any fiduciary-grade product.
 
 Acceptance: `quickbooks_connections` rows never contain plaintext access tokens.
+**Status:** Already fixed before this session. Callback route imports and uses `encryptToken` from `lib/integrations/quickbooks/token-crypto`.
 
 ---
 
-### Task 0.5.7: Note CPA Collaboration Portal Status
+### Task 0.5.7: Note CPA Collaboration Portal Status ✅ FIXED (commit 829dd936)
 
 **Files:**
 - `components/tax/CPACollaborationPortal.tsx`
 - `lib/tax/cpa-collaboration.ts`
 
-- [ ] The portal is fully built (schema 0043, Phase A token hashing complete, tested). It is blocked behind `const cpaCollaborationEnabled = false`. Make an explicit decision: set to `true` when Phase B (rate limiting, email delivery) is scoped, OR document the flag as a deliberate hold with a clear trigger condition.
-- [ ] Fix the hardcoded `app.benevolence.com` URL in `lib/tax/cpa-collaboration.ts:64` — replace with an environment variable.
+- [x] Document `cpaCollaborationEnabled = false` flag with Phase B trigger condition (rate limiting + transactional email delivery).
+- [x] Remove hardcoded `app.benevolence.com` fallback from `generateCPAShareURL` — now throws if `NEXT_PUBLIC_APP_URL` is unset.
 
 Acceptance: The flag is documented with a trigger condition and the URL is configurable.
 

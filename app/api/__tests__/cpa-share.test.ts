@@ -5,7 +5,7 @@
 //
 // P0 + P1 coverage: auth, contract, security invariants, error propagation.
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { GET, POST, DELETE } from '@/app/api/portfolio/[id]/tax/cpa-share/route';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -104,6 +104,7 @@ const VALID_POST_BODY = {
 // ── Setup ─────────────────────────────────────────────────────────────────────
 
 beforeEach(() => {
+  vi.stubEnv('NEXT_PUBLIC_APP_URL', 'https://app.example.com');
   _canEdit      = true;
   _canEditError = null;
   _shareLinks   = [];
@@ -130,6 +131,10 @@ beforeEach(() => {
   _revokeError   = null;
   _capturedInsertArgs = null;
   setupMocks();
+});
+
+afterEach(() => {
+  vi.unstubAllEnvs();
 });
 
 // ── GET: Auth & Access Control ────────────────────────────────────────────────

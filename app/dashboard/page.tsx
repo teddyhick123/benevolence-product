@@ -9,6 +9,7 @@ import AIAssistantButton from '@/components/dashboard/AIAssistantButton';
 import PortfolioSummarySection from '@/components/dashboard/PortfolioSummarySection';
 import GrantsList from '@/components/grants/GrantsList';
 import PayoutMiniGauge from '@/components/compliance/PayoutMiniGauge';
+import TaskSummaryWidget from '@/components/tasks/TaskSummaryWidget';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -49,13 +50,14 @@ export default async function Dashboard({ searchParams }: { searchParams?: Promi
   const cookieHeader = reqHeaders.get('cookie') ?? '';
   const urlPortfolio = pidSnake || pidCamel;
 
-  let me: { recommended_portfolio_id?: string | null } | null = null;
+  let me: { recommended_portfolio_id?: string | null; organization_id?: string | null } | null = null;
   try {
     const meRes = await fetch(`${base}/api/me`, { cache: 'no-store', headers: { cookie: cookieHeader } });
     if (meRes.ok) me = await meRes.json();
   } catch {}
   // Avoid env fallback here so we never silently use the default portfolio
   const portfolioId = urlPortfolio || me?.recommended_portfolio_id || '';
+  const orgId = me?.organization_id || '';
 
   if (!portfolioId) {
     return (
@@ -155,6 +157,12 @@ export default async function Dashboard({ searchParams }: { searchParams?: Promi
           </a>
         </div>
       </div>
+
+      {orgId && (
+        <Reveal>
+          <TaskSummaryWidget orgId={orgId} />
+        </Reveal>
+      )}
 
       {/* Phase 4: Portfolio Summary Section with Asset Type Tabs */}
       <Reveal>

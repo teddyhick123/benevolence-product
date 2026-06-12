@@ -141,6 +141,7 @@ export default function OrgLayout({ children }: { children: React.ReactNode }) {
 
   const navItems = [
     { href: `/org/${currentOrgId}`, label: "Dashboard", icon: "chart" },
+    { href: `/org/${currentOrgId}/tasks`, label: "Tasks", icon: "tasks" },
     { href: `/org/${currentOrgId}/data`, label: "Data", icon: "data" },
     { href: `/org/${currentOrgId}/members`, label: "Team", icon: "users" },
     { href: `/org/${currentOrgId}/settings`, label: "Settings", icon: "settings" },

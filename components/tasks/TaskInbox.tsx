@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import {
   AlertTriangle,
   CheckCircle2,
@@ -10,6 +11,7 @@ import {
   RefreshCw,
   RotateCcw,
 } from 'lucide-react';
+import { getEntityUrl } from '@/lib/tasks/entity-links';
 
 type Member = {
   user_id: string;
@@ -362,11 +364,29 @@ export default function TaskInbox({ orgId, members, currentUserId, currentRole }
                       )}
                       {task.task_entity_links && task.task_entity_links.length > 0 && (
                         <div className="mt-2 flex flex-wrap gap-1">
-                          {task.task_entity_links.map(link => (
-                            <span key={`${link.entity_type}-${link.entity_id}`} className="rounded bg-neutral-100 px-2 py-0.5 text-xs text-neutral-600">
-                              {link.entity_type.replace(/_/g, ' ')}
-                            </span>
-                          ))}
+                          {task.task_entity_links
+                            .filter(link => link.relationship !== 'context')
+                            .map(link => {
+                              const url = getEntityUrl(link, task.task_entity_links ?? [], orgId);
+                              const label = link.entity_type.replace(/_/g, ' ');
+                              if (url) {
+                                return (
+                                  <Link
+                                    key={`${link.entity_type}-${link.entity_id}`}
+                                    href={url}
+                                    className="rounded bg-azure/10 px-2 py-0.5 text-xs text-azure hover:bg-azure/20 transition-colors"
+                                    onClick={e => e.stopPropagation()}
+                                  >
+                                    {label}
+                                  </Link>
+                                );
+                              }
+                              return (
+                                <span key={`${link.entity_type}-${link.entity_id}`} className="rounded bg-neutral-100 px-2 py-0.5 text-xs text-neutral-600">
+                                  {label}
+                                </span>
+                              );
+                            })}
                         </div>
                       )}
                     </div>

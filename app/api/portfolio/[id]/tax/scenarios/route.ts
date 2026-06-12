@@ -171,7 +171,6 @@ export async function POST(
       { status: 400, headers: { 'Cache-Control': 'no-store' } }
     );
   } catch (error) {
-    console.error('Scenario calculation error:', error);
     return NextResponse.json(
       { error: 'Failed to calculate scenarios' },
       { status: 500, headers: { 'Cache-Control': 'no-store' } }

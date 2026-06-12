@@ -93,7 +93,6 @@ export async function POST(
       .eq('status', 'active');
 
     if (holdingsError) {
-      console.error('Error fetching holdings:', holdingsError);
     }
 
     // Fetch enhanced holding data for cost basis and FMV
@@ -140,7 +139,6 @@ export async function POST(
       { headers: { 'Cache-Control': 'no-store' } }
     );
   } catch (error) {
-    console.error('Optimization error:', error);
     return NextResponse.json(
       { error: 'Failed to run optimization' },
       { status: 500, headers: { 'Cache-Control': 'no-store' } }

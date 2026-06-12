@@ -3,7 +3,8 @@
 import * as React from 'react';
 import { CPAShareLink, getExpirationDisplay } from '@/lib/tax/cpa-collaboration';
 
-// Phase B not yet implemented — hide until public portal, token hashing, and access logging are complete
+// Phase B trigger: enable once rate limiting (e.g. @upstash/ratelimit) and
+// transactional email delivery for share links are implemented.
 const cpaCollaborationEnabled = false;
 
 export interface CPACollaborationPortalProps {

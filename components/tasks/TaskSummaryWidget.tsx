@@ -28,10 +28,14 @@ export default function TaskSummaryWidget({ orgId }: Props) {
 
   useEffect(() => {
     if (!orgId) { setLoading(false); return; }
+    let cancelled = false;
+    setLoading(true);
+    setSummary(null);
     fetch(`/api/org/${orgId}/tasks/summary`)
       .then(r => r.ok ? r.json() : null)
-      .then(data => { if (data) setSummary(data); })
-      .finally(() => setLoading(false));
+      .then(data => { if (!cancelled && data) setSummary(data); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
   }, [orgId]);
 
   if (!orgId) return null;

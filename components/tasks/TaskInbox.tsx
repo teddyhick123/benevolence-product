@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import {
   AlertTriangle,
@@ -107,7 +107,7 @@ export default function TaskInbox({ orgId, members, currentUserId, currentRole }
     [members]
   );
 
-  async function loadTasks(tab = activeTab) {
+  const loadTasks = useCallback(async (tab = activeTab) => {
     setLoading(true);
     setError(null);
     try {
@@ -120,12 +120,11 @@ export default function TaskInbox({ orgId, members, currentUserId, currentRole }
     } finally {
       setLoading(false);
     }
-  }
+  }, [activeTab, orgId]);
 
   useEffect(() => {
     loadTasks(activeTab);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, orgId]);
+  }, [activeTab, orgId, loadTasks]);
 
   async function createTask() {
     if (!form.title.trim()) return;
@@ -368,7 +367,7 @@ export default function TaskInbox({ orgId, members, currentUserId, currentRole }
                             .filter(link => link.relationship !== 'context')
                             .map(link => {
                               const url = getEntityUrl(link, task.task_entity_links ?? [], orgId);
-                              const label = link.entity_type.replace(/_/g, ' ');
+                              const label = link.entity_type.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
                               if (url) {
                                 return (
                                   <Link

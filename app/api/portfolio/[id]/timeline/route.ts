@@ -18,7 +18,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
   // Get all holdings for this portfolio to map holding IDs to names
   const { data: holdings, error: holdingsErr } = await supabase
     .from('holdings')
-    .select('id, name')
+    .select('id, name, org_id')
     .eq('portfolio_id', portfolioId);
 
   if (holdingsErr) {
@@ -30,6 +30,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
 
   const holdingMap = new Map((holdings || []).map(h => [h.id, h.name]));
   const holdingIds = Array.from(holdingMap.keys());
+  const orgId = (holdings ?? [])[0]?.org_id as string | undefined;
 
   // Pre-build investeeId → holding map to avoid per-event queries
   const { data: holdingsWithInvestees } = await supabase
@@ -52,6 +53,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
         .from('events')
         .select('*')
         .in('investee_id', portfolioInvesteeIds)
+        .or(orgId ? `org_id.is.null,org_id.eq.${orgId}` : 'org_id.is.null')
         .order('event_date', { ascending: false })
         .limit(500)
     : { data: [] };

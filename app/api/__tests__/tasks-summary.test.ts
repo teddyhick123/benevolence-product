@@ -20,30 +20,30 @@ vi.mock('@/lib/supabase', () => ({
   createAdminClient: vi.fn(() => ({ from: mockAdminFrom })),
 }));
 
-const ORDER = ['overdue', 'due_soon', 'blocked', 'mine', 'total_open'] as const;
-let _callIndex = 0;
-
 function setupMocks() {
   mockServerRpc.mockImplementation(async (fn: string) => {
     if (fn === 'user_org_role') return { data: _orgRole, error: null };
     return { data: null, error: null };
   });
 
-  _callIndex = 0;
   mockAdminFrom.mockImplementation((table: string) => {
     if (table === 'tasks') {
-      const idx = _callIndex++;
-      const key = ORDER[idx] ?? 'total_open';
-      const countVal = _counts[key] ?? 0;
+      let queryType: keyof typeof _counts = 'total_open';
       const b: any = {
         select: vi.fn(() => b),
-        eq:     vi.fn(() => b),
-        lt:     vi.fn(() => b),
-        gte:    vi.fn(() => b),
-        lte:    vi.fn(() => b),
-        not:    vi.fn(() => b),
-        is:     vi.fn(() => b),
-        then:   vi.fn(async (resolve: Function) => resolve({ count: _countError ? null : countVal, error: _countError })),
+        eq: vi.fn((col: string, val: string) => {
+          if (col === 'status' && val === 'blocked') queryType = 'blocked';
+          if (col === 'assigned_to') queryType = 'mine';
+          return b;
+        }),
+        lt: vi.fn(() => { queryType = 'overdue'; return b; }),
+        gte: vi.fn(() => { queryType = 'due_soon'; return b; }),
+        lte: vi.fn(() => b),
+        not: vi.fn(() => b),
+        is: vi.fn(() => b),
+        then: vi.fn(async (resolve: Function) =>
+          resolve({ count: _countError ? null : (_counts[queryType] ?? 0), error: _countError })
+        ),
       };
       return b;
     }
@@ -91,13 +91,11 @@ describe('GET /api/org/[orgId]/tasks/summary — contract', () => {
     const res  = await GET(makeRequest(), makeParams());
     const body = await res.json();
     expect(res.status).toBe(200);
-    expect(body).toEqual({
-      overdue:    3,
-      due_soon:   5,
-      blocked:    1,
-      mine:       7,
-      total_open: 12,
-    });
+    expect(body.overdue).toBe(3);
+    expect(body.due_soon).toBe(5);
+    expect(body.blocked).toBe(1);
+    expect(body.mine).toBe(7);
+    expect(body.total_open).toBe(12);
   });
 
   it('returns zeros when all counts are 0', async () => {

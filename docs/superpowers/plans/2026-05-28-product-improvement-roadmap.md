@@ -277,11 +277,12 @@ Note: `QB-B1` (account field name mismatch) is a no-migration fix handled in Pha
 
 **Goal:** Make core operational workflows coherent across modules.
 
-### Task 2.1: Task Center Completion Polish
+### Task 2.1: Task Center Completion Polish ✅ COMPLETE (2026-06-12)
 
-- [ ] Add producer coverage checks for donor follow-up and board/report approvals after Reporting is repaired.
-- [ ] Add task action affordances by entity type.
-- [ ] Add dashboard widgets for overdue, due soon, blocked, and assigned-to-me tasks.
+- [x] Add dashboard summary widget (overdue, due soon, blocked, assigned-to-me tiles) — `components/tasks/TaskSummaryWidget.tsx` + `GET /api/org/[orgId]/tasks/summary`
+- [x] Add task entity link affordances — `lib/tasks/entity-links.ts` + chips in `TaskInbox`
+- [x] Add Tasks nav entry in org layout
+- [ ] Add producer coverage for donor follow-up and board/report approvals — deferred until Reporting (Phase 2.2) ships
 
 ### Task 2.2: Compliance Operations
 

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { pickActiveOrg } from '@/lib/org-cookie';
+import IRS990PFWorksheet from '@/components/compliance/IRS990PFWorksheet';
 
 const FILING_TYPE_LABELS: Record<string, string> = {
   form_990pf: 'Form 990-PF',
@@ -687,6 +688,11 @@ export default function CompliancePage() {
             </div>
           )}
         </section>
+
+        {/* ─── Section 5: 990-PF Part XIII Worksheet ─── */}
+        {portfolioId && (
+          <IRS990PFWorksheet portfolioId={portfolioId} />
+        )}
 
         {/* ─── Annual Foundation Checklist ─── */}
         <section className="rounded-2xl border border-black/5 bg-white p-6 shadow-soft">

@@ -275,7 +275,7 @@ describe('POST bulk-transition — success paths (207)', () => {
     expect(res.status).toBe(207);
 
     expect(decisionInsertSpy).toHaveBeenCalled();
-    const inserted = decisionInsertSpy.mock.calls[0][0];
+    const inserted = (decisionInsertSpy.mock.calls as any[][])[0][0];
     const today = new Date().toISOString().slice(0, 10);
     expect(inserted.decision_date).toBe(today);
     expect(inserted.decided_by).toBe(USER_ID);

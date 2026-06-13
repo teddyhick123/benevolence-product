@@ -93,7 +93,7 @@ export default function FilingCalendar({ orgId }: Props) {
   async function handleMarkFiled(filing: Filing) {
     setSaving(true);
     try {
-      await fetch(`/api/org/${orgId}/compliance/filing-calendar`, {
+      const res = await fetch(`/api/org/${orgId}/compliance/filing-calendar`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -103,6 +103,11 @@ export default function FilingCalendar({ orgId }: Props) {
           filing_reference: filedForm.filing_reference || null,
         }),
       });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: 'Unknown error' }));
+        alert(err.error || 'Failed to mark filing as filed');
+        return;
+      }
       setShowMarkFiledModal(null);
       await load();
     } finally {
@@ -113,7 +118,7 @@ export default function FilingCalendar({ orgId }: Props) {
   async function handleAddFiling() {
     setSaving(true);
     try {
-      await fetch(`/api/org/${orgId}/compliance/filing-calendar`, {
+      const res = await fetch(`/api/org/${orgId}/compliance/filing-calendar`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -125,6 +130,11 @@ export default function FilingCalendar({ orgId }: Props) {
           description: newFilingForm.description || undefined,
         }),
       });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: 'Unknown error' }));
+        alert(err.error || 'Failed to add filing');
+        return;
+      }
       setShowAddModal(false);
       await load();
     } finally {

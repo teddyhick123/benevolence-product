@@ -133,5 +133,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
   // Delegate to POST with an empty body — runs all producers for all orgs
-  return POST(new NextRequest(req.url, { method: 'POST', headers: req.headers, body: '{}' }));
+  const fwdHeaders = new Headers(req.headers);
+  fwdHeaders.set('x-job-secret', token);
+  return POST(new NextRequest(req.url, { method: 'POST', headers: fwdHeaders, body: '{}' }));
 }

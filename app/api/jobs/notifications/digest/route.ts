@@ -66,5 +66,7 @@ export async function GET(req: NextRequest) {
   if (!process.env.CRON_SECRET || token !== process.env.CRON_SECRET) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
-  return POST(new NextRequest(req.url, { method: 'POST', headers: req.headers, body: '{}' }));
+  const fwdHeaders = new Headers(req.headers);
+  fwdHeaders.set('x-job-secret', token);
+  return POST(new NextRequest(req.url, { method: 'POST', headers: fwdHeaders, body: '{}' }));
 }

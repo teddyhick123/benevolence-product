@@ -124,3 +124,14 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
+
+// Vercel Cron invocation — GET with Authorization: Bearer <CRON_SECRET>
+export async function GET(req: NextRequest): Promise<NextResponse> {
+  const auth = req.headers.get('authorization') ?? '';
+  const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+  if (!process.env.CRON_SECRET || token !== process.env.CRON_SECRET) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+  // Delegate to POST with an empty body — runs all producers for all orgs
+  return POST(new NextRequest(req.url, { method: 'POST', headers: req.headers, body: '{}' }));
+}

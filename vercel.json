@@ -1,0 +1,16 @@
+{
+  "crons": [
+    {
+      "path": "/api/jobs/tasks/generate",
+      "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/jobs/notifications/fanout",
+      "schedule": "0 7 * * *"
+    },
+    {
+      "path": "/api/jobs/notifications/digest",
+      "schedule": "0 8 * * *"
+    }
+  ]
+}

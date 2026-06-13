@@ -79,3 +79,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: err.message, scanned, created, suppressed, errors }, { status: 500 });
   }
 }
+
+// Vercel Cron invocation — GET with Authorization: Bearer <CRON_SECRET>
+export async function GET(req: NextRequest) {
+  const auth = req.headers.get('authorization') ?? '';
+  const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+  if (!process.env.CRON_SECRET || token !== process.env.CRON_SECRET) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+  return POST(new NextRequest(req.url, { method: 'POST', headers: req.headers, body: '{}' }));
+}

@@ -5,14 +5,16 @@ import { useState, useEffect } from 'react';
 interface Filing {
   id: string;
   filing_type: string;
-  tax_year: number;
-  jurisdiction: string;
+  title: string;
+  period_start: string | null;
+  period_end: string | null;
+  jurisdiction: string | null;
   description: string | null;
   due_date: string;
-  extended_due_date: string | null;
+  extension_due_date: string | null;
   status: string;
-  filed_date: string | null;
-  confirmation_number: string | null;
+  completed_at: string | null;
+  filing_reference: string | null;
   urgency?: string;
   days_until_due?: number;
 }
@@ -62,10 +64,14 @@ export default function FilingCalendar({ orgId }: Props) {
   const [statusFilter, setStatusFilter] = useState('');
   const [showMarkFiledModal, setShowMarkFiledModal] = useState<Filing | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
-  const [filedForm, setFiledForm] = useState({ filed_date: new Date().toISOString().split('T')[0], confirmation_number: '' });
+  const [filedForm, setFiledForm] = useState({ completed_at: new Date().toISOString().split('T')[0], filing_reference: '' });
   const [newFilingForm, setNewFilingForm] = useState({
-    filing_type: '990_pf', tax_year: new Date().getFullYear(), jurisdiction: 'federal',
-    due_date: '', description: '',
+    filing_type: '990_pf',
+    title: '',
+    period_end: `${new Date().getFullYear()}-12-31`,
+    jurisdiction: 'federal',
+    due_date: '',
+    description: '',
   });
   const [saving, setSaving] = useState(false);
 
@@ -88,13 +94,13 @@ export default function FilingCalendar({ orgId }: Props) {
     setSaving(true);
     try {
       await fetch(`/api/org/${orgId}/compliance/filing-calendar`, {
-        method: 'POST',
+        method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           id: filing.id,
           status: 'filed',
-          filed_date: filedForm.filed_date,
-          confirmation_number: filedForm.confirmation_number || null,
+          completed_at: filedForm.completed_at ? new Date(filedForm.completed_at).toISOString() : new Date().toISOString(),
+          filing_reference: filedForm.filing_reference || null,
         }),
       });
       setShowMarkFiledModal(null);
@@ -110,7 +116,14 @@ export default function FilingCalendar({ orgId }: Props) {
       await fetch(`/api/org/${orgId}/compliance/filing-calendar`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newFilingForm),
+        body: JSON.stringify({
+          filing_type: newFilingForm.filing_type,
+          title: newFilingForm.title || FILING_TYPE_LABELS[newFilingForm.filing_type] || newFilingForm.filing_type,
+          period_end: newFilingForm.period_end,
+          jurisdiction: newFilingForm.jurisdiction,
+          due_date: newFilingForm.due_date,
+          description: newFilingForm.description || undefined,
+        }),
       });
       setShowAddModal(false);
       await load();
@@ -168,7 +181,7 @@ export default function FilingCalendar({ orgId }: Props) {
           {(() => {
             const byMonth: Record<string, typeof filings> = {};
             filings.forEach(f => {
-              const d = new Date(f.extended_due_date || f.due_date);
+              const d = new Date(f.extension_due_date || f.due_date);
               const key = isNaN(d.getTime()) ? 'Unknown' : d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
               byMonth[key] = [...(byMonth[key] || []), f];
             });
@@ -179,7 +192,7 @@ export default function FilingCalendar({ orgId }: Props) {
                   {mFilings.map(f => (
                     <div key={f.id} className="flex items-start gap-3">
                       <div className={`mt-0.5 text-xs font-medium w-6 text-right shrink-0 ${f.status === 'filed' ? 'text-green-600' : f.urgency === 'critical' ? 'text-red-600' : 'text-gray-500'}`}>
-                        {new Date(f.extended_due_date || f.due_date).getDate()}
+                        {new Date(f.extension_due_date || f.due_date).getDate()}
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
@@ -187,7 +200,7 @@ export default function FilingCalendar({ orgId }: Props) {
                           <span className={`text-xs px-1.5 py-0.5 rounded-full ${STATUS_COLORS[f.status] || 'bg-gray-100 text-gray-600'}`}>{f.status.replace(/_/g, ' ')}</span>
                           {getUrgencyBadge(f.days_until_due, f.status)}
                         </div>
-                        {f.jurisdiction !== 'federal' && <span className="text-xs text-gray-400">{f.jurisdiction.toUpperCase()}</span>}
+                        {f.jurisdiction && f.jurisdiction !== 'federal' && <span className="text-xs text-gray-400">{f.jurisdiction.toUpperCase()}</span>}
                       </div>
                     </div>
                   ))}
@@ -203,8 +216,8 @@ export default function FilingCalendar({ orgId }: Props) {
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="font-medium text-gray-900 text-sm">{FILING_TYPE_LABELS[f.filing_type] || f.filing_type}</span>
-                  <span className="text-xs text-gray-500">TY {f.tax_year}</span>
-                  {f.jurisdiction !== 'federal' && (
+                  <span className="text-xs text-gray-500">TY {f.period_end ? new Date(f.period_end).getFullYear() : ''}</span>
+                  {f.jurisdiction && f.jurisdiction !== 'federal' && (
                     <span className="text-xs bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">{f.jurisdiction.toUpperCase()}</span>
                   )}
                   <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_COLORS[f.status] || 'bg-gray-100 text-gray-700'}`}>
@@ -214,15 +227,15 @@ export default function FilingCalendar({ orgId }: Props) {
                 </div>
                 {f.description && <p className="text-xs text-gray-500 mt-0.5">{f.description}</p>}
                 <div className="text-xs text-gray-400 mt-0.5">
-                  Due: {f.extended_due_date || f.due_date}
-                  {f.filed_date && ` · Filed: ${f.filed_date}`}
-                  {f.confirmation_number && ` · Conf: ${f.confirmation_number}`}
+                  Due: {f.extension_due_date || f.due_date}
+                  {f.completed_at && ` · Filed: ${new Date(f.completed_at).toLocaleDateString()}`}
+                  {f.filing_reference && ` · Ref: ${f.filing_reference}`}
                 </div>
               </div>
               <div className="flex-shrink-0">
                 {f.status !== 'filed' && f.status !== 'not_required' && (
                   <button
-                    onClick={() => { setShowMarkFiledModal(f); setFiledForm({ filed_date: new Date().toISOString().split('T')[0], confirmation_number: '' }); }}
+                    onClick={() => { setShowMarkFiledModal(f); setFiledForm({ completed_at: new Date().toISOString().split('T')[0], filing_reference: '' }); }}
                     className="text-xs text-azure hover:text-azure/80 font-medium whitespace-nowrap"
                   >
                     Mark Filed
@@ -239,16 +252,16 @@ export default function FilingCalendar({ orgId }: Props) {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-xl max-w-sm w-full p-6 space-y-4">
             <h3 className="font-semibold text-gray-900">Mark as Filed</h3>
-            <p className="text-sm text-gray-600">{FILING_TYPE_LABELS[showMarkFiledModal.filing_type]} — TY {showMarkFiledModal.tax_year}</p>
+            <p className="text-sm text-gray-600">{FILING_TYPE_LABELS[showMarkFiledModal.filing_type]} — TY {showMarkFiledModal.period_end ? new Date(showMarkFiledModal.period_end).getFullYear() : ''}</p>
             <div className="space-y-3">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Filed Date</label>
-                <input type="date" value={filedForm.filed_date} onChange={e => setFiledForm(f => ({ ...f, filed_date: e.target.value }))}
+                <input type="date" value={filedForm.completed_at} onChange={e => setFiledForm(f => ({ ...f, completed_at: e.target.value }))}
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Confirmation Number</label>
-                <input value={filedForm.confirmation_number} onChange={e => setFiledForm(f => ({ ...f, confirmation_number: e.target.value }))}
+                <label className="block text-sm font-medium text-gray-700 mb-1">Filing Reference / Confirmation</label>
+                <input value={filedForm.filing_reference} onChange={e => setFiledForm(f => ({ ...f, filing_reference: e.target.value }))}
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" placeholder="Optional" />
               </div>
             </div>
@@ -276,10 +289,15 @@ export default function FilingCalendar({ orgId }: Props) {
                   {Object.entries(FILING_TYPE_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
                 </select>
               </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
+                <input value={newFilingForm.title} onChange={e => setNewFilingForm(f => ({ ...f, title: e.target.value }))}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" placeholder="Optional — defaults to filing type label" />
+              </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Tax Year</label>
-                  <input type="number" value={newFilingForm.tax_year} onChange={e => setNewFilingForm(f => ({ ...f, tax_year: parseInt(e.target.value) }))}
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Period End</label>
+                  <input type="date" value={newFilingForm.period_end} onChange={e => setNewFilingForm(f => ({ ...f, period_end: e.target.value }))}
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
                 </div>
                 <div>

@@ -74,6 +74,9 @@ export default function FilingCalendar({ orgId }: Props) {
     description: '',
   });
   const [saving, setSaving] = useState(false);
+  const [expandedFilingId, setExpandedFilingId] = useState<string | null>(null);
+  const [attachments, setAttachments] = useState<Record<string, any[]>>({});
+  const [uploading, setUploading] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -140,6 +143,47 @@ export default function FilingCalendar({ orgId }: Props) {
     } finally {
       setSaving(false);
     }
+  }
+
+  async function loadAttachments(filingId: string) {
+    const res = await fetch(`/api/org/${orgId}/compliance/filing-calendar/${filingId}/attachments`);
+    const json = await res.json();
+    setAttachments(prev => ({ ...prev, [filingId]: json.data || [] }));
+  }
+
+  function toggleExpand(filingId: string) {
+    if (expandedFilingId === filingId) {
+      setExpandedFilingId(null);
+    } else {
+      setExpandedFilingId(filingId);
+      loadAttachments(filingId);
+    }
+  }
+
+  async function handleUpload(filingId: string, file: File) {
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const res = await fetch(`/api/org/${orgId}/compliance/filing-calendar/${filingId}/attachments`, {
+        method: 'POST',
+        body: fd,
+      });
+      if (res.ok) {
+        await loadAttachments(filingId);
+      }
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function handleDeleteAttachment(filingId: string, path: string) {
+    await fetch(`/api/org/${orgId}/compliance/filing-calendar/${filingId}/attachments`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path }),
+    });
+    await loadAttachments(filingId);
   }
 
   const getUrgencyBadge = (days: number | undefined, status: string) => {
@@ -222,36 +266,77 @@ export default function FilingCalendar({ orgId }: Props) {
       ) : (
         <div className="space-y-2">
           {filings.map(f => (
-            <div key={f.id} className={`bg-white border border-gray-200 rounded-lg px-4 py-3 flex items-center gap-4 ${URGENCY_COLORS[f.urgency || 'low'] || ''}`}>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="font-medium text-gray-900 text-sm">{FILING_TYPE_LABELS[f.filing_type] || f.filing_type}</span>
-                  <span className="text-xs text-gray-500">TY {f.period_end ? new Date(f.period_end).getFullYear() : ''}</span>
-                  {f.jurisdiction && f.jurisdiction !== 'federal' && (
-                    <span className="text-xs bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">{f.jurisdiction.toUpperCase()}</span>
-                  )}
-                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_COLORS[f.status] || 'bg-gray-100 text-gray-700'}`}>
-                    {f.status.replace(/_/g, ' ')}
-                  </span>
-                  {getUrgencyBadge(f.days_until_due, f.status)}
+            <div key={f.id} className={`bg-white border border-gray-200 rounded-lg px-4 py-3 ${URGENCY_COLORS[f.urgency || 'low'] || ''}`}>
+              <div className="flex items-center gap-4">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-medium text-gray-900 text-sm">{FILING_TYPE_LABELS[f.filing_type] || f.filing_type}</span>
+                    <span className="text-xs text-gray-500">TY {f.period_end ? new Date(f.period_end).getFullYear() : ''}</span>
+                    {f.jurisdiction && f.jurisdiction !== 'federal' && (
+                      <span className="text-xs bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">{f.jurisdiction.toUpperCase()}</span>
+                    )}
+                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_COLORS[f.status] || 'bg-gray-100 text-gray-700'}`}>
+                      {f.status.replace(/_/g, ' ')}
+                    </span>
+                    {getUrgencyBadge(f.days_until_due, f.status)}
+                  </div>
+                  {f.description && <p className="text-xs text-gray-500 mt-0.5">{f.description}</p>}
+                  <div className="text-xs text-gray-400 mt-0.5">
+                    Due: {f.extension_due_date || f.due_date}
+                    {f.completed_at && ` · Filed: ${new Date(f.completed_at).toLocaleDateString()}`}
+                    {f.filing_reference && ` · Ref: ${f.filing_reference}`}
+                  </div>
                 </div>
-                {f.description && <p className="text-xs text-gray-500 mt-0.5">{f.description}</p>}
-                <div className="text-xs text-gray-400 mt-0.5">
-                  Due: {f.extension_due_date || f.due_date}
-                  {f.completed_at && ` · Filed: ${new Date(f.completed_at).toLocaleDateString()}`}
-                  {f.filing_reference && ` · Ref: ${f.filing_reference}`}
-                </div>
-              </div>
-              <div className="flex-shrink-0">
-                {f.status !== 'filed' && f.status !== 'not_required' && (
+                <div className="flex-shrink-0 flex items-center gap-3">
                   <button
-                    onClick={() => { setShowMarkFiledModal(f); setFiledForm({ completed_at: new Date().toISOString().split('T')[0], filing_reference: '' }); }}
-                    className="text-xs text-azure hover:text-azure/80 font-medium whitespace-nowrap"
+                    onClick={() => toggleExpand(f.id)}
+                    className="text-xs text-azure hover:underline"
                   >
-                    Mark Filed
+                    {expandedFilingId === f.id ? 'Hide docs' : `Docs${(attachments[f.id]?.length ?? 0) > 0 ? ` (${attachments[f.id].length})` : ''}`}
                   </button>
-                )}
+                  {f.status !== 'filed' && f.status !== 'not_required' && (
+                    <button
+                      onClick={() => { setShowMarkFiledModal(f); setFiledForm({ completed_at: new Date().toISOString().split('T')[0], filing_reference: '' }); }}
+                      className="text-xs text-azure hover:text-azure/80 font-medium whitespace-nowrap"
+                    >
+                      Mark Filed
+                    </button>
+                  )}
+                </div>
               </div>
+              {expandedFilingId === f.id && (
+                <div className="mt-2 pt-2 border-t border-gray-100">
+                  <p className="text-xs font-medium text-gray-500 mb-2">Supporting Documents</p>
+                  {(attachments[f.id] ?? []).map((att: any) => (
+                    <div key={att.path} className="flex items-center justify-between text-sm py-1">
+                      <a
+                        href={att.signed_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-azure hover:underline truncate max-w-xs"
+                      >
+                        {att.name}
+                      </a>
+                      <button
+                        onClick={() => handleDeleteAttachment(f.id, att.path)}
+                        className="text-xs text-red-500 hover:text-red-700 ml-2 shrink-0"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ))}
+                  <label className="mt-2 flex items-center gap-2 cursor-pointer text-xs text-gray-500 hover:text-azure">
+                    <input
+                      type="file"
+                      className="hidden"
+                      accept=".pdf,.doc,.docx,.xlsx,.png,.jpg,.jpeg"
+                      onChange={e => e.target.files?.[0] && handleUpload(f.id, e.target.files[0])}
+                      disabled={uploading}
+                    />
+                    {uploading ? 'Uploading...' : '+ Attach document'}
+                  </label>
+                </div>
+              )}
             </div>
           ))}
         </div>

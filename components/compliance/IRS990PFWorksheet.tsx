@@ -2,26 +2,32 @@
 
 import { useState, useEffect } from 'react';
 
-interface Grant {
+interface GrantDetail {
   id: string;
-  contribution_date: string;
-  recipient_name: string;
+  date: string;
+  recipient: string;
   recipient_ein: string | null;
-  contribution_type: string;
-  fair_market_value: number;
+  recipient_type: string | null;
+  amount: number;
   deductible_amount: number;
+  type: string;
+  description: string | null;
 }
 
 interface WorksheetData {
   portfolio: { id: string; name: string };
-  taxYear: number;
-  grants: Grant[];
-  summary: {
-    totalQualifyingDistributions: number;
-    totalGrantAmount: number;
-    distributionCount: number;
-    fivePercentMinimumDistribution: number | null;
-    qualifiesForMinimumDistribution: boolean | null;
+  tax_year: number;
+  part_xi: {
+    fair_market_value_assets: number | null;
+    required_payout: number | null;
+    actual_payout: number;
+    qualifying_distributions_total: number;
+  };
+  part_xii: {
+    grants_count: number;
+    grants_total: number;
+    qualifying_distributions_total: number;
+    grants_detail: GrantDetail[];
   };
 }
 
@@ -110,28 +116,28 @@ export default function IRS990PFWorksheet({ portfolioId, year }: Props) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {data.grants.length === 0 && (
+                {data.part_xii.grants_detail.length === 0 && (
                   <tr>
                     <td colSpan={5} className="py-6 text-center text-gray-400 text-sm">
                       No qualifying distributions recorded for {selectedYear}
                     </td>
                   </tr>
                 )}
-                {data.grants.map(g => (
+                {data.part_xii.grants_detail.map(g => (
                   <tr key={g.id} className="hover:bg-gray-50">
                     <td className="py-2 pr-4 text-gray-600 whitespace-nowrap">
-                      {new Date(g.contribution_date).toLocaleDateString('en-US', {
+                      {new Date(g.date).toLocaleDateString('en-US', {
                         month: 'short',
                         day: 'numeric',
                         year: 'numeric',
                       })}
                     </td>
-                    <td className="py-2 pr-4 font-medium text-gray-800">{g.recipient_name}</td>
+                    <td className="py-2 pr-4 font-medium text-gray-800">{g.recipient}</td>
                     <td className="py-2 pr-4 text-gray-500 font-mono text-xs">
                       {g.recipient_ein ?? '—'}
                     </td>
                     <td className="py-2 pr-4 text-gray-500 capitalize">
-                      {g.contribution_type.replace(/_/g, ' ')}
+                      {g.type.replace(/_/g, ' ')}
                     </td>
                     <td className="py-2 text-right font-medium text-gray-900">
                       {fmt(g.deductible_amount)}
@@ -142,10 +148,10 @@ export default function IRS990PFWorksheet({ portfolioId, year }: Props) {
               <tfoot>
                 <tr className="border-t-2 border-gray-300">
                   <td colSpan={4} className="py-2 pr-4 text-sm font-semibold text-gray-700">
-                    Total Qualifying Distributions ({data.summary.distributionCount} grants)
+                    Total Qualifying Distributions ({data.part_xii.grants_count} grants)
                   </td>
                   <td className="py-2 text-right font-bold text-gray-900">
-                    {fmt(data.summary.totalQualifyingDistributions)}
+                    {fmt(data.part_xii.qualifying_distributions_total)}
                   </td>
                 </tr>
               </tfoot>
@@ -156,30 +162,30 @@ export default function IRS990PFWorksheet({ portfolioId, year }: Props) {
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
               5% Minimum Distribution Requirement
             </p>
-            {data.summary.fivePercentMinimumDistribution !== null ? (
+            {data.part_xi.required_payout !== null ? (
               <div className="flex flex-wrap items-start gap-6">
                 <div>
                   <p className="text-xs text-gray-500">Required (5% of FMV assets)</p>
                   <p className="text-lg font-semibold text-gray-700">
-                    {fmt(data.summary.fivePercentMinimumDistribution)}
+                    {fmt(data.part_xi.required_payout)}
                   </p>
                 </div>
                 <div>
                   <p className="text-xs text-gray-500">Actual qualifying distributions</p>
                   <p className="text-lg font-semibold text-gray-700">
-                    {fmt(data.summary.totalQualifyingDistributions)}
+                    {fmt(data.part_xi.qualifying_distributions_total)}
                   </p>
                 </div>
                 <div>
                   <p className="text-xs text-gray-500">Status</p>
                   <span
                     className={`inline-flex items-center text-sm font-semibold mt-0.5 ${
-                      data.summary.qualifiesForMinimumDistribution
+                      data.part_xi.qualifying_distributions_total >= data.part_xi.required_payout!
                         ? 'text-green-700'
                         : 'text-red-700'
                     }`}
                   >
-                    {data.summary.qualifiesForMinimumDistribution
+                    {data.part_xi.qualifying_distributions_total >= data.part_xi.required_payout!
                       ? 'Minimum distribution met'
                       : 'Below minimum distribution requirement'}
                   </span>

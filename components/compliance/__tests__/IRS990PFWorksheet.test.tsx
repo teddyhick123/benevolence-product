@@ -5,26 +5,34 @@ import IRS990PFWorksheet from '../IRS990PFWorksheet';
 const PORTFOLIO_ID = 'aaaa-0000-0000-0000-bbbbbbbbbbbb';
 const MOCK_DATA = {
   portfolio: { id: PORTFOLIO_ID, name: 'Test Foundation' },
-  taxYear: 2024,
-  grants: [
-    {
-      id: '1',
-      contribution_date: '2024-03-15',
-      recipient_name: 'Community Food Bank',
-      recipient_ein: '12-3456789',
-      contribution_type: 'cash',
-      fair_market_value: 50000,
-      deductible_amount: 50000,
-    },
-  ],
-  summary: {
-    totalQualifyingDistributions: 50000,
-    totalGrantAmount: 50000,
-    distributionCount: 1,
-    fivePercentMinimumDistribution: 40000,
-    qualifiesForMinimumDistribution: true,
+  tax_year: 2024,
+  generated_at: '2026-06-13T00:00:00Z',
+  part_i: { net_investment_income: null, excise_tax_amount: null, excise_tax_rate: 1.39, total_grants: 50000, total_expenses: null },
+  part_xi: {
+    fair_market_value_assets: 800000,
+    required_payout: 40000,
+    actual_payout: 50000,
+    payout_deficit: null,
+    qualifying_distributions_total: 50000,
   },
-  pf990: null,
+  part_xii: {
+    grants_count: 1,
+    grants_total: 50000,
+    qualifying_distributions_total: 50000,
+    grants_detail: [
+      {
+        id: '1',
+        date: '2024-03-15',
+        recipient: 'Community Food Bank',
+        recipient_ein: '12-3456789',
+        recipient_type: 'public_charity',
+        amount: 50000,
+        deductible_amount: 50000,
+        type: 'cash',
+        description: null,
+      },
+    ],
+  },
 };
 
 beforeEach(() => {
@@ -63,11 +71,11 @@ describe('IRS990PFWorksheet', () => {
       ok: true,
       json: async () => ({
         ...MOCK_DATA,
-        grants: [],
-        summary: {
-          ...MOCK_DATA.summary,
-          distributionCount: 0,
-          totalQualifyingDistributions: 0,
+        part_xii: {
+          ...MOCK_DATA.part_xii,
+          grants_detail: [],
+          grants_count: 0,
+          qualifying_distributions_total: 0,
         },
       }),
     });

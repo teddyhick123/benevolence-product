@@ -14,7 +14,8 @@
 //
 // Error mapping (from the route's catch block):
 //   - InvalidTransitionError | DecisionRequiredError → 422
-//   - Any other thrown Error (including "Grant not found") → 500
+//   - GrantNotFoundError → 404
+//   - Any other thrown Error → 500
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { NextRequest } from 'next/server';
@@ -298,6 +299,19 @@ describe('POST /api/org/[orgId]/grants/[grantId]/transition — lifecycle valida
 // ─── Grant not found (P0) ─────────────────────────────────────────────────────
 
 describe('POST /api/org/[orgId]/grants/[grantId]/transition — grant not found', () => {
+  it('returns 404 when the grant belongs to a different organization', async () => {
+    _grantFetchData = {
+      lifecycle_stage: 'draft',
+      org_id: '99999999-9999-9999-9999-999999999999',
+    };
+    const req = makeRequest(transitionUrl(), { to_stage: 'prospect' });
+
+    const res = await POST(req, makeParams(ORG_ID, GRANT_ID));
+
+    expect(res.status).toBe(404);
+    expect(await res.json()).toMatchObject({ error: expect.stringMatching(/Grant not found/i) });
+  });
+
   it('returns 404 when the grant does not exist (DB returns no row)', async () => {
     // Arrange — transitionGrant throws GrantNotFoundError, which the route catches → 404
     _grantFetchData = null;

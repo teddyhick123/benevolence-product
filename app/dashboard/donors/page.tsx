@@ -56,7 +56,7 @@ export default function DonorsPage() {
           const activeOrg = pickActiveOrg((data.organizations ?? []) as Array<{ id: string; modules?: Record<string, boolean> }>);
           if (activeOrg) {
             setOrgId(activeOrg.id);
-            setModuleEnabled(!!activeOrg.modules?.donors);
+            setModuleEnabled(!!activeOrg.modules?.donors || !!activeOrg.modules?.donor_management);
           }
         }
       } catch {

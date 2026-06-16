@@ -98,33 +98,36 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
     count = metrics.length;
   } else {
     // --- default path: use v_portfolio_kpi_latest view ---
-    const [latestResult, factsResult] = await Promise.all([
+    const [latestResult, holdingsResult] = await Promise.all([
       sb
         .from('v_portfolio_kpi_latest')
         .select('*', { count: 'exact' })
         .eq('portfolio_id', portfolio_id)
         .order('metric_code', { ascending: true })
         .range(offset, offset + limit - 1),
-      // Get recent metric_facts to compute previous-period delta
       sb
-        .from('metric_facts')
-        .select('metric_code, value, period_end, holding_id')
-        .in(
-          'holding_id',
-          sb
-            .from('holdings')
-            .select('id')
-            .eq('portfolio_id', portfolio_id)
-            .is('deleted_at', null) as any
-        )
-        .order('period_end', { ascending: false })
-        .limit(2000),
+        .from('holdings')
+        .select('id')
+        .eq('portfolio_id', portfolio_id)
+        .is('deleted_at', null),
     ]);
 
     metrics = latestResult.data;
     error = latestResult.error;
     count = latestResult.count;
-    allFacts = factsResult.data;
+
+    const holdingIds = (holdingsResult.data ?? []).map(holding => holding.id);
+    if (holdingIds.length > 0) {
+      const { data: factsData } = await sb
+        .from('metric_facts')
+        .select('metric_code, value, period_end, holding_id')
+        .in('holding_id', holdingIds)
+        .order('period_end', { ascending: false })
+        .limit(2000);
+      allFacts = factsData;
+    } else {
+      allFacts = [];
+    }
   }
 
   if (error) {

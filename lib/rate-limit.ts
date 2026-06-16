@@ -1,48 +1,54 @@
 import { Ratelimit } from '@upstash/ratelimit';
 import { Redis } from '@upstash/redis';
 
-// Initialize Redis client
-const redis = new Redis({
-  url: process.env.UPSTASH_REDIS_REST_URL!,
-  token: process.env.UPSTASH_REDIS_REST_TOKEN!,
-});
+type RateLimitResult = {
+  success: boolean;
+  reset: number;
+  remaining: number;
+  limit: number;
+};
+
+type RateLimiter = {
+  limit(identifier: string): Promise<RateLimitResult>;
+};
+
+const redisUrl = process.env.UPSTASH_REDIS_REST_URL;
+const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN;
+const redis = redisUrl && redisToken ? new Redis({ url: redisUrl, token: redisToken }) : null;
+
+function createLimiter(limit: number, window: Parameters<typeof Ratelimit.slidingWindow>[1], prefix: string): RateLimiter {
+  if (!redis) {
+    return {
+      async limit() {
+        return { success: true, reset: 0, remaining: limit, limit };
+      },
+    };
+  }
+
+  return new Ratelimit({
+    redis,
+    limiter: Ratelimit.slidingWindow(limit, window),
+    analytics: true,
+    prefix,
+  });
+}
 
 // Rate limiter for anonymous API requests (general protection)
 // 100 requests per hour for unauthenticated users
-export const anonymousLimiter = new Ratelimit({
-  redis,
-  limiter: Ratelimit.slidingWindow(100, '1h'),
-  analytics: true,
-  prefix: 'ratelimit:anonymous',
-});
+export const anonymousLimiter = createLimiter(100, '1h', 'ratelimit:anonymous');
 
 // Rate limiter for authentication endpoints (brute force protection)
 // 10 attempts per 15 minutes
-export const authLimiter = new Ratelimit({
-  redis,
-  limiter: Ratelimit.slidingWindow(10, '15m'),
-  analytics: true,
-  prefix: 'ratelimit:auth',
-});
+export const authLimiter = createLimiter(10, '15m', 'ratelimit:auth');
 
 // Rate limiter for AI endpoints — keyed per user ID, not IP
 // Prevents runaway API spend from a single user/org
 // 30 requests per hour for expensive AI provider routes
-export const aiLimiter = new Ratelimit({
-  redis,
-  limiter: Ratelimit.slidingWindow(30, '1h'),
-  analytics: true,
-  prefix: 'ratelimit:ai',
-});
+export const aiLimiter = createLimiter(30, '1h', 'ratelimit:ai');
 
 // Rate limiter for charity search — keyed per IP
 // 120 requests per minute protects the 2M-row charities table from scraping
-export const charitiesLimiter = new Ratelimit({
-  redis,
-  limiter: Ratelimit.slidingWindow(120, '1m'),
-  analytics: true,
-  prefix: 'ratelimit:charities',
-});
+export const charitiesLimiter = createLimiter(120, '1m', 'ratelimit:charities');
 
 /**
  * Extract IP address from request headers
@@ -70,7 +76,7 @@ export function getIP(req: Request): string {
  * @returns Object with success status and reset timestamp
  */
 export async function checkRateLimit(
-  limiter: Ratelimit,
+  limiter: RateLimiter,
   identifier: string
 ): Promise<{ success: boolean; reset: number; remaining: number; limit: number }> {
   const { success, reset, remaining, limit } = await limiter.limit(identifier);

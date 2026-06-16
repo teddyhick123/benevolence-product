@@ -8,14 +8,16 @@ function makeFiling(overrides = {}) {
   return {
     id: 'filing-1',
     filing_type: '990_pf',
-    tax_year: 2025,
+    title: 'Form 990-PF',
+    period_start: null,
+    period_end: '2025-12-31',
     jurisdiction: 'federal',
     description: null,
     due_date: '2026-05-15',
-    extended_due_date: null,
+    extension_due_date: null,
     status: 'pending',
-    filed_date: null,
-    confirmation_number: null,
+    completed_at: null,
+    filing_reference: null,
     urgency: 'low',
     days_until_due: 90,
     ...overrides,
@@ -58,7 +60,7 @@ describe('FilingCalendar', () => {
   });
 
   it('renders tax year for each filing', async () => {
-    setupFetch([makeFiling({ tax_year: 2025 })]);
+    setupFetch([makeFiling({ period_end: '2025-12-31' })]);
     render(<FilingCalendar orgId="org-1" />);
 
     await waitFor(() => {
@@ -126,9 +128,9 @@ describe('FilingCalendar', () => {
     });
   });
 
-  it('POSTs with status=filed when Mark Filed is submitted', async () => {
+  it('PATCHes with status=filed when Mark Filed is submitted', async () => {
     const fetchMock = vi.fn((url: string, options?: RequestInit) => {
-      if (options?.method === 'POST') {
+      if (options?.method === 'PATCH') {
         return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
       }
       return Promise.resolve({ ok: true, json: () => Promise.resolve({ data: [makeFiling({ status: 'pending' })] }) });
@@ -145,9 +147,9 @@ describe('FilingCalendar', () => {
     fireEvent.click(markFiledButtons.at(-1)!);
 
     await waitFor(() => {
-      const postCall = fetchMock.mock.calls.find(([, opts]) => opts?.method === 'POST');
-      expect(postCall).toBeTruthy();
-      const [, opts] = postCall!;
+      const patchCall = fetchMock.mock.calls.find(([, opts]) => opts?.method === 'PATCH');
+      expect(patchCall).toBeTruthy();
+      const [, opts] = patchCall!;
       const body = JSON.parse(opts!.body as string);
       expect(body.status).toBe('filed');
     });
@@ -186,8 +188,8 @@ describe('FilingCalendar', () => {
     });
   });
 
-  it('uses extended_due_date when available', async () => {
-    setupFetch([makeFiling({ extended_due_date: '2026-08-15' })]);
+  it('uses extension_due_date when available', async () => {
+    setupFetch([makeFiling({ extension_due_date: '2026-08-15' })]);
     render(<FilingCalendar orgId="org-1" />);
 
     await waitFor(() => {

@@ -65,6 +65,44 @@ CREATE TRIGGER trg_portfolio_members_updated_at
   FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
 -- ---------------------------------------------------------------------------
+-- Portfolio authorization helpers
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION user_portfolio_role(p_portfolio_id uuid)
+RETURNS member_role_enum
+LANGUAGE sql STABLE SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT pm.role FROM portfolio_members pm
+  WHERE pm.portfolio_id = p_portfolio_id
+    AND pm.user_id = auth.uid()
+    AND pm.deleted_at IS NULL
+  LIMIT 1;
+$$;
+
+CREATE OR REPLACE FUNCTION can_view_portfolio(p_portfolio_id uuid)
+RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS
+$$
+  SELECT EXISTS (
+    SELECT 1 FROM portfolio_members pm
+    WHERE pm.portfolio_id = p_portfolio_id
+      AND pm.user_id = auth.uid()
+      AND pm.deleted_at IS NULL
+  );
+$$;
+
+CREATE OR REPLACE FUNCTION can_edit_portfolio(p_portfolio_id uuid)
+RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS
+$$
+  SELECT EXISTS (
+    SELECT 1 FROM portfolio_members pm
+    WHERE pm.portfolio_id = p_portfolio_id
+      AND pm.user_id = auth.uid()
+      AND pm.deleted_at IS NULL
+      AND pm.role IN ('member','admin','owner')
+  );
+$$;
+
+-- ---------------------------------------------------------------------------
 -- Constraint: portfolio membership ⊆ org membership
 -- A user cannot be added to a portfolio unless they are already a member of
 -- the org that owns that portfolio.

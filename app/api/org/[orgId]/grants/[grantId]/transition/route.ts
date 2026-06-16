@@ -41,7 +41,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: 'to_stage is required' }, { status: 400 });
     }
 
-    await transitionGrant(grantId, to_stage, user.id, reason, decision);
+    await transitionGrant(grantId, to_stage, user.id, reason, decision, orgId);
 
     return NextResponse.json({ success: true, to_stage });
   } catch (err: any) {

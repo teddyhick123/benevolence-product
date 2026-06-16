@@ -10,6 +10,7 @@ pnpm-lock.yaml
 
 # Next.js build output
 .next/
+.next-walkthrough/
 out/
 
 # Vercel build output
@@ -52,3 +53,8 @@ app/graphify-out/
 components/graphify-out/
 graphify-out/
 lib/graphify-out/
+
+# Walkthrough / Playwright output
+playwright-report/
+test-results/
+tests/walkthrough/.generated/

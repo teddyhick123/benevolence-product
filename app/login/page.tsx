@@ -31,6 +31,14 @@ async function postAuthDestination(fallback: string, isNewUser: boolean = false)
         return '/onboarding';
       }
     }
+
+    const meRes = await fetch('/api/me', { cache: 'no-store' });
+    if (meRes.ok) {
+      const me = await meRes.json();
+      if (me?.recommended_portfolio_id) {
+        return `/dashboard?portfolio_id=${encodeURIComponent(me.recommended_portfolio_id)}`;
+      }
+    }
   } catch {}
   return fallback; // '/welcome' if onboarding completed
 }

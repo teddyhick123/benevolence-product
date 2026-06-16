@@ -610,6 +610,20 @@ When creating a new module, verify:
 - [ ] Routes are guarded by module access
 - [ ] Undo/redo works for mutation tools
 
+## Simulated Walkthrough Testing
+
+When asked to discover bugs through a simulated walkthrough:
+
+1. Run `npm run walkthrough:doctor`, then `npm run walkthrough:reset`.
+2. Choose a documented persona and mission from `/docs/walkthroughs/`.
+3. Use the in-app Browser Use plugin to behave like a real user.
+4. Inspect browser console errors, failed requests, HTTP 5xx responses, server output, and resulting local database state.
+5. Test the happy path plus direct URL/API access, invalid input, interruption, repeated actions, stale tabs, and authorization boundaries.
+6. Record reproducible findings using `/tests/walkthrough/BUG_TEMPLATE.md`.
+7. When fixing a confirmed bug, add a Playwright regression test when practical, reset the baseline, and rerun the affected journey plus `npm run walkthrough:smoke`.
+
+Walkthrough reset and seed commands must only target local Supabase. `db/migrations` remains the schema source of truth; do not create a second migration history for walkthrough tests.
+
 ---
 
 ## Common Pitfalls

@@ -92,6 +92,80 @@ CREATE TRIGGER trg_org_members_updated_at
   FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
 -- ---------------------------------------------------------------------------
+-- Organization authorization helpers
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION org_role_gte(
+  p_org_id uuid,
+  p_min_role member_role_enum
+)
+RETURNS boolean
+LANGUAGE sql STABLE SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM organization_members om
+    WHERE om.org_id = p_org_id
+      AND om.user_id = auth.uid()
+      AND om.deleted_at IS NULL
+      AND CASE p_min_role
+            WHEN 'viewer' THEN om.role IN ('viewer','member','admin','owner')
+            WHEN 'member' THEN om.role IN ('member','admin','owner')
+            WHEN 'admin'  THEN om.role IN ('admin','owner')
+            WHEN 'owner'  THEN om.role = 'owner'
+          END
+  );
+$$;
+
+CREATE OR REPLACE FUNCTION user_org_role(p_org_id uuid)
+RETURNS member_role_enum
+LANGUAGE sql STABLE SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT om.role FROM organization_members om
+  WHERE om.org_id = p_org_id
+    AND om.user_id = auth.uid()
+    AND om.deleted_at IS NULL
+  LIMIT 1;
+$$;
+
+CREATE OR REPLACE FUNCTION can_view_org(p_org_id uuid)
+RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS
+$$ SELECT org_role_gte(p_org_id, 'viewer'); $$;
+
+CREATE OR REPLACE FUNCTION can_edit_org(p_org_id uuid)
+RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS
+$$ SELECT org_role_gte(p_org_id, 'member'); $$;
+
+CREATE OR REPLACE FUNCTION is_org_admin(p_org_id uuid)
+RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS
+$$ SELECT org_role_gte(p_org_id, 'admin'); $$;
+
+CREATE OR REPLACE FUNCTION org_has_module(p_org_id uuid, p_module text)
+RETURNS boolean
+LANGUAGE sql STABLE SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT COALESCE(
+    (
+      SELECT (modules->>(
+        CASE p_module
+          WHEN 'pledge_tracking'       THEN 'pledges'
+          WHEN 'donor_management'      THEN 'donors'
+          WHEN 'tax_optimization'      THEN 'tax'
+          WHEN 'compliance_regulatory' THEN 'compliance'
+          WHEN 'reporting'             THEN 'reports'
+          WHEN 'core'                  THEN 'portfolio'
+          ELSE p_module
+        END
+      ))::boolean
+      FROM organizations
+      WHERE id = p_org_id
+    ),
+    false
+  );
+$$;
+
+-- ---------------------------------------------------------------------------
 -- org_invitations (pending email invites)
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS org_invitations (

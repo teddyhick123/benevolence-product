@@ -1055,6 +1055,7 @@ CREATE TRIGGER trg_notification_events_updated_at
 -- ---------------------------------------------------------------------------
 CREATE OR REPLACE VIEW public.v_grants AS
 SELECT
+  g.id AS id,
   g.id AS grant_id,
   h.id AS holding_id,
   g.org_id,

@@ -76,23 +76,30 @@ export async function POST(req: NextRequest) {
       .from('portfolios')
       .insert({
         org_id,
+        owner_id: user.id,
         name: name.trim(),
-        base_currency: 'USD',
+        settings: { base_currency: 'USD' },
       })
       .select('id')
       .single();
 
     if (portfolioError) {
       console.error('Portfolio creation error:', portfolioError);
-      return NextResponse.json({ org_id, portfolio_id: null }, { status: 201 });
+      await admin.from('organizations').delete().eq('id', org_id);
+      return NextResponse.json({ error: portfolioError.message }, { status: 500 });
     }
 
     // 6. Add owner to portfolio_members
-    await admin.from('portfolio_members').insert({
+    const { error: portfolioMemberError } = await admin.from('portfolio_members').insert({
       portfolio_id: portfolio.id,
       user_id: user.id,
       role: 'owner',
     });
+    if (portfolioMemberError) {
+      console.error('Portfolio membership creation error:', portfolioMemberError);
+      await admin.from('organizations').delete().eq('id', org_id);
+      return NextResponse.json({ error: portfolioMemberError.message }, { status: 500 });
+    }
 
     return NextResponse.json({ org_id, portfolio_id: portfolio.id }, { status: 201 });
   } catch (err: any) {

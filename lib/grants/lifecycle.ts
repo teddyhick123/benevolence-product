@@ -5,7 +5,7 @@
 // Stages that require a grant_decisions record are listed in DECISION_REQUIRED_TRANSITIONS.
 
 import { createAdminClient } from '@/lib/supabase';
-import { LIFECYCLE_STAGES, type LifecycleStage } from './lifecycle-shared';
+import type { LifecycleStage } from './lifecycle-shared';
 
 export { LIFECYCLE_STAGES, type LifecycleStage } from './lifecycle-shared';
 
@@ -88,7 +88,8 @@ export async function transitionGrant(
   toStage: LifecycleStage,
   actorId: string | null,
   reason?: string,
-  decisionPayload?: DecisionPayload
+  decisionPayload?: DecisionPayload,
+  expectedOrgId?: string
 ): Promise<void> {
   const db = createAdminClient();
 
@@ -108,6 +109,9 @@ export async function transitionGrant(
 
   const fromStage = grant.lifecycle_stage as LifecycleStage;
   const orgId: string = grant.org_id;
+  if (expectedOrgId && orgId !== expectedOrgId) {
+    throw new GrantNotFoundError(grantId);
+  }
 
   if (!canTransition(fromStage, toStage)) {
     throw new InvalidTransitionError(fromStage, toStage);

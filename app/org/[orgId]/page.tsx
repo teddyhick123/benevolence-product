@@ -49,16 +49,15 @@ export default async function OrgDashboardPage({ params }: Props) {
     redirect("/login");
   }
 
-  // Get org data
-  const adminClient = createAdminClient();
+  // Prove membership before using the service-role client for the dashboard.
+  const { data: membership } = await supabase
+    .from("organization_members")
+    .select("role")
+    .eq("org_id", orgId)
+    .eq("user_id", user.id)
+    .maybeSingle();
 
-  const { data: org } = await adminClient
-    .from("organizations")
-    .select("id, name, branding, org_type_config, ein, org_type, website, created_at")
-    .eq("id", orgId)
-    .single();
-
-  if (!org) {
+  if (!membership) {
     return (
       <div className="max-w-4xl mx-auto py-12 px-6">
         <div className="bg-red-50 border border-red-200 rounded-xl p-6 text-center">
@@ -79,15 +78,32 @@ export default async function OrgDashboardPage({ params }: Props) {
     );
   }
 
-  // Get user's role in this org
-  const { data: membership } = await adminClient
-    .from("organization_members")
-    .select("role")
-    .eq("org_id", orgId)
-    .eq("user_id", user.id)
+  const adminClient = createAdminClient();
+  const { data: org } = await adminClient
+    .from("organizations")
+    .select("id, name, branding, org_type_config, ein, org_type, website, created_at")
+    .eq("id", orgId)
     .single();
 
-  const userRole = membership?.role || "viewer";
+  if (!org) {
+    return (
+      <div className="max-w-4xl mx-auto py-12 px-6">
+        <div className="bg-red-50 border border-red-200 rounded-xl p-6 text-center">
+          <h1 className="text-xl font-semibold text-red-800 mb-2">
+            Organization Not Found
+          </h1>
+          <p className="text-red-600">
+            This organization doesn&apos;t exist or you don&apos;t have access.
+          </p>
+          <Link href="/dashboard" className="mt-4 inline-block text-azure hover:underline">
+            Go to Dashboard
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  const userRole = membership.role;
 
   // Get enabled modules
   const enabledModules = await getOrgEnabledModules(adminClient, orgId);

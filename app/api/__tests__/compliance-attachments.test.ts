@@ -69,7 +69,7 @@ function setupMocks() {
   mockRemove.mockResolvedValue({ error: null });
 }
 
-import { GET, DELETE } from '@/app/api/org/[orgId]/compliance/filing-calendar/[filingId]/attachments/route';
+import { GET, POST, DELETE } from '@/app/api/org/[orgId]/compliance/filing-calendar/[filingId]/attachments/route';
 
 function makeGet(orgId = ORG_ID, filingId = FILING_ID) {
   return new NextRequest(`http://localhost/api/org/${orgId}/compliance/filing-calendar/${filingId}/attachments`);
@@ -129,6 +129,53 @@ describe('GET /attachments', () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.data).toHaveLength(0);
+  });
+});
+
+describe('POST /attachments', () => {
+  it('returns 401 when unauthenticated', async () => {
+    _authUser = null;
+    const formData = new FormData();
+    formData.append('file', new File(['content'], 'test.pdf', { type: 'application/pdf' }));
+    const req = new NextRequest(`http://localhost/api/org/${ORG_ID}/compliance/filing-calendar/${FILING_ID}/attachments`, {
+      method: 'POST',
+      body: formData,
+    });
+    const res = await POST(req, makeParams());
+    expect(res.status).toBe(401);
+  });
+
+  it('returns 403 when not admin', async () => {
+    _isAdmin = false;
+    const formData = new FormData();
+    formData.append('file', new File(['content'], 'test.pdf', { type: 'application/pdf' }));
+    const req = new NextRequest(`http://localhost/api/org/${ORG_ID}/compliance/filing-calendar/${FILING_ID}/attachments`, {
+      method: 'POST',
+      body: formData,
+    });
+    const res = await POST(req, makeParams());
+    expect(res.status).toBe(403);
+  });
+
+  it('returns 400 when no file provided', async () => {
+    const formData = new FormData();
+    const req = new NextRequest(`http://localhost/api/org/${ORG_ID}/compliance/filing-calendar/${FILING_ID}/attachments`, {
+      method: 'POST',
+      body: formData,
+    });
+    const res = await POST(req, makeParams());
+    expect(res.status).toBe(400);
+  });
+
+  it('returns 415 for disallowed MIME type', async () => {
+    const formData = new FormData();
+    formData.append('file', new File(['<html>evil</html>'], 'evil.html', { type: 'text/html' }));
+    const req = new NextRequest(`http://localhost/api/org/${ORG_ID}/compliance/filing-calendar/${FILING_ID}/attachments`, {
+      method: 'POST',
+      body: formData,
+    });
+    const res = await POST(req, makeParams());
+    expect(res.status).toBe(415);
   });
 });
 

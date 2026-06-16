@@ -3,6 +3,18 @@ import { createServerClient, createAdminClient } from '@/lib/supabase';
 
 export const dynamic = 'force-dynamic';
 
+const ALLOWED_MIME_TYPES = new Set([
+  'application/pdf',
+  'image/jpeg',
+  'image/png',
+  'image/gif',
+  'image/webp',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+]);
+
 interface RouteParams {
   params: Promise<{ orgId: string; filingId: string }>;
 }
@@ -81,6 +93,13 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: 'File exceeds 20 MB limit' }, { status: 413 });
     }
 
+    if (!ALLOWED_MIME_TYPES.has(file.type)) {
+      return NextResponse.json(
+        { error: 'File type not allowed. Accepted: PDF, images, Word, Excel.' },
+        { status: 415 }
+      );
+    }
+
     const db = createAdminClient();
 
     const { data: filing, error: fetchError } = await db
@@ -121,6 +140,8 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       .eq('org_id', orgId);
 
     if (updateError) {
+      // Clean up the orphaned storage object before returning the error
+      await db.storage.from('compliance-documents').remove([path]);
       return NextResponse.json({ error: updateError.message }, { status: 500 });
     }
 
@@ -170,7 +191,11 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: 'Attachment not found' }, { status: 404 });
     }
 
-    await db.storage.from('compliance-documents').remove([path]);
+    const { error: removeError } = await db.storage.from('compliance-documents').remove([path]);
+    // Storage removal failure is non-fatal (file is now unreferenced) but log it
+    if (removeError) {
+      console.warn('[compliance-attachments] Storage remove failed for path:', path, removeError.message);
+    }
 
     const { error: updateError } = await db
       .from('filing_calendar')

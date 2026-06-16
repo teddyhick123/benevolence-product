@@ -11,15 +11,13 @@ DROP POLICY IF EXISTS "compliance_documents_upload"  ON storage.objects;
 DROP POLICY IF EXISTS "compliance_documents_read"    ON storage.objects;
 DROP POLICY IF EXISTS "compliance_documents_service" ON storage.objects;
 
--- Read: org member can download their org's files (path format: orgId/filingId/file)
+-- Read: org admin can download their org's files (path format: orgId/filingId/file)
 CREATE POLICY "compliance_documents_read"
   ON storage.objects FOR SELECT TO authenticated
   USING (
     bucket_id = 'compliance-documents'
-    AND EXISTS (
-      SELECT 1 FROM public.organization_members
-      WHERE org_id::text = split_part(storage.objects.name, '/', 1)
-        AND user_id = auth.uid()
+    AND public.is_org_admin(
+      (split_part(name, '/', 1))::uuid
     )
   );
 

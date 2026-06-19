@@ -380,13 +380,25 @@ describe('Schema contract: tax document storage privacy', () => {
 describe('Schema contract: CPA sharing', () => {
   const migPath = join(process.cwd(), 'db/migrations/0043_tax_cpa_sharing.sql');
   const routePath = join(process.cwd(), 'app/api/portfolio/[id]/tax/cpa-share/route.ts');
+  const publicRoutePath = join(process.cwd(), 'app/api/tax/cpa/[token]/route.ts');
+  const publicDownloadPath = join(process.cwd(), 'app/api/tax/cpa/[token]/download/route.ts');
+  const publicPagePath = join(process.cwd(), 'app/tax/cpa/[token]/page.tsx');
+  const publicAccessPath = join(process.cwd(), 'lib/tax/cpa-public-access.ts');
   const helperPath = join(process.cwd(), 'lib/tax/cpa-collaboration.ts');
   let src: string;
   let routeSrc: string;
+  let publicRouteSrc: string;
+  let publicDownloadSrc: string;
+  let publicPageSrc: string;
+  let publicAccessSrc: string;
   let helperSrc: string;
   beforeAll(() => {
     src = readFileSync(migPath, 'utf-8');
     routeSrc = readFileSync(routePath, 'utf-8');
+    publicRouteSrc = readFileSync(publicRoutePath, 'utf-8');
+    publicDownloadSrc = readFileSync(publicDownloadPath, 'utf-8');
+    publicPageSrc = readFileSync(publicPagePath, 'utf-8');
+    publicAccessSrc = readFileSync(publicAccessPath, 'utf-8');
     helperSrc = readFileSync(helperPath, 'utf-8');
   });
 
@@ -416,6 +428,32 @@ describe('Schema contract: CPA sharing', () => {
   it('CPA share route does not select persisted token hashes into responses', () => {
     expect(routeSrc).not.toMatch(/from\('cpa_share_links'\)[\s\S]{0,100}\.select\(['"]\*['"]\)/);
     expect(routeSrc).not.toMatch(/\.select\(`[\s\S]{0,300}share_token[\s\S]{0,300}`\)/);
+  });
+
+  it('public CPA portal route and page exist', () => {
+    expect(publicRouteSrc).toContain('getCPAPortalPayload');
+    expect(publicDownloadSrc).toContain('createCPADownload');
+    expect(publicPageSrc).toContain('/api/tax/cpa/');
+  });
+
+  it('public CPA endpoints are rate limited', () => {
+    expect(publicRouteSrc).toContain('cpaPortalLimiter');
+    expect(publicDownloadSrc).toContain('cpaPortalLimiter');
+  });
+
+  it('public CPA access uses timing-safe hash comparison', () => {
+    expect(publicAccessSrc).toContain('crypto.timingSafeEqual');
+    expect(publicAccessSrc).toContain('hashShareToken(token)');
+  });
+
+  it('public CPA access writes audit logs and increments access_count', () => {
+    expect(publicAccessSrc).toContain("from('cpa_access_logs')");
+    expect(publicAccessSrc).toContain('access_count');
+  });
+
+  it('CPA sharing dashboard is enabled now that the public portal exists', () => {
+    const portalSrc = readFileSync(join(process.cwd(), 'components/tax/CPACollaborationPortal.tsx'), 'utf-8');
+    expect(portalSrc).toMatch(/const\s+cpaCollaborationEnabled\s*=\s*true/);
   });
 });
 

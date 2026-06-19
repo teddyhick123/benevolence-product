@@ -406,6 +406,52 @@ export default async function NewModulePage() {
 
 ---
 
+## Tax Center Module
+
+### Canonical Tax Center Tables
+
+- `tax_profiles` — portfolio owner's tax filing context (filing status, state)
+- `tax_years` — per-year actuals/planning: `adjusted_gross_income`, generated AGI limits, `standard_deduction`, contribution limit buckets, carryforward inputs, `filing_status`
+- `tax_contributions` — individual charitable contributions; canonical columns include `contribution_date`, `tax_year`, `contribution_type`, `amount_usd`, `fmv_at_donation`, `cost_basis`, `recipient_name`, `recipient_ein`, `property_description`, `notes`, and `qcd_qualified`
+- `holding_contributions` — join between `holdings` and `tax_contributions`
+- `tax_carryforwards` — multi-year carryforward tracking; canonical columns are `amount`, `amount_remaining`, `originating_tax_year`, and `expires_tax_year`
+- `tax_documents` — uploaded substantiation files
+- `cpa_share_links` and `cpa_access_logs` — CPA collaboration links and access audit trail
+
+### Dropped Tax Tables
+
+- `owner_tax_profiles` is dropped and must not be recreated. The canonical AGI source is `tax_years.adjusted_gross_income`, with `tax_profiles.estimated_agi` only as a fallback.
+
+### Canonical Contribution Types
+
+`tax_contributions.contribution_type` and `daf_grants.contribution_type` accept exactly:
+
+```text
+cash | check | wire | stock | crypto | real_estate | other_property
+```
+
+Do not use stale values such as `other`, `ach`, `art`, or `vehicle`.
+
+### Tax Documents
+
+- Storage bucket: `tax-documents`
+- The bucket is private (`public = false`)
+- Upload/download routes must return signed URLs with `createSignedUrl`; never use `getPublicUrl` for tax documents
+
+### Tax Views And Route Guards
+
+Tax views must use `WITH (security_invoker = true)`. All Tax Center routes must still explicitly call `can_view_portfolio(p_portfolio_id)` or `can_edit_portfolio(p_portfolio_id)` before sensitive reads/writes so unauthorized callers receive a crisp 403 instead of empty data.
+
+### CPA Sharing
+
+- Schema lives in `db/migrations/0043_tax_cpa_sharing.sql`
+- `cpa_share_links.share_token` stores only the SHA-256 hash of the raw bearer token; the raw token is shown once at creation and never persisted
+- Public CPA access lives at `/tax/cpa/[token]` and `/api/tax/cpa/[token]/**`
+- Public CPA endpoints are rate-limited by IP, validate links with hash comparison, enforce share permissions, increment `access_count`, and insert `cpa_access_logs` rows for views/downloads
+- Revoke share links with `PATCH /api/portfolio/[id]/tax/cpa-share?share_link_id=...`; `DELETE` is only a compatibility alias
+
+---
+
 ## Key Patterns
 
 ### Authentication & Authorization

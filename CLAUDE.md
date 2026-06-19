@@ -419,7 +419,7 @@ export default async function NewModulePage() {
 - `daf_grants` — donor-advised fund grant records
 - `foundation_990pf_data` — Form 990-PF data for private foundations
 - `tax_documents` — uploaded substantiation files (receipts, acknowledgments, appraisals)
-- `cpa_share_links` — CPA collaboration portal share links (Phase A, UI behind feature flag)
+- `cpa_share_links` — CPA collaboration portal share links
 - `cpa_access_logs` — append-only access log for CPA share activity
 
 ### Dropped tables (must not be recreated)
@@ -450,11 +450,13 @@ These views must be created with `WITH (security_invoker = true)`. Plain Postgre
 
 `v_tax_contributions_enriched` exposes computed fields such as `substantiation_requirement`, `substantiation_status`, `is_compliant`, and `calculated_deductible_amount`; do not add those as physical `tax_contributions` columns unless the schema is deliberately redesigned.
 
-### CPA sharing (Phase A)
+### CPA sharing
 
 - Schema: `cpa_share_links` + `cpa_access_logs` (migration 0043)
 - Always store `share_token` as a SHA-256 hash of the raw token. Never store the raw token.
-- UI is behind `const cpaCollaborationEnabled = false` in `CPACollaborationPortal.tsx`. Phase B (rate limiting, email delivery) is not yet implemented.
+- Public access lives at `/tax/cpa/[token]` and `/api/tax/cpa/[token]/**`.
+- Public CPA endpoints are rate-limited by IP, validate links with hash comparison, enforce share permissions, increment `access_count`, and insert `cpa_access_logs` rows for views/downloads.
+- Revoke share links with `PATCH /api/portfolio/[id]/tax/cpa-share?share_link_id=...`; `DELETE` is only a compatibility alias.
 
 ### AI tools and carryforward data source
 

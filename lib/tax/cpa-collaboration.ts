@@ -31,6 +31,7 @@ export interface CPAShareLink {
     view_carryforwards: boolean;
     view_donor_profile: boolean;
     view_tax_summary: boolean;
+    view_documents?: boolean;
     download_form8283: boolean;
     download_turbotax: boolean;
   };
@@ -132,6 +133,7 @@ export function createDefaultPermissions(): CPAShareLink['permissions'] {
     view_carryforwards: true,
     view_donor_profile: false, // DOB is sensitive
     view_tax_summary: true,
+    view_documents: false,
     download_form8283: true,
     download_turbotax: true,
   };
@@ -190,6 +192,7 @@ ${shareURL}
 ${link.permissions.view_contributions ? '✓ Contribution details' : '✗ Contribution details'}
 ${link.permissions.view_carryforwards ? '✓ Carryforward schedules' : '✗ Carryforward schedules'}
 ${link.permissions.view_tax_summary ? '✓ Tax summary' : '✗ Tax summary'}
+${link.permissions.view_documents ? '✓ Tax documents' : '✗ Tax documents'}
 ${link.permissions.download_form8283 ? '✓ Form 8283 PDF' : '✗ Form 8283 PDF'}
 ${link.permissions.download_turbotax ? '✓ TurboTax (TXF) export' : '✗ TurboTax (TXF) export'}
 

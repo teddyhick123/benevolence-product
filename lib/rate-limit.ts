@@ -50,6 +50,10 @@ export const aiLimiter = createLimiter(30, '1h', 'ratelimit:ai');
 // 120 requests per minute protects the 2M-row charities table from scraping
 export const charitiesLimiter = createLimiter(120, '1m', 'ratelimit:charities');
 
+// Rate limiter for public CPA share links — keyed per IP
+// 20 requests per minute reduces token enumeration risk
+export const cpaPortalLimiter = createLimiter(20, '1m', 'ratelimit:cpa-portal');
+
 /**
  * Extract IP address from request headers
  * Checks x-forwarded-for (Vercel), x-real-ip, and falls back to 'unknown'

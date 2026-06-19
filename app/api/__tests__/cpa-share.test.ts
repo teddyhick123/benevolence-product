@@ -1,12 +1,12 @@
 // app/api/__tests__/cpa-share.test.ts
 //
-// Full test suite for GET / POST / DELETE
+// Full test suite for GET / POST / PATCH / DELETE
 // /api/portfolio/[id]/tax/cpa-share
 //
 // P0 + P1 coverage: auth, contract, security invariants, error propagation.
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { GET, POST, DELETE } from '@/app/api/portfolio/[id]/tax/cpa-share/route';
+import { GET, POST, PATCH, DELETE } from '@/app/api/portfolio/[id]/tax/cpa-share/route';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -87,10 +87,10 @@ function makePostRequest(portfolioId = PORTFOLIO_ID, body: Record<string, unknow
   });
 }
 
-function makeDeleteRequest(portfolioId = PORTFOLIO_ID, shareLinkId?: string): Request {
+function makeRevokeRequest(method: 'PATCH' | 'DELETE', portfolioId = PORTFOLIO_ID, shareLinkId?: string): Request {
   const base = `http://localhost/api/portfolio/${portfolioId}/tax/cpa-share`;
   const url  = shareLinkId ? `${base}?share_link_id=${shareLinkId}` : base;
-  return new Request(url, { method: 'DELETE' });
+  return new Request(url, { method });
 }
 
 const VALID_POST_BODY = {
@@ -389,14 +389,14 @@ describe('POST /api/portfolio/[id]/tax/cpa-share — DB error propagation', () =
   });
 });
 
-// ── DELETE: Validation ────────────────────────────────────────────────────────
+// ── PATCH: Validation ─────────────────────────────────────────────────────────
 
-describe('DELETE /api/portfolio/[id]/tax/cpa-share — validation', () => {
+describe('PATCH /api/portfolio/[id]/tax/cpa-share — validation', () => {
   it('returns 400 when share_link_id query param is missing', async () => {
     // Arrange — no query param on the URL
 
     // Act
-    const res  = await DELETE(makeDeleteRequest(PORTFOLIO_ID, undefined), makeCtx());
+    const res  = await PATCH(makeRevokeRequest('PATCH', PORTFOLIO_ID, undefined), makeCtx());
     const body = await res.json();
 
     // Assert — caught before any DB/auth call
@@ -405,15 +405,15 @@ describe('DELETE /api/portfolio/[id]/tax/cpa-share — validation', () => {
   });
 });
 
-// ── DELETE: Auth & Access Control ────────────────────────────────────────────
+// ── PATCH: Auth & Access Control ──────────────────────────────────────────────
 
-describe('DELETE /api/portfolio/[id]/tax/cpa-share — auth', () => {
+describe('PATCH /api/portfolio/[id]/tax/cpa-share — auth', () => {
   it('returns 403 when can_edit_portfolio returns false', async () => {
     // Arrange
     _canEdit = false;
 
     // Act
-    const res  = await DELETE(makeDeleteRequest(PORTFOLIO_ID, SHARE_LINK_ID), makeCtx());
+    const res  = await PATCH(makeRevokeRequest('PATCH', PORTFOLIO_ID, SHARE_LINK_ID), makeCtx());
     const body = await res.json();
 
     // Assert
@@ -423,15 +423,15 @@ describe('DELETE /api/portfolio/[id]/tax/cpa-share — auth', () => {
   });
 });
 
-// ── DELETE: Error Propagation ─────────────────────────────────────────────────
+// ── PATCH: Error Propagation ──────────────────────────────────────────────────
 
-describe('DELETE /api/portfolio/[id]/tax/cpa-share — error propagation', () => {
+describe('PATCH /api/portfolio/[id]/tax/cpa-share — error propagation', () => {
   it('returns 500 when the revoke_share_link RPC errors', async () => {
     // Arrange
     _revokeError = { message: 'share link not found' };
 
     // Act
-    const res  = await DELETE(makeDeleteRequest(PORTFOLIO_ID, SHARE_LINK_ID), makeCtx());
+    const res  = await PATCH(makeRevokeRequest('PATCH', PORTFOLIO_ID, SHARE_LINK_ID), makeCtx());
     const body = await res.json();
 
     // Assert
@@ -440,15 +440,25 @@ describe('DELETE /api/portfolio/[id]/tax/cpa-share — error propagation', () =>
   });
 });
 
-// ── DELETE: Happy Path ────────────────────────────────────────────────────────
+// ── PATCH: Happy Path ─────────────────────────────────────────────────────────
 
-describe('DELETE /api/portfolio/[id]/tax/cpa-share — happy path', () => {
+describe('PATCH /api/portfolio/[id]/tax/cpa-share — happy path', () => {
   it('returns { success: true } when revocation succeeds', async () => {
     // Act
-    const res  = await DELETE(makeDeleteRequest(PORTFOLIO_ID, SHARE_LINK_ID), makeCtx());
+    const res  = await PATCH(makeRevokeRequest('PATCH', PORTFOLIO_ID, SHARE_LINK_ID), makeCtx());
     const body = await res.json();
 
     // Assert
+    expect(res.status).toBe(200);
+    expect(body).toEqual({ success: true });
+  });
+});
+
+describe('DELETE /api/portfolio/[id]/tax/cpa-share — compatibility alias', () => {
+  it('still revokes for existing callers', async () => {
+    const res = await DELETE(makeRevokeRequest('DELETE', PORTFOLIO_ID, SHARE_LINK_ID), makeCtx());
+    const body = await res.json();
+
     expect(res.status).toBe(200);
     expect(body).toEqual({ success: true });
   });

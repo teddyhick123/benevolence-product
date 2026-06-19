@@ -3,9 +3,7 @@
 import * as React from 'react';
 import { CPAShareLink, getExpirationDisplay } from '@/lib/tax/cpa-collaboration';
 
-// Phase B trigger: enable once rate limiting (e.g. @upstash/ratelimit) and
-// transactional email delivery for share links are implemented.
-const cpaCollaborationEnabled = false;
+const cpaCollaborationEnabled = true;
 
 export interface CPACollaborationPortalProps {
   portfolioId: string;
@@ -55,7 +53,7 @@ export default function CPACollaborationPortal({ portfolioId }: CPACollaboration
 
     try {
       const res = await fetch(`/api/portfolio/${portfolioId}/tax/cpa-share?share_link_id=${shareLinkId}`, {
-        method: 'DELETE',
+        method: 'PATCH',
       });
 
       if (!res.ok) {
@@ -202,7 +200,7 @@ interface ShareLinkCardProps {
 function ShareLinkCard({ link, expanded, onToggleExpand, onRevoke }: ShareLinkCardProps) {
   const [copied, setCopied] = React.useState(false);
 
-  const shareURL = link.share_token ? `${window.location.origin}/tax/cpa/${link.share_token}` : null;
+  const shareURL = null;
   const isActive = !link.revoked_at && (!link.expires_at || new Date(link.expires_at) > new Date());
 
   async function copyToClipboard() {
@@ -314,6 +312,12 @@ function ShareLinkCard({ link, expanded, onToggleExpand, onRevoke }: ShareLinkCa
                   <span>View Tax Summary</span>
                 </div>
               )}
+              {link.permissions.view_documents && (
+                <div className="flex items-center gap-2 text-sm text-neutral-700">
+                  <span className="text-green-600">✓</span>
+                  <span>View Documents</span>
+                </div>
+              )}
               {link.permissions.download_form8283 && (
                 <div className="flex items-center gap-2 text-sm text-neutral-700">
                   <span className="text-green-600">✓</span>
@@ -393,6 +397,7 @@ function CreateShareLinkForm({ portfolioId, onSuccess, onCancel }: CreateShareLi
       view_carryforwards: true,
       view_donor_profile: false,
       view_tax_summary: true,
+      view_documents: false,
       download_form8283: true,
       download_turbotax: true,
     },

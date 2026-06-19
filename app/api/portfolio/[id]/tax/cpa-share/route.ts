@@ -219,10 +219,10 @@ export async function POST(
 }
 
 /**
- * DELETE /api/portfolio/[id]/tax/cpa-share?share_link_id=uuid
+ * PATCH /api/portfolio/[id]/tax/cpa-share?share_link_id=uuid
  * Revoke a CPA share link
  */
-export async function DELETE(
+export async function PATCH(
   req: Request,
   ctx: { params: Promise<{ id: string }> }
 ) {
@@ -272,4 +272,14 @@ export async function DELETE(
       { status: 500, headers: { 'Cache-Control': 'no-store' } }
     );
   }
+}
+
+/**
+ * DELETE is kept as a compatibility alias for existing callers.
+ */
+export async function DELETE(
+  req: Request,
+  ctx: { params: Promise<{ id: string }> }
+) {
+  return PATCH(req, ctx);
 }

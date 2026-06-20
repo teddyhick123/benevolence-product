@@ -721,6 +721,9 @@ CREATE POLICY "tasks: service role can manage"
   USING (true)
   WITH CHECK (true);
 
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.tasks TO authenticated;
+GRANT ALL ON public.tasks TO service_role;
+
 ALTER TABLE public.task_entity_links ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "task_entity_links: org members can view" ON public.task_entity_links;
 CREATE POLICY "task_entity_links: org members can view"
@@ -731,6 +734,14 @@ CREATE POLICY "task_entity_links: org admins can manage"
   ON public.task_entity_links FOR ALL
   USING (public.is_org_admin(org_id))
   WITH CHECK (public.is_org_admin(org_id));
+DROP POLICY IF EXISTS "task_entity_links: service role can manage" ON public.task_entity_links;
+CREATE POLICY "task_entity_links: service role can manage"
+  ON public.task_entity_links FOR ALL TO service_role
+  USING (true)
+  WITH CHECK (true);
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.task_entity_links TO authenticated;
+GRANT ALL ON public.task_entity_links TO service_role;
 
 ALTER TABLE public.task_comments ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "task_comments: org members can view" ON public.task_comments;
@@ -741,6 +752,14 @@ DROP POLICY IF EXISTS "task_comments: org members can comment" ON public.task_co
 CREATE POLICY "task_comments: org members can comment"
   ON public.task_comments FOR INSERT
   WITH CHECK (public.can_view_org(org_id) AND author_id = auth.uid());
+DROP POLICY IF EXISTS "task_comments: service role can manage" ON public.task_comments;
+CREATE POLICY "task_comments: service role can manage"
+  ON public.task_comments FOR ALL TO service_role
+  USING (true)
+  WITH CHECK (true);
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.task_comments TO authenticated;
+GRANT ALL ON public.task_comments TO service_role;
 
 ALTER TABLE public.task_events ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "task_events: org admins can view" ON public.task_events;
@@ -753,6 +772,9 @@ CREATE POLICY "task_events: service role can manage"
   ON public.task_events FOR ALL TO service_role
   USING (true)
   WITH CHECK (true);
+
+GRANT SELECT ON public.task_events TO authenticated;
+GRANT ALL ON public.task_events TO service_role;
 
 ALTER TABLE public.grants ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "grants: org members can view" ON public.grants;
@@ -787,6 +809,9 @@ DROP POLICY IF EXISTS "grant_milestones: service role can manage" ON public.gran
 CREATE POLICY "grant_milestones: service role can manage"
   ON public.grant_milestones FOR ALL TO service_role USING (true) WITH CHECK (true);
 
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.grant_milestones TO authenticated;
+GRANT ALL ON public.grant_milestones TO service_role;
+
 DROP POLICY IF EXISTS "grant_reports: org members can view" ON public.grant_reports;
 CREATE POLICY "grant_reports: org members can view"
   ON public.grant_reports FOR SELECT
@@ -799,6 +824,9 @@ CREATE POLICY "grant_reports: org admins can manage"
 DROP POLICY IF EXISTS "grant_reports: service role can manage" ON public.grant_reports;
 CREATE POLICY "grant_reports: service role can manage"
   ON public.grant_reports FOR ALL TO service_role USING (true) WITH CHECK (true);
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.grant_reports TO authenticated;
+GRANT ALL ON public.grant_reports TO service_role;
 
 ALTER TABLE public.grant_payments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.qualifying_distributions ENABLE ROW LEVEL SECURITY;
@@ -821,6 +849,9 @@ CREATE POLICY "grant_payments: org admins can manage"
 DROP POLICY IF EXISTS "grant_payments: service role can manage" ON public.grant_payments;
 CREATE POLICY "grant_payments: service role can manage"
   ON public.grant_payments FOR ALL TO service_role USING (true) WITH CHECK (true);
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.grant_payments TO authenticated;
+GRANT ALL ON public.grant_payments TO service_role;
 
 DROP POLICY IF EXISTS "qualifying_distributions: portfolio members can view" ON public.qualifying_distributions;
 CREATE POLICY "qualifying_distributions: portfolio members can view"
@@ -1013,6 +1044,14 @@ CREATE POLICY "workflow_instances: org admins can manage"
   ON public.workflow_instances FOR ALL
   USING (public.is_org_admin(org_id))
   WITH CHECK (public.is_org_admin(org_id));
+DROP POLICY IF EXISTS "workflow_instances: service role can manage" ON public.workflow_instances;
+CREATE POLICY "workflow_instances: service role can manage"
+  ON public.workflow_instances FOR ALL TO service_role
+  USING (true)
+  WITH CHECK (true);
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.workflow_instances TO authenticated;
+GRANT ALL ON public.workflow_instances TO service_role;
 
 ALTER TABLE public.workflow_tasks ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "workflow_tasks: inherit workflow view" ON public.workflow_tasks;
@@ -1024,6 +1063,14 @@ CREATE POLICY "workflow_tasks: inherit workflow manage"
   ON public.workflow_tasks FOR ALL
   USING (public.is_org_admin((SELECT wi.org_id FROM public.workflow_instances wi WHERE wi.id = workflow_id)))
   WITH CHECK (public.is_org_admin((SELECT wi.org_id FROM public.workflow_instances wi WHERE wi.id = workflow_id)));
+DROP POLICY IF EXISTS "workflow_tasks: service role can manage" ON public.workflow_tasks;
+CREATE POLICY "workflow_tasks: service role can manage"
+  ON public.workflow_tasks FOR ALL TO service_role
+  USING (true)
+  WITH CHECK (true);
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.workflow_tasks TO authenticated;
+GRANT ALL ON public.workflow_tasks TO service_role;
 
 ALTER TABLE public.notification_events ENABLE ROW LEVEL SECURITY;
 
@@ -1187,6 +1234,10 @@ LEFT JOIN (
   WHERE wi.grant_id IS NOT NULL
   GROUP BY wi.grant_id
 ) wf ON wf.grant_id = vg.grant_id;
+
+GRANT SELECT ON public.v_grants TO authenticated, service_role;
+GRANT SELECT ON public.v_portfolio_grant_summary TO authenticated, service_role;
+GRANT SELECT ON public.v_grant_health TO authenticated, service_role;
 
 CREATE OR REPLACE VIEW public.v_er_grant_compliance
   WITH (security_invoker = true)

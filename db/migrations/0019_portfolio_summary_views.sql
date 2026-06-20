@@ -91,6 +91,11 @@ JOIN holdings h ON h.id = he.id
 WHERE h.status = 'active'
 GROUP BY h.portfolio_id, h.org_id, h.asset_type;
 
+GRANT SELECT ON v_holdings_enriched TO authenticated, service_role;
+GRANT SELECT ON v_holdings TO authenticated, service_role;
+GRANT SELECT ON v_portfolio_summary TO authenticated, service_role;
+GRANT SELECT ON v_asset_allocation TO authenticated, service_role;
+
 -- ---------------------------------------------------------------------------
 -- financial_analysis_cache — AI-generated financial analysis snapshots
 -- Avoids re-running expensive analysis on every dashboard load

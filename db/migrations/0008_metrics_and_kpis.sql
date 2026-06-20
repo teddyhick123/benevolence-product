@@ -128,6 +128,10 @@ CREATE POLICY "kpi_definitions: org admins can manage"
   ON kpi_definitions FOR ALL
   USING (is_org_admin(org_id))
   WITH CHECK (is_org_admin(org_id));
+CREATE POLICY "kpi_definitions: service role can manage"
+  ON kpi_definitions FOR ALL TO service_role
+  USING (true)
+  WITH CHECK (true);
 
 ALTER TABLE metric_facts ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "metric_facts: portfolio members can view"
@@ -137,3 +141,13 @@ CREATE POLICY "metric_facts: portfolio members (member+) can manage"
   ON metric_facts FOR ALL
   USING (can_edit_portfolio((SELECT portfolio_id FROM holdings WHERE id = holding_id)))
   WITH CHECK (can_edit_portfolio((SELECT portfolio_id FROM holdings WHERE id = holding_id)));
+CREATE POLICY "metric_facts: service role can manage"
+  ON metric_facts FOR ALL TO service_role
+  USING (true)
+  WITH CHECK (true);
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON kpi_definitions TO authenticated;
+GRANT ALL ON kpi_definitions TO service_role;
+GRANT SELECT, INSERT, UPDATE, DELETE ON metric_facts TO authenticated;
+GRANT ALL ON metric_facts TO service_role;
+GRANT SELECT ON v_portfolio_kpi_latest TO authenticated, service_role;

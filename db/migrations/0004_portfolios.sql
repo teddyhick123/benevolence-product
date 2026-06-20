@@ -192,6 +192,14 @@ CREATE POLICY "portfolios: portfolio admins can soft-delete"
     user_portfolio_role(id) IN ('admin','owner') OR is_org_admin(org_id)
   );
 
+CREATE POLICY "portfolios: service role can manage"
+  ON portfolios FOR ALL TO service_role
+  USING (true)
+  WITH CHECK (true);
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON portfolios TO authenticated;
+GRANT ALL ON portfolios TO service_role;
+
 -- ---------------------------------------------------------------------------
 -- RLS: portfolio_members
 -- ---------------------------------------------------------------------------
@@ -212,6 +220,14 @@ CREATE POLICY "portfolio_members: portfolio admins can manage"
     OR is_org_admin((SELECT org_id FROM portfolios WHERE id = portfolio_id))
   );
 
+CREATE POLICY "portfolio_members: service role can manage"
+  ON portfolio_members FOR ALL TO service_role
+  USING (true)
+  WITH CHECK (true);
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON portfolio_members TO authenticated;
+GRANT ALL ON portfolio_members TO service_role;
+
 -- ---------------------------------------------------------------------------
 -- RLS: portfolio_settings
 -- ---------------------------------------------------------------------------
@@ -225,3 +241,11 @@ CREATE POLICY "portfolio_settings: admins can manage"
   ON portfolio_settings FOR ALL
   USING (user_portfolio_role(portfolio_id) IN ('admin','owner'))
   WITH CHECK (user_portfolio_role(portfolio_id) IN ('admin','owner'));
+
+CREATE POLICY "portfolio_settings: service role can manage"
+  ON portfolio_settings FOR ALL TO service_role
+  USING (true)
+  WITH CHECK (true);
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON portfolio_settings TO authenticated;
+GRANT ALL ON portfolio_settings TO service_role;

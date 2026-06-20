@@ -769,6 +769,9 @@ CREATE POLICY "grants: service role can manage"
   ON public.grants FOR ALL TO service_role
   USING (true) WITH CHECK (true);
 
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.grants TO authenticated;
+GRANT ALL ON public.grants TO service_role;
+
 ALTER TABLE public.grant_milestones ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.grant_reports ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "grant_milestones: org members can view" ON public.grant_milestones;

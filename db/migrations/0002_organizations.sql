@@ -219,6 +219,14 @@ CREATE POLICY "org: no direct insert"
   ON organizations FOR INSERT
   WITH CHECK (false);
 
+CREATE POLICY "org: service role can manage"
+  ON organizations FOR ALL TO service_role
+  USING (true)
+  WITH CHECK (true);
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON organizations TO authenticated;
+GRANT ALL ON organizations TO service_role;
+
 -- ---------------------------------------------------------------------------
 -- RLS: organization_members
 -- ---------------------------------------------------------------------------
@@ -242,6 +250,14 @@ CREATE POLICY "org_members: users can see own pending"
   ON organization_members FOR SELECT
   USING (user_id = auth.uid());
 
+CREATE POLICY "org_members: service role can manage"
+  ON organization_members FOR ALL TO service_role
+  USING (true)
+  WITH CHECK (true);
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON organization_members TO authenticated;
+GRANT ALL ON organization_members TO service_role;
+
 -- ---------------------------------------------------------------------------
 -- RLS: org_invitations
 -- ---------------------------------------------------------------------------
@@ -260,6 +276,14 @@ CREATE POLICY "org_invitations: anyone can read by token"
     AND status = 'pending'
     AND email = (auth.jwt() ->> 'email')
   );
+
+CREATE POLICY "org_invitations: service role can manage"
+  ON org_invitations FOR ALL TO service_role
+  USING (true)
+  WITH CHECK (true);
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON org_invitations TO authenticated;
+GRANT ALL ON org_invitations TO service_role;
 
 -- ---------------------------------------------------------------------------
 -- Helpful view: current user's orgs

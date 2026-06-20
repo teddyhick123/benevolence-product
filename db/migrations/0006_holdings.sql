@@ -263,6 +263,14 @@ CREATE POLICY "holdings: portfolio admins can soft-delete"
   )
   WITH CHECK (user_portfolio_role(portfolio_id) IN ('admin','owner'));
 
+CREATE POLICY "holdings: service role full access"
+  ON holdings FOR ALL TO service_role
+  USING (true)
+  WITH CHECK (true);
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON holdings TO authenticated;
+GRANT ALL ON holdings TO service_role;
+
 -- ---------------------------------------------------------------------------
 -- RLS: holding_facts
 -- ---------------------------------------------------------------------------
@@ -283,6 +291,14 @@ CREATE POLICY "holding_facts: portfolio members (member+) can manage"
     can_edit_portfolio((SELECT portfolio_id FROM holdings WHERE id = holding_id))
   );
 
+CREATE POLICY "holding_facts: service role full access"
+  ON holding_facts FOR ALL TO service_role
+  USING (true)
+  WITH CHECK (true);
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON holding_facts TO authenticated;
+GRANT ALL ON holding_facts TO service_role;
+
 -- ---------------------------------------------------------------------------
 -- RLS: holding_widgets
 -- ---------------------------------------------------------------------------
@@ -300,6 +316,9 @@ CREATE POLICY "holding_widgets: can manage via holding"
 CREATE POLICY "holding_widgets: service role full access"
   ON holding_widgets FOR ALL TO service_role
   USING (true) WITH CHECK (true);
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON holding_widgets TO authenticated;
+GRANT ALL ON holding_widgets TO service_role;
 
 -- ---------------------------------------------------------------------------
 -- RLS: widgets

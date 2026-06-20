@@ -120,3 +120,10 @@ CREATE POLICY "module_definitions: no user write"
   ON module_definitions FOR INSERT WITH CHECK (false);
 CREATE POLICY "module_definitions: no user update"
   ON module_definitions FOR UPDATE USING (false);
+CREATE POLICY "module_definitions: service role can manage"
+  ON module_definitions FOR ALL TO service_role
+  USING (true)
+  WITH CHECK (true);
+
+GRANT SELECT ON module_definitions TO authenticated;
+GRANT ALL ON module_definitions TO service_role;

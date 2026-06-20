@@ -78,3 +78,11 @@ CREATE POLICY "profiles: readable by org co-members"
         AND om1.deleted_at IS NULL
     )
   );
+
+CREATE POLICY "profiles: service role can manage"
+  ON profiles FOR ALL TO service_role
+  USING (true)
+  WITH CHECK (true);
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON profiles TO authenticated;
+GRANT ALL ON profiles TO service_role;

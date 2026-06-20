@@ -112,7 +112,7 @@ export function getLocalStatus(): LocalSupabaseStatus {
 }
 
 export function localAppEnv(status = getLocalStatus()): NodeJS.ProcessEnv {
-  return {
+  const env: NodeJS.ProcessEnv = {
     ...process.env,
     NEXT_PUBLIC_SUPABASE_URL: status.apiUrl,
     NEXT_PUBLIC_SUPABASE_ANON_KEY: status.anonKey,
@@ -122,6 +122,9 @@ export function localAppEnv(status = getLocalStatus()): NodeJS.ProcessEnv {
     UPSTASH_REDIS_REST_TOKEN: '',
     WALKTHROUGH_MODE: '1',
   };
+
+  delete env.NO_COLOR;
+  return env;
 }
 
 export function spawnInherited(command: string, args: string[], env = process.env) {

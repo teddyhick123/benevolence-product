@@ -19,6 +19,7 @@
     "walkthrough:dev": "ts-node --project tsconfig.scripts.json scripts/walkthrough/dev.ts",
     "walkthrough:test": "ts-node --project tsconfig.scripts.json scripts/walkthrough/run-tests.ts",
     "walkthrough:smoke": "ts-node --project tsconfig.scripts.json scripts/walkthrough/run-tests.ts tests/walkthrough/smoke",
+    "walkthrough:journeys": "ts-node --project tsconfig.scripts.json scripts/walkthrough/run-tests.ts tests/walkthrough/journeys",
     "walkthrough:test:ui": "ts-node --project tsconfig.scripts.json scripts/walkthrough/run-tests.ts --ui",
     "setup": "bash scripts/setup-client.sh",
     "provision": "ts-node --project tsconfig.scripts.json scripts/provision-client.ts",

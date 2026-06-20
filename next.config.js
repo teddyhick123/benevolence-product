@@ -2,6 +2,7 @@
 const nextConfig = {
   distDir: process.env.NEXT_DIST_DIR || '.next',
   experimental: { serverActions: { allowedOrigins: ['*'] } },
+  allowedDevOrigins: ['127.0.0.1'],
   compress: true,
   images: {
     formats: ['image/avif', 'image/webp'],

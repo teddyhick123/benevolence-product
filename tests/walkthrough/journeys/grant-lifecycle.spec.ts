@@ -36,6 +36,19 @@ test('grant lifecycle validates transitions, records history, and rejects viewer
       reason: 'Ready for initial outreach',
     });
 
+    const duplicate = await page.request.post(
+      `/api/org/${fixtureIds.orgs.alpha}/grants/${fixtureIds.grants.alphaDraft}/transition`,
+      { data: { to_stage: 'prospect', reason: 'Duplicate submit after success' } }
+    );
+    expect(duplicate.status()).toBe(422);
+
+    const { count: duplicateHistoryCount } = await adminDb
+      .from('grant_status_history')
+      .select('*', { count: 'exact', head: true })
+      .eq('grant_id', fixtureIds.grants.alphaDraft)
+      .eq('to_stage', 'prospect');
+    expect(duplicateHistoryCount).toBe(1);
+
     await page.context().clearCookies();
     await loginAs(page, 'viewer');
     const viewerMutation = await page.request.post(

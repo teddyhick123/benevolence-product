@@ -1,4 +1,5 @@
 import { execFileSync, spawn } from 'node:child_process';
+import { createHmac } from 'node:crypto';
 import { existsSync, lstatSync, readlinkSync } from 'node:fs';
 import path from 'node:path';
 
@@ -17,6 +18,22 @@ export function assertSupportedNode() {
   if (major < 20) {
     throw new Error(`Node.js 20+ is required by the current app dependencies. Found ${major}.${minor}.`);
   }
+}
+
+function signLocalJwt(payload: Record<string, unknown>, secret: string): string {
+  const header = { alg: 'HS256', typ: 'JWT' };
+  const encode = (value: unknown) => Buffer.from(JSON.stringify(value)).toString('base64url');
+  const unsigned = `${encode(header)}.${encode(payload)}`;
+  const signature = createHmac('sha256', secret).update(unsigned).digest('base64url');
+  return `${unsigned}.${signature}`;
+}
+
+function localServiceRoleJwt(jwtSecret: string): string {
+  return signLocalJwt({
+    iss: 'supabase-demo',
+    role: 'service_role',
+    exp: Math.floor(Date.now() / 1000) + 10 * 365 * 24 * 60 * 60,
+  }, jwtSecret);
 }
 
 export function run(command: string, args: string[], options: { stdio?: 'inherit' | 'pipe' } = {}) {
@@ -72,8 +89,14 @@ export function getLocalStatus(): LocalSupabaseStatus {
   });
   const status = JSON.parse(raw) as Record<string, string>;
   const apiUrl = status.API_URL ?? status.api_url;
-  const anonKey = status.ANON_KEY ?? status.anon_key;
-  const serviceRoleKey = status.SERVICE_ROLE_KEY ?? status.service_role_key;
+  const anonKey = status.ANON_KEY ?? status.anon_key ?? status.PUBLISHABLE_KEY ?? status.publishable_key;
+  const rawServiceRoleKey = status.SERVICE_ROLE_KEY ?? status.service_role_key;
+  const jwtSecret = status.JWT_SECRET ?? status.jwt_secret;
+  const serviceRoleKey = rawServiceRoleKey && !rawServiceRoleKey.startsWith('sb_secret_')
+    ? rawServiceRoleKey
+    : jwtSecret
+      ? localServiceRoleJwt(jwtSecret)
+      : rawServiceRoleKey;
   const dbUrl = status.DB_URL ?? status.db_url;
 
   if (!apiUrl || !anonKey || !serviceRoleKey) {

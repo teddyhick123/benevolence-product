@@ -82,6 +82,13 @@ CREATE POLICY "holding_valuations: members can manage"
   ON holding_valuations FOR ALL
   USING (can_edit_portfolio((SELECT portfolio_id FROM holdings WHERE id = holding_id)))
   WITH CHECK (can_edit_portfolio((SELECT portfolio_id FROM holdings WHERE id = holding_id)));
+CREATE POLICY "holding_valuations: service role can manage"
+  ON holding_valuations FOR ALL TO service_role
+  USING (true)
+  WITH CHECK (true);
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON holding_valuations TO authenticated;
+GRANT ALL ON holding_valuations TO service_role;
 
 ALTER TABLE holding_transactions ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "holding_transactions: inherit from holding"
@@ -91,6 +98,13 @@ CREATE POLICY "holding_transactions: members can manage"
   ON holding_transactions FOR ALL
   USING (can_edit_portfolio((SELECT portfolio_id FROM holdings WHERE id = holding_id)))
   WITH CHECK (can_edit_portfolio((SELECT portfolio_id FROM holdings WHERE id = holding_id)));
+CREATE POLICY "holding_transactions: service role can manage"
+  ON holding_transactions FOR ALL TO service_role
+  USING (true)
+  WITH CHECK (true);
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON holding_transactions TO authenticated;
+GRANT ALL ON holding_transactions TO service_role;
 
 ALTER TABLE holding_co_investors ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "holding_co_investors: inherit from holding"
@@ -100,3 +114,10 @@ CREATE POLICY "holding_co_investors: members can manage"
   ON holding_co_investors FOR ALL
   USING (can_edit_portfolio((SELECT portfolio_id FROM holdings WHERE id = holding_id)))
   WITH CHECK (can_edit_portfolio((SELECT portfolio_id FROM holdings WHERE id = holding_id)));
+CREATE POLICY "holding_co_investors: service role can manage"
+  ON holding_co_investors FOR ALL TO service_role
+  USING (true)
+  WITH CHECK (true);
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON holding_co_investors TO authenticated;
+GRANT ALL ON holding_co_investors TO service_role;

@@ -149,3 +149,4 @@ $$;
 
 -- REVOKE public access — only service role can call this
 REVOKE ALL ON FUNCTION provision_organization FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION provision_organization(text, org_type_enum, uuid, text, jsonb) TO service_role;

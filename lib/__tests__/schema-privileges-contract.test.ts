@@ -30,7 +30,23 @@ function expectServicePolicy(sql: string, relation: string) {
   ).toMatch(new RegExp(`CREATE\\s+POLICY\\s+"[^"]*service[^"]*"\\s+ON\\s+(?:public\\.)?${relation}\\s+FOR\\s+ALL\\s+TO\\s+service_role`, 'i'));
 }
 
+function expectExecuteGrant(sql: string, signature: string, roles: string[]) {
+  const normalized = compact(sql);
+  for (const role of roles) {
+    expect(
+      normalized,
+      `${signature} should grant execute to ${role}`
+    ).toMatch(new RegExp(`GRANT\\s+EXECUTE\\s+ON\\s+FUNCTION\\s+(?:public\\.)?${signature}\\s+TO\\s+[^;]*\\b${role}\\b`, 'i'));
+  }
+}
+
 describe('canonical migration privilege contracts', () => {
+  it('grants service role access to organization provisioning RPCs used by onboarding', () => {
+    const sql = readMigration('0023_admin_superuser_policies.sql');
+
+    expectExecuteGrant(sql, 'provision_organization\\(text,\\s*org_type_enum,\\s*uuid,\\s*text,\\s*jsonb\\)', ['service_role']);
+  });
+
   it('grants access to portfolio KPI tables and views used by app routes', () => {
     const sql = readMigration('0008_metrics_and_kpis.sql');
 

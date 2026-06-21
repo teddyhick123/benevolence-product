@@ -25,7 +25,7 @@ Results:
 - `walkthrough:smoke`: passed, `9 passed`
 - `walkthrough:journeys`: passed, `7 passed`
 - `walkthrough:test`: passed, `9 smoke + 7 journey checks`
-- Schema privilege contract: passed, `4 passed`
+- Schema privilege contract: passed, `5 passed`
 - TypeScript: passed
 
 CI status:
@@ -37,6 +37,7 @@ CI status:
 No new product-breaking walkthrough failures were found in the automated smoke or journey suites after the schema privilege fixes. The current implementation now guards the main regression classes found during the walkthrough work:
 
 - Missing `GRANT`/RLS privilege regressions on app-used tables and views.
+- Missing service-role execute grants on security-definer RPCs used by app routes.
 - Journey coverage drift between local runs and CI.
 - Duplicate grant lifecycle requests creating duplicate history.
 - Duplicate or invalid onboarding provisioning creating partial account state.
@@ -53,6 +54,7 @@ The remaining gaps are mostly broader product coverage and artifact triage rathe
 
 Covered areas:
 
+- Service-role execute access for the onboarding provisioning RPC.
 - Views used by app routes, such as `v_holdings`, `v_grants`, `v_portfolio_kpi_latest`.
 - Tables behind security-invoker views, such as `holding_valuations`.
 - Service-role-managed workflow/task/grant tables.

@@ -23,8 +23,8 @@ Results:
 - `walkthrough:doctor`: passed
 - `walkthrough:setup`: passed, reset from canonical `db/migrations`, seeded deterministic personas
 - `walkthrough:smoke`: passed, `9 passed`
-- `walkthrough:journeys`: passed, `9 passed`
-- `walkthrough:test`: passed, `9 smoke + 9 journey checks`
+- `walkthrough:journeys`: passed, `11 passed`
+- `walkthrough:test`: passed, `9 smoke + 11 journey checks`
 - Schema privilege contract: passed, `5 passed`
 - TypeScript: passed
 
@@ -46,7 +46,7 @@ No new product-breaking walkthrough failures were found in the automated smoke o
 - Task completion/reopen retries creating duplicate task events.
 - Portfolio GET routes relying only on RLS for cross-tenant reads.
 
-The remaining gaps are mostly UI-level mission coverage and continued artifact/runtime polish rather than immediate harness enablement.
+The remaining gaps are mostly the next UI mission slices and exploratory-agent review loops rather than immediate harness enablement.
 
 ## Implemented Coverage
 
@@ -72,6 +72,7 @@ Covered journeys:
 - Onboarding provisioning.
 - Active-org switching and stale-tab mutation scoping.
 - Service-role route tenant isolation.
+- UI-level module and task inbox missions.
 
 ### Onboarding Idempotency And Invalid Input
 
@@ -110,6 +111,20 @@ The journeys now repeat successful state changes and verify stable side effects:
 - Duplicate module enable/disable requests return success and leave the module JSON in the expected state.
 - Duplicate task complete/reopen requests return success with an idempotency marker and do not create duplicate `task_events`.
 
+### UI Mission Coverage
+
+`tests/walkthrough/journeys/ui-missions.spec.ts` adds visible user-flow coverage for critical screens that previously had mostly API-backed journey checks.
+
+Covered missions:
+
+- A Beta organization admin enables Donor Management from the module settings UI and immediately reaches the donor workspace.
+- An Alpha organization admin creates a task from the task inbox UI, assigns it, completes it, reopens it, and verifies the resulting database state.
+
+Supporting product accessibility improvements:
+
+- Task form controls now have explicit labels usable by assistive technology and Playwright.
+- Task complete/reopen controls include the task title in their accessible names.
+
 ### Explicit Portfolio Read Guards
 
 `app/api/portfolio/[id]/holdings/route.ts` now checks `can_view_portfolio(p_portfolio_id)` before querying `v_holdings`.
@@ -129,32 +144,32 @@ Implemented cleanup:
 - `next.config.js` allows the local `127.0.0.1` dev origin used by Playwright.
 - `scripts/walkthrough/lib.ts` removes inherited `NO_COLOR` from walkthrough child envs so Playwright/Next output no longer emits the `NO_COLOR`/`FORCE_COLOR` conflict warning.
 - `tests/walkthrough/fixtures.ts` attaches `walkthrough-triage.json` on console, page, request, or HTTP 5xx failures with current URL, active org cookie, request failures, HTTP failures, console errors, and `/api/me` context.
+- `walkthrough-triage.json` also includes the active persona and a compact tail of the Next dev-server log.
 
 ## Remaining High-Value Improvements
 
-### P2 — Add UI-Level Mission Tests
+### P2 — Finish UI-Level Mission Tests
 
-Current journey specs use API requests for many stateful actions, which is useful and stable. Add a smaller number of UI-driven mission tests for critical screens so layout, controls, and accessible names stay healthy.
+Current journey specs now include the first visible UI missions. Add the remaining critical paths where the visible controls are stable enough to be useful.
 
-Suggested UI paths:
+Remaining suggested UI paths:
 
-- Enable donor management in Beta through the UI, not only via API.
 - Transition a grant through visible controls.
-- Complete and reopen a task through the task inbox.
 - Walk a new user through the visible onboarding flow.
+- Run a guided exploratory pass against dashboards and module navigation and convert confirmed issues into regression tests.
 
 ### P3 — Continue Artifact And Runtime Triage
 
 Failure artifacts now include a concise JSON summary. Continue improving triage and runtime stability.
 
-Ideas:
+Remaining ideas:
 
-- Capture persona names explicitly in failure metadata.
-- Persist a compact server log excerpt around failing requests.
 - Reduce occasional local `Fast Refresh` and `MaxListenersExceededWarning` noise during long dev-server runs.
 
 ## Recommended Next Implementation Order
 
-1. Add a small UI-driven mission suite for the most valuable visible workflows.
-2. Capture persona names and server log excerpts in failure metadata.
-3. Reduce remaining local dev-server warning noise during long runs.
+1. Run and stabilize the new UI mission suite locally and in CI.
+2. Add the grant visible-transition mission.
+3. Add the visible onboarding mission.
+4. Start exploratory-agent passes and record confirmed findings as backlog items plus regression tests.
+5. Reduce remaining local dev-server warning noise during long runs.

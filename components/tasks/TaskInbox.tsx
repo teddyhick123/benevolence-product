@@ -229,16 +229,18 @@ export default function TaskInbox({ orgId, members, currentUserId, currentRole }
         <div className="rounded-lg border border-neutral-200 bg-white p-5 shadow-soft">
           <div className="grid gap-4 md:grid-cols-2">
             <div className="md:col-span-2">
-              <label className="mb-1 block text-sm font-medium text-neutral-700">Title</label>
+              <label htmlFor="task-title" className="mb-1 block text-sm font-medium text-neutral-700">Title</label>
               <input
+                id="task-title"
                 value={form.title}
                 onChange={event => setForm(prev => ({ ...prev, title: event.target.value }))}
                 className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:border-azure focus:outline-none focus:ring-2 focus:ring-azure/20"
               />
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium text-neutral-700">Assignee</label>
+              <label htmlFor="task-assignee" className="mb-1 block text-sm font-medium text-neutral-700">Assignee</label>
               <select
+                id="task-assignee"
                 value={form.assigned_to}
                 onChange={event => setForm(prev => ({ ...prev, assigned_to: event.target.value }))}
                 className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:border-azure focus:outline-none focus:ring-2 focus:ring-azure/20"
@@ -252,8 +254,9 @@ export default function TaskInbox({ orgId, members, currentUserId, currentRole }
               </select>
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium text-neutral-700">Due Date</label>
+              <label htmlFor="task-due-date" className="mb-1 block text-sm font-medium text-neutral-700">Due Date</label>
               <input
+                id="task-due-date"
                 type="date"
                 value={form.due_at}
                 onChange={event => setForm(prev => ({ ...prev, due_at: event.target.value }))}
@@ -261,8 +264,9 @@ export default function TaskInbox({ orgId, members, currentUserId, currentRole }
               />
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium text-neutral-700">Priority</label>
+              <label htmlFor="task-priority" className="mb-1 block text-sm font-medium text-neutral-700">Priority</label>
               <select
+                id="task-priority"
                 value={form.priority}
                 onChange={event => setForm(prev => ({ ...prev, priority: event.target.value }))}
                 className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:border-azure focus:outline-none focus:ring-2 focus:ring-azure/20"
@@ -274,8 +278,9 @@ export default function TaskInbox({ orgId, members, currentUserId, currentRole }
               </select>
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium text-neutral-700">Type</label>
+              <label htmlFor="task-type" className="mb-1 block text-sm font-medium text-neutral-700">Type</label>
               <select
+                id="task-type"
                 value={form.task_type}
                 onChange={event => setForm(prev => ({ ...prev, task_type: event.target.value }))}
                 className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:border-azure focus:outline-none focus:ring-2 focus:ring-azure/20"
@@ -288,8 +293,9 @@ export default function TaskInbox({ orgId, members, currentUserId, currentRole }
               </select>
             </div>
             <div className="md:col-span-2">
-              <label className="mb-1 block text-sm font-medium text-neutral-700">Description</label>
+              <label htmlFor="task-description" className="mb-1 block text-sm font-medium text-neutral-700">Description</label>
               <textarea
+                id="task-description"
                 value={form.description}
                 onChange={event => setForm(prev => ({ ...prev, description: event.target.value }))}
                 rows={3}
@@ -338,7 +344,7 @@ export default function TaskInbox({ orgId, members, currentUserId, currentRole }
                       onClick={() => canToggle && setTaskDone(task, !completed)}
                       disabled={!canToggle}
                       className={`mt-0.5 rounded-full ${canToggle ? 'text-neutral-400 hover:text-azure' : 'text-neutral-300'}`}
-                      aria-label={completed ? 'Reopen task' : 'Complete task'}
+                      aria-label={`${completed ? 'Reopen' : 'Complete'} task ${task.title}`}
                       title={completed ? 'Reopen' : 'Complete'}
                     >
                       {completed ? <CheckCircle2 className="h-5 w-5 text-green-600" /> : <Circle className="h-5 w-5" />}
@@ -404,7 +410,7 @@ export default function TaskInbox({ orgId, members, currentUserId, currentRole }
                         type="button"
                         onClick={() => setTaskDone(task, false)}
                         className="rounded p-1 text-neutral-400 hover:bg-neutral-100 hover:text-azure"
-                        aria-label="Reopen task"
+                        aria-label={`Reopen task ${task.title}`}
                         title="Reopen"
                       >
                         <RotateCcw className="h-4 w-4" />

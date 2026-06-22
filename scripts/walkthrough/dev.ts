@@ -1,4 +1,4 @@
-import { assertSupportedNode, localAppEnv, spawnInherited } from './lib';
+import { assertSupportedNode, localAppEnv, spawnLogged } from './lib';
 
 assertSupportedNode();
-spawnInherited('npx', ['next', 'dev', '-p', '3000'], localAppEnv());
+spawnLogged('npx', ['next', 'dev', '-p', '3000'], localAppEnv());

@@ -1,6 +1,6 @@
 import { execFileSync, spawn } from 'node:child_process';
 import { createHmac } from 'node:crypto';
-import { existsSync, lstatSync, readlinkSync } from 'node:fs';
+import { appendFileSync, existsSync, lstatSync, mkdirSync, readlinkSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
 export const PROJECT_ROOT = path.resolve(__dirname, '../..');
@@ -112,12 +112,14 @@ export function getLocalStatus(): LocalSupabaseStatus {
 }
 
 export function localAppEnv(status = getLocalStatus()): NodeJS.ProcessEnv {
+  const serverLog = path.join(PROJECT_ROOT, 'test-results/walkthrough-server.log');
   const env: NodeJS.ProcessEnv = {
     ...process.env,
     NEXT_PUBLIC_SUPABASE_URL: status.apiUrl,
     NEXT_PUBLIC_SUPABASE_ANON_KEY: status.anonKey,
     SUPABASE_SERVICE_ROLE: status.serviceRoleKey,
     NEXT_DIST_DIR: '.next-walkthrough',
+    WALKTHROUGH_SERVER_LOG: serverLog,
     UPSTASH_REDIS_REST_URL: '',
     UPSTASH_REDIS_REST_TOKEN: '',
     WALKTHROUGH_MODE: '1',
@@ -132,6 +134,39 @@ export function spawnInherited(command: string, args: string[], env = process.en
     cwd: PROJECT_ROOT,
     env,
     stdio: 'inherit',
+  });
+
+  for (const signal of ['SIGINT', 'SIGTERM'] as const) {
+    process.on(signal, () => child.kill(signal));
+  }
+
+  child.on('exit', code => process.exit(code ?? 1));
+  child.on('error', error => {
+    console.error(error);
+    process.exit(1);
+  });
+}
+
+export function spawnLogged(command: string, args: string[], env = process.env) {
+  const logPath = env.WALKTHROUGH_SERVER_LOG;
+  if (logPath) {
+    mkdirSync(path.dirname(logPath), { recursive: true });
+    writeFileSync(logPath, '');
+  }
+
+  const child = spawn(command, args, {
+    cwd: PROJECT_ROOT,
+    env,
+    stdio: ['inherit', 'pipe', 'pipe'],
+  });
+
+  child.stdout.on('data', chunk => {
+    process.stdout.write(chunk);
+    if (logPath) appendFileSync(logPath, chunk);
+  });
+  child.stderr.on('data', chunk => {
+    process.stderr.write(chunk);
+    if (logPath) appendFileSync(logPath, chunk);
   });
 
   for (const signal of ['SIGINT', 'SIGTERM'] as const) {

@@ -17,7 +17,7 @@ Credentials and stable fixture IDs live in `personas.ts`. All personas use the l
 ## Suites
 
 - `smoke/` covers login, role boundaries, module gating, and tenant isolation for CI.
-- `journeys/` covers stateful onboarding, grant lifecycle, organization switching, and module administration.
+- `journeys/` covers stateful onboarding, grant lifecycle, organization switching, module administration, service-route isolation, retry semantics, and UI missions.
 - `docs/walkthroughs/` contains open-ended missions for human and agent exploration.
 
 ## Test Expectations
@@ -25,4 +25,5 @@ Credentials and stable fixture IDs live in `personas.ts`. All personas use the l
 - Prefer accessible roles, labels, and names over CSS selectors.
 - Treat unexpected console errors, request failures, and HTTP 5xx responses as failures.
 - Assert resulting database state for mutations and tenant-boundary tests.
+- Failure triage attaches `walkthrough-triage.json` with persona, active org cookie, `/api/me`, failed requests, HTTP 5xx responses, console errors, and a compact server-log tail.
 - Add a regression test for each confirmed walkthrough bug when practical.

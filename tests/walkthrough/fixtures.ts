@@ -1,5 +1,6 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { expect, test as base, type Page } from '@playwright/test';
+import { readFileSync } from 'node:fs';
 import { personas, WALKTHROUGH_PASSWORD, type PersonaName } from './personas';
 
 type WalkthroughFixtures = {
@@ -9,6 +10,19 @@ type WalkthroughFixtures = {
 const BENIGN_CONSOLE_PATTERNS = [
   /Download the React DevTools/i,
 ];
+
+const activePersonaByPage = new WeakMap<Page, PersonaName>();
+
+function tailServerLog(maxLines = 80) {
+  const logPath = process.env.WALKTHROUGH_SERVER_LOG;
+  if (!logPath) return null;
+
+  try {
+    return readFileSync(logPath, 'utf8').split(/\r?\n/).slice(-maxLines).join('\n');
+  } catch {
+    return null;
+  }
+}
 
 export const test = base.extend<WalkthroughFixtures>({
   page: async ({ page }, provide, testInfo) => {
@@ -47,6 +61,8 @@ export const test = base.extend<WalkthroughFixtures>({
     if (failures.length > 0) {
       const context = page.context();
       const cookies = await context.cookies().catch(() => []);
+      const personaName = activePersonaByPage.get(page) ?? null;
+      const persona = personaName ? personas[personaName] : null;
       const me = await context.request.get('/api/me')
         .then(async response => ({ status: response.status(), body: await response.json().catch(() => null) }))
         .catch(error => ({ error: error instanceof Error ? error.message : String(error) }));
@@ -55,12 +71,18 @@ export const test = base.extend<WalkthroughFixtures>({
         contentType: 'application/json',
         body: JSON.stringify({
           url: page.isClosed() ? null : page.url(),
+          persona: personaName && persona ? {
+            name: personaName,
+            email: persona.email,
+            fullName: persona.fullName,
+          } : null,
           activeOrgCookie: cookies.find(cookie => cookie.name === 'x-org-id')?.value ?? null,
           failures,
           consoleErrors,
           requestFailures,
           httpFailures,
           me,
+          serverLogTail: tailServerLog(),
         }, null, 2),
       });
     }
@@ -83,6 +105,7 @@ export { expect };
 
 export async function loginAs(page: Page, personaName: PersonaName) {
   const persona = personas[personaName];
+  activePersonaByPage.set(page, personaName);
   await page.goto('/login', { waitUntil: 'domcontentloaded' });
   const emailInput = page.getByLabel('Email address');
   await emailInput.waitFor({ state: 'visible' });

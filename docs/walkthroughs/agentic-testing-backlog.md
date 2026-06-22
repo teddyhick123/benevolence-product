@@ -23,8 +23,8 @@ Results:
 - `walkthrough:doctor`: passed
 - `walkthrough:setup`: passed, reset from canonical `db/migrations`, seeded deterministic personas
 - `walkthrough:smoke`: passed, `9 passed`
-- `walkthrough:journeys`: passed, `7 passed`
-- `walkthrough:test`: passed, `9 smoke + 7 journey checks`
+- `walkthrough:journeys`: passed, `9 passed`
+- `walkthrough:test`: passed, `9 smoke + 9 journey checks`
 - Schema privilege contract: passed, `5 passed`
 - TypeScript: passed
 
@@ -43,8 +43,10 @@ No new product-breaking walkthrough failures were found in the automated smoke o
 - Duplicate or invalid onboarding provisioning creating partial account state.
 - Service-role-backed export/module routes leaking cross-tenant data.
 - Local walkthrough warning noise hiding useful failure output.
+- Task completion/reopen retries creating duplicate task events.
+- Portfolio GET routes relying only on RLS for cross-tenant reads.
 
-The remaining gaps are mostly broader product coverage and artifact triage rather than immediate harness enablement.
+The remaining gaps are mostly UI-level mission coverage and continued artifact/runtime polish rather than immediate harness enablement.
 
 ## Implemented Coverage
 
@@ -78,15 +80,21 @@ New journey coverage verifies:
 - Submitting `/api/onboarding/provision` twice for the same new user creates one membership and one portfolio, with the second request returning `409`.
 - Invalid `name` and invalid `org_type` return `400`.
 - Invalid provisioning requests leave membership counts unchanged.
+- A walkthrough-only fault after portfolio creation rolls back the organization, membership, and portfolio rows.
 
 ### Service-Role Tenant Isolation
 
 New journey coverage probes a logged-in Alpha owner against Gamma service-role-backed routes:
 
 - `GET /api/org/[orgId]/compliance/dashboard`
+- `GET /api/org/[orgId]/compliance/filing-calendar/[filingId]/attachments`
 - `GET /api/portfolio/[id]/grants/export`
+- `GET /api/portfolio/[id]/holdings`
+- `GET /api/portfolio/[id]/settings`
 - `GET /api/portfolio/[id]/tax/export`
 - `GET /api/portfolio/[id]/tax/cpa-share`
+- `GET /api/portfolio/[id]/tax/contributions/[contributionId]/documents/[documentId]`
+- `POST /api/admin/portfolios/[id]/settings`
 
 Expected invariant:
 
@@ -95,10 +103,24 @@ Expected invariant:
 
 ### Duplicate Lifecycle Semantics
 
-The grant lifecycle journey now repeats a successful transition request and verifies:
+The journeys now repeat successful state changes and verify stable side effects:
 
 - The duplicate request returns `422`.
 - Only one `grant_status_history` row exists for the target stage.
+- Duplicate module enable/disable requests return success and leave the module JSON in the expected state.
+- Duplicate task complete/reopen requests return success with an idempotency marker and do not create duplicate `task_events`.
+
+### Explicit Portfolio Read Guards
+
+`app/api/portfolio/[id]/holdings/route.ts` now checks `can_view_portfolio(p_portfolio_id)` before querying `v_holdings`.
+
+Expected behavior:
+
+- Unauthenticated: `401`
+- Authenticated but not a portfolio member: `403`
+- Allowed member: data
+
+The expanded service-route isolation journey covers the cross-tenant `403` path.
 
 ### Harness Noise Reduction
 
@@ -106,53 +128,9 @@ Implemented cleanup:
 
 - `next.config.js` allows the local `127.0.0.1` dev origin used by Playwright.
 - `scripts/walkthrough/lib.ts` removes inherited `NO_COLOR` from walkthrough child envs so Playwright/Next output no longer emits the `NO_COLOR`/`FORCE_COLOR` conflict warning.
+- `tests/walkthrough/fixtures.ts` attaches `walkthrough-triage.json` on console, page, request, or HTTP 5xx failures with current URL, active org cookie, request failures, HTTP failures, console errors, and `/api/me` context.
 
 ## Remaining High-Value Improvements
-
-### P1 — Simulated Partial-Failure Rollback
-
-Add a deterministic fault-injection path for onboarding so tests can prove organization, membership, portfolio, and portfolio membership writes roll back together when a later creation step fails.
-
-Relevant route:
-
-- `app/api/onboarding/provision/route.ts`
-
-### P1 — Expand Service-Role Isolation Matrix
-
-Add probes for the remaining service-role-backed paths:
-
-- Compliance document and filing attachment routes.
-- Settings routes that read/write org-scoped data through admin clients.
-- Any download or signed URL route.
-
-### P2 — Add Explicit Read Guards To Portfolio GET Routes
-
-Some GET routes rely heavily on RLS plus authenticated clients. That is defensible, but explicit `can_view_portfolio` checks give clearer failures and reduce the chance that a future RLS regression silently becomes an exposure.
-
-Good first candidate:
-
-- `app/api/portfolio/[id]/holdings/route.ts`
-
-Suggested behavior:
-
-- Unauthenticated: `401`
-- Authenticated but not allowed: `403` or `404`
-- Allowed: data
-
-Then add tenant-isolation tests for the explicit behavior.
-
-### P2 — Expand Duplicate And Retry Semantics
-
-The lifecycle duplicate case is covered. Add duplicate/retry tests for:
-
-- Repeating module enable/disable operations.
-- Retrying task completion/reopen.
-- Refresh/back-submit behavior on forms once UI-level journeys are added.
-
-Expected invariant:
-
-- Duplicate requests are idempotent or return a clear `409`/`422`.
-- Duplicate requests do not append duplicate history rows or create duplicate child rows.
 
 ### P2 — Add UI-Level Mission Tests
 
@@ -165,20 +143,18 @@ Suggested UI paths:
 - Complete and reopen a task through the task inbox.
 - Walk a new user through the visible onboarding flow.
 
-### P3 — Improve Artifact Triage
+### P3 — Continue Artifact And Runtime Triage
 
-Failure artifacts are already uploaded on CI failure. Improve triage by adding a concise machine-readable summary when a walkthrough fails.
+Failure artifacts now include a concise JSON summary. Continue improving triage and runtime stability.
 
 Ideas:
 
-- Capture failed URL, active org cookie, persona, and failing endpoint.
-- Persist browser console and HTTP failure list as a small JSON artifact.
-- Include the last `/api/me` payload in failed walkthrough artifacts when authenticated.
+- Capture persona names explicitly in failure metadata.
+- Persist a compact server log excerpt around failing requests.
+- Reduce occasional local `Fast Refresh` and `MaxListenersExceededWarning` noise during long dev-server runs.
 
 ## Recommended Next Implementation Order
 
-1. Add onboarding fault-injection rollback coverage.
-2. Expand service-role isolation probes to document/download/settings routes.
-3. Add duplicate/retry coverage for module toggles and task operations.
-4. Add a small UI-driven mission suite for the most valuable visible workflows.
-5. Improve failure artifacts with persona, active org, failed URL, console, and HTTP summary data.
+1. Add a small UI-driven mission suite for the most valuable visible workflows.
+2. Capture persona names and server log excerpts in failure metadata.
+3. Reduce remaining local dev-server warning noise during long runs.

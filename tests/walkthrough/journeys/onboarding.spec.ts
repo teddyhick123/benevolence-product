@@ -3,10 +3,12 @@ import { personas } from '../personas';
 
 test('new user provisioning creates a usable canonical organization and portfolio', async ({ page, adminDb }) => {
   await loginAs(page, 'newUser');
+  const request = page.context().request;
+  await page.close();
 
   let orgId: string | null = null;
   try {
-    const response = await page.request.post('/api/onboarding/provision', {
+    const response = await request.post('/api/onboarding/provision', {
       data: {
         name: 'Walkthrough Provisioned Foundation',
         org_type: 'private_foundation',
@@ -32,7 +34,7 @@ test('new user provisioning creates a usable canonical organization and portfoli
     });
     expect(portfolio?.owner_id).toBeTruthy();
 
-    const me = await page.request.get('/api/me');
+    const me = await request.get('/api/me');
     expect(me.status()).toBe(200);
     expect(await me.json()).toMatchObject({
       organization_id: orgId,
@@ -45,10 +47,12 @@ test('new user provisioning creates a usable canonical organization and portfoli
 
 test('new user provisioning is idempotent after success', async ({ page, adminDb }) => {
   await loginAs(page, 'newUser');
+  const request = page.context().request;
+  await page.close();
 
   let orgId: string | null = null;
   try {
-    const first = await page.request.post('/api/onboarding/provision', {
+    const first = await request.post('/api/onboarding/provision', {
       data: {
         name: 'Walkthrough Duplicate Submit Foundation',
         org_type: 'private_foundation',
@@ -59,7 +63,7 @@ test('new user provisioning is idempotent after success', async ({ page, adminDb
     const firstJson = await first.json();
     orgId = firstJson.org_id;
 
-    const second = await page.request.post('/api/onboarding/provision', {
+    const second = await request.post('/api/onboarding/provision', {
       data: {
         name: 'Walkthrough Duplicate Submit Foundation',
         org_type: 'private_foundation',
@@ -95,6 +99,8 @@ test('new user provisioning is idempotent after success', async ({ page, adminDb
 
 test('invalid onboarding provisioning leaves no partial membership', async ({ page, adminDb }) => {
   await loginAs(page, 'newUser');
+  const request = page.context().request;
+  await page.close();
 
   const { data: profile, error: profileError } = await adminDb
     .from('profiles')
@@ -108,12 +114,12 @@ test('invalid onboarding provisioning leaves no partial membership', async ({ pa
     .select('*', { count: 'exact', head: true })
     .eq('user_id', profile!.id);
 
-  const missingName = await page.request.post('/api/onboarding/provision', {
+  const missingName = await request.post('/api/onboarding/provision', {
     data: { org_type: 'private_foundation' },
   });
   expect(missingName.status()).toBe(400);
 
-  const invalidType = await page.request.post('/api/onboarding/provision', {
+  const invalidType = await request.post('/api/onboarding/provision', {
     data: { name: 'Invalid Type Foundation', org_type: 'daf' },
   });
   expect(invalidType.status()).toBe(400);
@@ -124,4 +130,47 @@ test('invalid onboarding provisioning leaves no partial membership', async ({ pa
     .eq('user_id', profile!.id);
 
   expect(afterMemberships).toBe(beforeMemberships);
+});
+
+test('simulated provisioning failure rolls back organization, membership, and portfolio rows', async ({ page, adminDb }) => {
+  await loginAs(page, 'newUser');
+  const request = page.context().request;
+  await page.close();
+
+  const orgName = 'Walkthrough Rollback Foundation';
+  const { data: profile, error: profileError } = await adminDb
+    .from('profiles')
+    .select('id')
+    .eq('email', personas.newUser.email)
+    .single();
+  expect(profileError).toBeNull();
+
+  const response = await request.post('/api/onboarding/provision', {
+    headers: { 'x-walkthrough-fail-after': 'portfolio' },
+    data: {
+      name: orgName,
+      org_type: 'private_foundation',
+      modules: { portfolio: true, grant_management: true },
+    },
+  });
+  expect(response.status()).toBe(500);
+
+  const [{ count: orgCount }, { count: membershipCount }, { count: portfolioCount }] = await Promise.all([
+    adminDb
+      .from('organizations')
+      .select('*', { count: 'exact', head: true })
+      .eq('name', orgName),
+    adminDb
+      .from('organization_members')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', profile!.id),
+    adminDb
+      .from('portfolios')
+      .select('*', { count: 'exact', head: true })
+      .eq('name', orgName),
+  ]);
+
+  expect(orgCount).toBe(0);
+  expect(membershipCount).toBe(0);
+  expect(portfolioCount).toBe(0);
 });

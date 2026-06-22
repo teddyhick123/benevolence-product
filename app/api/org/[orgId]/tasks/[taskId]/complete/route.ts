@@ -62,6 +62,10 @@ export async function POST(_req: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: 'Not authorized to complete this task' }, { status: 403 });
     }
 
+    if (existing.status === 'completed') {
+      return NextResponse.json({ task: existing, idempotent: true });
+    }
+
     const { data: task, error } = await adminClient
       .from('tasks')
       .update({

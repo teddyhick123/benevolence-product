@@ -11,27 +11,59 @@ const BENIGN_CONSOLE_PATTERNS = [
 ];
 
 export const test = base.extend<WalkthroughFixtures>({
-  page: async ({ page }, provide) => {
+  page: async ({ page }, provide, testInfo) => {
     const failures: string[] = [];
+    const consoleErrors: string[] = [];
+    const requestFailures: Array<{ method: string; url: string; error: string }> = [];
+    const httpFailures: Array<{ method: string; url: string; status: number }> = [];
 
     page.on('pageerror', error => failures.push(`pageerror: ${error.message}`));
     page.on('console', message => {
       if (message.type() !== 'error') return;
       if (BENIGN_CONSOLE_PATTERNS.some(pattern => pattern.test(message.text()))) return;
-      failures.push(`console.error: ${message.text()}`);
+      const text = message.text();
+      consoleErrors.push(text);
+      failures.push(`console.error: ${text}`);
     });
     page.on('requestfailed', request => {
       const errorText = request.failure()?.errorText ?? '';
       if (errorText === 'net::ERR_ABORTED') return;
+      requestFailures.push({ method: request.method(), url: request.url(), error: errorText });
       failures.push(`requestfailed: ${request.method()} ${request.url()} ${errorText}`);
     });
     page.on('response', response => {
       if (response.status() >= 500) {
+        httpFailures.push({
+          method: response.request().method(),
+          url: response.url(),
+          status: response.status(),
+        });
         failures.push(`http ${response.status()}: ${response.request().method()} ${response.url()}`);
       }
     });
 
     await provide(page);
+
+    if (failures.length > 0) {
+      const context = page.context();
+      const cookies = await context.cookies().catch(() => []);
+      const me = await context.request.get('/api/me')
+        .then(async response => ({ status: response.status(), body: await response.json().catch(() => null) }))
+        .catch(error => ({ error: error instanceof Error ? error.message : String(error) }));
+
+      await testInfo.attach('walkthrough-triage.json', {
+        contentType: 'application/json',
+        body: JSON.stringify({
+          url: page.isClosed() ? null : page.url(),
+          activeOrgCookie: cookies.find(cookie => cookie.name === 'x-org-id')?.value ?? null,
+          failures,
+          consoleErrors,
+          requestFailures,
+          httpFailures,
+          me,
+        }, null, 2),
+      });
+    }
 
     expect(failures, failures.join('\n')).toEqual([]);
   },

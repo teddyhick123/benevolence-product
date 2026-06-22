@@ -33,4 +33,30 @@ test('service-role backed export and module routes preserve tenant isolation', a
     `/api/portfolio/${fixtureIds.portfolios.gamma}/tax/cpa-share`
   );
   await expectNoGammaLeak(gammaCpaShares);
+
+  const gammaHoldings = await page.request.get(
+    `/api/portfolio/${fixtureIds.portfolios.gamma}/holdings`
+  );
+  await expectNoGammaLeak(gammaHoldings);
+
+  const gammaPortfolioSettings = await page.request.get(
+    `/api/portfolio/${fixtureIds.portfolios.gamma}/settings`
+  );
+  await expectNoGammaLeak(gammaPortfolioSettings);
+
+  const gammaAdminSettingsMutation = await page.request.post(
+    `/api/admin/portfolios/${fixtureIds.portfolios.gamma}/settings`,
+    { data: { show_map: false, widgets: ['gamma-confidential-widget'] } }
+  );
+  await expectNoGammaLeak(gammaAdminSettingsMutation);
+
+  const gammaComplianceAttachment = await page.request.get(
+    `/api/org/${fixtureIds.orgs.gamma}/compliance/filing-calendar/cccccccc-5000-4000-8000-000000000001/attachments`
+  );
+  await expectNoGammaLeak(gammaComplianceAttachment);
+
+  const gammaTaxDocument = await page.request.get(
+    `/api/portfolio/${fixtureIds.portfolios.gamma}/tax/contributions/cccccccc-6000-4000-8000-000000000001/documents/cccccccc-7000-4000-8000-000000000001`
+  );
+  await expectNoGammaLeak(gammaTaxDocument);
 });

@@ -14,6 +14,11 @@ const VALID_ORG_TYPES: OrgType[] = [
   'individual',
 ];
 
+function walkthroughFailurePoint(req: NextRequest) {
+  if (process.env.WALKTHROUGH_MODE !== '1') return null;
+  return req.headers.get('x-walkthrough-fail-after');
+}
+
 export async function POST(req: NextRequest) {
   try {
     // 1. Auth check
@@ -87,6 +92,14 @@ export async function POST(req: NextRequest) {
       console.error('Portfolio creation error:', portfolioError);
       await admin.from('organizations').delete().eq('id', org_id);
       return NextResponse.json({ error: portfolioError.message }, { status: 500 });
+    }
+
+    if (walkthroughFailurePoint(req) === 'portfolio') {
+      await admin.from('organizations').delete().eq('id', org_id);
+      return NextResponse.json(
+        { error: 'Walkthrough fault: failed after portfolio creation' },
+        { status: 500 }
+      );
     }
 
     // 6. Add owner to portfolio_members

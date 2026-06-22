@@ -49,6 +49,17 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401, headers: { 'Cache-Control': 'no-store' } });
   }
+
+  const { data: canView, error: canViewErr } = await sb.rpc('can_view_portfolio', {
+    p_portfolio_id: portfolio_id,
+  });
+  if (canViewErr) {
+    return NextResponse.json({ error: canViewErr.message }, { status: 500, headers: { 'Cache-Control': 'no-store' } });
+  }
+  if (!canView) {
+    return NextResponse.json({ error: 'Access denied' }, { status: 403, headers: { 'Cache-Control': 'no-store' } });
+  }
+
   const { data, error, count } = await sb
     .from('v_holdings')
     .select(`

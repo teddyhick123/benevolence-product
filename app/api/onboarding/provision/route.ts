@@ -59,6 +59,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const requestedModules = modules && typeof modules === 'object'
+      ? { ...modules, portfolio: true }
+      : null;
+
     // 4. Provision org via RPC (service role required)
     const admin = createAdminClient();
     const { data: orgId, error: rpcError } = await admin.rpc('provision_organization', {
@@ -66,7 +70,7 @@ export async function POST(req: NextRequest) {
       p_org_type: org_type,
       p_owner_user_id: user.id,
       p_ein: ein?.trim() || null,
-      p_modules: modules ?? null,
+      p_modules: requestedModules,
     });
 
     if (rpcError) {

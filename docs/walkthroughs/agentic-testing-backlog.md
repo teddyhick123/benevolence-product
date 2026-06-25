@@ -1,6 +1,6 @@
 # Agentic Walkthrough Coverage Plan
 
-Date: 2026-06-20
+Date: 2026-06-25
 
 ## Current Local Status
 
@@ -23,8 +23,8 @@ Results:
 - `walkthrough:doctor`: passed
 - `walkthrough:setup`: passed, reset from canonical `db/migrations`, seeded deterministic personas
 - `walkthrough:smoke`: passed, `9 passed`
-- `walkthrough:journeys`: passed, `11 passed`
-- `walkthrough:test`: passed, `9 smoke + 11 journey checks`
+- `walkthrough:journeys`: passed, `14 passed` across sharded journey specs
+- `walkthrough:test`: passed, `9 smoke + 14 journey checks` across sharded smoke and journey specs
 - Schema privilege contract: passed, `5 passed`
 - TypeScript: passed
 
@@ -72,12 +72,14 @@ Covered journeys:
 - Onboarding provisioning.
 - Active-org switching and stale-tab mutation scoping.
 - Service-role route tenant isolation.
-- UI-level module and task inbox missions.
+- UI-level module, task inbox, grant transition, visible onboarding, and dashboard workspace sweep missions.
 
 ### Onboarding Idempotency And Invalid Input
 
 New journey coverage verifies:
 
+- The visible `/welcome` onboarding wizard can provision a brand-new user into a usable organization and portfolio.
+- Explicit onboarding module choices preserve the canonical always-on `portfolio` module.
 - Submitting `/api/onboarding/provision` twice for the same new user creates one membership and one portfolio, with the second request returning `409`.
 - Invalid `name` and invalid `org_type` return `400`.
 - Invalid provisioning requests leave membership counts unchanged.
@@ -119,6 +121,9 @@ Covered missions:
 
 - A Beta organization admin enables Donor Management from the module settings UI and immediately reaches the donor workspace.
 - An Alpha organization admin creates a task from the task inbox UI, assigns it, completes it, reopens it, and verifies the resulting database state.
+- An Alpha organization admin transitions a grant from the visible Grant Management pipeline controls and verifies one history row.
+- A brand-new user completes the visible onboarding wizard and lands in the provisioned dashboard.
+- An Alpha organization admin loads the main high-value module workspaces: dashboard, donors, grants, tax, compliance, analytics, and reports.
 
 Supporting product accessibility improvements:
 
@@ -148,15 +153,16 @@ Implemented cleanup:
 
 ## Remaining High-Value Improvements
 
-### P2 — Finish UI-Level Mission Tests
+### P2 — Continue UI-Level Mission Tests
 
-Current journey specs now include the first visible UI missions. Add the remaining critical paths where the visible controls are stable enough to be useful.
+Current journey specs now include the critical visible UI missions called out in the previous plan. Continue adding product-specific UI journeys where the visible controls are stable enough to be useful.
 
 Remaining suggested UI paths:
 
-- Transition a grant through visible controls.
-- Walk a new user through the visible onboarding flow.
-- Run a guided exploratory pass against dashboards and module navigation and convert confirmed issues into regression tests.
+- Donor creation and receipt/acknowledgment generation from visible controls.
+- Tax contribution creation and export from visible controls.
+- Compliance calendar/document upload flows from visible controls.
+- Convert future exploratory-agent findings into focused regression tests.
 
 ### P3 — Continue Artifact And Runtime Triage
 
@@ -168,8 +174,6 @@ Remaining ideas:
 
 ## Recommended Next Implementation Order
 
-1. Run and stabilize the new UI mission suite locally and in CI.
-2. Add the grant visible-transition mission.
-3. Add the visible onboarding mission.
-4. Start exploratory-agent passes and record confirmed findings as backlog items plus regression tests.
-5. Reduce remaining local dev-server warning noise during long runs.
+1. Start donor, tax, and compliance exploratory-agent passes and convert confirmed findings into regressions.
+2. Add visible-control regressions for the confirmed donor creation/receipt, tax contribution/export, and compliance upload paths.
+3. Reduce remaining local dev-server warning noise during long runs.

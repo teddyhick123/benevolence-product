@@ -6,6 +6,8 @@ This is a white-label platform for impact portfolio management. Organizations ca
 
 **Note**: This is a golden template. Clone for each client and customize branding via `/lib/config/branding.ts`.
 
+**Schema canon**: `db/migrations` is the source of truth for database tables, functions, RLS, and storage buckets. Historical docs and implementation plans may contain retired table names.
+
 ## System Architecture
 
 ```
@@ -102,8 +104,8 @@ Each module is defined in the registry with:
 
 1. **Registration**: Add to `MODULE_REGISTRY` in `registry.ts`
 2. **Database**: Create migration in `db/`
-3. **Tools**: Define in `lib/ai/tools/{module}.ts`
-4. **API**: Create routes in `app/api/{module}/`
+3. **Tools**: Define provider-neutral schemas in `lib/ai/assistant/tool-definitions.ts` and executors in `lib/ai/assistant/executor.ts` or `lib/ai/assistant/executors/`
+4. **API**: Create routes under the owning scope, usually `app/api/org/[orgId]/...` for org-scoped operations or `app/api/portfolio/[id]/...` for portfolio-scoped reads
 5. **UI**: Add components and pages
 6. **Enable**: Organization enables via settings or onboarding
 
@@ -117,8 +119,10 @@ Each module is defined in the registry with:
 | `tax_optimization` | Tax scenarios | - |
 | `grant_management` | Grant workflows | - |
 | `donor_management` | Donor tracking | - |
+| `pledge_tracking` | Pledges and installment schedules | donor_management |
 | `external_data` | Third-party data | - |
 | `analytics` | Projections and insights | impact_tracking |
+| `compliance_regulatory` | Compliance, payout, filings, ER tracking | grant_management |
 
 ## AI System Architecture
 
@@ -211,7 +215,8 @@ Response to User
 
 - **Organizations**: Top-level tenant isolation
 - **Row Level Security**: All tables protected by RLS
-- **Helper Functions**: `is_org_member()`, `is_org_admin()`
+- **Helper Functions**: `can_view_org(p_org_id)`, `user_org_role(p_org_id)`, `is_org_admin(org_id)`, `is_app_admin()`
+- **Module State**: `organizations.modules` JSONB checked with `org_has_module(p_org_id, p_module)`
 
 ### Key Tables
 
@@ -219,12 +224,12 @@ Response to User
 -- Organization hierarchy
 organizations → organization_members → users
             ↓
-organization_modules (enabled features)
+organizations.modules JSONB (enabled modules)
 
 -- Portfolio data
 portfolios → holdings → metric_facts
                      → widgets
-                     → grant_details
+                     → grants
 
 -- AI system
 ai_sessions → ai_actions (undo/redo history)
@@ -236,8 +241,8 @@ ai_sessions → ai_actions (undo/redo history)
 -- Standard pattern for module tables
 CREATE POLICY "table_select" ON table_name
   FOR SELECT USING (
-    is_org_member(organization_id) AND
-    org_has_module(organization_id, 'module_id')
+    can_view_org(org_id) AND
+    org_has_module(org_id, 'module_slug')
   );
 ```
 

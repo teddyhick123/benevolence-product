@@ -38,11 +38,13 @@ function TaxDashboard() {
 
   // Fetch user's portfolio ID and check module access
   useEffect(() => {
+    const controller = new AbortController();
+
     async function fetchProfile() {
       try {
         const [meRes, orgRes] = await Promise.all([
-          fetch('/api/me'),
-          fetch('/api/org'),
+          fetch('/api/me', { signal: controller.signal }),
+          fetch('/api/org', { signal: controller.signal }),
         ]);
         if (meRes.ok) {
           const json = await meRes.json();
@@ -54,24 +56,30 @@ function TaxDashboard() {
           setModuleEnabled(activeOrg ? !!activeOrg.modules?.tax : true);
         }
       } catch (err) {
+        if (controller.signal.aborted) return;
         console.error('Error fetching profile:', err);
       } finally {
-        setLoading(false);
+        if (!controller.signal.aborted) setLoading(false);
       }
     }
 
     fetchProfile();
+    return () => controller.abort();
   }, []);
 
   // Fetch tax overview when portfolio/year changes
   useEffect(() => {
     if (!portfolioId) return;
+    const controller = new AbortController();
 
     async function fetchTaxOverview() {
       try {
-        const res = await fetch(`/api/portfolio/${portfolioId}/tax/overview?year=${selectedYear}`);
+        const res = await fetch(`/api/portfolio/${portfolioId}/tax/overview?year=${selectedYear}`, {
+          signal: controller.signal,
+        });
         if (res.ok) {
           const json = await res.json();
+          if (controller.signal.aborted) return;
           setTaxOverview(json.data);
 
           // Set AGI limits if available
@@ -80,11 +88,13 @@ function TaxDashboard() {
           }
         }
       } catch (err) {
-        console.error('Error fetching tax overview:', err);
+        if (controller.signal.aborted) return;
+        console.warn('Tax overview unavailable:', err);
       }
     }
 
     fetchTaxOverview();
+    return () => controller.abort();
   }, [portfolioId, selectedYear, refreshKey]);
 
   function handleWizardSuccess() {

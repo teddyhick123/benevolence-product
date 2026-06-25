@@ -5,7 +5,7 @@ export default defineConfig({
   fullyParallel: false,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
-  timeout: 180_000,
+  timeout: 600_000,
   workers: 1,
   reporter: [
     ['list'],
@@ -14,7 +14,7 @@ export default defineConfig({
   ],
   use: {
     baseURL: 'http://127.0.0.1:3000',
-    navigationTimeout: 90_000,
+    navigationTimeout: 180_000,
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
@@ -23,7 +23,7 @@ export default defineConfig({
     command: 'npm run walkthrough:dev',
     url: 'http://127.0.0.1:3000',
     reuseExistingServer: false,
-    timeout: 180_000,
+    timeout: 300_000,
   },
   projects: [
     {

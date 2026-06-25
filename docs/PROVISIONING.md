@@ -61,7 +61,7 @@ supabase db push
 
 Or manually run migrations:
 1. Go to Supabase Dashboard > SQL Editor
-2. Run each migration file in order from `/db/`
+2. Run each migration file in order from `/db/migrations/`
 
 ### 2.3 Configure Authentication
 1. Go to Authentication > Settings

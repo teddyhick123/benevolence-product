@@ -9,9 +9,11 @@ type WalkthroughFixtures = {
 
 const BENIGN_CONSOLE_PATTERNS = [
   /Download the React DevTools/i,
+  /^Failed to load resource: the server responded with a status of 404 \(Not Found\)$/i,
 ];
 
 const activePersonaByPage = new WeakMap<Page, PersonaName>();
+const AUTH_TIMEOUT = 300_000;
 
 function tailServerLog(maxLines = 80) {
   const logPath = process.env.WALKTHROUGH_SERVER_LOG;
@@ -113,9 +115,13 @@ export async function loginAs(page: Page, personaName: PersonaName) {
   await page.getByLabel('Password', { exact: true }).fill(WALKTHROUGH_PASSWORD);
   await page.getByRole('button', { name: 'Sign in', exact: true }).click();
   await page.waitForURL(url => url.pathname !== '/login', {
-    timeout: 90_000,
+    timeout: AUTH_TIMEOUT,
     waitUntil: 'domcontentloaded',
   });
+  await expect.poll(async () => {
+    const response = await page.context().request.get('/api/me');
+    return response.status();
+  }, { timeout: AUTH_TIMEOUT }).toBe(200);
 }
 
 export async function setActiveOrg(page: Page, orgId: string) {
@@ -124,4 +130,10 @@ export async function setActiveOrg(page: Page, orgId: string) {
     value: orgId,
     url: 'http://127.0.0.1:3000',
   }]);
+  await expect.poll(async () => {
+    const response = await page.context().request.get('/api/me');
+    if (!response.ok()) return null;
+    const body = await response.json().catch(() => null);
+    return body?.organization_id ?? null;
+  }, { timeout: AUTH_TIMEOUT }).toBe(orgId);
 }

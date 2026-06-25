@@ -1,6 +1,6 @@
 # Impact Platform — Open Backlog
 
-**Status:** Backlog reconciled 2026-05-15 after brand-agnostic pass and task/workflow sweep. Updated 2026-05-19 with a codebase/schema alignment sweep. Updated 2026-05-28 to remove shipped pledge/task foundation items from open count and add security bugs (Vis-B3, QB-B2, Dr-B2, Dr-B3) surfaced by roadmap review. Updated 2026-06-02: Phase 1 P1 sprint verified — all previously-listed P1 tables/views/RPCs were confirmed present in existing migrations (0006, 0010, 0011, 0014, 0016, 0018, 0035); no new migrations were needed. Zero open P1s remain. Updated 2026-06-13: GM-3 bulk transitions shipped; Phase 2.1 Task Center Polish shipped; security_invoker gap closed on 15 views (migration 0045). 52 items open (all P2/P3).
+**Status:** Backlog reconciled 2026-05-15 after brand-agnostic pass and task/workflow sweep. Updated 2026-05-19 with a codebase/schema alignment sweep. Updated 2026-05-28 to remove shipped pledge/task foundation items from open count and add security bugs (Vis-B3, QB-B2, Dr-B2, Dr-B3) surfaced by roadmap review. Updated 2026-06-02: Phase 1 P1 sprint verified — all previously-listed P1 tables/views/RPCs were confirmed present in existing migrations (0006, 0010, 0011, 0014, 0016, 0018, 0035); no new migrations were needed. Zero open P1s remain. Updated 2026-06-13: GM-3 bulk transitions shipped; Phase 2.1 Task Center Polish shipped; security_invoker gap closed on 15 views (migration 0045). Updated 2026-06-25: reliability review added hardening items for grant documents/decisions/lifecycle atomicity, QuickBooks export reconciliation, report caching, and CPA portal document/access controls. 59 items open (6 P1 / 46 P2 / 7 P3).
 
 For resolved-issue history, see `git log docs/module-reviews/FULL-BACKLOG.md` and individual `*-review.md` files in this directory.
 
@@ -51,6 +51,18 @@ For resolved-issue history, see `git log docs/module-reviews/FULL-BACKLOG.md` an
 ---
 
 ## Tax Center
+
+### Bugs (P1)
+
+| # | Issue | Location |
+|---|-------|----------|
+| T-B1 | CPA public document listing queries stale `tax_documents` column names (`contribution_id`, `file_size`) instead of the canonical `tax_contribution_id`, `file_size_bytes`, and uploaded/created timestamp fields, so CPA substantiation listings can fail or omit documents | `lib/tax/cpa-public-access.ts` |
+
+### Bugs (P2)
+
+| # | Issue | Location |
+|---|-------|----------|
+| T-B2 | CPA share `max_accesses` enforcement is race-prone because access validation and `access_count` increment happen as separate read/update steps; move validation and increment into one conditional SQL RPC/update | `lib/tax/cpa-public-access.ts` |
 
 ### UX Gaps (P2)
 
@@ -103,6 +115,7 @@ For resolved-issue history, see `git log docs/module-reviews/FULL-BACKLOG.md` an
 |---|-------|----------|
 | ~~QB-B1~~ | ~~Settings UI expects account fields `qb_account_id`, `name`, and `type`, but the accounts API returns `qb_id`, `qb_name`, and `qb_type`, leaving account selects with undefined values~~ | **FIXED 2026-06-02**: updated `QBAccount` interface and all 6 field references in `QuickBooksSettings.tsx` to use `qb_id/qb_name/qb_type`. |
 | ~~QB-B2~~ | ~~OAuth access tokens stored as plaintext `TEXT` in `quickbooks_connections`~~ | **ALREADY FIXED** (verified 2026-06-02): `lib/integrations/quickbooks/token-crypto.ts` implements AES-256-GCM encryption; callback encrypts on write; `client.ts` and disconnect route decrypt with `isEncrypted()` guard for legacy rows. Requires `QB_TOKEN_ENCRYPTION_KEY` env var (32-byte hex). |
+| QB-B3 | QuickBooks contribution export creates journal entries but does not persist `qb_exported_at`, `qb_journal_entry_id`, or a `qb_sync_log` record, leaving retries, partial failures, and duplicate DocNumber responses without a durable reconciliation trail | `app/api/integrations/quickbooks/export/contributions/route.ts` |
 
 ### Missing Features (P2–P3)
 
@@ -201,6 +214,7 @@ For resolved-issue history, see `git log docs/module-reviews/FULL-BACKLOG.md` an
 |---|-------|----------|
 | ~~R-B1~~ | ~~Reporting APIs depend on missing `report_templates`, `generated_documents`, `report_schedules`, and `generate_share_token`~~ | **VERIFIED 2026-06-02**: all confirmed present in migration 0011. Not a real bug. |
 | ~~R-B2~~ | ~~Reporting export queries legacy `contributions` / `transactions` tables~~ | **VERIFIED 2026-06-02**: export route already queries `tax_contributions` and `holding_transactions`. Not a real bug. |
+| R-B3 | Authenticated generated-document APIs return portfolio report metadata and share tokens with public `s-maxage` caching even though responses depend on the caller's session; use `no-store` or private caching for these routes | `app/api/portfolio/[id]/reports/documents/route.ts` |
 
 ---
 
@@ -301,6 +315,14 @@ Specs:
 
 Shipped 2026-05-16: 14-stage lifecycle, org-scoped CRUD APIs, Pipeline/Table/Calendar/Attention views, AI tools, task automation producers, decisions, transitions, export.
 
+### Bugs (P1)
+
+| # | Issue | Location |
+|---|-------|----------|
+| GM-B1 | Grant document routes verify membership in the path portfolio, then use a service-role client against `grant_documents` by `grant_id` without proving the grant belongs to that portfolio, allowing cross-portfolio signed URL, upload, or delete access if a foreign grant id is known | `app/api/portfolio/[id]/grants/[grantId]/documents/route.ts` |
+| GM-B2 | Standalone grant decision creation inserts `grant_decisions` with the path `orgId` and supplied `grantId` without verifying `grants.org_id`, allowing cross-org decision rows that point at another org's grant | `app/api/org/[orgId]/grants/[grantId]/decisions/route.ts` |
+| GM-B3 | Grant lifecycle transitions insert decisions, update `grants.lifecycle_stage`, and append `grant_status_history` as separate writes; move the transition into an atomic RPC/transaction with expected-stage protection | `lib/grants/lifecycle.ts` |
+
 ### Remaining Gaps (P2–P3)
 
 | # | Priority | Gap |
@@ -342,22 +364,23 @@ Shipped 2026-05-16: 14-stage lifecycle, org-scoped CRUD APIs, Pipeline/Table/Cal
 
 ## Issue Count Summary
 
-_Updated 2026-06-13: GM-3 (bulk transitions) shipped, Task Center Polish (Phase 2.1) shipped, security_invoker gap closed. P2 count reduced by 1 (GM-3). 52 items open._
+_Updated 2026-06-25: reliability review added six P1 correctness/security hardening items and one P2 CPA access-count hardening item. 59 items open._
 
 | Module | P1 (correctness) | P2 | P3 | Total |
 |--------|------------------|----|----|-------|
 | Dashboard         | — |  2 | — |  2 |
 | Holdings          | — |  4 | — |  4 |
-| Tax Center        | — |  5 | — |  5 |
+| Tax Center        | 1 |  6 | — |  7 |
 | Compliance        | — |  4 | — |  4 |
-| QuickBooks        | — |  3 | — |  3 |
+| QuickBooks        | 1 |  3 | — |  4 |
 | Donor CRM         | — |  5 | — |  5 |
 | Charities         | — |  5 | — |  5 |
 | AI Assistant      | — |  6 | — |  6 |
-| Reporting         | — |  — | — |  0 |
+| Reporting         | 1 |  — | — |  1 |
 | Visualizations    | — |  2 | 6 |  8 |
 | Admin / Import    | — |  8 | — |  8 |
 | White-Label / Branding | — |  1 | — |  1 |
 | Task / Workflow Management | — |  — | — |  0 |
+| Grant Management  | 3 |  3 | 3 |  9 |
 | Cross-Cutting     | — |  1 | 1 |  2 |
-| **Total**         | **0** | **45** | **7** | **52** |
+| **Total**         | **6** | **46** | **7** | **59** |

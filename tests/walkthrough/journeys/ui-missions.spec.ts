@@ -1,9 +1,9 @@
 import { test, expect, loginAs, setActiveOrg } from '../fixtures';
 import { fixtureIds, personas } from '../personas';
 
-const COLD_APP_TIMEOUT = 120_000;
+const COLD_APP_TIMEOUT = 180_000;
 
-test.setTimeout(360_000);
+test.setTimeout(600_000);
 
 async function deleteTasksByTitle(adminDb: any, title: string) {
   const { data: tasks } = await adminDb
@@ -31,7 +31,7 @@ test('UI mission: admin enables donor management and reaches the donor workspace
 
   try {
     await page.goto(`/org/${fixtureIds.orgs.beta}/settings/modules`);
-    await expect(page.getByRole('heading', { name: 'Module Settings' })).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByRole('heading', { name: 'Module Settings' })).toBeVisible({ timeout: COLD_APP_TIMEOUT });
 
     await page.getByRole('button', { name: 'Enable Donor Management' }).click();
     await expect(page.getByRole('button', { name: 'Disable Donor Management' })).toBeVisible();

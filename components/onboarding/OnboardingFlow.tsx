@@ -42,25 +42,29 @@ export default function OnboardingFlow({ initialSession }: OnboardingFlowProps) 
   // Load or create session on mount
   useEffect(() => {
     if (!initialSession) {
-      loadOrCreateSession();
+      const controller = new AbortController();
+      loadOrCreateSession(controller.signal);
+      return () => controller.abort();
     }
   }, []);
 
-  const loadOrCreateSession = async () => {
+  const loadOrCreateSession = async (signal?: AbortSignal) => {
     try {
       setIsLoading(true);
 
       // Try to get existing session
-      const getRes = await fetch('/api/onboarding/session');
+      const getRes = await fetch('/api/onboarding/session', { signal });
       const getData = await getRes.json();
+      if (signal?.aborted) return;
 
       if (getData.session) {
         setSession(getData.session);
         setStep(getData.session.status || 'intake');
       } else {
         // Create new session
-        const createRes = await fetch('/api/onboarding/session', { method: 'POST' });
+        const createRes = await fetch('/api/onboarding/session', { method: 'POST', signal });
         const createData = await createRes.json();
+        if (signal?.aborted) return;
 
         if (createData.session) {
           setSession(createData.session);
@@ -68,9 +72,10 @@ export default function OnboardingFlow({ initialSession }: OnboardingFlowProps) 
         }
       }
     } catch (err) {
+      if (signal?.aborted) return;
       console.error('Error loading session:', err);
     } finally {
-      setIsLoading(false);
+      if (!signal?.aborted) setIsLoading(false);
     }
   };
 

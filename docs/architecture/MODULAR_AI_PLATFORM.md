@@ -1,5 +1,7 @@
 # Modular AI Platform Architecture
 
+> Historical design note: this document preserves the original modular AI concept and may include retired schema examples such as `organization_modules`, `organization_id`, or `grant_details`. Use `/db/migrations`, `AGENTS.md`, and the current top-level docs for implementation decisions.
+
 ## Vision
 
 This is a **configurable AI-powered platform** where each organization gets a tailored instance of Claude with exactly the tools they need. Organizations enable modules based on their use case - whether they're a family foundation, community foundation, DAF sponsor, or nonprofit.

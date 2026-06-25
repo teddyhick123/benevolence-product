@@ -10,6 +10,8 @@ The module system enables organizations to customize their platform experience b
 - **UI components**: React components and pages
 - **System prompts**: AI context for the module
 
+Current module state is stored on `organizations.modules` as JSONB and checked in SQL with `org_has_module(p_org_id, p_module)`. There is no `organization_modules` table. App-facing IDs such as `tax_optimization`, `donor_management`, `pledge_tracking`, and `compliance_regulatory` map to database module slugs such as `tax`, `donors`, `pledges`, and `compliance` where needed.
+
 ## Module Registry
 
 ### Location
@@ -116,7 +118,7 @@ Tax planning and compliance tools.
 - `calculate_deduction` - Deduction estimates
 - `get_carryforward` - Carryforward tracking
 
-**Tables**: `tax_profiles`, `contributions`, `tax_documents`, `agi_estimates`
+**Tables**: `tax_profiles`, `tax_years`, `tax_contributions`, `holding_contributions`, `tax_carryforwards`, `tax_documents`, `daf_grants`, `foundation_990pf_data`, `cpa_share_links`, `cpa_access_logs`
 
 **Routes**: `/dashboard/tax`, `/dashboard/tax/scenarios`, `/dashboard/tax/contributions`
 
@@ -139,7 +141,7 @@ Grant workflow and due diligence.
 - `get_grant_health` - Health assessment
 - `record_grant_payment` - Payment tracking
 
-**Tables**: `grant_details`, `grant_milestones`, `grant_reports`, `workflow_templates`, `workflow_instances`, `workflow_tasks`, `grant_payments`, `grant_budget_items`, `grant_communications`, `grant_contacts`, `grant_documents`, `reminders`
+**Tables**: `grants`, `grant_milestones`, `grant_reports`, `grant_payments`, `grant_budget_items`, `grant_communications`, `grant_contacts`, `grant_documents`, `grant_decisions`, `grant_status_history`, `workflow_templates`, `workflow_instances`, `workflow_tasks`, `tasks`, `task_events`, `task_comments`, `task_entity_links`, `reminders`
 
 **Routes**: `/dashboard/grants`, `/dashboard/grants/workflows`, `/dashboard/grants/calendar`, `/dashboard/grants/payments`
 
@@ -164,6 +166,22 @@ Track donations received and generate acknowledgments.
 
 ---
 
+### Pledge Tracking
+
+**ID**: `pledge_tracking`
+
+Tracks donor commitments, installment schedules, and pledge fulfillment.
+
+**Dependencies**: `donor_management`
+
+**Tools**: None in the current release.
+
+**Tables**: `pledges`, `pledge_installments`, `pledge_events`
+
+**Routes**: `/dashboard/pledges`
+
+---
+
 ### External Data
 
 **ID**: `external_data`
@@ -175,7 +193,7 @@ Third-party data integrations.
 - `search_similar_charities` - Find similar orgs
 - `get_charity_financials` - Financial data
 
-**Tables**: `external_data_cache`, `holding_news`, `charity_ratings`
+**Tables**: `charities`, `news_articles`, `portfolio_charities`, `charity_rating_cache`, `geocode_cache`
 
 **Routes**: None (background functionality)
 
@@ -199,6 +217,32 @@ Advanced analytics and AI insights.
 **Tables**: `benchmark_data`, `metric_projections_cache`, `portfolio_risk_snapshots`, `analytics_insights`
 
 **Routes**: `/dashboard/analytics`, `/dashboard/analytics/projections`, `/dashboard/analytics/benchmarks`, `/dashboard/analytics/risk`, `/dashboard/analytics/insights`
+
+---
+
+### Compliance & Regulatory
+
+**ID**: `compliance_regulatory`
+
+Compliance, payout tracking, self-dealing screening, filing calendar, expenditure responsibility, and 990-PF data assembly.
+
+**Dependencies**: `grant_management`
+
+**Tools**:
+- `get_compliance_status`
+- `calculate_payout_requirement`
+- `get_payout_forecast`
+- `screen_for_self_dealing`
+- `register_disqualified_person`
+- `track_filing_deadline`
+- `log_expenditure_responsibility`
+- `assess_qualifying_distribution`
+- `get_990pf_export_data`
+- `get_state_registration_status`
+
+**Tables**: `filing_calendar`, `state_registrations`, `foundation_990pf_data`, `compliance_profiles`, `disqualified_persons`, `self_dealing_incidents`, `expenditure_responsibility_grants`, `qualifying_distributions`, `payout_history`
+
+**Routes**: `/dashboard/compliance`
 
 ## Module Functions
 

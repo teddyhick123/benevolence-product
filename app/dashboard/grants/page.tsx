@@ -2,8 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { type LifecycleStage } from '@/lib/grants/lifecycle-shared';
-import { requiresDecision } from '@/lib/grants/lifecycle';
+import { requiresDecision, type LifecycleStage } from '@/lib/grants/lifecycle-shared';
 import WorkflowManager from '@/components/grants/WorkflowManager';
 import PaymentSchedule from '@/components/grants/PaymentSchedule';
 import CommunicationLog from '@/components/grants/CommunicationLog';

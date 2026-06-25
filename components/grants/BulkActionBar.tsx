@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { ALLOWED_TRANSITIONS, type LifecycleStage } from '@/lib/grants/lifecycle';
+import { ALLOWED_TRANSITIONS, type LifecycleStage } from '@/lib/grants/lifecycle-shared';
 import { grantStageLabel } from './grantPalette';
 import { type GrantListItem } from './GrantPipelineView';
 

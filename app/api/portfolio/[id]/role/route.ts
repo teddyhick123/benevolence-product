@@ -7,7 +7,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
   const supabase = await createSupabaseServerClient();
 
   // role string
-  const { data: roleVal, error: roleErr } = await supabase.rpc('role_for_portfolio', { p_portfolio_id: pid });
+  const { data: roleVal, error: roleErr } = await supabase.rpc('user_portfolio_role', { p_portfolio_id: pid });
   if (roleErr) return NextResponse.json({ error: roleErr.message }, { status: 500 });
 
   // can edit boolean

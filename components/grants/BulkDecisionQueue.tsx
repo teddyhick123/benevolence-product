@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useMemo } from 'react';
-import { requiresDecision, type LifecycleStage, type DecisionPayload } from '@/lib/grants/lifecycle';
+import { requiresDecision, type LifecycleStage, type DecisionPayload } from '@/lib/grants/lifecycle-shared';
 import { grantStageLabel } from './grantPalette';
 import { type GrantListItem } from './GrantPipelineView';
 import { type QueuedTransitions } from './BulkActionBar';

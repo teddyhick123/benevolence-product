@@ -19,24 +19,32 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
     const adminClient = createAdminClient();
     const { data, error } = await adminClient
       .from('organization_members')
-      .select(`
-        id, org_id, user_id, role, created_at,
-        profiles!user_id ( email, full_name, avatar_url )
-      `)
+      .select('id, org_id, user_id, role, created_at')
       .eq('org_id', orgId)
       .is('deleted_at', null)
       .order('created_at', { ascending: true });
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
+    const userIds = Array.from(new Set((data || []).map((member: any) => member.user_id).filter(Boolean)));
+    const { data: profiles, error: profilesError } = userIds.length > 0
+      ? await adminClient
+        .from('profiles')
+        .select('id, email, full_name, avatar_url')
+        .in('id', userIds)
+      : { data: [], error: null };
+
+    if (profilesError) return NextResponse.json({ error: profilesError.message }, { status: 500 });
+
+    const profilesById = new Map((profiles || []).map((profile: any) => [profile.id, profile]));
     const members = (data || []).map((m: any) => ({
       id: m.id,
       user_id: m.user_id,
       role: m.role,
       created_at: m.created_at,
-      email: m.profiles?.email || null,
-      full_name: m.profiles?.full_name || null,
-      avatar_url: m.profiles?.avatar_url || null,
+      email: profilesById.get(m.user_id)?.email || null,
+      full_name: profilesById.get(m.user_id)?.full_name || null,
+      avatar_url: profilesById.get(m.user_id)?.avatar_url || null,
     }));
 
     return NextResponse.json({ members, currentRole: role });

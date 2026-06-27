@@ -1,56 +1,89 @@
 # Running Client Demos
 
-This guide is for Teddy, focusing on how to best showcase Benevolence during prospect meetings. Demo environments leverage the sample data from `db/demo_data.sql`, which provides a realistic foundation portfolio complete with diverse asset types, historical data, and tax records.
-
-## Scenario Overviews
-
-### Scenario 1: Foundation Executive Director (15 minutes)
-
-*   **Persona:** Executive Director of a $25-50M family foundation. Currently uses Blackbaud, frustrated by its cost and complexity.
-*   **Goal:** Demonstrate a superior, owned system that simplifies operations.
-*   **Flow:**
-    1.  **Dashboard Overview:** Highlight portfolio value, key KPIs, and recent activity.
-    2.  **Holdings Map:** Showcase the geographic distribution of investments.
-    3.  **Board Report:** Generate and download a professional PDF board report.
-    4.  **Tax Center:** Demonstrate contribution history tracking and export options.
-    5.  **AI Assistant:** Ask a probing question like, "What is our total grant exposure?" or "Summarize our impact this year."
-*   **Talking Points:** "You own this software outright. No recurring SaaS fees, no vendor lock-in. Your board will receive clear, concise reports every quarter."
-
-### Scenario 2: Finance Director / CFO (20 minutes)
-
-*   **Persona:** Finance Director at a family office with strong ties to QuickBooks and responsibility for tax compliance and audits.
-*   **Goal:** Prove the platform's accounting integration and data accuracy.
-*   **Flow:**
-    1.  **QuickBooks Connection:** Walk through the OAuth 2.0 connection process (use a sandbox account).
-    2.  **Account Sync:** Display the synchronization of the chart of accounts.
-    3.  **Contribution Export:** Show how journal entries are generated and exported to QuickBooks.
-    4.  **Tax Center:** Emphasize TurboTax TXF export, the carryforward schedule, and AGI limit visualization.
-    5.  **XIRR Calculation:** Display investment performance metrics like XIRR on holdings.
-*   **Talking Points:** "Your accounting team receives clean, accurate journal entries. Tax preparers get a properly formatted TXF file. Eliminate manual data re-entry and reduce errors."
-
-### Scenario 3: IT Director / Implementation Evaluation (30 minutes)
-
-*   **Persona:** IT Director or CTO at a foundation evaluating Benevolence for long-term maintainability, security, and deployment.
-*   **Goal:** Assure stakeholders that the platform is robust, secure, and entirely under their control.
-*   **Flow:**
-    1.  **Deployment:** Show the ease of deploying to Vercel in minutes, hosted on their own Supabase project.
-    2.  **Code Ownership:** Briefly walk through the repository structure, emphasizing that they receive and own the full source code.
-    3.  **Security:** Highlight Row Level Security (RLS) on all tables, role-based access control, and freedom from vendor data hostage scenarios.
-    4.  **Blackbaud Import:** Demonstrate the AI-powered importer, focusing on field mapping, validation, and reconciliation reports.
-    5.  **Per-Tenant Configuration:** Illustrate how the platform can be customized per organization (e.g., module toggles, branding).
-*   **Talking Points:** "You own the source code. You own your data. You control the hosting environment. If your organization's needs evolve, you have the freedom to modify and extend the software yourself."
+This guide covers demo scenarios for prospect meetings. Demo environments use `db/demo_data.sql`, which provides a realistic foundation portfolio with grants in various lifecycle stages, donor history, tax records, and active tasks.
 
 ## Demo Prep Checklist
 
-Before any prospect meeting, ensure the following steps are completed for the demo environment:
+Before any prospect meeting:
 
-*   [ ] Clone the latest `docs/cleanup-and-rewrite` branch and run `pnpm install`.
-*   [ ] Set up a dedicated Supabase project for the demo.
-*   [ ] Run all migrations in `db/` (execute in numeric order, skip `db/scripts/`): `supabase migration up`.
-*   [ ] Configure all required environment variables as detailed in `docs/GETTING_STARTED.md`.
-*   [ ] Load demo data either via the admin console's "Load Demo Data" button or by executing `db/demo_data.sql` in the Supabase SQL editor.
-*   [ ] Create a dedicated demo user account and assign it to the demo portfolio.
-*   [ ] **For Finance Director Demo:** Connect a QuickBooks *sandbox* account via `Settings → Integrations`.
-*   [ ] Verify that the Board Report PDF generation works correctly (`Portfolio → Board Report PDF`).
-*   [ ] Verify that the Tax Center export functions as expected (`Tax Center → Export → TurboTax`).
-*   [ ] Prepare a few example questions for the AI Assistant to demonstrate its capabilities.
+- [ ] Clone latest main and run `pnpm install`
+- [ ] Create a dedicated Supabase project for the demo
+- [ ] Run all migrations: `supabase db push`
+- [ ] Configure environment variables per `GETTING_STARTED.md`
+- [ ] Load demo data via the admin console "Load Demo Data" button or `db/demo_data.sql` in the Supabase SQL editor
+- [ ] Create a demo user account and assign it to the demo org
+- [ ] For Finance Director demo: connect a QuickBooks sandbox account via Settings → Integrations
+- [ ] Verify the grant pipeline loads (`/dashboard/grants`) and shows grants across multiple lifecycle stages
+- [ ] Verify the AI assistant can answer "What grants need a decision this month?" with real data
+
+---
+
+## Scenario 1: Foundation Executive Director (20 minutes)
+
+**Persona:** Executive Director of a $25–50M family foundation. Currently uses Blackbaud, frustrated by cost and complexity.
+
+**Goal:** Show a platform that handles the operational core — grants, compliance, and board reporting — without the Blackbaud overhead.
+
+**Flow:**
+
+1. **Dashboard** — portfolio value, KPI cards, holdings map. "This is the view your board sees. Every number here updates in real time."
+
+2. **Grants pipeline** — open the pipeline view and walk through lifecycle stages. Show an active grant with milestones and a payment schedule. Move a grant from `due_diligence` to `recommended` and show the decision dialog. "Every transition is logged. You have a full audit trail of who approved what and when."
+
+3. **Attention queue** — filter to grants requiring decisions. "This replaces your weekly grant status emails. Everything that needs your attention is surfaced here."
+
+4. **Compliance** — show the filing calendar and payout requirement. "Your 990-PF deadline is tracked automatically, and the required distribution calculation is always current."
+
+5. **AI assistant** — ask: "Which grants are in due diligence right now?" then "Summarize the Greenfield Foundation grant." Demonstrate a mutation: "Move the Greenfield grant to recommended with a decision note: 'Board voted 5-0 in the October meeting.'" Show the action is reflected immediately in the pipeline.
+
+6. **Builder** — brief look at the Builder tab in settings. "When your team's needs evolve — say you want to track a new KPI or enable the donors module — your admin can configure it here without calling us."
+
+**Talking Points:** "You own this software. No recurring SaaS fees, no vendor lock-in. When your team grows, you add a seat. When your workflows change, you change the software."
+
+---
+
+## Scenario 2: Finance Director / CFO (20 minutes)
+
+**Persona:** Finance Director at a family office. Responsible for QuickBooks accuracy, tax compliance, and audit readiness.
+
+**Goal:** Prove accounting integration, tax data integrity, and CPA collaboration.
+
+**Flow:**
+
+1. **QuickBooks** — walk through the OAuth connection and chart of accounts sync (use sandbox). Show contribution export as journal entries. "Your accountants get clean, categorized entries. No manual re-entry."
+
+2. **Tax center** — open the contributions view. Show AGI-based deduction limit buckets. Show a stock donation with FMV and cost basis. Show the carryforward schedule with expiration tracking.
+
+3. **CPA sharing** — generate a share link with view-only permissions. "Your CPA gets a time-limited, read-only portal into exactly the data they need for the return. No shared login, no export-and-email."
+
+4. **Document storage** — open a contribution and show the attached appraisal document. Download via signed URL. "Every substantiation document is linked to the contribution it covers and is available on demand during an audit."
+
+5. **Export** — show TurboTax TXF, Excel, and PDF export options.
+
+6. **Grant payments** — open a grant with a payment schedule. Show actual vs. planned disbursement. "Payment timing is tracked at the grant level, which is what your auditors want to see."
+
+**Talking Points:** "Your tax preparer gets exactly what they need without you compiling spreadsheets. Your audit trail lives in the system, not in email threads."
+
+---
+
+## Scenario 3: IT Director / Security and Deployment Evaluation (30 minutes)
+
+**Persona:** IT Director or CTO evaluating long-term maintainability, security model, and deployment ownership.
+
+**Goal:** Demonstrate code ownership, data sovereignty, and secure architecture.
+
+**Flow:**
+
+1. **Deployment** — show the Vercel deployment connected to the Supabase project. "This is your Supabase project. Your data never touches our infrastructure."
+
+2. **Code ownership** — walk the repository structure briefly. Show `db/migrations/` as the schema source of truth. "Every schema change is a numbered migration file in your repo. You can review, modify, or revert it."
+
+3. **RLS** — open any migration and show the RLS policies. "Row Level Security is enforced at the database level. Even if there's an application bug, the database rejects cross-org queries."
+
+4. **Module gating** — disable a module in settings and show the nav item disappear and the API return 403. "Module access is enforced at the UI, API, and database RLS levels simultaneously."
+
+5. **Import** — demonstrate the AI-assisted import with a sample Blackbaud CSV. Show field mapping suggestions, validation warnings, and the reconciliation report after commit. "Migrations are validated before they touch your production data."
+
+6. **Builder** — show the Builder chat in settings. Demonstrate asking it to enable a module and show the proposal preview before applying. "Configuration changes go through a review step before they're applied. There are no surprise schema changes."
+
+**Talking Points:** "You own the source code. You own your data. You control the hosting. If your needs evolve — and they will — you have the source code to build on."

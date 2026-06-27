@@ -2,7 +2,9 @@
 
 ## Overview
 
-This is a white-label platform for impact portfolio management. Organizations can rapidly create customized software by enabling modules that provide specific functionality. The platform uses AI-powered features for data entry, analysis, and automation.
+This is a white-label platform for philanthropic portfolio management — foundations, family offices, and DAF sponsors. Each deployment is a cloned instance with its own database, auth, and branding.
+
+Organizations configure their experience by enabling feature modules (grants, tax, donors, compliance, analytics, etc.) and using the AI assistant and Builder to work within those modules. Deeper customization — new schemas, workflows, or views specific to one org — currently requires developer involvement via the Builder's proposal-and-deploy flow.
 
 **Note**: This is a golden template. Clone for each client and customize branding via `/lib/config/branding.ts`.
 
@@ -65,7 +67,7 @@ This is a white-label platform for impact portfolio management. Organizations ca
 │   ├── ai/                  # AI assistant components
 │   │   ├── types.ts         # Shared types
 │   │   ├── validators.ts    # Input validation
-│   │   └── tools/           # Module tool definitions
+│   │   └── assistant/       # Tool definitions, executors, prompts, context
 │   ├── modules/             # Module system
 │   │   ├── types.ts         # Module types
 │   │   ├── client-info.ts   # Client-safe module data
@@ -131,9 +133,13 @@ Each module is defined in the registry with:
 The main AI assistant class provides:
 
 - **Conversation Management**: Message history, streaming
-- **Tool Execution**: Execute tools with context
-- **Action Tracking**: Record changes for undo/redo
-- **Module Integration**: Filter tools by enabled modules
+- **Tool Execution**: Execute tools with context — the assistant can mutate data (create holdings, transition grants, log contributions, record payments, etc.), not just answer questions
+- **Action Tracking**: Record changes for undo/redo; every mutation writes to `ai_actions`
+- **Module Integration**: Filter tools by enabled modules — disabled module tools are removed from the context entirely
+
+### Builder
+
+A separate AI layer (`app/api/org/[orgId]/builder/`) gives org admins a configuration interface. It reads the org's current module state and codebase scaffold context, then generates proposals for enabling/disabling modules, creating KPI structures, or scaffolding new data shapes. Proposals are reviewed and applied via a PR-based flow. See `lib/builder/` for implementation.
 
 ### Tool Pattern
 

@@ -12,6 +12,7 @@ This folder contains current references, active backlogs, walkthrough missions, 
 | Document | Use For |
 |---|---|
 | `PLATFORM_VISION.md` | Product vision, what "tailored to your org" means, and the configurability gap |
+| `CONFIGURABILITY_ROADMAP.md` | Six-phase roadmap from current state to the full dream OS — sequencing, scope, acceptance criteria |
 | `CONFIGURABILITY_ARCHITECTURE.md` | Technical sketch of current configurability layers, the three missing layers, and the Builder's evolution |
 | `ARCHITECTURE.md` | High-level app, module, AI, and tenancy architecture |
 | `MODULES.md` | Module registry and module lifecycle |

@@ -9,9 +9,11 @@ import {
   requiresDecision,
   transitionGrant,
 } from '@/lib/grants/lifecycle';
+import { checkWorkflowGate } from '@/lib/grants/workflow-config';
 
 export const dynamic = 'force-dynamic';
 
+const NO_STORE = { 'Cache-Control': 'no-store' } as const;
 const ADMIN_ROLES = new Set(['owner', 'admin']);
 
 interface RouteParams {
@@ -38,7 +40,19 @@ const transitionItemSchema = z.object({
 
 const bulkTransitionSchema = z.object({
   transitions: z.array(transitionItemSchema).min(1).max(50),
+  dry_run: z.boolean().optional().default(false),
+  rollback_on_error: z.boolean().optional().default(false),
 }).strict();
+
+function json(body: unknown, init: ResponseInit = {}) {
+  return NextResponse.json(body, {
+    ...init,
+    headers: {
+      ...NO_STORE,
+      ...(init.headers || {}),
+    },
+  });
+}
 
 export async function POST(req: NextRequest, { params }: RouteParams) {
   try {
@@ -46,52 +60,73 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
 
     const supabase = await createServerClient();
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!user) return json({ error: 'Unauthorized' }, { status: 401 });
 
     const { data: role } = await supabase.rpc('user_org_role', { p_org_id: orgId });
     if (!role || !ADMIN_ROLES.has(role)) {
-      return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
+      return json({ error: 'Admin access required' }, { status: 403 });
     }
 
     const body = await req.json().catch(() => ({}));
     const parsed = bulkTransitionSchema.safeParse(body);
     if (!parsed.success) {
-      return NextResponse.json({ error: 'Validation failed', details: parsed.error.format() }, { status: 400 });
+      return json({ error: 'Validation failed', details: parsed.error.format() }, { status: 400 });
     }
 
-    const { transitions } = parsed.data;
+    const { transitions, dry_run: dryRun, rollback_on_error: rollbackOnError } = parsed.data;
 
     // Reject duplicate grantIds
     const grantIds = transitions.map(t => t.grantId);
     const uniqueIds = new Set(grantIds);
     if (uniqueIds.size !== grantIds.length) {
-      return NextResponse.json({ error: 'Duplicate grantId values in request' }, { status: 400 });
+      return json({ error: 'Duplicate grantId values in request' }, { status: 400 });
     }
 
     // Preflight: fetch all requested grants scoped to this org in one query
     const adminSupabase = createAdminClient();
     const { data: scopedGrants, error: prefetchErr } = await adminSupabase
       .from('grants')
-      .select('id, lifecycle_stage, org_id')
+      .select(
+        'id, lifecycle_stage, org_id, purpose, internal_owner_id, requested_amount, ' +
+        'approved_amount, grant_period_start, grant_period_end, risk_level, ' +
+        'deliverables, reporting_frequency'
+      )
       .eq('org_id', orgId)
       .in('id', grantIds);
 
     if (prefetchErr) {
-      return NextResponse.json({ error: 'Failed to fetch grants' }, { status: 500 });
+      return json({ error: 'Failed to fetch grants' }, { status: 500 });
     }
 
-    const grantMap = new Map<string, { lifecycle_stage: string; org_id: string }>();
+    const grantMap = new Map<string, {
+      lifecycle_stage: string;
+      org_id: string;
+      purpose: string | null;
+      internal_owner_id: string | null;
+      requested_amount: number | null;
+      approved_amount: number | null;
+      grant_period_start: string | null;
+      grant_period_end: string | null;
+      risk_level: string | null;
+      deliverables: string | null;
+      reporting_frequency: string | null;
+    }>();
     for (const g of scopedGrants ?? []) {
       grantMap.set(g.id, g);
     }
 
-    // Process each transition
     const results: Array<{
       grantId: string;
       fromStage?: LifecycleStage;
       targetStage?: LifecycleStage;
       success: boolean;
       error?: string;
+      dryRun?: boolean;
+    }> = [];
+
+    const executableTransitions: Array<{
+      item: (typeof transitions)[number];
+      decisionPayload?: DecisionPayload;
     }> = [];
 
     for (const item of transitions) {
@@ -129,6 +164,24 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
         continue;
       }
 
+      // Workflow gate check — runs before the rollbackOnError branch decision.
+      const gate = await checkWorkflowGate(
+        adminSupabase,
+        orgId,
+        item.grantId,
+        item.expectedFromStage as LifecycleStage,
+        dbGrant as Record<string, unknown>
+      );
+      if (gate.blocked) {
+        results.push({
+          grantId: item.grantId,
+          success: false,
+          error: `Transition blocked: ${gate.reasons.join('; ')}`,
+          blocking_items: gate.reasons,
+        } as any);
+        continue;
+      }
+
       const decisionPayload: DecisionPayload | undefined = item.decision
         ? {
             ...item.decision,
@@ -137,30 +190,129 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
           }
         : undefined;
 
+      executableTransitions.push({ item, decisionPayload });
+      results.push({
+        grantId: item.grantId,
+        fromStage: item.expectedFromStage as LifecycleStage,
+        targetStage: item.targetStage as LifecycleStage,
+        success: true,
+        dryRun,
+      });
+    }
+
+    const preflightSuccessCount = results.filter(r => r.success).length;
+    const preflightFailureCount = results.length - preflightSuccessCount;
+
+    if (dryRun) {
+      return json({
+        mode: 'dry_run',
+        dryRun: true,
+        rollbackOnError,
+        partialExecution: false,
+        successCount: preflightSuccessCount,
+        failureCount: preflightFailureCount,
+        results,
+      }, { status: preflightFailureCount > 0 ? 207 : 200 });
+    }
+
+    if (rollbackOnError && preflightFailureCount > 0) {
+      return json({
+        mode: 'rollback_on_error',
+        dryRun: false,
+        rollbackOnError: true,
+        partialExecution: false,
+        writesStarted: false,
+        successCount: 0,
+        failureCount: results.length,
+        results: results.map(r => r.success
+          ? { ...r, success: false, error: 'Not attempted because rollback_on_error requires every transition to pass preflight validation.' }
+          : r
+        ),
+      }, { status: 409 });
+    }
+
+    if (rollbackOnError) {
+      const { data: batchResult, error: batchError } = await adminSupabase.rpc('transition_grant_lifecycle_batch', {
+        p_expected_org_id: orgId,
+        p_actor_id: user.id,
+        p_transitions: executableTransitions.map(({ item, decisionPayload }) => ({
+          grant_id: item.grantId,
+          expected_from_stage: item.expectedFromStage,
+          target_stage: item.targetStage,
+          reason: item.reason ?? null,
+          decision_payload: decisionPayload ?? null,
+        })),
+      });
+
+      if (batchError) {
+        return json({
+          mode: 'rollback_on_error',
+          dryRun: false,
+          rollbackOnError: true,
+          partialExecution: false,
+          rollbackPerformed: true,
+          successCount: 0,
+          failureCount: transitions.length,
+          results: transitions.map(item => ({
+            grantId: item.grantId,
+            fromStage: item.expectedFromStage,
+            targetStage: item.targetStage,
+            success: false,
+            error: `Batch rolled back: ${batchError.message}`,
+          })),
+        }, { status: 409 });
+      }
+
+      return json({
+        mode: 'rollback_on_error',
+        dryRun: false,
+        rollbackOnError: true,
+        partialExecution: false,
+        ...(batchResult ?? {
+          successCount: executableTransitions.length,
+          failureCount: 0,
+          results,
+        }),
+      }, { status: 200 });
+    }
+
+    const executionResults = results.filter(r => !r.success);
+
+    for (const { item, decisionPayload } of executableTransitions) {
       try {
         await transitionGrant(
           item.grantId,
           item.targetStage as LifecycleStage,
           user.id,
           item.reason,
-          decisionPayload
+          decisionPayload,
+          orgId
         );
-        results.push({
+        executionResults.push({
           grantId: item.grantId,
           fromStage: item.expectedFromStage as LifecycleStage,
           targetStage: item.targetStage as LifecycleStage,
           success: true,
         });
       } catch (err: any) {
-        results.push({ grantId: item.grantId, success: false, error: err?.message ?? 'Unknown error' });
+        executionResults.push({ grantId: item.grantId, success: false, error: err?.message ?? 'Unknown error' });
       }
     }
 
-    const successCount = results.filter(r => r.success).length;
-    const failureCount = results.length - successCount;
+    const successCount = executionResults.filter(r => r.success).length;
+    const failureCount = executionResults.length - successCount;
 
-    return NextResponse.json({ successCount, failureCount, results }, { status: 207 });
+    return json({
+      mode: 'partial',
+      dryRun: false,
+      rollbackOnError: false,
+      partialExecution: true,
+      contract: 'Each grant transition is atomic, but the batch is not rolled back in partial mode.',
+      successCount,
+      failureCount,
+      results: executionResults,
+    }, { status: 207 });
   } catch (err: any) {
-    return NextResponse.json({ error: err?.message ?? 'Internal error' }, { status: 500 });
+    return json({ error: err?.message ?? 'Internal error' }, { status: 500 });
   }
 }

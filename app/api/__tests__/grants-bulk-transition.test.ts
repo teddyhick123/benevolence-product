@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 // app/api/__tests__/grants-bulk-transition.test.ts
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { NextRequest } from 'next/server';
@@ -26,25 +28,52 @@ let _grantFetchData: { lifecycle_stage: string; org_id: string } | null = {
   org_id: ORG_ID,
 };
 let _grantFetchError: { message: string } | null = null;
-let _grantUpdateError: { message: string } | null = null;
-let _historyInsertError: { message: string } | null = null;
+let _transitionRpcError: { message: string } | null = null;
+let _batchRpcError: { message: string } | null = null;
+let _workflowConfigRows: any[] = [];
+let _checklistCompletionRows: any[] = [];
 
 // ─── Mocks ─────────────────────────────────────────────────────────────────────
 
 const mockServerRpc = vi.fn();
 const mockAdminFrom = vi.fn();
+const mockAdminRpc = vi.fn();
 
 vi.mock('@/lib/supabase', () => ({
   createServerClient: vi.fn(async () => ({
     auth: { getUser: vi.fn(async () => ({ data: { user: _authUser } })) },
     rpc: mockServerRpc,
   })),
-  createAdminClient: vi.fn(() => ({ from: mockAdminFrom })),
+  createAdminClient: vi.fn(() => ({ from: mockAdminFrom, rpc: mockAdminRpc })),
 }));
 
 function setupMocks() {
+  mockServerRpc.mockClear();
+  mockAdminFrom.mockClear();
+  mockAdminRpc.mockClear();
+
   mockServerRpc.mockImplementation(async (fn: string) => {
     if (fn === 'user_org_role') return { data: _orgRole, error: null };
+    return { data: null, error: null };
+  });
+
+  mockAdminRpc.mockImplementation(async (fn: string) => {
+    if (fn === 'transition_grant_lifecycle') return { data: null, error: _transitionRpcError };
+    if (fn === 'transition_grant_lifecycle_batch') {
+      return {
+        data: {
+          successCount: _prefetchData?.length ?? 0,
+          failureCount: 0,
+          results: (_prefetchData ?? []).map(g => ({
+            grantId: g.id,
+            fromStage: g.lifecycle_stage,
+            targetStage: 'prospect',
+            success: true,
+          })),
+        },
+        error: _batchRpcError,
+      };
+    }
     return { data: null, error: null };
   });
 
@@ -55,19 +84,27 @@ function setupMocks() {
         select: vi.fn(() => ({
           eq: vi.fn(() => ({
             in: vi.fn(async () => ({ data: _prefetchError ? null : _prefetchData, error: _prefetchError })),
-            single: vi.fn(async () => ({ data: _grantFetchData, error: _grantFetchError })),
+            maybeSingle: vi.fn(async () => ({ data: _grantFetchData, error: _grantFetchError })),
           })),
-        })),
-        update: vi.fn(() => ({
-          eq: vi.fn(async () => ({ error: _grantUpdateError })),
         })),
       };
     }
-    if (table === 'grant_status_history') {
-      return { insert: vi.fn(async () => ({ error: _historyInsertError })) };
+    if (table === 'org_workflow_config') {
+      const b: any = {
+        select: vi.fn(() => b),
+        eq: vi.fn(() => b),
+        order: vi.fn(async () => ({ data: _workflowConfigRows, error: null })),
+      };
+      return b;
     }
-    if (table === 'grant_decisions') {
-      return { insert: vi.fn(async () => ({ error: null })) };
+    if (table === 'grant_checklist_completions') {
+      const b: any = {
+        select: vi.fn(() => b),
+        eq: vi.fn(() => b),
+        then: (resolve: any) =>
+          Promise.resolve({ data: _checklistCompletionRows, error: null }).then(resolve),
+      };
+      return b;
     }
     const b: any = { select: vi.fn(() => b), eq: vi.fn(() => b), insert: vi.fn(async () => ({ error: null })) };
     return b;
@@ -101,8 +138,10 @@ beforeEach(() => {
   _prefetchError = null;
   _grantFetchData = { lifecycle_stage: 'draft', org_id: ORG_ID };
   _grantFetchError = null;
-  _grantUpdateError = null;
-  _historyInsertError = null;
+  _transitionRpcError = null;
+  _batchRpcError = null;
+  _workflowConfigRows = [];
+  _checklistCompletionRows = [];
   setupMocks();
 });
 
@@ -252,17 +291,6 @@ describe('POST bulk-transition — success paths (207)', () => {
     _prefetchData = [{ id: GRANT_A, lifecycle_stage: 'recommended', org_id: ORG_ID }];
     _grantFetchData = { lifecycle_stage: 'recommended', org_id: ORG_ID };
 
-    const decisionInsertSpy = vi.fn(async () => ({ error: null }));
-
-    // Wire the spy into the mock for grant_decisions
-    const originalImpl = mockAdminFrom.getMockImplementation();
-    mockAdminFrom.mockImplementation((table: string) => {
-      if (table === 'grant_decisions') {
-        return { insert: decisionInsertSpy };
-      }
-      return originalImpl!(table);
-    });
-
     const res = await POST(makeRequest({
       transitions: [{
         grantId: GRANT_A,
@@ -274,8 +302,20 @@ describe('POST bulk-transition — success paths (207)', () => {
 
     expect(res.status).toBe(207);
 
-    expect(decisionInsertSpy).toHaveBeenCalled();
-    const inserted = (decisionInsertSpy.mock.calls as any[][])[0][0];
+    expect(mockAdminRpc).toHaveBeenCalledWith(
+      'transition_grant_lifecycle',
+      expect.objectContaining({
+        p_grant_id: GRANT_A,
+        p_expected_org_id: ORG_ID,
+        p_expected_from_stage: 'recommended',
+        p_to_stage: 'approved',
+      })
+    );
+    const rpcPayload = (mockAdminRpc.mock.calls as any[][]).find(
+      ([fn]) => fn === 'transition_grant_lifecycle'
+    )?.[1];
+    expect(rpcPayload).toBeDefined();
+    const inserted = rpcPayload!.p_decision_payload;
     const today = new Date().toISOString().slice(0, 10);
     expect(inserted.decision_date).toBe(today);
     expect(inserted.decided_by).toBe(USER_ID);
@@ -314,6 +354,15 @@ describe('POST bulk-transition — success paths (207)', () => {
     expect(body.results).toHaveLength(1);
   });
 
+  it('documents default partial execution mode in the response', async () => {
+    const res = await POST(makeRequest({ transitions: [{ grantId: GRANT_A, expectedFromStage: 'draft', targetStage: 'prospect' }] }), makeParams());
+    expect(res.status).toBe(207);
+    const body = await res.json();
+    expect(body.mode).toBe('partial');
+    expect(body.partialExecution).toBe(true);
+    expect(body.contract).toMatch(/not rolled back in partial mode/i);
+  });
+
   it('preflight query includes org_id scope', async () => {
     // Capture eq calls to verify org_id scoping
     const eqSpy = vi.fn((col: string, _val: string) => ({
@@ -343,6 +392,101 @@ describe('POST bulk-transition — success paths (207)', () => {
   });
 });
 
+// ─── Safety modes ────────────────────────────────────────────────────────────
+
+describe('POST bulk-transition — safety modes', () => {
+  it('dry_run validates transitions without calling transition RPCs', async () => {
+    const res = await POST(makeRequest({
+      dry_run: true,
+      transitions: [{ grantId: GRANT_A, expectedFromStage: 'draft', targetStage: 'prospect' }],
+    }), makeParams());
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.mode).toBe('dry_run');
+    expect(body.dryRun).toBe(true);
+    expect(body.partialExecution).toBe(false);
+    expect(body.successCount).toBe(1);
+    expect(mockAdminRpc).not.toHaveBeenCalledWith('transition_grant_lifecycle', expect.anything());
+    expect(mockAdminRpc).not.toHaveBeenCalledWith('transition_grant_lifecycle_batch', expect.anything());
+  });
+
+  it('dry_run returns validation failures without writes', async () => {
+    _prefetchData = [{ id: GRANT_A, lifecycle_stage: 'prospect', org_id: ORG_ID }];
+    const res = await POST(makeRequest({
+      dry_run: true,
+      transitions: [{ grantId: GRANT_A, expectedFromStage: 'draft', targetStage: 'prospect' }],
+    }), makeParams());
+
+    expect(res.status).toBe(207);
+    const body = await res.json();
+    expect(body.mode).toBe('dry_run');
+    expect(body.failureCount).toBe(1);
+    expect(mockAdminRpc).not.toHaveBeenCalledWith('transition_grant_lifecycle', expect.anything());
+    expect(mockAdminRpc).not.toHaveBeenCalledWith('transition_grant_lifecycle_batch', expect.anything());
+  });
+
+  it('rollback_on_error blocks the whole batch when preflight has failures', async () => {
+    _prefetchData = [
+      { id: GRANT_A, lifecycle_stage: 'draft', org_id: ORG_ID },
+      { id: GRANT_B, lifecycle_stage: 'prospect', org_id: ORG_ID },
+    ];
+
+    const res = await POST(makeRequest({
+      rollback_on_error: true,
+      transitions: [
+        { grantId: GRANT_A, expectedFromStage: 'draft', targetStage: 'prospect' },
+        { grantId: GRANT_B, expectedFromStage: 'draft', targetStage: 'prospect' },
+      ],
+    }), makeParams());
+
+    expect(res.status).toBe(409);
+    const body = await res.json();
+    expect(body.mode).toBe('rollback_on_error');
+    expect(body.writesStarted).toBe(false);
+    expect(body.successCount).toBe(0);
+    expect(body.results.every((r: any) => r.success === false)).toBe(true);
+    expect(mockAdminRpc).not.toHaveBeenCalledWith('transition_grant_lifecycle', expect.anything());
+    expect(mockAdminRpc).not.toHaveBeenCalledWith('transition_grant_lifecycle_batch', expect.anything());
+  });
+
+  it('rollback_on_error uses the atomic batch transition RPC when preflight passes', async () => {
+    const res = await POST(makeRequest({
+      rollback_on_error: true,
+      transitions: [{ grantId: GRANT_A, expectedFromStage: 'draft', targetStage: 'prospect' }],
+    }), makeParams());
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.mode).toBe('rollback_on_error');
+    expect(body.partialExecution).toBe(false);
+    expect(body.successCount).toBe(1);
+    expect(mockAdminRpc).toHaveBeenCalledWith(
+      'transition_grant_lifecycle_batch',
+      expect.objectContaining({
+        p_expected_org_id: ORG_ID,
+        p_actor_id: USER_ID,
+      })
+    );
+    expect(mockAdminRpc).not.toHaveBeenCalledWith('transition_grant_lifecycle', expect.anything());
+  });
+
+  it('rollback_on_error reports a rolled-back batch when the batch RPC fails', async () => {
+    _batchRpcError = { message: 'GRANT_TRANSITION_CONFLICT' };
+    const res = await POST(makeRequest({
+      rollback_on_error: true,
+      transitions: [{ grantId: GRANT_A, expectedFromStage: 'draft', targetStage: 'prospect' }],
+    }), makeParams());
+
+    expect(res.status).toBe(409);
+    const body = await res.json();
+    expect(body.rollbackPerformed).toBe(true);
+    expect(body.successCount).toBe(0);
+    expect(body.failureCount).toBe(1);
+    expect(body.results[0].error).toMatch(/rolled back/i);
+  });
+});
+
 // ─── Preflight DB error ───────────────────────────────────────────────────────
 
 describe('POST bulk-transition — preflight DB error', () => {
@@ -350,5 +494,70 @@ describe('POST bulk-transition — preflight DB error', () => {
     _prefetchError = { message: 'connection refused' };
     const res = await POST(makeRequest({ transitions: [{ grantId: GRANT_A, expectedFromStage: 'draft', targetStage: 'prospect' }] }), makeParams());
     expect(res.status).toBe(500);
+  });
+});
+
+// ─── Workflow gate ─────────────────────────────────────────────────────────────
+
+describe('POST bulk-transition — workflow gate', () => {
+  const GRANT_1 = '33333333-3333-3333-3333-333333333331';
+  const GRANT_2 = '33333333-3333-3333-3333-333333333332';
+
+  it('preflight rejects gate-blocked grants (rollback_on_error=false)', async () => {
+    // Both grants exist with valid transitions from due_diligence → recommended
+    _prefetchData = [
+      { id: GRANT_1, lifecycle_stage: 'due_diligence', org_id: ORG_ID },
+      { id: GRANT_2, lifecycle_stage: 'due_diligence', org_id: ORG_ID },
+    ];
+    // A required checklist item exists for due_diligence → both blocked
+    _workflowConfigRows = [{
+      id: 'cfg-1',
+      config_type: 'stage_checklist',
+      stage_key: 'due_diligence',
+      config_key: 'site_visit',
+      config_value: { label: 'Site visit completed', required: true },
+      sort_order: 0,
+    }];
+    // No completions → both grants are blocked
+    _checklistCompletionRows = [];
+
+    const res = await POST(makeRequest({
+      transitions: [
+        { grantId: GRANT_1, expectedFromStage: 'due_diligence', targetStage: 'recommended' },
+        { grantId: GRANT_2, expectedFromStage: 'due_diligence', targetStage: 'recommended' },
+      ],
+      rollback_on_error: false,
+    }), makeParams());
+
+    expect(res.status).toBe(207);
+    const body = await res.json();
+    const errors = body.results.filter((r: any) => !r.success);
+    expect(errors.length).toBe(2);
+    expect(errors[0].error).toMatch(/blocked/i);
+  });
+
+  it('preflight blocks rollback_on_error execution when gate fails', async () => {
+    _prefetchData = [
+      { id: GRANT_1, lifecycle_stage: 'due_diligence', org_id: ORG_ID },
+    ];
+    _workflowConfigRows = [{
+      id: 'cfg-1',
+      config_type: 'stage_checklist',
+      stage_key: 'due_diligence',
+      config_key: 'site_visit',
+      config_value: { label: 'Site visit completed', required: true },
+      sort_order: 0,
+    }];
+    _checklistCompletionRows = [];
+
+    const res = await POST(makeRequest({
+      transitions: [{ grantId: GRANT_1, expectedFromStage: 'due_diligence', targetStage: 'recommended' }],
+      rollback_on_error: true,
+    }), makeParams());
+
+    expect(res.status).toBe(409);
+    const body = await res.json();
+    expect(body.rollbackOnError).toBe(true);
+    expect(body.results[0].success).toBe(false);
   });
 });

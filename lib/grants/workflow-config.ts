@@ -1,7 +1,7 @@
 // lib/grants/workflow-config.ts
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { LifecycleStage } from './lifecycle-shared';
-import { getGrantFieldValue, type RequiredFieldName } from './workflow-config-constants';
+import { getGrantFieldValue, REQUIRED_FIELD_ALLOWLIST, type RequiredFieldName } from './workflow-config-constants';
 
 export interface WorkflowConfigRow {
   id: string;
@@ -74,6 +74,10 @@ export async function checkWorkflowGate(
 
   for (const rule of requiredFields) {
     const fieldName = rule.config_value.field_name as RequiredFieldName;
+    // Runtime guard — DB rows bypass TypeScript, this makes the allowlist meaningful at runtime
+    if (!REQUIRED_FIELD_ALLOWLIST.includes(fieldName as any)) {
+      continue;
+    }
     const value = getGrantFieldValue(grantRow, fieldName);
     if (value === null || value === undefined) {
       const msg = (rule.config_value.error_message as string | undefined)

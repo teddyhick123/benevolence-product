@@ -10,6 +10,8 @@ import type { ModuleId } from '@/lib/modules/types';
 import { MODULE_REGISTRY, canDisableModule } from '@/lib/modules/registry';
 import { getOrgEnabledModules, enableModule, disableModule } from '@/lib/modules/tool-filter';
 import { InputValidator } from '@/lib/ai/validators';
+import { LIFECYCLE_STAGES } from '@/lib/grants/lifecycle-shared';
+import { REQUIRED_FIELD_ALLOWLIST } from '@/lib/grants/workflow-config-constants';
 
 const MUTABLE_MODULE_IDS: readonly ModuleId[] = [
   'impact_tracking', 'reporting', 'tax_optimization', 'grant_management',
@@ -351,6 +353,105 @@ export const BUILDER_TOOLS: ToolDefinition[] = [
           description: 'Filter by phase (omit to return all recent proposals)',
         },
       },
+    },
+  },
+
+  // ==================== WORKFLOW CONFIG ====================
+  {
+    name: 'add_checklist_item',
+    description: 'Add or update a checklist item for a grant lifecycle stage. If required=true, the transition out of the stage is blocked until the item is checked.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        stage_key: { type: 'string', description: 'Lifecycle stage (e.g., "due_diligence"). Must be a canonical stage key.' },
+        item_key: { type: 'string', description: 'Unique slug, e.g. "site_visit". Lowercase letters, digits, underscores only. Max 64 chars.' },
+        label: { type: 'string', description: 'Checklist label shown to users, e.g. "Site visit completed". Max 200 chars.' },
+        required: { type: 'boolean', description: 'If true, stage transition is blocked until checked.' },
+        sort_order: { type: 'number', description: 'Display order (lower = first). Default: 0.' },
+      },
+      required: ['stage_key', 'item_key', 'label', 'required'],
+    },
+  },
+  {
+    name: 'remove_checklist_item',
+    description: 'Remove a checklist item from a grant lifecycle stage. All existing completion records for this item are automatically deleted via cascade.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        stage_key: { type: 'string', description: 'Lifecycle stage the item belongs to.' },
+        item_key: { type: 'string', description: 'Slug of the item to remove.' },
+      },
+      required: ['stage_key', 'item_key'],
+    },
+  },
+  {
+    name: 'set_required_field',
+    description: 'Require that a canonical grant field is non-null before a grant can advance past a given stage. Only canonical grant fields in the allowlist are supported.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        stage_key: { type: 'string', description: 'Lifecycle stage at which the field is checked.' },
+        field_name: {
+          type: 'string',
+          enum: [...REQUIRED_FIELD_ALLOWLIST],
+          description: 'Canonical grant field that must be set. Validated against REQUIRED_FIELD_ALLOWLIST. Must indicate the purpose of requiring this field.',
+        },
+        error_message: {
+          type: 'string',
+          description: 'Message shown when the field is missing. Max 300 characters. Optional.',
+        },
+      },
+      required: ['stage_key', 'field_name'],
+    },
+  },
+  {
+    name: 'remove_required_field',
+    description: 'Remove a required-field rule for a grant lifecycle stage.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        stage_key: { type: 'string', description: 'Lifecycle stage the rule applies to.' },
+        field_name: {
+          type: 'string',
+          enum: [...REQUIRED_FIELD_ALLOWLIST],
+          description: 'Canonical grant field to remove the requirement for.',
+        },
+      },
+      required: ['stage_key', 'field_name'],
+    },
+  },
+  {
+    name: 'rename_stage',
+    description: 'Set a display label override for a canonical grant lifecycle stage. Pass an empty string for label to restore the system default name.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        stage_key: { type: 'string', description: 'Canonical stage key to rename (e.g., "due_diligence").' },
+        label: { type: 'string', description: 'New display name, e.g. "Site Review". Max 60 characters. Pass empty string to remove the override.' },
+      },
+      required: ['stage_key', 'label'],
+    },
+  },
+  {
+    name: 'set_approval_requirement',
+    description: 'Record an informational approval requirement annotation for a grant lifecycle stage. This is displayed in the settings page and grant checklist — it does NOT block transitions in Phase 1.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        stage_key: { type: 'string', description: 'Lifecycle stage this annotation applies to.' },
+        required: { type: 'boolean', description: 'Whether approval is required. Pass false to remove the annotation.' },
+        description: { type: 'string', description: 'Description of the approval requirement, e.g. "Board vote required". Max 300 characters.' },
+      },
+      required: ['stage_key', 'required'],
+    },
+  },
+  {
+    name: 'list_workflow_config',
+    description: 'List all workflow configuration for this organization, grouped by stage. Shows checklist items, required fields, stage label overrides, and approval annotations.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {},
+      required: [],
     },
   },
 ];
@@ -862,6 +963,254 @@ Respond with ONLY a valid JSON object matching this exact schema (no markdown, n
           tool: toolName,
           message: `${data.length} proposal(s):\n${lines}`,
         };
+      }
+
+      // ==================== WORKFLOW CONFIG ====================
+
+      case 'add_checklist_item': {
+        const { stage_key, item_key, label, required, sort_order = 0 } = toolInput as {
+          stage_key: string; item_key: string; label: string; required: boolean; sort_order?: number;
+        };
+
+        if (!LIFECYCLE_STAGES.includes(stage_key as any)) {
+          return { type: 'error', tool: toolName, message: `Invalid stage_key: ${stage_key}. Must be one of: ${LIFECYCLE_STAGES.join(', ')}` };
+        }
+        if (!/^[a-z0-9_]+$/.test(item_key)) {
+          return { type: 'error', tool: toolName, message: 'item_key must contain only lowercase letters, digits, and underscores.' };
+        }
+        if (item_key.length > 64) {
+          return { type: 'error', tool: toolName, message: 'item_key must be 64 characters or fewer.' };
+        }
+        if (label.length > 200) {
+          return { type: 'error', tool: toolName, message: 'label must be 200 characters or fewer.' };
+        }
+
+        const { data: hasModuleChecklist } = await supabase.rpc('org_has_module', { p_org_id: orgId, p_module: 'grant_management' });
+        if (!hasModuleChecklist) return { type: 'error', tool: toolName, message: 'Grant management module is not enabled for this organization.' };
+
+        const { error: checklistErr } = await supabase
+          .from('org_workflow_config')
+          .upsert({
+            org_id: orgId,
+            module: 'grant_management',
+            config_type: 'stage_checklist',
+            stage_key,
+            config_key: item_key,
+            config_value: { label, required },
+            sort_order,
+          }, { onConflict: 'org_id,module,config_type,stage_key,config_key' });
+
+        if (checklistErr) return { type: 'error', tool: toolName, message: checklistErr.message };
+        return { type: 'config_success', tool: toolName, message: `Checklist item "${label}" added to ${stage_key}${required ? ' (required)' : ' (optional)'}.` };
+      }
+
+      case 'remove_checklist_item': {
+        const { stage_key, item_key } = toolInput as { stage_key: string; item_key: string };
+
+        const { data: hasModuleRmChecklist } = await supabase.rpc('org_has_module', { p_org_id: orgId, p_module: 'grant_management' });
+        if (!hasModuleRmChecklist) return { type: 'error', tool: toolName, message: 'Grant management module is not enabled for this organization.' };
+
+        const { error: rmChecklistErr } = await supabase
+          .from('org_workflow_config')
+          .delete()
+          .eq('org_id', orgId)
+          .eq('module', 'grant_management')
+          .eq('config_type', 'stage_checklist')
+          .eq('stage_key', stage_key)
+          .eq('config_key', item_key);
+
+        if (rmChecklistErr) return { type: 'error', tool: toolName, message: rmChecklistErr.message };
+        return { type: 'config_success', tool: toolName, message: `Checklist item "${item_key}" removed from ${stage_key}. Existing completion records have been automatically deleted.` };
+      }
+
+      case 'set_required_field': {
+        const { stage_key, field_name, error_message } = toolInput as {
+          stage_key: string; field_name: string; error_message?: string;
+        };
+
+        if (!LIFECYCLE_STAGES.includes(stage_key as any)) {
+          return { type: 'error', tool: toolName, message: `Invalid stage_key: ${stage_key}.` };
+        }
+        if (!REQUIRED_FIELD_ALLOWLIST.includes(field_name as any)) {
+          return { type: 'error', tool: toolName, message: `field_name must be one of: ${REQUIRED_FIELD_ALLOWLIST.join(', ')}` };
+        }
+
+        const { data: hasModuleReqField } = await supabase.rpc('org_has_module', { p_org_id: orgId, p_module: 'grant_management' });
+        if (!hasModuleReqField) return { type: 'error', tool: toolName, message: 'Grant management module is not enabled.' };
+
+        const configValueReqField: Record<string, string> = { field_name };
+        if (error_message) configValueReqField.error_message = error_message;
+
+        const { error: reqFieldErr } = await supabase
+          .from('org_workflow_config')
+          .upsert({
+            org_id: orgId,
+            module: 'grant_management',
+            config_type: 'required_field',
+            stage_key,
+            config_key: field_name,
+            config_value: configValueReqField,
+            sort_order: 0,
+          }, { onConflict: 'org_id,module,config_type,stage_key,config_key' });
+
+        if (reqFieldErr) return { type: 'error', tool: toolName, message: reqFieldErr.message };
+        return { type: 'config_success', tool: toolName, message: `Field "${field_name}" is now required before advancing past ${stage_key}.` };
+      }
+
+      case 'remove_required_field': {
+        const { stage_key, field_name } = toolInput as { stage_key: string; field_name: string };
+
+        const { data: hasModuleRmReqField } = await supabase.rpc('org_has_module', { p_org_id: orgId, p_module: 'grant_management' });
+        if (!hasModuleRmReqField) return { type: 'error', tool: toolName, message: 'Grant management module is not enabled.' };
+
+        const { error: rmReqFieldErr } = await supabase
+          .from('org_workflow_config')
+          .delete()
+          .eq('org_id', orgId)
+          .eq('module', 'grant_management')
+          .eq('config_type', 'required_field')
+          .eq('stage_key', stage_key)
+          .eq('config_key', field_name);
+
+        if (rmReqFieldErr) return { type: 'error', tool: toolName, message: rmReqFieldErr.message };
+        return { type: 'config_success', tool: toolName, message: `Required field rule for "${field_name}" at stage "${stage_key}" removed.` };
+      }
+
+      case 'rename_stage': {
+        const { stage_key, label } = toolInput as { stage_key: string; label: string };
+
+        if (!LIFECYCLE_STAGES.includes(stage_key as any)) {
+          return { type: 'error', tool: toolName, message: `Invalid stage_key: ${stage_key}.` };
+        }
+        if (label.length > 60) {
+          return { type: 'error', tool: toolName, message: 'label must be 60 characters or fewer.' };
+        }
+
+        const { data: hasModuleRename } = await supabase.rpc('org_has_module', { p_org_id: orgId, p_module: 'grant_management' });
+        if (!hasModuleRename) return { type: 'error', tool: toolName, message: 'Grant management module is not enabled.' };
+
+        if (label === '') {
+          await supabase
+            .from('org_workflow_config')
+            .delete()
+            .eq('org_id', orgId)
+            .eq('module', 'grant_management')
+            .eq('config_type', 'stage_label')
+            .eq('stage_key', stage_key)
+            .eq('config_key', 'label');
+          return { type: 'config_success', tool: toolName, message: `Stage "${stage_key}" label restored to system default.` };
+        }
+
+        const { error: renameErr } = await supabase
+          .from('org_workflow_config')
+          .upsert({
+            org_id: orgId,
+            module: 'grant_management',
+            config_type: 'stage_label',
+            stage_key,
+            config_key: 'label',
+            config_value: { value: label },
+            sort_order: 0,
+          }, { onConflict: 'org_id,module,config_type,stage_key,config_key' });
+
+        if (renameErr) return { type: 'error', tool: toolName, message: renameErr.message };
+        return { type: 'config_success', tool: toolName, message: `Stage "${stage_key}" will now display as "${label}".` };
+      }
+
+      case 'set_approval_requirement': {
+        const { stage_key, required: approvalRequired, description: approvalDesc } = toolInput as {
+          stage_key: string; required: boolean; description?: string;
+        };
+
+        if (!LIFECYCLE_STAGES.includes(stage_key as any)) {
+          return { type: 'error', tool: toolName, message: `Invalid stage_key: ${stage_key}.` };
+        }
+
+        const { data: hasModuleApproval } = await supabase.rpc('org_has_module', { p_org_id: orgId, p_module: 'grant_management' });
+        if (!hasModuleApproval) return { type: 'error', tool: toolName, message: 'Grant management module is not enabled.' };
+
+        if (!approvalRequired) {
+          await supabase
+            .from('org_workflow_config')
+            .delete()
+            .eq('org_id', orgId)
+            .eq('module', 'grant_management')
+            .eq('config_type', 'approval_requirement')
+            .eq('stage_key', stage_key)
+            .eq('config_key', 'default');
+          return { type: 'config_success', tool: toolName, message: `Approval annotation removed for stage "${stage_key}".` };
+        }
+
+        const { error: approvalErr } = await supabase
+          .from('org_workflow_config')
+          .upsert({
+            org_id: orgId,
+            module: 'grant_management',
+            config_type: 'approval_requirement',
+            stage_key,
+            config_key: 'default',
+            config_value: { required: true, description: approvalDesc ?? '' },
+            sort_order: 0,
+          }, { onConflict: 'org_id,module,config_type,stage_key,config_key' });
+
+        if (approvalErr) return { type: 'error', tool: toolName, message: approvalErr.message };
+        return { type: 'config_success', tool: toolName, message: `Approval annotation set for stage "${stage_key}": ${approvalDesc ?? '(no description)'}. Note: this is informational only and does not block transitions.` };
+      }
+
+      case 'list_workflow_config': {
+        const { data: wfRows, error: wfErr } = await supabase
+          .from('org_workflow_config')
+          .select('config_type, stage_key, config_key, config_value, sort_order')
+          .eq('org_id', orgId)
+          .eq('module', 'grant_management')
+          .order('stage_key')
+          .order('sort_order');
+
+        if (wfErr) return { type: 'error', tool: toolName, message: wfErr.message };
+        if (!wfRows || wfRows.length === 0) {
+          return { type: 'config_success', tool: toolName, message: 'No workflow configuration set for this organization. All stage transitions use system defaults.' };
+        }
+
+        // Group by stage
+        const byStage = new Map<string, typeof wfRows>();
+        for (const row of wfRows) {
+          if (!byStage.has(row.stage_key)) byStage.set(row.stage_key, []);
+          byStage.get(row.stage_key)!.push(row);
+        }
+
+        const lines: string[] = [];
+        for (const [stage, stageRows] of byStage) {
+          const labelRow = stageRows.find(r => r.config_type === 'stage_label');
+          const labelSuffix = labelRow ? ` (label: "${(labelRow.config_value as any).value}")` : '';
+          lines.push(`Stage: ${stage}${labelSuffix}`);
+
+          const checklist = stageRows.filter(r => r.config_type === 'stage_checklist');
+          if (checklist.length > 0) {
+            lines.push('  Checklist items:');
+            for (const c of checklist) {
+              const cv = c.config_value as any;
+              lines.push(`    [${cv.required ? 'required' : 'optional'}] ${c.config_key} — "${cv.label}"`);
+            }
+          }
+
+          const requiredFields = stageRows.filter(r => r.config_type === 'required_field');
+          if (requiredFields.length > 0) {
+            lines.push('  Required fields:');
+            for (const r of requiredFields) {
+              const rv = r.config_value as any;
+              lines.push(`    ${r.config_key}${rv.error_message ? ` — "${rv.error_message}"` : ''}`);
+            }
+          }
+
+          const approval = stageRows.find(r => r.config_type === 'approval_requirement');
+          if (approval) {
+            const av = approval.config_value as any;
+            lines.push(`  Approval: ${av.description || '(required, no description)'}`);
+          }
+          lines.push('');
+        }
+
+        return { type: 'config_success', tool: toolName, message: lines.join('\n') };
       }
 
       default:

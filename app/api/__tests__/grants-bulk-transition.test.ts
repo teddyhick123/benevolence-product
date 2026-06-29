@@ -17,8 +17,21 @@ let _authUser: { id: string } | null = { id: USER_ID };
 let _orgRole: string | null = 'admin';
 
 // Preflight: grants returned by the .eq('org_id').in('id') query
-let _prefetchData: Array<{ id: string; lifecycle_stage: string; org_id: string }> | null = [
-  { id: GRANT_A, lifecycle_stage: 'draft', org_id: ORG_ID },
+let _prefetchData: Array<{
+  id: string;
+  lifecycle_stage: string;
+  org_id: string;
+  purpose: string | null;
+  internal_owner_id: string | null;
+  requested_amount: number | null;
+  approved_amount: number | null;
+  grant_period_start: string | null;
+  grant_period_end: string | null;
+  risk_level: string | null;
+  deliverables: string | null;
+  reporting_frequency: string | null;
+}> | null = [
+  { id: GRANT_A, lifecycle_stage: 'draft', org_id: ORG_ID, purpose: null, internal_owner_id: null, requested_amount: null, approved_amount: null, grant_period_start: null, grant_period_end: null, risk_level: null, deliverables: null, reporting_frequency: null },
 ];
 let _prefetchError: { message: string } | null = null;
 
@@ -134,7 +147,7 @@ function makeParams(orgId = ORG_ID) {
 beforeEach(() => {
   _authUser = { id: USER_ID };
   _orgRole = 'admin';
-  _prefetchData = [{ id: GRANT_A, lifecycle_stage: 'draft', org_id: ORG_ID }];
+  _prefetchData = [{ id: GRANT_A, lifecycle_stage: 'draft', org_id: ORG_ID, purpose: null, internal_owner_id: null, requested_amount: null, approved_amount: null, grant_period_start: null, grant_period_end: null, risk_level: null, deliverables: null, reporting_frequency: null }];
   _prefetchError = null;
   _grantFetchData = { lifecycle_stage: 'draft', org_id: ORG_ID };
   _grantFetchError = null;
@@ -506,8 +519,8 @@ describe('POST bulk-transition — workflow gate', () => {
   it('preflight rejects gate-blocked grants (rollback_on_error=false)', async () => {
     // Both grants exist with valid transitions from due_diligence → recommended
     _prefetchData = [
-      { id: GRANT_1, lifecycle_stage: 'due_diligence', org_id: ORG_ID },
-      { id: GRANT_2, lifecycle_stage: 'due_diligence', org_id: ORG_ID },
+      { id: GRANT_1, lifecycle_stage: 'due_diligence', org_id: ORG_ID, purpose: null, internal_owner_id: null, requested_amount: null, approved_amount: null, grant_period_start: null, grant_period_end: null, risk_level: null, deliverables: null, reporting_frequency: null },
+      { id: GRANT_2, lifecycle_stage: 'due_diligence', org_id: ORG_ID, purpose: null, internal_owner_id: null, requested_amount: null, approved_amount: null, grant_period_start: null, grant_period_end: null, risk_level: null, deliverables: null, reporting_frequency: null },
     ];
     // A required checklist item exists for due_diligence → both blocked
     _workflowConfigRows = [{
@@ -538,7 +551,7 @@ describe('POST bulk-transition — workflow gate', () => {
 
   it('preflight blocks rollback_on_error execution when gate fails', async () => {
     _prefetchData = [
-      { id: GRANT_1, lifecycle_stage: 'due_diligence', org_id: ORG_ID },
+      { id: GRANT_1, lifecycle_stage: 'due_diligence', org_id: ORG_ID, purpose: null, internal_owner_id: null, requested_amount: null, approved_amount: null, grant_period_start: null, grant_period_end: null, risk_level: null, deliverables: null, reporting_frequency: null },
     ];
     _workflowConfigRows = [{
       id: 'cfg-1',

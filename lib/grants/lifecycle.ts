@@ -11,6 +11,7 @@ import {
   type DecisionPayload,
   type LifecycleStage,
 } from './lifecycle-shared';
+import { checkWorkflowGate } from './workflow-config';
 
 export {
   ALLOWED_TRANSITIONS,
@@ -43,10 +44,26 @@ export class GrantNotFoundError extends Error {
   }
 }
 
+export class GrantTransitionConflictError extends Error {
+  constructor(grantId: string) {
+    super(`Grant lifecycle changed before transition could be committed: ${grantId}`);
+    this.name = 'GrantTransitionConflictError';
+  }
+}
+
+export class WorkflowGateBlockedError extends Error {
+  reasons: string[];
+  constructor(reasons: string[]) {
+    super(`Transition blocked by workflow configuration: ${reasons.join('; ')}`);
+    this.reasons = reasons;
+    this.name = 'WorkflowGateBlockedError';
+  }
+}
+
 /**
  * Transitions a grant to a new lifecycle stage.
- * Validates the transition, optionally inserts a grant_decisions row,
- * updates grants.lifecycle_stage, and appends grant_status_history.
+ * Validates the transition, then calls an atomic RPC that optionally inserts
+ * grant_decisions, updates grants.lifecycle_stage, and appends history.
  * Throws InvalidTransitionError or DecisionRequiredError on failure.
  */
 export async function transitionGrant(
@@ -62,9 +79,13 @@ export async function transitionGrant(
   // Fetch current stage
   const { data: grant, error: fetchErr } = await db
     .from('grants')
-    .select('lifecycle_stage, org_id')
+    .select(
+      'lifecycle_stage, org_id, purpose, internal_owner_id, requested_amount, ' +
+      'approved_amount, grant_period_start, grant_period_end, risk_level, ' +
+      'deliverables, reporting_frequency'
+    )
     .eq('id', grantId)
-    .single();
+    .maybeSingle();
 
   if (fetchErr) {
     throw new Error(fetchErr.message);
@@ -83,35 +104,30 @@ export async function transitionGrant(
     throw new InvalidTransitionError(fromStage, toStage);
   }
 
+  const gate = await checkWorkflowGate(db, orgId, grantId, fromStage, grant as Record<string, unknown>);
+  if (gate.blocked) throw new WorkflowGateBlockedError(gate.reasons);
+
   if (requiresDecision(fromStage, toStage) && !decisionPayload) {
     throw new DecisionRequiredError(fromStage, toStage);
   }
 
-  // Insert decision record if provided
-  if (decisionPayload) {
-    const { error: decisionErr } = await db.from('grant_decisions').insert({
-      grant_id: grantId,
-      org_id: orgId,
-      ...decisionPayload,
-    });
-    if (decisionErr) throw new Error(`Failed to insert decision: ${decisionErr.message}`);
-  }
-
-  // Update lifecycle stage
-  const { error: updateErr } = await db
-    .from('grants')
-    .update({ lifecycle_stage: toStage })
-    .eq('id', grantId);
-  if (updateErr) throw new Error(`Failed to update lifecycle stage: ${updateErr.message}`);
-
-  // Append history row
-  const { error: historyErr } = await db.from('grant_status_history').insert({
-    grant_id: grantId,
-    org_id: orgId,
-    from_stage: fromStage,
-    to_stage: toStage,
-    reason: reason ?? null,
-    actor_id: actorId ?? null,
+  const { error: transitionErr } = await db.rpc('transition_grant_lifecycle', {
+    p_grant_id: grantId,
+    p_expected_org_id: orgId,
+    p_expected_from_stage: fromStage,
+    p_to_stage: toStage,
+    p_actor_id: actorId,
+    p_reason: reason ?? null,
+    p_decision_payload: decisionPayload ?? null,
   });
-  if (historyErr) throw new Error(`Failed to append status history: ${historyErr.message}`);
+
+  if (transitionErr) {
+    if (transitionErr.message.includes('GRANT_NOT_FOUND')) {
+      throw new GrantNotFoundError(grantId);
+    }
+    if (transitionErr.message.includes('GRANT_TRANSITION_CONFLICT')) {
+      throw new GrantTransitionConflictError(grantId);
+    }
+    throw new Error(`Failed to transition grant lifecycle: ${transitionErr.message}`);
+  }
 }

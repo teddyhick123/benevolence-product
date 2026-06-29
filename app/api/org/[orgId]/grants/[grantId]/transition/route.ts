@@ -5,16 +5,29 @@ import {
   InvalidTransitionError,
   DecisionRequiredError,
   GrantNotFoundError,
+  GrantTransitionConflictError,
+  WorkflowGateBlockedError,
   type LifecycleStage,
   type DecisionPayload,
 } from '@/lib/grants/lifecycle';
 
 export const dynamic = 'force-dynamic';
 
+const NO_STORE = { 'Cache-Control': 'no-store' } as const;
 const ADMIN_ROLES = new Set(['owner', 'admin']);
 
 interface RouteParams {
   params: Promise<{ orgId: string; grantId: string }>;
+}
+
+function json(body: unknown, init: ResponseInit = {}) {
+  return NextResponse.json(body, {
+    ...init,
+    headers: {
+      ...NO_STORE,
+      ...(init.headers || {}),
+    },
+  });
 }
 
 export async function POST(req: NextRequest, { params }: RouteParams) {
@@ -23,11 +36,11 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
 
     const supabase = await createServerClient();
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!user) return json({ error: 'Unauthorized' }, { status: 401 });
 
     const { data: role } = await supabase.rpc('user_org_role', { p_org_id: orgId });
     if (!role || !ADMIN_ROLES.has(role)) {
-      return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
+      return json({ error: 'Admin access required' }, { status: 403 });
     }
 
     const body = await req.json();
@@ -38,19 +51,25 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     };
 
     if (!to_stage) {
-      return NextResponse.json({ error: 'to_stage is required' }, { status: 400 });
+      return json({ error: 'to_stage is required' }, { status: 400 });
     }
 
     await transitionGrant(grantId, to_stage, user.id, reason, decision, orgId);
 
-    return NextResponse.json({ success: true, to_stage });
+    return json({ success: true, to_stage });
   } catch (err: any) {
+    if (err instanceof WorkflowGateBlockedError) {
+      return json({ error: err.message, blocking_items: err.reasons }, { status: 422 });
+    }
     if (err instanceof InvalidTransitionError || err instanceof DecisionRequiredError) {
-      return NextResponse.json({ error: err.message }, { status: 422 });
+      return json({ error: err.message }, { status: 422 });
     }
     if (err instanceof GrantNotFoundError) {
-      return NextResponse.json({ error: err.message }, { status: 404 });
+      return json({ error: err.message }, { status: 404 });
     }
-    return NextResponse.json({ error: err?.message ?? 'Internal error' }, { status: 500 });
+    if (err instanceof GrantTransitionConflictError) {
+      return json({ error: err.message }, { status: 409 });
+    }
+    return json({ error: err?.message ?? 'Internal error' }, { status: 500 });
   }
 }

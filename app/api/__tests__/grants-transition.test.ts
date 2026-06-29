@@ -32,25 +32,36 @@ let _authUser: { id: string } | null = { id: USER_ID };
 let _orgRole: string | null = 'admin';
 
 // State for the grant fetch inside transitionGrant
-let _grantFetchData: { lifecycle_stage: string; org_id: string } | null = {
+let _grantFetchData: {
+  lifecycle_stage: string;
+  org_id: string;
+  purpose?: string | null;
+  internal_owner_id?: string | null;
+  requested_amount?: number | null;
+  approved_amount?: number | null;
+  grant_period_start?: string | null;
+  grant_period_end?: string | null;
+  risk_level?: string | null;
+  deliverables?: string | null;
+  reporting_frequency?: string | null;
+} | null = {
   lifecycle_stage: 'draft',
   org_id: ORG_ID,
 };
 let _grantFetchError: { message: string } | null = null;
 
-// State for the grant update inside transitionGrant
-let _grantUpdateError: { message: string } | null = null;
+// State for the atomic transition RPC inside transitionGrant
+let _transitionRpcError: { message: string } | null = null;
 
-// State for the history insert inside transitionGrant
-let _historyInsertError: { message: string } | null = null;
-
-// State for the decision insert inside transitionGrant (when decisionPayload provided)
-let _decisionInsertError: { message: string } | null = null;
+// State for workflow config and checklist completions
+let _workflowConfigRows: any[] = [];
+let _checklistCompletionRows: any[] = [];
 
 // ─── Mock infrastructure ───────────────────────────────────────────────────────
 
 const mockServerRpc = vi.fn();
 const mockAdminFrom = vi.fn();
+const mockAdminRpc = vi.fn();
 
 vi.mock('@/lib/supabase', () => ({
   createServerClient: vi.fn(async () => ({
@@ -59,12 +70,17 @@ vi.mock('@/lib/supabase', () => ({
     },
     rpc: mockServerRpc,
   })),
-  createAdminClient: vi.fn(() => ({ from: mockAdminFrom })),
+  createAdminClient: vi.fn(() => ({ from: mockAdminFrom, rpc: mockAdminRpc })),
 }));
 
 function setupMocks() {
   mockServerRpc.mockImplementation(async (fn: string) => {
     if (fn === 'user_org_role') return { data: _orgRole, error: null };
+    return { data: null, error: null };
+  });
+
+  mockAdminRpc.mockImplementation(async (fn: string) => {
+    if (fn === 'transition_grant_lifecycle') return { data: null, error: _transitionRpcError };
     return { data: null, error: null };
   });
 
@@ -74,27 +90,30 @@ function setupMocks() {
         // transitionGrant: fetch current stage
         select: vi.fn(() => ({
           eq: vi.fn(() => ({
-            single: vi.fn(async () => ({
+            maybeSingle: vi.fn(async () => ({
               data: _grantFetchData,
               error: _grantFetchError,
             })),
           })),
         })),
-        // transitionGrant: update lifecycle_stage
-        update: vi.fn(() => ({
-          eq: vi.fn(async () => ({ error: _grantUpdateError })),
-        })),
       };
     }
-    if (table === 'grant_status_history') {
-      return {
-        insert: vi.fn(async () => ({ error: _historyInsertError })),
+    if (table === 'org_workflow_config') {
+      const b: any = {
+        select: vi.fn(() => b),
+        eq: vi.fn(() => b),
+        order: vi.fn(async () => ({ data: _workflowConfigRows, error: null })),
       };
+      return b;
     }
-    if (table === 'grant_decisions') {
-      return {
-        insert: vi.fn(async () => ({ error: _decisionInsertError })),
+    if (table === 'grant_checklist_completions') {
+      const b: any = {
+        select: vi.fn(() => b),
+        eq: vi.fn(() => b),
+        then: (resolve: any) =>
+          Promise.resolve({ data: _checklistCompletionRows, error: null }).then(resolve),
       };
+      return b;
     }
     // Fallback
     const b: any = {
@@ -136,9 +155,9 @@ beforeEach(() => {
   _orgRole = 'admin';
   _grantFetchData = { lifecycle_stage: 'draft', org_id: ORG_ID };
   _grantFetchError = null;
-  _grantUpdateError = null;
-  _historyInsertError = null;
-  _decisionInsertError = null;
+  _transitionRpcError = null;
+  _workflowConfigRows = [];
+  _checklistCompletionRows = [];
 
   setupMocks();
 });
@@ -418,10 +437,10 @@ describe('POST /api/org/[orgId]/grants/[grantId]/transition — valid transition
 // ─── DB error propagation (P1) ────────────────────────────────────────────────
 
 describe('POST /api/org/[orgId]/grants/[grantId]/transition — DB errors', () => {
-  it('returns 500 when the grant update DB call fails', async () => {
-    // Arrange — fetch succeeds, update fails
+  it('returns 500 when the atomic transition RPC fails', async () => {
+    // Arrange — fetch succeeds, transition RPC fails
     _grantFetchData = { lifecycle_stage: 'draft', org_id: ORG_ID };
-    _grantUpdateError = { message: 'deadlock detected' };
+    _transitionRpcError = { message: 'deadlock detected' };
     const req = makeRequest(transitionUrl(), { to_stage: 'prospect' });
 
     // Act
@@ -432,13 +451,97 @@ describe('POST /api/org/[orgId]/grants/[grantId]/transition — DB errors', () =
     const body = await res.json();
     expect(body.error).toMatch(/deadlock/);
   });
+
+  it('returns 409 when the atomic transition RPC reports a stage conflict', async () => {
+    _grantFetchData = { lifecycle_stage: 'draft', org_id: ORG_ID };
+    _transitionRpcError = { message: 'GRANT_TRANSITION_CONFLICT: expected draft, found prospect' };
+    const req = makeRequest(transitionUrl(), { to_stage: 'prospect' });
+
+    const res = await POST(req, makeParams(ORG_ID, GRANT_ID));
+
+    expect(res.status).toBe(409);
+    const body = await res.json();
+    expect(body.error).toMatch(/lifecycle changed/i);
+  });
+});
+
+// ─── Workflow gate (P0) ───────────────────────────────────────────────────────
+
+describe('POST /api/org/[orgId]/grants/[grantId]/transition — workflow gate', () => {
+  it('returns 422 with blocking_items when a required checklist item is not complete', async () => {
+    // Arrange — configure a required checklist item; no completions
+    _grantFetchData = { lifecycle_stage: 'due_diligence', org_id: ORG_ID };
+    _workflowConfigRows = [{
+      id: 'cfg-1',
+      config_type: 'stage_checklist',
+      stage_key: 'due_diligence',
+      config_key: 'site_visit',
+      config_value: { label: 'Site visit completed', required: true },
+      sort_order: 0,
+    }];
+    _checklistCompletionRows = [];
+    const req = makeRequest(transitionUrl(), { to_stage: 'recommended' });
+
+    // Act
+    const res = await POST(req, makeParams(ORG_ID, GRANT_ID));
+
+    // Assert
+    expect(res.status).toBe(422);
+    const body = await res.json();
+    expect(body.blocking_items).toBeDefined();
+    expect(Array.isArray(body.blocking_items)).toBe(true);
+    expect(body.blocking_items.length).toBeGreaterThan(0);
+  });
+
+  it('returns 200 when all required checklist items are complete', async () => {
+    // Arrange — same checklist item, but with a completion row
+    _grantFetchData = { lifecycle_stage: 'due_diligence', org_id: ORG_ID };
+    _workflowConfigRows = [{
+      id: 'cfg-1',
+      config_type: 'stage_checklist',
+      stage_key: 'due_diligence',
+      config_key: 'site_visit',
+      config_value: { label: 'Site visit completed', required: true },
+      sort_order: 0,
+    }];
+    _checklistCompletionRows = [{ checklist_item_key: 'site_visit' }];
+    const req = makeRequest(transitionUrl(), { to_stage: 'recommended' });
+
+    // Act
+    const res = await POST(req, makeParams(ORG_ID, GRANT_ID));
+
+    // Assert
+    expect(res.status).toBe(200);
+  });
+
+  it('returns 422 with blocking_items when a required field is null', async () => {
+    _grantFetchData = {
+      lifecycle_stage: 'due_diligence',
+      org_id: ORG_ID,
+      purpose: null,
+    };
+    _workflowConfigRows = [{
+      id: 'cfg-2',
+      config_type: 'required_field',
+      stage_key: 'due_diligence',
+      config_key: 'purpose',
+      config_value: { field_name: 'purpose', error_message: 'Grant purpose required' },
+      sort_order: 0,
+    }];
+    const req = makeRequest(transitionUrl(), { to_stage: 'recommended' });
+
+    const res = await POST(req, makeParams(ORG_ID, GRANT_ID));
+
+    expect(res.status).toBe(422);
+    const body = await res.json();
+    expect(body.blocking_items).toContain('Grant purpose required');
+  });
 });
 
 // ─── NOT TESTED HERE ───────────────────────────────────────────────────────────
 // - Actual Supabase RLS enforcement (requires a live DB)
 // - DECISION_REQUIRED_TRANSITIONS that supply a valid decisionPayload (integration)
-// - grant_decisions insert failure propagation
-// - grant_status_history insert failure propagation
+// - grant_decisions / grant_status_history transactional behavior inside the RPC
 // - All 14 × 14 transition pairs (covered by lib/grants/lifecycle unit tests)
 // - Concurrent transition race conditions (requires integration test)
 // - Idempotency of repeated identical transitions

@@ -1007,6 +1007,10 @@ Respond with ONLY a valid JSON object matching this exact schema (no markdown, n
       case 'remove_checklist_item': {
         const { stage_key, item_key } = toolInput as { stage_key: string; item_key: string };
 
+        if (!LIFECYCLE_STAGES.includes(stage_key as any)) {
+          return { type: 'error', tool: toolName, message: `Invalid stage_key: ${stage_key}.` };
+        }
+
         const { data: hasModuleRmChecklist } = await supabase.rpc('org_has_module', { p_org_id: orgId, p_module: 'grant_management' });
         if (!hasModuleRmChecklist) return { type: 'error', tool: toolName, message: 'Grant management module is not enabled for this organization.' };
 
@@ -1060,6 +1064,13 @@ Respond with ONLY a valid JSON object matching this exact schema (no markdown, n
       case 'remove_required_field': {
         const { stage_key, field_name } = toolInput as { stage_key: string; field_name: string };
 
+        if (!LIFECYCLE_STAGES.includes(stage_key as any)) {
+          return { type: 'error', tool: toolName, message: `Invalid stage_key: ${stage_key}.` };
+        }
+        if (!REQUIRED_FIELD_ALLOWLIST.includes(field_name as any)) {
+          return { type: 'error', tool: toolName, message: `field_name must be one of: ${REQUIRED_FIELD_ALLOWLIST.join(', ')}` };
+        }
+
         const { data: hasModuleRmReqField } = await supabase.rpc('org_has_module', { p_org_id: orgId, p_module: 'grant_management' });
         if (!hasModuleRmReqField) return { type: 'error', tool: toolName, message: 'Grant management module is not enabled.' };
 
@@ -1090,7 +1101,7 @@ Respond with ONLY a valid JSON object matching this exact schema (no markdown, n
         if (!hasModuleRename) return { type: 'error', tool: toolName, message: 'Grant management module is not enabled.' };
 
         if (label === '') {
-          await supabase
+          const { error: deleteLabelErr } = await supabase
             .from('org_workflow_config')
             .delete()
             .eq('org_id', orgId)
@@ -1098,6 +1109,7 @@ Respond with ONLY a valid JSON object matching this exact schema (no markdown, n
             .eq('config_type', 'stage_label')
             .eq('stage_key', stage_key)
             .eq('config_key', 'label');
+          if (deleteLabelErr) return { type: 'error', tool: toolName, message: deleteLabelErr.message };
           return { type: 'config_success', tool: toolName, message: `Stage "${stage_key}" label restored to system default.` };
         }
 
@@ -1130,7 +1142,7 @@ Respond with ONLY a valid JSON object matching this exact schema (no markdown, n
         if (!hasModuleApproval) return { type: 'error', tool: toolName, message: 'Grant management module is not enabled.' };
 
         if (!approvalRequired) {
-          await supabase
+          const { error: deleteApprovalErr } = await supabase
             .from('org_workflow_config')
             .delete()
             .eq('org_id', orgId)
@@ -1138,6 +1150,7 @@ Respond with ONLY a valid JSON object matching this exact schema (no markdown, n
             .eq('config_type', 'approval_requirement')
             .eq('stage_key', stage_key)
             .eq('config_key', 'default');
+          if (deleteApprovalErr) return { type: 'error', tool: toolName, message: deleteApprovalErr.message };
           return { type: 'config_success', tool: toolName, message: `Approval annotation removed for stage "${stage_key}".` };
         }
 

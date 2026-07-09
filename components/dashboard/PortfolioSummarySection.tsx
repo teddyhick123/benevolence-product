@@ -9,12 +9,16 @@ import AllAssetsOverview from './AllAssetsOverview';
 import { PortfolioInvestmentSummary } from '@/lib/schemas/investment';
 import { PortfolioGrantSummary } from '@/lib/schemas/grant';
 import { PortfolioDonationSummary } from '@/lib/schemas/donation';
+import { useEntityVocabulary } from '@/lib/hooks/use-entity-vocabulary';
 
 type Props = {
   portfolioId: string;
+  orgId?: string | null;
 };
 
-export default function PortfolioSummarySection({ portfolioId }: Props) {
+export default function PortfolioSummarySection({ portfolioId, orgId }: Props) {
+  const vocabulary = useEntityVocabulary(orgId);
+  const grantPlural = vocabulary.grant.plural;
   const [activeTab, setActiveTab] = useState<AssetTypeTab>('all');
   const [loading, setLoading] = useState(true);
 
@@ -33,6 +37,13 @@ export default function PortfolioSummarySection({ portfolioId }: Props) {
 
   useEffect(() => {
     let mounted = true;
+    const controller = new AbortController();
+
+    const fetchSummary = (url: string) =>
+      fetch(url, { cache: 'no-store', signal: controller.signal }).catch((error) => {
+        if (controller.signal.aborted) return null;
+        throw error;
+      });
 
     async function fetchData() {
       try {
@@ -40,17 +51,18 @@ export default function PortfolioSummarySection({ portfolioId }: Props) {
 
         // Fetch all summaries in parallel
         const [investmentRes, grantRes, donationRes] = await Promise.all([
-          fetch(`/api/portfolio/${portfolioId}/performance`, { cache: 'no-store' }).catch(() => null),
-          fetch(`/api/portfolio/${portfolioId}/grants`, { cache: 'no-store' }).catch(() => null),
-          fetch(`/api/portfolio/${portfolioId}/donations`, { cache: 'no-store' }).catch(() => null),
+          fetchSummary(`/api/portfolio/${portfolioId}/performance`),
+          fetchSummary(`/api/portfolio/${portfolioId}/grants`),
+          fetchSummary(`/api/portfolio/${portfolioId}/donations`),
         ]);
 
-        if (!mounted) return;
+        if (!mounted || controller.signal.aborted) return;
 
         // Parse investment summary
         let investmentData = null;
         if (investmentRes?.ok) {
           investmentData = await investmentRes.json();
+          if (!mounted || controller.signal.aborted) return;
           setInvestmentSummary(investmentData.summary || null);
         }
 
@@ -58,6 +70,7 @@ export default function PortfolioSummarySection({ portfolioId }: Props) {
         let grantData = null;
         if (grantRes?.ok) {
           grantData = await grantRes.json();
+          if (!mounted || controller.signal.aborted) return;
           setGrantSummary(grantData.summary || null);
         }
 
@@ -65,6 +78,7 @@ export default function PortfolioSummarySection({ portfolioId }: Props) {
         let donationData = null;
         if (donationRes?.ok) {
           donationData = await donationRes.json();
+          if (!mounted || controller.signal.aborted) return;
           setDonationSummary(donationData.summary || null);
         }
 
@@ -80,9 +94,11 @@ export default function PortfolioSummarySection({ portfolioId }: Props) {
           donations: donCount,
         });
       } catch (error) {
-        console.error('Error fetching portfolio summaries:', error);
+        if (!controller.signal.aborted && mounted) {
+          console.warn('Portfolio summaries unavailable:', error);
+        }
       } finally {
-        if (mounted) {
+        if (mounted && !controller.signal.aborted) {
           setLoading(false);
         }
       }
@@ -92,6 +108,7 @@ export default function PortfolioSummarySection({ portfolioId }: Props) {
 
     return () => {
       mounted = false;
+      controller.abort();
     };
   }, [portfolioId]);
 
@@ -178,8 +195,8 @@ export default function PortfolioSummarySection({ portfolioId }: Props) {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             )}
-            title="No Grants"
-            description="Add foundation or DAF grants to track milestones and reporting"
+            title={`No ${grantPlural}`}
+            description={`Add foundation or DAF ${grantPlural.toLowerCase()} to track milestones and reporting`}
           />
         )}
 

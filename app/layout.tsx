@@ -1,5 +1,6 @@
 import "./globals.css";
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import LoadingScreen from "@/components/ui/LoadingScreen";
 import SWRProvider from "@/components/ui/SWRProvider";
 import ConditionalHeader from "@/components/dashboard/ConditionalHeader";
@@ -28,7 +29,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <SWRProvider>
           <LoadingScreen />
           <ConditionalHeader />
-          <main id="main-content" className="w-full px-4 md:px-6 lg:px-8 py-8">{children}</main>
+          <Suspense fallback={null}>
+            <main id="main-content" className="w-full px-4 md:px-6 lg:px-8 py-8">{children}</main>
+          </Suspense>
         </SWRProvider>
       </body>
     </html>

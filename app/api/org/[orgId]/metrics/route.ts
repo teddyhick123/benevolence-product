@@ -3,6 +3,18 @@ import { createServerClient, createAdminClient } from "@/lib/supabase";
 
 export const dynamic = "force-dynamic";
 
+const NO_STORE = { "Cache-Control": "no-store" } as const;
+
+function json(body: unknown, init: ResponseInit = {}) {
+  return NextResponse.json(body, {
+    ...init,
+    headers: {
+      ...NO_STORE,
+      ...(init.headers || {}),
+    },
+  });
+}
+
 interface RouteParams {
   params: Promise<{ orgId: string }>;
 }
@@ -16,7 +28,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     // Check access
     const { data: role } = await supabase.rpc("user_org_role", { p_org_id: orgId });
     if (!role) {
-      return NextResponse.json({ error: "Not authorized" }, { status: 403 });
+      return json({ error: "Not authorized" }, { status: 403 });
     }
 
     // Get pending staging facts
@@ -34,7 +46,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       .order("created_at", { ascending: false });
 
     if (pendingError) {
-      return NextResponse.json({ error: pendingError.message }, { status: 500 });
+      return json({ error: pendingError.message }, { status: 500 });
     }
 
     // Get recent approved facts
@@ -52,12 +64,12 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       .limit(50);
 
     if (approvedError) {
-      return NextResponse.json({ error: approvedError.message }, { status: 500 });
+      return json({ error: approvedError.message }, { status: 500 });
     }
 
-    return NextResponse.json({ pending, approved });
+    return json({ pending, approved });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return json({ error: err.message }, { status: 500 });
   }
 }
 
@@ -70,14 +82,14 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     // Check edit access
     const { data: canEdit } = await supabase.rpc("can_edit_org", { p_org_id: orgId });
     if (!canEdit) {
-      return NextResponse.json({ error: "Not authorized to submit metrics" }, { status: 403 });
+      return json({ error: "Not authorized to submit metrics" }, { status: 403 });
     }
 
     const body = await req.json();
     const { holding_id, metric_code, value, period_start, period_end, source } = body;
 
     if (!holding_id || !metric_code || value === undefined || value === null) {
-      return NextResponse.json(
+      return json(
         { error: "holding_id, metric_code, and value are required" },
         { status: 400 }
       );
@@ -93,7 +105,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       .single();
 
     if (!holding) {
-      return NextResponse.json(
+      return json(
         { error: "Holding does not belong to this organization" },
         { status: 400 }
       );
@@ -107,7 +119,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       .single();
 
     if (!metric) {
-      return NextResponse.json({ error: "Invalid metric code" }, { status: 400 });
+      return json({ error: "Invalid metric code" }, { status: 400 });
     }
 
     // Insert into staging_metric_facts
@@ -130,11 +142,11 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       .single();
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json(fact, { status: 201 });
+    return json(fact, { status: 201 });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return json({ error: err.message }, { status: 500 });
   }
 }

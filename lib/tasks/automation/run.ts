@@ -5,6 +5,7 @@ import { pledgeFollowUpProducer } from './producers/pledges';
 import { grantObligationsProducer } from './producers/grants';
 import { importReviewProducer } from './producers/imports';
 import { reportApprovalsProducer } from './producers/reports';
+import { dateRelativeAutomationProducer } from './dynamic-rules';
 
 export const PRODUCERS: Producer[] = [
   { id: 'compliance_deadlines', run: complianceDeadlinesProducer },
@@ -12,6 +13,7 @@ export const PRODUCERS: Producer[] = [
   { id: 'grant_obligations',    run: grantObligationsProducer },
   { id: 'import_review',        run: importReviewProducer },
   { id: 'report_approvals',     run: reportApprovalsProducer },
+  { id: 'dynamic_automation_rules', run: dateRelativeAutomationProducer },
 ];
 
 export const PRODUCER_IDS = PRODUCERS.map((p) => p.id);

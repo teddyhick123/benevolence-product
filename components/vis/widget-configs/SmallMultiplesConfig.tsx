@@ -7,9 +7,10 @@ export type SmallMultiplesConfigProps = {
   onSave: (config: { title: string; config: any }) => void;
   onCancel: () => void;
   portfolioId?: string;
+  onPreviewChange?: (config: { title: string; config: any }) => void;
 };
 
-export default function SmallMultiplesConfig({ initialConfig, onSave, onCancel, portfolioId }: SmallMultiplesConfigProps) {
+export default function SmallMultiplesConfig({ initialConfig, onSave, onCancel, portfolioId, onPreviewChange }: SmallMultiplesConfigProps) {
   const [title, setTitle] = React.useState(initialConfig?.title || '');
   const [metricCode, setMetricCode] = React.useState(initialConfig?.config?.metric_code || '');
   const [window, setWindow] = React.useState(initialConfig?.config?.window || 'all');
@@ -38,6 +39,21 @@ export default function SmallMultiplesConfig({ initialConfig, onSave, onCancel, 
       }
     })();
   }, [portfolioId]);
+
+  React.useEffect(() => {
+    onPreviewChange?.({
+      title: title || `${metricCode} Comparison`,
+      config: {
+        metric_code: metricCode,
+        window,
+        columns,
+        chartHeight,
+        showBenchmark,
+        benchmarkValue: showBenchmark ? benchmarkValue : undefined,
+        minHoldings
+      }
+    });
+  }, [benchmarkValue, chartHeight, columns, metricCode, minHoldings, onPreviewChange, showBenchmark, title, window]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

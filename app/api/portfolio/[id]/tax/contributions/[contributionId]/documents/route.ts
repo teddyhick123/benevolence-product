@@ -14,6 +14,16 @@ const ALLOWED_MIME_TYPES = [
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 
+function json(body: Record<string, unknown>, init?: ResponseInit) {
+  return NextResponse.json(body, {
+    ...init,
+    headers: {
+      ...init?.headers,
+      'Cache-Control': 'no-store',
+    },
+  });
+}
+
 /**
  * GET /api/portfolio/[id]/tax/contributions/[contributionId]/documents
  * List all documents for a contribution
@@ -31,7 +41,7 @@ export async function GET(
   });
 
   if (canViewErr || !canView) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    return json({ error: 'Forbidden' }, { status: 403 });
   }
 
   // Fetch documents
@@ -43,10 +53,10 @@ export async function GET(
     .order('uploaded_at', { ascending: false });
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json({ data });
+  return json({ data });
 }
 
 /**
@@ -67,7 +77,7 @@ export async function POST(
   );
 
   if (permError || !canEdit) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    return json({ error: 'Forbidden' }, { status: 403 });
   }
 
   // Verify contribution exists and belongs to portfolio (user-session client)
@@ -79,7 +89,7 @@ export async function POST(
     .single();
 
   if (contribError || !contribution) {
-    return NextResponse.json({ error: 'Contribution not found' }, { status: 404 });
+    return json({ error: 'Contribution not found' }, { status: 404 });
   }
 
   // Admin client for storage operations — the storage INSERT RLS policy gates on
@@ -93,13 +103,13 @@ export async function POST(
     const documentType = formData.get('document_type') as string;
 
     if (!file) {
-      return NextResponse.json({ error: 'No file provided' }, { status: 400 });
+      return json({ error: 'No file provided' }, { status: 400 });
     }
 
     // Validate document type
     const typeResult = documentTypeSchema.safeParse(documentType);
     if (!typeResult.success) {
-      return NextResponse.json(
+      return json(
         { error: 'Invalid document type' },
         { status: 400 }
       );
@@ -107,7 +117,7 @@ export async function POST(
 
     // Validate file type
     if (!ALLOWED_MIME_TYPES.includes(file.type)) {
-      return NextResponse.json(
+      return json(
         { error: 'File type not allowed. Please upload PDF, JPEG, PNG, or WebP.' },
         { status: 400 }
       );
@@ -115,7 +125,7 @@ export async function POST(
 
     // Validate file size
     if (file.size > MAX_FILE_SIZE) {
-      return NextResponse.json(
+      return json(
         { error: 'File size must be less than 10MB' },
         { status: 400 }
       );
@@ -141,7 +151,7 @@ export async function POST(
 
     if (uploadError) {
       console.error('Storage upload error:', uploadError);
-      return NextResponse.json(
+      return json(
         { error: 'Failed to upload file: ' + uploadError.message },
         { status: 500 }
       );
@@ -154,8 +164,11 @@ export async function POST(
 
     if (signedError || !signedData?.signedUrl) {
       // Clean up the uploaded file before returning the error (admin client)
-      await sb.storage.from('tax-documents').remove([storagePath]);
-      return NextResponse.json({ error: 'Failed to generate document URL' }, { status: 500 });
+      const { error: cleanupError } = await sb.storage.from('tax-documents').remove([storagePath]);
+      if (cleanupError) {
+        return json({ error: cleanupError.message }, { status: 500 });
+      }
+      return json({ error: 'Failed to generate document URL' }, { status: 500 });
     }
 
     // Create document record (user-session client — RLS applies)
@@ -177,20 +190,35 @@ export async function POST(
 
     if (docError) {
       // Try to clean up uploaded file (admin client)
-      await sb.storage.from('tax-documents').remove([storagePath]);
-      return NextResponse.json({ error: docError.message }, { status: 500 });
+      const { error: cleanupError } = await sb.storage.from('tax-documents').remove([storagePath]);
+      if (cleanupError) {
+        return json({ error: cleanupError.message }, { status: 500 });
+      }
+      return json({ error: docError.message }, { status: 500 });
     }
 
     // Update contribution storage path based on document type (user-session client)
     const updateField = getStoragePathField(documentType as DocumentType);
     if (updateField) {
-      await supabase
+      const { error: pointerError } = await supabase
         .from('tax_contributions')
         .update({ [updateField]: storagePath })
         .eq('id', contributionId);
+
+      if (pointerError) {
+        const { error: docDeleteError } = await supabase.from('tax_documents').delete().eq('id', docRecord.id);
+        const { error: storageDeleteError } = await sb.storage.from('tax-documents').remove([storagePath]);
+        return json(
+          {
+            error: pointerError.message,
+            rollback_error: docDeleteError?.message ?? storageDeleteError?.message ?? null,
+          },
+          { status: 500 }
+        );
+      }
     }
 
-    return NextResponse.json({
+    return json({
       data: {
         ...docRecord,
         signed_url: signedData.signedUrl,
@@ -198,7 +226,7 @@ export async function POST(
     });
   } catch (error) {
     console.error('Document upload error:', error);
-    return NextResponse.json(
+    return json(
       { error: 'Failed to upload document' },
       { status: 500 }
     );

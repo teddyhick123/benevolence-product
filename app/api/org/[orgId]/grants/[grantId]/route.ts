@@ -3,6 +3,7 @@ import { createAdminClient, createServerClient } from '@/lib/supabase';
 
 export const dynamic = 'force-dynamic';
 
+const NO_STORE = { 'Cache-Control': 'no-store' } as const;
 const ADMIN_ROLES = new Set(['owner', 'admin']);
 
 // Fields that can be PATCHed; lifecycle_stage is excluded — use /transition instead
@@ -24,6 +25,16 @@ interface RouteParams {
   params: Promise<{ orgId: string; grantId: string }>;
 }
 
+function json(body: unknown, init: ResponseInit = {}) {
+  return NextResponse.json(body, {
+    ...init,
+    headers: {
+      ...NO_STORE,
+      ...(init.headers || {}),
+    },
+  });
+}
+
 // GET /api/org/[orgId]/grants/[grantId]
 export async function GET(req: NextRequest, { params }: RouteParams) {
   try {
@@ -31,10 +42,10 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
 
     const supabase = await createServerClient();
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!user) return json({ error: 'Unauthorized' }, { status: 401 });
 
     const { data: role } = await supabase.rpc('user_org_role', { p_org_id: orgId });
-    if (!role) return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
+    if (!role) return json({ error: 'Not authorized' }, { status: 403 });
 
     const db = createAdminClient();
 
@@ -51,7 +62,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       .maybeSingle();
 
     if (grantErr) throw grantErr;
-    if (!grant) return NextResponse.json({ error: 'Grant not found' }, { status: 404 });
+    if (!grant) return json({ error: 'Grant not found' }, { status: 404 });
 
     // Parallel fetches for the detail workspace
     const [healthResult, tasksResult, paymentsResult, commsResult, historyResult] =
@@ -87,7 +98,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
           .limit(50),
       ]);
 
-    return NextResponse.json({
+    return json({
       grant,
       health: healthResult.data ?? null,
       tasks: tasksResult.data ?? [],
@@ -96,7 +107,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       history: historyResult.data ?? [],
     });
   } catch (err: any) {
-    return NextResponse.json({ error: err?.message ?? 'Internal error' }, { status: 500 });
+    return json({ error: err?.message ?? 'Internal error' }, { status: 500 });
   }
 }
 
@@ -107,18 +118,18 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
 
     const supabase = await createServerClient();
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!user) return json({ error: 'Unauthorized' }, { status: 401 });
 
     const { data: role } = await supabase.rpc('user_org_role', { p_org_id: orgId });
     if (!role || !ADMIN_ROLES.has(role)) {
-      return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
+      return json({ error: 'Admin access required' }, { status: 403 });
     }
 
     const body = await req.json();
 
     // Only allow patchable fields; reject attempts to change lifecycle_stage directly
     if ('lifecycle_stage' in body) {
-      return NextResponse.json(
+      return json(
         { error: 'Use the /transition endpoint to change lifecycle_stage' },
         { status: 422 }
       );
@@ -132,7 +143,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     }
 
     if (Object.keys(update).length === 0) {
-      return NextResponse.json({ error: 'No patchable fields provided' }, { status: 400 });
+      return json({ error: 'No patchable fields provided' }, { status: 400 });
     }
 
     const db = createAdminClient();
@@ -145,19 +156,31 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
       .eq('org_id', orgId)
       .is('deleted_at', null)
       .maybeSingle();
-    if (!existing) return NextResponse.json({ error: 'Grant not found' }, { status: 404 });
+    if (!existing) return json({ error: 'Grant not found' }, { status: 404 });
+
+    if (update.internal_owner_id) {
+      const { data: owner } = await db
+        .from('organization_members')
+        .select('id')
+        .eq('org_id', orgId)
+        .eq('user_id', update.internal_owner_id as string)
+        .is('deleted_at', null)
+        .maybeSingle();
+      if (!owner) return json({ error: 'internal_owner_id is not a member of this organization' }, { status: 400 });
+    }
 
     const { data, error } = await db
       .from('grants')
       .update(update)
       .eq('id', grantId)
+      .eq('org_id', orgId)
       .select()
       .single();
 
     if (error) throw error;
 
-    return NextResponse.json({ data });
+    return json({ data });
   } catch (err: any) {
-    return NextResponse.json({ error: err?.message ?? 'Internal error' }, { status: 500 });
+    return json({ error: err?.message ?? 'Internal error' }, { status: 500 });
   }
 }

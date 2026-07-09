@@ -8,13 +8,23 @@ interface RouteParams {
   params: Promise<{ orgId: string }>;
 }
 
+function json(body: Record<string, unknown>, init?: ResponseInit) {
+  return NextResponse.json(body, {
+    ...init,
+    headers: {
+      ...init?.headers,
+      'Cache-Control': 'no-store',
+    },
+  });
+}
+
 export async function GET(_req: NextRequest, { params }: RouteParams) {
   try {
     const { orgId } = await params;
     const supabase = await createServerClient();
 
     const { data: isAdmin } = await supabase.rpc('is_org_admin', { p_org_id: orgId });
-    if (!isAdmin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    if (!isAdmin) return json({ error: 'Forbidden' }, { status: 403 });
 
     const { data, error } = await supabase
       .from('builder_proposals')
@@ -22,10 +32,10 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
       .eq('org_id', orgId)
       .order('created_at', { ascending: false });
 
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-    return NextResponse.json({ proposals: data || [] });
+    if (error) return json({ error: error.message }, { status: 500 });
+    return json({ proposals: data || [] });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';
-    return NextResponse.json({ error: message }, { status: 500 });
+    return json({ error: message }, { status: 500 });
   }
 }

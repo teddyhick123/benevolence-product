@@ -1,6 +1,21 @@
 import { NextResponse } from 'next/server';
 import { createServerClient, createAdminClient } from '@/lib/supabase';
+import { withMilestoneDisplayStatus } from '@/lib/grants/milestones';
 import * as XLSX from 'xlsx';
+
+function noStoreHeaders(headers: Record<string, string> = {}) {
+  return {
+    ...headers,
+    'Cache-Control': 'no-store',
+  };
+}
+
+function json(body: Record<string, unknown>, init?: ResponseInit) {
+  return NextResponse.json(body, {
+    ...init,
+    headers: noStoreHeaders(init?.headers as Record<string, string> | undefined),
+  });
+}
 
 /**
  * GET /api/portfolio/[id]/grants/export?format=csv|json|xlsx&grantId=optional
@@ -19,47 +34,44 @@ export async function GET(
   const supabase = await createServerClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    return json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const { data: membership } = await supabase
-    .from('portfolio_members')
-    .select('role')
-    .eq('portfolio_id', portfolioId)
-    .eq('user_id', user.id)
-    .single();
-
-  if (!membership) {
-    return NextResponse.json({ error: 'Access denied' }, { status: 403 });
-  }
+  const { data: canView, error: canViewErr } = await supabase.rpc('can_view_portfolio', {
+    p_portfolio_id: portfolioId,
+  });
+  if (canViewErr) return json({ error: canViewErr.message }, { status: 500 });
+  if (!canView) return json({ error: 'Access denied' }, { status: 403 });
 
   const sb = createAdminClient();
 
   // Fetch portfolio info
-  const { data: portfolio } = await sb
+  const { data: portfolio, error: portfolioError } = await sb
     .from('portfolios')
     .select('name')
     .eq('id', portfolioId)
     .single();
+  if (portfolioError) return json({ error: portfolioError.message }, { status: 500 });
 
   if (!portfolio) {
-    return NextResponse.json({ error: 'Portfolio not found' }, { status: 404 });
+    return json({ error: 'Portfolio not found' }, { status: 404 });
   }
 
   // Build grant query
   let grantsQuery = sb.from('v_grants').select('*').eq('portfolio_id', portfolioId);
   if (grantId) grantsQuery = grantsQuery.eq('grant_id', grantId);
-  const { data: grants } = await grantsQuery;
+  const { data: grants, error: grantsError } = await grantsQuery;
+  if (grantsError) return json({ error: grantsError.message }, { status: 500 });
 
   const grantIds = (grants || []).map((g: any) => g.grant_id).filter(Boolean);
 
   // Fetch related data in parallel
   const [
-    { data: milestones },
-    { data: payments },
-    { data: communications },
-    { data: budgetItems },
-    { data: decisions },
+    milestonesResult,
+    paymentsResult,
+    communicationsResult,
+    budgetItemsResult,
+    decisionsResult,
   ] = await Promise.all([
     grantIds.length > 0
       ? sb.from('grant_milestones').select('grant_id, milestone_name, description, due_date, completed_date, status, notes').in('grant_id', grantIds).order('due_date')
@@ -77,6 +89,16 @@ export async function GET(
       ? sb.from('grant_decisions').select('grant_id, decision_type, decision, decision_date, decided_by, amount, conditions, rationale').in('grant_id', grantIds).order('decision_date', { ascending: false })
       : Promise.resolve({ data: [] }),
   ]);
+  for (const result of [milestonesResult, paymentsResult, communicationsResult, budgetItemsResult, decisionsResult]) {
+    if ('error' in result && result.error) {
+      return json({ error: result.error.message }, { status: 500 });
+    }
+  }
+  const milestones = (milestonesResult.data || []).map((milestone: any) => withMilestoneDisplayStatus(milestone));
+  const payments = paymentsResult.data;
+  const communications = communicationsResult.data;
+  const budgetItems = budgetItemsResult.data;
+  const decisions = decisionsResult.data;
 
   const exportData = {
     meta: {
@@ -147,30 +169,30 @@ export async function GET(
   const dateStr = new Date().toISOString().split('T')[0];
 
   if (format === 'json') {
-    return NextResponse.json({ data: exportData });
+    return json({ data: exportData });
   }
 
   if (format === 'csv') {
     const csv = generateCSV(exportData);
     return new NextResponse(csv, {
-      headers: {
+      headers: noStoreHeaders({
         'Content-Type': 'text/csv',
         'Content-Disposition': `attachment; filename="grants-export-${dateStr}.csv"`,
-      },
+      }),
     });
   }
 
   if (format === 'xlsx') {
     const buffer = generateXLSX(exportData);
     return new NextResponse(buffer, {
-      headers: {
+      headers: noStoreHeaders({
         'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         'Content-Disposition': `attachment; filename="grants-export-${dateStr}.xlsx"`,
-      },
+      }),
     });
   }
 
-  return NextResponse.json({ error: 'Invalid format. Use csv, json, or xlsx.' }, { status: 400 });
+  return json({ error: 'Invalid format. Use csv, json, or xlsx.' }, { status: 400 });
 }
 
 function q(s: string | null | undefined): string {

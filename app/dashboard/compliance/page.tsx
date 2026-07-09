@@ -167,7 +167,7 @@ export default function CompliancePage() {
         completed_at: new Date().toISOString(),
       };
       if (markFiledFields.filing_reference.trim()) body.filing_reference = markFiledFields.filing_reference.trim();
-      if (markFiledFields.completed_by.trim()) body.completed_by = markFiledFields.completed_by.trim();
+      if (markFiledFields.completed_by.trim()) body.completed_by_name = markFiledFields.completed_by.trim();
       if (markFiledFields.notes.trim()) body.notes = markFiledFields.notes.trim();
 
       const res = await fetch(`/api/org/${orgId}/compliance/filing-calendar`, {

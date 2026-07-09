@@ -10,7 +10,7 @@ async function validateAssignee(
   userId: string | null
 ): Promise<string | null> {
   if (!userId) return null;
-  const { data } = await db
+  const { data, error } = await db
     .from('organization_members')
     .select('user_id')
     .eq('org_id', orgId)
@@ -18,6 +18,7 @@ async function validateAssignee(
     .is('deleted_at', null)
     .not('accepted_at', 'is', null)
     .maybeSingle();
+  if (error) throw error;
   if (!data) {
     console.warn(`[task-writer] assignedTo ${userId} is not a member of org ${orgId} — clearing assignment`);
     return null;
@@ -32,13 +33,14 @@ export async function upsertGeneratedTask(
   const now = new Date().toISOString();
   const resolvedAssignedTo = await validateAssignee(db, input.orgId, input.assignedTo ?? null);
 
-  const { data: existing } = await db
+  const { data: existing, error: existingError } = await db
     .from('tasks')
     .select('id, status, title, description, priority, due_at, assigned_to, metadata')
     .eq('org_id', input.orgId)
     .eq('source_key', input.sourceKey)
     .is('deleted_at', null)
     .maybeSingle();
+  if (existingError) throw existingError;
 
   if (!existing) {
     const { data: task, error } = await db
@@ -63,7 +65,7 @@ export async function upsertGeneratedTask(
     if (error || !task) throw error ?? new Error('Task insert returned no data');
 
     if (input.links.length > 0) {
-      await db.from('task_entity_links').insert(
+      const { error: linkError } = await db.from('task_entity_links').insert(
         input.links.map((l: TaskLink) => ({
           task_id: task.id,
           org_id: input.orgId,
@@ -72,14 +74,22 @@ export async function upsertGeneratedTask(
           relationship: l.relationship ?? 'primary',
         }))
       );
+      if (linkError) {
+        await db.from('tasks').delete().eq('id', task.id).eq('org_id', input.orgId);
+        throw linkError;
+      }
     }
 
-    await db.from('task_events').insert({
+    const { error: eventError } = await db.from('task_events').insert({
       task_id: task.id,
       org_id: input.orgId,
       event_type: 'created',
       after_values: { source_key: input.sourceKey, producer: input.metadata.producer },
     });
+    if (eventError) {
+      await db.from('tasks').delete().eq('id', task.id).eq('org_id', input.orgId);
+      throw eventError;
+    }
 
     return 'created';
   }
@@ -109,32 +119,36 @@ export async function upsertGeneratedTask(
     patch.assigned_to = resolvedAssignedTo;
   }
 
-  await db.from('tasks').update(patch).eq('id', existing.id);
+  const { error: updateError } = await db.from('tasks').update(patch).eq('id', existing.id);
+  if (updateError) throw updateError;
 
   if (events.length > 0) {
-    await db.from('task_events').insert(
+    const { error: eventError } = await db.from('task_events').insert(
       events.map((e) => ({ task_id: existing.id, org_id: input.orgId, ...e }))
     );
+    if (eventError) throw eventError;
   }
 
   // Ensure all links exist (no unique constraint on task_entity_links, check first)
   for (const link of input.links) {
-    const { data: existingLink } = await db
+    const { data: existingLink, error: existingLinkError } = await db
       .from('task_entity_links')
       .select('id')
       .eq('task_id', existing.id)
       .eq('entity_type', link.entityType)
       .eq('entity_id', link.entityId)
       .maybeSingle();
+    if (existingLinkError) throw existingLinkError;
 
     if (!existingLink) {
-      await db.from('task_entity_links').insert({
+      const { error: linkError } = await db.from('task_entity_links').insert({
         task_id: existing.id,
         org_id: input.orgId,
         entity_type: link.entityType,
         entity_id: link.entityId,
         relationship: link.relationship ?? 'primary',
       });
+      if (linkError) throw linkError;
     }
   }
 
@@ -168,9 +182,10 @@ export async function completeGeneratedTasks(
     .in('status', ['open', 'in_progress', 'blocked', 'waiting'])
     .is('deleted_at', null);
 
-  const { data: tasks } = isPrefix
+  const { data: tasks, error: taskFetchError } = isPrefix
     ? await (baseQuery as any).like('source_key', `${sourceKey}%`)
     : await baseQuery.eq('source_key', sourceKey);
+  if (taskFetchError) throw taskFetchError;
 
   if (!tasks || tasks.length === 0) return 0;
 
@@ -178,7 +193,7 @@ export async function completeGeneratedTasks(
 
   for (const t of tasks) {
     const existingMeta = (t.metadata as Record<string, unknown>) ?? {};
-    await db
+    const { error: updateError } = await db
       .from('tasks')
       .update({
         status: 'completed',
@@ -187,9 +202,10 @@ export async function completeGeneratedTasks(
         metadata: { ...existingMeta, completed_by_automation: true, completion_reason: reason },
       })
       .eq('id', t.id);
+    if (updateError) throw updateError;
   }
 
-  await db.from('task_events').insert(
+  const { error: eventError } = await db.from('task_events').insert(
     tasks.map((t: { id: string }) => ({
       task_id: t.id,
       org_id: orgId,
@@ -198,6 +214,7 @@ export async function completeGeneratedTasks(
       after_values: { reason, completed_by_automation: true },
     }))
   );
+  if (eventError) throw eventError;
 
   return tasks.length;
 }
@@ -220,9 +237,10 @@ export async function cancelGeneratedTasks(
     .in('status', ['open', 'in_progress', 'blocked', 'waiting'])
     .is('deleted_at', null);
 
-  const { data: tasks } = isPrefix
+  const { data: tasks, error: taskFetchError } = isPrefix
     ? await (baseQuery as any).like('source_key', `${sourceKey}%`)
     : await baseQuery.eq('source_key', sourceKey);
+  if (taskFetchError) throw taskFetchError;
 
   if (!tasks || tasks.length === 0) return 0;
 
@@ -230,7 +248,7 @@ export async function cancelGeneratedTasks(
 
   for (const t of tasks) {
     const existingMeta = (t.metadata as Record<string, unknown>) ?? {};
-    await db
+    const { error: updateError } = await db
       .from('tasks')
       .update({
         status: 'cancelled',
@@ -238,9 +256,10 @@ export async function cancelGeneratedTasks(
         metadata: { ...existingMeta, cancel_reason: cancelReason },
       })
       .eq('id', t.id);
+    if (updateError) throw updateError;
   }
 
-  await db.from('task_events').insert(
+  const { error: eventError } = await db.from('task_events').insert(
     tasks.map((t: { id: string }) => ({
       task_id: t.id,
       org_id: orgId,
@@ -249,6 +268,7 @@ export async function cancelGeneratedTasks(
       after_values: { cancel_reason: cancelReason },
     }))
   );
+  if (eventError) throw eventError;
 
   return tasks.length;
 }

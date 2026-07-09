@@ -7,9 +7,10 @@ export type PeopleGridConfigProps = {
   onSave: (config: { title: string; config: any }) => void;
   onCancel: () => void;
   portfolioId?: string;
+  onPreviewChange?: (config: { title: string; config: any }) => void;
 };
 
-export default function PeopleGridConfig({ initialConfig, onSave, onCancel, portfolioId }: PeopleGridConfigProps) {
+export default function PeopleGridConfig({ initialConfig, onSave, onCancel, portfolioId, onPreviewChange }: PeopleGridConfigProps) {
   const [title, setTitle] = React.useState(initialConfig?.title || 'People Helped');
   const [metricCode, setMetricCode] = React.useState(initialConfig?.config?.metric_code || '');
   const [mode, setMode] = React.useState(initialConfig?.config?.mode || 'sum');
@@ -36,6 +37,20 @@ export default function PeopleGridConfig({ initialConfig, onSave, onCancel, port
       }
     })();
   }, [portfolioId]);
+
+  React.useEffect(() => {
+    onPreviewChange?.({
+      title,
+      config: {
+        metric_code: metricCode,
+        mode,
+        window,
+        perUnit: Number(perUnit || 1),
+        iconSize: 16,
+        target: target ? Number(target) : undefined
+      }
+    });
+  }, [metricCode, mode, onPreviewChange, perUnit, target, title, window]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

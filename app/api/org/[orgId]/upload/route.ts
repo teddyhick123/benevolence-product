@@ -11,6 +11,29 @@ interface RouteParams {
 }
 
 const MAX_FILE_SIZE = 200 * 1024 * 1024; // 200MB
+const NO_STORE = { "Cache-Control": "no-store" } as const;
+
+function json(body: unknown, init: ResponseInit = {}) {
+  return NextResponse.json(body, {
+    ...init,
+    headers: {
+      ...NO_STORE,
+      ...(init.headers || {}),
+    },
+  });
+}
+
+async function markUploadStatus(
+  adminClient: ReturnType<typeof createAdminClient>,
+  uploadId: string,
+  status: "completed" | "failed"
+) {
+  const { error } = await adminClient
+    .from("uploads")
+    .update({ status })
+    .eq("id", uploadId);
+  if (error) throw error;
+}
 
 function deduplicateFacts(facts: any[]): any[] {
   const seen = new Set<string>();
@@ -34,14 +57,14 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     // Check edit access
     const { data: canEdit } = await supabase.rpc("can_edit_org", { p_org_id: orgId });
     if (!canEdit) {
-      return NextResponse.json({ error: "Not authorized to upload" }, { status: 403 });
+      return json({ error: "Not authorized to upload" }, { status: 403 });
     }
 
     const {
       data: { user },
     } = await supabase.auth.getUser();
     if (!user) {
-      return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+      return json({ error: "Not authenticated" }, { status: 401 });
     }
 
     // Parse form data
@@ -51,15 +74,15 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     const aiMode = ((form.get("ai_mode") as string) ?? "true") === "true";
 
     if (!file) {
-      return NextResponse.json({ error: "No file provided" }, { status: 400 });
+      return json({ error: "No file provided" }, { status: 400 });
     }
 
     if (!holding_id) {
-      return NextResponse.json({ error: "holding_id is required" }, { status: 400 });
+      return json({ error: "holding_id is required" }, { status: 400 });
     }
 
     if (file.size > MAX_FILE_SIZE) {
-      return NextResponse.json(
+      return json(
         {
           error: `File too large. Maximum size is 200MB, but your file is ${(
             file.size /
@@ -80,7 +103,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       .single();
 
     if (!holding) {
-      return NextResponse.json(
+      return json(
         { error: "Holding does not belong to this organization" },
         { status: 400 }
       );
@@ -89,7 +112,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     const portfolioId = holding.portfolio_id;
 
     // Create upload record
-    const fileName = file.name;
+    const fileName = file.name.replace(/[\/\\]/g, "_");
     const ext = fileName.split(".").pop() || "";
 
     const { data: upload, error: uploadError } = await adminClient
@@ -113,23 +136,21 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       .single();
 
     if (uploadError || !upload) {
-      return NextResponse.json(
+      return json(
         { error: uploadError?.message || "Failed to create upload record" },
         { status: 500 }
       );
     }
 
     uploadId = upload.id;
+    const currentUploadId = upload.id;
 
     if (!aiMode) {
       // Non-AI mode: just mark as completed
-      await adminClient
-        .from("uploads")
-        .update({ status: "completed" })
-        .eq("id", uploadId);
+      await markUploadStatus(adminClient, currentUploadId, "completed");
 
-      return NextResponse.json({
-        uploadId,
+      return json({
+        uploadId: currentUploadId,
         factsExtracted: 0,
         message: "File uploaded. AI extraction was disabled.",
       });
@@ -140,13 +161,10 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     const chunks = await parseDocumentChunked(buffer, fileName);
 
     if (chunks.length === 0) {
-      await adminClient
-        .from("uploads")
-        .update({ status: "completed" })
-        .eq("id", uploadId);
+      await markUploadStatus(adminClient, currentUploadId, "completed");
 
-      return NextResponse.json({
-        uploadId,
+      return json({
+        uploadId: currentUploadId,
         factsExtracted: 0,
         chunksProcessed: 0,
         message: "No readable content found in document.",
@@ -161,6 +179,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
 
     // Extract facts from each chunk
     const allFacts: any[] = [];
+    let extractionFailures = 0;
     for (const chunk of chunks) {
       try {
         const result = await extractFactsFromText(chunk.text, {
@@ -170,21 +189,24 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
           allFacts.push(...result.facts);
         }
       } catch (chunkError) {
+        extractionFailures += 1;
         console.error(`[OrgUpload] Error processing chunk:`, chunkError);
       }
+    }
+
+    if (extractionFailures === chunks.length) {
+      await markUploadStatus(adminClient, currentUploadId, "failed");
+      return json({ error: "Failed to extract metrics from document" }, { status: 500 });
     }
 
     // Deduplicate facts
     const uniqueFacts = deduplicateFacts(allFacts);
 
     if (uniqueFacts.length === 0) {
-      await adminClient
-        .from("uploads")
-        .update({ status: "completed" })
-        .eq("id", uploadId);
+      await markUploadStatus(adminClient, currentUploadId, "completed");
 
-      return NextResponse.json({
-        uploadId,
+      return json({
+        uploadId: currentUploadId,
         factsExtracted: 0,
         chunksProcessed: chunks.length,
         message: "No metrics found in document.",
@@ -193,7 +215,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
 
     // Insert facts into staging (not approved, with org context)
     const stagingFacts = uniqueFacts.map((fact) => ({
-      upload_id: uploadId,
+      upload_id: currentUploadId,
       holding_id,
       metric_code: fact.metric_code,
       value: fact.value,
@@ -214,25 +236,19 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
 
     if (insertError) {
       console.error("[OrgUpload] Error inserting staging facts:", insertError);
-      await adminClient
-        .from("uploads")
-        .update({ status: "failed" })
-        .eq("id", uploadId);
+      await markUploadStatus(adminClient, currentUploadId, "failed");
 
-      return NextResponse.json(
+      return json(
         { error: "Failed to save extracted metrics" },
         { status: 500 }
       );
     }
 
     // Mark upload as completed
-    await adminClient
-      .from("uploads")
-      .update({ status: "completed" })
-      .eq("id", uploadId);
+    await markUploadStatus(adminClient, currentUploadId, "completed");
 
-    return NextResponse.json({
-      uploadId,
+    return json({
+      uploadId: currentUploadId,
       factsExtracted: uniqueFacts.length,
       chunksProcessed: chunks.length,
       message: `Extracted ${uniqueFacts.length} metrics. Pending portfolio owner approval.`,
@@ -241,12 +257,13 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     console.error("[OrgUpload] Error:", err);
 
     if (uploadId) {
-      await adminClient
-        .from("uploads")
-        .update({ status: "failed" })
-        .eq("id", uploadId);
+      try {
+        await markUploadStatus(adminClient, uploadId, "failed");
+      } catch (statusError) {
+        console.error("[OrgUpload] Failed to mark upload failed:", statusError);
+      }
     }
 
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return json({ error: err.message }, { status: 500 });
   }
 }

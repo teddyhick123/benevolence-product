@@ -3,6 +3,18 @@ import { createAdminClient, createServerClient } from '@/lib/supabase';
 
 export const dynamic = 'force-dynamic';
 
+const NO_STORE = { 'Cache-Control': 'no-store' } as const;
+
+function json(body: unknown, init: ResponseInit = {}) {
+  return NextResponse.json(body, {
+    ...init,
+    headers: {
+      ...NO_STORE,
+      ...(init.headers || {}),
+    },
+  });
+}
+
 interface RouteParams {
   params: Promise<{ orgId: string }>;
 }
@@ -13,10 +25,10 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
 
     const supabase = await createServerClient();
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!user) return json({ error: 'Unauthorized' }, { status: 401 });
 
     const { data: role } = await supabase.rpc('user_org_role', { p_org_id: orgId });
-    if (!role) return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
+    if (!role) return json({ error: 'Not authorized' }, { status: 403 });
 
     const db = createAdminClient();
     const now = new Date();
@@ -39,10 +51,10 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
 
     const firstError = [overdueRes, dueSoonRes, blockedRes, mineRes, openRes].find(r => r.error);
     if (firstError?.error) {
-      return NextResponse.json({ error: firstError.error.message }, { status: 500 });
+      return json({ error: firstError.error.message }, { status: 500 });
     }
 
-    return NextResponse.json({
+    return json({
       overdue:    overdueRes.count  ?? 0,
       due_soon:   dueSoonRes.count  ?? 0,
       blocked:    blockedRes.count  ?? 0,
@@ -50,6 +62,6 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       total_open: openRes.count     ?? 0,
     });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return json({ error: err.message }, { status: 500 });
   }
 }

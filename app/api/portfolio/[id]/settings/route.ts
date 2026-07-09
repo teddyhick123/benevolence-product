@@ -37,7 +37,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
       .eq('portfolio_id', portfolio_id)
       .single();
 
-    const cacheHeaders = { 'Cache-Control': 'public, s-maxage=3600, stale-while-revalidate=300' };
+    const cacheHeaders = { 'Cache-Control': 'no-store' };
 
     // If table missing or no row, fall back to defaults
     if (error) {

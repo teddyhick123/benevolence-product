@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
 
@@ -18,6 +19,13 @@ describe('analytics routes auth contract', () => {
     it(`${route} calls isAccessDenied`, () => {
       const src = readFileSync(route, 'utf8');
       expect(src).toContain('isAccessDenied');
+    });
+
+    it(`${route} does not publicly cache portfolio analytics`, () => {
+      const src = readFileSync(route, 'utf8');
+      expect(src).toContain("'Cache-Control': 'no-store'");
+      expect(src).not.toContain('s-maxage');
+      expect(src).not.toContain('public,');
     });
   }
 });

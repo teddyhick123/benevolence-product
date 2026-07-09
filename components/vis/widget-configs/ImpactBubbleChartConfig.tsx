@@ -7,9 +7,10 @@ export type ImpactBubbleChartConfigProps = {
   onSave: (config: { title: string; config: any }) => void;
   onCancel: () => void;
   portfolioId?: string;
+  onPreviewChange?: (config: { title: string; config: any }) => void;
 };
 
-export default function ImpactBubbleChartConfig({ initialConfig, onSave, onCancel, portfolioId }: ImpactBubbleChartConfigProps) {
+export default function ImpactBubbleChartConfig({ initialConfig, onSave, onCancel, portfolioId, onPreviewChange }: ImpactBubbleChartConfigProps) {
   const [title, setTitle] = React.useState(initialConfig?.title || '');
   const [xMetric, setXMetric] = React.useState(initialConfig?.config?.xMetric || '');
   const [yMetric, setYMetric] = React.useState(initialConfig?.config?.yMetric || '');
@@ -42,6 +43,31 @@ export default function ImpactBubbleChartConfig({ initialConfig, onSave, onCance
       }
     })();
   }, [portfolioId]);
+
+  React.useEffect(() => {
+    const config: any = {
+      xMetric,
+      yMetric,
+      sizeMetric,
+      colorMode,
+      minBubbleSize,
+      maxBubbleSize,
+      showLabels,
+      minHoldings
+    };
+
+    if (colorMode === 'metric' && colorMetric) {
+      config.colorMetric = colorMetric;
+    }
+
+    if (xLabel) config.xLabel = xLabel;
+    if (yLabel) config.yLabel = yLabel;
+
+    onPreviewChange?.({
+      title: title || 'Impact Bubble Chart',
+      config
+    });
+  }, [colorMetric, colorMode, maxBubbleSize, minBubbleSize, minHoldings, onPreviewChange, showLabels, sizeMetric, title, xLabel, xMetric, yLabel, yMetric]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

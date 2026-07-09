@@ -1,3 +1,4 @@
+// @vitest-environment node
 // lib/__tests__/tax-export-contract.test.ts
 //
 // Source-scan contract tests for tax export files.
@@ -165,5 +166,26 @@ describe('Tax export contract: TaxContributionExport interface includes required
     // Exact wording distinguishes this field from property_description and prevents
     // a future developer from accidentally including internal notes in CPA packages.
     expect(turbotaxExportSrc).toContain('NOT for CPA/tax-prep export output');
+  });
+});
+
+// ── Historical carryforward semantics ────────────────────────────────────────
+
+describe('Tax export contract: historical carryforwards are exported from canonical ledger tables', () => {
+  it('export/route.ts does not use current-active carryforward view for historical exports', () => {
+    expect(exportRouteSrc).not.toContain("from('v_active_carryforwards')");
+  });
+
+  it('export/route.ts queries tax_carryforwards directly with year bracket filters', () => {
+    expect(exportRouteSrc).toContain("from('tax_carryforwards')");
+    expect(exportRouteSrc).toContain('tax_carryforward_applications');
+    expect(exportRouteSrc).toContain(".lte('originating_tax_year', year)");
+    expect(exportRouteSrc).toContain(".gte('expires_tax_year', year)");
+  });
+
+  it('export/route.ts computes remaining carryforward as of the selected year', () => {
+    expect(exportRouteSrc).toContain('applicationsThroughYear');
+    expect(exportRouteSrc).toContain('app.applied_tax_year <= year');
+    expect(exportRouteSrc).toContain('appliedThroughTaxYear');
   });
 });

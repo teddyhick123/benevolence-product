@@ -16,5 +16,5 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
     .maybeSingle();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500, headers: { 'Cache-Control': 'no-store' } });
-  return NextResponse.json({ name: data?.name ?? null }, { headers: { 'Cache-Control': 'public, s-maxage=3600, stale-while-revalidate=300' } });
+  return NextResponse.json({ name: data?.name ?? null }, { headers: { 'Cache-Control': 'no-store' } });
 }

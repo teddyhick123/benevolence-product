@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 // app/api/__tests__/grants-api.test.ts
 // Tests for GET/POST /api/org/[orgId]/grants and GET/PATCH /api/org/[orgId]/grants/[grantId].
 // Uses a mock Supabase client to verify 401, 403, 422, and happy-path shapes.
@@ -7,10 +9,17 @@ import { NextRequest } from 'next/server';
 // ─── Shared mock state ────────────────────────────────────────────────────────
 let _authUser: { id: string } | null = { id: 'user-1' };
 let _orgRole: string | null = 'admin';
-let _grantInsertResult: { data: Record<string, unknown> | null; error: { message: string } | null } =
-  { data: { id: 'grant-1', lifecycle_stage: 'draft' }, error: null };
-let _holdingInsertResult: { data: Record<string, unknown> | null; error: { message: string } | null } =
-  { data: { id: 'holding-1', name: 'Test Grantee' }, error: null };
+let _createGrantResult: {
+  data: { grant: Record<string, unknown>; holding: Record<string, unknown>; workflow_instance: Record<string, unknown> | null } | null;
+  error: { message: string } | null;
+} = {
+  data: {
+    grant: { id: 'grant-1', lifecycle_stage: 'draft' },
+    holding: { id: 'holding-1', name: 'Test Grantee' },
+    workflow_instance: null,
+  },
+  error: null,
+};
 let _portfolioData: Record<string, unknown> | null = { id: 'port-1', org_id: 'org-1' };
 let _investeeData: Record<string, unknown> | null = { id: 'inv-1', display_name: 'Test Grantee' };
 
@@ -26,6 +35,10 @@ vi.mock('@/lib/supabase', () => ({
 
 function buildAdminMock() {
   return {
+    rpc: vi.fn(async (fn: string) => {
+      if (fn === 'create_grant_with_foundation_records') return _createGrantResult;
+      return { data: null, error: null };
+    }),
     from: vi.fn((table: string) => {
       if (table === 'portfolios') {
         return { select: vi.fn().mockReturnThis(), eq: vi.fn().mockReturnThis(), is: vi.fn().mockReturnThis(), maybeSingle: vi.fn(async () => ({ data: _portfolioData, error: null })) };
@@ -45,11 +58,6 @@ function buildAdminMock() {
       }
       if (table === 'holdings') {
         return {
-          insert: vi.fn().mockReturnValue({
-            select: vi.fn().mockReturnValue({
-              single: vi.fn(async () => _holdingInsertResult),
-            }),
-          }),
           delete: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnThis() }),
         };
       }
@@ -62,11 +70,6 @@ function buildAdminMock() {
           range: vi.fn().mockReturnThis(),
           maybeSingle: vi.fn(async () => ({ data: { id: 'grant-1' }, error: null })),
           then: vi.fn(async (resolve: Function) => resolve({ data: [{ id: 'grant-1' }], error: null, count: 1 })),
-          insert: vi.fn().mockReturnValue({
-            select: vi.fn().mockReturnValue({
-              single: vi.fn(async () => _grantInsertResult),
-            }),
-          }),
           update: vi.fn().mockReturnValue({
             eq: vi.fn().mockReturnThis(),
             select: vi.fn().mockReturnValue({
@@ -74,12 +77,6 @@ function buildAdminMock() {
             }),
           }),
         };
-      }
-      if (table === 'grant_status_history') {
-        return { insert: vi.fn(async () => ({ error: null })) };
-      }
-      if (table === 'workflow_templates') {
-        return { select: vi.fn().mockReturnThis(), eq: vi.fn().mockReturnThis(), maybeSingle: vi.fn(async () => ({ data: null, error: null })) };
       }
       return {
         select: vi.fn().mockReturnThis(),
@@ -117,8 +114,14 @@ function makeParams(p: Record<string, string>) {
 beforeEach(() => {
   _authUser = { id: 'user-1' };
   _orgRole = 'admin';
-  _grantInsertResult = { data: { id: 'grant-1', lifecycle_stage: 'draft' }, error: null };
-  _holdingInsertResult = { data: { id: 'holding-1', name: 'Test Grantee' }, error: null };
+  _createGrantResult = {
+    data: {
+      grant: { id: 'grant-1', lifecycle_stage: 'draft' },
+      holding: { id: 'holding-1', name: 'Test Grantee' },
+      workflow_instance: null,
+    },
+    error: null,
+  };
   _portfolioData = { id: 'port-1', org_id: ORG_ID };
   _investeeData = { id: 'inv-1', display_name: 'Test Grantee' };
 });

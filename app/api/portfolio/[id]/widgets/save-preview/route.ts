@@ -5,6 +5,16 @@ import { createServerClient } from '@supabase/ssr';
 
 export const runtime = 'nodejs';
 
+function json(body: Record<string, unknown>, init?: ResponseInit) {
+  return NextResponse.json(body, {
+    ...init,
+    headers: {
+      ...init?.headers,
+      'Cache-Control': 'no-store',
+    },
+  });
+}
+
 /**
  * POST /api/portfolio/[id]/widgets/save-preview
  * Save a preview widget to the dashboard
@@ -38,15 +48,21 @@ export async function POST(
 
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return json({ error: 'Unauthorized' }, { status: 401 });
     }
+
+    const { data: canEdit, error: canEditErr } = await supabase.rpc('can_edit_portfolio', {
+      p_portfolio_id: portfolioId,
+    });
+    if (canEditErr) return json({ error: canEditErr.message }, { status: 500 });
+    if (!canEdit) return json({ error: 'Access denied' }, { status: 403 });
 
     // Parse request body
     const body = await req.json();
     const { type, title, config, holding_id } = body;
 
     if (!type || !title) {
-      return NextResponse.json(
+      return json(
         { error: 'type and title are required' },
         { status: 400 }
       );
@@ -65,20 +81,31 @@ export async function POST(
     // Get max position for ordering
     let maxPosition = -1;
     if (holding_id) {
-      const { data: widgets } = await serviceClient
+      const { data: holding, error: holdingError } = await serviceClient
+        .from('holdings')
+        .select('id')
+        .eq('id', holding_id)
+        .eq('portfolio_id', portfolioId)
+        .maybeSingle();
+      if (holdingError) throw holdingError;
+      if (!holding) return json({ error: 'Holding not found' }, { status: 404 });
+
+      const { data: widgets, error: widgetsError } = await serviceClient
         .from('holding_widgets')
         .select('position')
         .eq('holding_id', holding_id)
         .order('position', { ascending: false })
         .limit(1);
+      if (widgetsError) throw widgetsError;
       maxPosition = (widgets?.[0]?.position as number) ?? -1;
     } else {
-      const { data: widgets } = await serviceClient
+      const { data: widgets, error: widgetsError } = await serviceClient
         .from('widgets')
         .select('position')
         .eq('portfolio_id', portfolioId)
         .order('position', { ascending: false })
         .limit(1);
+      if (widgetsError) throw widgetsError;
       maxPosition = (widgets?.[0]?.position as number) ?? -1;
     }
 
@@ -106,16 +133,16 @@ export async function POST(
       .single();
 
     if (error) {
-      return NextResponse.json(
+      return json(
         { error: 'Failed to save widget' },
         { status: 500 }
       );
     }
 
-    return NextResponse.json({ data: widget });
+    return json({ data: widget });
 
   } catch (error: any) {
-    return NextResponse.json(
+    return json(
       { error: error.message || 'Failed to save widget' },
       { status: 500 }
     );

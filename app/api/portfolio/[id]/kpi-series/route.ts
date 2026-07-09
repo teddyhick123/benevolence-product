@@ -48,5 +48,5 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
     displayName = firstRow.display_name || firstRow.metric_name || metricCode;
   }
 
-  return NextResponse.json({ series, display_name: displayName }, { headers: { 'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=60' } });
+  return NextResponse.json({ series, display_name: displayName }, { headers: { 'Cache-Control': 'no-store' } });
 }

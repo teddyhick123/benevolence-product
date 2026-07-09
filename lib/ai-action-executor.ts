@@ -10,6 +10,18 @@ type SupabaseClient = ReturnType<typeof createClient>;
 export class AIActionExecutor {
   constructor(private supabase: SupabaseClient) {}
 
+  private async requireHoldingInPortfolio(holdingId: string, portfolioId: string): Promise<void> {
+    const { data, error } = await this.supabase
+      .from('holdings')
+      .select('id')
+      .eq('id', holdingId)
+      .eq('portfolio_id', portfolioId)
+      .maybeSingle();
+
+    if (error) throw error;
+    if (!data) throw new Error('Holding not found in this portfolio');
+  }
+
   /**
    * Execute a holding creation
    */
@@ -239,6 +251,8 @@ export class AIActionExecutor {
       period_end?: string;
     }
   ): Promise<{ action: AIAction; output: any }> {
+    await this.requireHoldingInPortfolio(args.holding_id, portfolioId);
+
     // Insert metric fact
     const { data: fact, error } = await this.supabase
       .from('metric_facts')
@@ -304,6 +318,8 @@ export class AIActionExecutor {
       config?: any;
     }
   ): Promise<{ action: AIAction; output: any }> {
+    await this.requireHoldingInPortfolio(args.holding_id, portfolioId);
+
     // Get max position for ordering
     const { data: widgets } = await this.supabase
       .from('holding_widgets')
@@ -450,6 +466,8 @@ export class AIActionExecutor {
       tags?: string[];
     }
   ): Promise<{ action: AIAction; output: any }> {
+    await this.requireHoldingInPortfolio(args.holding_id, portfolioId);
+
     // Only insert if we have coordinates
     if (args.lon == null || args.lat == null) {
       throw new Error('Coordinates (lon, lat) are required for location');

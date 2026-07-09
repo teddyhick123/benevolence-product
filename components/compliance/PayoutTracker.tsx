@@ -4,13 +4,15 @@ import { useState, useEffect } from 'react';
 
 interface PayoutStatus {
   tax_year: number;
-  distributable_amount: number;
-  distributions_to_date: number;
-  pipeline_total: number;
-  shortfall_after_pipeline: number;
-  on_track: boolean;
+  data_missing?: boolean;
+  warning?: string | null;
+  distributable_amount: number | null;
+  distributions_to_date: number | null;
+  pipeline_total: number | null;
+  shortfall_after_pipeline: number | null;
+  on_track: boolean | null;
   days_remaining: number;
-  pct_complete: number;
+  pct_complete: number | null;
 }
 
 interface QualifyingDistribution {
@@ -67,8 +69,10 @@ export default function PayoutTracker({ portfolioId, taxYear }: Props) {
     load();
   }, [portfolioId, selectedYear]);
 
-  const fmt = (n: number) =>
-    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(n);
+  const fmt = (n: number | null) =>
+    n == null
+      ? 'Not set'
+      : new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(n);
 
   const pct = forecast?.pct_complete ?? 0;
   const radius = 54;
@@ -116,7 +120,21 @@ export default function PayoutTracker({ portfolioId, taxYear }: Props) {
       {!loading && !error && forecast && (
         <>
           {/* Alert banners */}
-          {forecast.shortfall_after_pipeline > 0 && (
+          {forecast.data_missing && (
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex items-start gap-3">
+              <svg className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M4.93 19h14.14c1.54 0 2.5-1.67 1.73-3L13.73 4c-.77-1.33-2.69-1.33-3.46 0L3.2 16c-.77 1.33.19 3 1.73 3z" />
+              </svg>
+              <div>
+                <p className="font-semibold text-amber-900">Payout Setup Required</p>
+                <p className="text-sm text-amber-800 mt-0.5">
+                  {forecast.warning ?? 'Payout history is missing for this tax year.'}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {forecast.shortfall_after_pipeline != null && forecast.shortfall_after_pipeline > 0 && (
             <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start gap-3">
               <svg className="w-5 h-5 text-red-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
@@ -131,7 +149,7 @@ export default function PayoutTracker({ portfolioId, taxYear }: Props) {
             </div>
           )}
 
-          {forecast.on_track && (
+          {forecast.on_track === true && (
             <div className="bg-green-50 border border-green-200 rounded-lg p-4 flex items-start gap-3">
               <svg className="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -189,8 +207,12 @@ export default function PayoutTracker({ portfolioId, taxYear }: Props) {
                 </div>
                 <div className="border-t border-gray-100 pt-3 flex justify-between text-sm">
                   <span className="text-gray-700 font-medium">Remaining shortfall</span>
-                  <span className={`font-bold ${forecast.shortfall_after_pipeline > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                    {forecast.shortfall_after_pipeline > 0 ? fmt(forecast.shortfall_after_pipeline) : 'None — on track'}
+                  <span className={`font-bold ${(forecast.shortfall_after_pipeline ?? 0) > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                    {forecast.shortfall_after_pipeline == null
+                      ? 'Payout setup required'
+                      : forecast.shortfall_after_pipeline > 0
+                        ? fmt(forecast.shortfall_after_pipeline)
+                        : 'None — on track'}
                   </span>
                 </div>
               </div>
@@ -203,8 +225,9 @@ export default function PayoutTracker({ portfolioId, taxYear }: Props) {
               <h3 className="text-sm font-semibold text-gray-900 mb-4">Breakdown by Category</h3>
               <div className="space-y-3">
                 {Object.entries(byCategory).map(([cat, amount]) => {
-                  const catPct = forecast.distributable_amount > 0
-                    ? Math.min(100, Math.round((amount / forecast.distributable_amount) * 100))
+                  const distributableAmount = forecast.distributable_amount ?? 0;
+                  const catPct = distributableAmount > 0
+                    ? Math.min(100, Math.round((amount / distributableAmount) * 100))
                     : 0;
                   return (
                     <div key={cat}>

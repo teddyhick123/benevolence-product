@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'fs';
 
@@ -32,10 +34,18 @@ describe('CPA public portal contract', () => {
   });
 
   it('logs CPA views and downloads', () => {
-    expect(publicAccessSrc).toContain("from('cpa_access_logs')");
+    expect(publicAccessSrc).toContain("rpc('record_cpa_access'");
     expect(publicAccessSrc).toContain('download_form8283');
     expect(publicAccessSrc).toContain('download_turbotax');
     expect(publicAccessSrc).toContain('download_document');
+  });
+
+  it('revalidates share links around admin-client payload reads', () => {
+    expect(publicAccessSrc).toContain('async function refreshValidCPAShareLink');
+    expect(publicAccessSrc).toMatch(/const refreshed = await refreshValidCPAShareLink\(supabase, link\)/);
+    expect(publicAccessSrc).toMatch(/const finalRefresh = await refreshValidCPAShareLink\(supabase, activeLink\)/);
+    expect(publicAccessSrc).toMatch(/const finalRefresh = await refreshValidCPAShareLink\(supabase, link\)/);
+    expect(publicAccessSrc).toContain('share: sanitizeLink(finalRefresh.link)');
   });
 
   it('public page fetches the public API route', () => {

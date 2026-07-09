@@ -1,12 +1,12 @@
 # Configurability Architecture
 
-> This document is the technical companion to `PLATFORM_VISION.md`. It describes the current configurability layers, the three missing layers, and the end-state architecture for a platform where org admins can configure their operating system without writing code.
+> This document is the technical companion to `PLATFORM_VISION.md`. It describes the current configurability layers, the major missing runtime layers, and the end-state architecture for a platform where org admins can configure their operating system without writing code.
 
 ---
 
 ## Current Configurability Layers
 
-The platform today has three real configurability layers. Understanding what they actually do — and where they stop — is the foundation for building what's missing.
+The platform today has four real configurability layers. Understanding what they actually do — and where they stop — is the foundation for building what's missing.
 
 ### Layer A: Module Selection
 
@@ -18,11 +18,11 @@ The platform today has three real configurability layers. Understanding what the
 
 ### Layer B: Builder (Current State)
 
-**What it does:** An org-admin-facing AI chat (`app/api/org/[orgId]/builder/`) that reads the org's current module state and codebase scaffold context. It can propose and apply: module enable/disable, KPI definition creation, metric structure configuration. Scaffold proposals for new data shapes are generated as code diffs and require developer review + deployment via PR.
+**What it does:** An org-admin-facing AI chat (`app/api/org/[orgId]/builder/`) that reads the org's current module state and codebase scaffold context. It can propose and apply: module enable/disable, KPI definition creation, metric structure configuration, branding updates, workflow template updates, and coarse AI instructions. Scaffold proposals for new data shapes are generated as code diffs and require developer review + deployment via PR.
 
 **What it enables:** An admin can ask "enable the analytics module" or "create a KPI for total grants disbursed this year" and the Builder executes it directly. For deeper customization (new tables, new views), it generates a proposal the developer reviews and deploys.
 
-**Where it stops:** Anything beyond module config and KPI structure requires code deployment. Custom fields, workflow rules, and checklist items are not configurable at runtime. The Builder is a bridge to developers, not a self-service surface.
+**Where it stops:** Anything beyond the existing config tools requires code deployment. Custom fields, stage-transition workflow rules, checklist completion enforcement, automations, and view configuration are not configurable at runtime. The Builder is still partly a bridge to developers, not yet the full self-service operating surface.
 
 ### Layer C: AI Tool Filtering
 
@@ -30,11 +30,19 @@ The platform today has three real configurability layers. Understanding what the
 
 **What it enables:** The assistant is scoped to what the org actually uses. It never suggests grant tools to an org that doesn't have grant management enabled.
 
-**Where it stops:** Within enabled modules, all orgs get identical tool behavior. The assistant has no org-specific context, no knowledge of the org's workflows, naming conventions, or operating norms. It's module-filtered but org-generic.
+**Where it stops:** Within enabled modules, all orgs get identical tool behavior. Tool filtering does not teach the assistant the org's workflows, naming conventions, or operating norms. It's module-filtered but still relies on other layers for org-specific guidance.
+
+### Layer D: Coarse AI Instructions
+
+**What it does:** Stores free-text org instructions in `organizations.ai_instructions` and injects them into assistant prompts. Builder exposes this through `set_ai_instructions`.
+
+**What it enables:** An admin can steer tone, vocabulary, domain focus, or broad operating guidance without deploying code.
+
+**Where it stops:** Instructions are one unstructured text blob. They are not typed, source-attributed, individually reviewable, stage-aware, tied to workflow config, or proposed by the assistant as confirmed memory. This is useful guidance, not a structured org knowledge layer.
 
 ---
 
-## The Three Missing Layers
+## The Major Missing Runtime Layers
 
 ### Missing Layer 1: Runtime Workflow Configuration
 
@@ -44,7 +52,7 @@ The platform today has three real configurability layers. Understanding what the
 - Custom checklists per lifecycle stage (e.g., "Site visit required before `recommended`")
 - Required field rules per stage (e.g., `strategic_alignment_score` must be set before `approved`)
 - Stage-level approval requirements (e.g., "board vote required" vs. "program officer decision")
-- Custom labels for stages, entities, and fields
+- Custom labels for lifecycle stages
 
 **What it needs in the schema:** An `org_workflow_config` table (or JSONB on `organizations`) that stores per-module, per-org workflow rules. The grant transition logic in `lib/grants/lifecycle.ts` reads canonical rules today; it needs to also read org-level overrides.
 
@@ -80,15 +88,15 @@ RLS: both tables are org-scoped via `can_view_org(org_id)`. Values are joined in
 
 **Where the Builder fits:** "Add a required field 'Strategic Alignment Score' (1–5 rating) to grants" is a Builder command that creates a `org_custom_field_definitions` row. No migration required.
 
-### Missing Layer 3: Org-Specific AI Behavior
+### Missing Layer 3: Structured Org-Specific AI Behavior
 
-**What it is:** Persistent, org-scoped context that the AI assistant reads at the start of every session — encoding the org's processes, naming conventions, preferences, and operating norms.
+**What it is:** Persistent, org-scoped context records that the AI assistant reads at the start of every session — encoding the org's processes, naming conventions, preferences, and operating norms as managed configuration rather than one free-text instruction blob.
 
 **Concretely missing:**
-- The AI doesn't know this org calls grants "awards"
-- The AI doesn't know this foundation requires a site visit before recommending
-- The AI doesn't know the finance director wants payment confirmations flagged
-- The AI can't learn from past sessions to improve future ones
+- The AI doesn't have a structured record that this org calls grants "awards"
+- The AI doesn't have a structured record that this foundation requires a site visit before recommending
+- The AI doesn't have a structured record that the finance director wants payment confirmations flagged
+- The AI can't propose confirmed, auditable context entries from past sessions to improve future ones
 
 **What it needs in the schema:**
 ```sql
@@ -111,15 +119,15 @@ This table's content is injected into the AI system prompt at session start, aft
 
 ## How the Builder Evolves
 
-The Builder's evolution follows a clear progression as each missing layer is added:
+The Builder's evolution follows the same phase numbering as `CONFIGURABILITY_ROADMAP.md`:
 
-### Phase 1 (Current): Module Config + Scaffold Proposals
+### Phase 0 (Current): Module Config + Scaffold Proposals
 
-The Builder can toggle modules and propose KPI structures. Deeper changes require developer deployment via PR.
+The Builder can toggle modules, manage KPI definitions, update branding, update coarse AI instructions, and propose scaffolded code changes. Deeper changes require developer deployment via PR.
 
-**Boundary:** Module-level config only.
+**Boundary:** Existing data-layer config tools only. Workflow transition rules, custom fields, automations, and view configuration remain future runtime layers.
 
-### Phase 2: Runtime Workflow Config
+### Phase 1: Runtime Workflow Config
 
 The Builder gains tools to read and write `org_workflow_config`. An admin can define stage checklists, required-field rules, and stage labels via Builder chat. No code deployment required.
 
@@ -127,7 +135,7 @@ The Builder gains tools to read and write `org_workflow_config`. An admin can de
 
 **Boundary:** Workflow rules within existing module schemas.
 
-### Phase 3: Custom Fields
+### Phase 2: Custom Fields
 
 The Builder gains tools to create and manage `org_custom_field_definitions`. Fields appear in entity forms, table views, and AI tool context automatically.
 
@@ -135,9 +143,17 @@ The Builder gains tools to create and manage `org_custom_field_definitions`. Fie
 
 **Boundary:** Custom data attached to existing entities. New entity types still require developer work.
 
+### Phase 3: Configurable Automations
+
+The Builder gains tools to create and manage org-scoped automation rules that react to configured stages, custom fields, task events, and dates.
+
+**New Builder tools:** `create_automation_rule`, `list_automation_rules`, `enable_automation_rule`, `disable_automation_rule`, `remove_automation_rule`
+
+**Boundary:** In-platform trigger/action rules. Email, webhooks, external APIs, and cross-org automations still require developer work.
+
 ### Phase 4: Org AI Context
 
-The Builder gains tools to create and manage `org_ai_context`. The AI assistant can propose context entries during conversation. Context is injected into every AI session for the org.
+The Builder upgrades coarse `ai_instructions` into structured `org_ai_context`. The AI assistant can propose context entries during conversation. Context is injected into every AI session for the org.
 
 **New Builder tools:** `record_operating_norm`, `record_naming_convention`, `list_org_context`, `remove_org_context`
 
@@ -145,11 +161,23 @@ The AI assistant itself gains a `suggest_context_entry` tool it can call when it
 
 **Boundary:** AI behavior personalization within the platform's existing capabilities. New capabilities still require developer work.
 
+### Phase 5: Configurable Views and Vocabulary
+
+The Builder gains tools to manage dashboard layout, module defaults, table columns, and entity vocabulary.
+
+**New Builder tools:** `set_dashboard_layout`, `set_module_default_view`, `set_table_columns`, `rename_entity`
+
+**Boundary:** Org-level UI defaults and labels. Per-user preferences, new page types, and custom navigation structures still require developer work.
+
+### Phase 6: Integration and Polish
+
+The Builder becomes the summary, audit, and control surface for all configuration layers, and onboarding provisions the same configuration records from the first-run AI conversation.
+
 ---
 
 ## End State
 
-When all four phases are complete, an org admin's experience looks like this:
+When the roadmap phases are complete, an org admin's experience looks like this:
 
 1. **Onboarding** — the AI conversation captures the org's workflows, naming conventions, and requirements. The Builder provisions modules and records initial org AI context automatically.
 

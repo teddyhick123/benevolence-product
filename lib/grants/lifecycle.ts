@@ -12,6 +12,7 @@ import {
   type LifecycleStage,
 } from './lifecycle-shared';
 import { checkWorkflowGate } from './workflow-config';
+import { runAutomationRulesForEvent } from '@/lib/tasks/automation/dynamic-rules';
 
 export {
   ALLOWED_TRANSITIONS,
@@ -60,6 +61,20 @@ export class WorkflowGateBlockedError extends Error {
   }
 }
 
+type GrantWorkflowRow = {
+  lifecycle_stage: string;
+  org_id: string;
+  purpose: string | null;
+  internal_owner_id: string | null;
+  requested_amount: number | null;
+  approved_amount: number | null;
+  grant_period_start: string | null;
+  grant_period_end: string | null;
+  risk_level: string | null;
+  deliverables: string | null;
+  reporting_frequency: string | null;
+};
+
 /**
  * Transitions a grant to a new lifecycle stage.
  * Validates the transition, then calls an atomic RPC that optionally inserts
@@ -77,7 +92,7 @@ export async function transitionGrant(
   const db = createAdminClient();
 
   // Fetch current stage
-  const { data: grant, error: fetchErr } = await db
+  const { data: grantData, error: fetchErr } = await (db
     .from('grants')
     .select(
       'lifecycle_stage, org_id, purpose, internal_owner_id, requested_amount, ' +
@@ -85,15 +100,16 @@ export async function transitionGrant(
       'deliverables, reporting_frequency'
     )
     .eq('id', grantId)
-    .maybeSingle();
+    .maybeSingle() as unknown as Promise<{ data: GrantWorkflowRow | null; error: { message: string } | null }>);
 
   if (fetchErr) {
     throw new Error(fetchErr.message);
   }
-  if (!grant) {
+  if (!grantData) {
     throw new GrantNotFoundError(grantId);
   }
 
+  const grant = grantData;
   const fromStage = grant.lifecycle_stage as LifecycleStage;
   const orgId: string = grant.org_id;
   if (expectedOrgId && orgId !== expectedOrgId) {
@@ -129,5 +145,21 @@ export async function transitionGrant(
       throw new GrantTransitionConflictError(grantId);
     }
     throw new Error(`Failed to transition grant lifecycle: ${transitionErr.message}`);
+  }
+
+  try {
+    await runAutomationRulesForEvent(db, {
+      orgId,
+      triggerType: 'grant_stage_change',
+      entityType: 'grant',
+      entityId: grantId,
+      payload: {
+        from_stage: fromStage,
+        to_stage: toStage,
+        actor_id: actorId,
+      },
+    });
+  } catch (automationErr) {
+    console.error('Grant transition automation failed:', automationErr);
   }
 }

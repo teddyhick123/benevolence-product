@@ -3,8 +3,20 @@ import { createServerClient } from '@/lib/supabase';
 
 export const dynamic = 'force-dynamic';
 
+const NO_STORE = { 'Cache-Control': 'no-store' } as const;
+
 interface RouteParams {
   params: Promise<{ orgId: string }>;
+}
+
+function json(body: unknown, init: ResponseInit = {}) {
+  return NextResponse.json(body, {
+    ...init,
+    headers: {
+      ...NO_STORE,
+      ...(init.headers || {}),
+    },
+  });
 }
 
 // GET /api/org/[orgId]/acknowledgments — list acknowledgment letters
@@ -16,7 +28,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
 
     const { data: role } = await supabase.rpc('user_org_role', { p_org_id: orgId });
     if (!role) {
-      return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
+      return json({ error: 'Not authorized' }, { status: 403 });
     }
 
     let query = supabase
@@ -30,11 +42,15 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     const donorId = searchParams.get('donor_id');
     const letterType = searchParams.get('letter_type');
     const status = searchParams.get('status');
-    const limit = Math.min(parseInt(searchParams.get('limit') || '50'), 100);
-    const offset = parseInt(searchParams.get('offset') || '0');
+    const requestedLimit = Number.parseInt(searchParams.get('limit') || '50', 10);
+    const requestedOffset = Number.parseInt(searchParams.get('offset') || '0', 10);
+    const limit = Number.isFinite(requestedLimit) && requestedLimit > 0
+      ? Math.min(requestedLimit, 100)
+      : 50;
+    const offset = Number.isFinite(requestedOffset) && requestedOffset >= 0 ? requestedOffset : 0;
 
     if (donorId) query = query.eq('donor_id', donorId);
-    if (letterType) query = query.eq('letter_type', letterType);
+    void letterType;
     if (status) query = query.eq('status', status);
 
     const { data: letters, error } = await query
@@ -42,12 +58,12 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       .range(offset, offset + limit - 1);
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ letters, count: letters?.length || 0 });
+    return json({ letters, count: letters?.length || 0 });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return json({ error: err.message }, { status: 500 });
   }
 }
 
@@ -59,7 +75,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
 
     const { data: canEdit } = await supabase.rpc('can_edit_org', { p_org_id: orgId });
     if (!canEdit) {
-      return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
+      return json({ error: 'Not authorized' }, { status: 403 });
     }
 
     const body = await req.json();
@@ -69,7 +85,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     } = body;
 
     if (!donor_id) {
-      return NextResponse.json({ error: 'donor_id is required' }, { status: 400 });
+      return json({ error: 'donor_id is required' }, { status: 400 });
     }
 
     const { data: donor, error: donorErr } = await supabase
@@ -77,10 +93,27 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       .select('*')
       .eq('id', donor_id)
       .eq('org_id', orgId)
-      .single();
+      .is('deleted_at', null)
+      .maybeSingle();
 
     if (donorErr || !donor) {
-      return NextResponse.json({ error: 'Donor not found' }, { status: 404 });
+      return json({ error: 'Donor not found' }, { status: 404 });
+    }
+
+    let linkedContribution: any = null;
+    if (contribution_id) {
+      const { data: contribution } = await supabase
+        .from('contributions_received')
+        .select('id, amount, contribution_date, gift_type, tax_deductible_amount, donor_id')
+        .eq('id', contribution_id)
+        .eq('org_id', orgId)
+        .eq('donor_id', donor_id)
+        .maybeSingle();
+
+      if (!contribution) {
+        return json({ error: 'Contribution not found for this donor' }, { status: 404 });
+      }
+      linkedContribution = contribution;
     }
 
     const { data: org } = await supabase
@@ -105,7 +138,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
         const year = tax_year || new Date().getFullYear() - 1;
         const { data: yearContribs } = await supabase
           .from('contributions_received')
-          .select('amount, contribution_date, is_tax_deductible')
+          .select('amount, contribution_date, tax_deductible_amount')
           .eq('donor_id', donor_id)
           .eq('org_id', orgId)
           .gte('contribution_date', `${year}-01-01`)
@@ -113,8 +146,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
 
         const total = (yearContribs || []).reduce((s, c) => s + Number(c.amount), 0);
         const deductible = (yearContribs || [])
-          .filter(c => c.is_tax_deductible)
-          .reduce((s, c) => s + Number(c.amount), 0);
+          .reduce((s, c) => s + Number(c.tax_deductible_amount ?? 0), 0);
 
         finalSubject = finalSubject || `Your ${year} Year-End Tax Summary — ${orgName}`;
         finalBody = `Dear ${donorName},
@@ -134,15 +166,8 @@ With gratitude,
 ${orgName}`;
       } else if (type === 'receipt') {
         let contributionDetail = '';
-        if (contribution_id) {
-          const { data: contrib } = await supabase
-            .from('contributions_received')
-            .select('amount, contribution_date, gift_type')
-            .eq('id', contribution_id)
-            .single();
-          if (contrib) {
-            contributionDetail = `\n  Date: ${new Date(contrib.contribution_date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}\n  Amount: $${Number(contrib.amount).toLocaleString()}\n  Type: ${contrib.gift_type}`;
-          }
+        if (linkedContribution) {
+          contributionDetail = `\n  Date: ${new Date(linkedContribution.contribution_date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}\n  Amount: $${Number(linkedContribution.amount).toLocaleString()}\n  Type: ${linkedContribution.gift_type}`;
         }
 
         finalSubject = finalSubject || `Gift Receipt — ${orgName}`;
@@ -185,6 +210,7 @@ ${orgName}`;
     }
 
     const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return json({ error: 'Unauthorized' }, { status: 401 });
 
     const { data: letter, error } = await supabase
       .from('acknowledgment_letters')
@@ -196,24 +222,34 @@ ${orgName}`;
         subject: finalSubject,
         body: finalBody,
         delivery_method: send_via || 'email',
-        sent_by: user?.id,
+        sent_by: user.id,
       })
       .select()
       .single();
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return json({ error: error.message }, { status: 500 });
     }
 
     if (contribution_id) {
-      await supabase
+      const { error: contributionUpdateError } = await supabase
         .from('contributions_received')
         .update({ acknowledgment_sent: false })
-        .eq('id', contribution_id);
+        .eq('id', contribution_id)
+        .eq('org_id', orgId)
+        .eq('donor_id', donor_id);
+      if (contributionUpdateError) {
+        await supabase
+          .from('acknowledgment_letters')
+          .delete()
+          .eq('id', letter.id)
+          .eq('org_id', orgId);
+        return json({ error: contributionUpdateError.message }, { status: 500 });
+      }
     }
 
-    return NextResponse.json(letter, { status: 201 });
+    return json(letter, { status: 201 });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return json({ error: err.message }, { status: 500 });
   }
 }

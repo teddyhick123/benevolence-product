@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 // app/api/__tests__/grants-list.test.ts
 //
 // Tests for GET + POST /api/org/[orgId]/grants
@@ -30,18 +32,20 @@ let _grantsListData: any[] = [];
 let _grantsListError: { message: string } | null = null;
 let _portfolioData: any | null = { id: PORTFOLIO_ID, org_id: ORG_ID };
 let _investeeData: any | null = { id: INVESTEE_ID, display_name: 'Test Grantee Org' };
-let _holdingInsertData: any | null = { id: HOLDING_ID, name: 'Test Grantee Org' };
-let _holdingInsertError: { message: string } | null = null;
-let _grantInsertData: any | null = {
-  id: GRANT_ID,
-  org_id: ORG_ID,
-  portfolio_id: PORTFOLIO_ID,
-  holding_id: HOLDING_ID,
-  lifecycle_stage: 'draft',
-  purpose: 'Support community development',
-  requested_amount: 50000,
+let _createGrantData: any | null = {
+  grant: {
+    id: GRANT_ID,
+    org_id: ORG_ID,
+    portfolio_id: PORTFOLIO_ID,
+    holding_id: HOLDING_ID,
+    lifecycle_stage: 'draft',
+    purpose: 'Support community development',
+    requested_amount: 50000,
+  },
+  holding: { id: HOLDING_ID, name: 'Test Grantee Org' },
+  workflow_instance: null,
 };
-let _grantInsertError: { message: string } | null = null;
+let _createGrantError: { message: string } | null = null;
 
 type GrantsQueryResult = {
   data: any[];
@@ -53,6 +57,8 @@ type GrantsQueryResult = {
 
 const mockServerRpc = vi.fn();
 const mockAdminFrom = vi.fn();
+const mockAdminRpc = vi.fn();
+let _lastGrantsQueryBuilder: any = null;
 
 vi.mock('@/lib/supabase', () => ({
   createServerClient: vi.fn(async () => ({
@@ -61,7 +67,7 @@ vi.mock('@/lib/supabase', () => ({
     },
     rpc: mockServerRpc,
   })),
-  createAdminClient: vi.fn(() => ({ from: mockAdminFrom })),
+  createAdminClient: vi.fn(() => ({ from: mockAdminFrom, rpc: mockAdminRpc })),
 }));
 
 function buildGrantsQueryBuilder() {
@@ -84,6 +90,7 @@ function buildGrantsQueryBuilder() {
         .then(resolve, reject)
     ),
   };
+  _lastGrantsQueryBuilder = b;
   return b;
 }
 
@@ -92,18 +99,18 @@ function setupMocks() {
     if (fn === 'user_org_role') return { data: _orgRole, error: null };
     return { data: null, error: null };
   });
+  mockAdminRpc.mockImplementation(async (fn: string) => {
+    if (fn === 'create_grant_with_foundation_records') {
+      return { data: _createGrantData, error: _createGrantError };
+    }
+    return { data: null, error: null };
+  });
 
   mockAdminFrom.mockImplementation((table: string) => {
     if (table === 'grants') {
       return {
         // For GET (list): returns a thenable query builder
         ...buildGrantsQueryBuilder(),
-        // For POST (insert):
-        insert: vi.fn(() => ({
-          select: vi.fn(() => ({
-            single: vi.fn(async () => ({ data: _grantInsertData, error: _grantInsertError })),
-          })),
-        })),
       };
     }
     if (table === 'portfolios') {
@@ -134,24 +141,8 @@ function setupMocks() {
     }
     if (table === 'holdings') {
       return {
-        insert: vi.fn(() => ({
-          select: vi.fn(() => ({
-            single: vi.fn(async () => ({ data: _holdingInsertData, error: _holdingInsertError })),
-          })),
-        })),
         delete: vi.fn(() => ({ eq: vi.fn().mockReturnThis() })),
       };
-    }
-    if (table === 'grant_status_history') {
-      return { insert: vi.fn(async () => ({ error: null })) };
-    }
-    if (table === 'workflow_templates') {
-      const b: any = {
-        select: vi.fn(() => b),
-        eq: vi.fn(() => b),
-        maybeSingle: vi.fn(async () => ({ data: null, error: null })),
-      };
-      return b;
     }
     // Fallback for any other table
     const b: any = {
@@ -201,18 +192,21 @@ beforeEach(() => {
   _grantsListError = null;
   _portfolioData = { id: PORTFOLIO_ID, org_id: ORG_ID };
   _investeeData = { id: INVESTEE_ID, display_name: 'Test Grantee Org' };
-  _holdingInsertData = { id: HOLDING_ID, name: 'Test Grantee Org' };
-  _holdingInsertError = null;
-  _grantInsertData = {
-    id: GRANT_ID,
-    org_id: ORG_ID,
-    portfolio_id: PORTFOLIO_ID,
-    holding_id: HOLDING_ID,
-    lifecycle_stage: 'draft',
-    purpose: 'Support community development',
-    requested_amount: 50000,
+  _createGrantData = {
+    grant: {
+      id: GRANT_ID,
+      org_id: ORG_ID,
+      portfolio_id: PORTFOLIO_ID,
+      holding_id: HOLDING_ID,
+      lifecycle_stage: 'draft',
+      purpose: 'Support community development',
+      requested_amount: 50000,
+    },
+    holding: { id: HOLDING_ID, name: 'Test Grantee Org' },
+    workflow_instance: null,
   };
-  _grantInsertError = null;
+  _createGrantError = null;
+  _lastGrantsQueryBuilder = null;
 
   setupMocks();
 });
@@ -286,6 +280,30 @@ describe('GET /api/org/[orgId]/grants', () => {
     expect(typeof body.pagination.page).toBe('number');
     expect(typeof body.pagination.page_size).toBe('number');
     expect(typeof body.pagination.total).toBe('number');
+  });
+
+  it('does not require portfolio_id, allowing org-wide grant search', async () => {
+    const req = makeRequest('GET', `http://localhost/api/org/${ORG_ID}/grants?q=clinic&page_size=25`);
+
+    const res = await GET(req, makeParams({ orgId: ORG_ID }));
+
+    expect(res.status).toBe(200);
+    expect(_lastGrantsQueryBuilder.eq).toHaveBeenCalledWith('org_id', ORG_ID);
+    expect(_lastGrantsQueryBuilder.eq).not.toHaveBeenCalledWith('portfolio_id', expect.any(String));
+    expect(_lastGrantsQueryBuilder.ilike).toHaveBeenCalledWith('holdings.name', '%clinic%');
+  });
+
+  it('keeps portfolio_id scoping when the query requests one', async () => {
+    const req = makeRequest(
+      'GET',
+      `http://localhost/api/org/${ORG_ID}/grants?portfolio_id=${PORTFOLIO_ID}&q=clinic`
+    );
+
+    const res = await GET(req, makeParams({ orgId: ORG_ID }));
+
+    expect(res.status).toBe(200);
+    expect(_lastGrantsQueryBuilder.eq).toHaveBeenCalledWith('portfolio_id', PORTFOLIO_ID);
+    expect(_lastGrantsQueryBuilder.ilike).toHaveBeenCalledWith('holdings.name', '%clinic%');
   });
 
   it('returns 500 when the database query fails', async () => {
@@ -479,10 +497,10 @@ describe('POST /api/org/[orgId]/grants', () => {
     expect(body.grant).toHaveProperty('lifecycle_stage');
   });
 
-  it('returns 500 when the grant DB insert fails', async () => {
+  it('returns 500 when the atomic grant creation RPC fails', async () => {
     // Arrange
-    _grantInsertData = null;
-    _grantInsertError = { message: 'unique_violation on grants' };
+    _createGrantData = null;
+    _createGrantError = { message: 'unique_violation on grants' };
     const req = makeRequest('POST', `http://localhost/api/org/${ORG_ID}/grants`, VALID_BODY);
 
     // Act
@@ -493,29 +511,13 @@ describe('POST /api/org/[orgId]/grants', () => {
     const body = await res.json();
     expect(body.error).toMatch(/unique_violation/);
   });
-
-  it('returns 500 when the holding DB insert fails', async () => {
-    // Arrange
-    _holdingInsertData = null;
-    _holdingInsertError = { message: 'FK violation creating holding' };
-    const req = makeRequest('POST', `http://localhost/api/org/${ORG_ID}/grants`, VALID_BODY);
-
-    // Act
-    const res = await POST(req, makeParams({ orgId: ORG_ID }));
-
-    // Assert
-    expect(res.status).toBe(500);
-    const body = await res.json();
-    expect(body.error).toMatch(/FK violation/);
-  });
 });
 
 // ─── NOT TESTED HERE ───────────────────────────────────────────────────────────
 // - Actual Supabase RLS enforcement (requires a live DB)
 // - Query parameter filtering (stage, owner_id, risk_level, due_before, q, portfolio_id)
 // - Pagination behavior beyond page/page_size defaults
-// - workflow_template_id branch (workflow instance creation)
+// - workflow_template_id branch (workflow instance creation inside RPC)
 // - Rate limiting / request-per-second caps
 // - Response Cache-Control headers
 // - Concurrent writes / idempotency (requires integration test)
-// - grant_status_history insert failure (currently swallowed by route try/catch)

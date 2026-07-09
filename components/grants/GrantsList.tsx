@@ -3,6 +3,7 @@
 import useSWR from 'swr';
 import GrantSummaryCard, { type Grant } from '@/components/grants/GrantSummaryCard';
 import SectionHeader from '@/components/ui/SectionHeader';
+import { useEntityVocabulary } from '@/lib/hooks/use-entity-vocabulary';
 
 const fetcher = (url: string) => fetch(url, { cache: 'no-store' }).then(r => r.json());
 
@@ -26,7 +27,10 @@ function SkeletonCard() {
   );
 }
 
-export default function GrantsList({ portfolioId }: { portfolioId: string }) {
+export default function GrantsList({ portfolioId, orgId }: { portfolioId: string; orgId?: string | null }) {
+  const vocabulary = useEntityVocabulary(orgId);
+  const grantLabel = vocabulary.grant.singular;
+  const grantPlural = vocabulary.grant.plural;
   const { data, error, isLoading } = useSWR<GrantsResponse>(
     `/api/portfolio/${encodeURIComponent(portfolioId)}/grants?limit=50`,
     fetcher
@@ -36,7 +40,7 @@ export default function GrantsList({ portfolioId }: { portfolioId: string }) {
 
   return (
     <section className="space-y-4">
-      <SectionHeader title="Grants" subtitle="Portfolio grant activity" />
+      <SectionHeader title={grantPlural} subtitle={`Portfolio ${grantLabel.toLowerCase()} activity`} />
 
       {isLoading ? (
         <div className="space-y-3">
@@ -44,16 +48,16 @@ export default function GrantsList({ portfolioId }: { portfolioId: string }) {
         </div>
       ) : error ? (
         <div className="rounded-2xl bg-white border border-red-200 text-red-700 p-6 text-sm">
-          Failed to load grants
+          Failed to load {grantPlural.toLowerCase()}
         </div>
       ) : grants.length === 0 ? (
         <div className="rounded-2xl bg-white border border-black/5 shadow-soft p-6 text-sm text-neutral-500 text-center">
-          No grants found for this portfolio.
+          No {grantPlural.toLowerCase()} found for this portfolio.
         </div>
       ) : (
         <div className="space-y-3 max-h-[500px] overflow-y-auto">
           {grants.map(grant => (
-            <GrantSummaryCard key={grant.id} grant={grant} />
+            <GrantSummaryCard key={grant.id} grant={grant} grantLabel={grantLabel} />
           ))}
         </div>
       )}

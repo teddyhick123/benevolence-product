@@ -5,6 +5,18 @@ import { completeGeneratedTasks, cancelGeneratedTasks } from '@/lib/tasks/automa
 
 export const dynamic = 'force-dynamic';
 
+const NO_STORE = { 'Cache-Control': 'no-store' } as const;
+
+function json(body: unknown, init: ResponseInit = {}) {
+  return NextResponse.json(body, {
+    ...init,
+    headers: {
+      ...NO_STORE,
+      ...(init.headers || {}),
+    },
+  });
+}
+
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ orgId: string; pledgeId: string; installmentId: string }> }
@@ -13,13 +25,13 @@ export async function PATCH(
     const { orgId, pledgeId, installmentId } = await params;
     const supabase = await createServerClient();
     const { data: role } = await supabase.rpc('user_org_role', { p_org_id: orgId });
-    if (!['owner','admin','member'].includes(role)) return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
+    if (!['owner','admin','member'].includes(role)) return json({ error: 'Not authorized' }, { status: 403 });
 
     let body: any;
-    try { body = await req.json(); } catch { return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 }); }
+    try { body = await req.json(); } catch { return json({ error: 'Invalid JSON' }, { status: 400 }); }
 
     const parsed = PatchInstallmentSchema.safeParse(body);
-    if (!parsed.success) return NextResponse.json({ error: parsed.error.issues }, { status: 400 });
+    if (!parsed.success) return json({ error: parsed.error.issues }, { status: 400 });
 
     const d = parsed.data;
     const { data: result, error } = await supabase.rpc('update_pledge_installment_status', {
@@ -33,32 +45,25 @@ export async function PATCH(
       p_create_contribution: d.create_contribution ?? false,
       p_notes:               d.notes ?? null,
     });
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (error) return json({ error: error.message }, { status: 500 });
 
-    // Fire-and-forget: close generated tasks based on the action taken
     const action = d.action;
-    (async () => {
-      try {
-        const adminDb = createAdminClient();
-        const prefix = `pledge_installment:${installmentId}:`;
-        if (action === 'mark_paid') {
-          await completeGeneratedTasks(adminDb, orgId, prefix, 'Installment paid');
-        } else if (action === 'waive') {
-          await cancelGeneratedTasks(adminDb, orgId, prefix, 'Installment waived');
-        } else if (action === 'write_off') {
-          await cancelGeneratedTasks(adminDb, orgId, prefix, 'Installment written off');
-        }
-        // 'reopen' intentionally does not close tasks — the producer will regenerate if due
-      } catch (err) {
-        console.warn('[task-hook] Failed to update pledge installment tasks:', err);
-      }
-    })();
+    const adminDb = createAdminClient();
+    const prefix = `pledge_installment:${installmentId}:`;
+    if (action === 'mark_paid') {
+      await completeGeneratedTasks(adminDb, orgId, prefix, 'Installment paid');
+    } else if (action === 'waive') {
+      await cancelGeneratedTasks(adminDb, orgId, prefix, 'Installment waived');
+    } else if (action === 'write_off') {
+      await cancelGeneratedTasks(adminDb, orgId, prefix, 'Installment written off');
+    }
+    // 'reopen' intentionally does not close tasks — the producer will regenerate if due
 
     const { data: pledge }       = await supabase.from('v_pledge_pipeline').select('*').eq('id', pledgeId).single();
     const { data: installments } = await supabase.from('pledge_installments').select('*').eq('pledge_id', pledgeId).order('due_date');
 
-    return NextResponse.json({ result, pledge, installments });
+    return json({ result, pledge, installments });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return json({ error: err.message }, { status: 500 });
   }
 }

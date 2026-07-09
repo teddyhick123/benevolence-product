@@ -4,8 +4,10 @@ import { branding } from '@/lib/config';
 
 export interface BoardReportData {
   portfolioName: string;
+  title?: string;
   reportDate: string;
   asOfDate: string;
+  sections?: string[];
   // Holdings summary
   totalPortfolioValue: number;
   holdingsCount: number;
@@ -31,6 +33,10 @@ export function generateBoardReportPDF(data: BoardReportData): Buffer {
   const PAGE_WIDTH = 215.9;
   const MARGIN = 20;
   const CONTENT_WIDTH = PAGE_WIDTH - MARGIN * 2;
+  const sections = data.sections?.length
+    ? data.sections
+    : ['overview', 'financials', 'holdings', 'impact'];
+  const hasSection = (section: string) => sections.includes(section);
 
   // ── Cover Page ──
   doc.setFillColor(...PRIMARY);
@@ -43,7 +49,7 @@ export function generateBoardReportPDF(data: BoardReportData): Buffer {
 
   doc.setFontSize(30);
   doc.setFont('helvetica', 'bold');
-  doc.text('Portfolio Report', MARGIN, 55);
+  doc.text(data.title ?? 'Portfolio Report', MARGIN, 55);
 
   doc.setFontSize(16);
   doc.setFont('helvetica', 'normal');
@@ -53,53 +59,55 @@ export function generateBoardReportPDF(data: BoardReportData): Buffer {
   doc.text(`As of: ${new Date(data.asOfDate).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}`, MARGIN, 84);
   doc.text(`Prepared: ${new Date(data.reportDate).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}`, MARGIN, 92);
 
-  // Portfolio value callout
-  doc.setFillColor(255, 255, 255, 0.15);
-  doc.roundedRect(MARGIN, 105, CONTENT_WIDTH, 25, 3, 3, 'F');
-  doc.setFontSize(10);
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(200, 200, 255);
-  doc.text('Total Portfolio Value', MARGIN + 8, 114);
-  doc.setFontSize(22);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(255, 255, 255);
-  doc.text(`$${data.totalPortfolioValue.toLocaleString()}`, MARGIN + 8, 126);
+  if (hasSection('financials')) {
+    doc.setFillColor(255, 255, 255, 0.15);
+    doc.roundedRect(MARGIN, 105, CONTENT_WIDTH, 25, 3, 3, 'F');
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(200, 200, 255);
+    doc.text('Total Portfolio Value', MARGIN + 8, 114);
+    doc.setFontSize(22);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(255, 255, 255);
+    doc.text(`$${data.totalPortfolioValue.toLocaleString()}`, MARGIN + 8, 126);
+  }
 
   let y = 155;
   doc.setTextColor(...BLACK);
 
-  // ── Portfolio Overview KPIs ──
-  doc.setFontSize(13);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(...BLACK);
-  doc.text('Portfolio Overview', MARGIN, y);
-  y += 6;
-
-  const cardW = (CONTENT_WIDTH - 8) / 3;
-  const overviewCards = [
-    { label: 'Total Holdings', value: data.holdingsCount.toString() },
-    { label: 'Total Contributions', value: `$${data.totalContributions.toLocaleString()}` },
-    { label: 'Contribution Count', value: data.contributionCount.toString() },
-  ];
-
-  overviewCards.forEach((card, i) => {
-    const x = MARGIN + i * (cardW + 4);
-    doc.setFillColor(...LIGHT_GRAY);
-    doc.roundedRect(x, y, cardW, 22, 2, 2, 'F');
-    doc.setFontSize(8);
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(...GRAY);
-    doc.text(card.label, x + 5, y + 8);
-    doc.setFontSize(14);
+  if (hasSection('overview')) {
+    doc.setFontSize(13);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(...BLACK);
-    doc.text(card.value, x + 5, y + 18);
-  });
+    doc.text('Portfolio Overview', MARGIN, y);
+    y += 6;
 
-  y += 30;
+    const cardW = (CONTENT_WIDTH - 8) / 3;
+    const overviewCards = [
+      { label: 'Total Holdings', value: data.holdingsCount.toString() },
+      { label: 'Total Contributions', value: `$${data.totalContributions.toLocaleString()}` },
+      { label: 'Contribution Count', value: data.contributionCount.toString() },
+    ];
+
+    overviewCards.forEach((card, i) => {
+      const x = MARGIN + i * (cardW + 4);
+      doc.setFillColor(...LIGHT_GRAY);
+      doc.roundedRect(x, y, cardW, 22, 2, 2, 'F');
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(...GRAY);
+      doc.text(card.label, x + 5, y + 8);
+      doc.setFontSize(14);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(...BLACK);
+      doc.text(card.value, x + 5, y + 18);
+    });
+
+    y += 30;
+  }
 
   // ── Asset Class Breakdown ──
-  if (data.holdingsByAssetClass.length > 0) {
+  if (hasSection('holdings') && data.holdingsByAssetClass.length > 0) {
     doc.setFontSize(13);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(...BLACK);
@@ -128,7 +136,7 @@ export function generateBoardReportPDF(data: BoardReportData): Buffer {
   }
 
   // ── Sector Breakdown ──
-  if (data.holdingsBySector.length > 0) {
+  if (hasSection('holdings') && data.holdingsBySector.length > 0) {
     doc.setFontSize(13);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(...BLACK);
@@ -157,7 +165,7 @@ export function generateBoardReportPDF(data: BoardReportData): Buffer {
   }
 
   // ── Top Holdings ──
-  if (data.topHoldings.length > 0) {
+  if (hasSection('holdings') && data.topHoldings.length > 0) {
     doc.setFontSize(13);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(...BLACK);
@@ -186,7 +194,7 @@ export function generateBoardReportPDF(data: BoardReportData): Buffer {
   }
 
   // ── KPIs ──
-  if (data.kpis.length > 0) {
+  if (hasSection('impact') && data.kpis.length > 0) {
     doc.setFontSize(13);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(...BLACK);

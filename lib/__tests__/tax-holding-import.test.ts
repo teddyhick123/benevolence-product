@@ -1,3 +1,4 @@
+// @vitest-environment node
 // lib/__tests__/tax-holding-import.test.ts
 // Contract / source-level tests for the holding-to-tax-contribution flow.
 // Tests the route source and helper logic without a live DB.
@@ -65,9 +66,8 @@ describe('create-tax-record route: canonical schema columns', () => {
     expect(routeSrc).not.toMatch(/deduction_year\s*:/);
   });
 
-  it('derives tax_year from contribution_date', () => {
-    // Pattern: new Date(draft.contribution_date).getFullYear()
-    expect(routeSrc).toMatch(/new Date\(.*contribution_date.*\)\.getFullYear\(\)/);
+  it('uses the canonical tax_year produced by the holding tax helper', () => {
+    expect(routeSrc).toContain('tax_year: draft.tax_year');
   });
 
   it('inserts portfolio_id', () => {

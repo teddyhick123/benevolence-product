@@ -27,6 +27,16 @@ function getServiceClient() {
   );
 }
 
+function json(body: Record<string, unknown>, init?: ResponseInit) {
+  return NextResponse.json(body, {
+    ...init,
+    headers: {
+      ...init?.headers,
+      'Cache-Control': 'no-store',
+    },
+  });
+}
+
 /**
  * GET /api/portfolio/[id]/compliance/er-grants?status=deficient
  * List ER grant tracking records with compliance flags
@@ -43,17 +53,15 @@ export async function GET(
     const cookieStore = await cookies();
     const supabase = getAuthClient(cookieStore);
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!user) return json({ error: 'Unauthorized' }, { status: 401 });
+
+    const { data: canView, error: canViewErr } = await supabase.rpc('can_view_portfolio', {
+      p_portfolio_id: portfolioId,
+    });
+    if (canViewErr) return json({ error: canViewErr.message }, { status: 500 });
+    if (!canView) return json({ error: 'Access denied' }, { status: 403 });
 
     const sb = getServiceClient();
-
-    const { data: member } = await sb
-      .from('portfolio_members')
-      .select('portfolio_id')
-      .eq('portfolio_id', portfolioId)
-      .eq('user_id', user.id)
-      .maybeSingle();
-    if (!member) return NextResponse.json({ error: 'Access denied' }, { status: 403 });
 
     let query = sb
       .from('v_er_grant_compliance')
@@ -67,9 +75,9 @@ export async function GET(
     const { data, error } = await query.order('created_at', { ascending: false });
     if (error) throw error;
 
-    return NextResponse.json({ data: data || [] });
+    return json({ data: data || [] });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return json({ error: err.message }, { status: 500 });
   }
 }
 
@@ -86,15 +94,28 @@ export async function POST(
     const cookieStore = await cookies();
     const supabase = getAuthClient(cookieStore);
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!user) return json({ error: 'Unauthorized' }, { status: 401 });
 
     const sb = getServiceClient();
-    const { data: canEdit } = await sb.rpc('can_edit_portfolio', { p_portfolio_id: portfolioId });
-    if (!canEdit) return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
+    const { data: canEdit, error: canEditErr } = await supabase.rpc('can_edit_portfolio', {
+      p_portfolio_id: portfolioId,
+    });
+    if (canEditErr) return json({ error: canEditErr.message }, { status: 500 });
+    if (!canEdit) return json({ error: 'Not authorized' }, { status: 403 });
 
     const body = await req.json();
     const { grant_id, ...rest } = body;
-    if (!grant_id) return NextResponse.json({ error: 'grant_id is required' }, { status: 400 });
+    if (!grant_id) return json({ error: 'grant_id is required' }, { status: 400 });
+
+    const { data: grant, error: grantError } = await sb
+      .from('grants')
+      .select('id')
+      .eq('id', grant_id)
+      .eq('portfolio_id', portfolioId)
+      .is('deleted_at', null)
+      .maybeSingle();
+    if (grantError) throw grantError;
+    if (!grant) return json({ error: 'Grant not found' }, { status: 404 });
 
     const { data, error } = await sb
       .from('expenditure_responsibility_grants')
@@ -103,9 +124,9 @@ export async function POST(
       .single();
 
     if (error) throw error;
-    return NextResponse.json({ data }, { status: 201 });
+    return json({ data }, { status: 201 });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return json({ error: err.message }, { status: 500 });
   }
 }
 
@@ -121,16 +142,19 @@ export async function PATCH(
     const { id: portfolioId } = await params;
     const { searchParams } = new URL(req.url);
     const erGrantId = searchParams.get('id');
-    if (!erGrantId) return NextResponse.json({ error: 'id query param required' }, { status: 400 });
+    if (!erGrantId) return json({ error: 'id query param required' }, { status: 400 });
 
     const cookieStore = await cookies();
     const supabase = getAuthClient(cookieStore);
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!user) return json({ error: 'Unauthorized' }, { status: 401 });
 
     const sb = getServiceClient();
-    const { data: canEdit } = await sb.rpc('can_edit_portfolio', { p_portfolio_id: portfolioId });
-    if (!canEdit) return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
+    const { data: canEdit, error: canEditErr } = await supabase.rpc('can_edit_portfolio', {
+      p_portfolio_id: portfolioId,
+    });
+    if (canEditErr) return json({ error: canEditErr.message }, { status: 500 });
+    if (!canEdit) return json({ error: 'Not authorized' }, { status: 403 });
 
     const body = await req.json();
     const allowedFields = [
@@ -155,8 +179,8 @@ export async function PATCH(
       .single();
 
     if (error) throw error;
-    return NextResponse.json({ data });
+    return json({ data });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return json({ error: err.message }, { status: 500 });
   }
 }

@@ -94,3 +94,92 @@ CREATE POLICY "ack_letters: org members (member+) can manage"
   ON acknowledgment_letters FOR ALL
   USING (can_edit_org(org_id) AND org_has_module(org_id, 'donors'))
   WITH CHECK (can_edit_org(org_id) AND org_has_module(org_id, 'donors'));
+
+CREATE OR REPLACE FUNCTION public.create_contribution_receipt_acknowledgment(
+  p_org_id uuid,
+  p_contribution_id uuid,
+  p_actor_id uuid,
+  p_subject text,
+  p_body text,
+  p_send_immediately boolean DEFAULT false,
+  p_recipient_email text DEFAULT NULL
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_now timestamptz := now();
+  v_contribution public.contributions_received%ROWTYPE;
+  v_letter public.acknowledgment_letters%ROWTYPE;
+  v_send boolean := COALESCE(p_send_immediately, false) AND p_recipient_email IS NOT NULL;
+  v_receipt_number text;
+BEGIN
+  SELECT *
+  INTO v_contribution
+  FROM public.contributions_received cr
+  WHERE cr.id = p_contribution_id
+    AND cr.org_id = p_org_id
+  FOR UPDATE;
+
+  IF v_contribution.id IS NULL THEN
+    RAISE EXCEPTION 'Contribution not found';
+  END IF;
+
+  v_receipt_number := COALESCE(v_contribution.receipt_number, public.generate_receipt_number(p_org_id));
+
+  INSERT INTO public.acknowledgment_letters (
+    org_id,
+    donor_id,
+    contribution_ids,
+    subject,
+    body,
+    status,
+    delivery_method,
+    sent_at,
+    sent_by,
+    recipient_email
+  )
+  VALUES (
+    p_org_id,
+    v_contribution.donor_id,
+    ARRAY[p_contribution_id],
+    p_subject,
+    p_body,
+    CASE WHEN v_send THEN 'sent' ELSE 'draft' END,
+    'email',
+    CASE WHEN v_send THEN v_now ELSE NULL END,
+    CASE WHEN v_send THEN p_actor_id ELSE NULL END,
+    p_recipient_email
+  )
+  RETURNING * INTO v_letter;
+
+  UPDATE public.contributions_received
+  SET
+    acknowledgment_sent = v_send,
+    acknowledged_at = v_now,
+    receipt_status = CASE WHEN v_send THEN 'sent' ELSE 'generated' END,
+    receipt_number = v_receipt_number,
+    receipt_generated_at = v_now,
+    receipt_sent_at = CASE WHEN v_send THEN v_now ELSE NULL END,
+    updated_at = v_now
+  WHERE id = p_contribution_id
+    AND org_id = p_org_id
+  RETURNING * INTO v_contribution;
+
+  RETURN jsonb_build_object(
+    'letter', to_jsonb(v_letter),
+    'contribution', to_jsonb(v_contribution),
+    'sent', v_send,
+    'receipt_number', v_receipt_number
+  );
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.create_contribution_receipt_acknowledgment(
+  uuid, uuid, uuid, text, text, boolean, text
+) FROM PUBLIC, authenticated;
+GRANT EXECUTE ON FUNCTION public.create_contribution_receipt_acknowledgment(
+  uuid, uuid, uuid, text, text, boolean, text
+) TO service_role;

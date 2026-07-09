@@ -3,13 +3,65 @@ import { NextResponse } from 'next/server';
 import { createSupabaseServerClient } from '@/lib/supabase';
 import { requirePortfolioAccess, isAccessDenied } from '@/lib/portfolio-auth';
 
-function cacheHeaders(isGet = false) {
-  return isGet
-    ? { 'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=60' } as const
-    : { 'Cache-Control': 'no-store' } as const;
+function cacheHeaders() {
+  return { 'Cache-Control': 'no-store' } as const;
 }
 
 const createSb = createSupabaseServerClient;
+
+async function portfolioHoldingIds(sb: Awaited<ReturnType<typeof createSb>>, portfolioId: string, holdingId?: string | null) {
+  let query = sb
+    .from('holdings')
+    .select('id')
+    .eq('portfolio_id', portfolioId)
+    .is('deleted_at', null);
+
+  if (holdingId) {
+    query = query.eq('id', holdingId);
+  }
+
+  const { data, error } = await query;
+  if (error) throw error;
+  return (data ?? []).map((holding: { id: string }) => holding.id);
+}
+
+async function cacheProjection(
+  sb: Awaited<ReturnType<typeof createSb>>,
+  payload: {
+    portfolio_id: string;
+    holding_id: string | null;
+    metric_code: string;
+    method: string;
+    periods_ahead: number;
+    historical_data_points: number;
+    trend_direction: string;
+    slope_per_period: number | null;
+    r_squared: number | null;
+    projections: unknown[];
+    expires_at: string;
+    is_stale: boolean;
+  }
+) {
+  const { data: existing } = await sb
+    .from('metric_projections_cache')
+    .select('id')
+    .eq('portfolio_id', payload.portfolio_id)
+    .eq('metric_code', payload.metric_code)
+    .eq('method', payload.method)
+    .eq('periods_ahead', payload.periods_ahead)
+    .is('holding_id', payload.holding_id)
+    .maybeSingle();
+
+  if (existing?.id) {
+    await sb
+      .from('metric_projections_cache')
+      .update(payload)
+      .eq('id', existing.id);
+    return;
+  }
+
+  await sb.from('metric_projections_cache').insert(payload);
+}
 
 // Helper to calculate time range
 function getTimeRangeStart(range: string): string {
@@ -134,14 +186,29 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
         ...cached,
         from_cache: true,
       },
-    }, { headers: cacheHeaders(true) });
+    }, { headers: cacheHeaders() });
+  }
+
+  let holdingIds: string[];
+  try {
+    holdingIds = await portfolioHoldingIds(sb, portfolio_id, holding_id);
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 500, headers: cacheHeaders() });
+  }
+
+  if (holdingIds.length === 0) {
+    return NextResponse.json({
+      error: holding_id ? 'Holding not found' : 'Not enough historical data for projection',
+      data_points: 0,
+      minimum_required: 2,
+    }, { status: holding_id ? 404 : 200, headers: cacheHeaders() });
   }
 
   // Fetch historical data
   let query = sb
     .from('metric_facts')
     .select('value, period_start, period_end')
-    .eq('portfolio_id', portfolio_id)
+    .in('holding_id', holdingIds)
     .eq('metric_code', metric_code.toUpperCase())
     .order('period_start', { ascending: true });
 
@@ -164,7 +231,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
       error: 'Not enough historical data for projection',
       data_points: historicalData?.length || 0,
       minimum_required: 2,
-    }, { status: 400, headers: cacheHeaders() });
+    }, { headers: cacheHeaders() });
   }
 
   const values = historicalData.map((d: any) => Number(d.value));
@@ -197,7 +264,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
     const expiresAt = new Date();
     expiresAt.setHours(expiresAt.getHours() + 6); // Cache for 6 hours
 
-    await sb.from('metric_projections_cache').upsert({
+    await cacheProjection(sb, {
       portfolio_id,
       holding_id: null,
       metric_code,
@@ -210,8 +277,6 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
       projections: result.projections,
       expires_at: expiresAt.toISOString(),
       is_stale: false,
-    }, {
-      onConflict: 'portfolio_id,holding_id,metric_code,method,periods_ahead',
     });
   }
 
@@ -228,7 +293,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
       ...result,
       from_cache: false,
     },
-  }, { headers: cacheHeaders(true) });
+  }, { headers: cacheHeaders() });
 }
 
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
@@ -245,12 +310,28 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   }
 
   const results = [];
+  let holdingIds: string[];
+  try {
+    holdingIds = await portfolioHoldingIds(sb, portfolio_id, holding_id);
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 500, headers: cacheHeaders() });
+  }
+
+  if (holdingIds.length === 0) {
+    return NextResponse.json({
+      projections: metric_codes.map((metric_code: string) => ({
+        metric_code,
+        error: holding_id ? 'Holding not found' : 'Not enough data',
+        data_points: 0,
+      })),
+    }, { status: holding_id ? 404 : 200, headers: cacheHeaders() });
+  }
 
   for (const metric_code of metric_codes) {
     let query = sb
       .from('metric_facts')
       .select('value, period_start, period_end')
-      .eq('portfolio_id', portfolio_id)
+      .in('holding_id', holdingIds)
       .eq('metric_code', metric_code.toUpperCase())
       .order('period_start', { ascending: true });
 

@@ -4,6 +4,18 @@ import { createServerClient, createAdminClient } from '@/lib/supabase';
 
 export const dynamic = 'force-dynamic';
 
+const NO_STORE = { 'Cache-Control': 'no-store' } as const;
+
+function json(body: unknown, init: ResponseInit = {}) {
+  return NextResponse.json(body, {
+    ...init,
+    headers: {
+      ...NO_STORE,
+      ...(init.headers || {}),
+    },
+  });
+}
+
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ orgId: string }> }
@@ -12,15 +24,22 @@ export async function GET(
     const { orgId } = await params;
     const { searchParams } = new URL(req.url);
     const status = searchParams.get('status') || 'unread';
-    const limit = Math.min(parseInt(searchParams.get('limit') || '30', 10), 100);
+    const requestedLimit = Number.parseInt(searchParams.get('limit') || '30', 10);
+    const limit = Number.isFinite(requestedLimit) && requestedLimit > 0
+      ? Math.min(requestedLimit, 100)
+      : 30;
     const cursor = searchParams.get('cursor');
+
+    if (!['unread', 'read', 'all'].includes(status)) {
+      return json({ error: 'Invalid notification status' }, { status: 400 });
+    }
 
     const supabase = await createServerClient();
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!user) return json({ error: 'Unauthorized' }, { status: 401 });
 
     const { data: role } = await supabase.rpc('user_org_role', { p_org_id: orgId });
-    if (!role) return NextResponse.json({ error: 'Not a member of this organization' }, { status: 403 });
+    if (!role) return json({ error: 'Not a member of this organization' }, { status: 403 });
 
     const db = createAdminClient();
 
@@ -59,7 +78,7 @@ export async function GET(
       .is('read_at', null)
       .not('status', 'in', '(suppressed,cancelled)');
 
-    return NextResponse.json({
+    return json({
       data: rows.map((n: any) => ({
         id: n.id,
         event_type: n.event_type,
@@ -75,6 +94,6 @@ export async function GET(
       next_cursor: nextCursor,
     });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return json({ error: err.message }, { status: 500 });
   }
 }

@@ -7,9 +7,10 @@ export type HoldingsComparisonTableConfigProps = {
   onSave: (config: { title: string; config: any }) => void;
   onCancel: () => void;
   portfolioId?: string;
+  onPreviewChange?: (config: { title: string; config: any }) => void;
 };
 
-export default function HoldingsComparisonTableConfig({ initialConfig, onSave, onCancel, portfolioId }: HoldingsComparisonTableConfigProps) {
+export default function HoldingsComparisonTableConfig({ initialConfig, onSave, onCancel, portfolioId, onPreviewChange }: HoldingsComparisonTableConfigProps) {
   const [title, setTitle] = React.useState(initialConfig?.title || '');
   const [selectedMetrics, setSelectedMetrics] = React.useState<string[]>(initialConfig?.config?.metrics || []);
   const [includeHoldingName, setIncludeHoldingName] = React.useState(initialConfig?.config?.includeHoldingName ?? true);
@@ -48,6 +49,21 @@ export default function HoldingsComparisonTableConfig({ initialConfig, onSave, o
       }
     });
   };
+
+  React.useEffect(() => {
+    onPreviewChange?.({
+      title: title || 'Holdings Comparison',
+      config: {
+        metrics: selectedMetrics,
+        includeHoldingName,
+        includeSector,
+        sortBy,
+        sortDirection,
+        highlightBest,
+        minHoldings
+      }
+    });
+  }, [highlightBest, includeHoldingName, includeSector, minHoldings, onPreviewChange, selectedMetrics, sortBy, sortDirection, title]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

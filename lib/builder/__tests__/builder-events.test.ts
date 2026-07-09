@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
 
@@ -72,13 +73,14 @@ describe('builder_events instrumentation', () => {
     expect(src).toMatch(/ai_request/);
   });
 
-  it('chat route awaits ai_request event insert and logs failures', () => {
+  it('chat route awaits ai_request event insert and fails closed', () => {
     const src = readFileSync(
       'app/api/org/[orgId]/builder/chat/route.ts',
       'utf8'
     );
     expect(src).toMatch(/await adminSupabase\.from\('builder_events'\)\.insert/);
-    expect(src).toMatch(/Failed to emit builder ai_request event/);
+    expect(src).toMatch(/if \(eventError\)/);
+    expect(src).toMatch(/return json\(\{ error: eventError\.message \}, \{ status: 500 \}\)/);
   });
 
   it('chat route emits event after auth check', () => {

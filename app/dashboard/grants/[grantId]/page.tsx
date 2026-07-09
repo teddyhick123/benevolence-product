@@ -6,8 +6,12 @@ import Link from 'next/link';
 import DocumentManager from '@/components/grants/DocumentManager';
 import BudgetTracker from '@/components/grants/BudgetTracker';
 import GrantExportButton from '@/components/grants/GrantExportButton';
+import StageChecklist from '@/components/grants/StageChecklist';
+import CustomFieldsPanel from '@/components/custom-fields/CustomFieldsPanel';
 import { LIFECYCLE_STAGES, type LifecycleStage } from '@/lib/grants/lifecycle-shared';
-import { GRANT_RISK_BADGE, grantStageBadgeClass, grantStageLabel } from '@/components/grants/grantPalette';
+import { GRANT_RISK_BADGE, grantStageBadgeClass } from '@/components/grants/grantPalette';
+import { useStageLabels } from '@/lib/hooks/use-stage-labels';
+import { useEntityVocabulary } from '@/lib/hooks/use-entity-vocabulary';
 
 type WorkspaceSection = 'overview' | 'milestones' | 'decisions' | 'history' | 'tasks' | 'contacts' | 'communications' | 'documents' | 'budget';
 
@@ -39,6 +43,10 @@ export default function GrantDetailPage() {
   const [transitionTo, setTransitionTo] = useState('');
   const [transitionReason, setTransitionReason] = useState('');
   const [transitionError, setTransitionError] = useState<string | null>(null);
+  const { getLabel } = useStageLabels(orgId);
+  const vocabulary = useEntityVocabulary(orgId);
+  const grantLabel = vocabulary.grant.singular;
+  const grantPlural = vocabulary.grant.plural;
 
   const load = useCallback(async (oid: string) => {
     try {
@@ -112,7 +120,10 @@ export default function GrantDetailPage() {
       });
       if (!res.ok) {
         const j = await res.json().catch(() => ({}));
-        throw new Error(j.error ?? `Failed (${res.status})`);
+        const blockingItems = Array.isArray(j.blocking_items) ? j.blocking_items : [];
+        throw new Error(blockingItems.length > 0
+          ? `Complete these items before advancing: ${blockingItems.join('; ')}`
+          : j.error ?? `Failed (${res.status})`);
       }
       setTransitionTo('');
       setTransitionReason('');
@@ -148,8 +159,8 @@ export default function GrantDetailPage() {
   if (!grant) {
     return (
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 text-center">
-        <h3 className="text-lg font-medium text-gray-900">Grant Not Found</h3>
-        <Link href="/dashboard/grants" className="mt-4 inline-flex items-center text-sm text-azure hover:text-azure/80">&larr; Back to Grants</Link>
+        <h3 className="text-lg font-medium text-gray-900">{grantLabel} Not Found</h3>
+        <Link href="/dashboard/grants" className="mt-4 inline-flex items-center text-sm text-azure hover:text-azure/80">&larr; Back to {grantPlural}</Link>
       </div>
     );
   }
@@ -184,7 +195,7 @@ export default function GrantDetailPage() {
             </Link>
             <h1 className="text-2xl font-serif text-gray-900">{grant.holdings?.name ?? '—'}</h1>
             <span className={grantStageBadgeClass(currentStage)}>
-              {grantStageLabel(currentStage)}
+              {getLabel(currentStage)}
             </span>
             {grant.risk_level && (
               <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${GRANT_RISK_BADGE[grant.risk_level] ?? 'border border-neutral-200 bg-neutral-100 text-neutral-600'}`}>
@@ -248,7 +259,7 @@ export default function GrantDetailPage() {
                 >
                   <option value="">Move to stage…</option>
                   {LIFECYCLE_STAGES.filter(s => s !== currentStage).map(s => (
-                    <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>
+                    <option key={s} value={s}>{getLabel(s)}</option>
                   ))}
                 </select>
                 {transitionTo && (
@@ -326,7 +337,7 @@ export default function GrantDetailPage() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-4">
             <div className="bg-white rounded-2xl border border-gray-100 shadow-soft p-5">
-              <h3 className="text-sm font-semibold text-gray-700 mb-4">Grant Details</h3>
+              <h3 className="text-sm font-semibold text-gray-700 mb-4">{grantLabel} Details</h3>
               <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
                 <div><dt className="text-gray-400">Type</dt><dd className="text-gray-900 font-medium capitalize">{grant.grant_type?.replace(/_/g, ' ') ?? '—'}</dd></div>
                 <div><dt className="text-gray-400">Period</dt><dd className="text-gray-900 font-medium">{fmt(grant.grant_period_start)} – {fmt(grant.grant_period_end)}</dd></div>
@@ -339,8 +350,14 @@ export default function GrantDetailPage() {
                 )}
               </dl>
             </div>
+            {orgId && (
+              <CustomFieldsPanel orgId={orgId} entityType="grant" entityId={grantId} />
+            )}
           </div>
           <div className="space-y-4">
+            {orgId && (
+              <StageChecklist orgId={orgId} grantId={grantId} currentStage={currentStage} />
+            )}
             {/* Recent activity */}
             <div className="bg-white rounded-2xl border border-gray-100 shadow-soft p-5">
               <h3 className="text-sm font-semibold text-gray-700 mb-3">Recent Activity</h3>
@@ -516,7 +533,7 @@ export default function GrantDetailPage() {
       {activeSection === 'contacts' && (
         <div className="bg-white rounded-2xl border border-gray-100 shadow-soft overflow-hidden">
           <div className="px-5 py-4 border-b border-gray-100">
-            <h2 className="text-sm font-semibold text-gray-900">Grant Contacts</h2>
+            <h2 className="text-sm font-semibold text-gray-900">{grantLabel} Contacts</h2>
           </div>
           {contacts.length === 0 ? (
             <div className="p-6 text-center text-sm text-gray-400">No contacts on file.</div>

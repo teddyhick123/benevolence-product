@@ -29,10 +29,11 @@ export const TRANSACTION_TYPE_LABELS: Record<TransactionType, string> = {
  */
 export const createValuationSchema = z.object({
   holding_id: z.string().uuid('Invalid holding ID'),
-  as_of_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD'),
-  nav: z.number().nonnegative('NAV must be non-negative'),
-  units: z.number().positive('Units must be positive').optional().nullable(),
-  valuation_source: z.string().max(255).optional().nullable(),
+  valued_at: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD'),
+  value: z.number().nonnegative('Value must be non-negative'),
+  currency: z.string().length(3).default('USD'),
+  valuation_type: z.enum(['mark_to_market', 'mark_to_model', 'cost_basis', 'appraisal', 'manager_reported']).default('mark_to_market'),
+  source: z.string().max(255).optional().nullable(),
   notes: z.string().max(1000).optional().nullable(),
 });
 
@@ -49,6 +50,8 @@ export const createTransactionSchema = z.object({
   transaction_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD'),
   transaction_type: transactionTypeSchema,
   amount: z.number({ invalid_type_error: 'Amount is required' }),
+  currency: z.string().length(3).default('USD'),
+  notes: z.string().max(500).optional().nullable(),
   memo: z.string().max(500).optional().nullable(),
 });
 
@@ -79,14 +82,13 @@ export const investmentPerformanceQuerySchema = z.object({
 export type Valuation = {
   id: string;
   holding_id: string;
-  as_of_date: string;
-  nav: number;
-  units?: number | null;
-  nav_per_unit?: number | null;
-  valuation_source?: string | null;
+  valued_at: string;
+  value: number;
+  currency: string;
+  valuation_type: 'mark_to_market' | 'mark_to_model' | 'cost_basis' | 'appraisal' | 'manager_reported';
+  source?: string | null;
   notes?: string | null;
   created_at: string;
-  updated_at: string;
 };
 
 export type Transaction = {
@@ -95,7 +97,8 @@ export type Transaction = {
   transaction_date: string;
   transaction_type: TransactionType;
   amount: number;
-  memo?: string | null;
+  currency: string;
+  notes?: string | null;
   created_at: string;
   updated_at: string;
 };

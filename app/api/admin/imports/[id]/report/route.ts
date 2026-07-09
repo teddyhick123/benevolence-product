@@ -10,6 +10,8 @@ import { requireAdmin } from '@/lib/admin-auth';
 
 type StagingRow = Record<string, unknown>;
 
+const NO_STORE = { 'Cache-Control': 'no-store' } as const;
+
 async function countStagingRows(
   supabase: ReturnType<typeof createAdminClient>,
   importJobId: string,
@@ -43,7 +45,7 @@ export async function GET(
 ) {
   const userId = await requireAdmin();
   if (!userId) {
-    return Response.json({ error: 'Unauthorized' }, { status: 401 });
+    return Response.json({ error: 'Unauthorized' }, { status: 401, headers: NO_STORE });
   }
 
   const { id: importJobId } = await params;
@@ -60,7 +62,7 @@ export async function GET(
     .single();
 
   if (jobError || !job) {
-    return Response.json({ error: 'Import job not found' }, { status: 404 });
+    return Response.json({ error: 'Import job not found' }, { status: 404, headers: NO_STORE });
   }
 
   const jobData = job as StagingRow;
@@ -154,10 +156,10 @@ export async function GET(
       );
 
     if (!uploadError) {
-      const { data: urlData } = supabase.storage
+      const { data: urlData } = await supabase.storage
         .from('imports')
-        .getPublicUrl(`reports/${importJobId}/migration-report.md`);
-      storageUrl = urlData?.publicUrl ?? null;
+        .createSignedUrl(`reports/${importJobId}/migration-report.md`, 3600);
+      storageUrl = urlData?.signedUrl ?? null;
     }
   } catch {
     // Storage upload is non-critical
@@ -195,11 +197,12 @@ export async function GET(
 
     return new Response(buffer, {
       headers: {
+        ...NO_STORE,
         'Content-Type': 'application/pdf',
         'Content-Disposition': `attachment; filename="migration-report-${importJobId.slice(0, 8)}.pdf"`,
       },
     });
   }
 
-  return Response.json({ markdown, url: storageUrl });
+  return Response.json({ markdown, url: storageUrl }, { headers: NO_STORE });
 }

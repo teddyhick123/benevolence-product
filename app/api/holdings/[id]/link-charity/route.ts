@@ -3,6 +3,16 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase';
 import { getOrganization, convertToCharity } from '@/lib/services/propublica';
 
+function json(body: Record<string, unknown>, init?: ResponseInit) {
+  return NextResponse.json(body, {
+    ...init,
+    headers: {
+      ...init?.headers,
+      'Cache-Control': 'no-store',
+    },
+  });
+}
+
 /**
  * POST /api/holdings/[id]/link-charity
  * Link a holding to a charity by EIN or charity_id.
@@ -15,35 +25,33 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   try {
     const { data: { user } } = await sb.auth.getUser();
     if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { data: holding } = await sb
+    const { data: holding, error: holdingError } = await sb
       .from('holdings')
       .select('portfolio_id')
       .eq('id', holdingId)
       .single();
 
-    if (!holding) {
-      return NextResponse.json({ error: 'Holding not found' }, { status: 404 });
+    if (holdingError || !holding) {
+      return json({ error: 'Holding not found' }, { status: 404 });
     }
 
-    const { data: membership } = await sb
-      .from('portfolio_members')
-      .select('role')
-      .eq('portfolio_id', holding.portfolio_id)
-      .eq('user_id', user.id)
-      .maybeSingle();
+    const { data: canEdit, error: canEditErr } = await sb.rpc('can_edit_portfolio', {
+      p_portfolio_id: holding.portfolio_id,
+    });
+    if (canEditErr) return json({ error: canEditErr.message }, { status: 500 });
 
-    if (!membership) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    if (!canEdit) {
+      return json({ error: 'Forbidden' }, { status: 403 });
     }
 
     const body = await req.json();
     const { ein, charity_id } = body;
 
     if (!ein && !charity_id) {
-      return NextResponse.json(
+      return json(
         { error: 'Either ein or charity_id is required' },
         { status: 400 }
       );
@@ -58,7 +66,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
         .from('charities')
         .select('id')
         .eq('ein', ein)
-        .single();
+        .maybeSingle();
 
       if (existingCharity) {
         resolvedCharityId = existingCharity.id;
@@ -66,7 +74,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
         // Fetch from ProPublica and create locally
         const org = await getOrganization(ein);
         if (!org) {
-          return NextResponse.json(
+          return json(
             { error: `No organization found with EIN ${ein}` },
             { status: 404 }
           );
@@ -89,7 +97,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
               .from('charities')
               .select('id')
               .eq('ein', ein)
-              .single();
+              .maybeSingle();
             resolvedCharityId = existing?.id;
           } else {
             throw insertError;
@@ -101,7 +109,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     }
 
     if (!resolvedCharityId) {
-      return NextResponse.json(
+      return json(
         { error: 'Could not resolve charity' },
         { status: 400 }
       );
@@ -118,18 +126,19 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     if (updateError) throw updateError;
 
     // Fetch the linked charity details
-    const { data: charity } = await sb
+    const { data: charity, error: charityError } = await sb
       .from('charities')
       .select('id, ein, name, sector, city, state, annual_revenue, annual_expenses, assets, program_expense_ratio, mission_statement')
       .eq('id', resolvedCharityId)
       .single();
+    if (charityError) throw charityError;
 
-    return NextResponse.json({
+    return json({
       holding: updatedHolding,
       charity,
     });
   } catch (error: any) {
-    return NextResponse.json(
+    return json(
       { error: error.message || 'Failed to link charity' },
       { status: 500 }
     );
@@ -147,28 +156,26 @@ export async function DELETE(req: Request, ctx: { params: Promise<{ id: string }
   try {
     const { data: { user } } = await sb.auth.getUser();
     if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { data: holding } = await sb
+    const { data: holding, error: holdingError } = await sb
       .from('holdings')
       .select('portfolio_id')
       .eq('id', holdingId)
       .single();
 
-    if (!holding) {
-      return NextResponse.json({ error: 'Holding not found' }, { status: 404 });
+    if (holdingError || !holding) {
+      return json({ error: 'Holding not found' }, { status: 404 });
     }
 
-    const { data: membership } = await sb
-      .from('portfolio_members')
-      .select('role')
-      .eq('portfolio_id', holding.portfolio_id)
-      .eq('user_id', user.id)
-      .maybeSingle();
+    const { data: canEdit, error: canEditErr } = await sb.rpc('can_edit_portfolio', {
+      p_portfolio_id: holding.portfolio_id,
+    });
+    if (canEditErr) return json({ error: canEditErr.message }, { status: 500 });
 
-    if (!membership) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    if (!canEdit) {
+      return json({ error: 'Forbidden' }, { status: 403 });
     }
 
     const { error } = await sb
@@ -178,9 +185,9 @@ export async function DELETE(req: Request, ctx: { params: Promise<{ id: string }
 
     if (error) throw error;
 
-    return NextResponse.json({ success: true });
+    return json({ success: true });
   } catch (error: any) {
-    return NextResponse.json(
+    return json(
       { error: error.message || 'Failed to unlink charity' },
       { status: 500 }
     );

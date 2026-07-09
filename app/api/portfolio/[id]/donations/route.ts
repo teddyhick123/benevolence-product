@@ -4,6 +4,16 @@ import { donationQuerySchema } from '@/lib/schemas/donation';
 
 const getSupabase = createSupabaseServerClient;
 
+function json(body: Record<string, unknown>, init?: ResponseInit) {
+  return NextResponse.json(body, {
+    ...init,
+    headers: {
+      ...init?.headers,
+      'Cache-Control': 'no-store',
+    },
+  });
+}
+
 /**
  * GET /api/portfolio/[id]/donations
  * Get donation holdings for a portfolio with filtering and sorting
@@ -36,22 +46,14 @@ export async function GET(
     // Verify user has access to this portfolio
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { data: portfolioAccess } = await supabase
-      .from('portfolio_members')
-      .select('portfolio_id')
-      .eq('portfolio_id', portfolioId)
-      .eq('user_id', user.id)
-      .single();
-
-    if (!portfolioAccess) {
-      return NextResponse.json(
-        { error: 'Portfolio not found or access denied' },
-        { status: 404 }
-      );
-    }
+    const { data: canView, error: canViewErr } = await supabase.rpc('can_view_portfolio', {
+      p_portfolio_id: portfolioId,
+    });
+    if (canViewErr) return json({ error: canViewErr.message }, { status: 500 });
+    if (!canView) return json({ error: 'Portfolio not found or access denied' }, { status: 403 });
 
     // Build query on holdings table for donations
     // Optionally join with tax_contributions if needed
@@ -95,7 +97,7 @@ export async function GET(
 
     if (error) {
       console.error('Error fetching donations:', error);
-      return NextResponse.json(
+      return json(
         { error: 'Failed to fetch donations' },
         { status: 500 }
       );
@@ -108,7 +110,7 @@ export async function GET(
       .eq('portfolio_id', portfolioId)
       .single();
 
-    return NextResponse.json({
+    return json({
       data: donations || [],
       count: count || 0,
       summary: summary || null,
@@ -120,12 +122,12 @@ export async function GET(
     });
   } catch (error: any) {
     if (error?.name === 'ZodError') {
-      return NextResponse.json(
+      return json(
         { error: 'Invalid query parameters', details: error.errors },
         { status: 400 }
       );
     }
     console.error('Unexpected error in GET donations:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return json({ error: 'Internal server error' }, { status: 500 });
   }
 }

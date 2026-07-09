@@ -4,8 +4,6 @@ import { render } from '@react-email/components';
 import InviteEmail from './templates/invite';
 import { branding } from '@/lib/config';
 
-const resend = new Resend(process.env.RESEND_API_KEY);
-
 export interface SendInviteEmailParams {
   to: string;
   orgName: string;
@@ -15,6 +13,14 @@ export interface SendInviteEmailParams {
   acceptUrl: string;
 }
 
+function createResendClient() {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) {
+    throw new Error('RESEND_API_KEY is not configured');
+  }
+  return new Resend(apiKey);
+}
+
 export async function sendInviteEmail(params: SendInviteEmailParams): Promise<void> {
   const { to, orgName, inviterName, role, message, acceptUrl } = params;
 
@@ -22,7 +28,7 @@ export async function sendInviteEmail(params: SendInviteEmailParams): Promise<vo
     InviteEmail({ orgName, inviterName, role, message: message ?? undefined, acceptUrl })
   );
 
-  const { error } = await resend.emails.send({
+  const { error } = await createResendClient().emails.send({
     from: `${branding.appName} <noreply@${process.env.RESEND_FROM_DOMAIN || 'resend.dev'}>`,
     to,
     subject: `You've been invited to join ${orgName} on ${branding.appName}`,

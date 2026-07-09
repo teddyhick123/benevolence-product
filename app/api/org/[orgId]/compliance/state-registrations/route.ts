@@ -3,8 +3,20 @@ import { createServerClient } from '@/lib/supabase';
 
 export const dynamic = 'force-dynamic';
 
+const NO_STORE = { 'Cache-Control': 'no-store' } as const;
+
 interface RouteParams {
   params: Promise<{ orgId: string }>;
+}
+
+function json(body: unknown, init: ResponseInit = {}) {
+  return NextResponse.json(body, {
+    ...init,
+    headers: {
+      ...NO_STORE,
+      ...(init.headers || {}),
+    },
+  });
 }
 
 // GET /api/org/[orgId]/compliance/state-registrations
@@ -15,7 +27,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
 
     const { data: role } = await supabase.rpc('user_org_role', { p_org_id: orgId });
     if (!role) {
-      return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
+      return json({ error: 'Not authorized' }, { status: 403 });
     }
 
     const { data, error } = await supabase
@@ -25,12 +37,12 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       .order('state');
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ data: data || [] });
+    return json({ data: data || [] });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return json({ error: err.message }, { status: 500 });
   }
 }
 
@@ -42,7 +54,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
 
     const { data: isAdmin } = await supabase.rpc('is_org_admin', { p_org_id: orgId });
     if (!isAdmin) {
-      return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
+      return json({ error: 'Admin access required' }, { status: 403 });
     }
 
     const body = await req.json();
@@ -53,7 +65,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     } = body;
 
     if (!state) {
-      return NextResponse.json({ error: 'state is required' }, { status: 400 });
+      return json({ error: 'state is required' }, { status: 400 });
     }
 
     const { data, error } = await supabase
@@ -79,11 +91,11 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       .single();
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ data }, { status: 201 });
+    return json({ data }, { status: 201 });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return json({ error: err.message }, { status: 500 });
   }
 }

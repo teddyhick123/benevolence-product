@@ -17,6 +17,17 @@ export async function GET(
 
   const sb = await supabasePublic();
 
+  const { data: canView, error: canViewErr } = await sb.rpc('can_view_portfolio', {
+    p_portfolio_id: portfolio_id,
+  });
+
+  if (canViewErr || !canView) {
+    return NextResponse.json(
+      { error: 'Forbidden' },
+      { status: 403, headers: { 'Cache-Control': 'no-store' } }
+    );
+  }
+
   if (year) {
     // Get specific year
     const { data, error } = await sb
@@ -43,7 +54,7 @@ export async function GET(
 
     return NextResponse.json(
       { data },
-      { headers: { 'Cache-Control': 'private, s-maxage=60' } }
+      { headers: { 'Cache-Control': 'no-store' } }
     );
   } else {
     // Get all years for this portfolio
@@ -62,7 +73,7 @@ export async function GET(
 
     return NextResponse.json(
       { data: data ?? [] },
-      { headers: { 'Cache-Control': 'private, s-maxage=60' } }
+      { headers: { 'Cache-Control': 'no-store' } }
     );
   }
 }

@@ -44,6 +44,21 @@ const bulkTransitionSchema = z.object({
   rollback_on_error: z.boolean().optional().default(false),
 }).strict();
 
+type PreflightGrantRow = {
+  id: string;
+  lifecycle_stage: string;
+  org_id: string;
+  purpose: string | null;
+  internal_owner_id: string | null;
+  requested_amount: number | null;
+  approved_amount: number | null;
+  grant_period_start: string | null;
+  grant_period_end: string | null;
+  risk_level: string | null;
+  deliverables: string | null;
+  reporting_frequency: string | null;
+};
+
 function json(body: unknown, init: ResponseInit = {}) {
   return NextResponse.json(body, {
     ...init,
@@ -84,7 +99,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
 
     // Preflight: fetch all requested grants scoped to this org in one query
     const adminSupabase = createAdminClient();
-    const { data: scopedGrants, error: prefetchErr } = await adminSupabase
+    const { data: scopedGrants, error: prefetchErr } = await (adminSupabase
       .from('grants')
       .select(
         'id, lifecycle_stage, org_id, purpose, internal_owner_id, requested_amount, ' +
@@ -92,25 +107,13 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
         'deliverables, reporting_frequency'
       )
       .eq('org_id', orgId)
-      .in('id', grantIds);
+      .in('id', grantIds) as unknown as Promise<{ data: PreflightGrantRow[] | null; error: { message: string } | null }>);
 
     if (prefetchErr) {
       return json({ error: 'Failed to fetch grants' }, { status: 500 });
     }
 
-    const grantMap = new Map<string, {
-      lifecycle_stage: string;
-      org_id: string;
-      purpose: string | null;
-      internal_owner_id: string | null;
-      requested_amount: number | null;
-      approved_amount: number | null;
-      grant_period_start: string | null;
-      grant_period_end: string | null;
-      risk_level: string | null;
-      deliverables: string | null;
-      reporting_frequency: string | null;
-    }>();
+    const grantMap = new Map<string, PreflightGrantRow>();
     for (const g of scopedGrants ?? []) {
       grantMap.set(g.id, g);
     }

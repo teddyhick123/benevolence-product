@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 // lib/__tests__/tax-schema-contract.test.ts
 //
 // DB schema contract tests for the tax module.
@@ -45,6 +47,7 @@ describe('Tax schema contract: RLS enabled on all core tax tables', () => {
     'tax_contributions',
     'holding_contributions',
     'tax_carryforwards',
+    'tax_carryforward_applications',
     'daf_grants',
     'foundation_990pf_data',
     'tax_documents',
@@ -68,6 +71,7 @@ describe('Tax schema contract: service_role policies on all core tax tables', ()
     'tax_contributions',
     'holding_contributions',
     'tax_carryforwards',
+    'tax_carryforward_applications',
     'daf_grants',
     'foundation_990pf_data',
     'tax_documents',
@@ -149,6 +153,27 @@ describe('Tax schema contract: tax_carryforwards canonical shape', () => {
     expect(migrationsSrc).toMatch(
       /tax_carryforwards[\s\S]{0,3000}amount_remaining[\s\S]{0,200}amount_remaining\s*<=\s*amount/i
     );
+  });
+
+  it('tax_carryforward_applications table records year-specific applications', () => {
+    expect(migrationsSrc).toMatch(/CREATE\s+TABLE\s+IF\s+NOT\s+EXISTS\s+public\.tax_carryforward_applications/i);
+    expect(migrationsSrc).toMatch(/carryforward_id\s+UUID\s+NOT\s+NULL\s+REFERENCES\s+public\.tax_carryforwards\(id\)/i);
+    expect(migrationsSrc).toMatch(/applied_tax_year\s+INTEGER\s+NOT\s+NULL/i);
+    expect(migrationsSrc).toMatch(/amount_applied\s+NUMERIC\(20,2\)\s+NOT\s+NULL\s+CHECK\s+\(amount_applied\s+>\s+0\)/i);
+    expect(migrationsSrc).toMatch(/UNIQUE\s+\(carryforward_id,\s*applied_tax_year\)/i);
+  });
+
+  it('replace_tax_carryforward_applications persists applications and updates remaining balances atomically', () => {
+    const fnStart = migrationsSrc.indexOf('CREATE OR REPLACE FUNCTION public.replace_tax_carryforward_applications');
+    expect(fnStart).toBeGreaterThan(-1);
+    const fnBlock = migrationsSrc.slice(fnStart, fnStart + 5000);
+
+    expect(fnBlock).toContain('DELETE FROM public.tax_carryforward_applications');
+    expect(fnBlock).toContain('INSERT INTO public.tax_carryforward_applications');
+    expect(fnBlock).toContain('UPDATE public.tax_carryforwards');
+    expect(fnBlock).toContain('FOR UPDATE');
+    expect(fnBlock).toContain('amount_remaining');
+    expect(migrationsSrc).toMatch(/GRANT\s+EXECUTE\s+ON\s+FUNCTION\s+public\.replace_tax_carryforward_applications/i);
   });
 });
 

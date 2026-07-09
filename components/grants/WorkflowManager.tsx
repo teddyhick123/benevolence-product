@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase-browser';
 import { grantStatusBadgeClass } from './grantPalette';
+import { useEntityVocabulary } from '@/lib/hooks/use-entity-vocabulary';
 
 type WorkflowTemplate = {
   id: string;
@@ -54,6 +55,8 @@ interface Props {
 }
 
 export default function WorkflowManager({ portfolioId, orgId }: Props) {
+  const vocabulary = useEntityVocabulary(orgId);
+  const grantLabel = vocabulary.grant.singular;
   const [loading, setLoading] = useState(true);
   const [workflows, setWorkflows] = useState<WorkflowInstance[]>([]);
   const [templates, setTemplates] = useState<WorkflowTemplate[]>([]);
@@ -87,7 +90,7 @@ export default function WorkflowManager({ portfolioId, orgId }: Props) {
           notes: wf.notes,
           template_name: wf.workflow_templates?.name || 'Unknown',
           workflow_type: wf.workflow_templates?.workflow_type || 'custom',
-          grant_name: wf.grants?.holdings?.name || 'Unknown Grant',
+          grant_name: wf.grants?.holdings?.name || `Unknown ${grantLabel}`,
           holding_id: wf.grants?.holding_id,
           tasks: (wf.workflow_tasks || []).sort((a: any, b: any) => a.sequence_order - b.sequence_order),
         }));
@@ -159,7 +162,7 @@ export default function WorkflowManager({ portfolioId, orgId }: Props) {
           template_id: newWorkflowData.templateId,
           holding_id: newWorkflowData.holdingId,
           portfolio_id: portfolioId,
-          name: `${template?.name || 'Workflow'} - ${holding?.name || 'Grant'}`,
+          name: `${template?.name || 'Workflow'} - ${holding?.name || grantLabel}`,
           due_date: newWorkflowData.dueDate || null,
         }),
       });
@@ -246,13 +249,13 @@ export default function WorkflowManager({ portfolioId, orgId }: Props) {
             <h3 className="text-lg font-semibold text-ink mb-4">Start New Workflow</h3>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-neutral-700 mb-1">Grant</label>
+                <label className="block text-sm font-medium text-neutral-700 mb-1">{grantLabel}</label>
                 <select
                   value={newWorkflowData.holdingId}
                   onChange={(e) => setNewWorkflowData({ ...newWorkflowData, holdingId: e.target.value })}
                   className="w-full px-3 py-2 border border-black/10 rounded-2xl focus:ring-azure/30 focus:border-azure"
                 >
-                  <option value="">Select a grant...</option>
+                  <option value="">Select a {grantLabel.toLowerCase()}...</option>
                   {holdings.map((h) => (
                     <option key={h.id} value={h.id}>{h.name}</option>
                   ))}

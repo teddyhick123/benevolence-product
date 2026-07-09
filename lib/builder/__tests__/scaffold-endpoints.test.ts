@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
 
@@ -34,8 +35,9 @@ describe('proposal GET endpoint', () => {
     expect(src).toMatch(/export async function GET/);
   });
 
-  it('checks org admin or member access', () => {
-    expect(src).toMatch(/org_role|is_org_admin|is_org_member/);
+  it('requires org admin access', () => {
+    expect(src).toMatch(/is_org_admin/);
+    expect(src).not.toMatch(/user_org_role/);
   });
 
   it('selects pr_url so applied proposals can show review links', () => {
@@ -83,5 +85,11 @@ describe('org-scoped apply endpoint', () => {
 
   it('returns 503 when GitHub is not configured', () => {
     expect(src).toMatch(/503|GitHub integration not configured/);
+  });
+
+  it('fails when proposal_applied audit event is not recorded', () => {
+    expect(src).toMatch(/if \(eventErr\)/);
+    expect(src).toMatch(/error: eventErr\.message/);
+    expect(src).not.toMatch(/Failed to emit builder proposal_applied event/);
   });
 });

@@ -5,18 +5,19 @@ import { NextResponse } from 'next/server';
 import { createSupabaseServerClient } from '@/lib/supabase';
 import { createWidgetSchema } from '@/lib/schemas/portfolio';
 import { validateRequest } from '@/lib/validation';
+import { requirePortfolioAccess, isAccessDenied } from '@/lib/portfolio-auth';
 
-function cacheHeaders(isGet = false) {
-  // GET requests can be cached for 5 minutes, mutations should not be cached
-  return isGet
-    ? { 'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=60' } as const
-    : { 'Cache-Control': 'no-store' } as const;
+function cacheHeaders() {
+  return { 'Cache-Control': 'no-store' } as const;
 }
 
 const createSb = createSupabaseServerClient;
 
 export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id: portfolio_id } = await ctx.params;
+  const access = await requirePortfolioAccess(portfolio_id);
+  if (isAccessDenied(access)) return access.error;
+
   const url = new URL(req.url);
   const offset = Number(url.searchParams.get('offset') ?? '0') || 0;
   const limit = Math.min(Number(url.searchParams.get('limit') ?? '50') || 50, 200);
@@ -37,7 +38,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
     data: data ?? [],
     count: count ?? 0,
     nextOffset: (count ?? 0) > offset + limit ? offset + limit : null,
-  }, { headers: cacheHeaders(true) });
+  }, { headers: cacheHeaders() });
 }
 
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useEntityVocabulary } from '@/lib/hooks/use-entity-vocabulary';
 
 interface NewGrantee {
   display_name: string;
@@ -58,6 +59,8 @@ interface Props {
 }
 
 export default function CreateGrantWizard({ orgId, portfolioId, onSuccess, onClose }: Props) {
+  const vocabulary = useEntityVocabulary(orgId);
+  const grantLabel = vocabulary.grant.singular;
   const [step, setStep] = useState(1);
   const [form, setForm] = useState<WizardState>(INITIAL_STATE);
   const [saving, setSaving] = useState(false);
@@ -134,7 +137,7 @@ export default function CreateGrantWizard({ orgId, portfolioId, onSuccess, onClo
         {/* Header */}
         <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-black/5">
           <div>
-            <h2 className="text-lg font-semibold text-ink">New Grant</h2>
+            <h2 className="text-lg font-semibold text-ink">New {grantLabel}</h2>
             <p className="text-sm text-neutral-500 mt-0.5">Step {step} of 3</p>
           </div>
           <button onClick={onClose} className="p-2 rounded-2xl hover:bg-neutral-100 transition-colors">
@@ -260,7 +263,7 @@ export default function CreateGrantWizard({ orgId, portfolioId, onSuccess, onClo
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-neutral-700 mb-1">Grant Type</label>
+                  <label className="block text-sm font-medium text-neutral-700 mb-1">{grantLabel} Type</label>
                   <input type="text" value={form.grantType} onChange={e => patch({ grantType: e.target.value })} placeholder="e.g. Program, Capital" className="w-full px-3 py-2 border border-black/5 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-azure/30 focus:border-azure" />
                 </div>
                 <div>
@@ -296,7 +299,7 @@ export default function CreateGrantWizard({ orgId, portfolioId, onSuccess, onClo
           {step === 3 && (
             <div className="space-y-4">
               <div className="rounded-2xl bg-neutral-50 p-4 space-y-2 text-sm">
-                <h3 className="font-semibold text-ink mb-3">Review Grant Details</h3>
+                <h3 className="font-semibold text-ink mb-3">Review {grantLabel} Details</h3>
                 <div className="grid grid-cols-2 gap-x-6 gap-y-2">
                   <div className="text-neutral-500">Grantee</div>
                   <div className="text-ink font-medium truncate">
@@ -366,7 +369,7 @@ export default function CreateGrantWizard({ orgId, portfolioId, onSuccess, onClo
               disabled={saving}
               className="px-5 py-2 bg-azure text-white rounded-2xl text-sm font-medium hover:bg-azure/90 transition-colors disabled:opacity-50"
             >
-              {saving ? 'Creating…' : 'Create Grant'}
+              {saving ? 'Creating…' : `Create ${grantLabel}`}
             </button>
           )}
         </div>

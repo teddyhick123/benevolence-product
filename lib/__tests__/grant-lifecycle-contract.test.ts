@@ -1,4 +1,6 @@
+// @vitest-environment node
 // lib/__tests__/grant-lifecycle-contract.test.ts
+//
 // Contract tests that define the TARGET state for the grant lifecycle refactor.
 // These tests FAIL before Task 2 (rename grant_details to grants) and should
 // ALL PASS once the migration and code sweep are complete.
@@ -22,6 +24,7 @@ function readMigrations(): string {
 
 const migrations = readMigrations();
 const executorSrc = read('lib/ai/assistant/executor.ts');
+const grantsExecutorSrc = read('lib/ai/assistant/executors/grants.ts');
 
 // ---------------------------------------------------------------------------
 // 1. Canonical table is `grants`, not `grant_details`
@@ -240,15 +243,36 @@ describe('AI grant tools are not stubbed', () => {
   }
 });
 
+describe('Grant payment amount controls', () => {
+  it('AI grant payment writes check the approved amount before inserting or updating', () => {
+    expect(grantsExecutorSrc).toContain('assertGrantPaymentWithinApprovedAmount');
+    expect(grantsExecutorSrc).toContain("from('grant_payments')");
+    expect(grantsExecutorSrc).toContain(".select('id, amount, status')");
+    expect(grantsExecutorSrc).toContain('Grant payments would exceed the approved amount');
+    expect(grantsExecutorSrc).toContain('paymentCountsAgainstApprovedAmount');
+  });
+
+  it('canonical schema enforces aggregate payments against grants.approved_amount', () => {
+    expect(migrations).toContain('CREATE OR REPLACE FUNCTION public.enforce_grant_payment_approved_amount');
+    expect(migrations).toContain('FOR UPDATE');
+    expect(migrations).toContain("status NOT IN ('cancelled', 'returned')");
+    expect(migrations).toContain('v_total_payments > v_approved_amount');
+    expect(migrations).toContain('CREATE TRIGGER trg_grant_payments_approved_amount');
+  });
+});
+
 // ---------------------------------------------------------------------------
 // 6. lib/grants/lifecycle.ts exposes required exports
 // ---------------------------------------------------------------------------
 describe('lib/grants/lifecycle.ts exports required symbols', () => {
   let lifecycleSrc = '';
+  let lifecycleSharedSrc = '';
   try {
     lifecycleSrc = read('lib/grants/lifecycle.ts');
+    lifecycleSharedSrc = read('lib/grants/lifecycle-shared.ts');
   } catch {
     lifecycleSrc = '';
+    lifecycleSharedSrc = '';
   }
 
   it('lifecycle.ts exists', () => {
@@ -272,21 +296,20 @@ describe('lib/grants/lifecycle.ts exports required symbols', () => {
   });
 
   it('terminal stages have no forward transitions', () => {
-    // This test imports the actual module — runs only if lifecycle.ts exists
-    if (!lifecycleSrc.includes('ALLOWED_TRANSITIONS')) return;
+    if (!lifecycleSharedSrc.includes('ALLOWED_TRANSITIONS')) return;
     // Read and parse manually rather than importing to avoid ESM issues
     const terminalStages = ['closed', 'declined', 'cancelled'];
     for (const stage of terminalStages) {
       // Match both quoted ('stage': []) and unquoted (stage: []) key forms
       const pattern = new RegExp(`['"]?${stage}['"]?\\s*:\\s*\\[\\s*\\]`);
-      expect(pattern.test(lifecycleSrc)).toBe(true);
+      expect(pattern.test(lifecycleSharedSrc)).toBe(true);
     }
   });
 
   it('DECISION_REQUIRED_TRANSITIONS only references pairs present in ALLOWED_TRANSITIONS', () => {
-    if (!lifecycleSrc.includes('ALLOWED_TRANSITIONS')) return;
+    if (!lifecycleSharedSrc.includes('ALLOWED_TRANSITIONS')) return;
     // Extract all 'from->to' strings from DECISION_REQUIRED_TRANSITIONS block
-    const setBlock = lifecycleSrc.match(
+    const setBlock = lifecycleSharedSrc.match(
       /DECISION_REQUIRED_TRANSITIONS\s*=\s*new Set[^(]*\(\[([\s\S]*?)\]\)/
     );
     if (!setBlock) return;
@@ -295,10 +318,10 @@ describe('lib/grants/lifecycle.ts exports required symbols', () => {
       const [, from, to] = pair.replace(/'/g, '').match(/^([a-z_]+)->([a-z_]+)$/) ?? [];
       if (!from || !to) continue;
       // Both stages must appear in LIFECYCLE_STAGES list
-      expect(lifecycleSrc).toContain(`'${from}'`);
-      expect(lifecycleSrc).toContain(`'${to}'`);
+      expect(lifecycleSharedSrc).toContain(`'${from}'`);
+      expect(lifecycleSharedSrc).toContain(`'${to}'`);
       // The `to` stage must appear in the ALLOWED_TRANSITIONS[from] array
-      const fromBlockMatch = lifecycleSrc.match(
+      const fromBlockMatch = lifecycleSharedSrc.match(
         new RegExp(`['"]?${from}['"]?\\s*:\\s*\\[([^\\]]*?)\\]`)
       );
       expect(fromBlockMatch).not.toBeNull();
@@ -343,5 +366,13 @@ describe('Grant audit tables in migration', () => {
 
   it('grant_decisions has RLS enabled (policy defined)', () => {
     expect(migrations).toContain('grant_decisions: org members can view');
+  });
+
+  it('grant_decisions are append-only for authenticated users', () => {
+    expect(migrations).toContain('grant_decisions: org admins can insert');
+    expect(migrations).toMatch(/ON public\.grant_decisions FOR INSERT TO authenticated/);
+    expect(migrations).toContain('GRANT SELECT, INSERT ON public.grant_decisions TO authenticated');
+    expect(migrations).toContain('REVOKE UPDATE, DELETE ON public.grant_decisions FROM authenticated');
+    expect(migrations).not.toMatch(/grant_decisions[\s\S]{0,80}FOR ALL TO authenticated/);
   });
 });

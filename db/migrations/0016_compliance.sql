@@ -35,6 +35,7 @@ CREATE TABLE IF NOT EXISTS filing_calendar (
   -- 'upcoming', 'in_progress', 'filed', 'extended', 'overdue', 'waived', 'not_applicable'
   completed_at    timestamptz,
   completed_by    uuid REFERENCES auth.users(id),
+  completed_by_name text,
   filing_reference text,           -- confirmation number / EFIN
 
   -- Reminders
@@ -155,6 +156,25 @@ CREATE TABLE IF NOT EXISTS disqualified_persons (
 
 CREATE INDEX idx_disqualified_persons_org_id ON disqualified_persons (org_id);
 CREATE INDEX idx_disqualified_persons_is_active ON disqualified_persons (org_id, is_active);
+
+CREATE OR REPLACE FUNCTION sync_disqualified_person_active_state()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  IF NEW.end_date IS NOT NULL THEN
+    NEW.is_active := false;
+  ELSIF NEW.is_active = false THEN
+    NEW.end_date := CURRENT_DATE;
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER trg_disqualified_persons_active_state
+  BEFORE INSERT OR UPDATE OF is_active, end_date ON disqualified_persons
+  FOR EACH ROW EXECUTE FUNCTION sync_disqualified_person_active_state();
 
 CREATE TRIGGER trg_disqualified_persons_updated_at
   BEFORE UPDATE ON disqualified_persons

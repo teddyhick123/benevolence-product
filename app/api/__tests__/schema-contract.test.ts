@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { describe, it, expect, beforeAll } from 'vitest';
 import { readFileSync, readdirSync, statSync } from 'fs';
 import { join } from 'path';
@@ -446,9 +448,12 @@ describe('Schema contract: CPA sharing', () => {
     expect(publicAccessSrc).toContain('hashShareToken(token)');
   });
 
-  it('public CPA access writes audit logs and increments access_count', () => {
-    expect(publicAccessSrc).toContain("from('cpa_access_logs')");
-    expect(publicAccessSrc).toContain('access_count');
+  it('public CPA access records audit logs and increments access_count atomically', () => {
+    expect(publicAccessSrc).toContain("rpc('record_cpa_access'");
+    expect(migrationsSrc).toContain('CREATE OR REPLACE FUNCTION public.record_cpa_access');
+    expect(migrationsSrc).toContain('FOR UPDATE');
+    expect(migrationsSrc).toContain('access_count = access_count + 1');
+    expect(migrationsSrc).toContain('INSERT INTO public.cpa_access_logs');
   });
 
   it('CPA sharing dashboard is enabled now that the public portal exists', () => {

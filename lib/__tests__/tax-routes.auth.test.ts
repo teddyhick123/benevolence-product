@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
 
@@ -103,4 +104,41 @@ describe('tax routes auth contract: GET handlers have view-level guard', () => {
       ).toBe(true);
     });
   }
+});
+
+describe('tax routes auth contract: AGI reads stay under session RLS', () => {
+  it('scenarios and optimization routes do not bypass tax_years RLS with an admin client', () => {
+    for (const route of [
+      'app/api/portfolio/[id]/tax/scenarios/route.ts',
+      'app/api/portfolio/[id]/tax/optimize/route.ts',
+    ]) {
+      const src = readFileSync(route, 'utf8');
+      expect(src, route).not.toContain('createAdminClient');
+      expect(src, route).toMatch(/const sb = await supabasePublic\(\);[\s\S]*from\('tax_years'\)/);
+    }
+  });
+
+  it('canonical tax_years RLS allows authorized portfolio reads', () => {
+    const migration = readFileSync('db/migrations/0013_tax_contributions.sql', 'utf8');
+    expect(migration).toMatch(/CREATE POLICY "tax_years_read"[\s\S]*USING \(public\.can_view_portfolio\(portfolio_id\) AND public\.org_has_module\(org_id, 'tax'\)\)/);
+  });
+
+  it('tax record GET routes do not cache sensitive tax data', () => {
+    for (const route of [
+      'app/api/portfolio/[id]/tax/profile/route.ts',
+      'app/api/portfolio/[id]/tax/carryforwards/route.ts',
+      'app/api/portfolio/[id]/tax/contributions/[contributionId]/route.ts',
+      'app/api/portfolio/[id]/tax-years/route.ts',
+    ]) {
+      const src = readFileSync(route, 'utf8');
+      expect(src, route).toContain("'Cache-Control': 'no-store'");
+      expect(src, route).not.toContain('s-maxage');
+      expect(src, route).not.toContain('private,');
+    }
+  });
+
+  it('tax year AGI route has an explicit portfolio view guard', () => {
+    const src = readFileSync('app/api/portfolio/[id]/tax-years/route.ts', 'utf8');
+    expect(src).toContain("rpc('can_view_portfolio'");
+  });
 });

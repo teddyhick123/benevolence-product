@@ -10,6 +10,7 @@ type WalkthroughFixtures = {
 const BENIGN_CONSOLE_PATTERNS = [
   /Download the React DevTools/i,
   /^Failed to load resource: the server responded with a status of 404 \(Not Found\)$/i,
+  /^Failed to load resource: net::ERR_NETWORK_CHANGED$/i,
 ];
 
 const activePersonaByPage = new WeakMap<Page, PersonaName>();
@@ -44,6 +45,7 @@ export const test = base.extend<WalkthroughFixtures>({
     page.on('requestfailed', request => {
       const errorText = request.failure()?.errorText ?? '';
       if (errorText === 'net::ERR_ABORTED') return;
+      if (errorText === 'net::ERR_NETWORK_CHANGED') return;
       requestFailures.push({ method: request.method(), url: request.url(), error: errorText });
       failures.push(`requestfailed: ${request.method()} ${request.url()} ${errorText}`);
     });
@@ -105,7 +107,11 @@ export const test = base.extend<WalkthroughFixtures>({
 
 export { expect };
 
-export async function loginAs(page: Page, personaName: PersonaName) {
+export async function loginAs(
+  page: Page,
+  personaName: PersonaName,
+  options: { landOnDashboard?: boolean } = {}
+) {
   const persona = personas[personaName];
   activePersonaByPage.set(page, personaName);
   await page.goto('/login', { waitUntil: 'domcontentloaded' });
@@ -113,15 +119,36 @@ export async function loginAs(page: Page, personaName: PersonaName) {
   await emailInput.waitFor({ state: 'visible' });
   await emailInput.fill(persona.email);
   await page.getByLabel('Password', { exact: true }).fill(WALKTHROUGH_PASSWORD);
+
+  const sessionResponsePromise = page.waitForResponse(response =>
+    response.url().includes('/api/auth/session') &&
+    response.request().method() === 'POST',
+    { timeout: AUTH_TIMEOUT }
+  );
   await page.getByRole('button', { name: 'Sign in', exact: true }).click();
-  await page.waitForURL(url => url.pathname !== '/login', {
-    timeout: AUTH_TIMEOUT,
-    waitUntil: 'domcontentloaded',
-  });
+  const sessionResponse = await sessionResponsePromise;
+  expect(sessionResponse.ok()).toBeTruthy();
+
   await expect.poll(async () => {
     const response = await page.context().request.get('/api/me');
-    return response.status();
-  }, { timeout: AUTH_TIMEOUT }).toBe(200);
+    if (!response.ok()) return null;
+    const body = await response.json().catch(() => null);
+    return body?.user?.email ?? null;
+  }, { timeout: AUTH_TIMEOUT }).toBe(persona.email);
+
+  if (options.landOnDashboard === false) {
+    return;
+  }
+
+  if (new URL(page.url()).pathname === '/login') {
+    await page.waitForURL(url => new URL(url).pathname !== '/login', { timeout: 10_000 }).catch(() => undefined);
+  }
+
+  if (new URL(page.url()).pathname === '/login') {
+    await page.goto('/dashboard', { waitUntil: 'domcontentloaded' });
+  } else {
+    await page.waitForLoadState('domcontentloaded').catch(() => undefined);
+  }
 }
 
 export async function setActiveOrg(page: Page, orgId: string) {

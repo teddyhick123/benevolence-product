@@ -87,6 +87,7 @@ const PAIN_POINT_MODULE_MAP: Record<string, ModuleId[]> = {
   'tax receipt': ['donor_management', 'tax_optimization'],
   'grant due diligence': ['grant_management'],
   'deadline tracking': ['grant_management'],
+  'automated reminders': ['grant_management'],
   'milestone tracking': ['grant_management'],
   'charity vetting': ['external_data'],
   'trend analysis': ['analytics'],
@@ -162,8 +163,8 @@ const ONBOARDING_TOOLS: ToolDefinition[] = [
       properties: {
         workflow_type: {
           type: 'string',
-          enum: ['grant_cycle', 'donor_communications', 'impact_tracking', 'reporting'],
-          description: 'Type of workflow being described',
+          enum: ['grant_cycle', 'donor_communications', 'impact_tracking', 'reporting', 'automation_preferences', 'org_context', 'view_preferences'],
+          description: 'Type of workflow being described. Use automation_preferences for desired reminders, follow-up tasks, notifications, or field updates. Use org_context for durable operating norms, naming conventions, process rules, or preferences the AI should remember after setup. Use view_preferences for dashboard layout, default views, table columns, and entity vocabulary.',
         },
         details: {
           type: 'object',
@@ -206,7 +207,7 @@ const ONBOARDING_TOOLS: ToolDefinition[] = [
         topics_covered: {
           type: 'array',
           items: { type: 'string' },
-          description: 'Topics that have been covered: daily_operations, grant_process, donor_relations, impact_measurement, reporting, current_tools',
+          description: 'Topics that have been covered: daily_operations, grant_process, donor_relations, impact_measurement, reporting, current_tools, automation_preferences, org_context, view_preferences',
         },
         confidence_scores: {
           type: 'object',
@@ -276,6 +277,9 @@ function buildOnboardingSystemPrompt(quickIntake: QuickIntake, conversationState
   if (!topicsCovered.includes('daily_operations')) topicsToExplore.push('daily_operations');
   if (!topicsCovered.includes('impact_measurement')) topicsToExplore.push('impact_measurement');
   if (!topicsCovered.includes('reporting')) topicsToExplore.push('reporting');
+  if (!topicsCovered.includes('automation_preferences')) topicsToExplore.push('automation_preferences');
+  if (!topicsCovered.includes('org_context')) topicsToExplore.push('org_context');
+  if (!topicsCovered.includes('view_preferences')) topicsToExplore.push('view_preferences');
 
   return `You are ${branding.onboardingAssistantName}, a warm and curious onboarding assistant for ${branding.appName}, a platform that helps philanthropic organizations manage their impact.
 
@@ -302,7 +306,10 @@ function buildOnboardingSystemPrompt(quickIntake: QuickIntake, conversationState
 1. Understand their day-to-day operations and pain points
 2. Learn about their goals and what they want to improve
 3. Understand their current workflows (grants, donors, reporting)
-4. Get a sense of their team and technical comfort
+4. Capture automation preferences: deadline reminders, follow-up tasks, notifications, and field updates they want the system to handle
+5. Capture durable org context: operating norms, naming conventions, process rules, and preferences the AI should remember
+6. Capture view preferences: dashboard priorities, default module views, important table columns, and entity vocabulary
+7. Get a sense of their team and technical comfort
 
 ## Pain Point Detection
 Listen for phrases like:
@@ -319,6 +326,7 @@ When you detect pain points, map them to relevant modules:
 - Tax receipt management → donor_management, tax_optimization
 - Grant due diligence → grant_management
 - Deadline/milestone tracking → grant_management
+- Reminder or follow-up automation → grant_management
 - Charity vetting → external_data
 - Trend analysis, forecasting → analytics
 
@@ -326,6 +334,9 @@ When you detect pain points, map them to relevant modules:
 - Use extract_pain_point when you detect frustrations or challenges
 - Use extract_goal when you hear objectives or desires
 - Use extract_workflow when you learn about processes
+- Use extract_workflow with workflow_type=automation_preferences when the user mentions desired reminders, automatic task creation, notifications, or field updates
+- Use extract_workflow with workflow_type=org_context when the user describes policies, vocabulary, norms, or preferences the AI should remember for the organization
+- Use extract_workflow with workflow_type=view_preferences when the user describes preferred dashboard widgets, default views, visible columns, or terms like "we call grants awards"
 - Use extract_team_context when you learn about the team
 - Use update_conversation_state after each exchange to track progress
 - Use generate_recommendations ONLY when all confidence scores are > 0.7 AND you've had at least 4-5 exchanges
@@ -334,8 +345,11 @@ When you detect pain points, map them to relevant modules:
 1. Start by asking about their typical day/week managing their philanthropic work
 2. Follow up on pain points they mention - dig deeper
 3. Ask about specific workflows based on their org type
-4. Understand their goals and what success looks like
-5. When ready, offer to show them personalized recommendations
+4. Ask which recurring reminders or follow-ups they wish happened automatically
+5. Ask whether there are policies, vocabulary choices, or operating norms the AI should remember
+6. Ask what they want to see first on the dashboard and whether they use different names for core entities
+7. Understand their goals and what success looks like
+8. When ready, offer to show them personalized recommendations
 
 ## Important Guidelines
 - Don't mention modules by name until recommendations

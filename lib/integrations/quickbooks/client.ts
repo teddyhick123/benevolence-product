@@ -98,6 +98,7 @@ interface QBClientInstance {
     entry: QBJournalEntry,
     callback: QBCallback<unknown>
   ): void;
+  query(query: string, callback: QBCallback<any>): void;
 }
 
 const QuickBooks = require('node-quickbooks') as new (
@@ -311,5 +312,21 @@ export function createJournalEntryAsync(
       if (err) return reject(err);
       resolve(result);
     });
+  });
+}
+
+export function findJournalEntryByDocNumberAsync(
+  client: QBClientInstance,
+  docNumber: string
+): Promise<any | null> {
+  const escapedDocNumber = docNumber.replace(/'/g, "\\'");
+  return new Promise((resolve, reject) => {
+    client.query(
+      `select * from JournalEntry where DocNumber = '${escapedDocNumber}' maxresults 1`,
+      (err, result) => {
+        if (err) return reject(err);
+        resolve(result?.QueryResponse?.JournalEntry?.[0] ?? null);
+      }
+    );
   });
 }

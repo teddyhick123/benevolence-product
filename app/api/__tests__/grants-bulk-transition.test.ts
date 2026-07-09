@@ -16,8 +16,7 @@ const USER_ID  = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
 let _authUser: { id: string } | null = { id: USER_ID };
 let _orgRole: string | null = 'admin';
 
-// Preflight: grants returned by the .eq('org_id').in('id') query
-let _prefetchData: Array<{
+type MockGrantRow = {
   id: string;
   lifecycle_stage: string;
   org_id: string;
@@ -30,16 +29,33 @@ let _prefetchData: Array<{
   risk_level: string | null;
   deliverables: string | null;
   reporting_frequency: string | null;
-}> | null = [
-  { id: GRANT_A, lifecycle_stage: 'draft', org_id: ORG_ID, purpose: null, internal_owner_id: null, requested_amount: null, approved_amount: null, grant_period_start: null, grant_period_end: null, risk_level: null, deliverables: null, reporting_frequency: null },
+};
+
+function makeGrantRow(overrides: Partial<MockGrantRow> & Pick<MockGrantRow, 'id'>): MockGrantRow {
+  return {
+    lifecycle_stage: 'draft',
+    org_id: ORG_ID,
+    purpose: null,
+    internal_owner_id: null,
+    requested_amount: null,
+    approved_amount: null,
+    grant_period_start: null,
+    grant_period_end: null,
+    risk_level: null,
+    deliverables: null,
+    reporting_frequency: null,
+    ...overrides,
+  };
+}
+
+// Preflight: grants returned by the .eq('org_id').in('id') query
+let _prefetchData: MockGrantRow[] | null = [
+  makeGrantRow({ id: GRANT_A }),
 ];
 let _prefetchError: { message: string } | null = null;
 
 // transitionGrant internals: single-row fetch by grantId
-let _grantFetchData: { lifecycle_stage: string; org_id: string } | null = {
-  lifecycle_stage: 'draft',
-  org_id: ORG_ID,
-};
+let _grantFetchData: Omit<MockGrantRow, 'id'> | null = makeGrantRow({ id: GRANT_A });
 let _grantFetchError: { message: string } | null = null;
 let _transitionRpcError: { message: string } | null = null;
 let _batchRpcError: { message: string } | null = null;
@@ -147,9 +163,9 @@ function makeParams(orgId = ORG_ID) {
 beforeEach(() => {
   _authUser = { id: USER_ID };
   _orgRole = 'admin';
-  _prefetchData = [{ id: GRANT_A, lifecycle_stage: 'draft', org_id: ORG_ID, purpose: null, internal_owner_id: null, requested_amount: null, approved_amount: null, grant_period_start: null, grant_period_end: null, risk_level: null, deliverables: null, reporting_frequency: null }];
+  _prefetchData = [makeGrantRow({ id: GRANT_A })];
   _prefetchError = null;
-  _grantFetchData = { lifecycle_stage: 'draft', org_id: ORG_ID };
+  _grantFetchData = makeGrantRow({ id: GRANT_A });
   _grantFetchError = null;
   _transitionRpcError = null;
   _batchRpcError = null;
@@ -260,7 +276,7 @@ describe('POST bulk-transition — per-grant failures (207)', () => {
   });
 
   it('marks grant as failed when expectedFromStage is stale', async () => {
-    _prefetchData = [{ id: GRANT_A, lifecycle_stage: 'prospect', org_id: ORG_ID }]; // already at prospect
+    _prefetchData = [makeGrantRow({ id: GRANT_A, lifecycle_stage: 'prospect' })]; // already at prospect
     const res = await POST(makeRequest({ transitions: [{ grantId: GRANT_A, expectedFromStage: 'draft', targetStage: 'prospect' }] }), makeParams());
     expect(res.status).toBe(207);
     const body = await res.json();
@@ -269,7 +285,7 @@ describe('POST bulk-transition — per-grant failures (207)', () => {
   });
 
   it('marks grant as failed for invalid transition', async () => {
-    _prefetchData = [{ id: GRANT_A, lifecycle_stage: 'closed', org_id: ORG_ID }];
+    _prefetchData = [makeGrantRow({ id: GRANT_A, lifecycle_stage: 'closed' })];
     const res = await POST(makeRequest({ transitions: [{ grantId: GRANT_A, expectedFromStage: 'closed', targetStage: 'active' }] }), makeParams());
     expect(res.status).toBe(207);
     const body = await res.json();
@@ -277,8 +293,8 @@ describe('POST bulk-transition — per-grant failures (207)', () => {
   });
 
   it('marks grant as failed when decision required but not supplied', async () => {
-    _prefetchData = [{ id: GRANT_A, lifecycle_stage: 'recommended', org_id: ORG_ID }];
-    _grantFetchData = { lifecycle_stage: 'recommended', org_id: ORG_ID };
+    _prefetchData = [makeGrantRow({ id: GRANT_A, lifecycle_stage: 'recommended' })];
+    _grantFetchData = makeGrantRow({ id: GRANT_A, lifecycle_stage: 'recommended' });
     const res = await POST(makeRequest({ transitions: [{ grantId: GRANT_A, expectedFromStage: 'recommended', targetStage: 'approved' }] }), makeParams());
     expect(res.status).toBe(207);
     const body = await res.json();
@@ -301,8 +317,8 @@ describe('POST bulk-transition — success paths (207)', () => {
   });
 
   it('defaults decision_date when not supplied and decision is provided', async () => {
-    _prefetchData = [{ id: GRANT_A, lifecycle_stage: 'recommended', org_id: ORG_ID }];
-    _grantFetchData = { lifecycle_stage: 'recommended', org_id: ORG_ID };
+    _prefetchData = [makeGrantRow({ id: GRANT_A, lifecycle_stage: 'recommended' })];
+    _grantFetchData = makeGrantRow({ id: GRANT_A, lifecycle_stage: 'recommended' });
 
     const res = await POST(makeRequest({
       transitions: [{
@@ -336,10 +352,10 @@ describe('POST bulk-transition — success paths (207)', () => {
 
   it('returns mixed results for a batch with one success and one stale grant', async () => {
     _prefetchData = [
-      { id: GRANT_A, lifecycle_stage: 'draft', org_id: ORG_ID },
-      { id: GRANT_B, lifecycle_stage: 'prospect', org_id: ORG_ID }, // stale — client sends 'draft'
+      makeGrantRow({ id: GRANT_A }),
+      makeGrantRow({ id: GRANT_B, lifecycle_stage: 'prospect' }), // stale — client sends 'draft'
     ];
-    _grantFetchData = { lifecycle_stage: 'draft', org_id: ORG_ID };
+    _grantFetchData = makeGrantRow({ id: GRANT_A });
 
     const res = await POST(makeRequest({
       transitions: [
@@ -425,7 +441,7 @@ describe('POST bulk-transition — safety modes', () => {
   });
 
   it('dry_run returns validation failures without writes', async () => {
-    _prefetchData = [{ id: GRANT_A, lifecycle_stage: 'prospect', org_id: ORG_ID }];
+    _prefetchData = [makeGrantRow({ id: GRANT_A, lifecycle_stage: 'prospect' })];
     const res = await POST(makeRequest({
       dry_run: true,
       transitions: [{ grantId: GRANT_A, expectedFromStage: 'draft', targetStage: 'prospect' }],
@@ -441,8 +457,8 @@ describe('POST bulk-transition — safety modes', () => {
 
   it('rollback_on_error blocks the whole batch when preflight has failures', async () => {
     _prefetchData = [
-      { id: GRANT_A, lifecycle_stage: 'draft', org_id: ORG_ID },
-      { id: GRANT_B, lifecycle_stage: 'prospect', org_id: ORG_ID },
+      makeGrantRow({ id: GRANT_A }),
+      makeGrantRow({ id: GRANT_B, lifecycle_stage: 'prospect' }),
     ];
 
     const res = await POST(makeRequest({
@@ -519,8 +535,8 @@ describe('POST bulk-transition — workflow gate', () => {
   it('preflight rejects gate-blocked grants (rollback_on_error=false)', async () => {
     // Both grants exist with valid transitions from due_diligence → recommended
     _prefetchData = [
-      { id: GRANT_1, lifecycle_stage: 'due_diligence', org_id: ORG_ID, purpose: null, internal_owner_id: null, requested_amount: null, approved_amount: null, grant_period_start: null, grant_period_end: null, risk_level: null, deliverables: null, reporting_frequency: null },
-      { id: GRANT_2, lifecycle_stage: 'due_diligence', org_id: ORG_ID, purpose: null, internal_owner_id: null, requested_amount: null, approved_amount: null, grant_period_start: null, grant_period_end: null, risk_level: null, deliverables: null, reporting_frequency: null },
+      makeGrantRow({ id: GRANT_1, lifecycle_stage: 'due_diligence' }),
+      makeGrantRow({ id: GRANT_2, lifecycle_stage: 'due_diligence' }),
     ];
     // A required checklist item exists for due_diligence → both blocked
     _workflowConfigRows = [{
@@ -551,7 +567,7 @@ describe('POST bulk-transition — workflow gate', () => {
 
   it('preflight blocks rollback_on_error execution when gate fails', async () => {
     _prefetchData = [
-      { id: GRANT_1, lifecycle_stage: 'due_diligence', org_id: ORG_ID, purpose: null, internal_owner_id: null, requested_amount: null, approved_amount: null, grant_period_start: null, grant_period_end: null, risk_level: null, deliverables: null, reporting_frequency: null },
+      makeGrantRow({ id: GRANT_1, lifecycle_stage: 'due_diligence' }),
     ];
     _workflowConfigRows = [{
       id: 'cfg-1',

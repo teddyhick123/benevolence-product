@@ -26,6 +26,18 @@ interface Attachment {
   uploaded_at: string;
 }
 
+const NO_STORE = { 'Cache-Control': 'no-store' } as const;
+
+function json(body: unknown, init?: ResponseInit) {
+  return NextResponse.json(body, {
+    ...init,
+    headers: {
+      ...NO_STORE,
+      ...(init?.headers ?? {}),
+    },
+  });
+}
+
 async function getAuthAndAdmin(orgId: string) {
   const supabase = await createServerClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -40,8 +52,8 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
   try {
     const { orgId, filingId } = await params;
     const { user, isAdmin } = await getAuthAndAdmin(orgId);
-    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    if (!isAdmin) return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
+    if (!user) return json({ error: 'Unauthorized' }, { status: 401 });
+    if (!isAdmin) return json({ error: 'Admin access required' }, { status: 403 });
 
     const db = createAdminClient();
     const { data: filing, error } = await db
@@ -52,12 +64,12 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       .single();
 
     if (error || !filing) {
-      return NextResponse.json({ error: 'Filing not found' }, { status: 404 });
+      return json({ error: 'Filing not found' }, { status: 404 });
     }
 
     const attachments: Attachment[] = filing.attachments ?? [];
     if (attachments.length === 0) {
-      return NextResponse.json({ data: [] });
+      return json({ data: [] });
     }
 
     const withUrls = await Promise.all(
@@ -69,9 +81,9 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       })
     );
 
-    return NextResponse.json({ data: withUrls });
+    return json({ data: withUrls });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return json({ error: err.message }, { status: 500 });
   }
 }
 
@@ -81,20 +93,20 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
   try {
     const { orgId, filingId } = await params;
     const { user, isAdmin } = await getAuthAndAdmin(orgId);
-    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    if (!isAdmin) return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
+    if (!user) return json({ error: 'Unauthorized' }, { status: 401 });
+    if (!isAdmin) return json({ error: 'Admin access required' }, { status: 403 });
 
     const formData = await req.formData();
     const file = formData.get('file') as File | null;
-    if (!file) return NextResponse.json({ error: 'file is required' }, { status: 400 });
+    if (!file) return json({ error: 'file is required' }, { status: 400 });
 
     const MAX_BYTES = 20 * 1024 * 1024;
     if (file.size > MAX_BYTES) {
-      return NextResponse.json({ error: 'File exceeds 20 MB limit' }, { status: 413 });
+      return json({ error: 'File exceeds 20 MB limit' }, { status: 413 });
     }
 
     if (!ALLOWED_MIME_TYPES.has(file.type)) {
-      return NextResponse.json(
+      return json(
         { error: 'File type not allowed. Accepted: PDF, images, Word, Excel.' },
         { status: 415 }
       );
@@ -110,7 +122,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       .single();
 
     if (fetchError || !filing) {
-      return NextResponse.json({ error: 'Filing not found' }, { status: 404 });
+      return json({ error: 'Filing not found' }, { status: 404 });
     }
 
     const safeFileName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
@@ -122,7 +134,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       .upload(path, bytes, { contentType: file.type, upsert: false });
 
     if (uploadError) {
-      return NextResponse.json({ error: uploadError.message }, { status: 500 });
+      return json({ error: uploadError.message }, { status: 500 });
     }
 
     const attachment: Attachment = {
@@ -142,19 +154,19 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     if (updateError) {
       // Clean up the orphaned storage object before returning the error
       await db.storage.from('compliance-documents').remove([path]);
-      return NextResponse.json({ error: updateError.message }, { status: 500 });
+      return json({ error: updateError.message }, { status: 500 });
     }
 
     const { data: signed } = await db.storage
       .from('compliance-documents')
       .createSignedUrl(path, 3600);
 
-    return NextResponse.json(
+    return json(
       { data: { ...attachment, signed_url: signed?.signedUrl ?? null } },
       { status: 201 }
     );
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return json({ error: err.message }, { status: 500 });
   }
 }
 
@@ -164,12 +176,12 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
   try {
     const { orgId, filingId } = await params;
     const { user, isAdmin } = await getAuthAndAdmin(orgId);
-    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    if (!isAdmin) return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
+    if (!user) return json({ error: 'Unauthorized' }, { status: 401 });
+    if (!isAdmin) return json({ error: 'Admin access required' }, { status: 403 });
 
     const body = await req.json().catch(() => ({}));
     const { path } = body;
-    if (!path) return NextResponse.json({ error: 'path is required' }, { status: 400 });
+    if (!path) return json({ error: 'path is required' }, { status: 400 });
 
     const db = createAdminClient();
 
@@ -181,14 +193,14 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
       .single();
 
     if (fetchError || !filing) {
-      return NextResponse.json({ error: 'Filing not found' }, { status: 404 });
+      return json({ error: 'Filing not found' }, { status: 404 });
     }
 
     const currentAttachments: Attachment[] = filing.attachments ?? [];
     const filtered = currentAttachments.filter(a => a.path !== path);
 
     if (filtered.length === currentAttachments.length) {
-      return NextResponse.json({ error: 'Attachment not found' }, { status: 404 });
+      return json({ error: 'Attachment not found' }, { status: 404 });
     }
 
     const { error: removeError } = await db.storage.from('compliance-documents').remove([path]);
@@ -204,11 +216,11 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
       .eq('org_id', orgId);
 
     if (updateError) {
-      return NextResponse.json({ error: updateError.message }, { status: 500 });
+      return json({ error: updateError.message }, { status: 500 });
     }
 
-    return NextResponse.json({ ok: true });
+    return json({ ok: true });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return json({ error: err.message }, { status: 500 });
   }
 }

@@ -4,6 +4,16 @@ import { updateTransactionSchema } from '@/lib/schemas/investment';
 
 const getSupabase = createSupabaseServerClient;
 
+function json(body: Record<string, unknown>, init?: ResponseInit) {
+  return NextResponse.json(body, {
+    ...init,
+    headers: {
+      ...init?.headers,
+      'Cache-Control': 'no-store',
+    },
+  });
+}
+
 /**
  * PATCH /api/portfolio/[id]/holdings/[holdingId]/transactions/[transactionId]
  * Update an existing transaction
@@ -21,13 +31,12 @@ export async function PATCH(
     const validated = updateTransactionSchema.parse(body);
 
     // Verify holding belongs to portfolio and user can edit
-    const { data: canEdit } = await supabase.rpc('can_edit_portfolio', {
+    const { data: canEdit, error: canEditErr } = await supabase.rpc('can_edit_portfolio', {
       p_portfolio_id: portfolioId,
-      p_user_id: (await supabase.auth.getUser()).data.user?.id,
     });
 
-    if (!canEdit) {
-      return NextResponse.json(
+    if (canEditErr || !canEdit) {
+      return json(
         { error: 'Permission denied: cannot edit this portfolio' },
         { status: 403 }
       );
@@ -42,7 +51,7 @@ export async function PATCH(
       .single();
 
     if (fetchError || !existingTransaction) {
-      return NextResponse.json(
+      return json(
         { error: 'Transaction not found' },
         { status: 404 }
       );
@@ -53,7 +62,8 @@ export async function PATCH(
     if (validated.transaction_date !== undefined) updateData.transaction_date = validated.transaction_date;
     if (validated.transaction_type !== undefined) updateData.transaction_type = validated.transaction_type;
     if (validated.amount !== undefined) updateData.amount = validated.amount;
-    if (validated.memo !== undefined) updateData.memo = validated.memo;
+    if (validated.currency !== undefined) updateData.currency = validated.currency;
+    if (validated.notes !== undefined || validated.memo !== undefined) updateData.notes = validated.notes ?? validated.memo;
     updateData.updated_at = new Date().toISOString();
 
     const { data: transaction, error } = await supabase
@@ -66,25 +76,25 @@ export async function PATCH(
     if (error) {
       // Handle unique constraint violation
       if (error.code === '23505') {
-        return NextResponse.json(
+        return json(
           { error: 'Transaction already exists with same date, type, and amount' },
           { status: 409 }
         );
       }
       console.error('Error updating transaction:', error);
-      return NextResponse.json({ error: 'Failed to update transaction' }, { status: 500 });
+      return json({ error: 'Failed to update transaction' }, { status: 500 });
     }
 
-    return NextResponse.json({ data: transaction });
+    return json({ data: transaction });
   } catch (error: any) {
     if (error?.name === 'ZodError') {
-      return NextResponse.json(
+      return json(
         { error: 'Validation error', details: error.errors },
         { status: 400 }
       );
     }
     console.error('Unexpected error in PATCH transaction:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return json({ error: 'Internal server error' }, { status: 500 });
   }
 }
 
@@ -101,13 +111,12 @@ export async function DELETE(
     const supabase = await getSupabase();
 
     // Verify holding belongs to portfolio and user can edit
-    const { data: canEdit } = await supabase.rpc('can_edit_portfolio', {
+    const { data: canEdit, error: canEditErr } = await supabase.rpc('can_edit_portfolio', {
       p_portfolio_id: portfolioId,
-      p_user_id: (await supabase.auth.getUser()).data.user?.id,
     });
 
-    if (!canEdit) {
-      return NextResponse.json(
+    if (canEditErr || !canEdit) {
+      return json(
         { error: 'Permission denied: cannot edit this portfolio' },
         { status: 403 }
       );
@@ -122,7 +131,7 @@ export async function DELETE(
       .single();
 
     if (fetchError || !existingTransaction) {
-      return NextResponse.json(
+      return json(
         { error: 'Transaction not found' },
         { status: 404 }
       );
@@ -136,12 +145,12 @@ export async function DELETE(
 
     if (error) {
       console.error('Error deleting transaction:', error);
-      return NextResponse.json({ error: 'Failed to delete transaction' }, { status: 500 });
+      return json({ error: 'Failed to delete transaction' }, { status: 500 });
     }
 
-    return NextResponse.json({ success: true, message: 'Transaction deleted' });
+    return json({ success: true, message: 'Transaction deleted' });
   } catch (error) {
     console.error('Unexpected error in DELETE transaction:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return json({ error: 'Internal server error' }, { status: 500 });
   }
 }

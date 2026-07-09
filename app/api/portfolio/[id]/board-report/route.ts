@@ -6,6 +6,16 @@ import { createServerClient } from '@/lib/supabase';
 import type { BoardReportData } from '@/lib/pdf/board-report-generator';
 import { requirePortfolioAccess, isAccessDenied } from '@/lib/portfolio-auth';
 
+function json(body: Record<string, unknown>, init?: ResponseInit) {
+  return NextResponse.json(body, {
+    ...init,
+    headers: {
+      ...init?.headers,
+      'Cache-Control': 'no-store',
+    },
+  });
+}
+
 export async function GET(
   req: Request,
   ctx: { params: Promise<{ id: string }> }
@@ -14,7 +24,7 @@ export async function GET(
   const authClient = await createServerClient();
   const { data: { user } } = await authClient.auth.getUser();
   if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    return json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   const { id: portfolioId } = await ctx.params;
@@ -23,9 +33,42 @@ export async function GET(
   const url = new URL(req.url);
   const asOf = url.searchParams.get('as_of') ?? new Date().toISOString().slice(0, 10);
   const taxYear = Number(url.searchParams.get('year') ?? new Date().getFullYear());
+  const templateId = url.searchParams.get('template_id');
+  const useDefaultTemplate =
+    url.searchParams.get('template') === 'default' ||
+    url.searchParams.get('use_default_template') === 'true';
 
   // Use the authed client so RLS enforces portfolio ownership
   const sb = authClient;
+
+  let templateConfig: Record<string, unknown> | null = null;
+  let templateName: string | null = null;
+  if (templateId || useDefaultTemplate) {
+    let templateQuery = sb
+      .from('report_templates')
+      .select('id, name, config')
+      .eq('portfolio_id', portfolioId)
+      .eq('scope', 'portfolio');
+
+    templateQuery = templateId
+      ? templateQuery.eq('id', templateId)
+      : templateQuery.eq('is_default', true);
+
+    const { data: template, error: templateError } = await templateQuery
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (templateError) {
+      return json({ error: templateError.message }, { status: 500 });
+    }
+    if (!template) {
+      return json({ error: 'Report template not found' }, { status: 404 });
+    }
+
+    templateConfig = (template.config as Record<string, unknown>) ?? {};
+    templateName = template.name;
+  }
 
   const [
     { data: portfolio },
@@ -48,7 +91,7 @@ export async function GET(
   ]);
 
   if (!portfolio) {
-    return NextResponse.json({ error: 'Portfolio not found or access denied' }, { status: 403 });
+    return json({ error: 'Portfolio not found or access denied' }, { status: 403 });
   }
 
   const holdingsList = holdings ?? [];
@@ -96,8 +139,12 @@ export async function GET(
 
   const reportData: BoardReportData = {
     portfolioName: portfolio.name,
+    title: templateName ?? undefined,
     reportDate: new Date().toISOString(),
     asOfDate: asOf,
+    sections: Array.isArray(templateConfig?.sections)
+      ? templateConfig.sections.filter((section): section is string => typeof section === 'string')
+      : undefined,
     totalPortfolioValue,
     holdingsCount: holdingsList.length,
     holdingsByAssetClass,
@@ -120,6 +167,7 @@ export async function GET(
     headers: {
       'Content-Type': 'application/pdf',
       'Content-Disposition': `attachment; filename="board-report-${asOf}.pdf"`,
+      'Cache-Control': 'no-store',
     },
   });
 }

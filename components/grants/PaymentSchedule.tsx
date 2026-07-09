@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase-browser';
 import { grantStatusBadgeClass } from './grantPalette';
+import { useEntityVocabulary } from '@/lib/hooks/use-entity-vocabulary';
 
 type Payment = {
   id: string;
@@ -23,9 +24,12 @@ type Payment = {
 
 interface Props {
   portfolioId: string;
+  orgId?: string | null;
 }
 
-export default function PaymentSchedule({ portfolioId }: Props) {
+export default function PaymentSchedule({ portfolioId, orgId }: Props) {
+  const vocabulary = useEntityVocabulary(orgId);
+  const grantLabel = vocabulary.grant.singular;
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [payments, setPayments] = useState<Payment[]>([]);
@@ -70,7 +74,7 @@ export default function PaymentSchedule({ portfolioId }: Props) {
 
       const processedPayments = (paymentsData || []).map((p: any) => ({
         ...p,
-        grant_name: p.grants?.holdings?.name || 'Unknown Grant',
+        grant_name: p.grants?.holdings?.name || `Unknown ${grantLabel}`,
         holding_id: p.grants?.holding_id,
       }));
 
@@ -94,11 +98,13 @@ export default function PaymentSchedule({ portfolioId }: Props) {
         .in('asset_type', ['foundation_grant', 'daf_grant', 'pri', 'mri'])
         .order('name');
 
-      setHoldings((holdingsData || []).map((h: any) => ({
-        id: h.id,
-        name: h.name,
-        grant_id: h.grants?.[0]?.id,
-      })));
+      setHoldings((holdingsData || [])
+        .map((h: any) => ({
+          id: h.id,
+          name: h.name,
+          grant_id: h.grants?.[0]?.id,
+        }))
+        .filter((h: { grant_id?: string }) => Boolean(h.grant_id)));
     } catch (err: any) {
       setFetchError(err?.message ?? 'Failed to load payment data.');
     } finally {
@@ -143,25 +149,10 @@ export default function PaymentSchedule({ portfolioId }: Props) {
     try {
       const supabase = createClient();
       const holding = holdings.find(h => h.id === newPayment.holdingId);
-
-      // Get or create grant record
-      let grantId = holding?.grant_id;
+      const grantId = holding?.grant_id;
       if (!grantId) {
-        const { data: holdingRow } = await supabase
-          .from('holdings')
-          .select('org_id, portfolio_id')
-          .eq('id', newPayment.holdingId)
-          .single();
-        const { data: newGrant } = await supabase
-          .from('grants')
-          .insert({
-            holding_id: newPayment.holdingId,
-            org_id: holdingRow?.org_id,
-            portfolio_id: holdingRow?.portfolio_id ?? portfolioId,
-          })
-          .select('id')
-          .single();
-        grantId = newGrant?.id;
+        alert('Create the grant through the grant workflow before scheduling payments.');
+        return;
       }
 
       // Get next payment number
@@ -294,13 +285,13 @@ export default function PaymentSchedule({ portfolioId }: Props) {
             <h3 className="text-lg font-semibold text-ink mb-4">Schedule Payment</h3>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-neutral-700 mb-1">Grant *</label>
+                <label className="block text-sm font-medium text-neutral-700 mb-1">{grantLabel} *</label>
                 <select
                   value={newPayment.holdingId}
                   onChange={(e) => setNewPayment({ ...newPayment, holdingId: e.target.value })}
                   className="w-full px-3 py-2 border border-black/10 rounded-2xl focus:ring-azure/30 focus:border-azure"
                 >
-                  <option value="">Select a grant...</option>
+                  <option value="">Select a {grantLabel.toLowerCase()}...</option>
                   {holdings.map((h) => (
                     <option key={h.id} value={h.id}>{h.name}</option>
                   ))}
@@ -382,7 +373,7 @@ export default function PaymentSchedule({ portfolioId }: Props) {
           <table className="min-w-full divide-y divide-black/5">
             <thead className="bg-neutral-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Grant</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">{grantLabel}</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Payment #</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Amount</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Scheduled</th>

@@ -108,7 +108,7 @@ CREATE TABLE IF NOT EXISTS contributions_received (
   donor_id            uuid NOT NULL REFERENCES donors(id) ON DELETE CASCADE,
 
   contribution_date   date NOT NULL,
-  amount              numeric(20,2) NOT NULL,
+  amount              numeric(20,2) NOT NULL CHECK (amount > 0),
   currency            text NOT NULL DEFAULT 'USD',
   gift_type           text NOT NULL DEFAULT 'cash',
   -- 'cash', 'check', 'credit_card', 'securities', 'daf_grant', 'in_kind', 'pledge', 'bequest'

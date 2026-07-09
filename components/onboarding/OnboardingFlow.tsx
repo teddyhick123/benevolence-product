@@ -9,6 +9,11 @@ import OnboardingComplete from './OnboardingComplete';
 
 type OnboardingStep = 'intake' | 'conversation' | 'recommendations' | 'complete';
 
+function isInterruptedFetch(error: unknown) {
+  if (error instanceof DOMException && error.name === 'AbortError') return true;
+  return error instanceof TypeError && error.message === 'Failed to fetch';
+}
+
 interface Session {
   id: string;
   status: OnboardingStep;
@@ -72,8 +77,8 @@ export default function OnboardingFlow({ initialSession }: OnboardingFlowProps) 
         }
       }
     } catch (err) {
-      if (signal?.aborted) return;
-      console.error('Error loading session:', err);
+      if (signal?.aborted || isInterruptedFetch(err)) return;
+      console.warn('Error loading session:', err);
     } finally {
       if (!signal?.aborted) setIsLoading(false);
     }

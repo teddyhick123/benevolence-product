@@ -31,6 +31,9 @@ export const MODULE_REGISTRY: Record<ModuleId, ModuleDefinition> = {
       'update_holding',
       'remove_holding',
       'get_holding_details',
+      'get_custom_fields',
+      'search_custom_field_values',
+      'suggest_context_entry',
     ],
     tables: [
       'portfolios',
@@ -198,6 +201,8 @@ Tax limits:
       'log_grant_communication',
       'get_grant_health',
       'record_grant_payment',
+      'get_custom_fields',
+      'search_custom_field_values',
     ],
     tables: [
       'grants',
@@ -259,6 +264,8 @@ Payment tracking includes scheduled, approved, and completed disbursements.
       'generate_acknowledgment',
       'get_donor_summary',
       'search_donors',
+      'get_custom_fields',
+      'search_custom_field_values',
     ],
     tables: [
       'donors',

@@ -7,9 +7,10 @@ export type WaterfallChartConfigProps = {
   onSave: (config: { title: string; config: any }) => void;
   onCancel: () => void;
   portfolioId?: string;
+  onPreviewChange?: (config: { title: string; config: any }) => void;
 };
 
-export default function WaterfallChartConfig({ initialConfig, onSave, onCancel, portfolioId }: WaterfallChartConfigProps) {
+export default function WaterfallChartConfig({ initialConfig, onSave, onCancel, portfolioId, onPreviewChange }: WaterfallChartConfigProps) {
   const [title, setTitle] = React.useState(initialConfig?.title || '');
   const [mode, setMode] = React.useState<'funding' | 'impact' | 'metric'>(initialConfig?.config?.mode || 'funding');
   const [metricCode, setMetricCode] = React.useState(initialConfig?.config?.metricCode || '');
@@ -39,6 +40,27 @@ export default function WaterfallChartConfig({ initialConfig, onSave, onCancel, 
       }
     })();
   }, [portfolioId]);
+
+  React.useEffect(() => {
+    const config: any = {
+      mode,
+      increaseColor,
+      decreaseColor,
+      totalColor,
+      showLabels,
+      showConnectors,
+      minItems
+    };
+
+    if (mode === 'metric') {
+      config.metricCode = metricCode;
+    }
+
+    onPreviewChange?.({
+      title: title || (mode === 'funding' ? 'Fund Allocation' : mode === 'impact' ? 'Impact Accumulation' : 'Metric Accumulation'),
+      config
+    });
+  }, [decreaseColor, increaseColor, metricCode, minItems, mode, onPreviewChange, showConnectors, showLabels, title, totalColor]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

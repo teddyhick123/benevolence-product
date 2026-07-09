@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase-browser';
 import RiskAlerts from './RiskAlerts';
 import GrantExportButton from './GrantExportButton';
+import { useEntityVocabulary } from '@/lib/hooks/use-entity-vocabulary';
 
 type GrantHealth = {
   holding_id: string;
@@ -41,9 +42,13 @@ type Deadline = {
 
 interface Props {
   portfolioId: string;
+  orgId?: string | null;
 }
 
-export default function GrantHealthDashboard({ portfolioId }: Props) {
+export default function GrantHealthDashboard({ portfolioId, orgId }: Props) {
+  const vocabulary = useEntityVocabulary(orgId);
+  const grantLabel = vocabulary.grant.singular;
+  const grantPlural = vocabulary.grant.plural.toLowerCase();
   const [loading, setLoading] = useState(true);
   const [grants, setGrants] = useState<GrantHealth[]>([]);
   const [deadlines, setDeadlines] = useState<Deadline[]>([]);
@@ -239,7 +244,7 @@ export default function GrantHealthDashboard({ portfolioId }: Props) {
               <svg className="mx-auto h-12 w-12 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
               </svg>
-              <p className="mt-2">No grants found in this portfolio.</p>
+              <p className="mt-2">No {grantPlural} found in this portfolio.</p>
               <p className="text-sm">Start by adding grants to your holdings.</p>
             </div>
           ) : (
@@ -247,7 +252,7 @@ export default function GrantHealthDashboard({ portfolioId }: Props) {
               <table className="min-w-full divide-y divide-black/5">
                 <thead className="bg-neutral-50">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Grant</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">{grantLabel}</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Health</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Milestones</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Reports</th>

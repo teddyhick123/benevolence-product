@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { Suspense, useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
 const TIER_OPTIONS = [
@@ -11,7 +11,19 @@ const TIER_OPTIONS = [
   { value: 'major', label: 'Major' },
 ];
 
-export default function NewDonorPage() {
+function NewDonorLoading() {
+  return (
+    <div className="max-w-2xl mx-auto px-4 py-8">
+      <div className="animate-pulse space-y-6">
+        <div className="h-8 w-40 rounded-2xl bg-neutral-200"></div>
+        <div className="h-64 rounded-2xl bg-neutral-200"></div>
+        <div className="h-48 rounded-2xl bg-neutral-200"></div>
+      </div>
+    </div>
+  );
+}
+
+function NewDonorPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [orgId, setOrgId] = useState<string | null>(searchParams.get('org'));
@@ -295,5 +307,13 @@ export default function NewDonorPage() {
         </div>
       </form>
     </div>
+  );
+}
+
+export default function NewDonorPage() {
+  return (
+    <Suspense fallback={<NewDonorLoading />}>
+      <NewDonorPageContent />
+    </Suspense>
   );
 }

@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -38,6 +40,19 @@ function expectExecuteGrant(sql: string, signature: string, roles: string[]) {
       `${signature} should grant execute to ${role}`
     ).toMatch(new RegExp(`GRANT\\s+EXECUTE\\s+ON\\s+FUNCTION\\s+(?:public\\.)?${signature}\\s+TO\\s+[^;]*\\b${role}\\b`, 'i'));
   }
+}
+
+function expectSecurityInvokerView(sql: string, view: string) {
+  const normalized = compact(sql);
+  expect(
+    normalized,
+    `${view} should preserve base-table RLS through security_invoker`
+  ).toMatch(
+    new RegExp(
+      `CREATE\\s+OR\\s+REPLACE\\s+VIEW\\s+public\\.${view}\\s+WITH\\s*\\(\\s*security_invoker\\s*=\\s*true\\s*\\)\\s+AS`,
+      'i'
+    )
+  );
 }
 
 describe('canonical migration privilege contracts', () => {
@@ -97,6 +112,7 @@ describe('canonical migration privilege contracts', () => {
 
     for (const view of ['v_grants', 'v_portfolio_grant_summary', 'v_grant_health', 'v_er_grant_compliance']) {
       expectGrant(sql, view, 'SELECT', ['authenticated', 'service_role']);
+      expectSecurityInvokerView(sql, view);
     }
   });
 });

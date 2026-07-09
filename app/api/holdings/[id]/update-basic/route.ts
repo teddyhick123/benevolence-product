@@ -15,34 +15,43 @@ function numOrNull(v: FormDataEntryValue | null) {
   return Number.isFinite(n) ? n : null;
 }
 
+function json(body: Record<string, unknown>, init?: ResponseInit) {
+  return NextResponse.json(body, {
+    ...init,
+    headers: {
+      ...init?.headers,
+      'Cache-Control': 'no-store',
+    },
+  });
+}
+
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id: holdingId } = await ctx.params;
   const supabase = await createServerClient();
 
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    return json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const { data: holding } = await supabase
+  const { data: holding, error: holdingError } = await supabase
     .from('holdings')
     .select('id, portfolio_id')
     .eq('id', holdingId)
     .single();
 
-  if (!holding) {
-    return NextResponse.json({ error: 'Holding not found' }, { status: 404 });
+  if (holdingError || !holding) {
+    return json({ error: 'Holding not found' }, { status: 404 });
   }
 
-  const { data: membership } = await supabase
-    .from('portfolio_members')
-    .select('role')
-    .eq('portfolio_id', holding.portfolio_id)
-    .eq('user_id', user.id)
-    .maybeSingle();
+  // can_edit_portfolio verifies this portfolio_id against the current user.
+  const { data: canEdit, error: canEditErr } = await supabase.rpc('can_edit_portfolio', {
+    p_portfolio_id: holding.portfolio_id,
+  });
+  if (canEditErr) return json({ error: canEditErr.message }, { status: 500 });
 
-  if (!membership) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  if (!canEdit) {
+    return json({ error: 'Forbidden' }, { status: 403 });
   }
 
   const formData = await req.formData();
@@ -74,6 +83,10 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     : undefined;
   if (funds_allocated !== undefined) updates.funds_allocated = funds_allocated;
 
+  if (Object.keys(updates).length === 0) {
+    return json({ error: 'No valid fields to update' }, { status: 400 });
+  }
+
   const { error, data } = await supabase
     .from('holdings')
     .update(updates)
@@ -81,11 +94,11 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     .select();
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return json({ error: error.message }, { status: 500 });
   }
 
   revalidatePath(`/dashboard/holdings/${holdingId}`);
   revalidatePath(`/dashboard`);
 
-  return NextResponse.json({ success: true, data });
+  return json({ success: true, data });
 }

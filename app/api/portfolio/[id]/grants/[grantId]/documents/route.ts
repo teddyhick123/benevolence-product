@@ -16,6 +16,32 @@ const MAX_SIZE_BYTES = 10 * 1024 * 1024; // 10MB
 
 type Params = { id: string; grantId: string };
 
+function json(body: Record<string, unknown>, init?: ResponseInit) {
+  return NextResponse.json(body, {
+    ...init,
+    headers: {
+      ...init?.headers,
+      'Cache-Control': 'no-store',
+    },
+  });
+}
+
+async function requireGrantInPortfolio(
+  sb: ReturnType<typeof createAdminClient>,
+  grantId: string,
+  portfolioId: string
+) {
+  const { data, error } = await sb
+    .from('grants')
+    .select('id')
+    .eq('id', grantId)
+    .eq('portfolio_id', portfolioId)
+    .maybeSingle();
+
+  if (error) throw error;
+  return !!data;
+}
+
 /**
  * GET /api/portfolio/[id]/grants/[grantId]/documents
  * List all documents for a grant
@@ -30,7 +56,7 @@ export async function GET(
 
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     // Verify portfolio membership
@@ -42,10 +68,15 @@ export async function GET(
       .single();
 
     if (!membership) {
-      return NextResponse.json({ error: 'Access denied' }, { status: 403 });
+      return json({ error: 'Access denied' }, { status: 403 });
     }
 
     const sb = createAdminClient();
+    const grantInPortfolio = await requireGrantInPortfolio(sb, grantId, portfolioId);
+    if (!grantInPortfolio) {
+      return json({ error: 'Grant not found' }, { status: 404 });
+    }
+
     const { data, error } = await sb
       .from('grant_documents')
       .select('*')
@@ -57,17 +88,18 @@ export async function GET(
     // Generate signed URLs for each document
     const docs = await Promise.all(
       (data || []).map(async (doc) => {
-        const { data: urlData } = await sb.storage
+        const { data: urlData, error: signedUrlError } = await sb.storage
           .from('grant-documents')
           .createSignedUrl(doc.storage_path, 3600); // 1 hour
+        if (signedUrlError) throw signedUrlError;
         return { ...doc, signed_url: urlData?.signedUrl || null };
       })
     );
 
-    return NextResponse.json({ data: docs });
+    return json({ data: docs });
   } catch (err: any) {
     console.error('Error fetching grant documents:', err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return json({ error: err.message }, { status: 500 });
   }
 }
 
@@ -85,7 +117,7 @@ export async function POST(
 
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     // Require editor role or above
@@ -97,7 +129,7 @@ export async function POST(
       .single();
 
     if (!membership || !['owner', 'admin', 'editor'].includes(membership.role)) {
-      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
+      return json({ error: 'Insufficient permissions' }, { status: 403 });
     }
 
     const formData = await req.formData();
@@ -105,18 +137,18 @@ export async function POST(
     const documentType = (formData.get('document_type') as string) || 'proposal';
 
     if (!file) {
-      return NextResponse.json({ error: 'No file provided' }, { status: 400 });
+      return json({ error: 'No file provided' }, { status: 400 });
     }
 
     if (!ALLOWED_TYPES.includes(file.type)) {
-      return NextResponse.json(
+      return json(
         { error: 'File type not allowed. Accepted: PDF, DOCX, XLSX, JPEG, PNG, WebP.' },
         { status: 400 }
       );
     }
 
     if (file.size > MAX_SIZE_BYTES) {
-      return NextResponse.json(
+      return json(
         { error: 'File size must be less than 10MB.' },
         { status: 400 }
       );
@@ -128,6 +160,10 @@ export async function POST(
     const storagePath = `${portfolioId}/${grantId}/${documentType}-${timestamp}.${ext}`;
 
     const sb = createAdminClient();
+    const grantInPortfolio = await requireGrantInPortfolio(sb, grantId, portfolioId);
+    if (!grantInPortfolio) {
+      return json({ error: 'Grant not found' }, { status: 404 });
+    }
 
     // Upload to Supabase storage
     const arrayBuffer = await file.arrayBuffer();
@@ -157,14 +193,15 @@ export async function POST(
 
     if (dbError) {
       // Rollback storage upload
-      await sb.storage.from('grant-documents').remove([storagePath]);
+      const { error: removeError } = await sb.storage.from('grant-documents').remove([storagePath]);
+      if (removeError) throw removeError;
       throw dbError;
     }
 
-    return NextResponse.json({ data: doc }, { status: 201 });
+    return json({ data: doc }, { status: 201 });
   } catch (err: any) {
     console.error('Error uploading grant document:', err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return json({ error: err.message }, { status: 500 });
   }
 }
 
@@ -182,13 +219,13 @@ export async function DELETE(
     const documentId = searchParams.get('documentId');
 
     if (!documentId) {
-      return NextResponse.json({ error: 'documentId is required' }, { status: 400 });
+      return json({ error: 'documentId is required' }, { status: 400 });
     }
 
     const supabase = await createServerClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     // Require editor role or above
@@ -200,37 +237,47 @@ export async function DELETE(
       .single();
 
     if (!membership || !['owner', 'admin', 'editor'].includes(membership.role)) {
-      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
+      return json({ error: 'Insufficient permissions' }, { status: 403 });
     }
 
     const sb = createAdminClient();
-
-    // Fetch the doc to get storage path
-    const { data: doc, error: fetchError } = await sb
-      .from('grant_documents')
-      .select('storage_path')
-      .eq('id', documentId)
-      .eq('grant_id', grantId)
-      .single();
-
-    if (fetchError || !doc) {
-      return NextResponse.json({ error: 'Document not found' }, { status: 404 });
+    const grantInPortfolio = await requireGrantInPortfolio(sb, grantId, portfolioId);
+    if (!grantInPortfolio) {
+      return json({ error: 'Grant not found' }, { status: 404 });
     }
 
-    // Delete from storage
-    await sb.storage.from('grant-documents').remove([doc.storage_path]);
-
-    // Delete DB record
-    const { error: deleteError } = await sb
+    // Delete the DB row first so a storage failure cannot leave document lists
+    // pointing at a missing object.
+    const { data: deletedDoc, error: deleteError } = await sb
       .from('grant_documents')
       .delete()
-      .eq('id', documentId);
+      .eq('id', documentId)
+      .eq('grant_id', grantId)
+      .select('storage_path')
+      .single();
 
-    if (deleteError) throw deleteError;
+    if (deleteError || !deletedDoc) {
+      return json({ error: 'Document not found' }, { status: 404 });
+    }
 
-    return NextResponse.json({ success: true });
+    const { error: storageDeleteError } = await sb.storage
+      .from('grant-documents')
+      .remove([deletedDoc.storage_path]);
+    if (storageDeleteError) {
+      console.error('Grant document storage cleanup failed:', storageDeleteError);
+      return json(
+        {
+          success: true,
+          storage_cleanup_pending: true,
+          warning: 'Document record deleted, but storage cleanup failed.',
+        },
+        { status: 202 }
+      );
+    }
+
+    return json({ success: true });
   } catch (err: any) {
     console.error('Error deleting grant document:', err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return json({ error: err.message }, { status: 500 });
   }
 }

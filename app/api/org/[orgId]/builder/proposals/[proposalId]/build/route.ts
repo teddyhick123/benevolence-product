@@ -8,16 +8,26 @@ interface RouteParams {
   params: Promise<{ orgId: string; proposalId: string }>;
 }
 
+function json(body: Record<string, unknown>, init?: ResponseInit) {
+  return NextResponse.json(body, {
+    ...init,
+    headers: {
+      ...init?.headers,
+      'Cache-Control': 'no-store',
+    },
+  });
+}
+
 export async function POST(req: NextRequest, { params }: RouteParams) {
   try {
     const { orgId, proposalId } = await params;
     const supabase = await createServerClient();
 
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!user) return json({ error: 'Unauthorized' }, { status: 401 });
 
     const { data: isAdmin } = await supabase.rpc('is_org_admin', { p_org_id: orgId });
-    if (!isAdmin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    if (!isAdmin) return json({ error: 'Forbidden' }, { status: 403 });
 
     const adminSupabase = createAdminClient();
 
@@ -29,11 +39,11 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       .single();
 
     if (fetchError || !proposal) {
-      return NextResponse.json({ error: 'Proposal not found' }, { status: 404 });
+      return json({ error: 'Proposal not found' }, { status: 404 });
     }
 
     if (proposal.phase !== 'plan_ready') {
-      return NextResponse.json(
+      return json(
         { error: `Proposal must be in plan_ready phase, currently: ${proposal.phase}` },
         { status: 409 }
       );
@@ -41,9 +51,9 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
 
     const jobId = await enqueueScaffoldBuildJob({ proposalId, orgId });
 
-    return NextResponse.json({ jobId, proposalId });
+    return json({ jobId, proposalId });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';
-    return NextResponse.json({ error: message }, { status: 500 });
+    return json({ error: message }, { status: 500 });
   }
 }

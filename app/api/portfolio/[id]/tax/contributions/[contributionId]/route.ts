@@ -48,7 +48,7 @@ export async function GET(
 
   return NextResponse.json(
     { data },
-    { headers: { 'Cache-Control': 'private, s-maxage=60' } }
+    { headers: { 'Cache-Control': 'no-store' } }
   );
 }
 

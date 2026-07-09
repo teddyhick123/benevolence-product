@@ -10,6 +10,30 @@ export async function GET(
   const { id: holdingId } = await params;
   const supabase = await getSupabase();
 
+  const { data: holding, error: holdingError } = await supabase
+    .from('holdings')
+    .select('portfolio_id')
+    .eq('id', holdingId)
+    .single();
+
+  if (holdingError || !holding) {
+    return NextResponse.json(
+      { error: 'Holding not found' },
+      { status: 404, headers: { 'Cache-Control': 'no-store' } }
+    );
+  }
+
+  const { data: canView, error: canViewErr } = await supabase.rpc('can_view_portfolio', {
+    p_portfolio_id: holding.portfolio_id,
+  });
+
+  if (canViewErr || !canView) {
+    return NextResponse.json(
+      { error: 'not authorized' },
+      { status: 403, headers: { 'Cache-Control': 'no-store' } }
+    );
+  }
+
   // Fetch news articles for this holding
   const { data, error } = await supabase
     .from('news_articles')
@@ -27,6 +51,6 @@ export async function GET(
 
   return NextResponse.json(
     { data: data || [] },
-    { headers: { 'Cache-Control': 's-maxage=900, stale-while-revalidate=1800' } } // Cache 15 min
+    { headers: { 'Cache-Control': 'no-store' } }
   );
 }

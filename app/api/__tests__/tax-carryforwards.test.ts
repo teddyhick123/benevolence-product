@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 // app/api/__tests__/tax-carryforwards.test.ts
 //
 // Tests for GET and POST /api/portfolio/[id]/tax/carryforwards
@@ -5,7 +7,7 @@
 // portfolio_id mismatch guard, and cross-portfolio security.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { GET, POST } from '@/app/api/portfolio/[id]/tax/carryforwards/route';
+import { GET, POST, PATCH } from '@/app/api/portfolio/[id]/tax/carryforwards/route';
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
@@ -35,6 +37,12 @@ let _insertResult: any = {
   agi_limit_category:   '30_appreciated',
 };
 let _insertError: { message: string } | null = null;
+let _applyResult: any = {
+  applied_tax_year: 2025,
+  applications_count: 1,
+  amount_applied: 1000,
+};
+let _applyError: { message: string } | null = null;
 
 const mockRpc  = vi.fn();
 const mockFrom = vi.fn();
@@ -50,6 +58,7 @@ function setupMocks() {
   mockRpc.mockImplementation(async (fn: string) => {
     if (fn === 'can_view_portfolio') return { data: _canView, error: _canViewError };
     if (fn === 'can_edit_portfolio') return { data: _canEdit, error: _canEditError };
+    if (fn === 'replace_tax_carryforward_applications') return { data: _applyResult, error: _applyError };
     return { data: null, error: null };
   });
 
@@ -109,6 +118,17 @@ function makePostRequest(portfolioId = PORTFOLIO_ID, body: Record<string, unknow
   );
 }
 
+function makePatchRequest(portfolioId = PORTFOLIO_ID, body: Record<string, unknown>): Request {
+  return new Request(
+    `http://localhost/api/portfolio/${portfolioId}/tax/carryforwards`,
+    {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    }
+  );
+}
+
 const VALID_POST_BODY = {
   portfolio_id:         PORTFOLIO_ID,
   originating_tax_year: 2024,
@@ -137,6 +157,12 @@ beforeEach(() => {
     agi_limit_category:   '30_appreciated',
   };
   _insertError = null;
+  _applyResult = {
+    applied_tax_year: 2025,
+    applications_count: 1,
+    amount_applied: 1000,
+  };
+  _applyError = null;
   setupMocks();
 });
 
@@ -534,6 +560,72 @@ describe('POST /api/portfolio/[id]/tax/carryforwards', () => {
   });
 });
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// PATCH — persist carryforward applications
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe('PATCH /api/portfolio/[id]/tax/carryforwards', () => {
+  const VALID_PATCH_BODY = {
+    tax_year: 2025,
+    applications: [
+      {
+        carryforward_id: CARRYFORWARD_ID,
+        amount_applied: 1000,
+        notes: 'Applied to 2025 AGI limit',
+      },
+    ],
+  };
+
+  it('returns 403 when can_edit_portfolio is false', async () => {
+    _canEdit = false;
+
+    const res = await PATCH(makePatchRequest(PORTFOLIO_ID, VALID_PATCH_BODY), makeCtx());
+    const body = await res.json();
+
+    expect(res.status).toBe(403);
+    expect(body).toHaveProperty('error');
+    expect(mockRpc).not.toHaveBeenCalledWith(
+      'replace_tax_carryforward_applications',
+      expect.anything()
+    );
+  });
+
+  it('returns 400 for an invalid application payload', async () => {
+    const res = await PATCH(
+      makePatchRequest(PORTFOLIO_ID, {
+        tax_year: 2025,
+        applications: [{ carryforward_id: CARRYFORWARD_ID, amount_applied: 0 }],
+      }),
+      makeCtx()
+    );
+
+    expect(res.status).toBe(400);
+  });
+
+  it('persists applications through the idempotent replacement RPC', async () => {
+    const res = await PATCH(makePatchRequest(PORTFOLIO_ID, VALID_PATCH_BODY), makeCtx());
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.data).toEqual(_applyResult);
+    expect(mockRpc).toHaveBeenCalledWith('replace_tax_carryforward_applications', {
+      p_portfolio_id: PORTFOLIO_ID,
+      p_tax_year: 2025,
+      p_applications: VALID_PATCH_BODY.applications,
+    });
+  });
+
+  it('returns 500 when the replacement RPC fails', async () => {
+    _applyError = { message: 'Application amount exceeds remaining carryforward balance' };
+
+    const res = await PATCH(makePatchRequest(PORTFOLIO_ID, VALID_PATCH_BODY), makeCtx());
+    const body = await res.json();
+
+    expect(res.status).toBe(500);
+    expect(body.error).toMatch(/exceeds remaining/);
+  });
+});
+
 /**
  * NOT TESTED HERE — requires separate setup:
  *
@@ -548,7 +640,7 @@ describe('POST /api/portfolio/[id]/tax/carryforwards', () => {
  *
  * - Physical cross-tenant isolation via JWT: requires a real Supabase Auth session.
  *
- * - Cache-Control headers: GET returns 'private, s-maxage=60'; POST returns 'no-store' —
+ * - Cache-Control headers: GET and POST return 'no-store' —
  *   verified by code inspection, no runtime variability.
  *
  * - Concurrent insert race (two identical carryforwards): DB-level unique constraint test;

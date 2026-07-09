@@ -7,9 +7,10 @@ export type PerformanceHeatMapConfigProps = {
   onSave: (config: { title: string; config: any }) => void;
   onCancel: () => void;
   portfolioId?: string;
+  onPreviewChange?: (config: { title: string; config: any }) => void;
 };
 
-export default function PerformanceHeatMapConfig({ initialConfig, onSave, onCancel, portfolioId }: PerformanceHeatMapConfigProps) {
+export default function PerformanceHeatMapConfig({ initialConfig, onSave, onCancel, portfolioId, onPreviewChange }: PerformanceHeatMapConfigProps) {
   const [title, setTitle] = React.useState(initialConfig?.title || '');
   const [mode, setMode] = React.useState<'temporal' | 'metrics'>(initialConfig?.config?.mode || 'temporal');
   const [metricCode, setMetricCode] = React.useState(initialConfig?.config?.metric_code || '');
@@ -50,6 +51,32 @@ export default function PerformanceHeatMapConfig({ initialConfig, onSave, onCanc
       }
     });
   };
+
+  React.useEffect(() => {
+    const config: any = {
+      mode,
+      window,
+      colorScheme,
+      minColor,
+      maxColor,
+      showValues
+    };
+
+    if (mode === 'temporal') {
+      config.metric_code = metricCode;
+    } else {
+      config.metrics = selectedMetrics;
+    }
+
+    if (colorScheme === 'diverging') {
+      config.midColor = midColor;
+    }
+
+    onPreviewChange?.({
+      title: title || 'Performance Heat Map',
+      config
+    });
+  }, [colorScheme, maxColor, metricCode, midColor, minColor, mode, onPreviewChange, selectedMetrics, showValues, title, window]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

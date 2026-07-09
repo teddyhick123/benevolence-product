@@ -8,7 +8,7 @@
 //   - The route exports PATCH (not PUT) for role changes.
 //   - No built-in owner-protection or self-escalation protection in the route itself;
 //     tests document that gap where relevant.
-//   - Audit writes are fire-and-forget; failures MUST NOT affect the response.
+//   - Audit writes are durable; failures roll back the member mutation.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { NextRequest } from 'next/server';
@@ -29,6 +29,8 @@ let _updateResult: any = { id: USER_ID, org_id: ORG_ID, user_id: USER_ID, role: 
 let _updateError:  { message: string } | null = null;
 
 let _deleteError: { message: string } | null = null;
+let _existingResult: any = { id: 'membership-id', role: 'member' };
+let _existingError: { message: string } | null = null;
 
 let _auditError: { message: string } | null = null;
 
@@ -77,11 +79,13 @@ function setupMocks() {
         }),
         delete: vi.fn(() => b),
         eq: vi.fn(() => b),
+        is: vi.fn(() => b),
         select: vi.fn(() => b),
         single: vi.fn(async () => ({ data: _updateResult, error: _updateError })),
+        maybeSingle: vi.fn(async () => ({ data: _existingResult, error: _existingError })),
         // delete chain resolves with just an error field
         then: vi.fn(async (resolve: Function) =>
-          resolve({ error: _deleteError })
+          resolve({ count: 1, error: _deleteError })
         ),
       };
       // Make the delete chain awaitable directly
@@ -121,6 +125,8 @@ beforeEach(() => {
   _updateResult = { id: USER_ID, org_id: ORG_ID, user_id: USER_ID, role: 'member' };
   _updateError = null;
   _deleteError = null;
+  _existingResult = { id: 'membership-id', role: 'member' };
+  _existingError = null;
   _auditError = null;
   _capturedUpdateArgs = null;
   _capturedAuditArgs = null;
@@ -342,7 +348,7 @@ describe('PATCH /api/org/[orgId]/members/[userId] — behavior', () => {
     expect(auditCalls.length).toBeGreaterThanOrEqual(1);
   });
 
-  it('still returns 200 even when the audit log write fails', async () => {
+  it('returns 500 and rolls back when the audit log write fails', async () => {
     // Arrange — audit write will error but should not affect the response
     _updateResult = { id: USER_ID, org_id: ORG_ID, user_id: USER_ID, role: 'member' };
     _auditError = { message: 'table does not exist' };
@@ -350,8 +356,11 @@ describe('PATCH /api/org/[orgId]/members/[userId] — behavior', () => {
     // Act
     const res = await PATCH(makePatchRequest({ role: 'member' }), makeCtx());
 
-    // Assert — fire-and-forget audit must not break the success path
-    expect(res.status).toBe(200);
+    // Assert — durable audit must fail closed and trigger a rollback update
+    expect(res.status).toBe(500);
+    const body = await res.json();
+    expect(body.error).toBe('table does not exist');
+    expect(_capturedUpdateArgs).toEqual({ role: 'member' });
   });
 });
 
@@ -387,7 +396,7 @@ describe('DELETE /api/org/[orgId]/members/[userId] — behavior', () => {
     expect(body).not.toHaveProperty('success');
   });
 
-  it('still returns 200 even when the audit log write fails after a successful delete', async () => {
+  it('returns 500 and restores the member when the audit log write fails after a successful delete', async () => {
     // Arrange
     _deleteError = null;
     _auditError = { message: 'network timeout' };
@@ -395,8 +404,11 @@ describe('DELETE /api/org/[orgId]/members/[userId] — behavior', () => {
     // Act
     const res = await DELETE(makeDeleteRequest(), makeCtx());
 
-    // Assert — audit failure is fire-and-forget
-    expect(res.status).toBe(200);
+    // Assert — durable audit must fail closed and restore the soft-deleted row
+    expect(res.status).toBe(500);
+    const body = await res.json();
+    expect(body.error).toBe('network timeout');
+    expect(_capturedUpdateArgs).toEqual({ deleted_at: null, deleted_by: null });
   });
 
   it('writes an audit log entry with action "member_removed" after a successful delete', async () => {

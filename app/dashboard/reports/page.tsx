@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { Suspense, useState, useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
+import { mutate } from 'swr';
 import ReportsDashboard from '@/components/reports/ReportsDashboard';
 import ReportTemplateList from '@/components/reports/ReportTemplateList';
 import ReportTemplateEditor from '@/components/reports/ReportTemplateEditor';
@@ -19,7 +20,18 @@ type GeneratedReport = {
   generated_at: string;
 };
 
-export default function ReportsPage() {
+function ReportsLoading() {
+  return (
+    <div className="p-8">
+      <div className="animate-pulse space-y-6">
+        <div className="h-8 w-48 rounded-2xl bg-neutral-200"></div>
+        <div className="h-64 rounded-2xl bg-neutral-200"></div>
+      </div>
+    </div>
+  );
+}
+
+function ReportsPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [portfolioId, setPortfolioId] = useState<string | null>(null);
@@ -158,14 +170,7 @@ export default function ReportsPage() {
   };
 
   if (loading) {
-    return (
-      <div className="p-8">
-        <div className="animate-pulse space-y-6">
-          <div className="h-8 w-48 rounded-2xl bg-neutral-200"></div>
-          <div className="h-64 rounded-2xl bg-neutral-200"></div>
-        </div>
-      </div>
-    );
+    return <ReportsLoading />;
   }
 
   if (!portfolioId) {
@@ -284,6 +289,7 @@ export default function ReportsPage() {
                 portfolioId={portfolioId}
                 template={editingTemplate}
                 onSave={() => {
+                  mutate(`/api/portfolio/${portfolioId}/reports/templates`);
                   setShowTemplateEditor(false);
                   setEditingTemplate(null);
                 }}
@@ -305,5 +311,13 @@ export default function ReportsPage() {
         />
       )}
     </div>
+  );
+}
+
+export default function ReportsPage() {
+  return (
+    <Suspense fallback={<ReportsLoading />}>
+      <ReportsPageContent />
+    </Suspense>
   );
 }

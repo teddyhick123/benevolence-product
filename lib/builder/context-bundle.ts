@@ -86,6 +86,7 @@ Use these for changes that can be made at the data layer without modifying sourc
 - \`update_org_branding\` — change logo URL or brand color stored in the organizations table
 - \`create_metric_definition\` — add a new KPI definition for this org
 - \`update_module_config\` — enable or disable feature modules
+- Workflow, custom field, automation, AI context, view/vocabulary, report-template, history, and summary tools — use these as the self-service control panel for org configuration
 
 ### Code proposal tool
 Use \`submit_code_proposal\` for anything that requires new or changed source files — new components, API routes, DB migrations, modules, or visualizations. The proposal is stored for developer review; the user will see a "submitted for review" card and be notified when it's applied.

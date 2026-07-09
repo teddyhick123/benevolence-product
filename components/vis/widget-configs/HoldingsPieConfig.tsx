@@ -6,11 +6,27 @@ export type HoldingsPieConfigProps = {
   initialConfig?: any;
   onSave: (config: { title: string; config: any }) => void;
   onCancel: () => void;
+  onPreviewChange?: (config: { title: string; config: any }) => void;
 };
 
-export default function HoldingsPieConfig({ initialConfig, onSave, onCancel }: HoldingsPieConfigProps) {
+export default function HoldingsPieConfig({ initialConfig, onSave, onCancel, onPreviewChange }: HoldingsPieConfigProps) {
   const [title, setTitle] = React.useState(initialConfig?.title || 'Portfolio Allocation');
   const [showLegend, setShowLegend] = React.useState(initialConfig?.config?.showLegend ?? true);
+
+  React.useEffect(() => {
+    onPreviewChange?.({
+      title,
+      config: {
+        size: 320,
+        innerRadius: 48,
+        showLegend,
+        legendMaxHeight: 240,
+        nameField: 'name',
+        valueFieldPrimary: 'funds_allocated',
+        valueFieldFallback: 'nav'
+      }
+    });
+  }, [onPreviewChange, showLegend, title]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

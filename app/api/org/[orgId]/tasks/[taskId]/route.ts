@@ -1,14 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient, createServerClient } from '@/lib/supabase';
 import { updateTaskSchema } from '@/lib/schemas/task';
+import { runAutomationRulesForEvent } from '@/lib/tasks/automation/dynamic-rules';
 
 export const dynamic = 'force-dynamic';
+
+const NO_STORE = { 'Cache-Control': 'no-store' } as const;
 
 interface RouteParams {
   params: Promise<{ orgId: string; taskId: string }>;
 }
 
 const ADMIN_ROLES = new Set(['owner', 'admin']);
+
+function json(body: unknown, init: ResponseInit = {}) {
+  return NextResponse.json(body, {
+    ...init,
+    headers: {
+      ...NO_STORE,
+      ...(init.headers || {}),
+    },
+  });
+}
 
 async function assertPortfolioInOrg(portfolioId: string | null | undefined, orgId: string) {
   if (!portfolioId) return true;
@@ -88,17 +101,17 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
     const { orgId, taskId } = await params;
     const supabase = await createServerClient();
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!user) return json({ error: 'Unauthorized' }, { status: 401 });
 
     const { data: role } = await supabase.rpc('user_org_role', { p_org_id: orgId });
-    if (!role) return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
+    if (!role) return json({ error: 'Not authorized' }, { status: 403 });
 
     const task = await loadTask(orgId, taskId);
-    if (!task) return NextResponse.json({ error: 'Task not found' }, { status: 404 });
+    if (!task) return json({ error: 'Task not found' }, { status: 404 });
 
-    return NextResponse.json({ task, currentRole: role });
+    return json({ task, currentRole: role });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return json({ error: err.message }, { status: 500 });
   }
 }
 
@@ -107,36 +120,36 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     const { orgId, taskId } = await params;
     const supabase = await createServerClient();
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!user) return json({ error: 'Unauthorized' }, { status: 401 });
 
     const { data: role } = await supabase.rpc('user_org_role', { p_org_id: orgId });
-    if (!role) return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
+    if (!role) return json({ error: 'Not authorized' }, { status: 403 });
 
     const existing = await loadTask(orgId, taskId);
-    if (!existing) return NextResponse.json({ error: 'Task not found' }, { status: 404 });
+    if (!existing) return json({ error: 'Task not found' }, { status: 404 });
 
     const isAdmin = ADMIN_ROLES.has(role);
     const isAssignee = existing.assigned_to === user.id;
     if (!isAdmin && !isAssignee) {
-      return NextResponse.json({ error: 'Not authorized to update this task' }, { status: 403 });
+      return json({ error: 'Not authorized to update this task' }, { status: 403 });
     }
 
     const body = await req.json().catch(() => ({}));
     const parsed = updateTaskSchema.safeParse(body);
     if (!parsed.success) {
-      return NextResponse.json({ error: 'Validation failed', details: parsed.error.format() }, { status: 400 });
+      return json({ error: 'Validation failed', details: parsed.error.format() }, { status: 400 });
     }
 
     let updates = parsed.data as Record<string, any>;
     if (!isAdmin) updates = editableFieldsForAssignee(updates);
     if (Object.keys(updates).length === 0) {
-      return NextResponse.json({ error: 'No valid fields to update' }, { status: 400 });
+      return json({ error: 'No valid fields to update' }, { status: 400 });
     }
     if (!(await assertPortfolioInOrg(updates.portfolio_id, orgId))) {
-      return NextResponse.json({ error: 'Portfolio does not belong to this organization' }, { status: 400 });
+      return json({ error: 'Portfolio does not belong to this organization' }, { status: 400 });
     }
     if (!(await assertUserInOrg(updates.assigned_to, orgId))) {
-      return NextResponse.json({ error: 'Assignee is not a member of this organization' }, { status: 400 });
+      return json({ error: 'Assignee is not a member of this organization' }, { status: 400 });
     }
     updates = withCompletionFields(updates, user.id);
 
@@ -149,9 +162,9 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
       .select()
       .single();
 
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (error) return json({ error: error.message }, { status: 500 });
 
-    await adminClient.from('task_events').insert({
+    const { error: eventError } = await adminClient.from('task_events').insert({
       task_id: taskId,
       org_id: orgId,
       actor_id: user.id,
@@ -159,10 +172,49 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
       before_values: existing,
       after_values: task,
     });
+    if (eventError) {
+      await adminClient
+        .from('tasks')
+        .update({
+          title: existing.title,
+          description: existing.description,
+          status: existing.status,
+          priority: existing.priority,
+          task_type: existing.task_type,
+          portfolio_id: existing.portfolio_id,
+          starts_at: existing.starts_at,
+          due_at: existing.due_at,
+          assigned_to: existing.assigned_to,
+          metadata: existing.metadata,
+          completed_at: existing.completed_at,
+          completed_by: existing.completed_by,
+        })
+        .eq('id', taskId)
+        .eq('org_id', orgId);
+      return json({ error: eventError.message }, { status: 500 });
+    }
 
-    return NextResponse.json({ task });
+    if (updates.status === 'completed') {
+      try {
+        await runAutomationRulesForEvent(adminClient, {
+          orgId,
+          triggerType: 'task_completed',
+          entityType: 'task',
+          entityId: taskId,
+          payload: {
+            task_type: task.task_type,
+            assigned_to: task.assigned_to,
+            actor_id: user.id,
+          },
+        });
+      } catch (automationErr) {
+        console.error('Task completion automation failed:', automationErr);
+      }
+    }
+
+    return json({ task });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return json({ error: err.message }, { status: 500 });
   }
 }
 
@@ -171,11 +223,11 @@ export async function DELETE(_req: NextRequest, { params }: RouteParams) {
     const { orgId, taskId } = await params;
     const supabase = await createServerClient();
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!user) return json({ error: 'Unauthorized' }, { status: 401 });
 
     const { data: role } = await supabase.rpc('user_org_role', { p_org_id: orgId });
     if (!role || !ADMIN_ROLES.has(role)) {
-      return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
+      return json({ error: 'Admin access required' }, { status: 403 });
     }
 
     const adminClient = createAdminClient();
@@ -188,11 +240,11 @@ export async function DELETE(_req: NextRequest, { params }: RouteParams) {
       .select('id')
       .maybeSingle();
 
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-    if (!deleted) return NextResponse.json({ error: 'Task not found' }, { status: 404 });
+    if (error) return json({ error: error.message }, { status: 500 });
+    if (!deleted) return json({ error: 'Task not found' }, { status: 404 });
 
-    return NextResponse.json({ success: true });
+    return json({ success: true });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return json({ error: err.message }, { status: 500 });
   }
 }

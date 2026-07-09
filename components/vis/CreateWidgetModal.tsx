@@ -3,6 +3,7 @@
 import * as React from 'react';
 import { createPortal } from 'react-dom';
 import clsx from 'clsx';
+import InlineWidget from '../ui/InlineWidget';
 
 export type CreateWidgetModalProps = {
   portfolioId: string;
@@ -19,6 +20,11 @@ type WidgetType = {
   description: string;
   icon: React.ReactNode;
   category: 'metrics' | 'performance' | 'impact' | 'charts' | 'custom';
+};
+
+type WidgetDraft = {
+  title: string;
+  config: any;
 };
 
 const WIDGET_TYPES: WidgetType[] = [
@@ -474,9 +480,15 @@ function WidgetConfigForm({
   const WaterfallChartConfig = React.lazy(() => import('./widget-configs/WaterfallChartConfig'));
   const ImpactBubbleChartConfig = React.lazy(() => import('./widget-configs/ImpactBubbleChartConfig'));
 
+  const [previewDraft, setPreviewDraft] = React.useState<WidgetDraft>(() => getDefaultWidgetDraft(type, editing));
+
+  React.useEffect(() => {
+    setPreviewDraft(getDefaultWidgetDraft(type, editing));
+  }, [type, editing]);
+
   const renderConfig = () => {
     const initialConfig = editing ? { title: editing.title, config: editing.config } : undefined;
-    const props = { onSave, onCancel, portfolioId, initialConfig };
+    const props = { onSave, onCancel, portfolioId, initialConfig, onPreviewChange: setPreviewDraft };
 
     switch (type) {
       case 'kpi_trend':
@@ -566,5 +578,151 @@ function WidgetConfigForm({
     }
   };
 
-  return renderConfig();
+  const supportsLivePreview = !['emissions_bar', 'd3_json'].includes(type);
+
+  return (
+    <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_minmax(340px,420px)] gap-6 items-start">
+      <div className="min-w-0">
+        {renderConfig()}
+      </div>
+
+      {supportsLivePreview ? (
+        <aside className="xl:sticky xl:top-0 rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
+          <div className="mb-3">
+            <h3 className="text-sm font-semibold text-neutral-900">Live preview</h3>
+            <p className="text-xs text-neutral-500">Updates as configuration changes.</p>
+          </div>
+          <div className="min-h-[280px] overflow-hidden rounded-2xl bg-white">
+            <InlineWidget
+              compact
+              portfolioId={portfolioId}
+              widget={{
+                id: `preview-${type}`,
+                portfolio_id: portfolioId,
+                type,
+                title: previewDraft.title,
+                config: previewDraft.config
+              }}
+            />
+          </div>
+        </aside>
+      ) : null}
+    </div>
+  );
+}
+
+function getDefaultWidgetDraft(
+  type: string,
+  editing?: { id: string; type: string; title: string | null; config: any } | null
+): WidgetDraft {
+  if (editing) {
+    return {
+      title: editing.title || '',
+      config: editing.config || {}
+    };
+  }
+
+  switch (type) {
+    case 'kpi_trend':
+      return {
+        title: 'KPI Trend',
+        config: { metric_code: '', period: { window: '12m' }, style: { smooth: true } }
+      };
+    case 'radial_progress':
+      return {
+        title: 'KPI Progress',
+        config: {
+          rings: [{ metric_code: '', target: 0, label: 'KPI', color: '#5186a6' }]
+        }
+      };
+    case 'people_grid_auto':
+      return {
+        title: 'People Helped',
+        config: { metric_code: '', mode: 'sum', window: '12m', perUnit: 10, iconSize: 16 }
+      };
+    case 'holdings_pie_auto':
+      return {
+        title: 'Portfolio Allocation',
+        config: {
+          size: 320,
+          innerRadius: 48,
+          showLegend: true,
+          legendMaxHeight: 240,
+          nameField: 'name',
+          valueFieldPrimary: 'funds_allocated',
+          valueFieldFallback: 'nav'
+        }
+      };
+    case 'small_multiples':
+      return {
+        title: 'KPI Comparison',
+        config: { metric_code: '', window: 'all', columns: 3, chartHeight: 80, showBenchmark: false, minHoldings: 2 }
+      };
+    case 'performance_heat_map':
+      return {
+        title: 'Performance Heat Map',
+        config: {
+          mode: 'temporal',
+          metric_code: '',
+          window: 'all',
+          colorScheme: 'sequential',
+          minColor: '#dbeafe',
+          maxColor: '#1e40af',
+          showValues: true
+        }
+      };
+    case 'holdings_comparison_table':
+      return {
+        title: 'Holdings Comparison',
+        config: {
+          metrics: [],
+          includeHoldingName: true,
+          includeSector: true,
+          sortBy: 'name',
+          sortDirection: 'asc',
+          highlightBest: true,
+          minHoldings: 2
+        }
+      };
+    case 'impact_timeline':
+      return {
+        title: 'Impact Timeline',
+        config: {
+          window: '12m',
+          orientation: 'horizontal',
+          showHoldingNames: true,
+          filterTypes: ['milestone', 'achievement', 'funding', 'metric', 'other'],
+          minEvents: 3
+        }
+      };
+    case 'waterfall_chart':
+      return {
+        title: 'Fund Allocation',
+        config: {
+          mode: 'funding',
+          increaseColor: '#10b981',
+          decreaseColor: '#ef4444',
+          totalColor: '#3b82f6',
+          showLabels: true,
+          showConnectors: true,
+          minItems: 3
+        }
+      };
+    case 'impact_bubble_chart':
+      return {
+        title: 'Impact Bubble Chart',
+        config: {
+          xMetric: '',
+          yMetric: '',
+          sizeMetric: '',
+          colorMode: 'sector',
+          minBubbleSize: 10,
+          maxBubbleSize: 50,
+          showLabels: false,
+          minHoldings: 2
+        }
+      };
+    default:
+      return { title: '', config: {} };
+  }
 }

@@ -28,6 +28,8 @@ import {
   calculateDeduction,
   getCarryforward,
 } from './executors/tax';
+import { CUSTOM_FIELD_ENTITY_TYPES, loadCustomFieldsForEntity, valueFromRow } from '@/lib/custom-fields';
+import { ORG_AI_CONTEXT_KEY_PATTERN, ORG_AI_CONTEXT_TYPES, normalizeContextKey } from '@/lib/org-ai-context';
 
 export type AssistantToolParams = {
   supabase: ReturnType<typeof createClient>;
@@ -60,10 +62,14 @@ async function verifyPortfolioAccess(supabase: ReturnType<typeof createClient>, 
 export const WRITE_TOOLS = new Set([
     'add_holding', 'update_holding', 'remove_holding',
     'add_metric_fact', 'delete_metric_fact',
-    'add_widget', 'remove_widget',
+    'create_widget', 'create_portfolio_widget', 'add_widget', 'remove_widget',
+    'add_location', 'save_report_template', 'refresh_charity_data',
+    'start_due_diligence', 'complete_workflow_task', 'track_milestone',
+    'schedule_reminder', 'log_grant_communication', 'record_grant_payment',
     'log_contribution_received', 'generate_receipt', 'generate_acknowledgment',
     'track_filing_deadline', 'register_disqualified_person',
     'assess_qualifying_distribution', 'log_expenditure_responsibility',
+    'suggest_context_entry',
   ]);
 
 export async function executeAssistantTool(params: AssistantToolParams): Promise<ToolResult> {
@@ -299,8 +305,9 @@ export async function executeAssistantTool(params: AssistantToolParams): Promise
           .select('id, name, sector')
           .eq('portfolio_id', portfolioId);
 
-        const holdingIds = args.holding_ids || holdings?.map((h: any) => h.id) || [];
         const holdingMap = new Map((holdings || []).map((h: any) => [h.id, h]));
+        const requestedHoldingIds = args.holding_ids || holdings?.map((h: any) => h.id) || [];
+        const holdingIds = requestedHoldingIds.filter((id: string) => holdingMap.has(id));
 
         const { data: facts } = await supabase
           .from('metric_facts')
@@ -459,11 +466,223 @@ export async function executeAssistantTool(params: AssistantToolParams): Promise
           .from('holdings')
           .select('*, metric_facts(*), holding_widgets(*)')
           .eq('id', args.holding_id)
+          .eq('portfolio_id', portfolioId)
           .single();
 
         return {
           action: null,
           output: { holding: data },
+        };
+      }
+
+      case 'get_custom_fields': {
+        InputValidator.validateEnum(args.entity_type, 'entity_type', CUSTOM_FIELD_ENTITY_TYPES);
+        InputValidator.validateUUID(args.entity_id, 'entity_id');
+
+        const { data: portfolio, error: portfolioErr } = await supabase
+          .from('portfolios')
+          .select('org_id')
+          .eq('id', portfolioId)
+          .single();
+        if (portfolioErr || !portfolio?.org_id) {
+          throw new Error('Unable to resolve portfolio organization');
+        }
+
+        const { data: entityOrgId, error: scopeErr } = await supabase.rpc('custom_field_entity_org', {
+          p_entity_type: args.entity_type,
+          p_entity_id: args.entity_id,
+        });
+        if (scopeErr) throw new Error(scopeErr.message);
+        if (entityOrgId !== portfolio.org_id) {
+          throw new Error('Entity not found in this organization');
+        }
+
+        const fields = await loadCustomFieldsForEntity(
+          supabase,
+          portfolio.org_id,
+          args.entity_type,
+          args.entity_id,
+          { aiReadableOnly: true }
+        );
+
+        return {
+          action: null,
+          output: {
+            entity_type: args.entity_type,
+            entity_id: args.entity_id,
+            custom_fields: fields.map(field => ({
+              field_key: field.field_key,
+              field_label: field.field_label,
+              field_type: field.field_type,
+              value: field.value,
+              required_at_stage: field.required_at_stage,
+            })),
+          },
+        };
+      }
+
+      case 'search_custom_field_values': {
+        InputValidator.validateEnum(args.entity_type, 'entity_type', CUSTOM_FIELD_ENTITY_TYPES);
+        InputValidator.validateString(args.field_key, 'field_key', { maxLength: 64, pattern: /^[a-z][a-z0-9_]{0,63}$/ });
+        InputValidator.validateEnum(args.operator, 'operator', ['eq', 'contains', 'lt', 'lte', 'gt', 'gte'] as const);
+        InputValidator.validateNumber(args.limit, 'limit', { min: 1, max: 100 });
+
+        const limit = Math.min(Number(args.limit ?? 25), 100);
+        const { data: portfolio, error: portfolioErr } = await supabase
+          .from('portfolios')
+          .select('org_id')
+          .eq('id', portfolioId)
+          .single();
+        if (portfolioErr || !portfolio?.org_id) {
+          throw new Error('Unable to resolve portfolio organization');
+        }
+
+        const { data: definition, error: definitionErr } = await supabase
+          .from('org_custom_field_definitions')
+          .select('id, field_key, field_label, field_type, enum_options')
+          .eq('org_id', portfolio.org_id)
+          .eq('entity_type', args.entity_type)
+          .eq('field_key', args.field_key)
+          .eq('is_ai_readable', true)
+          .maybeSingle();
+        if (definitionErr) throw new Error(definitionErr.message);
+        if (!definition) throw new Error(`Custom field not found or not AI-readable: ${args.field_key}`);
+
+        const operator = args.operator;
+        const value = args.value;
+        let column = 'value_text';
+        if (definition.field_type === 'integer' || definition.field_type === 'decimal') column = 'value_numeric';
+        if (definition.field_type === 'boolean') column = 'value_boolean';
+        if (definition.field_type === 'date') column = 'value_date';
+
+        let valuesQuery = supabase
+          .from('org_custom_field_values')
+          .select('entity_id, value_text, value_numeric, value_boolean, value_date')
+          .eq('org_id', portfolio.org_id)
+          .eq('entity_type', args.entity_type)
+          .eq('field_definition_id', definition.id)
+          .limit(limit);
+
+        if (operator === 'contains') {
+          if (!['text', 'enum'].includes(definition.field_type)) {
+            throw new Error('contains is only supported for text and enum custom fields');
+          }
+          valuesQuery = valuesQuery.ilike(column, `%${String(value).slice(0, 120)}%`);
+        } else if (operator === 'eq') {
+          valuesQuery = valuesQuery.eq(column, value);
+        } else {
+          if (!['integer', 'decimal', 'date'].includes(definition.field_type)) {
+            throw new Error(`${operator} is only supported for numeric and date custom fields`);
+          }
+          if (operator === 'lt') valuesQuery = valuesQuery.lt(column, value);
+          if (operator === 'lte') valuesQuery = valuesQuery.lte(column, value);
+          if (operator === 'gt') valuesQuery = valuesQuery.gt(column, value);
+          if (operator === 'gte') valuesQuery = valuesQuery.gte(column, value);
+        }
+
+        const { data: matchedValues, error: valuesErr } = await valuesQuery;
+        if (valuesErr) throw new Error(valuesErr.message);
+        const entityIds = [...new Set((matchedValues ?? []).map((row: any) => row.entity_id))];
+
+        let entities: any[] = [];
+        if (entityIds.length > 0 && args.entity_type === 'grant') {
+          let grantQuery = supabase
+            .from('grants')
+            .select('id, lifecycle_stage, requested_amount, approved_amount, purpose, holding_id, holdings(name)')
+            .eq('org_id', portfolio.org_id)
+            .eq('portfolio_id', portfolioId)
+            .in('id', entityIds);
+          if (args.lifecycle_stage) grantQuery = grantQuery.eq('lifecycle_stage', args.lifecycle_stage);
+          const { data, error } = await grantQuery.limit(limit);
+          if (error) throw new Error(error.message);
+          entities = data ?? [];
+        } else if (entityIds.length > 0 && args.entity_type === 'holding') {
+          const { data, error } = await supabase
+            .from('holdings')
+            .select('id, name, asset_type, status, funds_allocated')
+            .eq('org_id', portfolio.org_id)
+            .eq('portfolio_id', portfolioId)
+            .in('id', entityIds)
+            .limit(limit);
+          if (error) throw new Error(error.message);
+          entities = data ?? [];
+        } else if (entityIds.length > 0 && args.entity_type === 'donor') {
+          const { data, error } = await supabase
+            .from('donors')
+            .select('id, first_name, last_name, organization_name, email, lifetime_giving, tier')
+            .eq('org_id', portfolio.org_id)
+            .in('id', entityIds)
+            .limit(limit);
+          if (error) throw new Error(error.message);
+          entities = data ?? [];
+        } else if (entityIds.length > 0) {
+          entities = entityIds.map(id => ({ id }));
+        }
+
+        const valueByEntity = new Map((matchedValues ?? []).map((row: any) => [row.entity_id, valueFromRow(row)]));
+        return {
+          action: null,
+          output: {
+            field: {
+              field_key: definition.field_key,
+              field_label: definition.field_label,
+              field_type: definition.field_type,
+            },
+            operator,
+            value,
+            count: entities.length,
+            matches: entities.map(entity => ({
+              ...entity,
+              custom_field_value: valueByEntity.get(entity.id) ?? null,
+            })),
+          },
+        };
+      }
+
+      case 'suggest_context_entry': {
+        InputValidator.validateEnum(args.context_type, 'context_type', ORG_AI_CONTEXT_TYPES);
+        InputValidator.validateRequired(args.context_value, 'context_value');
+        InputValidator.validateRequired(args.reasoning, 'reasoning');
+        InputValidator.validateString(args.context_key, 'context_key', { maxLength: 80 });
+        InputValidator.validateString(args.context_value, 'context_value', { maxLength: 4000 });
+        InputValidator.validateString(args.reasoning, 'reasoning', { maxLength: 1000 });
+
+        const contextKey = ORG_AI_CONTEXT_KEY_PATTERN.test(String(args.context_key ?? ''))
+          ? String(args.context_key)
+          : normalizeContextKey(String(args.context_key ?? 'context_entry'));
+
+        const { data: portfolio, error: portfolioErr } = await supabase
+          .from('portfolios')
+          .select('org_id')
+          .eq('id', portfolioId)
+          .single();
+        if (portfolioErr || !portfolio?.org_id) {
+          throw new Error('Unable to resolve portfolio organization');
+        }
+
+        const { data, error } = await supabase
+          .from('org_ai_context')
+          .upsert({
+            org_id: portfolio.org_id,
+            context_type: args.context_type,
+            context_key: contextKey,
+            context_value: String(args.context_value).trim(),
+            source: 'ai_suggestion',
+            is_active: true,
+            created_by: userId,
+          }, { onConflict: 'org_id,context_key' })
+          .select('id, context_key, context_type, context_value')
+          .single();
+        if (error) throw new Error(error.message);
+
+        return {
+          action: null,
+          output: {
+            success: true,
+            context_entry: data,
+            reasoning: args.reasoning,
+            message: 'Organization context saved and will be used in future assistant sessions.',
+          },
         };
       }
 
@@ -490,6 +709,7 @@ export async function executeAssistantTool(params: AssistantToolParams): Promise
           .from('widgets')
           .select('id, type, title, config, position, portfolio_id')
           .eq('id', args.widget_id)
+          .eq('portfolio_id', portfolioId)
           .maybeSingle();
 
         if (!widget) {
@@ -1064,6 +1284,7 @@ export async function executeAssistantTool(params: AssistantToolParams): Promise
           .from('holdings')
           .select('*')
           .eq('id', args.holding_id)
+          .eq('portfolio_id', portfolioId)
           .single();
 
         if (!holdingData) {
@@ -1656,23 +1877,77 @@ export async function executeAssistantTool(params: AssistantToolParams): Promise
       }
 
       case 'save_report_template': {
+        const name = args.name;
+        const scope = args.scope;
+        const config = args.config;
+        const isDefault = args.is_default === true;
+
+        if (!name || typeof name !== 'string') {
+          throw new Error('name is required');
+        }
+        if (!['portfolio', 'holding', 'sector'].includes(scope)) {
+          throw new Error('scope must be portfolio, holding, or sector');
+        }
+        if (!config || typeof config !== 'object' || Array.isArray(config)) {
+          throw new Error('config must be an object');
+        }
+
+        if (isDefault) {
+          const { error: clearDefaultError } = await supabase
+            .from('report_templates')
+            .update({ is_default: false })
+            .eq('portfolio_id', portfolioId)
+            .eq('scope', scope);
+          if (clearDefaultError) throw clearDefaultError;
+        }
+
+        const { data: template, error } = await supabase
+          .from('report_templates')
+          .insert({
+            portfolio_id: portfolioId,
+            created_by: userId,
+            name: name.slice(0, 160),
+            description: typeof args.description === 'string' ? args.description.slice(0, 1000) : null,
+            scope,
+            config,
+            is_default: isDefault,
+          })
+          .select('id, name, scope, config, is_default')
+          .single();
+        if (error) throw error;
+
         return {
           action: null,
           output: {
-            feature_not_available: true,
-            message: 'Report template storage requires a report_templates migration that is not deployed in the active schema.',
+            success: true,
+            template,
+            message: `Saved report template "${template.name}".`,
           },
         };
       }
 
       case 'list_report_templates': {
+        const scope = args.scope;
+        let query = supabase
+          .from('report_templates')
+          .select('id, name, description, scope, config, is_default, created_at, updated_at')
+          .eq('portfolio_id', portfolioId)
+          .order('updated_at', { ascending: false });
+        if (scope) {
+          if (!['portfolio', 'holding', 'sector'].includes(scope)) {
+            throw new Error('scope must be portfolio, holding, or sector');
+          }
+          query = query.eq('scope', scope);
+        }
+
+        const { data: templates, error } = await query;
+        if (error) throw error;
+
         return {
           action: null,
           output: {
-            feature_not_available: true,
-            templates: [],
-            count: 0,
-            message: 'Report template storage requires a report_templates migration that is not deployed in the active schema.',
+            templates: templates ?? [],
+            count: templates?.length ?? 0,
           },
         };
       }
@@ -1836,6 +2111,7 @@ export async function executeAssistantTool(params: AssistantToolParams): Promise
             .from('holdings')
             .select('name, ein')
             .eq('id', holdingId)
+            .eq('portfolio_id', portfolioId)
             .single();
 
           if (error) throw new Error(`Holding not found: ${error.message}`);
@@ -1902,6 +2178,7 @@ export async function executeAssistantTool(params: AssistantToolParams): Promise
           .from('holdings')
           .select('name, sector, country, funds_allocated')
           .eq('id', args.holding_id)
+          .eq('portfolio_id', portfolioId)
           .single();
 
         if (holdingError) throw new Error(`Holding not found: ${holdingError.message}`);
@@ -1944,6 +2221,7 @@ export async function executeAssistantTool(params: AssistantToolParams): Promise
             .from('holdings')
             .select('ein')
             .eq('id', holdingId)
+            .eq('portfolio_id', portfolioId)
             .single();
 
           targetEin = holding?.ein;
@@ -2083,6 +2361,7 @@ export async function executeAssistantTool(params: AssistantToolParams): Promise
           .from('holdings')
           .select('name, sector, country, funds_allocated')
           .eq('id', args.holding_id)
+          .eq('portfolio_id', portfolioId)
           .single();
 
         if (error) throw new Error(`Holding not found: ${error.message}`);
@@ -2230,28 +2509,28 @@ export async function executeAssistantTool(params: AssistantToolParams): Promise
 
       // ==================== GRANT MANAGEMENT MODULE ====================
       case 'get_grant_health':
-        return await getGrantHealth(supabase, args);
+        return await getGrantHealth(supabase, { ...args, portfolio_id: portfolioId });
 
       case 'get_upcoming_deadlines':
-        return await getUpcomingDeadlines(supabase, args);
+        return await getUpcomingDeadlines(supabase, { ...args, portfolio_id: portfolioId });
 
       case 'log_grant_communication':
-        return await logGrantCommunication(supabase, args, userId);
+        return await logGrantCommunication(supabase, args, userId, portfolioId);
 
       case 'record_grant_payment':
-        return await recordGrantPayment(supabase, args);
+        return await recordGrantPayment(supabase, args, portfolioId, userId);
 
       case 'track_milestone':
-        return await trackMilestone(supabase, args);
+        return await trackMilestone(supabase, args, portfolioId);
 
       case 'start_due_diligence':
         return await startDueDiligence(supabase, args, portfolioId, userId);
 
       case 'get_workflow_status':
-        return await getWorkflowStatus(supabase, args);
+        return await getWorkflowStatus(supabase, args, portfolioId);
 
       case 'complete_workflow_task':
-        return await completeWorkflowTask(supabase, args, userId);
+        return await completeWorkflowTask(supabase, args, userId, portfolioId);
 
       case 'schedule_reminder':
         return await scheduleReminder(supabase, args, portfolioId);

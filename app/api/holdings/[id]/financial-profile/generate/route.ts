@@ -5,6 +5,10 @@ import { getOrganization } from '@/lib/services/propublica';
 import { aiAuthRequired } from '@/lib/rate-limit-response';
 import { AI_MODELS } from '@/lib/ai/models';
 import { generateText } from '@/lib/ai/text';
+import { aiLimiter } from '@/lib/rate-limit';
+import { rateLimitExceeded } from '@/lib/rate-limit-response';
+
+const NO_STORE = { 'Cache-Control': 'no-store' } as const;
 
 /**
  * GET /api/holdings/[id]/financial-profile/generate
@@ -20,6 +24,24 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
       return aiAuthRequired();
     }
 
+    const { data: holding, error: holdingError } = await sb
+      .from('holdings')
+      .select('portfolio_id')
+      .eq('id', holdingId)
+      .single();
+
+    if (holdingError || !holding) {
+      return NextResponse.json({ error: 'Holding not found' }, { status: 404, headers: NO_STORE });
+    }
+
+    const { data: canView, error: canViewErr } = await sb.rpc('can_view_portfolio', {
+      p_portfolio_id: holding.portfolio_id,
+    });
+
+    if (canViewErr || !canView) {
+      return NextResponse.json({ error: 'not authorized' }, { status: 403, headers: NO_STORE });
+    }
+
     const { data: cached, error } = await sb
       .from('generated_financial_analyses')
       .select('*')
@@ -31,7 +53,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
     if (error || !cached) {
       return NextResponse.json(
         { error: 'No cached analysis found', code: 'NOT_FOUND' },
-        { status: 404 }
+        { status: 404, headers: NO_STORE }
       );
     }
 
@@ -41,11 +63,11 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
       generated_at: cached.generated_at,
       version: cached.version,
       cached: true,
-    });
+    }, { headers: NO_STORE });
   } catch (error: any) {
     return NextResponse.json(
       { error: error.message || 'Failed to fetch analysis' },
-      { status: 500 }
+      { status: 500, headers: NO_STORE }
     );
   }
 }
@@ -67,6 +89,27 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
       return aiAuthRequired();
     }
 
+    const { data: holdingAccess, error: holdingAccessError } = await sb
+      .from('holdings')
+      .select('portfolio_id')
+      .eq('id', holdingId)
+      .single();
+
+    if (holdingAccessError || !holdingAccess) {
+      return NextResponse.json({ error: 'Holding not found' }, { status: 404, headers: NO_STORE });
+    }
+
+    const { data: canEdit, error: canEditErr } = await sb.rpc('can_edit_portfolio', {
+      p_portfolio_id: holdingAccess.portfolio_id,
+    });
+
+    if (canEditErr || !canEdit) {
+      return NextResponse.json({ error: 'not authorized' }, { status: 403, headers: NO_STORE });
+    }
+
+    const { success, reset, remaining, limit } = await aiLimiter.limit(user.id);
+    if (!success) return rateLimitExceeded(reset, remaining, limit);
+
     // Check for cached analysis (unless force)
     if (!forceRegenerate) {
       const { data: cached } = await sb
@@ -84,7 +127,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
           generated_at: cached.generated_at,
           version: cached.version,
           cached: true,
-        });
+        }, { headers: NO_STORE });
       }
     }
 
@@ -99,7 +142,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     if (!holding?.charity_id) {
       return NextResponse.json(
         { error: 'No charity linked to this holding' },
-        { status: 400 }
+        { status: 400, headers: NO_STORE }
       );
     }
 
@@ -184,7 +227,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
       console.error('Failed to cache financial analysis:', insertError);
       return NextResponse.json(
         { error: 'Analysis generated but could not be saved. Please try again.' },
-        { status: 500 }
+        { status: 500, headers: NO_STORE }
       );
     }
 
@@ -194,11 +237,11 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
       generated_at: generatedAt,
       version: newVersion,
       cached: false,
-    });
+    }, { headers: NO_STORE });
   } catch (error: any) {
     return NextResponse.json(
       { error: error.message || 'Failed to generate analysis' },
-      { status: 500 }
+      { status: 500, headers: NO_STORE }
     );
   }
 }

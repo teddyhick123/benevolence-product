@@ -1,4 +1,5 @@
 // app/api/__tests__/compliance-attachments.test.ts
+// @vitest-environment node
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { NextRequest } from 'next/server';
 
@@ -85,6 +86,10 @@ function makeParams(orgId = ORG_ID, filingId = FILING_ID) {
   return { params: Promise.resolve({ orgId, filingId }) } as any;
 }
 
+function expectNoStore(res: Response) {
+  expect(res.headers.get('Cache-Control')).toBe('no-store');
+}
+
 beforeEach(() => {
   _authUser = { id: USER_ID };
   _isAdmin = true;
@@ -100,6 +105,7 @@ describe('GET /attachments', () => {
     _authUser = null;
     const res = await GET(makeGet(), makeParams());
     expect(res.status).toBe(401);
+    expectNoStore(res);
   });
 
   it('returns 403 when not admin', async () => {
@@ -117,6 +123,7 @@ describe('GET /attachments', () => {
   it('returns attachments with signed URLs', async () => {
     const res = await GET(makeGet(), makeParams());
     expect(res.status).toBe(200);
+    expectNoStore(res);
     const body = await res.json();
     expect(body.data).toHaveLength(1);
     expect(body.data[0].signed_url).toBe('https://signed.url/file.pdf');
@@ -127,6 +134,7 @@ describe('GET /attachments', () => {
     _filingData = { id: FILING_ID, attachments: [] };
     const res = await GET(makeGet(), makeParams());
     expect(res.status).toBe(200);
+    expectNoStore(res);
     const body = await res.json();
     expect(body.data).toHaveLength(0);
   });
@@ -143,6 +151,7 @@ describe('POST /attachments', () => {
     });
     const res = await POST(req, makeParams());
     expect(res.status).toBe(401);
+    expectNoStore(res);
   });
 
   it('returns 403 when not admin', async () => {
@@ -176,6 +185,7 @@ describe('POST /attachments', () => {
     });
     const res = await POST(req, makeParams());
     expect(res.status).toBe(415);
+    expectNoStore(res);
   });
 });
 
@@ -184,6 +194,7 @@ describe('DELETE /attachments', () => {
     _authUser = null;
     const res = await DELETE(makeDelete({ path: `${ORG_ID}/${FILING_ID}/file.pdf` }), makeParams());
     expect(res.status).toBe(401);
+    expectNoStore(res);
   });
 
   it('returns 400 when path is missing', async () => {
@@ -199,6 +210,7 @@ describe('DELETE /attachments', () => {
   it('returns 200 and removes attachment from filing', async () => {
     const res = await DELETE(makeDelete({ path: `${ORG_ID}/${FILING_ID}/file.pdf` }), makeParams());
     expect(res.status).toBe(200);
+    expectNoStore(res);
     const body = await res.json();
     expect(body.ok).toBe(true);
     expect(mockRemove).toHaveBeenCalledWith([`${ORG_ID}/${FILING_ID}/file.pdf`]);

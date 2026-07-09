@@ -52,7 +52,7 @@ export async function GET(
 
   return NextResponse.json(
     { data },
-    { headers: { 'Cache-Control': 'private, s-maxage=60' } }
+    { headers: { 'Cache-Control': 'no-store' } }
   );
 }
 
@@ -122,27 +122,29 @@ export async function POST(
     );
   }
 
-  // Also upsert to tax_years table for backward compatibility with Phase 1/2 features
-  // Use admin client to bypass RLS since this is an internal system sync operation
-  if (validated.estimated_agi || validated.filing_status) {
-    const adminClient = createAdminClient();
-    const { error: taxYearError } = await adminClient
-      .from('tax_years')
-      .upsert({
-        portfolio_id: validated.portfolio_id,
-        tax_year: validated.tax_year,
-        adjusted_gross_income: validated.estimated_agi ?? null,
-        filing_status: validated.filing_status ?? null,
-      }, {
-        onConflict: 'portfolio_id,tax_year'
-      });
+  // Always ensure the canonical tax_years row exists for downstream tax planning.
+  const adminClient = createAdminClient();
+  const { error: taxYearError } = await adminClient
+    .from('tax_years')
+    .upsert({
+      portfolio_id: created.portfolio_id,
+      tax_year: created.tax_year,
+      adjusted_gross_income: created.estimated_agi ?? null,
+      filing_status: created.filing_status ?? null,
+    }, {
+      onConflict: 'portfolio_id,tax_year'
+    });
 
-    if (taxYearError) {
-      console.error('Error syncing to tax_years table:', taxYearError);
-      // Don't fail the whole request, but log the error
-    } else {
-      console.log(`Successfully synced AGI ${validated.estimated_agi} to tax_years for year ${validated.tax_year}`);
-    }
+  if (taxYearError) {
+    const { error: rollbackError } = await sb
+      .from('tax_profiles')
+      .delete()
+      .eq('id', created.id)
+      .eq('portfolio_id', portfolio_id);
+    return NextResponse.json(
+      { error: taxYearError.message, rollback_error: rollbackError?.message ?? null },
+      { status: 500, headers: { 'Cache-Control': 'no-store' } }
+    );
   }
 
   return NextResponse.json(
@@ -192,6 +194,20 @@ export async function PUT(
 
   const validated = validation.data;
 
+  const { data: existing, error: existingErr } = await sb
+    .from('tax_profiles')
+    .select('*')
+    .eq('portfolio_id', portfolio_id)
+    .eq('tax_year', year)
+    .single();
+
+  if (existingErr || !existing) {
+    return NextResponse.json(
+      { error: existingErr?.message ?? 'Tax profile not found' },
+      { status: existingErr ? 500 : 404, headers: { 'Cache-Control': 'no-store' } }
+    );
+  }
+
   // Update tax profile
   const { data: updated, error: updateErr } = await sb
     .from('tax_profiles')
@@ -208,34 +224,33 @@ export async function PUT(
     );
   }
 
-  // Also upsert to tax_years table for backward compatibility with Phase 1/2 features
-  // Use admin client to bypass RLS since this is an internal system sync operation
-  if (validated.estimated_agi !== undefined || validated.filing_status !== undefined) {
-    const taxYearUpdate: any = {
+  // Always ensure the canonical tax_years row exists for downstream tax planning.
+  const adminClient = createAdminClient();
+  const { error: taxYearError } = await adminClient
+    .from('tax_years')
+    .upsert({
       portfolio_id,
       tax_year: year,
-    };
+      adjusted_gross_income: updated.estimated_agi ?? null,
+      filing_status: updated.filing_status ?? null,
+    }, {
+      onConflict: 'portfolio_id,tax_year'
+    });
 
-    if (validated.estimated_agi !== undefined) {
-      taxYearUpdate.adjusted_gross_income = validated.estimated_agi;
-    }
-    if (validated.filing_status !== undefined) {
-      taxYearUpdate.filing_status = validated.filing_status;
-    }
-
-    const adminClient = createAdminClient();
-    const { error: taxYearError } = await adminClient
-      .from('tax_years')
-      .upsert(taxYearUpdate, {
-        onConflict: 'portfolio_id,tax_year'
-      });
-
-    if (taxYearError) {
-      console.error('Error syncing to tax_years table:', taxYearError);
-      // Don't fail the whole request, but log the error
-    } else {
-      console.log(`Successfully synced AGI ${validated.estimated_agi} to tax_years for year ${year}`);
-    }
+  if (taxYearError) {
+    const { error: rollbackError } = await sb
+      .from('tax_profiles')
+      .update({
+        filing_status: existing.filing_status,
+        estimated_agi: existing.estimated_agi,
+        carryforward_from_prior: existing.carryforward_from_prior,
+      })
+      .eq('id', existing.id)
+      .eq('portfolio_id', portfolio_id);
+    return NextResponse.json(
+      { error: taxYearError.message, rollback_error: rollbackError?.message ?? null },
+      { status: 500, headers: { 'Cache-Control': 'no-store' } }
+    );
   }
 
   return NextResponse.json(

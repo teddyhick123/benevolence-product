@@ -5,6 +5,35 @@ export const runtime = 'nodejs';
 
 type Params = { id: string; grantId: string };
 
+const EDIT_ROLES = new Set(['owner', 'admin', 'member']);
+
+function json(body: Record<string, unknown>, init?: ResponseInit) {
+  return NextResponse.json(body, {
+    ...init,
+    headers: {
+      ...init?.headers,
+      'Cache-Control': 'no-store',
+    },
+  });
+}
+
+async function requireGrantInPortfolio(
+  sb: ReturnType<typeof createAdminClient>,
+  grantId: string,
+  portfolioId: string
+) {
+  const { data, error } = await sb
+    .from('grants')
+    .select('id')
+    .eq('id', grantId)
+    .eq('portfolio_id', portfolioId)
+    .is('deleted_at', null)
+    .maybeSingle();
+
+  if (error) throw error;
+  return !!data;
+}
+
 /**
  * GET /api/portfolio/[id]/grants/[grantId]/budget
  * List budget items for a grant
@@ -19,7 +48,7 @@ export async function GET(
 
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const { data: membership } = await supabase
@@ -30,10 +59,15 @@ export async function GET(
       .single();
 
     if (!membership) {
-      return NextResponse.json({ error: 'Access denied' }, { status: 403 });
+      return json({ error: 'Access denied' }, { status: 403 });
     }
 
     const sb = createAdminClient();
+    const grantInPortfolio = await requireGrantInPortfolio(sb, grantId, portfolioId);
+    if (!grantInPortfolio) {
+      return json({ error: 'Grant not found' }, { status: 404 });
+    }
+
     const { data, error } = await sb
       .from('grant_budget_items')
       .select('*')
@@ -42,10 +76,10 @@ export async function GET(
 
     if (error) throw error;
 
-    return NextResponse.json({ data: data || [] });
+    return json({ data: data || [] });
   } catch (err: any) {
     console.error('Error fetching budget items:', err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return json({ error: err.message }, { status: 500 });
   }
 }
 
@@ -63,7 +97,7 @@ export async function POST(
 
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const { data: membership } = await supabase
@@ -73,21 +107,26 @@ export async function POST(
       .eq('user_id', user.id)
       .single();
 
-    if (!membership || !['owner', 'admin', 'editor'].includes(membership.role)) {
-      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
+    if (!membership || !EDIT_ROLES.has(membership.role)) {
+      return json({ error: 'Insufficient permissions' }, { status: 403 });
     }
 
     const body = await req.json();
     const { category, description, budgeted_amount } = body;
 
     if (!category || !description || budgeted_amount == null) {
-      return NextResponse.json(
+      return json(
         { error: 'category, description, and budgeted_amount are required' },
         { status: 400 }
       );
     }
 
     const sb = createAdminClient();
+    const grantInPortfolio = await requireGrantInPortfolio(sb, grantId, portfolioId);
+    if (!grantInPortfolio) {
+      return json({ error: 'Grant not found' }, { status: 404 });
+    }
+
     const { data, error } = await sb
       .from('grant_budget_items')
       .insert({
@@ -101,10 +140,10 @@ export async function POST(
 
     if (error) throw error;
 
-    return NextResponse.json({ data }, { status: 201 });
+    return json({ data }, { status: 201 });
   } catch (err: any) {
     console.error('Error creating budget item:', err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return json({ error: err.message }, { status: 500 });
   }
 }
 
@@ -122,13 +161,13 @@ export async function PATCH(
     const itemId = searchParams.get('itemId');
 
     if (!itemId) {
-      return NextResponse.json({ error: 'itemId is required' }, { status: 400 });
+      return json({ error: 'itemId is required' }, { status: 400 });
     }
 
     const supabase = await createServerClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const { data: membership } = await supabase
@@ -138,8 +177,8 @@ export async function PATCH(
       .eq('user_id', user.id)
       .single();
 
-    if (!membership || !['owner', 'admin', 'editor'].includes(membership.role)) {
-      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
+    if (!membership || !EDIT_ROLES.has(membership.role)) {
+      return json({ error: 'Insufficient permissions' }, { status: 403 });
     }
 
     const body = await req.json();
@@ -150,10 +189,15 @@ export async function PATCH(
     }
 
     if (Object.keys(updates).length === 0) {
-      return NextResponse.json({ error: 'No valid fields to update' }, { status: 400 });
+      return json({ error: 'No valid fields to update' }, { status: 400 });
     }
 
     const sb = createAdminClient();
+    const grantInPortfolio = await requireGrantInPortfolio(sb, grantId, portfolioId);
+    if (!grantInPortfolio) {
+      return json({ error: 'Grant not found' }, { status: 404 });
+    }
+
     const { data, error } = await sb
       .from('grant_budget_items')
       .update(updates)
@@ -164,10 +208,10 @@ export async function PATCH(
 
     if (error) throw error;
 
-    return NextResponse.json({ data });
+    return json({ data });
   } catch (err: any) {
     console.error('Error updating budget item:', err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return json({ error: err.message }, { status: 500 });
   }
 }
 
@@ -185,13 +229,13 @@ export async function DELETE(
     const itemId = searchParams.get('itemId');
 
     if (!itemId) {
-      return NextResponse.json({ error: 'itemId is required' }, { status: 400 });
+      return json({ error: 'itemId is required' }, { status: 400 });
     }
 
     const supabase = await createServerClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const { data: membership } = await supabase
@@ -201,11 +245,16 @@ export async function DELETE(
       .eq('user_id', user.id)
       .single();
 
-    if (!membership || !['owner', 'admin', 'editor'].includes(membership.role)) {
-      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
+    if (!membership || !EDIT_ROLES.has(membership.role)) {
+      return json({ error: 'Insufficient permissions' }, { status: 403 });
     }
 
     const sb = createAdminClient();
+    const grantInPortfolio = await requireGrantInPortfolio(sb, grantId, portfolioId);
+    if (!grantInPortfolio) {
+      return json({ error: 'Grant not found' }, { status: 404 });
+    }
+
     const { error } = await sb
       .from('grant_budget_items')
       .delete()
@@ -214,9 +263,9 @@ export async function DELETE(
 
     if (error) throw error;
 
-    return NextResponse.json({ success: true });
+    return json({ success: true });
   } catch (err: any) {
     console.error('Error deleting budget item:', err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return json({ error: err.message }, { status: 500 });
   }
 }

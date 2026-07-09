@@ -6,6 +6,16 @@ import { aiAuthRequired, rateLimitExceeded } from '@/lib/rate-limit-response';
 import { AI_MODELS } from '@/lib/ai/models';
 import { generateText } from '@/lib/ai/text';
 
+function json(body: Record<string, unknown>, init?: ResponseInit) {
+  return NextResponse.json(body, {
+    ...init,
+    headers: {
+      ...init?.headers,
+      'Cache-Control': 'no-store',
+    },
+  });
+}
+
 export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const { id: portfolio_id } = await ctx.params;
 
@@ -14,6 +24,12 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
   // Auth check — no anonymous access to AI features
   const { data: { user: authUser } } = await supabase.auth.getUser();
   if (!authUser) return aiAuthRequired();
+
+  const { data: canView, error: canViewErr } = await supabase.rpc('can_view_portfolio', {
+    p_portfolio_id: portfolio_id,
+  });
+  if (canViewErr) return json({ error: canViewErr.message }, { status: 500 });
+  if (!canView) return json({ error: 'Access denied' }, { status: 403 });
 
   // Per-user rate limit
   const { success, reset, remaining, limit } = await aiLimiter.limit(authUser.id);
@@ -61,9 +77,9 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
       system: systemPrompt,
       prompt: lines.join('\n'),
     });
-    return NextResponse.json({ summary: content || 'No summary available.' });
+    return json({ summary: content || 'No summary available.' });
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Unknown error';
-    return NextResponse.json({ summary: `AI summary unavailable: ${msg}` }, { status: 200 });
+    return json({ summary: `AI summary unavailable: ${msg}` }, { status: 200 });
   }
 }

@@ -28,6 +28,15 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     }
 
     const db = createAdminClient();
+    const { data: hasModule, error: moduleErr } = await db.rpc('org_has_module', {
+      p_org_id: orgId,
+      p_module: 'grant_management',
+    });
+    if (moduleErr) throw moduleErr;
+    if (!hasModule) {
+      return json({ error: 'Grant management module is not enabled' }, { status: 403 });
+    }
+
     const { data, error } = await db
       .from('org_workflow_config')
       .select('id, config_type, stage_key, config_key, config_value, sort_order, created_at, updated_at')

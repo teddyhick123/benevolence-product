@@ -31,7 +31,7 @@ const REPORT_HIGH_PRIORITY_DAYS = 15; // spec: 1-15 days = high
 
 const PAYMENT_REMINDER_DAYS = 14; // spec: scheduled within 14 days or overdue
 
-const MILESTONE_OPEN_STATUSES = ['pending', 'in_progress', 'overdue'];
+const MILESTONE_OPEN_STATUSES = ['pending', 'in_progress'];
 
 export async function grantObligationsProducer(
   options: ProducerOptions

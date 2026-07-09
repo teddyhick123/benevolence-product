@@ -8,8 +8,12 @@ const GRANT_ID = '22222222-2222-2222-2222-222222222222';
 // Mutable state for the DB mock
 let _configRows: any[] = [];
 let _completionRows: any[] = [];
+let _customFieldRows: any[] = [];
+let _customFieldValueRows: any[] = [];
 let _configError: any = null;
 let _completionError: any = null;
+let _customFieldError: any = null;
+let _customFieldValueError: any = null;
 
 function makeDb() {
   return {
@@ -31,6 +35,22 @@ function makeDb() {
         };
         return b;
       }
+      if (table === 'org_custom_field_definitions') {
+        const b: any = {
+          select: vi.fn(() => b),
+          eq: vi.fn(() => b),
+          then: (resolve: any) => Promise.resolve({ data: _customFieldRows, error: _customFieldError }).then(resolve),
+        };
+        return b;
+      }
+      if (table === 'org_custom_field_values') {
+        const b: any = {
+          select: vi.fn(() => b),
+          eq: vi.fn(() => b),
+          in: vi.fn(() => Promise.resolve({ data: _customFieldValueRows, error: _customFieldValueError })),
+        };
+        return b;
+      }
       return { select: vi.fn(), eq: vi.fn() };
     },
   } as any;
@@ -39,8 +59,12 @@ function makeDb() {
 beforeEach(() => {
   _configRows = [];
   _completionRows = [];
+  _customFieldRows = [];
+  _customFieldValueRows = [];
   _configError = null;
   _completionError = null;
+  _customFieldError = null;
+  _customFieldValueError = null;
 });
 
 describe('checkWorkflowGate', () => {
@@ -161,6 +185,37 @@ describe('checkWorkflowGate', () => {
       config_key: 'default',
       config_value: { required: true, description: 'Board vote required' },
       sort_order: 0,
+    }];
+
+    const result = await checkWorkflowGate(makeDb(), ORG_ID, GRANT_ID, 'due_diligence', {});
+    expect(result.blocked).toBe(false);
+  });
+
+  it('returns blocked when a required custom field has no value', async () => {
+    _customFieldRows = [{
+      id: 'custom-field-1',
+      field_label: 'Strategic Alignment Score',
+      field_key: 'strategic_alignment_score',
+    }];
+    _customFieldValueRows = [];
+
+    const result = await checkWorkflowGate(makeDb(), ORG_ID, GRANT_ID, 'due_diligence', {});
+    expect(result.blocked).toBe(true);
+    expect(result.reasons).toEqual(['Custom field required: Strategic Alignment Score']);
+  });
+
+  it('returns not-blocked when a required custom field has a value', async () => {
+    _customFieldRows = [{
+      id: 'custom-field-1',
+      field_label: 'Strategic Alignment Score',
+      field_key: 'strategic_alignment_score',
+    }];
+    _customFieldValueRows = [{
+      field_definition_id: 'custom-field-1',
+      value_text: null,
+      value_numeric: 4,
+      value_boolean: null,
+      value_date: null,
     }];
 
     const result = await checkWorkflowGate(makeDb(), ORG_ID, GRANT_ID, 'due_diligence', {});

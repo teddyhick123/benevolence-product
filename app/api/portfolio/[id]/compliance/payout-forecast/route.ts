@@ -27,6 +27,16 @@ function getServiceClient() {
   );
 }
 
+function json(body: Record<string, unknown>, init?: ResponseInit) {
+  return NextResponse.json(body, {
+    ...init,
+    headers: {
+      ...init?.headers,
+      'Cache-Control': 'no-store',
+    },
+  });
+}
+
 /**
  * GET /api/portfolio/[id]/compliance/payout-forecast?year=2025&include_pending=true
  * Real-time §4942 payout forecast including pipeline grants
@@ -44,35 +54,56 @@ export async function GET(
     const cookieStore = await cookies();
     const supabase = getAuthClient(cookieStore);
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!user) return json({ error: 'Unauthorized' }, { status: 401 });
+
+    const { data: canView, error: canViewErr } = await supabase.rpc('can_view_portfolio', {
+      p_portfolio_id: portfolioId,
+    });
+    if (canViewErr) return json({ error: canViewErr.message }, { status: 500 });
+    if (!canView) return json({ error: 'Access denied' }, { status: 403 });
 
     const sb = getServiceClient();
 
-    // Check portfolio access
-    const { data: member } = await sb
-      .from('portfolio_members')
-      .select('portfolio_id')
-      .eq('portfolio_id', portfolioId)
-      .eq('user_id', user.id)
-      .maybeSingle();
-    if (!member) return NextResponse.json({ error: 'Access denied' }, { status: 403 });
-
     // Get payout_history base
-    const { data: payout } = await sb
+    const { data: payout, error: payoutError } = await sb
       .from('payout_history')
       .select('distributable_amount, minimum_investment_return, net_value_non_charitable')
       .eq('portfolio_id', portfolioId)
       .eq('tax_year', year)
       .maybeSingle();
+    if (payoutError) throw payoutError;
+
+    // Days remaining in tax year
+    const yearEnd = new Date(`${year}-12-31`);
+    const today = new Date();
+    const daysRemaining = Math.max(0, Math.floor((yearEnd.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)));
+
+    if (!payout) {
+      return json({
+        tax_year: year,
+        data_missing: true,
+        warning: 'Payout history is missing for this tax year. Enter §4942 payout inputs before relying on forecast status.',
+        distributable_amount: null,
+        distributions_to_date: null,
+        pipeline_total: null,
+        pipeline_payments: [],
+        shortfall_before_pipeline: null,
+        shortfall_after_pipeline: null,
+        on_track: null,
+        days_remaining: daysRemaining,
+        pct_complete: null,
+      });
+    }
 
     const distributableAmount = payout?.distributable_amount ?? 0;
 
     // Sum qualifying distributions already recorded
-    const { data: qdRows } = await sb
+    const { data: qdRows, error: qdError } = await sb
       .from('qualifying_distributions')
-      .select('qualifying_amount')
+      .select('qualifying_amount, grant_payment_id')
       .eq('portfolio_id', portfolioId)
       .eq('tax_year', year);
+    if (qdError) throw qdError;
 
     const distributionsToDate = (qdRows || []).reduce(
       (sum, r) => sum + (r.qualifying_amount || 0), 0
@@ -84,32 +115,32 @@ export async function GET(
 
     if (includePending) {
       // Get all grant IDs in this portfolio
-      const { data: holdings } = await sb
-        .from('holdings')
+      const { data: grants, error: grantsError } = await sb
+        .from('grants')
         .select('id')
-        .eq('portfolio_id', portfolioId);
+        .eq('portfolio_id', portfolioId)
+        .is('deleted_at', null);
 
-      if (holdings && holdings.length > 0) {
-        const holdingIds = holdings.map(h => h.id);
+      if (grantsError) throw grantsError;
 
-        const { data: grants } = await sb
-          .from('grants')
-          .select('id')
-          .in('holding_id', holdingIds);
+      if (grants && grants.length > 0) {
+        const grantIds = grants.map(g => g.id);
+        const countedPaymentIds = new Set(
+          (qdRows || [])
+            .map(r => r.grant_payment_id)
+            .filter((id): id is string => typeof id === 'string')
+        );
 
-        if (grants && grants.length > 0) {
-          const grantIds = grants.map(g => g.id);
+        const { data: payments, error: paymentsError } = await sb
+          .from('grant_payments')
+          .select('id, amount, status, scheduled_date')
+          .in('grant_id', grantIds)
+          .in('status', ['approved', 'scheduled']);
 
-          const { data: payments } = await sb
-            .from('grant_payments')
-            .select('id, amount, status, scheduled_date')
-            .in('grant_id', grantIds)
-            .in('status', ['approved', 'scheduled'])
-            .not('id', 'in', `(SELECT grant_payment_id FROM public.qualifying_distributions WHERE portfolio_id = '${portfolioId}' AND tax_year = ${year} AND grant_payment_id IS NOT NULL)`);
+        if (paymentsError) throw paymentsError;
 
-          pipelinePayments = payments || [];
-          pipelineTotal = pipelinePayments.reduce((sum, p) => sum + (p.amount || 0), 0);
-        }
+        pipelinePayments = (payments || []).filter(p => !countedPaymentIds.has(p.id));
+        pipelineTotal = pipelinePayments.reduce((sum, p) => sum + (p.amount || 0), 0);
       }
     }
 
@@ -117,13 +148,10 @@ export async function GET(
     const shortfallAfterPipeline = Math.max(0, shortfallBeforePipeline - pipelineTotal);
     const onTrack = shortfallAfterPipeline <= 0;
 
-    // Days remaining in tax year
-    const yearEnd = new Date(`${year}-12-31`);
-    const today = new Date();
-    const daysRemaining = Math.max(0, Math.floor((yearEnd.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)));
-
-    return NextResponse.json({
+    return json({
       tax_year: year,
+      data_missing: false,
+      warning: null,
       distributable_amount: distributableAmount,
       distributions_to_date: distributionsToDate,
       pipeline_total: pipelineTotal,
@@ -137,6 +165,6 @@ export async function GET(
         : 100,
     });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return json({ error: err.message }, { status: 500 });
   }
 }

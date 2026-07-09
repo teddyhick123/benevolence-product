@@ -6,6 +6,7 @@ import Link from 'next/link';
 import PledgeCreateModal from '@/components/pledges/PledgeCreateModal';
 import PledgeDetailPanel from '@/components/pledges/PledgeDetailPanel';
 import { pledgeStatusBadgeClass, pledgeStatusLabel } from '@/components/pledges/pledgePalette';
+import CustomFieldsPanel from '@/components/custom-fields/CustomFieldsPanel';
 
 const LETTER_TYPE_LABELS: Record<string, string> = {
   year_end: 'Year-End',
@@ -291,6 +292,12 @@ export default function DonorProfilePage() {
             </div>
           </div>
         </div>
+
+        {orgId && (
+          <div className="mb-6">
+            <CustomFieldsPanel orgId={orgId} entityType="donor" entityId={donorId} />
+          </div>
+        )}
 
         {/* Contribution History */}
         <div className="rounded-2xl border border-black/5 bg-white shadow-soft mb-6">

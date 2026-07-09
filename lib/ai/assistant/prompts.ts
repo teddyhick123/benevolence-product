@@ -1,4 +1,5 @@
 // @ts-nocheck - extracted from legacy assistant while Supabase generated types are incomplete
+import { formatOrgAiContextForPrompt } from '@/lib/org-ai-context';
 
 
 export function buildSystemPrompt(context: any, options: { moduleSystemPrompt?: string; aiInstructions?: string | null } = {}): string {
@@ -66,6 +67,15 @@ export function buildSystemPrompt(context: any, options: { moduleSystemPrompt?: 
       }
       return `=== ORGANIZATION CONTEXT ===\n${lines.join('\n')}\n`;
     })() : '';
+
+    const structuredOrgContext = context.orgContext?.aiContext
+      ? formatOrgAiContextForPrompt(context.orgContext.aiContext)
+      : '';
+    const entityVocabulary = context.orgContext?.entityVocabulary
+      ? Object.entries(context.orgContext.entityVocabulary)
+          .map(([entity, labels]: [string, any]) => `- ${entity}: ${labels.singular} / ${labels.plural}`)
+          .join('\n')
+      : '';
 
     let prompt = `You are a friendly AI portfolio management assistant and data visualization expert. You help users manage their impact portfolio and create compelling visualizations.
 
@@ -249,11 +259,24 @@ ${moduleSystemPrompt ? `
 === ENABLED CAPABILITIES ===
 ${moduleSystemPrompt}
 ` : ''}
+${structuredOrgContext ? `
+=== YOUR ORGANIZATION ===
+${structuredOrgContext}
+
+Use this organization-specific context when answering. Treat it as durable org policy and preference, but do not invent new context entries. If you notice a repeated norm or vocabulary preference that is not listed here, ask the user whether they want you to remember it before calling suggest_context_entry.
+` : ''}
+${entityVocabulary ? `
+=== ENTITY VOCABULARY ===
+${entityVocabulary}
+
+Use these display labels in user-facing prose. Keep database table names and tool arguments canonical.
+` : ''}
 === BEHAVIOR ===
 • Be concise - especially after generating charts
 • Use the data above to answer questions directly
 • Create visualizations when asked
 • Ask for confirmation on deletes
+• If you notice a repeated org norm, policy, or vocabulary preference, ask whether the user wants you to remember it. Only call suggest_context_entry after explicit confirmation or a direct request to remember it.
 • When a metric doesn't exist, suggest available alternatives`;
 
     if (aiInstructions) {

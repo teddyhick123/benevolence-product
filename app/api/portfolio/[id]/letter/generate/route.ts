@@ -5,6 +5,16 @@ import { aiAuthRequired } from '@/lib/rate-limit-response';
 import { AI_MODELS } from '@/lib/ai/models';
 import { generateText } from '@/lib/ai/text';
 
+function json(body: Record<string, unknown>, init?: ResponseInit) {
+  return NextResponse.json(body, {
+    ...init,
+    headers: {
+      ...init?.headers,
+      'Cache-Control': 'no-store',
+    },
+  });
+}
+
 /**
  * GET /api/portfolio/[id]/letter/generate
  * Fetch existing cached letter (no regeneration)
@@ -20,6 +30,12 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
       return aiAuthRequired();
     }
 
+    const { data: canView, error: canViewErr } = await sb.rpc('can_view_portfolio', {
+      p_portfolio_id: portfolio_id,
+    });
+    if (canViewErr) return json({ error: canViewErr.message }, { status: 500 });
+    if (!canView) return json({ error: 'Access denied' }, { status: 403 });
+
     // Fetch the latest cached letter for this portfolio
     const { data: cachedLetter, error } = await sb
       .from('generated_letters')
@@ -30,7 +46,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
       .single();
 
     if (error || !cachedLetter) {
-      return NextResponse.json(
+      return json(
         { error: 'No cached letter found', code: 'NOT_FOUND' },
         { status: 404 }
       );
@@ -44,7 +60,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
       holdings: any[];
     };
 
-    return NextResponse.json({
+    return json({
       letter_content: cachedLetter.letter_content,
       portfolio: summaryData.portfolio,
       summary: {
@@ -57,7 +73,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
       version: cachedLetter.version,
     });
   } catch (error: any) {
-    return NextResponse.json(
+    return json(
       { error: error.message || 'Failed to fetch letter' },
       { status: 500 }
     );
@@ -84,6 +100,12 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
       return aiAuthRequired();
     }
 
+    const { data: canView, error: canViewErr } = await sb.rpc('can_view_portfolio', {
+      p_portfolio_id: portfolio_id,
+    });
+    if (canViewErr) return json({ error: canViewErr.message }, { status: 500 });
+    if (!canView) return json({ error: 'Access denied' }, { status: 403 });
+
     // Check for existing cached letter (unless force regenerate)
     if (!forceRegenerate) {
       const { data: cachedLetter } = await sb
@@ -103,7 +125,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
           holdings: any[];
         };
 
-        return NextResponse.json({
+        return json({
           letter_content: cachedLetter.letter_content,
           portfolio: summaryData.portfolio,
           summary: {
@@ -257,11 +279,11 @@ INTEGRATION OF VISUALIZATIONS:
 
     if (insertError) {
       console.error('Failed to cache letter:', insertError);
-      // Don't fail the request, just log the error
+      return json({ error: insertError.message }, { status: 500 });
     }
 
     // 9. Return generated letter along with structured data
-    return NextResponse.json({
+    return json({
       letter_content: generatedLetter,
       portfolio: {
         id: portfolio.id,
@@ -280,7 +302,7 @@ INTEGRATION OF VISUALIZATIONS:
     });
 
   } catch (error: any) {
-    return NextResponse.json(
+    return json(
       { error: error.message || 'Failed to generate letter' },
       { status: 500 }
     );

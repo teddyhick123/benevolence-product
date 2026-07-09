@@ -4,13 +4,19 @@
 //
 // Reads grants across ALL portfolios belonging to the org and creates Journal Entries in QuickBooks.
 
-import { createServerClient } from '@/lib/supabase';
+import { createAdminClient, createServerClient } from '@/lib/supabase';
 import { branding } from '@/lib/config';
 import {
   getAuthenticatedQBClientByOrg,
   createJournalEntryAsync,
+  findJournalEntryByDocNumberAsync,
   QBJournalEntry,
 } from '@/lib/integrations/quickbooks/client';
+import {
+  claimQBExportAttempt,
+  completeQBExportAttempt,
+  failQBExportAttempt,
+} from '@/lib/integrations/quickbooks/export-attempts';
 
 interface ExportGrantsBody {
   org_id?: string;
@@ -22,10 +28,73 @@ interface ExportGrantsBody {
 
 interface GrantRow {
   id: string;
+  approved_amount: number | null;
+  requested_amount: number | null;
+  holdings: { name: string; funds_allocated: number | null } | null;
   name: string;
   funds_allocated: number | null;
   grant_period_start: string | null;
   grant_period_end: string | null;
+}
+
+function json(body: Record<string, unknown>, init?: ResponseInit) {
+  return Response.json(body, {
+    ...init,
+    headers: {
+      ...init?.headers,
+      'Cache-Control': 'no-store',
+    },
+  });
+}
+
+function getJournalEntryId(result: unknown): string | null {
+  if (!result || typeof result !== 'object') return null;
+  const row = result as any;
+  return row.Id ?? row.JournalEntry?.Id ?? row.QueryResponse?.JournalEntry?.[0]?.Id ?? null;
+}
+
+function getJournalEntry(result: unknown): any | null {
+  if (!result || typeof result !== 'object') return null;
+  const row = result as any;
+  return row.JournalEntry ?? row.QueryResponse?.JournalEntry?.[0] ?? row;
+}
+
+function journalEntryMatchesExpected(
+  result: unknown,
+  amount: number,
+  debitAccountId: string,
+  creditAccountId: string
+): boolean {
+  const entry = getJournalEntry(result);
+  const lines = Array.isArray(entry?.Line) ? entry.Line : [];
+  const matchesLine = (postingType: 'Debit' | 'Credit', accountId: string) =>
+    lines.some((line: any) =>
+      Number(line.Amount) === Number(amount) &&
+      line.JournalEntryLineDetail?.PostingType === postingType &&
+      line.JournalEntryLineDetail?.AccountRef?.value === accountId
+    );
+
+  return matchesLine('Debit', debitAccountId) && matchesLine('Credit', creditAccountId);
+}
+
+async function logQBSync(
+  db: ReturnType<typeof createAdminClient>,
+  orgId: string,
+  status: 'success' | 'error',
+  recordCount: number | null,
+  errorMsg?: string
+) {
+  const { error } = await db.from('qb_sync_log').insert({
+    org_id: orgId,
+    event_type: 'grants_export',
+    status,
+    record_count: recordCount,
+    error_msg: errorMsg ?? null,
+  });
+
+  if (error) {
+    throw error;
+  }
 }
 
 export async function POST(req: Request): Promise<Response> {
@@ -34,96 +103,108 @@ export async function POST(req: Request): Promise<Response> {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) {
-    return Response.json({ error: 'Unauthorized' }, { status: 401 });
+    return json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   const body = (await req.json().catch(() => ({}))) as ExportGrantsBody;
   const { org_id: orgId, expense_account_id, bank_account_id, since } = body;
 
   if (!orgId || !expense_account_id || !bank_account_id) {
-    return Response.json(
+    return json(
       { error: 'org_id, expense_account_id, and bank_account_id are required' },
       { status: 400 }
     );
   }
 
   // Confirm user is an admin or owner of this org
-  const { data: membership } = await supabase
+  const { data: membership, error: membershipError } = await supabase
     .from('organization_members')
     .select('role')
     .eq('org_id', orgId)
     .eq('user_id', user.id)
     .single();
+  if (membershipError) return json({ error: membershipError.message }, { status: 500 });
 
   if (!membership || !['owner', 'admin'].includes(membership.role as string)) {
-    return Response.json({ error: 'Admin access required' }, { status: 403 });
+    return json({ error: 'Admin access required' }, { status: 403 });
   }
 
   // Fetch all portfolio IDs belonging to this org
-  const { data: portfolios } = await supabase
+  const { data: portfolios, error: portfolioError } = await supabase
     .from('portfolios')
     .select('id')
     .eq('org_id', orgId);
+  if (portfolioError) return json({ error: portfolioError.message }, { status: 500 });
 
   if (!portfolios || portfolios.length === 0) {
-    return Response.json({ ok: true, exported: 0, message: 'No portfolios found for this org' });
+    return json({ ok: true, exported: 0, message: 'No portfolios found for this org' });
   }
 
   const portfolioIds = portfolios.map((p) => p.id);
 
-  // Fetch holdings with grants across all org portfolios.
-  // Use funds_allocated (what has been disbursed/drawn) not total_committed
-  // (the full multi-year pledge) to avoid double-counting on re-exports.
+  // Fetch grants across all org portfolios. Use holdings.funds_allocated
+  // (what has been disbursed/drawn) to avoid double-counting full commitments.
   let query = supabase
-    .from('holdings')
+    .from('grants')
     .select(
       `id,
-       name,
-       funds_allocated,
-       grants!inner(grant_period_start, grant_period_end)`
+       approved_amount,
+       requested_amount,
+       grant_period_start,
+       grant_period_end,
+       holdings!inner(name, funds_allocated)`
     )
+    .eq('org_id', orgId)
     .in('portfolio_id', portfolioIds)
-    .not('funds_allocated', 'is', null)
-    .gt('funds_allocated', 0)
+    .is('deleted_at', null)
+    .is('qb_exported_at', null)
     .limit(2000);
 
   if (since) {
-    query = query.gte('grants.grant_period_start', since);
+    query = query.gte('grant_period_start', since);
   }
 
   const { data: grants, error: fetchError } = await query;
+  const db = createAdminClient();
 
   if (fetchError) {
     console.error('[QB] grants fetch error:', fetchError);
-    return Response.json({ error: 'Failed to fetch grants' }, { status: 500 });
+    await logQBSync(db, orgId, 'error', null, 'Failed to fetch grants');
+    return json({ error: 'Failed to fetch grants' }, { status: 500 });
   }
 
   if (!grants || grants.length === 0) {
-    return Response.json({ ok: true, exported: 0, message: 'No grants found' });
+    return json({ ok: true, exported: 0, message: 'No grants found' });
   }
 
   const truncated = grants.length >= 2000;
 
   const qbResult = await getAuthenticatedQBClientByOrg(orgId);
   if (!qbResult) {
-    return Response.json(
+    return json(
       { error: 'QuickBooks not connected or token refresh failed' },
       { status: 422 }
     );
   }
 
   const { client } = qbResult;
-  const exported: string[] = [];
+  const exported: Array<{ id: string; qb_journal_entry_id: string }> = [];
   const failed: Array<{ id: string; error: string }> = [];
 
-  const eligibleGrants = (grants as unknown as GrantRow[]).filter(g => g.funds_allocated && g.funds_allocated > 0);
+  const eligibleGrants = (grants as unknown as GrantRow[]).filter(g => {
+    const amount = g.holdings?.funds_allocated ?? 0;
+    return amount > 0;
+  });
 
   const BATCH_SIZE = 30;
   for (let i = 0; i < eligibleGrants.length; i += BATCH_SIZE) {
     const batch = eligibleGrants.slice(i, i + BATCH_SIZE);
     await Promise.all(
       batch.map(async (grant) => {
-        const amount = grant.funds_allocated!;
+        const amount = grant.holdings!.funds_allocated!;
+        const grantName = grant.holdings?.name ?? 'Grant';
+        const docNumber = `GRANT-${grant.id.slice(0, 8).toUpperCase()}`;
+        let attemptId: string | null = null;
         const txnDate =
           grant.grant_period_start
             ? grant.grant_period_start.slice(0, 10)
@@ -131,11 +212,11 @@ export async function POST(req: Request): Promise<Response> {
 
         const entry: QBJournalEntry = {
           TxnDate: txnDate,
-          DocNumber: `GRANT-${grant.id.slice(0, 8).toUpperCase()}`,
-          PrivateNote: `Grant to ${grant.name} — exported from ${branding.appName}`,
+          DocNumber: docNumber,
+          PrivateNote: `Grant to ${grantName} — exported from ${branding.appName}`,
           Line: [
             {
-              Description: `Grant disbursement — ${grant.name}`,
+              Description: `Grant disbursement — ${grantName}`,
               Amount: amount,
               DetailType: 'JournalEntryLineDetail',
               JournalEntryLineDetail: {
@@ -144,7 +225,7 @@ export async function POST(req: Request): Promise<Response> {
               },
             },
             {
-              Description: `Payment — ${grant.name}`,
+              Description: `Payment — ${grantName}`,
               Amount: amount,
               DetailType: 'JournalEntryLineDetail',
               JournalEntryLineDetail: {
@@ -155,14 +236,71 @@ export async function POST(req: Request): Promise<Response> {
           ],
         };
         try {
-          await createJournalEntryAsync(client, entry);
-          exported.push(grant.id);
+          const claim = await claimQBExportAttempt(db, {
+            orgId,
+            exportType: 'grant',
+            sourceTable: 'grants',
+            sourceId: grant.id,
+            docNumber,
+            expectedAmount: amount,
+            debitAccountId: expense_account_id,
+            creditAccountId: bank_account_id,
+          });
+
+          attemptId = claim.attemptId;
+          if (claim.status === 'already_succeeded') {
+            exported.push({ id: grant.id, qb_journal_entry_id: claim.qbJournalEntryId });
+            return;
+          }
+
+          if (claim.status === 'in_flight') {
+            const existing = await findJournalEntryByDocNumberAsync(client, docNumber);
+            const journalEntryId = getJournalEntryId(existing);
+            if (journalEntryId && journalEntryMatchesExpected(existing, amount, expense_account_id, bank_account_id)) {
+              await completeQBExportAttempt(db, attemptId, journalEntryId);
+              exported.push({ id: grant.id, qb_journal_entry_id: journalEntryId });
+              return;
+            }
+            failed.push({ id: grant.id, error: 'QuickBooks export already in flight' });
+            return;
+          }
+
+          const result = await createJournalEntryAsync(client, entry);
+          let journalEntryId = getJournalEntryId(result);
+          if (!journalEntryId) {
+            const existing = await findJournalEntryByDocNumberAsync(client, docNumber);
+            if (!journalEntryMatchesExpected(existing, amount, expense_account_id, bank_account_id)) {
+              throw new Error(`Existing DocNumber ${docNumber} does not match expected amount/accounts`);
+            }
+            journalEntryId = getJournalEntryId(existing);
+          }
+          if (!journalEntryId) {
+            throw new Error('QuickBooks journal entry created but no JournalEntry Id was returned');
+          }
+          await completeQBExportAttempt(db, attemptId, journalEntryId);
+          exported.push({ id: grant.id, qb_journal_entry_id: journalEntryId });
         } catch (err) {
           const errMsg = err instanceof Error ? err.message : 'Unknown error';
           if (errMsg.toLowerCase().includes('duplicate') || errMsg.toLowerCase().includes('doc number')) {
-            exported.push(grant.id);
+            try {
+              const existing = await findJournalEntryByDocNumberAsync(client, docNumber);
+              const journalEntryId = getJournalEntryId(existing);
+              if (!journalEntryId || !journalEntryMatchesExpected(existing, amount, expense_account_id, bank_account_id)) {
+                throw new Error(`Duplicate DocNumber ${docNumber} could not be resolved`);
+              }
+              if (attemptId) {
+                await completeQBExportAttempt(db, attemptId, journalEntryId);
+              }
+              exported.push({ id: grant.id, qb_journal_entry_id: journalEntryId });
+            } catch (lookupErr) {
+              const lookupMsg = lookupErr instanceof Error ? lookupErr.message : 'Unknown duplicate lookup error';
+              console.error(`[QB] Duplicate lookup failed for grant ${grant.id}:`, lookupErr);
+              if (attemptId) await failQBExportAttempt(db, attemptId, lookupMsg);
+              failed.push({ id: grant.id, error: lookupMsg });
+            }
           } else {
             console.error(`[QB] Journal entry failed for grant ${grant.id}:`, err);
+            if (attemptId) await failQBExportAttempt(db, attemptId, errMsg);
             failed.push({ id: grant.id, error: errMsg });
           }
         }
@@ -170,7 +308,37 @@ export async function POST(req: Request): Promise<Response> {
     );
   }
 
-  return Response.json({
+  if (exported.length > 0) {
+    const reconciliationResults = await Promise.all(
+      exported.map(({ id, qb_journal_entry_id }) =>
+        db
+          .from('grants')
+          .update({
+            qb_exported_at: new Date().toISOString(),
+            qb_journal_entry_id,
+          })
+          .eq('id', id)
+          .eq('org_id', orgId)
+      )
+    );
+    reconciliationResults.forEach(({ error }, index) => {
+      if (error) {
+        const grantId = exported[index]?.id ?? 'unknown';
+        console.error(`[QB] Failed to persist grant export state for ${grantId}:`, error);
+        failed.push({ id: grantId, error: 'QuickBooks export succeeded but local reconciliation failed' });
+      }
+    });
+  }
+
+  await logQBSync(
+    db,
+    orgId,
+    failed.length > 0 ? 'error' : 'success',
+    exported.length,
+    failed.length > 0 ? JSON.stringify(failed.slice(0, 25)) : undefined
+  );
+
+  return json({
     ok: true,
     exported: exported.length,
     failed: failed.length,

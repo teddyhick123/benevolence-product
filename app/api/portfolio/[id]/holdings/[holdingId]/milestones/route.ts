@@ -1,8 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseServerClient } from '@/lib/supabase';
 import { createMilestoneSchema } from '@/lib/schemas/grant';
+import { withMilestoneDisplayStatus } from '@/lib/grants/milestones';
 
 const getSupabase = createSupabaseServerClient;
+
+function json(body: Record<string, unknown>, init?: ResponseInit) {
+  return NextResponse.json(body, {
+    ...init,
+    headers: {
+      ...init?.headers,
+      'Cache-Control': 'no-store',
+    },
+  });
+}
 
 /**
  * GET /api/portfolio/[id]/holdings/[holdingId]/milestones
@@ -25,7 +36,7 @@ export async function GET(
       .single();
 
     if (holdingError || !holding) {
-      return NextResponse.json(
+      return json(
         { error: 'Holding not found or access denied' },
         { status: 404 }
       );
@@ -39,7 +50,7 @@ export async function GET(
       .maybeSingle();
 
     if (!grantRecord) {
-      return NextResponse.json({
+      return json({
         data: [],
         count: 0,
         message: 'No grant found for this holding',
@@ -55,16 +66,16 @@ export async function GET(
 
     if (error) {
       console.error('Error fetching milestones:', error);
-      return NextResponse.json({ error: 'Failed to fetch milestones' }, { status: 500 });
+      return json({ error: 'Failed to fetch milestones' }, { status: 500 });
     }
 
-    return NextResponse.json({
-      data: milestones || [],
+    return json({
+      data: (milestones || []).map((milestone: any) => withMilestoneDisplayStatus(milestone)),
       count: milestones?.length || 0,
     });
   } catch (error) {
     console.error('Unexpected error in GET milestones:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return json({ error: 'Internal server error' }, { status: 500 });
   }
 }
 
@@ -82,13 +93,12 @@ export async function POST(
     const supabase = await getSupabase();
 
     // Verify holding belongs to portfolio and user can edit
-    const { data: canEdit } = await supabase.rpc('can_edit_portfolio', {
+    const { data: canEdit, error: canEditErr } = await supabase.rpc('can_edit_portfolio', {
       p_portfolio_id: portfolioId,
-      p_user_id: (await supabase.auth.getUser()).data.user?.id,
     });
 
-    if (!canEdit) {
-      return NextResponse.json(
+    if (canEditErr || !canEdit) {
+      return json(
         { error: 'Permission denied: cannot edit this portfolio' },
         { status: 403 }
       );
@@ -102,7 +112,7 @@ export async function POST(
       .single();
 
     if (!holding) {
-      return NextResponse.json({ error: 'Holding not found' }, { status: 404 });
+      return json({ error: 'Holding not found' }, { status: 404 });
     }
 
     // Get the grant record for this holding
@@ -113,7 +123,7 @@ export async function POST(
       .single();
 
     if (!grantRecord) {
-      return NextResponse.json(
+      return json(
         { error: 'Grant not found for this holding. Create a grant first.' },
         { status: 404 }
       );
@@ -146,18 +156,18 @@ export async function POST(
 
     if (error) {
       console.error('Error creating milestone:', error);
-      return NextResponse.json({ error: 'Failed to create milestone' }, { status: 500 });
+      return json({ error: 'Failed to create milestone' }, { status: 500 });
     }
 
-    return NextResponse.json({ data: milestone }, { status: 201 });
+    return json({ data: withMilestoneDisplayStatus(milestone) }, { status: 201 });
   } catch (error: any) {
     if (error?.name === 'ZodError') {
-      return NextResponse.json(
+      return json(
         { error: 'Validation error', details: error.errors },
         { status: 400 }
       );
     }
     console.error('Unexpected error in POST milestone:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return json({ error: 'Internal server error' }, { status: 500 });
   }
 }

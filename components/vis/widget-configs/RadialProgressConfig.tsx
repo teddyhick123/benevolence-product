@@ -7,6 +7,7 @@ export type RadialProgressConfigProps = {
   onSave: (config: { title: string; config: any }) => void;
   onCancel: () => void;
   portfolioId?: string;
+  onPreviewChange?: (config: { title: string; config: any }) => void;
 };
 
 type KpiRing = {
@@ -19,7 +20,7 @@ type KpiRing = {
 
 const sunsetColors = ['#5186a6', '#e07a5f', '#f4a261'];
 
-export default function RadialProgressConfig({ initialConfig, onSave, onCancel, portfolioId }: RadialProgressConfigProps) {
+export default function RadialProgressConfig({ initialConfig, onSave, onCancel, portfolioId, onPreviewChange }: RadialProgressConfigProps) {
   const [title, setTitle] = React.useState(initialConfig?.title || '');
   const [rings, setRings] = React.useState<KpiRing[]>(() => {
     if (initialConfig?.config?.rings && Array.isArray(initialConfig.config.rings)) {
@@ -83,6 +84,21 @@ export default function RadialProgressConfig({ initialConfig, onSave, onCancel, 
     newRings[index] = { ...newRings[index], [field]: value };
     setRings(newRings);
   };
+
+  React.useEffect(() => {
+    onPreviewChange?.({
+      title: title || 'KPI Progress',
+      config: {
+        rings: rings.map(r => ({
+          metric_code: r.metric_code,
+          target: Number(r.target || 0),
+          label: r.label || r.metric_code || 'KPI',
+          unit: r.unit || undefined,
+          color: r.color,
+        }))
+      }
+    });
+  }, [onPreviewChange, rings, title]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

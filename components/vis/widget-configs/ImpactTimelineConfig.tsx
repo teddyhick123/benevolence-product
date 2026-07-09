@@ -7,6 +7,7 @@ export type ImpactTimelineConfigProps = {
   onSave: (config: { title: string; config: any }) => void;
   onCancel: () => void;
   portfolioId?: string;
+  onPreviewChange?: (config: { title: string; config: any }) => void;
 };
 
 const EVENT_TYPES = [
@@ -17,7 +18,7 @@ const EVENT_TYPES = [
   { value: 'other', label: 'Other', description: 'General events' }
 ];
 
-export default function ImpactTimelineConfig({ initialConfig, onSave, onCancel }: ImpactTimelineConfigProps) {
+export default function ImpactTimelineConfig({ initialConfig, onSave, onCancel, onPreviewChange }: ImpactTimelineConfigProps) {
   const [title, setTitle] = React.useState(initialConfig?.title || '');
   const [window, setWindow] = React.useState(initialConfig?.config?.window || '12m');
   const [orientation, setOrientation] = React.useState<'horizontal' | 'vertical'>(initialConfig?.config?.orientation || 'horizontal');
@@ -36,6 +37,19 @@ export default function ImpactTimelineConfig({ initialConfig, onSave, onCancel }
       }
     });
   };
+
+  React.useEffect(() => {
+    onPreviewChange?.({
+      title: title || 'Impact Timeline',
+      config: {
+        window,
+        orientation,
+        showHoldingNames,
+        filterTypes,
+        minEvents
+      }
+    });
+  }, [filterTypes, minEvents, onPreviewChange, orientation, showHoldingNames, title, window]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

@@ -4,8 +4,20 @@ import { createTaskCommentSchema } from '@/lib/schemas/task';
 
 export const dynamic = 'force-dynamic';
 
+const NO_STORE = { 'Cache-Control': 'no-store' } as const;
+
 interface RouteParams {
   params: Promise<{ orgId: string; taskId: string }>;
+}
+
+function json(body: unknown, init: ResponseInit = {}) {
+  return NextResponse.json(body, {
+    ...init,
+    headers: {
+      ...NO_STORE,
+      ...(init.headers || {}),
+    },
+  });
 }
 
 export async function POST(req: NextRequest, { params }: RouteParams) {
@@ -13,15 +25,15 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     const { orgId, taskId } = await params;
     const supabase = await createServerClient();
     const { data: role } = await supabase.rpc('user_org_role', { p_org_id: orgId });
-    if (!role) return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
+    if (!role) return json({ error: 'Not authorized' }, { status: 403 });
 
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!user) return json({ error: 'Unauthorized' }, { status: 401 });
 
     const body = await req.json().catch(() => ({}));
     const parsed = createTaskCommentSchema.safeParse(body);
     if (!parsed.success) {
-      return NextResponse.json({ error: 'Validation failed', details: parsed.error.format() }, { status: 400 });
+      return json({ error: 'Validation failed', details: parsed.error.format() }, { status: 400 });
     }
 
     const adminClient = createAdminClient();
@@ -33,7 +45,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       .is('deleted_at', null)
       .maybeSingle();
 
-    if (!task) return NextResponse.json({ error: 'Task not found' }, { status: 404 });
+    if (!task) return json({ error: 'Task not found' }, { status: 404 });
 
     const { data: comment, error } = await adminClient
       .from('task_comments')
@@ -46,18 +58,22 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       .select()
       .single();
 
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (error) return json({ error: error.message }, { status: 500 });
 
-    await adminClient.from('task_events').insert({
+    const { error: eventError } = await adminClient.from('task_events').insert({
       task_id: taskId,
       org_id: orgId,
       actor_id: user.id,
       event_type: 'commented',
       after_values: comment,
     });
+    if (eventError) {
+      await adminClient.from('task_comments').delete().eq('id', comment.id).eq('org_id', orgId);
+      return json({ error: eventError.message }, { status: 500 });
+    }
 
-    return NextResponse.json({ comment }, { status: 201 });
+    return json({ comment }, { status: 201 });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return json({ error: err.message }, { status: 500 });
   }
 }

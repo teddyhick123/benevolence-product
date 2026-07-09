@@ -2,10 +2,8 @@
 import { NextResponse } from 'next/server';
 import { createSupabaseServerClient } from '@/lib/supabase';
 
-function cacheHeaders(isGet = false) {
-  return isGet
-    ? { 'Cache-Control': 'public, s-maxage=30, stale-while-revalidate=15' } as const
-    : { 'Cache-Control': 'no-store' } as const;
+function cacheHeaders() {
+  return { 'Cache-Control': 'no-store' } as const;
 }
 
 const createSb = createSupabaseServerClient;
@@ -71,7 +69,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
     documents,
     count: count ?? 0,
     nextOffset: (count ?? 0) > offset + limit ? offset + limit : null,
-  }, { headers: cacheHeaders(true) });
+  }, { headers: cacheHeaders() });
 }
 
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {

@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient, createAdminClient } from '@/lib/supabase';
 import type { OrgType } from '@/lib/types/org';
+import {
+  automationRowsFromOnboardingProfile,
+  contextRowsFromOnboardingProfile,
+  customFieldRowsFromOnboardingProfile,
+  viewRowsFromOnboardingProfile,
+  workflowRowsFromOnboardingProfile,
+} from '@/lib/onboarding-provision-config';
 
 export const dynamic = 'force-dynamic';
 
@@ -30,11 +37,12 @@ export async function POST(req: NextRequest) {
 
     // 2. Parse + validate body
     const body = await req.json();
-    const { name, org_type, ein, modules } = body as {
+    const { name, org_type, ein, modules, session_id } = body as {
       name?: string;
       org_type?: string;
       ein?: string;
       modules?: Record<string, boolean> | null;
+      session_id?: string;
     };
 
     if (!name?.trim()) {
@@ -116,6 +124,77 @@ export async function POST(req: NextRequest) {
       console.error('Portfolio membership creation error:', portfolioMemberError);
       await admin.from('organizations').delete().eq('id', org_id);
       return NextResponse.json({ error: portfolioMemberError.message }, { status: 500 });
+    }
+
+    if (session_id) {
+      const { data: session } = await admin
+        .from('onboarding_sessions')
+        .select('id, user_id')
+        .eq('id', session_id)
+        .maybeSingle();
+
+      if (session?.user_id === user.id) {
+        await admin
+          .from('onboarding_sessions')
+          .update({ organization_id: org_id })
+          .eq('id', session_id);
+
+        const { data: profile } = await admin
+          .from('onboarding_profiles')
+          .select('workflows')
+          .eq('session_id', session_id)
+          .maybeSingle();
+
+        const contextRows = contextRowsFromOnboardingProfile(profile, org_id, user.id);
+        if (contextRows.length > 0) {
+          const { error: contextError } = await admin
+            .from('org_ai_context')
+            .upsert(contextRows, { onConflict: 'org_id,context_key' });
+          if (contextError) {
+            console.error('Org AI context seeding error:', contextError);
+          }
+        }
+
+        const viewRows = viewRowsFromOnboardingProfile(profile, org_id);
+        if (viewRows.length > 0) {
+          const { error: viewError } = await admin
+            .from('org_view_config')
+            .upsert(viewRows, { onConflict: 'org_id,config_scope,scope_key' });
+          if (viewError) {
+            console.error('Org view config seeding error:', viewError);
+          }
+        }
+
+        const workflowRows = workflowRowsFromOnboardingProfile(profile, org_id);
+        if (workflowRows.length > 0) {
+          const { error: workflowError } = await admin
+            .from('org_workflow_config')
+            .upsert(workflowRows, { onConflict: 'org_id,module,config_type,stage_key,config_key' });
+          if (workflowError) {
+            console.error('Org workflow config seeding error:', workflowError);
+          }
+        }
+
+        const customFieldRows = customFieldRowsFromOnboardingProfile(profile, org_id);
+        if (customFieldRows.length > 0) {
+          const { error: customFieldError } = await admin
+            .from('org_custom_field_definitions')
+            .upsert(customFieldRows, { onConflict: 'org_id,entity_type,field_key' });
+          if (customFieldError) {
+            console.error('Org custom field seeding error:', customFieldError);
+          }
+        }
+
+        const automationRows = automationRowsFromOnboardingProfile(profile, org_id, user.id);
+        if (automationRows.length > 0) {
+          const { error: automationError } = await admin
+            .from('org_automation_rules')
+            .insert(automationRows);
+          if (automationError) {
+            console.error('Org automation rule seeding error:', automationError);
+          }
+        }
+      }
     }
 
     return NextResponse.json({ org_id, portfolio_id: portfolio.id }, { status: 201 });

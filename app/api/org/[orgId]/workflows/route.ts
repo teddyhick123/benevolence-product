@@ -4,11 +4,23 @@ import { startWorkflowSchema } from '@/lib/schemas/workflow';
 
 export const dynamic = 'force-dynamic';
 
+const NO_STORE = { 'Cache-Control': 'no-store' } as const;
+
 interface RouteParams {
   params: Promise<{ orgId: string }>;
 }
 
 const ADMIN_ROLES = new Set(['owner', 'admin']);
+
+function json(body: unknown, init: ResponseInit = {}) {
+  return NextResponse.json(body, {
+    ...init,
+    headers: {
+      ...NO_STORE,
+      ...(init.headers || {}),
+    },
+  });
+}
 
 type TemplateStep = {
   id?: string;
@@ -105,6 +117,7 @@ async function loadGrantContext(input: {
       .from('grants')
       .select('id, holding_id')
       .eq('id', grantId)
+      .eq('org_id', input.orgId)
       .maybeSingle();
     if (error) throw error;
     if (!grant) return { error: 'Grant not found' };
@@ -135,22 +148,13 @@ async function loadGrantContext(input: {
       .from('grants')
       .select('id')
       .eq('holding_id', input.holdingId)
+      .eq('org_id', input.orgId)
       .maybeSingle();
 
     if (existingGrant) {
       grantId = existingGrant.id;
     } else {
-      const { data: newGrant, error: grantError } = await adminClient
-        .from('grants')
-        .insert({
-          holding_id: input.holdingId,
-          org_id: holding.org_id,
-          portfolio_id: holding.portfolio_id,
-        })
-        .select('id')
-        .single();
-      if (grantError) throw grantError;
-      grantId = newGrant.id;
+      return { error: 'Grant not found for this holding. Create the grant first.' };
     }
   }
 
@@ -184,10 +188,10 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     const { orgId } = await params;
     const supabase = await createServerClient();
     const { data: { user: _user } } = await supabase.auth.getUser();
-    if (!_user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!_user) return json({ error: 'Unauthorized' }, { status: 401 });
 
     const { data: role } = await supabase.rpc('user_org_role', { p_org_id: orgId });
-    if (!role) return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
+    if (!role) return json({ error: 'Not authorized' }, { status: 403 });
 
     const { searchParams } = new URL(req.url);
     const portfolioId = searchParams.get('portfolio_id');
@@ -195,6 +199,10 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     const grantId = searchParams.get('grant_id');
 
     const adminClient = createAdminClient();
+    if (portfolioId && !(await assertPortfolioInOrg(portfolioId, orgId))) {
+      return json({ error: 'Portfolio does not belong to this organization' }, { status: 400 });
+    }
+
     let query = adminClient
       .from('workflow_instances')
       .select(`
@@ -211,11 +219,11 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     if (grantId) query = query.eq('grant_id', grantId);
 
     const { data, error } = await query;
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (error) return json({ error: error.message }, { status: 500 });
 
-    return NextResponse.json({ workflows: data || [] });
+    return json({ workflows: data || [] });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return json({ error: err.message }, { status: 500 });
   }
 }
 
@@ -226,22 +234,22 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     const { orgId } = await params;
     const supabase = await createServerClient();
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!user) return json({ error: 'Unauthorized' }, { status: 401 });
 
     const { data: role } = await supabase.rpc('user_org_role', { p_org_id: orgId });
     if (!role || !ADMIN_ROLES.has(role)) {
-      return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
+      return json({ error: 'Admin access required' }, { status: 403 });
     }
 
     const body = await req.json().catch(() => ({}));
     const parsed = startWorkflowSchema.safeParse(body);
     if (!parsed.success) {
-      return NextResponse.json({ error: 'Validation failed', details: parsed.error.format() }, { status: 400 });
+      return json({ error: 'Validation failed', details: parsed.error.format() }, { status: 400 });
     }
 
     const input = parsed.data;
     if (!(await assertUserInOrg(input.assigned_to, orgId))) {
-      return NextResponse.json({ error: 'Assignee is not a member of this organization' }, { status: 400 });
+      return json({ error: 'Assignee is not a member of this organization' }, { status: 400 });
     }
 
     const adminClient = createAdminClient();
@@ -254,7 +262,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       .maybeSingle();
 
     if (templateError) throw templateError;
-    if (!template) return NextResponse.json({ error: 'Workflow template not found' }, { status: 404 });
+    if (!template) return json({ error: 'Workflow template not found' }, { status: 404 });
 
     const grantContext = await loadGrantContext({
       orgId,
@@ -263,7 +271,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       portfolioId: input.portfolio_id,
     });
     if ('error' in grantContext) {
-      return NextResponse.json({ error: grantContext.error }, { status: 400 });
+      return json({ error: grantContext.error }, { status: 400 });
     }
 
     const startedAt = new Date();
@@ -369,10 +377,21 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       ]);
       const { error: linkError } = await adminClient.from('task_entity_links').insert(entityLinks);
       if (linkError) throw linkError;
+
+      const { error: eventError } = await adminClient.from('task_events').insert(
+        taskRows.map((task: WorkflowTaskRow) => ({
+          task_id: task.id,
+          org_id: orgId,
+          actor_id: user.id,
+          event_type: 'created',
+          after_values: task,
+        }))
+      );
+      if (eventError) throw eventError;
     }
 
     const loaded = await loadWorkflow(adminClient, orgId, workflow.id);
-    return NextResponse.json({ workflow: loaded }, { status: 201 });
+    return json({ workflow: loaded }, { status: 201 });
   } catch (err: any) {
     const adminClient = createAdminClient();
     if (createdIds.taskIds.length > 0) {
@@ -381,6 +400,6 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     if (createdIds.workflowId) {
       await adminClient.from('workflow_instances').delete().eq('id', createdIds.workflowId);
     }
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return json({ error: err.message }, { status: 500 });
   }
 }

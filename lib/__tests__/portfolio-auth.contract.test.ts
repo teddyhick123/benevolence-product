@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
 
@@ -26,5 +28,16 @@ describe('portfolio-auth helper contract', () => {
 
   it('filters by user_id', () => {
     expect(src).toContain("eq('user_id', user.id)");
+  });
+
+  it('filters out soft-deleted portfolio memberships', () => {
+    expect(src).toContain(".is('deleted_at', null)");
+  });
+
+  it('requires an active accepted organization membership for the portfolio org', () => {
+    expect(src).toContain('portfolios!inner(org_id)');
+    expect(src).toContain("from('organization_members')");
+    expect(src).toContain("eq('org_id', orgId)");
+    expect(src).toContain(".not('accepted_at', 'is', null)");
   });
 });

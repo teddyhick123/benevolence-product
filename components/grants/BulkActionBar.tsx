@@ -100,6 +100,7 @@ export default function BulkActionBar({ grants, selectedIds, onApply, onCancel }
                   </svg>
                   <span className="text-xs text-neutral-400 mr-1">Transition to:</span>
                   <select
+                    aria-label={`Transition ${grantStageLabel(stage)} grants to`}
                     value={queued[stage] ?? ''}
                     onChange={e => setTarget(stage, (e.target.value as LifecycleStage) || null)}
                     className="rounded-xl border border-black/10 bg-white px-3 py-1.5 text-sm text-ink shadow-sm focus:outline-none focus:ring-2 focus:ring-azure/30"

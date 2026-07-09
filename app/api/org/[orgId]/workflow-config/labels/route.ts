@@ -17,7 +17,13 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Any org member can read labels — no admin check needed
+    // Any org member can read labels, but service-role reads still need an
+    // explicit org boundary check before bypassing RLS.
+    const { data: role } = await supabase.rpc('user_org_role', { p_org_id: orgId });
+    if (!role) {
+      return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
+    }
+
     const db = createAdminClient();
     const { data, error } = await db
       .from('org_workflow_config')

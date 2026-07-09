@@ -4,8 +4,20 @@ import { createServerClient, createAdminClient } from '@/lib/supabase';
 
 export const dynamic = 'force-dynamic';
 
+const NO_STORE = { 'Cache-Control': 'no-store' } as const;
+
 interface RouteParams {
   params: Promise<{ orgId: string; inviteId: string }>;
+}
+
+function json(body: unknown, init: ResponseInit = {}) {
+  return NextResponse.json(body, {
+    ...init,
+    headers: {
+      ...NO_STORE,
+      ...(init.headers || {}),
+    },
+  });
 }
 
 // DELETE /api/org/[orgId]/invitations/[inviteId] — cancel
@@ -15,10 +27,10 @@ export async function DELETE(_req: NextRequest, { params }: RouteParams) {
     const supabase = await createServerClient();
 
     const { data: isAdmin } = await supabase.rpc('is_org_admin', { p_org_id: orgId });
-    if (!isAdmin) return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
+    if (!isAdmin) return json({ error: 'Not authorized' }, { status: 403 });
 
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!user) return json({ error: 'Unauthorized' }, { status: 401 });
 
     const adminClient = createAdminClient();
 
@@ -27,30 +39,39 @@ export async function DELETE(_req: NextRequest, { params }: RouteParams) {
       .select('id, email, status')
       .eq('id', inviteId)
       .eq('org_id', orgId)
-      .single();
+      .maybeSingle();
 
-    if (!invite) return NextResponse.json({ error: 'Invitation not found' }, { status: 404 });
+    if (!invite) return json({ error: 'Invitation not found' }, { status: 404 });
     if (invite.status !== 'pending') {
-      return NextResponse.json({ error: 'Only pending invitations can be cancelled' }, { status: 409 });
+      return json({ error: 'Only pending invitations can be cancelled' }, { status: 409 });
     }
 
     const { error } = await adminClient
       .from('org_invitations')
       .update({ status: 'cancelled' })
-      .eq('id', inviteId);
+      .eq('id', inviteId)
+      .eq('org_id', orgId);
 
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (error) return json({ error: error.message }, { status: 500 });
 
-    await adminClient.from('org_audit_log').insert({
+    const { error: auditError } = await adminClient.from('org_audit_log').insert({
       org_id: orgId,
       actor_id: user.id,
       action: 'invite_cancelled',
       metadata: { email: invite.email },
     });
+    if (auditError) {
+      await adminClient
+        .from('org_invitations')
+        .update({ status: 'pending' })
+        .eq('id', inviteId)
+        .eq('org_id', orgId);
+      return json({ error: auditError.message }, { status: 500 });
+    }
 
-    return NextResponse.json({ success: true });
+    return json({ success: true });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';
-    return NextResponse.json({ error: message }, { status: 500 });
+    return json({ error: message }, { status: 500 });
   }
 }

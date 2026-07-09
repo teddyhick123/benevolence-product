@@ -1,3 +1,4 @@
+// @vitest-environment node
 // lib/tasks/automation/__tests__/producers.grants.test.ts
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 

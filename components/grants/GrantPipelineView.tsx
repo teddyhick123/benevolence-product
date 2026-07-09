@@ -4,6 +4,8 @@ import { useMemo } from 'react';
 import Link from 'next/link';
 import { LIFECYCLE_STAGES, type LifecycleStage } from '@/lib/grants/lifecycle-shared';
 import { GRANT_RISK_BADGE, grantStageLabel, grantStagePalette } from './grantPalette';
+import { useStageLabels } from '@/lib/hooks/use-stage-labels';
+import { useEntityVocabulary } from '@/lib/hooks/use-entity-vocabulary';
 
 export interface GrantListItem {
   id: string;
@@ -16,6 +18,7 @@ export interface GrantListItem {
   risk_level: string | null;
   internal_owner_id: string | null;
   holdings: { name: string } | null;
+  portfolios?: { name: string | null } | null;
 }
 
 interface Props {
@@ -27,6 +30,7 @@ interface Props {
   selectedIds?: Set<string>;
   onToggleSelect?: (id: string) => void;
   onSelectAllInStage?: (stage: LifecycleStage, ids: string[]) => void;
+  orgId?: string | null;
 }
 
 function fmt(v: number | null | undefined): string {
@@ -47,9 +51,10 @@ interface GrantCardProps {
   selected: boolean;
   onToggleSelect: (id: string) => void;
   animDelay: number;
+  grantLabel: string;
 }
 
-function GrantCard({ grant, selectionMode, selected, onToggleSelect, animDelay }: GrantCardProps) {
+function GrantCard({ grant, selectionMode, selected, onToggleSelect, animDelay, grantLabel }: GrantCardProps) {
   const amount = grant.approved_amount ?? grant.requested_amount;
   const days = daysUntil(grant.grant_period_end);
 
@@ -70,7 +75,7 @@ function GrantCard({ grant, selectionMode, selected, onToggleSelect, animDelay }
         />
       )}
       <div className={`text-sm font-medium text-ink leading-snug truncate ${selectionMode ? 'ml-6' : ''}`}>
-        {grant.holdings?.name ?? 'Unnamed Grant'}
+        {grant.holdings?.name ?? `Unnamed ${grantLabel}`}
       </div>
       <div className="flex items-center justify-between">
         <span className="text-xs text-neutral-500 font-semibold">{fmt(amount)}</span>
@@ -84,6 +89,9 @@ function GrantCard({ grant, selectionMode, selected, onToggleSelect, animDelay }
         <div className={`text-xs ${days < 0 ? 'text-red-600' : days < 30 ? 'text-coral' : 'text-neutral-400'}`}>
           {days < 0 ? `${Math.abs(days)}d overdue` : `${days}d left`}
         </div>
+      )}
+      {grant.portfolios?.name && (
+        <div className="truncate text-xs text-neutral-400">{grant.portfolios.name}</div>
       )}
     </>
   );
@@ -129,7 +137,12 @@ export default function GrantPipelineView({
   selectedIds = new Set(),
   onToggleSelect = () => {},
   onSelectAllInStage = () => {},
+  orgId,
 }: Props) {
+  const { getLabel } = useStageLabels(orgId);
+  const vocabulary = useEntityVocabulary(orgId);
+  const grantLabel = vocabulary.grant.singular;
+  const grantPlural = vocabulary.grant.plural.toLowerCase();
   const byStage = useMemo(() => {
     const map = new Map<LifecycleStage, GrantListItem[]>();
     for (const s of LIFECYCLE_STAGES) map.set(s, []);
@@ -161,8 +174,8 @@ export default function GrantPipelineView({
           </svg>
         </div>
         <div>
-          <p className="font-medium text-ink">No grants in the pipeline</p>
-          <p className="text-sm text-neutral-500 mt-1">Create your first grant to start tracking the lifecycle.</p>
+          <p className="font-medium text-ink">No {grantPlural} in the pipeline</p>
+          <p className="text-sm text-neutral-500 mt-1">Create your first {grantLabel.toLowerCase()} to start tracking the lifecycle.</p>
         </div>
         {onNewGrant && (
           <button
@@ -172,7 +185,7 @@ export default function GrantPipelineView({
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
             </svg>
-            New Grant
+            New {grantLabel}
           </button>
         )}
       </div>
@@ -204,7 +217,7 @@ export default function GrantPipelineView({
                       />
                     )}
                     <span className={`w-2 h-2 rounded-full ${colors.dot}`} />
-                    <span className="text-xs font-semibold">{grantStageLabel(stage)}</span>
+                    <span className="text-xs font-semibold">{orgId ? getLabel(stage) : grantStageLabel(stage)}</span>
                   </div>
                   <span className="text-xs font-medium opacity-70">{stageGrants.length}</span>
                 </div>
@@ -224,6 +237,7 @@ export default function GrantPipelineView({
                       selected={selectedIds.has(g.id)}
                       onToggleSelect={onToggleSelect}
                       animDelay={colIndex * 20 + cardIndex * 10}
+                      grantLabel={grantLabel}
                     />
                   ))}
                   {stageGrants.length === 0 && (

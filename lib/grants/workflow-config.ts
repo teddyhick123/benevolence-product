@@ -2,6 +2,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { LifecycleStage } from './lifecycle-shared';
 import { getGrantFieldValue, REQUIRED_FIELD_ALLOWLIST, type RequiredFieldName } from './workflow-config-constants';
+import { checkRequiredGrantCustomFields } from '@/lib/custom-fields';
 
 export interface WorkflowConfigRow {
   id: string;
@@ -85,6 +86,8 @@ export async function checkWorkflowGate(
       reasons.push(msg);
     }
   }
+
+  reasons.push(...await checkRequiredGrantCustomFields(db, orgId, grantId, fromStage));
 
   return { blocked: reasons.length > 0, reasons };
 }

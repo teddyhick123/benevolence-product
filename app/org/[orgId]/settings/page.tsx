@@ -111,6 +111,14 @@ export default async function OrgSettingsPage({ params }: Props) {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Settings</h1>
+        {isAdmin && (
+          <Link
+            href={`/org/${orgId}/settings/workflow`}
+            className="text-sm font-medium text-azure hover:underline"
+          >
+            Workflow settings
+          </Link>
+        )}
       </div>
 
       {!isAdmin && (

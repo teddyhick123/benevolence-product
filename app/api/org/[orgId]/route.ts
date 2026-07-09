@@ -3,8 +3,20 @@ import { createServerClient } from '@/lib/supabase';
 
 export const dynamic = 'force-dynamic';
 
+const NO_STORE = { 'Cache-Control': 'no-store' } as const;
+
 interface RouteParams {
   params: Promise<{ orgId: string }>;
+}
+
+function json(body: unknown, init: ResponseInit = {}) {
+  return NextResponse.json(body, {
+    ...init,
+    headers: {
+      ...NO_STORE,
+      ...(init.headers || {}),
+    },
+  });
 }
 
 // GET /api/org/[orgId] — get org details + user role
@@ -15,7 +27,7 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
 
     const { data: role } = await supabase.rpc('user_org_role', { p_org_id: orgId });
     if (!role) {
-      return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
+      return json({ error: 'Not authorized' }, { status: 403 });
     }
 
     const { data: org, error } = await supabase
@@ -25,12 +37,12 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
       .single();
 
     if (error || !org) {
-      return NextResponse.json({ error: error?.message || 'Not found' }, { status: 404 });
+      return json({ error: error?.message || 'Not found' }, { status: 404 });
     }
 
-    return NextResponse.json({ ...org, role });
+    return json({ ...org, role });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return json({ error: err.message }, { status: 500 });
   }
 }
 
@@ -42,7 +54,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
 
     const { data: isAdmin } = await supabase.rpc('is_org_admin', { p_org_id: orgId });
     if (!isAdmin) {
-      return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
+      return json({ error: 'Not authorized' }, { status: 403 });
     }
 
     const body = await req.json();
@@ -53,7 +65,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     }
 
     if (Object.keys(updates).length === 0) {
-      return NextResponse.json({ error: 'No updates provided' }, { status: 400 });
+      return json({ error: 'No updates provided' }, { status: 400 });
     }
 
     const { data: org, error } = await supabase
@@ -64,12 +76,12 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
       .single();
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json(org);
+    return json(org);
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return json({ error: err.message }, { status: 500 });
   }
 }
 
@@ -81,17 +93,31 @@ export async function DELETE(_req: NextRequest, { params }: RouteParams) {
 
     const { data: isAdmin } = await supabase.rpc('is_org_admin', { p_org_id: orgId });
     if (!isAdmin) {
-      return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
+      return json({ error: 'Not authorized' }, { status: 403 });
     }
 
-    const { error } = await supabase.from('organizations').delete().eq('id', orgId);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return json({ error: 'Unauthorized' }, { status: 401 });
+
+    const { data: org, error } = await supabase
+      .from('organizations')
+      .update({
+        deleted_at: new Date().toISOString(),
+        deleted_by: user.id,
+        is_active: false,
+      })
+      .eq('id', orgId)
+      .is('deleted_at', null)
+      .select('id')
+      .maybeSingle();
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return json({ error: error.message }, { status: 500 });
     }
+    if (!org) return json({ error: 'Not found' }, { status: 404 });
 
-    return new NextResponse(null, { status: 204 });
+    return new NextResponse(null, { status: 204, headers: NO_STORE });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return json({ error: err.message }, { status: 500 });
   }
 }

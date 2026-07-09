@@ -1,10 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@/lib/supabase";
+import { createAdminClient, createServerClient } from "@/lib/supabase";
+import { ORG_AUDIT_ACTIONS, writeOrgAuditEvent } from "@/lib/audit/org-audit";
 
 export const dynamic = "force-dynamic";
 
+const NO_STORE = { "Cache-Control": "no-store" } as const;
+
 interface RouteParams {
   params: Promise<{ orgId: string; id: string }>;
+}
+
+function json(body: unknown, init: ResponseInit = {}) {
+  return NextResponse.json(body, {
+    ...init,
+    headers: {
+      ...NO_STORE,
+      ...(init.headers || {}),
+    },
+  });
 }
 
 // POST /api/org/[orgId]/contributions/[id]/receipt - Generate receipt
@@ -16,7 +29,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     // Check edit access
     const { data: canEdit } = await supabase.rpc("can_edit_org", { p_org_id: orgId });
     if (!canEdit) {
-      return NextResponse.json({ error: "Not authorized" }, { status: 403 });
+      return json({ error: "Not authorized" }, { status: 403 });
     }
 
     const body = await req.json().catch(() => ({}));
@@ -37,7 +50,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       .single();
 
     if (contribError) {
-      return NextResponse.json({ error: "Contribution not found" }, { status: 404 });
+      return json({ error: "Contribution not found" }, { status: 404 });
     }
 
     const { data: org } = await supabase
@@ -82,49 +95,51 @@ ${org?.name || "The Organization"}`;
 
     // Get current user
     const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return json({ error: "Unauthorized" }, { status: 401 });
 
-    // Create acknowledgment letter record
-    const { data: letter, error: letterError } = await supabase
-      .from("acknowledgment_letters")
-      .insert({
-        org_id: orgId,
-        donor_id: contribution.donor_id,
-        contribution_ids: [id],
-        subject: `Tax Receipt - ${new Date(contribution.contribution_date).toLocaleDateString()}`,
-        body: receiptBody,
-        status: send_immediately && donor?.email ? "sent" : "draft",
-        delivery_method: "email",
-        sent_at: send_immediately && donor?.email ? new Date().toISOString() : null,
-        sent_by: send_immediately && donor?.email ? user?.id : null,
-        recipient_email: donor?.email ?? null,
-      })
-      .select()
-      .single();
+    const adminDb = createAdminClient();
+    const subject = `Tax Receipt - ${new Date(contribution.contribution_date).toLocaleDateString()}`;
+    const { data: receipt, error: receiptError } = await adminDb.rpc(
+      "create_contribution_receipt_acknowledgment",
+      {
+        p_org_id: orgId,
+        p_contribution_id: id,
+        p_actor_id: user.id,
+        p_subject: subject,
+        p_body: receiptBody,
+        p_send_immediately: !!send_immediately,
+        p_recipient_email: donor?.email ?? null,
+      }
+    );
 
-    if (letterError) {
-      return NextResponse.json({ error: letterError.message }, { status: 500 });
+    if (receiptError) {
+      return json({ error: receiptError.message }, { status: 500 });
     }
 
-    await supabase
-      .from("contributions_received")
-      .update({
-        acknowledgment_sent: !!(send_immediately && donor?.email),
-        acknowledged_at: new Date().toISOString(),
-        receipt_status: send_immediately && donor?.email ? "sent" : "generated",
-        receipt_generated_at: new Date().toISOString(),
-        receipt_sent_at: send_immediately && donor?.email ? new Date().toISOString() : null,
-      })
-      .eq("id", id)
-      .eq("org_id", orgId);
+    await writeOrgAuditEvent(adminDb, {
+      orgId,
+      actorId: user.id,
+      action: ORG_AUDIT_ACTIONS.CONTRIBUTION_RECEIPT_GENERATED,
+      targetId: id,
+      metadata: {
+        letter_id: receipt?.letter?.id ?? null,
+        receipt_number: receipt?.receipt_number ?? null,
+        sent: receipt?.sent ?? false,
+        donor_email: donor?.email ?? null,
+        amount: contribution.amount,
+        contribution_date: contribution.contribution_date,
+      },
+    });
 
-    return NextResponse.json({
+    return json({
       success: true,
-      letter_id: letter.id,
-      sent: send_immediately && donor?.email,
+      letter_id: receipt?.letter?.id,
+      sent: receipt?.sent ?? false,
       donor_email: donor?.email,
+      receipt_number: receipt?.receipt_number ?? null,
     });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return json({ error: err.message }, { status: 500 });
   }
 }
 
@@ -137,7 +152,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     // Check access
     const { data: role } = await supabase.rpc("user_org_role", { p_org_id: orgId });
     if (!role) {
-      return NextResponse.json({ error: "Not authorized" }, { status: 403 });
+      return json({ error: "Not authorized" }, { status: 403 });
     }
 
     // Get contribution with receipt info
@@ -152,7 +167,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       .single();
 
     if (contribError) {
-      return NextResponse.json({ error: "Contribution not found" }, { status: 404 });
+      return json({ error: "Contribution not found" }, { status: 404 });
     }
 
     // Get related acknowledgment letter if exists
@@ -165,11 +180,11 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       .limit(1)
       .maybeSingle();
 
-    return NextResponse.json({
+    return json({
       contribution,
       letter,
     });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return json({ error: err.message }, { status: 500 });
   }
 }

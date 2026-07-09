@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { Suspense, useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import AnalyticsDashboard from '@/components/analytics/AnalyticsDashboard';
 import ProjectionChart from '@/components/analytics/ProjectionChart';
@@ -10,7 +10,23 @@ import InsightsPanel from '@/components/analytics/InsightsPanel';
 
 type TabId = 'overview' | 'projections' | 'benchmarks' | 'risk' | 'insights';
 
-export default function AnalyticsPage() {
+function AnalyticsLoading() {
+  return (
+    <div className="p-8">
+      <div className="animate-pulse space-y-6">
+        <div className="h-8 w-48 rounded-2xl bg-neutral-200"></div>
+        <div className="grid grid-cols-4 gap-4">
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="h-32 rounded-2xl bg-neutral-200"></div>
+          ))}
+        </div>
+        <div className="h-64 rounded-2xl bg-neutral-200"></div>
+      </div>
+    </div>
+  );
+}
+
+function AnalyticsPageContent() {
   const searchParams = useSearchParams();
   const [portfolioId, setPortfolioId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -20,6 +36,12 @@ export default function AnalyticsPage() {
   useEffect(() => {
     async function fetchProfile() {
       try {
+        const urlPortfolioId = searchParams.get('portfolio_id') || searchParams.get('portfolioId');
+        if (urlPortfolioId) {
+          setPortfolioId(urlPortfolioId);
+          return;
+        }
+
         const res = await fetch('/api/me');
         if (res.ok) {
           const json = await res.json();
@@ -32,7 +54,7 @@ export default function AnalyticsPage() {
       }
     }
     fetchProfile();
-  }, []);
+  }, [searchParams]);
 
   // Check URL params for tab
   useEffect(() => {
@@ -97,19 +119,7 @@ export default function AnalyticsPage() {
   };
 
   if (loading) {
-    return (
-      <div className="p-8">
-        <div className="animate-pulse space-y-6">
-          <div className="h-8 w-48 rounded-2xl bg-neutral-200"></div>
-          <div className="grid grid-cols-4 gap-4">
-            {[1, 2, 3, 4].map((i) => (
-              <div key={i} className="h-32 rounded-2xl bg-neutral-200"></div>
-            ))}
-          </div>
-          <div className="h-64 rounded-2xl bg-neutral-200"></div>
-        </div>
-      </div>
-    );
+    return <AnalyticsLoading />;
   }
 
   if (!portfolioId) {
@@ -231,5 +241,13 @@ export default function AnalyticsPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function AnalyticsPage() {
+  return (
+    <Suspense fallback={<AnalyticsLoading />}>
+      <AnalyticsPageContent />
+    </Suspense>
   );
 }

@@ -1,10 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createServerClient } from '@/lib/supabase';
+import { createAdminClient, createServerClient } from '@/lib/supabase';
+import { calculatePayout } from '@/lib/compliance/payout';
+import { ORG_AUDIT_ACTIONS, writeOrgAuditEvent } from '@/lib/audit/org-audit';
 
 export const dynamic = 'force-dynamic';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
+}
+
+function json(body: Record<string, unknown>, init?: ResponseInit) {
+  return NextResponse.json(body, {
+    ...init,
+    headers: {
+      ...init?.headers,
+      'Cache-Control': 'no-store',
+    },
+  });
 }
 
 // GET /api/portfolio/[id]/compliance/990pf-export?year=2025
@@ -18,22 +30,31 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
 
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Verify portfolio access via RLS — just attempt a read
+    const { data: canView, error: canViewErr } = await supabase.rpc('can_view_portfolio', {
+      p_portfolio_id: portfolioId,
+    });
+    if (canViewErr) {
+      return json({ error: canViewErr.message }, { status: 500 });
+    }
+    if (!canView) {
+      return json({ error: 'Access denied' }, { status: 403 });
+    }
+
     const { data: portfolio, error: portErr } = await supabase
       .from('portfolios')
-      .select('id, name')
+      .select('id, name, org_id')
       .eq('id', portfolioId)
       .single();
 
     if (portErr || !portfolio) {
-      return NextResponse.json({ error: 'Access denied' }, { status: 403 });
+      return json({ error: 'Access denied' }, { status: 403 });
     }
 
-    // Fetch 990-PF data and grants in parallel
-    const [pf990Res, grantsRes] = await Promise.all([
+    // Fetch 990-PF data and qualifying distributions in parallel.
+    const [pf990Res, distributionsRes] = await Promise.all([
       supabase
         .from('foundation_990pf_data')
         .select('*')
@@ -41,20 +62,37 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
         .eq('tax_year', year)
         .maybeSingle(),
       supabase
-        .from('tax_contributions')
-        .select('id, contribution_date, recipient_name, recipient_ein, recipient_type, contribution_type, fair_market_value, description_of_property, deductible_amount')
+        .from('qualifying_distributions')
+        .select('id, grant_id, grant_payment_id, distribution_date, distribution_type, qualifying_amount, description, notes')
         .eq('portfolio_id', portfolioId)
         .eq('tax_year', year)
-        .gte('contribution_date', `${year}-01-01`)
-        .lte('contribution_date', `${year}-12-31`)
-        .order('contribution_date'),
+        .gte('distribution_date', `${year}-01-01`)
+        .lte('distribution_date', `${year}-12-31`)
+        .order('distribution_date'),
     ]);
 
-    const pf990 = pf990Res.data;
-    const grants = grantsRes.data || [];
+    if (pf990Res.error) {
+      return json({ error: pf990Res.error.message }, { status: 500 });
+    }
+    if (distributionsRes.error) {
+      return json({ error: distributionsRes.error.message }, { status: 500 });
+    }
 
-    const totalQualifyingDistributions = grants.reduce((s, g) => s + Number(g.deductible_amount ?? g.fair_market_value), 0);
-    const totalGrantAmount = grants.reduce((s, g) => s + Number(g.fair_market_value), 0);
+    const pf990 = pf990Res.data;
+    const distributions = distributionsRes.data || [];
+
+    const totalQualifyingDistributions = distributions.reduce(
+      (sum, distribution) => sum + Number(distribution.qualifying_amount || 0),
+      0
+    );
+    const grantDistributions = distributions.filter(
+      (distribution) => distribution.distribution_type === 'grant' || distribution.grant_id
+    );
+    const totalGrantAmount = grantDistributions.reduce(
+      (sum, distribution) => sum + Number(distribution.qualifying_amount || 0),
+      0
+    );
+    const payout = calculatePayout(pf990, totalQualifyingDistributions);
 
     const exportData = {
       portfolio: { id: portfolioId, name: portfolio.name },
@@ -72,34 +110,54 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
 
       // Part II — Minimum Distribution / Payout
       part_xi: {
+        avg_fair_market_value: pf990?.avg_fair_market_value ?? null,
         fair_market_value_assets: pf990?.fair_market_value_assets ?? null,
-        required_payout: pf990?.required_payout ?? (pf990?.fair_market_value_assets ? pf990.fair_market_value_assets * 0.05 : null),
-        actual_payout: pf990?.actual_payout ?? totalGrantAmount,
+        exempt_use_assets: payout.exemptUseAssets,
+        acquisition_indebtedness: payout.acquisitionIndebtedness,
+        net_value_non_charitable: payout.netValueNonCharitable,
+        minimum_investment_return: payout.minimumInvestmentReturn,
+        required_payout: payout.requiredPayout,
+        actual_payout: payout.actualDistributions,
         payout_deficit: pf990?.payout_deficit ?? null,
         qualifying_distributions_total: totalQualifyingDistributions,
       },
 
       // Part XII — Qualifying Distributions (grants)
       part_xii: {
-        grants_count: grants.length,
+        grants_count: grantDistributions.length,
+        distribution_count: distributions.length,
         grants_total: totalGrantAmount,
         qualifying_distributions_total: totalQualifyingDistributions,
-        grants_detail: grants.map(g => ({
-          id: g.id,
-          date: g.contribution_date,
-          recipient: g.recipient_name,
-          recipient_ein: g.recipient_ein,
-          recipient_type: g.recipient_type,
-          amount: g.fair_market_value,
-          deductible_amount: g.deductible_amount ?? g.fair_market_value,
-          type: g.contribution_type,
-          description: g.description_of_property,
+        grants_detail: distributions.map(distribution => ({
+          id: distribution.id,
+          date: distribution.distribution_date,
+          grant_id: distribution.grant_id,
+          grant_payment_id: distribution.grant_payment_id,
+          amount: distribution.qualifying_amount,
+          qualifying_amount: distribution.qualifying_amount,
+          type: distribution.distribution_type,
+          description: distribution.description,
+          notes: distribution.notes,
         })),
       },
     };
 
-    return NextResponse.json(exportData);
+    await writeOrgAuditEvent(createAdminClient(), {
+      orgId: portfolio.org_id,
+      actorId: user.id,
+      action: ORG_AUDIT_ACTIONS.COMPLIANCE_990PF_EXPORTED,
+      targetId: portfolioId,
+      metadata: {
+        tax_year: year,
+        total_qualifying_distributions: totalQualifyingDistributions,
+        grants_count: grantDistributions.length,
+        distribution_count: distributions.length,
+        required_payout: payout.requiredPayout,
+      },
+    });
+
+    return json(exportData);
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return json({ error: err.message }, { status: 500 });
   }
 }

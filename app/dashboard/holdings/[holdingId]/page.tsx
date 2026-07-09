@@ -15,11 +15,13 @@ import FinancialProfileSection from '@/components/holdings/FinancialProfileSecti
 import ReportUploader from '@/components/holdings/ReportUploader';
 import OrgSubmittedMetrics from '@/components/holdings/OrgSubmittedMetrics';
 import GrantMilestonesWidget from '@/components/holdings/GrantMilestonesWidget';
+import CustomFieldsPanel from '@/components/custom-fields/CustomFieldsPanel';
 import { geocodeLocation } from '@/lib/services/google-maps';
 import Link from 'next/link';
 
 type HoldingRow = {
   id: string;
+  org_id: string;
   portfolio_id: string;
   name: string;
   asset_type?: string | null;
@@ -72,11 +74,22 @@ async function fetchHolding(holdingId: string): Promise<{ holding: HoldingRow | 
   const supabase = await getSupabase();
   const { data, error } = await supabase
     .from('holdings')
-    .select('id, portfolio_id, name, asset_type, description, primary_contact_name, primary_contact_email, primary_contact_phone, primary_contact_photo, primary_contact_notes, website, location_city, location_state, location_country, theory_of_action, cost_per_outcome, cost_per_outcome_unit, funds_allocated, total_org_funding, status, sector, as_of, charity_id')
+    .select('id, org_id, portfolio_id, name, asset_type, description, primary_contact_name, primary_contact_email, primary_contact_phone, primary_contact_photo, primary_contact_notes, website, location_city, location_state, location_country, theory_of_action, cost_per_outcome, cost_per_outcome_unit, funds_allocated, total_org_funding, status, sector, as_of, charity_id')
     .eq('id', holdingId)
     .single();
 
   return { holding: (data as any) ?? null, error };
+}
+
+async function resolveHoldingPhotoUrl(photo: string | null | undefined): Promise<string | null> {
+  if (!photo) return null;
+  if (/^https?:\/\//.test(photo) || photo.startsWith('data:')) return photo;
+
+  const supabase = await getSupabase();
+  const { data } = await supabase.storage
+    .from('holdings')
+    .createSignedUrl(photo, 3600);
+  return data?.signedUrl ?? null;
 }
 
 async function fetchFacts(holdingId: string): Promise<FactRow[]> {
@@ -847,7 +860,7 @@ export default async function HoldingMiniDashboard({
     email: holding.primary_contact_email ?? null,
     phone: holding.primary_contact_phone ?? null,
     website: holding.website ?? null,
-    photo: holding.primary_contact_photo ?? null,
+    photo: await resolveHoldingPhotoUrl(holding.primary_contact_photo),
     notes: holding.primary_contact_notes ?? null,
   };
 
@@ -905,6 +918,12 @@ export default async function HoldingMiniDashboard({
         contributionCount={totalContributions > 0 ? contributions.length : undefined}
         isManualFunds={totalContributions === 0 && holding.funds_allocated != null}
         grantPeriodStatus={grantPeriodStatus}
+      />
+
+      <CustomFieldsPanel
+        orgId={holding.org_id}
+        entityType="holding"
+        entityId={holding.id}
       />
 
       {/* Report due date callout */}

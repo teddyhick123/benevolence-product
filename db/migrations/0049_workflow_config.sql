@@ -27,6 +27,26 @@ CREATE TABLE IF NOT EXISTS public.org_workflow_config (
   sort_order   int         NOT NULL DEFAULT 0,
   created_at   timestamptz NOT NULL DEFAULT now(),
   updated_at   timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT org_workflow_config_grant_stage_check CHECK (
+    module <> 'grant_management'
+    OR stage_key IN (
+      'draft', 'prospect', 'invited', 'application_received',
+      'due_diligence', 'recommended', 'approved', 'agreement',
+      'active', 'renewal_review', 'closeout', 'closed',
+      'declined', 'cancelled'
+    )
+  ),
+  CONSTRAINT org_workflow_config_required_field_check CHECK (
+    config_type <> 'required_field'
+    OR (
+      config_key IN (
+        'purpose', 'internal_owner_id', 'requested_amount', 'approved_amount',
+        'grant_period_start', 'grant_period_end', 'risk_level',
+        'deliverables', 'reporting_frequency'
+      )
+      AND config_value->>'field_name' = config_key
+    )
+  ),
   UNIQUE (org_id, module, config_type, stage_key, config_key)
 );
 
@@ -62,7 +82,7 @@ CREATE TABLE IF NOT EXISTS public.grant_checklist_completions (
   workflow_config_id uuid        NOT NULL REFERENCES public.org_workflow_config(id) ON DELETE CASCADE,
   stage_key          text        NOT NULL,
   checklist_item_key text        NOT NULL,
-  completed_by       uuid        REFERENCES auth.users(id),
+  completed_by       uuid        NOT NULL REFERENCES auth.users(id),
   completed_at       timestamptz NOT NULL DEFAULT now(),
   UNIQUE (grant_id, workflow_config_id)
 );
@@ -94,6 +114,53 @@ CREATE POLICY "grant_checklist_completions_service" ON public.grant_checklist_co
 
 GRANT SELECT, INSERT, DELETE ON public.grant_checklist_completions TO authenticated;
 GRANT ALL ON public.grant_checklist_completions TO service_role;
+
+CREATE OR REPLACE FUNCTION public.validate_grant_checklist_completion()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = public
+AS $$
+DECLARE
+  v_grant_org_id uuid;
+  v_config record;
+BEGIN
+  SELECT org_id
+  INTO v_grant_org_id
+  FROM public.grants
+  WHERE id = NEW.grant_id;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'GRANT_CHECKLIST_GRANT_NOT_FOUND' USING ERRCODE = 'P0002';
+  END IF;
+
+  SELECT org_id, module, config_type, stage_key, config_key
+  INTO v_config
+  FROM public.org_workflow_config
+  WHERE id = NEW.workflow_config_id;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'GRANT_CHECKLIST_CONFIG_NOT_FOUND' USING ERRCODE = 'P0002';
+  END IF;
+
+  IF NEW.org_id IS DISTINCT FROM v_grant_org_id
+     OR NEW.org_id IS DISTINCT FROM v_config.org_id THEN
+    RAISE EXCEPTION 'GRANT_CHECKLIST_ORG_MISMATCH' USING ERRCODE = '23514';
+  END IF;
+
+  IF v_config.module IS DISTINCT FROM 'grant_management'
+     OR v_config.config_type IS DISTINCT FROM 'stage_checklist'
+     OR NEW.stage_key IS DISTINCT FROM v_config.stage_key
+     OR NEW.checklist_item_key IS DISTINCT FROM v_config.config_key THEN
+    RAISE EXCEPTION 'GRANT_CHECKLIST_CONFIG_MISMATCH' USING ERRCODE = '23514';
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER validate_grant_checklist_completion_before_insert
+  BEFORE INSERT ON public.grant_checklist_completions
+  FOR EACH ROW EXECUTE FUNCTION public.validate_grant_checklist_completion();
 
 -- ─── RPC UPDATE: transition_grant_lifecycle ───────────────────────────────────
 -- Updated version with checklist completion clearing inserted atomically
@@ -132,7 +199,7 @@ BEGIN
       USING ERRCODE = '40001';
   END IF;
 
-  IF p_decision_payload IS NOT NULL THEN
+  IF p_decision_payload IS NOT NULL AND jsonb_typeof(p_decision_payload) IS DISTINCT FROM 'null' THEN
     INSERT INTO public.grant_decisions (
       grant_id,
       org_id,

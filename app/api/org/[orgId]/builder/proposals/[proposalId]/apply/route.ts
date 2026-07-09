@@ -9,19 +9,29 @@ interface RouteParams {
   params: Promise<{ orgId: string; proposalId: string }>;
 }
 
+function json(body: Record<string, unknown>, init?: ResponseInit) {
+  return NextResponse.json(body, {
+    ...init,
+    headers: {
+      ...init?.headers,
+      'Cache-Control': 'no-store',
+    },
+  });
+}
+
 export async function POST(_req: NextRequest, { params }: RouteParams) {
   try {
     const { orgId, proposalId } = await params;
     const supabase = await createServerClient();
 
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!user) return json({ error: 'Unauthorized' }, { status: 401 });
 
     const { data: isAdmin } = await supabase.rpc('is_org_admin', { p_org_id: orgId });
-    if (!isAdmin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    if (!isAdmin) return json({ error: 'Forbidden' }, { status: 403 });
 
     if (!isGitHubConfigured()) {
-      return NextResponse.json(
+      return json(
         { error: 'GitHub integration not configured' },
         { status: 503 }
       );
@@ -37,11 +47,11 @@ export async function POST(_req: NextRequest, { params }: RouteParams) {
       .single();
 
     if (fetchErr || !proposal) {
-      return NextResponse.json({ error: 'Proposal not found' }, { status: 404 });
+      return json({ error: 'Proposal not found' }, { status: 404 });
     }
 
     if (proposal.phase !== 'ready_to_apply') {
-      return NextResponse.json(
+      return json(
         { error: `Proposal must be in ready_to_apply phase, currently: ${proposal.phase}` },
         { status: 409 }
       );
@@ -56,7 +66,7 @@ export async function POST(_req: NextRequest, { params }: RouteParams) {
     const moduleName = planContent?.moduleName ?? 'Unknown Module';
 
     if (files.length === 0) {
-      return NextResponse.json({ error: 'No generated files to apply' }, { status: 400 });
+      return json({ error: 'No generated files to apply' }, { status: 400 });
     }
 
     const { prUrl, branchName } = await applyProposalToGitHub(
@@ -86,12 +96,18 @@ export async function POST(_req: NextRequest, { params }: RouteParams) {
       payload: { proposalId, prUrl, branchName, moduleName },
     });
     if (eventErr) {
-      console.error('Failed to emit builder proposal_applied event:', eventErr.message);
+      return json(
+        {
+          error: eventErr.message,
+          prUrl,
+        },
+        { status: 500 }
+      );
     }
 
-    return NextResponse.json({ prUrl });
+    return json({ prUrl });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';
-    return NextResponse.json({ error: message }, { status: 500 });
+    return json({ error: message }, { status: 500 });
   }
 }

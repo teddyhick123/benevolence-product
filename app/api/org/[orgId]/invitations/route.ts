@@ -6,8 +6,21 @@ import { sendInviteEmail } from '@/lib/email/resend';
 
 export const dynamic = 'force-dynamic';
 
+const NO_STORE = { 'Cache-Control': 'no-store' } as const;
+const ADMIN_ROLES = new Set(['owner', 'admin']);
+
 interface RouteParams {
   params: Promise<{ orgId: string }>;
+}
+
+function json(body: unknown, init: ResponseInit = {}) {
+  return NextResponse.json(body, {
+    ...init,
+    headers: {
+      ...NO_STORE,
+      ...(init.headers || {}),
+    },
+  });
 }
 
 // GET /api/org/[orgId]/invitations — list pending invitations
@@ -16,8 +29,8 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
     const { orgId } = await params;
     const supabase = await createServerClient();
 
-    const { data: isAdmin } = await supabase.rpc('is_org_admin', { p_org_id: orgId });
-    if (!isAdmin) return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
+    const { data: role } = await supabase.rpc('user_org_role', { p_org_id: orgId });
+    if (!role || !ADMIN_ROLES.has(role)) return json({ error: 'Not authorized' }, { status: 403 });
 
     const { data, error } = await supabase
       .from('org_invitations')
@@ -26,11 +39,11 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
       .in('status', ['pending'])
       .order('created_at', { ascending: false });
 
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-    return NextResponse.json({ invitations: data || [] });
+    if (error) return json({ error: error.message }, { status: 500 });
+    return json({ invitations: data || [] });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';
-    return NextResponse.json({ error: message }, { status: 500 });
+    return json({ error: message }, { status: 500 });
   }
 }
 
@@ -40,19 +53,22 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     const { orgId } = await params;
     const supabase = await createServerClient();
 
-    const { data: isAdmin } = await supabase.rpc('is_org_admin', { p_org_id: orgId });
-    if (!isAdmin) return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
+    const { data: actorRole } = await supabase.rpc('user_org_role', { p_org_id: orgId });
+    if (!actorRole || !ADMIN_ROLES.has(actorRole)) return json({ error: 'Not authorized' }, { status: 403 });
 
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!user) return json({ error: 'Unauthorized' }, { status: 401 });
 
     const body = await req.json().catch(() => ({}));
     const validation = createInvitationSchema.safeParse(body);
     if (!validation.success) {
-      return NextResponse.json({ error: 'Validation failed', details: validation.error.format() }, { status: 400 });
+      return json({ error: 'Validation failed', details: validation.error.format() }, { status: 400 });
     }
 
     const { email, role, message } = validation.data;
+    if (role === 'owner' && actorRole !== 'owner') {
+      return json({ error: 'Only owners can invite another owner' }, { status: 403 });
+    }
 
     const adminClient = createAdminClient();
 
@@ -73,7 +89,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
         .maybeSingle();
 
       if (memberMatch) {
-        return NextResponse.json({ error: 'This person is already a member of your organization.' }, { status: 409 });
+        return json({ error: 'This person is already a member of your organization.' }, { status: 409 });
       }
     }
 
@@ -87,7 +103,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       .maybeSingle();
 
     if (existingInvite) {
-      return NextResponse.json({ invitation: existingInvite, warning: 'A pending invitation already exists for this email.' });
+      return json({ invitation: existingInvite, warning: 'A pending invitation already exists for this email.' });
     }
 
     // Create invitation
@@ -98,7 +114,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       .single();
 
     if (insertError || !invitation) {
-      return NextResponse.json({ error: insertError?.message || 'Failed to create invitation' }, { status: 500 });
+      return json({ error: insertError?.message || 'Failed to create invitation' }, { status: 500 });
     }
 
     // Fetch org name + inviter name for email
@@ -110,27 +126,43 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
     const acceptUrl = `${baseUrl}/join?token=${invitation.token}`;
 
-    await sendInviteEmail({
-      to: email,
-      orgName: org?.name || 'your organization',
-      inviterName: inviterProfile?.full_name || inviterProfile?.email || 'A team member',
-      role,
-      message,
-      acceptUrl,
-    });
-
-    // Write audit log
-    await adminClient.from('org_audit_log').insert({
+    const { error: auditError } = await adminClient.from('org_audit_log').insert({
       org_id: orgId,
       actor_id: user.id,
       action: 'invite_sent',
       target_id: null,
       metadata: { email, role },
     });
+    if (auditError) {
+      await adminClient
+        .from('org_invitations')
+        .update({ status: 'cancelled' })
+        .eq('id', invitation.id)
+        .eq('org_id', orgId);
+      return json({ error: auditError.message }, { status: 500 });
+    }
 
-    return NextResponse.json({ invitation }, { status: 201 });
+    try {
+      await sendInviteEmail({
+      to: email,
+      orgName: org?.name || 'your organization',
+      inviterName: inviterProfile?.full_name || inviterProfile?.email || 'A team member',
+      role,
+      message,
+      acceptUrl,
+      });
+    } catch (emailError: any) {
+      await adminClient
+        .from('org_invitations')
+        .update({ status: 'cancelled' })
+        .eq('id', invitation.id)
+        .eq('org_id', orgId);
+      return json({ error: emailError.message }, { status: 500 });
+    }
+
+    return json({ invitation }, { status: 201 });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';
-    return NextResponse.json({ error: message }, { status: 500 });
+    return json({ error: message }, { status: 500 });
   }
 }

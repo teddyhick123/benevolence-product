@@ -10,6 +10,7 @@ import PortfolioSummarySection from '@/components/dashboard/PortfolioSummarySect
 import GrantsList from '@/components/grants/GrantsList';
 import PayoutMiniGauge from '@/components/compliance/PayoutMiniGauge';
 import TaskSummaryWidget from '@/components/tasks/TaskSummaryWidget';
+import { loadOrgViewConfig, resolveDashboardSections, type DashboardSectionId } from '@/lib/view-config';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -121,6 +122,73 @@ export default async function Dashboard({ searchParams }: { searchParams?: Promi
   const showMap = settingsJson.show_map !== false;
 
   const kpiSums: KpiSum[] = Array.isArray(kpiResult?.data) ? kpiResult.data as KpiSum[] : [];
+  const dashboardConfigRows = orgId
+    ? await loadOrgViewConfig(supabase as any, orgId, { scope: 'dashboard', scopeKey: 'main' }).catch(() => [])
+    : [];
+  const dashboardSections = resolveDashboardSections(dashboardConfigRows[0]?.config_value);
+
+  function renderDashboardSection(section: DashboardSectionId, index: number) {
+    const delay = index * 50;
+    if (section === 'tasks') {
+      if (!orgId) return null;
+      return (
+        <Reveal key={section} delay={delay}>
+          <TaskSummaryWidget orgId={orgId} />
+        </Reveal>
+      );
+    }
+    if (section === 'summary') {
+      return (
+        <Reveal key={section} delay={delay}>
+          <PortfolioSummarySection portfolioId={portfolioId} orgId={orgId} />
+        </Reveal>
+      );
+    }
+    if (section === 'kpis') {
+      return (
+        <Reveal key={section} delay={delay}>
+          <DashboardKpiWithFilter portfolioId={portfolioId} canEdit={canEdit} initialSums={kpiSums} />
+        </Reveal>
+      );
+    }
+    if (section === 'payout') {
+      return (
+        <Reveal key={section} delay={delay}>
+          <PayoutMiniGauge portfolioId={portfolioId} />
+        </Reveal>
+      );
+    }
+    if (section === 'holdings_widgets') {
+      return (
+        <Reveal key={section} delay={delay}>
+          <div className="grid grid-cols-12 gap-6 xl:gap-8 2xl:gap-10 w-full">
+            <div className="col-span-12 lg:col-span-6 xl:col-span-7 min-w-0 isolate">
+              <HoldingsSection portfolioId={portfolioId} canEdit={canEdit} />
+            </div>
+            <div className="col-span-12 lg:col-span-6 xl:col-span-5 min-w-0 isolate">
+              <WidgetsSection portfolioId={portfolioId} canEdit={canEdit} />
+            </div>
+          </div>
+        </Reveal>
+      );
+    }
+    if (section === 'grants') {
+      return (
+        <Reveal key={section} delay={delay}>
+          <GrantsList portfolioId={portfolioId} orgId={orgId} />
+        </Reveal>
+      );
+    }
+    if (section === 'map') {
+      if (!showMap) return null;
+      return (
+        <Reveal key={section} delay={delay}>
+          <MapSection portfolioId={portfolioId} />
+        </Reveal>
+      );
+    }
+    return null;
+  }
 
   return (
     <div className="space-y-8 isolate w-full">
@@ -158,46 +226,7 @@ export default async function Dashboard({ searchParams }: { searchParams?: Promi
         </div>
       </div>
 
-      {orgId && (
-        <Reveal>
-          <TaskSummaryWidget orgId={orgId} />
-        </Reveal>
-      )}
-
-      {/* Phase 4: Portfolio Summary Section with Asset Type Tabs */}
-      <Reveal>
-        <PortfolioSummarySection portfolioId={portfolioId} />
-      </Reveal>
-
-      <Reveal delay={75}>
-        {/* Provide portfolio KPI sums as an optimization/hint; KpiSection can fall back to its own fetch if not used */}
-        <DashboardKpiWithFilter portfolioId={portfolioId} canEdit={canEdit} initialSums={kpiSums} />
-      </Reveal>
-
-      <Reveal delay={125}>
-        <PayoutMiniGauge portfolioId={portfolioId} />
-      </Reveal>
-
-      <Reveal delay={150}>
-        <div className="grid grid-cols-12 gap-6 xl:gap-8 2xl:gap-10 w-full">
-          <div className="col-span-12 lg:col-span-6 xl:col-span-7 min-w-0 isolate">
-            <HoldingsSection portfolioId={portfolioId} canEdit={canEdit} />
-          </div>
-          <div className="col-span-12 lg:col-span-6 xl:col-span-5 min-w-0 isolate">
-            <WidgetsSection portfolioId={portfolioId} canEdit={canEdit} />
-          </div>
-        </div>
-      </Reveal>
-
-      <Reveal delay={200}>
-        <GrantsList portfolioId={portfolioId} />
-      </Reveal>
-
-      {showMap && (
-        <Reveal delay={225}>
-          <MapSection portfolioId={portfolioId} />
-        </Reveal>
-      )}
+      {dashboardSections.map((section, index) => renderDashboardSection(section, index))}
 
       {/* AI Assistant */}
       <AIAssistantButton portfolioId={portfolioId} />

@@ -3,8 +3,21 @@ import { createServerClient } from '@/lib/supabase';
 
 export const dynamic = 'force-dynamic';
 
+const NO_STORE = { 'Cache-Control': 'no-store' } as const;
+const ALLOWED_DONOR_ROLES = ['owner', 'admin', 'member'];
+
 interface RouteParams {
   params: Promise<{ orgId: string; donorId: string }>;
+}
+
+function json(body: unknown, init: ResponseInit = {}) {
+  return NextResponse.json(body, {
+    ...init,
+    headers: {
+      ...NO_STORE,
+      ...(init.headers || {}),
+    },
+  });
 }
 
 // GET /api/org/[orgId]/donors/[donorId]
@@ -14,8 +27,8 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     const supabase = await createServerClient();
 
     const { data: role } = await supabase.rpc('user_org_role', { p_org_id: orgId });
-    if (!role) {
-      return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
+    if (!role || !ALLOWED_DONOR_ROLES.includes(role)) {
+      return json({ error: 'Not authorized' }, { status: 403 });
     }
 
     const { data: donor, error } = await supabase
@@ -23,13 +36,13 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       .select('*')
       .eq('org_id', orgId)
       .eq('id', donorId)
-      .single();
+      .maybeSingle();
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return json({ error: error.message }, { status: 500 });
     }
     if (!donor) {
-      return NextResponse.json({ error: 'Donor not found' }, { status: 404 });
+      return json({ error: 'Donor not found' }, { status: 404 });
     }
 
     // Fetch contribution history
@@ -48,9 +61,9 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       .eq('donor_id', donorId)
       .order('created_at', { ascending: false });
 
-    return NextResponse.json({ donor, contributions: contributions || [], letters: letters || [] });
+    return json({ donor, contributions: contributions || [], letters: letters || [] });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return json({ error: err.message }, { status: 500 });
   }
 }
 
@@ -62,7 +75,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
 
     const { data: canEdit } = await supabase.rpc('can_edit_org', { p_org_id: orgId });
     if (!canEdit) {
-      return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
+      return json({ error: 'Not authorized' }, { status: 403 });
     }
 
     const body = await req.json();
@@ -77,6 +90,9 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     for (const field of allowedFields) {
       if (field in body) updates[field] = body[field];
     }
+    if (Object.keys(updates).length === 0) {
+      return json({ error: 'No updates provided' }, { status: 400 });
+    }
 
     const { data: donor, error } = await supabase
       .from('donors')
@@ -87,12 +103,12 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
       .single();
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json(donor);
+    return json(donor);
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return json({ error: err.message }, { status: 500 });
   }
 }
 
@@ -104,21 +120,31 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
 
     const { data: isAdmin } = await supabase.rpc('is_org_admin', { p_org_id: orgId });
     if (!isAdmin) {
-      return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
+      return json({ error: 'Admin access required' }, { status: 403 });
     }
 
-    const { error } = await supabase
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return json({ error: 'Unauthorized' }, { status: 401 });
+
+    const { data: donor, error } = await supabase
       .from('donors')
-      .delete()
+      .update({
+        deleted_at: new Date().toISOString(),
+        deleted_by: user.id,
+      })
       .eq('id', donorId)
-      .eq('org_id', orgId);
+      .eq('org_id', orgId)
+      .is('deleted_at', null)
+      .select('id')
+      .maybeSingle();
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return json({ error: error.message }, { status: 500 });
     }
+    if (!donor) return json({ error: 'Donor not found' }, { status: 404 });
 
-    return new NextResponse(null, { status: 204 });
+    return new NextResponse(null, { status: 204, headers: NO_STORE });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return json({ error: err.message }, { status: 500 });
   }
 }

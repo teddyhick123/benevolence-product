@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase-browser';
+import { useEntityVocabulary } from '@/lib/hooks/use-entity-vocabulary';
 
 type Communication = {
   id: string;
@@ -24,9 +25,12 @@ type Communication = {
 
 interface Props {
   portfolioId: string;
+  orgId?: string | null;
 }
 
-export default function CommunicationLog({ portfolioId }: Props) {
+export default function CommunicationLog({ portfolioId, orgId }: Props) {
+  const vocabulary = useEntityVocabulary(orgId);
+  const grantLabel = vocabulary.grant.singular;
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [communications, setCommunications] = useState<Communication[]>([]);
@@ -71,7 +75,7 @@ export default function CommunicationLog({ portfolioId }: Props) {
 
       setCommunications((commsData || []).map((c: any) => ({
         ...c,
-        grant_name: c.grants?.holdings?.name || 'Unknown Grant',
+        grant_name: c.grants?.holdings?.name || `Unknown ${grantLabel}`,
         holding_id: c.grants?.holding_id,
       })));
 
@@ -82,11 +86,13 @@ export default function CommunicationLog({ portfolioId }: Props) {
         .in('asset_type', ['foundation_grant', 'daf_grant', 'pri', 'mri'])
         .order('name');
 
-      setHoldings((holdingsData || []).map((h: any) => ({
-        id: h.id,
-        name: h.name,
-        grant_id: h.grants?.[0]?.id,
-      })));
+      setHoldings((holdingsData || [])
+        .map((h: any) => ({
+          id: h.id,
+          name: h.name,
+          grant_id: h.grants?.[0]?.id,
+        }))
+        .filter((h: { grant_id?: string }) => Boolean(h.grant_id)));
     } catch (err: any) {
       setFetchError(err?.message ?? 'Failed to load communications.');
     } finally {
@@ -160,25 +166,10 @@ export default function CommunicationLog({ portfolioId }: Props) {
     try {
       const supabase = createClient();
       const holding = holdings.find(h => h.id === newComm.holdingId);
-
-      // Get or create grant record
-      let grantId = holding?.grant_id;
+      const grantId = holding?.grant_id;
       if (!grantId) {
-        const { data: holdingRow } = await supabase
-          .from('holdings')
-          .select('org_id, portfolio_id')
-          .eq('id', newComm.holdingId)
-          .single();
-        const { data: newGrant } = await supabase
-          .from('grants')
-          .insert({
-            holding_id: newComm.holdingId,
-            org_id: holdingRow?.org_id,
-            portfolio_id: holdingRow?.portfolio_id ?? portfolioId,
-          })
-          .select('id')
-          .single();
-        grantId = newGrant?.id;
+        alert('Create the grant through the grant workflow before logging communications.');
+        return;
       }
 
       await supabase
@@ -276,13 +267,13 @@ export default function CommunicationLog({ portfolioId }: Props) {
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-neutral-700 mb-1">Grant *</label>
+                  <label className="block text-sm font-medium text-neutral-700 mb-1">{grantLabel} *</label>
                   <select
                     value={newComm.holdingId}
                     onChange={(e) => setNewComm({ ...newComm, holdingId: e.target.value })}
                     className="w-full px-3 py-2 border border-black/10 rounded-2xl focus:ring-azure/30 focus:border-azure"
                   >
-                    <option value="">Select a grant...</option>
+                    <option value="">Select a {grantLabel.toLowerCase()}...</option>
                     {holdings.map((h) => (
                       <option key={h.id} value={h.id}>{h.name}</option>
                     ))}

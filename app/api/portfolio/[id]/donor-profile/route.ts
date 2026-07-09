@@ -18,14 +18,21 @@ const GONE_BODY = {
     '/api/portfolio/[id]/tax/years. See tax_years.adjusted_gross_income for the canonical AGI source.',
 };
 
+function gone() {
+  return NextResponse.json(GONE_BODY, {
+    status: 410,
+    headers: { 'Cache-Control': 'no-store' },
+  });
+}
+
 export async function GET() {
-  return NextResponse.json(GONE_BODY, { status: 410 });
+  return gone();
 }
 
 export async function POST() {
-  return NextResponse.json(GONE_BODY, { status: 410 });
+  return gone();
 }
 
 export async function PUT() {
-  return NextResponse.json(GONE_BODY, { status: 410 });
+  return gone();
 }

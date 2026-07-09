@@ -340,9 +340,29 @@ CREATE TABLE IF NOT EXISTS public.tax_carryforwards (
   updated_at            TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS public.tax_carryforward_applications (
+  id                     UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  portfolio_id           UUID NOT NULL REFERENCES public.portfolios(id) ON DELETE CASCADE,
+  org_id                 UUID NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
+  carryforward_id        UUID NOT NULL REFERENCES public.tax_carryforwards(id) ON DELETE CASCADE,
+  applied_tax_year       INTEGER NOT NULL CHECK (applied_tax_year >= 1900 AND applied_tax_year <= 2100),
+  amount_applied         NUMERIC(20,2) NOT NULL CHECK (amount_applied > 0),
+  amount_remaining_after NUMERIC(20,2) NOT NULL CHECK (amount_remaining_after >= 0),
+  applied_by             UUID REFERENCES auth.users(id),
+  applied_at             TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  notes                  TEXT,
+  created_at             TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at             TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (carryforward_id, applied_tax_year)
+);
+
 CREATE INDEX IF NOT EXISTS idx_tax_carryforwards_portfolio ON public.tax_carryforwards(portfolio_id);
 CREATE INDEX IF NOT EXISTS idx_tax_carryforwards_expiration ON public.tax_carryforwards(portfolio_id, expires_tax_year);
 CREATE INDEX IF NOT EXISTS idx_tax_carryforwards_remaining ON public.tax_carryforwards(portfolio_id, amount_remaining) WHERE amount_remaining > 0;
+CREATE INDEX IF NOT EXISTS idx_tax_carryforward_applications_portfolio_year
+  ON public.tax_carryforward_applications(portfolio_id, applied_tax_year);
+CREATE INDEX IF NOT EXISTS idx_tax_carryforward_applications_carryforward
+  ON public.tax_carryforward_applications(carryforward_id);
 
 CREATE TRIGGER trg_tax_carryforwards_org_id
   BEFORE INSERT OR UPDATE OF portfolio_id, org_id ON public.tax_carryforwards
@@ -350,6 +370,15 @@ CREATE TRIGGER trg_tax_carryforwards_org_id
 
 CREATE TRIGGER trg_tax_carryforwards_updated_at
   BEFORE UPDATE ON public.tax_carryforwards
+  FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+
+CREATE TRIGGER trg_tax_carryforward_applications_org_id
+  BEFORE INSERT OR UPDATE OF portfolio_id, org_id
+  ON public.tax_carryforward_applications
+  FOR EACH ROW EXECUTE FUNCTION public.set_tax_org_id_from_portfolio();
+
+CREATE TRIGGER trg_tax_carryforward_applications_updated_at
+  BEFORE UPDATE ON public.tax_carryforward_applications
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 
 -- ---------------------------------------------------------------------------
@@ -396,7 +425,10 @@ CREATE TABLE IF NOT EXISTS public.foundation_990pf_data (
   net_investment_income     NUMERIC(20,2) NOT NULL DEFAULT 0 CHECK (net_investment_income >= 0),
   excise_tax_rate           NUMERIC(5,2) NOT NULL DEFAULT 1.39 CHECK (excise_tax_rate >= 0 AND excise_tax_rate <= 100),
   excise_tax_amount         NUMERIC(20,2) CHECK (excise_tax_amount >= 0),
+  avg_fair_market_value     NUMERIC(20,2) CHECK (avg_fair_market_value >= 0),
   fair_market_value_assets  NUMERIC(20,2) CHECK (fair_market_value_assets >= 0),
+  exempt_use_assets         NUMERIC(20,2) NOT NULL DEFAULT 0 CHECK (exempt_use_assets >= 0),
+  acquisition_indebtedness  NUMERIC(20,2) NOT NULL DEFAULT 0 CHECK (acquisition_indebtedness >= 0),
   required_payout           NUMERIC(20,2) CHECK (required_payout >= 0),
   actual_payout             NUMERIC(20,2) CHECK (actual_payout >= 0),
   payout_deficit            NUMERIC(20,2) NOT NULL DEFAULT 0,
@@ -674,6 +706,129 @@ FROM public.v_carryforward_schedule
 WHERE amount_remaining > 0
   AND expires_tax_year >= EXTRACT(YEAR FROM CURRENT_DATE)::INTEGER;
 
+CREATE OR REPLACE FUNCTION public.replace_tax_carryforward_applications(
+  p_portfolio_id UUID,
+  p_tax_year INTEGER,
+  p_applications JSONB,
+  p_actor_id UUID DEFAULT auth.uid()
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_application JSONB;
+  v_carryforward public.tax_carryforwards%ROWTYPE;
+  v_amount NUMERIC(20,2);
+  v_applied_total NUMERIC(20,2) := 0;
+  v_count INTEGER := 0;
+BEGIN
+  IF auth.uid() IS NOT NULL AND NOT public.can_edit_portfolio(p_portfolio_id) THEN
+    RAISE EXCEPTION 'Insufficient permissions to edit portfolio %', p_portfolio_id
+      USING ERRCODE = '42501';
+  END IF;
+
+  IF p_tax_year < 1900 OR p_tax_year > 2100 THEN
+    RAISE EXCEPTION 'Invalid tax year %', p_tax_year;
+  END IF;
+
+  IF p_applications IS NULL OR jsonb_typeof(p_applications) <> 'array' THEN
+    RAISE EXCEPTION 'Applications must be a JSON array';
+  END IF;
+
+  -- Idempotency: restore any prior applications for the same year before
+  -- replacing the ledger with the submitted set.
+  UPDATE public.tax_carryforwards cf
+  SET amount_remaining = LEAST(cf.amount, cf.amount_remaining + prior.amount_applied),
+      amount_used_in_year = CASE
+        WHEN cf.used_in_year = p_tax_year THEN 0
+        ELSE cf.amount_used_in_year
+      END,
+      used_in_year = CASE
+        WHEN cf.used_in_year = p_tax_year THEN NULL
+        ELSE cf.used_in_year
+      END
+  FROM public.tax_carryforward_applications prior
+  WHERE prior.carryforward_id = cf.id
+    AND prior.portfolio_id = p_portfolio_id
+    AND prior.applied_tax_year = p_tax_year;
+
+  DELETE FROM public.tax_carryforward_applications
+  WHERE portfolio_id = p_portfolio_id
+    AND applied_tax_year = p_tax_year;
+
+  FOR v_application IN SELECT * FROM jsonb_array_elements(p_applications)
+  LOOP
+    v_amount := NULLIF(v_application ->> 'amount_applied', '')::NUMERIC;
+    IF v_amount IS NULL OR v_amount <= 0 THEN
+      RAISE EXCEPTION 'amount_applied must be positive';
+    END IF;
+
+    SELECT *
+    INTO v_carryforward
+    FROM public.tax_carryforwards
+    WHERE id = (v_application ->> 'carryforward_id')::UUID
+      AND portfolio_id = p_portfolio_id
+    FOR UPDATE;
+
+    IF v_carryforward.id IS NULL THEN
+      RAISE EXCEPTION 'Carryforward % not found', v_application ->> 'carryforward_id';
+    END IF;
+
+    IF v_carryforward.expires_tax_year < p_tax_year THEN
+      RAISE EXCEPTION 'Carryforward % expired before tax year %', v_carryforward.id, p_tax_year;
+    END IF;
+
+    IF v_amount > v_carryforward.amount_remaining THEN
+      RAISE EXCEPTION 'Application amount exceeds remaining carryforward balance';
+    END IF;
+
+    UPDATE public.tax_carryforwards
+    SET amount_remaining = amount_remaining - v_amount,
+        amount_used_in_year = v_amount,
+        used_in_year = p_tax_year
+    WHERE id = v_carryforward.id
+    RETURNING * INTO v_carryforward;
+
+    INSERT INTO public.tax_carryforward_applications (
+      portfolio_id,
+      org_id,
+      carryforward_id,
+      applied_tax_year,
+      amount_applied,
+      amount_remaining_after,
+      applied_by,
+      notes
+    )
+    VALUES (
+      p_portfolio_id,
+      v_carryforward.org_id,
+      v_carryforward.id,
+      p_tax_year,
+      v_amount,
+      v_carryforward.amount_remaining,
+      p_actor_id,
+      NULLIF(v_application ->> 'notes', '')
+    );
+
+    v_applied_total := v_applied_total + v_amount;
+    v_count := v_count + 1;
+  END LOOP;
+
+  RETURN jsonb_build_object(
+    'applied_tax_year', p_tax_year,
+    'applications_count', v_count,
+    'amount_applied', v_applied_total
+  );
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.replace_tax_carryforward_applications(UUID, INTEGER, JSONB, UUID)
+  FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.replace_tax_carryforward_applications(UUID, INTEGER, JSONB, UUID)
+  TO authenticated, service_role;
+
 CREATE OR REPLACE FUNCTION public.get_donation_capacity(
   p_portfolio_id UUID,
   p_tax_year INTEGER DEFAULT EXTRACT(YEAR FROM CURRENT_DATE)::INTEGER
@@ -733,6 +888,7 @@ ALTER TABLE public.tax_years ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.tax_contributions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.holding_contributions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.tax_carryforwards ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.tax_carryforward_applications ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.daf_grants ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.foundation_990pf_data ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.tax_documents ENABLE ROW LEVEL SECURITY;
@@ -785,6 +941,16 @@ CREATE POLICY "tax_carryforwards_write" ON public.tax_carryforwards
   USING (public.can_edit_portfolio(portfolio_id) AND public.org_has_module(org_id, 'tax'))
   WITH CHECK (public.can_edit_portfolio(portfolio_id) AND public.org_has_module(org_id, 'tax'));
 CREATE POLICY "tax_carryforwards_service" ON public.tax_carryforwards
+  FOR ALL TO service_role USING (true) WITH CHECK (true);
+
+CREATE POLICY "tax_carryforward_applications_read" ON public.tax_carryforward_applications
+  FOR SELECT TO authenticated
+  USING (public.can_view_portfolio(portfolio_id) AND public.org_has_module(org_id, 'tax'));
+CREATE POLICY "tax_carryforward_applications_write" ON public.tax_carryforward_applications
+  FOR ALL TO authenticated
+  USING (public.can_edit_portfolio(portfolio_id) AND public.org_has_module(org_id, 'tax'))
+  WITH CHECK (public.can_edit_portfolio(portfolio_id) AND public.org_has_module(org_id, 'tax'));
+CREATE POLICY "tax_carryforward_applications_service" ON public.tax_carryforward_applications
   FOR ALL TO service_role USING (true) WITH CHECK (true);
 
 CREATE POLICY "daf_grants_read" ON public.daf_grants
@@ -877,6 +1043,7 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON public.tax_years TO authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.tax_contributions TO authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.holding_contributions TO authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.tax_carryforwards TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.tax_carryforward_applications TO authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.daf_grants TO authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.foundation_990pf_data TO authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.tax_documents TO authenticated;
@@ -886,6 +1053,7 @@ GRANT ALL ON public.tax_years TO service_role;
 GRANT ALL ON public.tax_contributions TO service_role;
 GRANT ALL ON public.holding_contributions TO service_role;
 GRANT ALL ON public.tax_carryforwards TO service_role;
+GRANT ALL ON public.tax_carryforward_applications TO service_role;
 GRANT ALL ON public.daf_grants TO service_role;
 GRANT ALL ON public.foundation_990pf_data TO service_role;
 GRANT ALL ON public.tax_documents TO service_role;

@@ -15,6 +15,20 @@ import {
   type TaxContributionExport,
 } from '@/lib/tax/turbotax-export';
 
+function noStoreHeaders(headers: Record<string, string> = {}) {
+  return {
+    ...headers,
+    'Cache-Control': 'no-store',
+  };
+}
+
+function json(body: Record<string, unknown>, init?: ResponseInit) {
+  return NextResponse.json(body, {
+    ...init,
+    headers: noStoreHeaders(init?.headers as Record<string, string> | undefined),
+  });
+}
+
 /**
  * GET /api/portfolio/[id]/tax/export?year=2024&format=json|csv|xlsx|txf|form8283
  * Export tax data in various formats
@@ -59,10 +73,12 @@ export async function GET(
       .eq('tax_year', year)
       .order('contribution_date', { ascending: true }),
     sb
-      .from('v_active_carryforwards')
-      .select('*')
+      .from('tax_carryforwards')
+      .select('*, tax_carryforward_applications(applied_tax_year, amount_applied, amount_remaining_after)')
       .eq('portfolio_id', portfolioId)
-      .lte('originating_tax_year', year),
+      .lte('originating_tax_year', year)
+      .gte('expires_tax_year', year)
+      .order('expires_tax_year', { ascending: true }),
     sb
       .from('portfolios')
       .select('name')
@@ -72,7 +88,7 @@ export async function GET(
 
   // Check if user has access (RLS will return null if no access)
   if (!portfolio) {
-    return NextResponse.json({ error: 'Portfolio not found or access denied' }, { status: 403 });
+    return json({ error: 'Portfolio not found or access denied' }, { status: 403 });
   }
 
   // Calculate summary statistics
@@ -89,7 +105,19 @@ export async function GET(
     .reduce((sum, c) => sum + (c.amount_usd || 0), 0);
   const nonCashContributions = totalContributions - cashContributions;
   const compliantCount = (contributions || []).filter((c) => c.is_compliant).length;
-  const totalCarryforward = (carryforwards || []).reduce(
+  const carryforwardsAsOfYear = (carryforwards || []).map((cf: any) => {
+    const applicationsThroughYear = (cf.tax_carryforward_applications || [])
+      .filter((app: any) => app.applied_tax_year <= year)
+      .reduce((sum: number, app: any) => sum + Number(app.amount_applied || 0), 0);
+    const remainingAmount = Math.max(0, Number(cf.amount || 0) - applicationsThroughYear);
+    return {
+      ...cf,
+      amount_remaining: remainingAmount,
+      applications_through_year: applicationsThroughYear,
+    };
+  }).filter((cf: any) => cf.amount_remaining > 0);
+
+  const totalCarryforward = carryforwardsAsOfYear.reduce(
     (sum, c) => sum + (c.amount_remaining || 0),
     0
   );
@@ -154,38 +182,39 @@ export async function GET(
       substantiationRequired: c.substantiation_requirement,
       appraisalPresent: c.appraisal_storage_path ? 'Yes' : 'No',
     })),
-    carryforwards: (carryforwards || []).map((cf) => ({
+    carryforwards: carryforwardsAsOfYear.map((cf) => ({
       originatingYear: cf.originating_tax_year,
       expiresYear: cf.expires_tax_year,
       category: cf.agi_limit_category,
       originalAmount: cf.amount,
       remainingAmount: cf.amount_remaining,
+      appliedThroughTaxYear: cf.applications_through_year,
       recipient: cf.recipient_name || '',
     })),
   };
 
   // Return based on format
   if (format === 'json') {
-    return NextResponse.json({ data: exportData });
+    return json({ data: exportData });
   }
 
   if (format === 'csv') {
     const csv = generateCSV(exportData);
     return new NextResponse(csv, {
-      headers: {
+      headers: noStoreHeaders({
         'Content-Type': 'text/csv',
         'Content-Disposition': `attachment; filename="tax-summary-${year}.csv"`,
-      },
+      }),
     });
   }
 
   if (format === 'xlsx') {
     const buffer = generateXLSX(exportData);
     return new NextResponse(buffer, {
-      headers: {
+      headers: noStoreHeaders({
         'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         'Content-Disposition': `attachment; filename="tax-summary-${year}.xlsx"`,
-      },
+      }),
     });
   }
 
@@ -220,10 +249,10 @@ export async function GET(
 
     const txf = generateTXF(txfContributions, year, portfolio?.name || 'Taxpayer');
     return new NextResponse(txf, {
-      headers: {
+      headers: noStoreHeaders({
         'Content-Type': 'text/plain',
         'Content-Disposition': `attachment; filename="turbotax-import-${year}.txf"`,
-      },
+      }),
     });
   }
 
@@ -258,10 +287,10 @@ export async function GET(
 
     const form8283 = generateForm8283Summary(form8283Contributions, year);
     return new NextResponse(form8283, {
-      headers: {
+      headers: noStoreHeaders({
         'Content-Type': 'text/plain',
         'Content-Disposition': `attachment; filename="form-8283-summary-${year}.txt"`,
-      },
+      }),
     });
   }
 
@@ -286,10 +315,10 @@ export async function GET(
     });
 
     return new NextResponse(buffer, {
-      headers: {
+      headers: noStoreHeaders({
         'Content-Type': 'application/pdf',
         'Content-Disposition': `attachment; filename="tax-summary-${year}.pdf"`,
-      },
+      }),
     });
   }
 
@@ -326,14 +355,14 @@ export async function GET(
 
     const carryforwardReport = generateCarryforwardReport(carryforwardContributions, year);
     return new NextResponse(carryforwardReport, {
-      headers: {
+      headers: noStoreHeaders({
         'Content-Type': 'text/plain',
         'Content-Disposition': `attachment; filename="carryforward-schedule-${year}.txt"`,
-      },
+      }),
     });
   }
 
-  return NextResponse.json({ error: 'Invalid format' }, { status: 400 });
+  return json({ error: 'Invalid format' }, { status: 400 });
 }
 
 function csvCell(value: any): string {

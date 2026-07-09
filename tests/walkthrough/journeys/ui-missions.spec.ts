@@ -128,7 +128,7 @@ test('UI mission: org admin transitions a grant through visible pipeline control
 
     await page.getByRole('button', { name: 'Select' }).click();
     await page.getByText('Alpha Education Initiative').click();
-    await page.locator('select').selectOption('prospect');
+    await page.getByLabel('Transition Draft grants to').selectOption('prospect');
     await page.getByRole('button', { name: 'Apply transitions' }).click();
     await page.getByRole('button', { name: 'Confirm' }).click();
 

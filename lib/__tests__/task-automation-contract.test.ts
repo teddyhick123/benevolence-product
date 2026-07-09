@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 // lib/__tests__/task-automation-contract.test.ts
 import { describe, it, expect } from 'vitest';
 import { readFileSync, readdirSync } from 'fs';
@@ -254,7 +256,10 @@ describe('Source hook cancel prefix safety', () => {
   });
 
   it('pledge cancel route uses prefix form for cancelGeneratedTasks', () => {
-    expect(pledgeCancelRouteSrc).toMatch(/cancelGeneratedTasks[^`]*`pledge_installment:\${[^}]+}:`/);
+    const migration = read('db/migrations/0041_task_workflow_foundation.sql');
+
+    expect(pledgeCancelRouteSrc).toContain("rpc('cancel_pledge_with_obligations'");
+    expect(migration).toContain("t.source_key LIKE ('pledge_installment:' || pi.id || ':%')");
   });
 });
 

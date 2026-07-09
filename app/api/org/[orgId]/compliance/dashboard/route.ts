@@ -5,6 +5,18 @@ import { createClient } from '@supabase/supabase-js';
 
 export const runtime = 'nodejs';
 
+const NO_STORE = { 'Cache-Control': 'no-store' } as const;
+
+function json(body: unknown, init: ResponseInit = {}) {
+  return NextResponse.json(body, {
+    ...init,
+    headers: {
+      ...NO_STORE,
+      ...(init.headers || {}),
+    },
+  });
+}
+
 function getAuthClient(cookieStore: Awaited<ReturnType<typeof cookies>>) {
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -40,7 +52,7 @@ export async function GET(
     const cookieStore = await cookies();
     const supabase = getAuthClient(cookieStore);
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!user) return json({ error: 'Unauthorized' }, { status: 401 });
 
     const sb = getServiceClient();
 
@@ -50,15 +62,16 @@ export async function GET(
       .select('role')
       .eq('org_id', orgId)
       .eq('user_id', user.id)
+      .is('deleted_at', null)
       .maybeSingle();
-    if (!membership) return NextResponse.json({ error: 'Access denied' }, { status: 403 });
+    if (!membership) return json({ error: 'Access denied' }, { status: 403 });
 
     // Check module enabled
     const { data: hasModule } = await sb.rpc('org_has_module', {
       p_org_id: orgId,
-      p_module: 'compliance_regulatory',
+      p_module: 'compliance',
     });
-    if (!hasModule) return NextResponse.json({ error: 'Module not enabled' }, { status: 403 });
+    if (!hasModule) return json({ error: 'Module not enabled' }, { status: 403 });
 
     // Fetch in parallel
     const [dashboardRes, deadlinesRes, incidentsRes, profileRes] = await Promise.all([
@@ -73,13 +86,13 @@ export async function GET(
       sb.from('compliance_profiles').select('*').eq('org_id', orgId).maybeSingle(),
     ]);
 
-    return NextResponse.json({
+    return json({
       dashboard: dashboardRes.data || null,
       upcoming_deadlines: deadlinesRes.data || [],
       open_incidents: incidentsRes.data || [],
       profile: profileRes.data || null,
     });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return json({ error: err.message }, { status: 500 });
   }
 }

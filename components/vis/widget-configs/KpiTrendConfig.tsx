@@ -7,9 +7,10 @@ export type KpiTrendConfigProps = {
   onSave: (config: { title: string; config: any }) => void;
   onCancel: () => void;
   portfolioId?: string;
+  onPreviewChange?: (config: { title: string; config: any }) => void;
 };
 
-export default function KpiTrendConfig({ initialConfig, onSave, onCancel, portfolioId }: KpiTrendConfigProps) {
+export default function KpiTrendConfig({ initialConfig, onSave, onCancel, portfolioId, onPreviewChange }: KpiTrendConfigProps) {
   const [title, setTitle] = React.useState(initialConfig?.title || '');
   const [metricCode, setMetricCode] = React.useState(initialConfig?.config?.metric_code || '');
   const [window, setWindow] = React.useState(initialConfig?.config?.period?.window || '12m');
@@ -34,6 +35,17 @@ export default function KpiTrendConfig({ initialConfig, onSave, onCancel, portfo
       }
     })();
   }, [portfolioId]);
+
+  React.useEffect(() => {
+    onPreviewChange?.({
+      title: title || `${metricCode} Trend`,
+      config: {
+        metric_code: metricCode,
+        period: { window },
+        style: { smooth }
+      }
+    });
+  }, [metricCode, onPreviewChange, smooth, title, window]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

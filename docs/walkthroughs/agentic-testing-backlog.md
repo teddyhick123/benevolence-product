@@ -34,7 +34,7 @@ CI status:
 
 ## Findings
 
-No new product-breaking walkthrough failures were found in the automated smoke or journey suites after the schema privilege fixes. The current implementation now guards the main regression classes found during the walkthrough work:
+The deeper exploratory walkthrough passes have started finding product bugs beyond harness setup. The current implementation now guards the main regression classes found during the walkthrough work:
 
 - Missing `GRANT`/RLS privilege regressions on app-used tables and views.
 - Missing service-role execute grants on security-definer RPCs used by app routes.
@@ -45,6 +45,9 @@ No new product-breaking walkthrough failures were found in the automated smoke o
 - Local walkthrough warning noise hiding useful failure output.
 - Task completion/reopen retries creating duplicate task events.
 - Portfolio GET routes relying only on RLS for cross-tenant reads.
+- Compliance "Mark as Filed" saving a free-text filed-by value into the UUID `completed_by` field.
+- Grant creation RPC drift from the canonical `investees` schema (`region` vs `city`) and dropped grantee EIN/location details.
+- Pledge creation route passing a JSON string scalar into a `jsonb` RPC that expects an array.
 
 The remaining gaps are mostly the next UI mission slices and exploratory-agent review loops rather than immediate harness enablement.
 
@@ -130,6 +133,26 @@ Supporting product accessibility improvements:
 - Task form controls now have explicit labels usable by assistive technology and Playwright.
 - Task complete/reopen controls include the task title in their accessible names.
 
+### Deep Product Journeys
+
+`tests/walkthrough/journeys/deep-product-journeys.spec.ts` adds real UI/API/database journeys for high-value module workflows:
+
+- Donor creation, gift logging, receipt generation, and acknowledgment-letter side effects.
+- Tax contribution creation and JSON export verification.
+- Compliance filing creation, mark-filed persistence, and state registration creation.
+
+`tests/walkthrough/journeys/deep-expansion-journeys.spec.ts` extends that pattern into additional product workflows:
+
+- Grant creation through the visible wizard, grant workspace landing, lifecycle history, and canonical holding/investee field persistence.
+- Pledge creation through the visible wizard, generated installment schedule, recording an installment payment, and pledge-linked contribution creation.
+
+Confirmed fixes from these deeper passes:
+
+- `filing_calendar.completed_by_name` now stores free-text filed-by labels without writing them into UUID-backed `completed_by`.
+- `create_grant_with_foundation_records` now writes to canonical `investees.city` and preserves grantee EIN/sector/city/country on the created holding.
+- `POST /api/org/[orgId]/pledges` now passes installment arrays as JSONB arrays instead of JSON-stringified scalars.
+- Dashboard portfolio summary background fetches abort cleanly during navigation instead of emitting test-failing console errors.
+
 ### Explicit Portfolio Read Guards
 
 `app/api/portfolio/[id]/holdings/route.ts` now checks `can_view_portfolio(p_portfolio_id)` before querying `v_holdings`.
@@ -159,9 +182,9 @@ Current journey specs now include the critical visible UI missions called out in
 
 Remaining suggested UI paths:
 
-- Donor creation and receipt/acknowledgment generation from visible controls.
-- Tax contribution creation and export from visible controls.
-- Compliance calendar/document upload flows from visible controls.
+- Reports template/document generation flows from visible controls.
+- Analytics drill-down paths from visible controls.
+- Compliance document upload/download flows from visible controls.
 - Convert future exploratory-agent findings into focused regression tests.
 
 ### P3 — Continue Artifact And Runtime Triage
@@ -174,6 +197,7 @@ Remaining ideas:
 
 ## Recommended Next Implementation Order
 
-1. Start donor, tax, and compliance exploratory-agent passes and convert confirmed findings into regressions.
-2. Add visible-control regressions for the confirmed donor creation/receipt, tax contribution/export, and compliance upload paths.
-3. Reduce remaining local dev-server warning noise during long runs.
+1. Add reports and analytics deep journeys with API/database assertions.
+2. Add compliance document upload/download coverage.
+3. Run the combined deep product journeys regularly and convert new exploratory findings into focused regressions.
+4. Reduce remaining local dev-server warning noise during long runs.

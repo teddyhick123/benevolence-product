@@ -2,6 +2,16 @@ import { NextResponse } from 'next/server';
 import { supabasePublic } from '@/lib/supabase';
 import { createTaxCarryforwardSchema } from '@/lib/schemas/tax';
 import { validateRequest } from '@/lib/validation';
+import { z } from 'zod';
+
+const applyCarryforwardApplicationsSchema = z.object({
+  tax_year: z.number().int().min(1900).max(2100),
+  applications: z.array(z.object({
+    carryforward_id: z.string().uuid(),
+    amount_applied: z.number().positive(),
+    notes: z.string().max(1000).optional().nullable(),
+  })),
+});
 
 /**
  * GET /api/portfolio/[id]/tax/carryforwards
@@ -41,7 +51,7 @@ export async function GET(
 
   return NextResponse.json(
     { data: data ?? [] },
-    { headers: { 'Cache-Control': 'private, s-maxage=60' } }
+    { headers: { 'Cache-Control': 'no-store' } }
   );
 }
 
@@ -108,5 +118,59 @@ export async function POST(
   return NextResponse.json(
     { data: created },
     { status: 201, headers: { 'Cache-Control': 'no-store' } }
+  );
+}
+
+/**
+ * PATCH /api/portfolio/[id]/tax/carryforwards
+ * Persist carryforward applications for a tax year.
+ */
+export async function PATCH(
+  req: Request,
+  ctx: { params: Promise<{ id: string }> }
+) {
+  const { id: portfolio_id } = await ctx.params;
+  const sb = await supabasePublic();
+
+  const { data: canEdit, error: canEditErr } = await sb.rpc('can_edit_portfolio', {
+    p_portfolio_id: portfolio_id,
+  });
+
+  if (canEditErr) {
+    return NextResponse.json(
+      { error: canEditErr.message },
+      { status: 500, headers: { 'Cache-Control': 'no-store' } }
+    );
+  }
+
+  if (!canEdit) {
+    return NextResponse.json(
+      { error: 'Not authorized' },
+      { status: 403, headers: { 'Cache-Control': 'no-store' } }
+    );
+  }
+
+  const validation = await validateRequest(req, applyCarryforwardApplicationsSchema);
+  if (!validation.success) {
+    return validation.response;
+  }
+
+  const { tax_year, applications } = validation.data;
+  const { data, error } = await sb.rpc('replace_tax_carryforward_applications', {
+    p_portfolio_id: portfolio_id,
+    p_tax_year: tax_year,
+    p_applications: applications,
+  });
+
+  if (error) {
+    return NextResponse.json(
+      { error: error.message },
+      { status: 500, headers: { 'Cache-Control': 'no-store' } }
+    );
+  }
+
+  return NextResponse.json(
+    { data },
+    { headers: { 'Cache-Control': 'no-store' } }
   );
 }

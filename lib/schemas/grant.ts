@@ -33,16 +33,25 @@ export const milestoneStatusSchema = z.enum([
   'pending',
   'in_progress',
   'completed',
-  'overdue',
   'cancelled',
 ]);
 
 export type MilestoneStatus = z.infer<typeof milestoneStatusSchema>;
 
+export const milestoneDisplayStatusSchema = z.enum([
+  'pending',
+  'in_progress',
+  'completed',
+  'overdue',
+  'cancelled',
+]);
+
+export type MilestoneDisplayStatus = z.infer<typeof milestoneDisplayStatusSchema>;
+
 /**
  * Human-readable labels for milestone statuses
  */
-export const MILESTONE_STATUS_LABELS: Record<MilestoneStatus, string> = {
+export const MILESTONE_STATUS_LABELS: Record<MilestoneDisplayStatus, string> = {
   pending: 'Pending',
   in_progress: 'In Progress',
   completed: 'Completed',
@@ -213,7 +222,7 @@ export function formatGrantPeriod(start?: string | null, end?: string | null): s
 /**
  * Helper to get milestone status color class
  */
-export function getMilestoneStatusColorClass(status: MilestoneStatus): string {
+export function getMilestoneStatusColorClass(status: MilestoneDisplayStatus): string {
   switch (status) {
     case 'completed':
       return 'text-green-600 bg-green-50 border-green-200';

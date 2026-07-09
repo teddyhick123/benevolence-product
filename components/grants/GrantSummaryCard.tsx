@@ -15,11 +15,12 @@ type Props = {
   grant: GrantSummary;
   onViewDetails?: () => void;
   loading?: boolean;
+  grantLabel?: string;
 };
 
 export type Grant = GrantSummary;
 
-export default function GrantSummaryCard({ grant, onViewDetails, loading = false }: Props) {
+export default function GrantSummaryCard({ grant, onViewDetails, loading = false, grantLabel = 'Grant' }: Props) {
   if (loading) {
     return (
       <div className="rounded-2xl bg-white border border-black/5 shadow-soft p-5 animate-pulse">
@@ -81,12 +82,10 @@ export default function GrantSummaryCard({ grant, onViewDetails, loading = false
 
       {/* Key Metrics Grid */}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">
-        {/* Grant Amount */}
-        <MetricItem label="Grant Amount" value={formatCurrency(grant.funds_allocated)} />
+        <MetricItem label={`${grantLabel} Amount`} value={formatCurrency(grant.funds_allocated)} />
 
-        {/* Grant Period */}
         <MetricItem
-          label="Grant Period"
+          label={`${grantLabel} Period`}
           value={formatGrantPeriod(grant.grant_period_start, grant.grant_period_end)}
         />
 

@@ -4,6 +4,16 @@ import { createTaxContributionDraft, HoldingForTax } from '@/lib/helpers/tax-hol
 
 const getSupabase = createSupabaseServerClient;
 
+function json(body: Record<string, unknown>, init?: ResponseInit) {
+  return NextResponse.json(body, {
+    ...init,
+    headers: {
+      ...init?.headers,
+      'Cache-Control': 'no-store',
+    },
+  });
+}
+
 /**
  * POST /api/holdings/[id]/create-tax-record
  * Creates a tax contribution record from a holding with auto-populated data.
@@ -20,7 +30,7 @@ export async function POST(
     // Get user
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     // Get the holding (RLS enforces view access automatically)
@@ -40,40 +50,43 @@ export async function POST(
       .maybeSingle();
 
     if (holdingError || !holding) {
-      return NextResponse.json(
+      return json(
         { error: 'Holding not found or access denied' },
         { status: 404 }
       );
     }
 
     // Verify user has edit access to this portfolio via canonical RPC
-    const { data: canEdit } = await supabase.rpc('can_edit_portfolio', {
+    const { data: canEdit, error: canEditErr } = await supabase.rpc('can_edit_portfolio', {
       p_portfolio_id: holding.portfolio_id,
     });
+    if (canEditErr) return json({ error: canEditErr.message }, { status: 500 });
     if (!canEdit) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      return json({ error: 'Forbidden' }, { status: 403 });
     }
 
     // Check that the tax module is enabled for this org
     const orgId = (holding.portfolios as any).org_id as string;
-    const { data: hasModule } = await supabase.rpc('org_has_module', {
+    const { data: hasModule, error: moduleError } = await supabase.rpc('org_has_module', {
       p_org_id: orgId,
       p_module: 'tax',
     });
+    if (moduleError) return json({ error: moduleError.message }, { status: 500 });
     if (!hasModule) {
-      return NextResponse.json({ error: 'Tax module not enabled' }, { status: 403 });
+      return json({ error: 'Tax module not enabled' }, { status: 403 });
     }
 
     // Check if this holding already has a tax contribution.
     // Use maybeSingle() so "no row" is null (not an error).
-    const { data: existingTax } = await supabase
+    const { data: existingTax, error: existingTaxError } = await supabase
       .from('tax_contributions')
       .select('id')
       .eq('holding_id', holdingId)
       .maybeSingle();
+    if (existingTaxError) return json({ error: existingTaxError.message }, { status: 500 });
 
     if (existingTax) {
-      return NextResponse.json(
+      return json(
         {
           error: 'Tax contribution already exists for this holding',
           existing_id: existingTax.id,
@@ -87,11 +100,12 @@ export async function POST(
     let currentNav: number | null = null;
 
     if (['equity_investment', 'debt_investment', 'pri', 'mri'].includes(holding.asset_type || '')) {
-      const { data: perfData } = await supabase
+      const { data: perfData, error: perfError } = await supabase
         .from('v_investment_performance')
         .select('cost_basis, current_nav')
         .eq('id', holdingId)
         .maybeSingle();
+      if (perfError) return json({ error: perfError.message }, { status: 500 });
 
       if (perfData) {
         costBasis = perfData.cost_basis;
@@ -115,14 +129,11 @@ export async function POST(
 
     // Guard: amount_usd must be > 0 to satisfy the DB CHECK constraint
     if (!draft.amount_usd || draft.amount_usd <= 0) {
-      return NextResponse.json(
+      return json(
         { error: 'Holding has no allocated funds — set a value before creating a tax record' },
         { status: 400 }
       );
     }
-
-    // Derive tax_year from contribution_date (canonical: no deduction_year column)
-    const taxYear = new Date(draft.contribution_date).getFullYear();
 
     // Insert canonical tax_contributions row — no stale donation_date / deduction_year
     const { data: taxContribution, error: insertError } = await supabase
@@ -147,20 +158,20 @@ export async function POST(
 
     if (insertError) {
       console.error('Error creating tax contribution:', insertError);
-      return NextResponse.json(
+      return json(
         { error: 'Failed to create tax contribution', details: insertError.message },
         { status: 500 }
       );
     }
 
-    return NextResponse.json({
+    return json({
       success: true,
       tax_contribution: taxContribution,
       message: 'Tax contribution record created successfully',
     });
   } catch (error: any) {
     console.error('Unexpected error in create-tax-record:', error);
-    return NextResponse.json(
+    return json(
       { error: 'Internal server error', details: error.message },
       { status: 500 }
     );
@@ -182,7 +193,7 @@ export async function GET(
     // Get user
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     // Get the holding (RLS enforces view access)
@@ -201,28 +212,30 @@ export async function GET(
       .maybeSingle();
 
     if (holdingError || !holding) {
-      return NextResponse.json(
+      return json(
         { error: 'Holding not found or access denied' },
         { status: 404 }
       );
     }
 
     // Verify user has edit access to this portfolio via canonical RPC
-    const { data: canEdit } = await supabase.rpc('can_edit_portfolio', {
+    const { data: canEdit, error: canEditErr } = await supabase.rpc('can_edit_portfolio', {
       p_portfolio_id: holding.portfolio_id,
     });
+    if (canEditErr) return json({ error: canEditErr.message }, { status: 500 });
     if (!canEdit) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      return json({ error: 'Forbidden' }, { status: 403 });
     }
 
     // Check that the tax module is enabled for this org
     const orgId = (holding.portfolios as any).org_id as string;
-    const { data: hasModule } = await supabase.rpc('org_has_module', {
+    const { data: hasModule, error: moduleError } = await supabase.rpc('org_has_module', {
       p_org_id: orgId,
       p_module: 'tax',
     });
+    if (moduleError) return json({ error: moduleError.message }, { status: 500 });
     if (!hasModule) {
-      return NextResponse.json({ error: 'Tax module not enabled' }, { status: 403 });
+      return json({ error: 'Tax module not enabled' }, { status: 403 });
     }
 
     // Try to get investment performance data if available
@@ -230,11 +243,12 @@ export async function GET(
     let currentNav: number | null = null;
 
     if (['equity_investment', 'debt_investment', 'pri', 'mri'].includes(holding.asset_type || '')) {
-      const { data: perfData } = await supabase
+      const { data: perfData, error: perfError } = await supabase
         .from('v_investment_performance')
         .select('cost_basis, current_nav')
         .eq('id', holdingId)
         .maybeSingle();
+      if (perfError) return json({ error: perfError.message }, { status: 500 });
 
       if (perfData) {
         costBasis = perfData.cost_basis;
@@ -256,20 +270,21 @@ export async function GET(
     const draft = createTaxContributionDraft(holdingForTax);
 
     // Check if already has tax record — maybeSingle() returns null if no row (not an error)
-    const { data: existingTax } = await supabase
+    const { data: existingTax, error: existingTaxError } = await supabase
       .from('tax_contributions')
       .select('id')
       .eq('holding_id', holdingId)
       .maybeSingle();
+    if (existingTaxError) return json({ error: existingTaxError.message }, { status: 500 });
 
-    return NextResponse.json({
+    return json({
       preview: draft,
       has_existing_record: !!existingTax,
       existing_record_id: existingTax?.id || null,
     });
   } catch (error: any) {
     console.error('Unexpected error in create-tax-record preview:', error);
-    return NextResponse.json(
+    return json(
       { error: 'Internal server error', details: error.message },
       { status: 500 }
     );

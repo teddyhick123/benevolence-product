@@ -1,5 +1,7 @@
 // @ts-nocheck - extracted from legacy assistant while Supabase generated types are incomplete
 import { createClient } from '@supabase/supabase-js';
+import { loadOrgAiContext } from '@/lib/org-ai-context';
+import { loadEntityVocabulary } from '@/lib/view-config';
 
 
 export async function getPortfolioContext(supabase: ReturnType<typeof createClient>, portfolioId: string) {
@@ -194,12 +196,14 @@ export async function getPortfolioContext(supabase: ReturnType<typeof createClie
       donorCount: number | null;
       donorGivingThisYear: number | null;
       nextFiling: { description: string; due_date: string } | null;
+      aiContext: any[];
+      entityVocabulary: Record<string, { singular: string; plural: string }>;
     } | null = null;
 
     const orgId = (portfolio.data as any)?.org_id;
     if (orgId) {
       const currentYear = new Date().getFullYear();
-      const [orgRow, otherPortfolios, donorStats, nextFiling] = await Promise.all([
+      const [orgRow, otherPortfolios, donorStats, nextFiling, aiContext, entityVocabulary] = await Promise.all([
         supabase
           .from('organizations')
           .select('name, org_type, modules')
@@ -222,6 +226,8 @@ export async function getPortfolioContext(supabase: ReturnType<typeof createClie
           .gte('due_date', new Date().toISOString().slice(0, 10))
           .order('due_date', { ascending: true })
           .limit(1),
+        loadOrgAiContext(supabase, orgId, { activeOnly: true }).catch(() => []),
+        loadEntityVocabulary(supabase, orgId).catch(() => ({})),
       ]);
 
       const modules: Record<string, boolean> = (orgRow.data as any)?.modules ?? {};
@@ -265,6 +271,8 @@ export async function getPortfolioContext(supabase: ReturnType<typeof createClie
         nextFiling: modules.compliance && nextFiling.data?.[0]
           ? { description: nextFiling.data[0].description || nextFiling.data[0].filing_type, due_date: nextFiling.data[0].due_date }
           : null,
+        aiContext,
+        entityVocabulary,
       };
     }
 
@@ -287,4 +295,3 @@ export async function getPortfolioContext(supabase: ReturnType<typeof createClie
       orgContext,
     };
   }
-

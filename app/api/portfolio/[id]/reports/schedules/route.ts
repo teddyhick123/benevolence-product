@@ -2,10 +2,8 @@
 import { NextResponse } from 'next/server';
 import { createSupabaseServerClient } from '@/lib/supabase';
 
-function cacheHeaders(isGet = false) {
-  return isGet
-    ? { 'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=30' } as const
-    : { 'Cache-Control': 'no-store' } as const;
+function cacheHeaders() {
+  return { 'Cache-Control': 'no-store' } as const;
 }
 
 const createSb = createSupabaseServerClient;
@@ -16,6 +14,10 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
   const active_only = url.searchParams.get('active_only') === 'true';
 
   const sb = await createSb();
+
+  const { data: canView, error: canViewErr } = await sb.rpc('can_view_portfolio', { p_portfolio_id: portfolio_id });
+  if (canViewErr) return NextResponse.json({ error: canViewErr.message }, { status: 500, headers: cacheHeaders() });
+  if (!canView) return NextResponse.json({ error: 'not authorized' }, { status: 403, headers: cacheHeaders() });
 
   let query = sb
     .from('report_schedules')
@@ -58,7 +60,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
     report_templates: undefined,
   }));
 
-  return NextResponse.json({ schedules }, { headers: cacheHeaders(true) });
+  return NextResponse.json({ schedules }, { headers: cacheHeaders() });
 }
 
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {

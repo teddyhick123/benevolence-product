@@ -10,9 +10,20 @@ const ROLE_RANK: Record<PortfolioRole, number> = {
   owner: 3,
 };
 
+function json(body: Record<string, unknown>, init?: ResponseInit) {
+  return NextResponse.json(body, {
+    ...init,
+    headers: {
+      ...init?.headers,
+      'Cache-Control': 'no-store',
+    },
+  });
+}
+
 export interface PortfolioAccess {
   user: { id: string };
   role: PortfolioRole;
+  orgId: string;
 }
 
 export interface PortfolioAccessDenied {
@@ -36,32 +47,57 @@ export async function requirePortfolioAccess(
 
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
-    return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) };
+    return { error: json({ error: 'Unauthorized' }, { status: 401 }) };
   }
 
   const { data: membership } = await supabase
     .from('portfolio_members')
-    .select('role')
+    .select('role, portfolios!inner(org_id)')
     .eq('portfolio_id', portfolioId)
     .eq('user_id', user.id)
+    .is('deleted_at', null)
     .maybeSingle();
 
   if (!membership) {
-    return { error: NextResponse.json({ error: 'Access denied' }, { status: 403 }) };
+    return { error: json({ error: 'Access denied' }, { status: 403 }) };
+  }
+
+  const portfolio = Array.isArray(membership.portfolios)
+    ? membership.portfolios[0]
+    : membership.portfolios;
+  const orgId = portfolio?.org_id;
+  if (!orgId) {
+    return { error: json({ error: 'Access denied' }, { status: 403 }) };
+  }
+
+  const { data: orgMembership, error: orgMembershipError } = await supabase
+    .from('organization_members')
+    .select('id')
+    .eq('org_id', orgId)
+    .eq('user_id', user.id)
+    .is('deleted_at', null)
+    .not('accepted_at', 'is', null)
+    .maybeSingle();
+
+  if (orgMembershipError) {
+    return { error: json({ error: orgMembershipError.message }, { status: 500 }) };
+  }
+  if (!orgMembership) {
+    return { error: json({ error: 'Access denied' }, { status: 403 }) };
   }
 
   const role = membership.role as PortfolioRole;
 
   if (options.minRole && ROLE_RANK[role] < ROLE_RANK[options.minRole]) {
     return {
-      error: NextResponse.json(
+      error: json(
         { error: `Requires ${options.minRole} role or higher` },
         { status: 403 }
       ),
     };
   }
 
-  return { user, role };
+  return { user, role, orgId };
 }
 
 export function isAccessDenied(

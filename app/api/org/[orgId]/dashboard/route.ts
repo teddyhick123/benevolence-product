@@ -5,6 +5,18 @@ import type { ModuleId } from "@/lib/modules/types";
 
 export const dynamic = "force-dynamic";
 
+const NO_STORE = { "Cache-Control": "no-store" } as const;
+
+function json(body: unknown, init: ResponseInit = {}) {
+  return NextResponse.json(body, {
+    ...init,
+    headers: {
+      ...NO_STORE,
+      ...(init.headers || {}),
+    },
+  });
+}
+
 interface RouteParams {
   params: Promise<{ orgId: string }>;
 }
@@ -52,7 +64,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     // Check access
     const { data: role } = await supabase.rpc("user_org_role", { p_org_id: orgId });
     if (!role) {
-      return NextResponse.json({ error: "Not authorized" }, { status: 403 });
+      return json({ error: "Not authorized" }, { status: 403 });
     }
 
     // Get organization details
@@ -63,7 +75,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       .single();
 
     if (orgError || !org) {
-      return NextResponse.json({ error: "Organization not found" }, { status: 404 });
+      return json({ error: "Organization not found" }, { status: 404 });
     }
 
     // Get enabled modules
@@ -279,7 +291,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     const completedTasks = setupTasks.filter((t) => t.completed).length;
     const isNewOrg = completedTasks < setupTasks.length;
 
-    return NextResponse.json({
+    return json({
       org: {
         id: org.id,
         name: org.name,
@@ -303,6 +315,6 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     });
   } catch (err: any) {
     console.error("Dashboard API error:", err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return json({ error: err.message }, { status: 500 });
   }
 }

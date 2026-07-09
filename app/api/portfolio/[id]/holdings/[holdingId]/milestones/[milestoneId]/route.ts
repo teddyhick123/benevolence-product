@@ -1,9 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseServerClient, createAdminClient } from '@/lib/supabase';
 import { updateMilestoneSchema } from '@/lib/schemas/grant';
+import { withMilestoneDisplayStatus } from '@/lib/grants/milestones';
 import { completeGeneratedTasks, cancelGeneratedTasks } from '@/lib/tasks/automation/task-writer';
 
 const getSupabase = createSupabaseServerClient;
+
+function json(body: Record<string, unknown>, init?: ResponseInit) {
+  return NextResponse.json(body, {
+    ...init,
+    headers: {
+      ...init?.headers,
+      'Cache-Control': 'no-store',
+    },
+  });
+}
 
 /**
  * PATCH /api/portfolio/[id]/holdings/[holdingId]/milestones/[milestoneId]
@@ -22,13 +33,12 @@ export async function PATCH(
     const validated = updateMilestoneSchema.parse(body);
 
     // Verify holding belongs to portfolio and user can edit
-    const { data: canEdit } = await supabase.rpc('can_edit_portfolio', {
+    const { data: canEdit, error: canEditErr } = await supabase.rpc('can_edit_portfolio', {
       p_portfolio_id: portfolioId,
-      p_user_id: (await supabase.auth.getUser()).data.user?.id,
     });
 
-    if (!canEdit) {
-      return NextResponse.json(
+    if (canEditErr || !canEdit) {
+      return json(
         { error: 'Permission denied: cannot edit this portfolio' },
         { status: 403 }
       );
@@ -40,13 +50,13 @@ export async function PATCH(
       .select(`
         id,
         grant_id,
-        grants!inner(holding_id)
+        grants!inner(holding_id, portfolio_id)
       `)
       .eq('id', milestoneId)
       .single();
 
     if (fetchError || !existingMilestone) {
-      return NextResponse.json(
+      return json(
         { error: 'Milestone not found' },
         { status: 404 }
       );
@@ -54,8 +64,8 @@ export async function PATCH(
 
     // Verify the milestone belongs to the specified holding
     const grantDetails = existingMilestone.grants as any;
-    if (grantDetails.holding_id !== holdingId) {
-      return NextResponse.json(
+    if (grantDetails.holding_id !== holdingId || grantDetails.portfolio_id !== portfolioId) {
+      return json(
         { error: 'Milestone does not belong to this holding' },
         { status: 403 }
       );
@@ -83,41 +93,47 @@ export async function PATCH(
 
     if (error) {
       console.error('Error updating milestone:', error);
-      return NextResponse.json({ error: 'Failed to update milestone' }, { status: 500 });
+      return json({ error: 'Failed to update milestone' }, { status: 500 });
     }
 
-    // Fire-and-forget: close automation tasks when milestone reaches a terminal status
     const newStatus = validated.status;
     if (newStatus === 'completed' || newStatus === 'cancelled') {
-      (async () => {
-        try {
-          const adminDb = createAdminClient();
-          const { data: portfolio } = await adminDb
-            .from('portfolios')
-            .select('org_id')
-            .eq('id', portfolioId)
-            .single();
-          if (portfolio?.org_id) {
-            if (newStatus === 'completed') {
-              await completeGeneratedTasks(adminDb, portfolio.org_id, `grant_milestone:${milestoneId}:`, 'Milestone marked completed');
-            } else {
-              await cancelGeneratedTasks(adminDb, portfolio.org_id, `grant_milestone:${milestoneId}:`, 'Milestone cancelled');
-            }
-          }
-        } catch { /* fire-and-forget */ }
-      })();
+      const adminDb = createAdminClient();
+      const { data: portfolio, error: portfolioError } = await adminDb
+        .from('portfolios')
+        .select('org_id')
+        .eq('id', portfolioId)
+        .single();
+      if (portfolioError) throw portfolioError;
+      if (portfolio?.org_id) {
+        if (newStatus === 'completed') {
+          await completeGeneratedTasks(
+            adminDb,
+            portfolio.org_id,
+            `grant_milestone:${milestoneId}:`,
+            'Milestone marked completed'
+          );
+        } else {
+          await cancelGeneratedTasks(
+            adminDb,
+            portfolio.org_id,
+            `grant_milestone:${milestoneId}:`,
+            'Milestone cancelled'
+          );
+        }
+      }
     }
 
-    return NextResponse.json({ data: milestone });
+    return json({ data: withMilestoneDisplayStatus(milestone) });
   } catch (error: any) {
     if (error?.name === 'ZodError') {
-      return NextResponse.json(
+      return json(
         { error: 'Validation error', details: error.errors },
         { status: 400 }
       );
     }
     console.error('Unexpected error in PATCH milestone:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return json({ error: 'Internal server error' }, { status: 500 });
   }
 }
 
@@ -134,13 +150,12 @@ export async function DELETE(
     const supabase = await getSupabase();
 
     // Verify holding belongs to portfolio and user can edit
-    const { data: canEdit } = await supabase.rpc('can_edit_portfolio', {
+    const { data: canEdit, error: canEditErr } = await supabase.rpc('can_edit_portfolio', {
       p_portfolio_id: portfolioId,
-      p_user_id: (await supabase.auth.getUser()).data.user?.id,
     });
 
-    if (!canEdit) {
-      return NextResponse.json(
+    if (canEditErr || !canEdit) {
+      return json(
         { error: 'Permission denied: cannot edit this portfolio' },
         { status: 403 }
       );
@@ -152,13 +167,13 @@ export async function DELETE(
       .select(`
         id,
         grant_id,
-        grants!inner(holding_id)
+        grants!inner(holding_id, portfolio_id)
       `)
       .eq('id', milestoneId)
       .single();
 
     if (fetchError || !existingMilestone) {
-      return NextResponse.json(
+      return json(
         { error: 'Milestone not found' },
         { status: 404 }
       );
@@ -166,8 +181,8 @@ export async function DELETE(
 
     // Verify the milestone belongs to the specified holding
     const grantDetails = existingMilestone.grants as any;
-    if (grantDetails.holding_id !== holdingId) {
-      return NextResponse.json(
+    if (grantDetails.holding_id !== holdingId || grantDetails.portfolio_id !== portfolioId) {
+      return json(
         { error: 'Milestone does not belong to this holding' },
         { status: 403 }
       );
@@ -181,12 +196,12 @@ export async function DELETE(
 
     if (error) {
       console.error('Error deleting milestone:', error);
-      return NextResponse.json({ error: 'Failed to delete milestone' }, { status: 500 });
+      return json({ error: 'Failed to delete milestone' }, { status: 500 });
     }
 
-    return NextResponse.json({ success: true, message: 'Milestone deleted' });
+    return json({ success: true, message: 'Milestone deleted' });
   } catch (error) {
     console.error('Unexpected error in DELETE milestone:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return json({ error: 'Internal server error' }, { status: 500 });
   }
 }

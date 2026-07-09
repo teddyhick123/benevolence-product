@@ -12,18 +12,27 @@ let _configError: any = null;
 
 const mockServerRpc = vi.fn();
 const mockAdminFrom = vi.fn();
+const mockAdminRpc = vi.fn();
 
 vi.mock('@/lib/supabase', () => ({
   createServerClient: vi.fn(async () => ({
     auth: { getUser: vi.fn(async () => ({ data: { user: _authUser } })) },
     rpc: mockServerRpc,
   })),
-  createAdminClient: vi.fn(() => ({ from: mockAdminFrom })),
+  createAdminClient: vi.fn(() => ({ from: mockAdminFrom, rpc: mockAdminRpc })),
 }));
 
 function setupMocks() {
+  mockServerRpc.mockClear();
+  mockAdminFrom.mockClear();
+  mockAdminRpc.mockClear();
+
   mockServerRpc.mockImplementation(async (fn: string) => {
     if (fn === 'user_org_role') return { data: _orgRole, error: null };
+    return { data: null, error: null };
+  });
+
+  mockAdminRpc.mockImplementation(async (fn: string) => {
     if (fn === 'org_has_module') return { data: true, error: null };
     return { data: null, error: null };
   });

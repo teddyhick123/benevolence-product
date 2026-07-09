@@ -138,6 +138,8 @@ CREATE TABLE IF NOT EXISTS public.grants (
   purpose              text,
   internal_owner_id    uuid REFERENCES auth.users(id),
   risk_level           text CHECK (risk_level IN ('low', 'medium', 'high')),
+  qb_exported_at       timestamptz,
+  qb_journal_entry_id  text,
   deleted_at           timestamptz,
 
   UNIQUE (holding_id)
@@ -207,7 +209,7 @@ CREATE TABLE IF NOT EXISTS public.grant_milestones (
   due_date        date,
   completed_date  date,
   status          text NOT NULL DEFAULT 'pending'
-                  CHECK (status IN ('pending', 'in_progress', 'completed', 'overdue', 'cancelled')),
+                  CHECK (status IN ('pending', 'in_progress', 'completed', 'cancelled')),
   notes           text,
 
   CHECK (
@@ -255,6 +257,51 @@ CREATE INDEX IF NOT EXISTS idx_grant_payments_grant
 CREATE INDEX IF NOT EXISTS idx_grant_payments_scheduled
   ON public.grant_payments (scheduled_date)
   WHERE status IN ('scheduled', 'approved', 'processing');
+
+CREATE OR REPLACE FUNCTION public.enforce_grant_payment_approved_amount()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  v_approved_amount numeric(20,4);
+  v_total_payments numeric(20,4);
+BEGIN
+  IF NEW.status IN ('cancelled', 'returned') THEN
+    RETURN NEW;
+  END IF;
+
+  SELECT approved_amount
+  INTO v_approved_amount
+  FROM public.grants
+  WHERE id = NEW.grant_id
+  FOR UPDATE;
+
+  IF v_approved_amount IS NULL THEN
+    RETURN NEW;
+  END IF;
+
+  SELECT COALESCE(SUM(amount), 0)
+  INTO v_total_payments
+  FROM public.grant_payments
+  WHERE grant_id = NEW.grant_id
+    AND status NOT IN ('cancelled', 'returned')
+    AND id IS DISTINCT FROM NEW.id;
+
+  v_total_payments := v_total_payments + COALESCE(NEW.amount, 0);
+
+  IF v_total_payments > v_approved_amount THEN
+    RAISE EXCEPTION 'Grant payments would exceed approved amount'
+      USING ERRCODE = '23514';
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_grant_payments_approved_amount ON public.grant_payments;
+CREATE TRIGGER trg_grant_payments_approved_amount
+  BEFORE INSERT OR UPDATE OF amount, status, grant_id ON public.grant_payments
+  FOR EACH ROW EXECUTE FUNCTION public.enforce_grant_payment_approved_amount();
 
 DROP TRIGGER IF EXISTS trg_grant_payments_updated_at ON public.grant_payments;
 CREATE TRIGGER trg_grant_payments_updated_at
@@ -969,6 +1016,360 @@ CREATE POLICY "grant_status_history: service role can manage"
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.grant_status_history TO authenticated;
 GRANT ALL ON public.grant_status_history TO service_role;
 
+CREATE OR REPLACE FUNCTION public.create_grant_with_foundation_records(
+  p_org_id uuid,
+  p_portfolio_id uuid,
+  p_actor_id uuid,
+  p_purpose text,
+  p_requested_amount numeric,
+  p_investee_id uuid DEFAULT NULL,
+  p_new_grantee jsonb DEFAULT NULL,
+  p_currency text DEFAULT 'USD',
+  p_grant_type text DEFAULT NULL,
+  p_grant_period_start date DEFAULT NULL,
+  p_grant_period_end date DEFAULT NULL,
+  p_lifecycle_stage text DEFAULT 'draft',
+  p_internal_owner_id uuid DEFAULT NULL,
+  p_risk_level text DEFAULT NULL,
+  p_reporting_frequency text DEFAULT NULL,
+  p_renewal_eligible boolean DEFAULT false,
+  p_workflow_template_id uuid DEFAULT NULL
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_investee_id uuid;
+  v_grant_name text;
+  v_holding public.holdings%ROWTYPE;
+  v_grant public.grants%ROWTYPE;
+  v_template public.workflow_templates%ROWTYPE;
+  v_workflow public.workflow_instances%ROWTYPE;
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM public.portfolios p
+    WHERE p.id = p_portfolio_id
+      AND p.org_id = p_org_id
+      AND p.deleted_at IS NULL
+  ) THEN
+    RAISE EXCEPTION 'Portfolio not found in this org';
+  END IF;
+
+  IF p_purpose IS NULL OR btrim(p_purpose) = '' THEN
+    RAISE EXCEPTION 'purpose is required';
+  END IF;
+
+  IF p_requested_amount IS NULL OR p_requested_amount < 0 THEN
+    RAISE EXCEPTION 'requested_amount must be a non-negative number';
+  END IF;
+
+  IF p_investee_id IS NULL AND p_new_grantee IS NULL THEN
+    RAISE EXCEPTION 'Provide either investee_id or new_grantee';
+  END IF;
+
+  IF p_investee_id IS NOT NULL AND p_new_grantee IS NOT NULL THEN
+    RAISE EXCEPTION 'Provide investee_id OR new_grantee, not both';
+  END IF;
+
+  IF p_new_grantee IS NOT NULL THEN
+    v_grant_name := nullif(btrim(p_new_grantee ->> 'display_name'), '');
+    IF v_grant_name IS NULL THEN
+      RAISE EXCEPTION 'new_grantee.display_name is required';
+    END IF;
+
+    INSERT INTO public.investees (
+      ein,
+      display_name,
+      sector,
+      country,
+      city
+    )
+    VALUES (
+      nullif(p_new_grantee ->> 'ein', ''),
+      v_grant_name,
+      nullif(p_new_grantee ->> 'sector', ''),
+      nullif(p_new_grantee ->> 'country', ''),
+      COALESCE(nullif(p_new_grantee ->> 'city', ''), nullif(p_new_grantee ->> 'region', ''))
+    )
+    RETURNING id INTO v_investee_id;
+  ELSE
+    SELECT i.id, i.display_name
+    INTO v_investee_id, v_grant_name
+    FROM public.investees i
+    WHERE i.id = p_investee_id;
+
+    IF v_investee_id IS NULL THEN
+      RAISE EXCEPTION 'Investee not found';
+    END IF;
+  END IF;
+
+  INSERT INTO public.holdings (
+    portfolio_id,
+    org_id,
+    asset_type,
+    name,
+    ein,
+    investee_id,
+    sector,
+    city,
+    country,
+    amount_invested,
+    currency,
+    investment_date
+  )
+  VALUES (
+    p_portfolio_id,
+    p_org_id,
+    'foundation_grant',
+    COALESCE(v_grant_name, 'Grant'),
+    nullif(p_new_grantee ->> 'ein', ''),
+    v_investee_id,
+    nullif(p_new_grantee ->> 'sector', ''),
+    COALESCE(nullif(p_new_grantee ->> 'city', ''), nullif(p_new_grantee ->> 'region', '')),
+    nullif(p_new_grantee ->> 'country', ''),
+    p_requested_amount,
+    COALESCE(NULLIF(p_currency, ''), 'USD'),
+    p_grant_period_start
+  )
+  RETURNING * INTO v_holding;
+
+  INSERT INTO public.grants (
+    holding_id,
+    org_id,
+    portfolio_id,
+    purpose,
+    requested_amount,
+    currency,
+    grant_type,
+    grant_period_start,
+    grant_period_end,
+    lifecycle_stage,
+    internal_owner_id,
+    risk_level,
+    reporting_frequency,
+    renewal_eligible
+  )
+  VALUES (
+    v_holding.id,
+    p_org_id,
+    p_portfolio_id,
+    p_purpose,
+    p_requested_amount,
+    COALESCE(NULLIF(p_currency, ''), 'USD'),
+    p_grant_type,
+    p_grant_period_start,
+    p_grant_period_end,
+    p_lifecycle_stage,
+    p_internal_owner_id,
+    p_risk_level,
+    p_reporting_frequency,
+    COALESCE(p_renewal_eligible, false)
+  )
+  RETURNING * INTO v_grant;
+
+  INSERT INTO public.grant_status_history (
+    grant_id,
+    org_id,
+    from_stage,
+    to_stage,
+    reason,
+    actor_id
+  )
+  VALUES (
+    v_grant.id,
+    p_org_id,
+    NULL,
+    p_lifecycle_stage,
+    'Grant created',
+    p_actor_id
+  );
+
+  IF p_workflow_template_id IS NOT NULL THEN
+    SELECT *
+    INTO v_template
+    FROM public.workflow_templates wt
+    WHERE wt.id = p_workflow_template_id
+      AND wt.org_id = p_org_id;
+
+    IF v_template.id IS NULL THEN
+      RAISE EXCEPTION 'Workflow template not found in this org';
+    END IF;
+
+    INSERT INTO public.workflow_instances (
+      template_id,
+      org_id,
+      portfolio_id,
+      grant_id,
+      name,
+      workflow_type,
+      status,
+      metadata
+    )
+    VALUES (
+      v_template.id,
+      p_org_id,
+      p_portfolio_id,
+      v_grant.id,
+      COALESCE(v_grant_name, 'Grant') || ' workflow',
+      'grant',
+      'active',
+      jsonb_build_object('holding_id', v_holding.id, 'steps', COALESCE(v_template.steps, '[]'::jsonb))
+    )
+    RETURNING * INTO v_workflow;
+  END IF;
+
+  RETURN jsonb_build_object(
+    'grant', to_jsonb(v_grant),
+    'holding', to_jsonb(v_holding),
+    'workflow_instance', CASE
+      WHEN v_workflow.id IS NULL THEN NULL
+      ELSE to_jsonb(v_workflow)
+    END
+  );
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.create_grant_with_foundation_records(
+  uuid, uuid, uuid, text, numeric, uuid, jsonb, text, text, date, date, text, uuid, text, text, boolean, uuid
+) FROM PUBLIC, authenticated;
+GRANT EXECUTE ON FUNCTION public.create_grant_with_foundation_records(
+  uuid, uuid, uuid, text, numeric, uuid, jsonb, text, text, date, date, text, uuid, text, text, boolean, uuid
+) TO service_role;
+
+CREATE OR REPLACE FUNCTION public.cancel_pledge_with_obligations(
+  p_org_id uuid,
+  p_pledge_id uuid,
+  p_actor_id uuid,
+  p_cancellation_reason text DEFAULT NULL,
+  p_waive_pending boolean DEFAULT false
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_now timestamptz := now();
+  v_waived_count integer := 0;
+  v_cancelled_task_count integer := 0;
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM public.pledges p
+    WHERE p.id = p_pledge_id
+      AND p.org_id = p_org_id
+      AND p.deleted_at IS NULL
+    FOR UPDATE
+  ) THEN
+    RAISE EXCEPTION 'Pledge not found';
+  END IF;
+
+  UPDATE public.pledges
+  SET
+    status = 'cancelled',
+    cancelled_at = v_now,
+    cancelled_by = p_actor_id,
+    cancellation_reason = p_cancellation_reason,
+    updated_at = v_now
+  WHERE id = p_pledge_id
+    AND org_id = p_org_id
+    AND deleted_at IS NULL;
+
+  IF COALESCE(p_waive_pending, false) THEN
+    UPDATE public.pledge_installments
+    SET
+      status = 'waived',
+      waived_at = v_now,
+      acted_by = p_actor_id,
+      updated_at = v_now
+    WHERE pledge_id = p_pledge_id
+      AND org_id = p_org_id
+      AND status = 'pending';
+
+    GET DIAGNOSTICS v_waived_count = ROW_COUNT;
+  END IF;
+
+  INSERT INTO public.pledge_events (
+    org_id,
+    pledge_id,
+    event_type,
+    actor_id,
+    after_values
+  )
+  VALUES (
+    p_org_id,
+    p_pledge_id,
+    'cancelled',
+    p_actor_id,
+    jsonb_build_object(
+      'cancellation_reason', p_cancellation_reason,
+      'waive_pending', COALESCE(p_waive_pending, false)
+    )
+  );
+
+  WITH target_tasks AS (
+    SELECT t.id, t.metadata
+    FROM public.tasks t
+    WHERE t.org_id = p_org_id
+      AND t.source = 'automation'
+      AND t.status IN ('open', 'in_progress', 'blocked', 'waiting')
+      AND t.deleted_at IS NULL
+      AND EXISTS (
+        SELECT 1
+        FROM public.pledge_installments pi
+        WHERE pi.org_id = p_org_id
+          AND pi.pledge_id = p_pledge_id
+          AND t.source_key LIKE ('pledge_installment:' || pi.id || ':%')
+      )
+    FOR UPDATE
+  ),
+  updated_tasks AS (
+    UPDATE public.tasks t
+    SET
+      status = 'cancelled',
+      updated_at = v_now,
+      metadata = COALESCE(t.metadata, '{}'::jsonb) || jsonb_build_object('cancel_reason', 'Pledge cancelled')
+    FROM target_tasks tt
+    WHERE t.id = tt.id
+    RETURNING t.id
+  ),
+  inserted_events AS (
+    INSERT INTO public.task_events (
+      task_id,
+      org_id,
+      actor_id,
+      event_type,
+      after_values
+    )
+    SELECT
+      ut.id,
+      p_org_id,
+      p_actor_id,
+      'cancelled',
+      jsonb_build_object('cancel_reason', 'Pledge cancelled')
+    FROM updated_tasks ut
+    RETURNING id
+  )
+  SELECT COUNT(*)::integer INTO v_cancelled_task_count
+  FROM inserted_events;
+
+  RETURN jsonb_build_object(
+    'waived_installments', v_waived_count,
+    'cancelled_tasks', v_cancelled_task_count
+  );
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.cancel_pledge_with_obligations(
+  uuid, uuid, uuid, text, boolean
+) FROM PUBLIC, authenticated;
+GRANT EXECUTE ON FUNCTION public.cancel_pledge_with_obligations(
+  uuid, uuid, uuid, text, boolean
+) TO service_role;
+
 -- ---------------------------------------------------------------------------
 -- Grant decisions
 -- ---------------------------------------------------------------------------
@@ -995,15 +1396,15 @@ CREATE POLICY "grant_decisions: org members can view"
   ON public.grant_decisions FOR SELECT TO authenticated
   USING (public.can_view_org(org_id));
 DROP POLICY IF EXISTS "grant_decisions: org admins can manage" ON public.grant_decisions;
-CREATE POLICY "grant_decisions: org admins can manage"
-  ON public.grant_decisions FOR ALL TO authenticated
-  USING (public.is_org_admin(org_id))
+CREATE POLICY "grant_decisions: org admins can insert"
+  ON public.grant_decisions FOR INSERT TO authenticated
   WITH CHECK (public.is_org_admin(org_id));
 DROP POLICY IF EXISTS "grant_decisions: service role can manage" ON public.grant_decisions;
 CREATE POLICY "grant_decisions: service role can manage"
   ON public.grant_decisions FOR ALL TO service_role USING (true) WITH CHECK (true);
 
-GRANT SELECT, INSERT, UPDATE, DELETE ON public.grant_decisions TO authenticated;
+REVOKE UPDATE, DELETE ON public.grant_decisions FROM authenticated;
+GRANT SELECT, INSERT ON public.grant_decisions TO authenticated;
 GRANT ALL ON public.grant_decisions TO service_role;
 
 DROP POLICY IF EXISTS "reminders: org members can view" ON public.reminders;
@@ -1103,7 +1504,9 @@ CREATE TRIGGER trg_notification_events_updated_at
 -- ---------------------------------------------------------------------------
 -- Grant reporting views and deadline function expected by current UI
 -- ---------------------------------------------------------------------------
-CREATE OR REPLACE VIEW public.v_grants AS
+CREATE OR REPLACE VIEW public.v_grants
+  WITH (security_invoker = true)
+AS
 SELECT
   g.id AS id,
   g.id AS grant_id,
@@ -1141,7 +1544,7 @@ SELECT
   COUNT(DISTINCT gm.id) FILTER (WHERE gm.status = 'completed')::int AS milestones_completed,
   COUNT(DISTINCT gm.id) FILTER (WHERE gm.status IN ('pending', 'in_progress'))::int AS milestones_pending,
   COUNT(DISTINCT gm.id) FILTER (
-    WHERE gm.status <> 'completed' AND gm.due_date IS NOT NULL AND gm.due_date < CURRENT_DATE
+    WHERE gm.status NOT IN ('completed', 'cancelled') AND gm.due_date IS NOT NULL AND gm.due_date < CURRENT_DATE
   )::int AS milestones_overdue,
   COUNT(DISTINCT gr.id)::int AS total_reports,
   COUNT(DISTINCT gr.id) FILTER (WHERE gr.submitted_date IS NOT NULL OR gr.received_at IS NOT NULL)::int AS reports_submitted,
@@ -1165,7 +1568,9 @@ LEFT JOIN public.grant_reports gr ON gr.grant_id = g.id
 WHERE h.deleted_at IS NULL AND g.deleted_at IS NULL
 GROUP BY g.id, h.id;
 
-CREATE OR REPLACE VIEW public.v_portfolio_grant_summary AS
+CREATE OR REPLACE VIEW public.v_portfolio_grant_summary
+  WITH (security_invoker = true)
+AS
 SELECT
   portfolio_id,
   COUNT(*)::int AS total_grants,
@@ -1177,7 +1582,9 @@ SELECT
 FROM public.v_grants
 GROUP BY portfolio_id;
 
-CREATE OR REPLACE VIEW public.v_grant_health AS
+CREATE OR REPLACE VIEW public.v_grant_health
+  WITH (security_invoker = true)
+AS
 SELECT
   vg.holding_id,
   vg.grant_id,

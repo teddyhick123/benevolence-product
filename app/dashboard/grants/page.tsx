@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { Suspense, useState, useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { requiresDecision, type LifecycleStage } from '@/lib/grants/lifecycle-shared';
 import WorkflowManager from '@/components/grants/WorkflowManager';
@@ -14,12 +14,34 @@ import GrantAttentionQueue from '@/components/grants/GrantAttentionQueue';
 import BulkActionBar, { type QueuedTransitions } from '@/components/grants/BulkActionBar';
 import BulkDecisionQueue, { type BulkTransitionItem } from '@/components/grants/BulkDecisionQueue';
 import BulkTransitionResultModal, { type BulkResult } from '@/components/grants/BulkTransitionResultModal';
+import { useEntityVocabulary } from '@/lib/hooks/use-entity-vocabulary';
+import { GRANT_MODULE_VIEWS } from '@/lib/view-config';
 
 type ViewId = 'pipeline' | 'table' | 'calendar' | 'attention' | 'workflows' | 'payments' | 'communications';
+type GrantSearchScope = 'portfolio' | 'org';
 
 interface OrgMember { id: string; display_name?: string | null; email?: string | null }
 
-export default function GrantsDashboard() {
+function GrantsDashboardLoading() {
+  return (
+    <div className="space-y-6 p-6 lg:p-8">
+      <div className="animate-pulse space-y-6">
+        <div>
+          <div className="h-8 w-56 rounded-2xl bg-neutral-200"></div>
+          <div className="mt-2 h-4 w-80 rounded-2xl bg-neutral-200"></div>
+        </div>
+        <div className="h-14 rounded-2xl bg-neutral-200"></div>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          {[1, 2, 3, 4].map(i => (
+            <div key={i} className="h-40 rounded-2xl bg-neutral-200"></div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function GrantsDashboardContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const [portfolioId, setPortfolioId] = useState<string | null>(null);
@@ -81,6 +103,7 @@ export default function GrantsDashboard() {
     setBulkPhase('applying');
 
     const body = {
+      rollback_on_error: true,
       transitions: items.map(item => ({
         grantId: item.grantId,
         expectedFromStage: item.fromStage,
@@ -136,7 +159,7 @@ export default function GrantsDashboard() {
       .filter(g => selectedIds.has(g.id) && queuedTransitions[g.lifecycle_stage])
       .map(g => ({
         grantId: g.id,
-        grantName: g.holdings?.name ?? 'Unnamed Grant',
+        grantName: g.holdings?.name ?? `Unnamed ${grantLabel.singular}`,
         fromStage: g.lifecycle_stage,
         targetStage: queuedTransitions[g.lifecycle_stage] as LifecycleStage,
         amount: g.approved_amount ?? g.requested_amount,
@@ -154,6 +177,11 @@ export default function GrantsDashboard() {
   const [grants, setGrants] = useState<GrantListItem[]>([]);
   const [grantsLoading, setGrantsLoading] = useState(false);
   const [members, setMembers] = useState<OrgMember[]>([]);
+  const [grantSearch, setGrantSearch] = useState('');
+  const [debouncedGrantSearch, setDebouncedGrantSearch] = useState('');
+  const [grantSearchScope, setGrantSearchScope] = useState<GrantSearchScope>('portfolio');
+  const vocabulary = useEntityVocabulary(orgId);
+  const grantLabel = vocabulary.grant;
 
   useEffect(() => {
     async function fetchProfile() {
@@ -173,6 +201,16 @@ export default function GrantsDashboard() {
     fetchProfile();
   }, []);
 
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebouncedGrantSearch(grantSearch.trim()), 250);
+    return () => window.clearTimeout(timer);
+  }, [grantSearch]);
+
+  useEffect(() => {
+    setSelectionMode(false);
+    setSelectedIds(new Set());
+  }, [debouncedGrantSearch, grantSearchScope]);
+
   // Sync view from URL
   useEffect(() => {
     const view = searchParams.get('view') as ViewId | null;
@@ -181,12 +219,39 @@ export default function GrantsDashboard() {
     }
   }, [searchParams]);
 
+  useEffect(() => {
+    if (!orgId || searchParams.get('view')) return;
+    let cancelled = false;
+    fetch(`/api/org/${orgId}/view-config?scope=module_default&scope_key=grant_module`)
+      .then(async res => {
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(json.error ?? 'Failed to load default grant view');
+        return json;
+      })
+      .then(json => {
+        if (cancelled) return;
+        const defaultView = json.configs?.[0]?.config_value?.default_view;
+        if (GRANT_MODULE_VIEWS.includes(defaultView)) setActiveView(defaultView);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [orgId, searchParams]);
+
   // Fetch grants list when orgId+portfolioId available
   useEffect(() => {
     if (!orgId || !portfolioId) return;
     setGrantsLoading(true);
+    const params = new URLSearchParams({ page_size: '200' });
+    if (grantSearchScope === 'portfolio') {
+      params.set('portfolio_id', portfolioId);
+    }
+    if (debouncedGrantSearch) {
+      params.set('q', debouncedGrantSearch);
+    }
     Promise.all([
-      fetch(`/api/org/${orgId}/grants?portfolio_id=${encodeURIComponent(portfolioId)}&page_size=200`).then(r => r.json()),
+      fetch(`/api/org/${orgId}/grants?${params.toString()}`).then(r => r.json()),
       fetch(`/api/org/${orgId}/members`).then(r => r.json()).catch(() => ({ members: [] })),
     ]).then(([grantsJson, membersJson]) => {
       setGrants(grantsJson.data ?? []);
@@ -194,7 +259,7 @@ export default function GrantsDashboard() {
       const raw: any[] = membersJson.members ?? membersJson.data ?? [];
       setMembers(raw.map(m => ({ id: m.user_id ?? m.id, display_name: m.full_name ?? m.email })));
     }).finally(() => setGrantsLoading(false));
-  }, [orgId, portfolioId, refreshKey]);
+  }, [orgId, portfolioId, refreshKey, debouncedGrantSearch, grantSearchScope]);
 
   function handleViewChange(view: ViewId) {
     if (view !== 'pipeline') exitSelectionMode();
@@ -318,9 +383,9 @@ export default function GrantsDashboard() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h1 className="font-serif text-3xl font-medium text-ink">Grant Management</h1>
+          <h1 className="font-serif text-3xl font-medium text-ink">{grantLabel.singular} Management</h1>
           <p className="mt-1 text-sm text-neutral-600">
-            {grantsLoading ? 'Loading…' : `${grants.length} grant${grants.length !== 1 ? 's' : ''} · Track lifecycle, obligations, and payments`}
+            {grantsLoading ? 'Loading…' : `${grants.length} ${grants.length === 1 ? grantLabel.singular.toLowerCase() : grantLabel.plural.toLowerCase()} · Track lifecycle, obligations, and payments`}
           </p>
         </div>
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -353,7 +418,7 @@ export default function GrantsDashboard() {
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
             </svg>
-            New Grant
+            New {grantLabel.singular}
           </button>
           <a
             href={`/dashboard?portfolio_id=${portfolioId}`}
@@ -369,7 +434,7 @@ export default function GrantsDashboard() {
 
       {/* Navigation */}
       <div className="rounded-2xl border border-black/5 bg-white p-1.5 shadow-soft overflow-x-auto">
-        <nav className="flex gap-1 min-w-max" aria-label="Grant views">
+        <nav className="flex gap-1 min-w-max" aria-label={`${grantLabel.singular} views`}>
           <span className="self-center px-2 py-2 text-xs font-semibold uppercase tracking-wide text-neutral-400 whitespace-nowrap">Views</span>
           {centerViews.map(view => (
             <button
@@ -413,6 +478,52 @@ export default function GrantsDashboard() {
         </nav>
       </div>
 
+      <div className="flex flex-col gap-3 rounded-2xl border border-black/5 bg-white p-3 shadow-soft sm:flex-row sm:items-center">
+        <div className="relative min-w-0 flex-1">
+          <svg className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+          <input
+            type="search"
+            value={grantSearch}
+            onChange={e => setGrantSearch(e.target.value)}
+            placeholder={grantSearchScope === 'org' ? `Search ${grantLabel.plural.toLowerCase()} across all portfolios...` : `Search ${grantLabel.plural.toLowerCase()} in this portfolio...`}
+            className="w-full rounded-2xl border border-black/5 py-2 pl-9 pr-3 text-sm focus:outline-none focus:ring-2 focus:ring-azure/30"
+          />
+        </div>
+        <div className="inline-flex rounded-2xl border border-black/5 bg-neutral-50 p-1">
+          {([
+            ['portfolio', 'Current Portfolio'],
+            ['org', 'All Portfolios'],
+          ] as const).map(([scope, label]) => (
+            <button
+              key={scope}
+              type="button"
+              onClick={() => setGrantSearchScope(scope)}
+              className={`rounded-xl px-3 py-1.5 text-xs font-medium transition-colors ${
+                grantSearchScope === scope
+                  ? 'bg-white text-azure shadow-sm'
+                  : 'text-neutral-500 hover:text-neutral-800'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        {(grantSearch || grantSearchScope === 'org') && (
+          <button
+            type="button"
+            onClick={() => {
+              setGrantSearch('');
+              setGrantSearchScope('portfolio');
+            }}
+            className="self-start text-xs font-medium text-neutral-400 transition-colors hover:text-neutral-700 sm:self-auto"
+          >
+            Reset
+          </button>
+        )}
+      </div>
+
       {/* View content */}
       <div className="min-h-[400px]">
         {activeView === 'pipeline' && (
@@ -420,6 +531,7 @@ export default function GrantsDashboard() {
             grants={grants}
             loading={grantsLoading}
             onNewGrant={() => setShowWizard(true)}
+            orgId={orgId}
             selectionMode={selectionMode}
             selectedIds={selectedIds}
             onToggleSelect={toggleSelect}
@@ -432,6 +544,7 @@ export default function GrantsDashboard() {
             loading={grantsLoading}
             members={members}
             onNewGrant={() => setShowWizard(true)}
+            orgId={orgId}
           />
         )}
         {activeView === 'calendar' && (
@@ -446,16 +559,17 @@ export default function GrantsDashboard() {
             grants={grants}
             loading={grantsLoading}
             onNewGrant={() => setShowWizard(true)}
+            orgId={orgId}
           />
         )}
         {activeView === 'workflows' && (
           <WorkflowManager orgId={orgId} portfolioId={portfolioId} key={`workflows-${refreshKey}`} />
         )}
         {activeView === 'payments' && (
-          <PaymentSchedule portfolioId={portfolioId} key={`payments-${refreshKey}`} />
+          <PaymentSchedule portfolioId={portfolioId} orgId={orgId} key={`payments-${refreshKey}`} />
         )}
         {activeView === 'communications' && (
-          <CommunicationLog portfolioId={portfolioId} key={`comms-${refreshKey}`} />
+          <CommunicationLog portfolioId={portfolioId} orgId={orgId} key={`comms-${refreshKey}`} />
         )}
       </div>
 
@@ -475,8 +589,7 @@ export default function GrantsDashboard() {
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm mx-4 p-6">
             <h2 className="text-base font-semibold text-ink mb-2">Apply transitions?</h2>
             <p className="text-sm text-neutral-500 mb-5">
-              {grants.filter(g => selectedIds.has(g.id) && queuedTransitions[g.lifecycle_stage]).length} grant
-              {grants.filter(g => selectedIds.has(g.id) && queuedTransitions[g.lifecycle_stage]).length !== 1 ? 's' : ''} will be moved.
+              {grants.filter(g => selectedIds.has(g.id) && queuedTransitions[g.lifecycle_stage]).length} {grants.filter(g => selectedIds.has(g.id) && queuedTransitions[g.lifecycle_stage]).length === 1 ? grantLabel.singular.toLowerCase() : grantLabel.plural.toLowerCase()} will be moved as one batch. If any transition fails before commit, none will be applied.
             </p>
             <div className="flex gap-3 justify-end">
               <button onClick={() => setBulkPhase('idle')} className="px-4 py-2 text-sm text-neutral-600 hover:text-neutral-900 transition-colors">
@@ -500,6 +613,7 @@ export default function GrantsDashboard() {
           queuedTransitions={queuedTransitions}
           onConfirm={handleDecisionQueueConfirm}
           onCancel={() => setBulkPhase('idle')}
+          grantLabel={grantLabel.singular}
         />
       )}
 
@@ -537,5 +651,13 @@ export default function GrantsDashboard() {
         />
       )}
     </div>
+  );
+}
+
+export default function GrantsDashboard() {
+  return (
+    <Suspense fallback={<GrantsDashboardLoading />}>
+      <GrantsDashboardContent />
+    </Suspense>
   );
 }

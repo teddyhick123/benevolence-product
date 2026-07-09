@@ -3,8 +3,42 @@ import { createServerClient } from "@/lib/supabase";
 
 export const dynamic = "force-dynamic";
 
+const NO_STORE = { "Cache-Control": "no-store" } as const;
+const GIFT_TYPES = new Set([
+  "cash",
+  "check",
+  "credit_card",
+  "securities",
+  "daf_grant",
+  "in_kind",
+  "pledge",
+  "bequest",
+]);
+const UPDATE_FIELDS = new Set([
+  "donor_id",
+  "amount",
+  "contribution_date",
+  "gift_type",
+  "fund_designation",
+  "is_restricted",
+  "restriction_purpose",
+  "notes",
+  "campaign",
+  "payment_reference",
+]);
+
 interface RouteParams {
   params: Promise<{ orgId: string; id: string }>;
+}
+
+function json(body: unknown, init: ResponseInit = {}) {
+  return NextResponse.json(body, {
+    ...init,
+    headers: {
+      ...NO_STORE,
+      ...(init.headers || {}),
+    },
+  });
 }
 
 function normalizeContribution(row: any) {
@@ -27,7 +61,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     // Check access
     const { data: role } = await supabase.rpc("user_org_role", { p_org_id: orgId });
     if (!role) {
-      return NextResponse.json({ error: "Not authorized" }, { status: 403 });
+      return json({ error: "Not authorized" }, { status: 403 });
     }
 
     const { data: contribution, error } = await supabase
@@ -44,12 +78,12 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       .single();
 
     if (error) {
-      return NextResponse.json({ error: "Contribution not found" }, { status: 404 });
+      return json({ error: "Contribution not found" }, { status: 404 });
     }
 
-    return NextResponse.json(normalizeContribution(contribution));
+    return json(normalizeContribution(contribution));
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return json({ error: err.message }, { status: 500 });
   }
 }
 
@@ -62,34 +96,50 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     // Check edit access
     const { data: canEdit } = await supabase.rpc("can_edit_org", { p_org_id: orgId });
     if (!canEdit) {
-      return NextResponse.json({ error: "Not authorized" }, { status: 403 });
+      return json({ error: "Not authorized" }, { status: 403 });
     }
 
     const body = await req.json();
-
-    // Remove computed/auto fields
-    const {
-      tax_deductible_amount,
-      created_at,
-      updated_at,
-      created_by,
-      organization_id,
-      gift_type,
-      designation,
-      restriction_description,
-      ...rest
-    } = body;
-    const updateData = {
-      ...rest,
-      ...(gift_type !== undefined ? { gift_type } : {}),
-      ...(designation !== undefined ? { fund_designation: designation } : {}),
-      ...(restriction_description !== undefined ? { restriction_purpose: restriction_description } : {}),
+    const normalizedBody = {
+      ...body,
+      ...(body.designation !== undefined ? { fund_designation: body.designation } : {}),
+      ...(body.restriction_description !== undefined
+        ? { restriction_purpose: body.restriction_description }
+        : {}),
     };
-    void tax_deductible_amount;
-    void created_at;
-    void updated_at;
-    void created_by;
-    void organization_id;
+    const updateData: Record<string, any> = {};
+    for (const [key, value] of Object.entries(normalizedBody)) {
+      if (UPDATE_FIELDS.has(key)) updateData[key] = value;
+    }
+
+    if (Object.keys(updateData).length === 0) {
+      return json({ error: "No valid fields to update" }, { status: 400 });
+    }
+
+    if (updateData.gift_type !== undefined && !GIFT_TYPES.has(updateData.gift_type)) {
+      return json({ error: "Invalid gift_type" }, { status: 400 });
+    }
+
+    if (updateData.amount !== undefined) {
+      const numericAmount = Number(updateData.amount);
+      if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
+        return json({ error: "Amount must be greater than 0" }, { status: 400 });
+      }
+      updateData.amount = numericAmount;
+    }
+
+    if (updateData.donor_id !== undefined) {
+      const { data: donor } = await supabase
+        .from("donors")
+        .select("id")
+        .eq("id", updateData.donor_id)
+        .eq("org_id", orgId)
+        .is("deleted_at", null)
+        .maybeSingle();
+      if (!donor) {
+        return json({ error: "Donor does not belong to this organization" }, { status: 400 });
+      }
+    }
 
     const { data: contribution, error } = await supabase
       .from("contributions_received")
@@ -100,12 +150,12 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
       .single();
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json(normalizeContribution(contribution));
+    return json(normalizeContribution(contribution));
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return json({ error: err.message }, { status: 500 });
   }
 }
 
@@ -118,7 +168,45 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
     // Check admin access (deletion requires admin)
     const { data: isAdmin } = await supabase.rpc("is_org_admin", { p_org_id: orgId });
     if (!isAdmin) {
-      return NextResponse.json({ error: "Not authorized - admin required" }, { status: 403 });
+      return json({ error: "Not authorized - admin required" }, { status: 403 });
+    }
+
+    const { data: contribution, error: contributionError } = await supabase
+      .from("contributions_received")
+      .select("id, pledge_installment_id")
+      .eq("id", id)
+      .eq("org_id", orgId)
+      .maybeSingle();
+
+    if (contributionError) {
+      return json({ error: contributionError.message }, { status: 500 });
+    }
+
+    if (!contribution) {
+      return json({ error: "Contribution not found" }, { status: 404 });
+    }
+
+    const { data: linkedInstallment, error: linkedInstallmentError } = await supabase
+      .from("pledge_installments")
+      .select("id, pledge_id, status")
+      .eq("org_id", orgId)
+      .eq("contribution_id", id)
+      .maybeSingle();
+
+    if (linkedInstallmentError) {
+      return json({ error: linkedInstallmentError.message }, { status: 500 });
+    }
+
+    if (contribution.pledge_installment_id || linkedInstallment) {
+      return json(
+        {
+          error: "Contribution is linked to a pledge installment. Reopen or reconcile the pledge installment before deleting this contribution.",
+          pledge_installment_id: contribution.pledge_installment_id ?? linkedInstallment?.id ?? null,
+          pledge_id: linkedInstallment?.pledge_id ?? null,
+          installment_status: linkedInstallment?.status ?? null,
+        },
+        { status: 409 }
+      );
     }
 
     const { error } = await supabase
@@ -128,11 +216,11 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
       .eq("org_id", orgId);
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ success: true });
+    return json({ success: true });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return json({ error: err.message }, { status: 500 });
   }
 }

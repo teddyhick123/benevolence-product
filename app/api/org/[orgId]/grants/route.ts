@@ -1,12 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient, createServerClient } from '@/lib/supabase';
+import { LIFECYCLE_STAGES } from '@/lib/grants/lifecycle';
 
 export const dynamic = 'force-dynamic';
 
+const NO_STORE = { 'Cache-Control': 'no-store' } as const;
 const ADMIN_ROLES = new Set(['owner', 'admin']);
+const LIFECYCLE_STAGE_SET = new Set<string>(LIFECYCLE_STAGES);
 
 interface RouteParams {
   params: Promise<{ orgId: string }>;
+}
+
+function json(body: unknown, init: ResponseInit = {}) {
+  return NextResponse.json(body, {
+    ...init,
+    headers: {
+      ...NO_STORE,
+      ...(init.headers || {}),
+    },
+  });
 }
 
 // GET /api/org/[orgId]/grants
@@ -17,20 +30,24 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
 
     const supabase = await createServerClient();
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!user) return json({ error: 'Unauthorized' }, { status: 401 });
 
     const { data: role } = await supabase.rpc('user_org_role', { p_org_id: orgId });
-    if (!role) return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
+    if (!role) return json({ error: 'Not authorized' }, { status: 403 });
 
     const url = new URL(req.url);
     const stage = url.searchParams.get('stage');
     const owner_id = url.searchParams.get('owner_id');
     const risk_level = url.searchParams.get('risk_level');
     const due_before = url.searchParams.get('due_before');
-    const q = url.searchParams.get('q');
+    const q = url.searchParams.get('q')?.trim();
     const portfolio_id = url.searchParams.get('portfolio_id');
-    const page = Math.max(1, parseInt(url.searchParams.get('page') ?? '1', 10));
-    const page_size = Math.min(100, Math.max(1, parseInt(url.searchParams.get('page_size') ?? '50', 10)));
+    const requestedPage = Number.parseInt(url.searchParams.get('page') ?? '1', 10);
+    const requestedPageSize = Number.parseInt(url.searchParams.get('page_size') ?? '50', 10);
+    const page = Number.isFinite(requestedPage) && requestedPage > 0 ? requestedPage : 1;
+    const page_size = Number.isFinite(requestedPageSize) && requestedPageSize > 0
+      ? Math.min(100, requestedPageSize)
+      : 50;
 
     const db = createAdminClient();
 
@@ -41,7 +58,8 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
          approved_amount, currency, purpose, grant_type, grant_period_start,
          grant_period_end, internal_owner_id, risk_level, reporting_frequency,
          renewal_eligible, created_at, updated_at,
-         holdings!inner(name, ein, city, country, investee_id)`,
+         holdings!inner(name, ein, city, country, investee_id),
+         portfolios(name)`,
         { count: 'exact' }
       )
       .eq('org_id', orgId)
@@ -54,33 +72,34 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     if (risk_level) query = query.eq('risk_level', risk_level);
     if (portfolio_id) query = query.eq('portfolio_id', portfolio_id);
     if (due_before) query = query.lte('grant_period_end', due_before);
-    if (q) query = query.ilike('holdings.name', `%${q}%`);
+    if (q) query = query.ilike('holdings.name', `%${q.slice(0, 120)}%`);
 
     const { data, error, count } = await (query as any);
     if (error) throw error;
 
-    return NextResponse.json({
+    return json({
       data,
       pagination: { page, page_size, total: count ?? 0 },
     });
   } catch (err: any) {
-    return NextResponse.json({ error: err?.message ?? 'Internal error' }, { status: 500 });
+    return json({ error: err?.message ?? 'Internal error' }, { status: 500 });
   }
 }
 
 // POST /api/org/[orgId]/grants
-// Atomically creates a holdings row + grants row (+ optional workflow instance)
+// Atomically creates an optional investee row + holdings row + grants row
+// + status history row (+ optional workflow instance) through a DB RPC.
 export async function POST(req: NextRequest, { params }: RouteParams) {
   try {
     const { orgId } = await params;
 
     const supabase = await createServerClient();
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!user) return json({ error: 'Unauthorized' }, { status: 401 });
 
     const { data: role } = await supabase.rpc('user_org_role', { p_org_id: orgId });
     if (!role || !ADMIN_ROLES.has(role)) {
-      return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
+      return json({ error: 'Admin access required' }, { status: 403 });
     }
 
     const body = await req.json();
@@ -103,22 +122,26 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     } = body;
 
     if (!portfolio_id) {
-      return NextResponse.json({ error: 'portfolio_id is required' }, { status: 400 });
+      return json({ error: 'portfolio_id is required' }, { status: 400 });
     }
     if (!purpose) {
-      return NextResponse.json({ error: 'purpose is required' }, { status: 400 });
+      return json({ error: 'purpose is required' }, { status: 400 });
     }
-    if (requested_amount == null) {
-      return NextResponse.json({ error: 'requested_amount is required' }, { status: 400 });
+    const numericRequestedAmount = Number(requested_amount);
+    if (!Number.isFinite(numericRequestedAmount) || numericRequestedAmount < 0) {
+      return json({ error: 'requested_amount must be a non-negative number' }, { status: 400 });
+    }
+    if (!LIFECYCLE_STAGE_SET.has(lifecycle_stage)) {
+      return json({ error: 'Invalid lifecycle_stage' }, { status: 400 });
     }
     if (!investee_id && !new_grantee) {
-      return NextResponse.json(
+      return json(
         { error: 'Provide either investee_id or new_grantee' },
         { status: 422 }
       );
     }
     if (investee_id && new_grantee) {
-      return NextResponse.json(
+      return json(
         { error: 'Provide investee_id OR new_grantee, not both' },
         { status: 422 }
       );
@@ -135,115 +158,53 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       .is('deleted_at', null)
       .maybeSingle();
     if (!portfolio) {
-      return NextResponse.json({ error: 'Portfolio not found in this org' }, { status: 404 });
+      return json({ error: 'Portfolio not found in this org' }, { status: 404 });
     }
 
-    // Resolve or create investee
-    let resolvedInvesteeId: string | null = investee_id ?? null;
-    let grantName: string;
-
-    if (new_grantee) {
-      const { data: investee, error: investeeErr } = await db
-        .from('investees')
-        .insert({
-          display_name: new_grantee.display_name,
-          sector: new_grantee.sector ?? null,
-          country: new_grantee.country ?? null,
-          region: new_grantee.city ?? null,
-        })
-        .select()
-        .single();
-      if (investeeErr) throw new Error(`Failed to create investee: ${investeeErr.message}`);
-      resolvedInvesteeId = investee.id;
-      grantName = new_grantee.display_name;
-    } else {
-      // Look up existing investee name
-      const { data: investee } = await db
-        .from('investees')
-        .select('display_name')
-        .eq('id', investee_id)
+    if (internal_owner_id) {
+      const { data: owner } = await db
+        .from('organization_members')
+        .select('id')
+        .eq('org_id', orgId)
+        .eq('user_id', internal_owner_id)
+        .is('deleted_at', null)
         .maybeSingle();
-      grantName = investee?.display_name ?? 'Grant';
+      if (!owner) return json({ error: 'internal_owner_id is not a member of this organization' }, { status: 400 });
     }
 
-    // Create holding
-    const { data: holding, error: holdingErr } = await db
-      .from('holdings')
-      .insert({
-        portfolio_id,
-        org_id: orgId,
-        asset_type: 'foundation_grant',
-        name: grantName,
-        investee_id: resolvedInvesteeId,
-        amount_invested: requested_amount,
-        currency,
-        investment_date: grant_period_start ?? null,
-      })
-      .select()
-      .single();
-    if (holdingErr) throw new Error(`Failed to create holding: ${holdingErr.message}`);
-
-    // Create grant
-    const { data: grant, error: grantErr } = await db
-      .from('grants')
-      .insert({
-        holding_id: holding.id,
-        org_id: orgId,
-        portfolio_id,
-        purpose,
-        requested_amount,
-        currency,
-        grant_type: grant_type ?? null,
-        grant_period_start: grant_period_start ?? null,
-        grant_period_end: grant_period_end ?? null,
-        lifecycle_stage,
-        internal_owner_id: internal_owner_id ?? null,
-        risk_level: risk_level ?? null,
-        reporting_frequency: reporting_frequency ?? null,
-        renewal_eligible: renewal_eligible ?? null,
-      })
-      .select()
-      .single();
-    if (grantErr) {
-      // Attempt cleanup of the holding we already created
-      await db.from('holdings').delete().eq('id', holding.id);
-      throw new Error(`Failed to create grant: ${grantErr.message}`);
-    }
-
-    // Append initial status history
-    await db.from('grant_status_history').insert({
-      grant_id: grant.id,
-      org_id: orgId,
-      from_stage: null,
-      to_stage: lifecycle_stage,
-      reason: 'Grant created',
-      actor_id: user.id,
+    const { data: created, error: createError } = await db.rpc('create_grant_with_foundation_records', {
+      p_org_id: orgId,
+      p_portfolio_id: portfolio_id,
+      p_actor_id: user.id,
+      p_purpose: purpose,
+      p_requested_amount: numericRequestedAmount,
+      p_investee_id: investee_id ?? null,
+      p_new_grantee: new_grantee ?? null,
+      p_currency: currency,
+      p_grant_type: grant_type ?? null,
+      p_grant_period_start: grant_period_start ?? null,
+      p_grant_period_end: grant_period_end ?? null,
+      p_lifecycle_stage: lifecycle_stage,
+      p_internal_owner_id: internal_owner_id ?? null,
+      p_risk_level: risk_level ?? null,
+      p_reporting_frequency: reporting_frequency ?? null,
+      p_renewal_eligible: renewal_eligible ?? false,
+      p_workflow_template_id: workflow_template_id ?? null,
     });
 
-    // Optional workflow instance
-    if (workflow_template_id) {
-      const { data: template } = await db
-        .from('workflow_templates')
-        .select('id, steps')
-        .eq('id', workflow_template_id)
-        .eq('org_id', orgId)
-        .maybeSingle();
-
-      if (template) {
-        await db.from('workflow_instances').insert({
-          template_id: template.id,
-          org_id: orgId,
-          portfolio_id,
-          holding_id: holding.id,
-          status: 'active',
-          current_step: 0,
-          steps_data: template.steps ?? [],
-        });
-      }
+    if (createError) {
+      throw new Error(`Failed to create grant atomically: ${createError.message}`);
     }
 
-    return NextResponse.json({ grant, holding }, { status: 201 });
+    return json(
+      {
+        grant: created?.grant ?? null,
+        holding: created?.holding ?? null,
+        workflow_instance: created?.workflow_instance ?? null,
+      },
+      { status: 201 }
+    );
   } catch (err: any) {
-    return NextResponse.json({ error: err?.message ?? 'Internal error' }, { status: 500 });
+    return json({ error: err?.message ?? 'Internal error' }, { status: 500 });
   }
 }

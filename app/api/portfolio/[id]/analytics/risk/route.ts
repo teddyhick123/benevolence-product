@@ -3,10 +3,8 @@ import { NextResponse } from 'next/server';
 import { createSupabaseServerClient } from '@/lib/supabase';
 import { requirePortfolioAccess, isAccessDenied } from '@/lib/portfolio-auth';
 
-function cacheHeaders(isGet = false) {
-  return isGet
-    ? { 'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=30' } as const
-    : { 'Cache-Control': 'no-store' } as const;
+function cacheHeaders() {
+  return { 'Cache-Control': 'no-store' } as const;
 }
 
 const createSb = createSupabaseServerClient;
@@ -153,7 +151,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
       };
     }
 
-    return NextResponse.json({ risk: result }, { headers: cacheHeaders(true) });
+    return NextResponse.json({ risk: result }, { headers: cacheHeaders() });
   }
 
   // Build response from snapshot
@@ -205,7 +203,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
     result.history = history || [];
   }
 
-  return NextResponse.json({ risk: result }, { headers: cacheHeaders(true) });
+  return NextResponse.json({ risk: result }, { headers: cacheHeaders() });
 }
 
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {

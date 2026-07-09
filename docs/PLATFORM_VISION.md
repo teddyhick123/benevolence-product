@@ -17,6 +17,7 @@ Being honest about where the platform stands is the prerequisite for building to
 - **Module selection** — enable or disable feature sets (grants, tax, donors, compliance, analytics, etc.). Changes take effect immediately across nav, API guards, AI tools, and RLS.
 - **Builder** — an org-admin-facing AI chat that understands the org's current module state and can propose module configuration changes, KPI definitions, and metric structures. Proposals are reviewed before being applied.
 - **AI assistant tool filtering** — the AI assistant only surfaces tools for enabled modules. An org without the grant module never sees grant tools.
+- **Coarse AI instructions** — org admins can store free-text instructions that are injected into assistant sessions, useful for tone, vocabulary, or broad operating guidance.
 - **Branding** — app name, logo, colors, and support contact via environment variables.
 - **Role-based access** — owner/admin/member/viewer roles enforced at the API and database level.
 
@@ -25,7 +26,7 @@ Being honest about where the platform stands is the prerequisite for building to
 - Any workflow-level customization within a module (e.g., custom due diligence checklists, org-specific grant stages beyond the canonical 14, required fields that differ by org)
 - Custom fields on any entity (holdings, grants, donors, contributions)
 - Custom views or report templates beyond what's shipped
-- Any change to how the AI assistant behaves for a specific org beyond which tools are available
+- Structured, auditable AI behavior for a specific org beyond module filtering and coarse free-text instructions
 - New module creation of any kind
 
 ---
@@ -44,7 +45,7 @@ Every org has data that matters to them that doesn't fit the canonical schema. A
 
 ### Layer 3: Org-Specific AI Behavior
 
-The AI assistant today is module-filtered but org-generic. Every org using the grant module gets the same grant tools with the same behavior. A platform that truly learns an org's workflows would surface the right context automatically: knowing that this foundation always requires a site visit before recommending, knowing that this org's naming convention for grants is "Program Area — Grantee — Year," knowing that the finance director wants payment confirmations flagged immediately. That layer of personalization — stored, recalled, and applied by the AI — doesn't exist yet.
+The AI assistant today is module-filtered and can receive coarse org-level instructions, but it does not have structured, auditable knowledge of how the org actually operates. Every org using the grant module gets the same grant tools with the same underlying behavior. A platform that truly learns an org's workflows would surface the right context automatically: knowing that this foundation always requires a site visit before recommending, knowing that this org's naming convention for grants is "Program Area — Grantee — Year," knowing that the finance director wants payment confirmations flagged immediately. That richer layer of personalization — stored as managed configuration, recalled predictably, and applied by the AI — doesn't exist yet.
 
 ---
 
@@ -66,7 +67,7 @@ These are real scenarios a foundation admin faces. They illustrate the gap betwe
 
 ### 3. Org-specific AI context
 
-**Today:** A new program staff member asks the AI "How do we handle site visits?" The AI has no answer — it knows about grant stages but nothing about this org's process.
+**Today:** A new program staff member asks the AI "How do we handle site visits?" Unless an admin has written that policy into broad free-text AI instructions, the AI has no structured answer — it knows about grant stages but nothing about this org's process.
 
 **Vision:** The org admin has recorded a set of operating notes in the platform: "We require a site visit for all first-time grantees. Site visits are scheduled by the program officer and documented in the DD checklist before advancing to recommended." The AI reads this context on every session and answers: "Your org requires a site visit for first-time grantees, documented in the DD checklist before advancing to recommended. Would you like me to check the Greenfield grant's site visit status?"
 
@@ -108,6 +109,6 @@ When building a new feature or modifying an existing one, use this rubric to dec
 
 ## How We Get There
 
-The three gap layers — runtime workflow configuration, custom fields, and org-specific AI behavior — are closed progressively through the Builder. The Builder's current role (module config + scaffold proposals requiring developer deployment) evolves into a runtime configuration surface where admins can define checklists, create custom fields, configure stage rules, and record operating context that the AI applies automatically.
+The core gap layers — runtime workflow configuration, custom fields, and structured org-specific AI behavior — are closed progressively through the Builder, alongside the roadmap's later automation, view, vocabulary, and integration phases. The Builder's current role (module config + scaffold proposals requiring developer deployment) evolves into a runtime configuration surface where admins can define checklists, create custom fields, configure stage rules, and record operating context that the AI applies automatically.
 
-The full architectural sketch — current configurability layers, the three missing layers, how the Builder evolves, and what the end state looks like — is in [`CONFIGURABILITY_ARCHITECTURE.md`](CONFIGURABILITY_ARCHITECTURE.md).
+The full architectural sketch — current configurability layers, the major missing runtime layers, how the Builder evolves, and what the end state looks like — is in [`CONFIGURABILITY_ARCHITECTURE.md`](CONFIGURABILITY_ARCHITECTURE.md).

@@ -593,7 +593,7 @@ describe('DELETE /api/portfolio/[id]/tax/contributions/[contributionId]', () => 
  *   Supabase instance with real Auth sessions.
  *
  * - Cache-Control header values per handler: verified by code inspection
- *   (GET returns 'private, s-maxage=60'; PUT/DELETE return 'no-store').
+ *   (GET/PUT/DELETE return 'no-store').
  *
  * - Cascade behavior when a contribution linked to tax_documents or
  *   holding_contributions is deleted: requires a real DB with FK constraints.

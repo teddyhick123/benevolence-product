@@ -222,6 +222,30 @@ DO $$ BEGIN
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
 
+CREATE OR REPLACE FUNCTION public.prevent_pledge_linked_contribution_delete()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  IF OLD.pledge_installment_id IS NOT NULL OR EXISTS (
+    SELECT 1
+    FROM public.pledge_installments pi
+    WHERE pi.org_id = OLD.org_id
+      AND pi.contribution_id = OLD.id
+  ) THEN
+    RAISE EXCEPTION 'Contribution is linked to a pledge installment; reconcile the installment before deleting the contribution'
+      USING ERRCODE = '23503';
+  END IF;
+
+  RETURN OLD;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_prevent_pledge_linked_contribution_delete ON public.contributions_received;
+CREATE TRIGGER trg_prevent_pledge_linked_contribution_delete
+  BEFORE DELETE ON public.contributions_received
+  FOR EACH ROW EXECUTE FUNCTION public.prevent_pledge_linked_contribution_delete();
+
 -- ---------------------------------------------------------------------------
 -- v_pledge_pipeline view
 -- ---------------------------------------------------------------------------
@@ -275,6 +299,106 @@ JOIN public.donors d ON d.id = p.donor_id
 LEFT JOIN public.pledge_installments i ON i.pledge_id = p.id
 WHERE p.deleted_at IS NULL
 GROUP BY p.id, d.id;
+
+-- Dashboard aggregate metrics stay in SQL so large pledge books do not require
+-- unbounded API reads or JavaScript floating-point summation.
+CREATE OR REPLACE FUNCTION public.get_pledge_dashboard_metrics(
+  p_org_id uuid,
+  p_as_of date DEFAULT CURRENT_DATE
+)
+RETURNS jsonb
+LANGUAGE sql
+STABLE
+SECURITY INVOKER
+SET search_path = public
+AS $$
+WITH active_pledges AS (
+  SELECT id, total_amount, status
+  FROM public.pledges
+  WHERE org_id = p_org_id
+    AND deleted_at IS NULL
+    AND status NOT IN ('cancelled', 'defaulted', 'written_off')
+),
+installments AS (
+  SELECT i.pledge_id, i.amount, i.status, i.due_date
+  FROM public.pledge_installments i
+  JOIN active_pledges p ON p.id = i.pledge_id
+  WHERE i.org_id = p_org_id
+),
+kpis AS (
+  SELECT
+    COALESCE((SELECT SUM(total_amount) FROM active_pledges), 0)::numeric(20,2) AS committed,
+    COALESCE((SELECT SUM(amount) FROM installments WHERE status = 'paid'), 0)::numeric(20,2) AS received,
+    COALESCE((SELECT SUM(amount) FROM installments WHERE status = 'pending'), 0)::numeric(20,2) AS outstanding,
+    COALESCE((SELECT SUM(amount) FROM installments WHERE status = 'pending' AND due_date < p_as_of), 0)::numeric(20,2) AS overdue,
+    COALESCE((SELECT SUM(amount) FROM installments WHERE status = 'pending' AND due_date >= p_as_of AND due_date <= p_as_of + 30), 0)::numeric(20,2) AS due_soon,
+    COALESCE((SELECT COUNT(*) FROM active_pledges WHERE status = 'fulfilled'), 0)::integer AS fulfilled_count,
+    COALESCE((SELECT COUNT(*) FROM active_pledges), 0)::integer AS total_count
+),
+overdue_installments AS (
+  SELECT amount, GREATEST((p_as_of - due_date), 0)::integer AS days_overdue
+  FROM installments
+  WHERE status = 'pending'
+    AND due_date < p_as_of
+),
+aging AS (
+  SELECT
+    COALESCE(SUM(amount) FILTER (WHERE days_overdue <= 0), 0)::numeric(20,2) AS current,
+    COALESCE(SUM(amount) FILTER (WHERE days_overdue BETWEEN 1 AND 30), 0)::numeric(20,2) AS days_1_to_30,
+    COALESCE(SUM(amount) FILTER (WHERE days_overdue BETWEEN 31 AND 60), 0)::numeric(20,2) AS days_31_to_60,
+    COALESCE(SUM(amount) FILTER (WHERE days_overdue BETWEEN 61 AND 90), 0)::numeric(20,2) AS days_61_to_90,
+    COALESCE(SUM(amount) FILTER (WHERE days_overdue > 90), 0)::numeric(20,2) AS days_90_plus
+  FROM overdue_installments
+),
+months AS (
+  SELECT
+    generate_series(-6, 5) AS month_offset
+),
+forecast AS (
+  SELECT
+    to_char(month_start, 'YYYY-MM') AS month,
+    month_start,
+    COALESCE(SUM(i.amount) FILTER (WHERE i.status = 'pending'), 0)::numeric(20,2) AS expected,
+    COALESCE(SUM(i.amount) FILTER (WHERE i.status = 'paid'), 0)::numeric(20,2) AS received
+  FROM (
+    SELECT (date_trunc('month', p_as_of)::date + (month_offset * INTERVAL '1 month'))::date AS month_start
+    FROM months
+  ) m
+  LEFT JOIN installments i
+    ON i.due_date >= m.month_start
+   AND i.due_date < (m.month_start + INTERVAL '1 month')::date
+  GROUP BY month_start
+)
+SELECT jsonb_build_object(
+  'kpis', jsonb_build_object(
+    'committed', k.committed,
+    'received', k.received,
+    'outstanding', k.outstanding,
+    'overdue', k.overdue,
+    'dueSoon', k.due_soon,
+    'fulfillmentRate', CASE WHEN k.total_count > 0 THEN ROUND((k.fulfilled_count::numeric / k.total_count::numeric) * 100)::integer ELSE 0 END
+  ),
+  'aging', jsonb_build_object(
+    'current', a.current,
+    'days1To30', a.days_1_to_30,
+    'days31To60', a.days_31_to_60,
+    'days61To90', a.days_61_to_90,
+    'days90Plus', a.days_90_plus
+  ),
+  'forecast', COALESCE((
+    SELECT jsonb_agg(jsonb_build_object(
+      'month', f.month,
+      'expected', f.expected,
+      'received', f.received
+    ) ORDER BY f.month_start)
+    FROM forecast f
+  ), '[]'::jsonb)
+)
+FROM kpis k
+CROSS JOIN aging a;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.get_pledge_dashboard_metrics(uuid, date) TO authenticated, service_role;
 
 -- ---------------------------------------------------------------------------
 -- RLS

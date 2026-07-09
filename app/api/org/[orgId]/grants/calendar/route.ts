@@ -3,6 +3,18 @@ import { createAdminClient, createServerClient } from '@/lib/supabase';
 
 export const dynamic = 'force-dynamic';
 
+const NO_STORE = { 'Cache-Control': 'no-store' } as const;
+
+function json(body: unknown, init: ResponseInit = {}) {
+  return NextResponse.json(body, {
+    ...init,
+    headers: {
+      ...NO_STORE,
+      ...(init.headers || {}),
+    },
+  });
+}
+
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ orgId: string }> }
@@ -11,13 +23,16 @@ export async function GET(
     const { orgId } = await params;
     const supabase = await createServerClient();
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!user) return json({ error: 'Unauthorized' }, { status: 401 });
     const { data: role } = await supabase.rpc('user_org_role', { p_org_id: orgId });
-    if (!role) return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
+    if (!role) return json({ error: 'Not authorized' }, { status: 403 });
 
     const { searchParams } = new URL(req.url);
     const portfolioId = searchParams.get('portfolio_id');
-    const daysAhead = parseInt(searchParams.get('days_ahead') ?? '120', 10);
+    const requestedDaysAhead = Number.parseInt(searchParams.get('days_ahead') ?? '120', 10);
+    const daysAhead = Number.isFinite(requestedDaysAhead) && requestedDaysAhead > 0
+      ? Math.min(requestedDaysAhead, 365)
+      : 120;
 
     const db = createAdminClient();
     const cutoff = new Date(Date.now() - 30 * 86_400_000).toISOString().slice(0, 10);
@@ -36,7 +51,7 @@ export async function GET(
     const grantMap = new Map(grants.map(g => [g.id, g]));
 
     if (grantIds.length === 0) {
-      return NextResponse.json({ events: [] });
+      return json({ events: [] });
     }
 
     const events: any[] = [];
@@ -136,8 +151,8 @@ export async function GET(
 
     events.sort((a, b) => a.due_date.localeCompare(b.due_date));
 
-    return NextResponse.json({ events });
+    return json({ events });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return json({ error: err.message }, { status: 500 });
   }
 }

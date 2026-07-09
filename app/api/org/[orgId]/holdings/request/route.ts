@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
+const NO_STORE = { "Cache-Control": "no-store" } as const;
 
 // POST /api/org/[orgId]/holdings/request
 // Legacy endpoint retained so older clients receive a clear product response.
@@ -10,6 +11,6 @@ export async function POST() {
       error:
         "Holding link requests have been retired. Add holdings directly to an organization portfolio.",
     },
-    { status: 410 }
+    { status: 410, headers: NO_STORE }
   );
 }

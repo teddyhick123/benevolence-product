@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
+const NO_STORE = { "Cache-Control": "no-store" } as const;
 
 // DELETE /api/org/[orgId]/holdings/[holdingId]
 // Legacy unlink endpoint retained so older clients receive a clear product response.
@@ -10,6 +11,6 @@ export async function DELETE() {
       error:
         "Holding links have been retired. Manage holdings from the portfolio holdings screen.",
     },
-    { status: 410 }
+    { status: 410, headers: NO_STORE }
   );
 }

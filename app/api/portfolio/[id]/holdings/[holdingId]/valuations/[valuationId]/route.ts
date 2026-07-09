@@ -4,6 +4,25 @@ import { updateValuationSchema } from '@/lib/schemas/investment';
 
 const getSupabase = createSupabaseServerClient;
 
+function json(body: Record<string, unknown>, init?: ResponseInit) {
+  return NextResponse.json(body, {
+    ...init,
+    headers: {
+      ...init?.headers,
+      'Cache-Control': 'no-store',
+    },
+  });
+}
+
+function normalizeValuationBody(body: any) {
+  return {
+    ...body,
+    valued_at: body.valued_at ?? body.as_of_date,
+    value: body.value ?? body.nav,
+    source: body.source ?? body.valuation_source,
+  };
+}
+
 /**
  * PATCH /api/portfolio/[id]/holdings/[holdingId]/valuations/[valuationId]
  * Update an existing valuation
@@ -18,16 +37,15 @@ export async function PATCH(
     const supabase = await getSupabase();
 
     // Validate request body (partial update allowed)
-    const validated = updateValuationSchema.parse(body);
+    const validated = updateValuationSchema.parse(normalizeValuationBody(body));
 
     // Verify holding belongs to portfolio and user can edit
-    const { data: canEdit } = await supabase.rpc('can_edit_portfolio', {
+    const { data: canEdit, error: canEditErr } = await supabase.rpc('can_edit_portfolio', {
       p_portfolio_id: portfolioId,
-      p_user_id: (await supabase.auth.getUser()).data.user?.id,
     });
 
-    if (!canEdit) {
-      return NextResponse.json(
+    if (canEditErr || !canEdit) {
+      return json(
         { error: 'Permission denied: cannot edit this portfolio' },
         { status: 403 }
       );
@@ -42,7 +60,7 @@ export async function PATCH(
       .single();
 
     if (fetchError || !existingValuation) {
-      return NextResponse.json(
+      return json(
         { error: 'Valuation not found' },
         { status: 404 }
       );
@@ -50,12 +68,12 @@ export async function PATCH(
 
     // Update valuation
     const updateData: any = {};
-    if (validated.as_of_date !== undefined) updateData.as_of_date = validated.as_of_date;
-    if (validated.nav !== undefined) updateData.nav = validated.nav;
-    if (validated.units !== undefined) updateData.units = validated.units;
-    if (validated.valuation_source !== undefined) updateData.valuation_source = validated.valuation_source;
+    if (validated.valued_at !== undefined) updateData.valued_at = validated.valued_at;
+    if (validated.value !== undefined) updateData.value = validated.value;
+    if (validated.currency !== undefined) updateData.currency = validated.currency;
+    if (validated.valuation_type !== undefined) updateData.valuation_type = validated.valuation_type;
+    if (validated.source !== undefined) updateData.source = validated.source;
     if (validated.notes !== undefined) updateData.notes = validated.notes;
-    updateData.updated_at = new Date().toISOString();
 
     const { data: valuation, error } = await supabase
       .from('holding_valuations')
@@ -67,25 +85,25 @@ export async function PATCH(
     if (error) {
       // Handle unique constraint violation if date was changed
       if (error.code === '23505') {
-        return NextResponse.json(
+        return json(
           { error: 'Valuation already exists for this date' },
           { status: 409 }
         );
       }
       console.error('Error updating valuation:', error);
-      return NextResponse.json({ error: 'Failed to update valuation' }, { status: 500 });
+      return json({ error: 'Failed to update valuation' }, { status: 500 });
     }
 
-    return NextResponse.json({ data: valuation });
+    return json({ data: valuation });
   } catch (error: any) {
     if (error?.name === 'ZodError') {
-      return NextResponse.json(
+      return json(
         { error: 'Validation error', details: error.errors },
         { status: 400 }
       );
     }
     console.error('Unexpected error in PATCH valuation:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return json({ error: 'Internal server error' }, { status: 500 });
   }
 }
 
@@ -102,13 +120,12 @@ export async function DELETE(
     const supabase = await getSupabase();
 
     // Verify holding belongs to portfolio and user can edit
-    const { data: canEdit } = await supabase.rpc('can_edit_portfolio', {
+    const { data: canEdit, error: canEditErr } = await supabase.rpc('can_edit_portfolio', {
       p_portfolio_id: portfolioId,
-      p_user_id: (await supabase.auth.getUser()).data.user?.id,
     });
 
-    if (!canEdit) {
-      return NextResponse.json(
+    if (canEditErr || !canEdit) {
+      return json(
         { error: 'Permission denied: cannot edit this portfolio' },
         { status: 403 }
       );
@@ -123,7 +140,7 @@ export async function DELETE(
       .single();
 
     if (fetchError || !existingValuation) {
-      return NextResponse.json(
+      return json(
         { error: 'Valuation not found' },
         { status: 404 }
       );
@@ -137,12 +154,12 @@ export async function DELETE(
 
     if (error) {
       console.error('Error deleting valuation:', error);
-      return NextResponse.json({ error: 'Failed to delete valuation' }, { status: 500 });
+      return json({ error: 'Failed to delete valuation' }, { status: 500 });
     }
 
-    return NextResponse.json({ success: true, message: 'Valuation deleted' });
+    return json({ success: true, message: 'Valuation deleted' });
   } catch (error) {
     console.error('Unexpected error in DELETE valuation:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return json({ error: 'Internal server error' }, { status: 500 });
   }
 }

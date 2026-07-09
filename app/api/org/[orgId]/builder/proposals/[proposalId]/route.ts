@@ -7,16 +7,26 @@ interface RouteParams {
   params: Promise<{ orgId: string; proposalId: string }>;
 }
 
+function json(body: Record<string, unknown>, init?: ResponseInit) {
+  return NextResponse.json(body, {
+    ...init,
+    headers: {
+      ...init?.headers,
+      'Cache-Control': 'no-store',
+    },
+  });
+}
+
 export async function GET(req: NextRequest, { params }: RouteParams) {
   try {
     const { orgId, proposalId } = await params;
     const supabase = await createServerClient();
 
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!user) return json({ error: 'Unauthorized' }, { status: 401 });
 
-    const { data: role } = await supabase.rpc('user_org_role', { p_org_id: orgId });
-    if (!role) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    const { data: isAdmin } = await supabase.rpc('is_org_admin', { p_org_id: orgId });
+    if (!isAdmin) return json({ error: 'Forbidden' }, { status: 403 });
 
     const adminSupabase = createAdminClient();
     const { data: proposal, error } = await adminSupabase
@@ -27,12 +37,12 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       .single();
 
     if (error || !proposal) {
-      return NextResponse.json({ error: 'Proposal not found' }, { status: 404 });
+      return json({ error: 'Proposal not found' }, { status: 404 });
     }
 
-    return NextResponse.json({ proposal });
+    return json({ proposal });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';
-    return NextResponse.json({ error: message }, { status: 500 });
+    return json({ error: message }, { status: 500 });
   }
 }

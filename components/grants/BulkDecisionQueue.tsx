@@ -21,6 +21,7 @@ interface Props {
   queuedTransitions: QueuedTransitions;
   onConfirm: (items: BulkTransitionItem[]) => void;
   onCancel: () => void;
+  grantLabel?: string;
 }
 
 type DecisionType = DecisionPayload['decision_type'];
@@ -29,7 +30,7 @@ type DecisionValue = DecisionPayload['decision'];
 const DECISION_TYPE_OPTIONS: DecisionType[] = ['approval', 'decline', 'defer', 'renewal', 'closeout', 'payment_release'];
 const DECISION_VALUE_OPTIONS: DecisionValue[] = ['approved', 'declined', 'deferred', 'conditional', 'not_applicable'];
 
-export default function BulkDecisionQueue({ grants, queuedTransitions, onConfirm, onCancel }: Props) {
+export default function BulkDecisionQueue({ grants, queuedTransitions, onConfirm, onCancel, grantLabel = 'Grant' }: Props) {
   // Fix 3: memoize allItems/decisionItems/simpleItems so step index stays stable
   const { decisionItems, simpleItems } = useMemo(() => {
     const allItems: BulkTransitionItem[] = [];
@@ -38,7 +39,7 @@ export default function BulkDecisionQueue({ grants, queuedTransitions, onConfirm
       if (!target) continue;
       allItems.push({
         grantId: grant.id,
-        grantName: grant.holdings?.name ?? 'Unnamed Grant',
+        grantName: grant.holdings?.name ?? `Unnamed ${grantLabel}`,
         fromStage: grant.lifecycle_stage,
         targetStage: target,
         amount: grant.approved_amount ?? grant.requested_amount,
@@ -118,6 +119,9 @@ export default function BulkDecisionQueue({ grants, queuedTransitions, onConfirm
           {onSummary ? (
             <div>
               <h2 className="text-lg font-semibold text-ink mb-4">Ready to apply</h2>
+              <p className="text-sm text-neutral-500 mb-4">
+                These transitions will be submitted as one batch. If any transition fails before commit, none will be applied.
+              </p>
               <div className="space-y-2 mb-6 max-h-64 overflow-y-auto">
                 {simpleItems.map(item => (
                   <div key={item.grantId} className="flex items-center justify-between text-sm py-1 border-b border-black/5">

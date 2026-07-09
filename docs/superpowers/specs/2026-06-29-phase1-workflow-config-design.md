@@ -93,22 +93,32 @@ CREATE TRIGGER set_org_workflow_config_updated_at
 
 ### `grant_checklist_completions`
 
-One row per checked item. Cleared atomically when the grant exits the stage.
+One row per checked item. Two clearing mechanisms:
+- **Stage exit** — the `transition_grant_lifecycle` RPC deletes by `(grant_id, stage_key)` atomically with the stage change.
+- **Config item removal** — the `workflow_config_id` FK cascades on delete, so removing an `org_workflow_config` row automatically removes all matching completions without application-layer cleanup.
+
+`stage_key` and `checklist_item_key` are denormalized for query ergonomics and display; `workflow_config_id` is the authoritative integrity anchor.
 
 ```sql
 CREATE TABLE IF NOT EXISTS public.grant_checklist_completions (
   id                 uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id             uuid        NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
   grant_id           uuid        NOT NULL REFERENCES public.grants(id) ON DELETE CASCADE,
+  workflow_config_id uuid        NOT NULL REFERENCES public.org_workflow_config(id) ON DELETE CASCADE,
   stage_key          text        NOT NULL,
   checklist_item_key text        NOT NULL,
   completed_by       uuid        REFERENCES auth.users(id),
   completed_at       timestamptz NOT NULL DEFAULT now(),
-  UNIQUE (grant_id, stage_key, checklist_item_key)
+  UNIQUE (grant_id, workflow_config_id)
 );
 
+-- Primary lookup: all completions for a grant at a given stage
 CREATE INDEX IF NOT EXISTS idx_grant_checklist_completions_grant_stage
   ON public.grant_checklist_completions (grant_id, stage_key);
+
+-- Used by transition RPC when clearing completions on stage exit
+CREATE INDEX IF NOT EXISTS idx_grant_checklist_completions_config
+  ON public.grant_checklist_completions (workflow_config_id);
 
 CREATE INDEX IF NOT EXISTS idx_grant_checklist_completions_org
   ON public.grant_checklist_completions (org_id);
@@ -258,6 +268,7 @@ export async function checkWorkflowGate(
     const { data: completions } = await db
       .from('grant_checklist_completions')
       .select('checklist_item_key')
+      .eq('org_id', orgId)
       .eq('grant_id', grantId)
       .eq('stage_key', fromStage);
 
@@ -349,7 +360,18 @@ Add catch for `WorkflowGateBlockedError` in the `transition_grant` tool case:
 
 Add `checkWorkflowGate` to the existing preflight validation loop. The preflight loop already runs unconditionally before the `rollbackOnError` branch decision, so this ensures gate enforcement regardless of execution path.
 
-In the preflight loop, after the `canTransition` / `requiresDecision` checks:
+**Expand the preflight SELECT** to include all `REQUIRED_FIELD_ALLOWLIST` columns. The current fetch is `.select('id, lifecycle_stage, org_id')` — this must be widened so `checkWorkflowGate` receives a complete row. Without this, any org that configures a required field would have all bulk-transitions blocked because the missing columns are indistinguishable from null values.
+
+```typescript
+// Expanded preflight SELECT (replaces the existing 3-column fetch)
+.select(
+  'id, lifecycle_stage, org_id, purpose, internal_owner_id, requested_amount, ' +
+  'approved_amount, grant_period_start, grant_period_end, risk_level, ' +
+  'deliverables, reporting_frequency'
+)
+```
+
+In the preflight loop, after the `canTransition` / `requiresDecision` checks, pass the already-fetched (now expanded) grant row:
 
 ```typescript
 const gate = await checkWorkflowGate(adminSupabase, orgId, item.grant_id, fromStage, grantRow);
@@ -362,8 +384,6 @@ if (gate.blocked) {
   continue;
 }
 ```
-
-The grant row for each item is already fetched during preflight — pass it through rather than fetching again.
 
 ---
 
@@ -381,7 +401,7 @@ Upserts one `org_workflow_config` row with `config_type = 'stage_checklist'`. ON
 
 Args: `stage_key` (string), `item_key` (string).
 
-Deletes the `org_workflow_config` row. Also deletes matching `grant_checklist_completions` rows for `(org_id, stage_key, item_key)` — cleans up orphaned completion records.
+Deletes the `org_workflow_config` row. The `workflow_config_id` FK cascade automatically removes all matching `grant_checklist_completions` rows — no separate cleanup query needed.
 
 ### `set_required_field`
 
@@ -483,11 +503,11 @@ Check or uncheck a single item.
 - Auth: any org member
 - Module check: `org_has_module(orgId, 'grant_management')`
 - Body: `{ stage_key: string; item_key: string; completed: boolean }`
-- Validates that the checklist item exists in `org_workflow_config` before writing (prevents phantom completions)
-- `completed: true` → INSERT with `completed_by = user.id` (ON CONFLICT DO NOTHING — idempotent)
-- `completed: false` → DELETE WHERE `grant_id = ? AND stage_key = ? AND checklist_item_key = ? AND completed_by = user.id`
+- Validates that the checklist item exists in `org_workflow_config` before writing (prevents phantom completions). The lookup returns the config row `id` which is used as `workflow_config_id` in the completion row.
+- `completed: true` → INSERT `(grant_id, org_id, workflow_config_id, stage_key, checklist_item_key, completed_by)` with `completed_by = user.id` (ON CONFLICT ON `(grant_id, workflow_config_id)` DO NOTHING — idempotent)
+- `completed: false` → DELETE WHERE `grant_id = ? AND workflow_config_id = ?` with no `completed_by` filter in the query — RLS enforces that non-admins can only delete their own rows (`completed_by = auth.uid()`), while admins can delete any. Check the delete rowcount: if 0, return 404 `{ error: 'Item is not completed or you do not have permission to uncheck it' }` rather than a silent success.
 - Response: `{ success: true }`
-- Error: 404 if item doesn't exist in config; 403 if not org member
+- Error: 404 if item doesn't exist in config or uncomplete found 0 rows; 403 if not org member
 
 ### Modified: `app/api/org/[orgId]/grants/[grantId]/transition/route.ts`
 
@@ -561,7 +581,7 @@ Server component. Fetches `GET /api/org/[orgId]/workflow-config`. Admin-only —
 | `lib/builder/tools.ts` | Modified — 7 new tool definitions + executor cases |
 | `lib/ai/assistant/executors/grants.ts` | Modified — catch `WorkflowGateBlockedError` |
 | `app/api/org/[orgId]/grants/[grantId]/transition/route.ts` | Modified — new catch block |
-| `app/api/org/[orgId]/grants/bulk-transition/route.ts` | Modified — gate check in preflight loop |
+| `app/api/org/[orgId]/grants/bulk-transition/route.ts` | Modified — expand preflight SELECT to include all `REQUIRED_FIELD_ALLOWLIST` columns; gate check in preflight loop |
 | `app/api/org/[orgId]/workflow-config/route.ts` | New — GET all config |
 | `app/api/org/[orgId]/workflow-config/labels/route.ts` | New — GET label overrides |
 | `app/api/org/[orgId]/grants/[grantId]/checklist/route.ts` | New — GET checklist+completions, POST check/uncheck |

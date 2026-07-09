@@ -3,8 +3,20 @@ import { createServerClient } from '@/lib/supabase';
 
 export const dynamic = 'force-dynamic';
 
+const NO_STORE = { 'Cache-Control': 'no-store' } as const;
+
 interface RouteParams {
   params: Promise<{ orgId: string; id: string }>;
+}
+
+function json(body: unknown, init: ResponseInit = {}) {
+  return NextResponse.json(body, {
+    ...init,
+    headers: {
+      ...NO_STORE,
+      ...(init.headers || {}),
+    },
+  });
 }
 
 // GET /api/org/[orgId]/acknowledgments/[id]
@@ -15,27 +27,35 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
 
     const { data: role } = await supabase.rpc('user_org_role', { p_org_id: orgId });
     if (!role) {
-      return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
+      return json({ error: 'Not authorized' }, { status: 403 });
     }
 
     const { data: letter, error } = await supabase
       .from('acknowledgment_letters')
       .select(`
         *,
-        donors(id, first_name, last_name, organization_name, is_organization, email, address_line1, city, state, zip),
-        contributions_received:contribution_id(id, amount, contribution_date, gift_type)
+        donors(id, first_name, last_name, organization_name, is_organization, email, address_line1, city, state, zip)
       `)
       .eq('id', id)
       .eq('org_id', orgId)
-      .single();
+      .maybeSingle();
 
     if (error || !letter) {
-      return NextResponse.json({ error: 'Not found' }, { status: 404 });
+      return json({ error: 'Not found' }, { status: 404 });
     }
 
-    return NextResponse.json(letter);
+    const contributionIds = Array.isArray(letter.contribution_ids) ? letter.contribution_ids : [];
+    const { data: contributions } = contributionIds.length
+      ? await supabase
+        .from('contributions_received')
+        .select('id, amount, contribution_date, gift_type')
+        .eq('org_id', orgId)
+        .in('id', contributionIds)
+      : { data: [] };
+
+    return json({ ...letter, contributions: contributions || [] });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return json({ error: err.message }, { status: 500 });
   }
 }
 
@@ -47,14 +67,19 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
 
     const { data: canEdit } = await supabase.rpc('can_edit_org', { p_org_id: orgId });
     if (!canEdit) {
-      return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
+      return json({ error: 'Not authorized' }, { status: 403 });
     }
 
     const body = await req.json();
-    const allowedFields = ['letter_type', 'status', 'subject', 'body', 'custom_message', 'sent_via', 'sent_at', 'pdf_url', 'pdf_storage_path', 'tax_year'];
+    const allowedFields = ['status', 'subject', 'body', 'notes', 'delivery_method', 'sent_at', 'storage_path', 'storage_bucket'];
     const updates: Record<string, any> = {};
     for (const field of allowedFields) {
       if (field in body) updates[field] = body[field];
+    }
+    if ('sent_via' in body) updates.delivery_method = body.sent_via;
+
+    if (Object.keys(updates).length === 0) {
+      return json({ error: 'No updates provided' }, { status: 400 });
     }
 
     if (updates.status === 'sent' && !updates.sent_at) {
@@ -65,19 +90,28 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     if (updates.status === 'sent') {
       const { data: existing } = await supabase
         .from('acknowledgment_letters')
-        .select('contribution_id')
+        .select('contribution_ids')
         .eq('id', id)
         .eq('org_id', orgId)
-        .single();
+        .maybeSingle();
 
-      if (existing?.contribution_id) {
-        await supabase
+      const contributionIds = Array.isArray(existing?.contribution_ids)
+        ? existing.contribution_ids
+        : [];
+      if (contributionIds.length > 0) {
+        const { error: contributionUpdateError } = await supabase
           .from('contributions_received')
           .update({
-            acknowledgment_status: 'sent',
-            acknowledgment_sent_at: new Date().toISOString(),
+            acknowledgment_sent: true,
+            acknowledged_at: updates.sent_at,
+            receipt_status: 'sent',
+            receipt_sent_at: updates.sent_at,
           })
-          .eq('id', existing.contribution_id);
+          .eq('org_id', orgId)
+          .in('id', contributionIds);
+        if (contributionUpdateError) {
+          return json({ error: contributionUpdateError.message }, { status: 500 });
+        }
       }
     }
 
@@ -90,12 +124,12 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
       .single();
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json(letter);
+    return json(letter);
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return json({ error: err.message }, { status: 500 });
   }
 }
 
@@ -107,7 +141,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
 
     const { data: canEdit } = await supabase.rpc('can_edit_org', { p_org_id: orgId });
     if (!canEdit) {
-      return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
+      return json({ error: 'Not authorized' }, { status: 403 });
     }
 
     const { data: existing } = await supabase
@@ -115,10 +149,13 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
       .select('status')
       .eq('id', id)
       .eq('org_id', orgId)
-      .single();
+      .maybeSingle();
 
+    if (!existing) {
+      return json({ error: 'Not found' }, { status: 404 });
+    }
     if (existing?.status !== 'draft') {
-      return NextResponse.json({ error: 'Only draft letters can be deleted' }, { status: 400 });
+      return json({ error: 'Only draft letters can be deleted' }, { status: 400 });
     }
 
     const { error } = await supabase
@@ -128,11 +165,11 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
       .eq('org_id', orgId);
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return json({ error: error.message }, { status: 500 });
     }
 
-    return new NextResponse(null, { status: 204 });
+    return new NextResponse(null, { status: 204, headers: NO_STORE });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return json({ error: err.message }, { status: 500 });
   }
 }

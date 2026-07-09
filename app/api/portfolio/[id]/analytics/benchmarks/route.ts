@@ -3,13 +3,26 @@ import { NextResponse } from 'next/server';
 import { createSupabaseServerClient } from '@/lib/supabase';
 import { requirePortfolioAccess, isAccessDenied } from '@/lib/portfolio-auth';
 
-function cacheHeaders(isGet = false) {
-  return isGet
-    ? { 'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=60' } as const
-    : { 'Cache-Control': 'no-store' } as const;
+function cacheHeaders() {
+  return { 'Cache-Control': 'no-store' } as const;
 }
 
 const createSb = createSupabaseServerClient;
+
+type BenchmarkHolding = {
+  id: string;
+  name: string;
+  sector: string | null;
+  country?: string | null;
+  funds_allocated: number | null;
+  amount_invested: number | null;
+  current_value: number | null;
+};
+
+function allocationValue(holding: BenchmarkHolding): number | null {
+  const value = holding.funds_allocated ?? holding.amount_invested ?? holding.current_value;
+  return value == null ? null : Number(value);
+}
 
 export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id: portfolio_id } = await ctx.params;
@@ -27,21 +40,29 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
     // Benchmark a specific holding
     const { data: holding, error: holdingError } = await sb
       .from('holdings')
-      .select('id, name, sector, country, funds_allocated, charities(program_expense_ratio, admin_expense_ratio, annual_revenue)')
+      .select('id, name, sector, country, funds_allocated, amount_invested, current_value')
       .eq('id', holding_id)
       .eq('portfolio_id', portfolio_id)
+      .is('deleted_at', null)
       .single();
 
-    if (holdingError || !holding) {
+    if (holdingError) {
+      if (holdingError.code !== 'PGRST116') {
+        return NextResponse.json({ error: holdingError.message }, { status: 500, headers: cacheHeaders() });
+      }
+      return NextResponse.json({ error: 'Holding not found' }, { status: 404, headers: cacheHeaders() });
+    }
+    if (!holding) {
       return NextResponse.json({ error: 'Holding not found' }, { status: 404, headers: cacheHeaders() });
     }
 
     // Get peer holdings
     let peerQuery = sb
       .from('holdings')
-      .select('id, name, funds_allocated, charities(program_expense_ratio, admin_expense_ratio, annual_revenue)')
+      .select('id, name, sector, country, funds_allocated, amount_invested, current_value')
       .eq('portfolio_id', portfolio_id)
-      .neq('id', holding_id);
+      .neq('id', holding_id)
+      .is('deleted_at', null);
 
     if (benchmark_type === 'sector' && holding.sector) {
       peerQuery = peerQuery.eq('sector', holding.sector);
@@ -49,12 +70,15 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
       peerQuery = peerQuery.eq('country', holding.country);
     }
 
-    const { data: peers } = await peerQuery;
+    const { data: peers, error: peersError } = await peerQuery;
+    if (peersError) {
+      return NextResponse.json({ error: peersError.message }, { status: 500, headers: cacheHeaders() });
+    }
 
     // Get external benchmark data
     let benchmarkKey = holding.sector || 'General';
     if (benchmark_type === 'size') {
-      const revenue = (holding as any).charities?.annual_revenue || holding.funds_allocated || 0;
+      const revenue = allocationValue(holding) ?? 0;
       if (revenue < 1000000) benchmarkKey = 'Small (<$1M)';
       else if (revenue < 10000000) benchmarkKey = 'Medium ($1M-$10M)';
       else benchmarkKey = 'Large ($10M+)';
@@ -76,22 +100,15 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
 
       // Get holding's value
       let holdingValue = null;
-      const charity = (holding as any).charities;
 
-      if (metricUpper === 'PROGRAM_EXPENSE_RATIO' && charity?.program_expense_ratio) {
-        holdingValue = charity.program_expense_ratio;
-      } else if (metricUpper === 'ADMIN_EXPENSE_RATIO' && charity?.admin_expense_ratio) {
-        holdingValue = charity.admin_expense_ratio;
-      } else if (metricUpper === 'FUNDS_ALLOCATED') {
-        holdingValue = holding.funds_allocated;
+      if (metricUpper === 'FUNDS_ALLOCATED') {
+        holdingValue = allocationValue(holding);
       }
 
       // Get peer values
       const peerValues = (peers || [])
-        .map((p: any) => {
-          if (metricUpper === 'PROGRAM_EXPENSE_RATIO') return p.charities?.program_expense_ratio;
-          if (metricUpper === 'ADMIN_EXPENSE_RATIO') return p.charities?.admin_expense_ratio;
-          if (metricUpper === 'FUNDS_ALLOCATED') return p.funds_allocated;
+        .map((p: BenchmarkHolding) => {
+          if (metricUpper === 'FUNDS_ALLOCATED') return allocationValue(p);
           return null;
         })
         .filter((v): v is number => v !== null && v !== undefined);
@@ -149,14 +166,19 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
         benchmark_key: benchmarkKey,
         metrics: metricResults,
       },
-    }, { headers: cacheHeaders(true) });
+    }, { headers: cacheHeaders() });
 
   } else {
     // Portfolio-wide benchmark summary
-    const { data: holdings } = await sb
+    const { data: holdings, error: holdingsError } = await sb
       .from('holdings')
-      .select('id, name, sector, funds_allocated, charities(program_expense_ratio, annual_revenue)')
-      .eq('portfolio_id', portfolio_id);
+      .select('id, name, sector, country, funds_allocated, amount_invested, current_value')
+      .eq('portfolio_id', portfolio_id)
+      .is('deleted_at', null);
+
+    if (holdingsError) {
+      return NextResponse.json({ error: holdingsError.message }, { status: 500, headers: cacheHeaders() });
+    }
 
     if (!holdings || holdings.length === 0) {
       return NextResponse.json({ error: 'No holdings found' }, { status: 404, headers: cacheHeaders() });
@@ -185,19 +207,13 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
       const sectorBenchmarks = benchmarks?.filter(b => b.benchmark_key === sector) || [];
 
       // Calculate sector averages
-      const programRatios = sectorHoldings
-        .map(h => h.charities?.program_expense_ratio)
-        .filter((v): v is number => v !== null && v !== undefined);
-
-      const avgProgramRatio = programRatios.length > 0
-        ? programRatios.reduce((a, b) => a + b, 0) / programRatios.length
-        : null;
+      const avgProgramRatio = null;
 
       const benchmark = sectorBenchmarks.find(b => b.metric_code === 'PROGRAM_EXPENSE_RATIO');
 
       sectorResults[sector] = {
         holding_count: sectorHoldings.length,
-        total_allocation: sectorHoldings.reduce((sum, h) => sum + (h.funds_allocated || 0), 0),
+        total_allocation: sectorHoldings.reduce((sum, h) => sum + (allocationValue(h) ?? 0), 0),
         avg_program_expense_ratio: avgProgramRatio,
         benchmark_median: benchmark?.percentile_50,
         vs_benchmark: avgProgramRatio && benchmark?.percentile_50
@@ -212,6 +228,6 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
         sector_count: sectors.length,
         by_sector: sectorResults,
       },
-    }, { headers: cacheHeaders(true) });
+    }, { headers: cacheHeaders() });
   }
 }

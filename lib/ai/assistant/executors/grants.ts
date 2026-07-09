@@ -5,27 +5,28 @@
 // All grant look-ups start from holding_id — grants.holding_id is UNIQUE.
 
 import type { ToolResult } from '@/lib/ai/types';
+import { createAdminClient } from '@/lib/supabase';
+import { ORG_AUDIT_ACTIONS, writeOrgAuditEvent } from '@/lib/audit/org-audit';
 
 type DB = any; // supabase client
 
 // ── schedule_reminder ────────────────────────────────────────────────────────
 
 export async function scheduleReminder(supabase: DB, args: any, portfolioId: string): Promise<ToolResult> {
-  const { portfolio_id, title, description, due_date } = args;
-  const pid = portfolio_id ?? portfolioId;
+  const { title, description, due_date } = args;
 
   // Look up org_id from portfolio
   const { data: portfolio } = await supabase
     .from('portfolios')
     .select('org_id')
-    .eq('id', pid)
+    .eq('id', portfolioId)
     .maybeSingle();
 
   const { data, error } = await supabase
     .from('reminders')
     .insert({
       org_id: portfolio?.org_id ?? null,
-      portfolio_id: pid,
+      portfolio_id: portfolioId,
       title: title ?? 'Reminder',
       description: description ?? null,
       due_at: due_date,
@@ -37,14 +38,54 @@ export async function scheduleReminder(supabase: DB, args: any, portfolioId: str
   return { action: null, output: { success: true, reminder: data } };
 }
 
-async function grantByHolding(supabase: DB, holdingId: string) {
+async function grantByHolding(supabase: DB, holdingId: string, portfolioId: string) {
   const { data, error } = await supabase
     .from('grants')
     .select('id, org_id, portfolio_id, holding_id, lifecycle_stage, requested_amount, approved_amount, currency, purpose, holdings(name)')
     .eq('holding_id', holdingId)
+    .eq('portfolio_id', portfolioId)
     .maybeSingle();
   if (error) throw new Error(error.message);
   return data;
+}
+
+function paymentCountsAgainstApprovedAmount(status: string | null | undefined): boolean {
+  return !['cancelled', 'returned'].includes(status ?? 'scheduled');
+}
+
+async function assertGrantPaymentWithinApprovedAmount(
+  supabase: DB,
+  grant: any,
+  proposed: { paymentId?: string | null; amount?: number | null; status?: string | null }
+) {
+  if (grant.approved_amount == null) return;
+
+  const approvedAmount = Number(grant.approved_amount);
+  const { data: payments, error } = await supabase
+    .from('grant_payments')
+    .select('id, amount, status')
+    .eq('grant_id', grant.id);
+
+  if (error) throw new Error(error.message);
+
+  let total = 0;
+  for (const payment of payments ?? []) {
+    const isTargetPayment = proposed.paymentId && payment.id === proposed.paymentId;
+    const nextStatus = isTargetPayment ? (proposed.status ?? payment.status) : payment.status;
+    const nextAmount = isTargetPayment && proposed.amount != null ? Number(proposed.amount) : Number(payment.amount ?? 0);
+
+    if (paymentCountsAgainstApprovedAmount(nextStatus)) {
+      total += nextAmount;
+    }
+  }
+
+  if (!proposed.paymentId && paymentCountsAgainstApprovedAmount(proposed.status)) {
+    total += Number(proposed.amount ?? 0);
+  }
+
+  if (total > approvedAmount) {
+    throw new Error(`Grant payments would exceed the approved amount of ${approvedAmount}.`);
+  }
 }
 
 // ── get_grant_health ─────────────────────────────────────────────────────────
@@ -105,10 +146,10 @@ export async function getUpcomingDeadlines(supabase: DB, args: any): Promise<Too
 
 // ── log_grant_communication ──────────────────────────────────────────────────
 
-export async function logGrantCommunication(supabase: DB, args: any, userId: string): Promise<ToolResult> {
+export async function logGrantCommunication(supabase: DB, args: any, userId: string, portfolioId: string): Promise<ToolResult> {
   const { holding_id, direction, comm_type, subject, summary, contact_name, follow_up_required, follow_up_date } = args;
 
-  const grant = await grantByHolding(supabase, holding_id);
+  const grant = await grantByHolding(supabase, holding_id, portfolioId);
   if (!grant) throw new Error(`No grant found for holding ${holding_id}`);
 
   const occurred_at = new Date().toISOString();
@@ -146,13 +187,19 @@ export async function logGrantCommunication(supabase: DB, args: any, userId: str
 
 // ── record_grant_payment ─────────────────────────────────────────────────────
 
-export async function recordGrantPayment(supabase: DB, args: any): Promise<ToolResult> {
+export async function recordGrantPayment(supabase: DB, args: any, portfolioId: string, userId: string): Promise<ToolResult> {
   const { holding_id, payment_id, amount, scheduled_date, actual_date, status, payment_method, notes } = args;
 
-  const grant = await grantByHolding(supabase, holding_id);
+  const grant = await grantByHolding(supabase, holding_id, portfolioId);
   if (!grant) throw new Error(`No grant found for holding ${holding_id}`);
 
   if (payment_id) {
+    await assertGrantPaymentWithinApprovedAmount(supabase, grant, {
+      paymentId: payment_id,
+      amount: amount != null ? Number(amount) : null,
+      status: status ?? null,
+    });
+
     // Update existing payment
     const { data, error } = await supabase
       .from('grant_payments')
@@ -170,6 +217,20 @@ export async function recordGrantPayment(supabase: DB, args: any): Promise<ToolR
       .select()
       .single();
     if (error) throw new Error(error.message);
+    await writeOrgAuditEvent(createAdminClient(), {
+      orgId: grant.org_id,
+      actorId: userId,
+      action: ORG_AUDIT_ACTIONS.GRANT_PAYMENT_RECORDED,
+      targetId: grant.id,
+      metadata: {
+        payment_id: data.id,
+        operation: 'update',
+        amount: data.amount,
+        status: data.status,
+        scheduled_date: data.scheduled_date,
+        paid_date: data.paid_date,
+      },
+    });
     return { action: null, output: { success: true, payment: data } };
   }
 
@@ -183,6 +244,11 @@ export async function recordGrantPayment(supabase: DB, args: any): Promise<ToolR
     .maybeSingle();
 
   const payment_number = (countData?.payment_number ?? 0) + 1;
+
+  await assertGrantPaymentWithinApprovedAmount(supabase, grant, {
+    amount: amount != null ? Number(amount) : null,
+    status: status ?? 'scheduled',
+  });
 
   const { data, error } = await supabase
     .from('grant_payments')
@@ -202,16 +268,34 @@ export async function recordGrantPayment(supabase: DB, args: any): Promise<ToolR
 
   if (error) throw new Error(error.message);
 
+  await writeOrgAuditEvent(createAdminClient(), {
+    orgId: grant.org_id,
+    actorId: userId,
+    action: ORG_AUDIT_ACTIONS.GRANT_PAYMENT_RECORDED,
+    targetId: grant.id,
+    metadata: {
+      payment_id: data.id,
+      operation: 'insert',
+      amount: data.amount,
+      status: data.status,
+      scheduled_date: data.scheduled_date,
+      paid_date: data.paid_date,
+    },
+  });
+
   return { action: null, output: { success: true, payment: data, grant_id: grant.id } };
 }
 
 // ── track_milestone ──────────────────────────────────────────────────────────
 
-export async function trackMilestone(supabase: DB, args: any): Promise<ToolResult> {
+export async function trackMilestone(supabase: DB, args: any, portfolioId: string): Promise<ToolResult> {
   const { holding_id, milestone_id, name, description, due_date, status, notes } = args;
 
-  const grant = await grantByHolding(supabase, holding_id);
+  const grant = await grantByHolding(supabase, holding_id, portfolioId);
   if (!grant) throw new Error(`No grant found for holding ${holding_id}`);
+  if (status === 'overdue') {
+    throw new Error('Milestone overdue state is computed from due_date; use pending or in_progress as the stored status.');
+  }
 
   if (milestone_id) {
     // Update existing
@@ -284,7 +368,7 @@ function stepDueAt(startedAt: Date, workflowDueAt: string | null, cumulativeDays
 export async function startDueDiligence(supabase: DB, args: any, portfolioId: string, userId: string): Promise<ToolResult> {
   const { holding_id, template_id, due_date, assigned_to } = args;
 
-  const grant = await grantByHolding(supabase, holding_id);
+  const grant = await grantByHolding(supabase, holding_id, portfolioId);
   if (!grant) throw new Error(`No grant found for holding ${holding_id}`);
 
   // Find template — use provided or find the first due-diligence template for this org
@@ -421,9 +505,9 @@ export async function startDueDiligence(supabase: DB, args: any, portfolioId: st
 
 // ── get_workflow_status ──────────────────────────────────────────────────────
 
-export async function getWorkflowStatus(supabase: DB, args: any): Promise<ToolResult> {
+export async function getWorkflowStatus(supabase: DB, args: any, portfolioId: string): Promise<ToolResult> {
   const { holding_id, workflow_id, include_completed = false } = args;
-  const grant = await grantByHolding(supabase, holding_id);
+  const grant = await grantByHolding(supabase, holding_id, portfolioId);
   if (!grant) throw new Error(`No grant found for holding ${holding_id}`);
 
   let query = supabase
@@ -446,13 +530,14 @@ export async function getWorkflowStatus(supabase: DB, args: any): Promise<ToolRe
 
 // ── complete_workflow_task ───────────────────────────────────────────────────
 
-export async function completeWorkflowTask(supabase: DB, args: any, userId: string): Promise<ToolResult> {
+export async function completeWorkflowTask(supabase: DB, args: any, userId: string, portfolioId: string): Promise<ToolResult> {
   const { task_id, outcome, notes } = args;
 
   const { data: existing, error: loadError } = await supabase
     .from('workflow_tasks')
-    .select('id, workflow_id, task_id, status, workflow_instances!inner(org_id)')
+    .select('id, workflow_id, task_id, status, workflow_instances!inner(org_id, portfolio_id)')
     .or(`id.eq.${task_id},task_id.eq.${task_id}`)
+    .eq('workflow_instances.portfolio_id', portfolioId)
     .maybeSingle();
   if (loadError) throw new Error(loadError.message);
   if (!existing) throw new Error(`Workflow task not found for ${task_id}`);

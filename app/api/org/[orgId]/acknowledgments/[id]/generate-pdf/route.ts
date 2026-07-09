@@ -5,8 +5,20 @@ import jsPDF from 'jspdf';
 
 export const dynamic = 'force-dynamic';
 
+const NO_STORE = { 'Cache-Control': 'no-store' } as const;
+
 interface RouteParams {
   params: Promise<{ orgId: string; id: string }>;
+}
+
+function json(body: unknown, init: ResponseInit = {}) {
+  return NextResponse.json(body, {
+    ...init,
+    headers: {
+      ...NO_STORE,
+      ...(init.headers || {}),
+    },
+  });
 }
 
 // POST /api/org/[orgId]/acknowledgments/[id]/generate-pdf
@@ -17,7 +29,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
 
     const { data: canEdit } = await supabase.rpc('can_edit_org', { p_org_id: orgId });
     if (!canEdit) {
-      return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
+      return json({ error: 'Not authorized' }, { status: 403 });
     }
 
     // Fetch letter with donor
@@ -32,7 +44,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       .single();
 
     if (letterErr || !letter) {
-      return NextResponse.json({ error: 'Letter not found' }, { status: 404 });
+      return json({ error: 'Letter not found' }, { status: 404 });
     }
 
     const pdfBuffer = generateAcknowledgmentPDF(letter);
@@ -49,27 +61,32 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       });
 
     if (uploadErr) {
-      return NextResponse.json({ error: `Storage upload failed: ${uploadErr.message}` }, { status: 500 });
+      return json({ error: `Storage upload failed: ${uploadErr.message}` }, { status: 500 });
     }
 
     // Store the path; generate a short-lived signed URL (never store public URLs for donor PII)
-    await supabase
+    const { error: updateError } = await supabase
       .from('acknowledgment_letters')
       .update({ storage_path: storagePath, storage_bucket: 'documents' })
       .eq('id', id)
       .eq('org_id', orgId);
+
+    if (updateError) {
+      await admin.storage.from('documents').remove([storagePath]);
+      return json({ error: updateError.message }, { status: 500 });
+    }
 
     const { data: signedData, error: signErr } = await admin.storage
       .from('documents')
       .createSignedUrl(storagePath, 3600);
 
     if (signErr || !signedData) {
-      return NextResponse.json({ error: 'Failed to create download URL' }, { status: 500 });
+      return json({ error: 'Failed to create download URL' }, { status: 500 });
     }
 
-    return NextResponse.json({ pdf_url: signedData.signedUrl });
+    return json({ pdf_url: signedData.signedUrl });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return json({ error: err.message }, { status: 500 });
   }
 }
 

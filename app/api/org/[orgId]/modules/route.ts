@@ -11,6 +11,19 @@ import {
   getModulePresets,
 } from '@/lib/modules';
 
+const NO_STORE = { 'Cache-Control': 'no-store' } as const;
+const ADMIN_ROLES = new Set(['owner', 'admin']);
+
+function json(body: unknown, init: ResponseInit = {}) {
+  return NextResponse.json(body, {
+    ...init,
+    headers: {
+      ...NO_STORE,
+      ...(init.headers || {}),
+    },
+  });
+}
+
 function getSupabase(cookieStore: Awaited<ReturnType<typeof cookies>>) {
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -55,27 +68,27 @@ export async function GET(
     // Verify auth
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     // Verify org membership
     const { data: role } = await supabase.rpc('user_org_role', { p_org_id: orgId });
 
     if (!role) {
-      return NextResponse.json({ error: 'Access denied' }, { status: 403 });
+      return json({ error: 'Access denied' }, { status: 403 });
     }
 
     const serviceSupabase = getServiceSupabase();
     const enabledModules = await getOrgEnabledModules(serviceSupabase, orgId);
     const { presets } = await getModulePresets(serviceSupabase);
 
-    return NextResponse.json({
+    return json({
       enabledModules,
       presets,
     });
   } catch (error) {
     console.error('Error getting modules:', error);
-    return NextResponse.json(
+    return json(
       { error: 'Failed to get modules' },
       { status: 500 }
     );
@@ -98,14 +111,14 @@ export async function POST(
     // Verify auth
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     // Verify org admin
     const { data: role } = await supabase.rpc('user_org_role', { p_org_id: orgId });
 
-    if (!role || !['owner', 'admin'].includes(role)) {
-      return NextResponse.json(
+    if (!role || !ADMIN_ROLES.has(role)) {
+      return json(
         { error: 'Only organization admins can manage modules' },
         { status: 403 }
       );
@@ -124,9 +137,9 @@ export async function POST(
         user.id
       );
       if (!result.success) {
-        return NextResponse.json({ error: result.error }, { status: 400 });
+        return json({ error: result.error }, { status: 400 });
       }
-      return NextResponse.json({
+      return json({
         success: true,
         enabledModules: result.enabledModules,
       });
@@ -135,29 +148,29 @@ export async function POST(
     if (action === 'disable' && moduleId) {
       const result = await disableModule(serviceSupabase, orgId, moduleId as ModuleId);
       if (!result.success) {
-        return NextResponse.json({ error: result.error }, { status: 400 });
+        return json({ error: result.error }, { status: 400 });
       }
-      return NextResponse.json({ success: true });
+      return json({ success: true });
     }
 
     if (action === 'apply_preset' && presetId) {
       const result = await applyModulePreset(serviceSupabase, orgId, presetId, user.id);
       if (!result.success) {
-        return NextResponse.json({ error: result.error }, { status: 400 });
+        return json({ error: result.error }, { status: 400 });
       }
-      return NextResponse.json({
+      return json({
         success: true,
         enabledModules: result.enabledModules,
       });
     }
 
-    return NextResponse.json(
+    return json(
       { error: 'Invalid action. Use "enable", "disable", or "apply_preset"' },
       { status: 400 }
     );
   } catch (error) {
     console.error('Error managing modules:', error);
-    return NextResponse.json(
+    return json(
       { error: 'Failed to manage modules' },
       { status: 500 }
     );

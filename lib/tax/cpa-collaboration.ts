@@ -96,11 +96,6 @@ export function validateShareLink(link: CPAShareLink): {
     }
   }
 
-  // Check max accesses
-  if (link.max_accesses && link.access_count >= link.max_accesses) {
-    return { valid: false, reason: 'This share link has reached its maximum number of accesses.' };
-  }
-
   return { valid: true };
 }
 

@@ -4,7 +4,18 @@ import { CreatePledgeSchema } from '@/lib/schemas/pledge';
 
 export const dynamic = 'force-dynamic';
 
+const NO_STORE = { 'Cache-Control': 'no-store' } as const;
 const ALLOWED_ROLES = ['owner', 'admin', 'member'];
+
+function json(body: unknown, init: ResponseInit = {}) {
+  return NextResponse.json(body, {
+    ...init,
+    headers: {
+      ...NO_STORE,
+      ...(init.headers || {}),
+    },
+  });
+}
 
 async function authorize(supabase: any, orgId: string) {
   const { data: role } = await supabase.rpc('user_org_role', { p_org_id: orgId });
@@ -17,81 +28,34 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ orgI
     const { orgId } = await params;
     const supabase = await createServerClient();
     const role = await authorize(supabase, orgId);
-    if (!role) return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
+    if (!role) return json({ error: 'Not authorized' }, { status: 403 });
 
     const sp = new URL(req.url).searchParams;
     const statusFilter    = sp.get('status') || 'active';
     const pipelineFilter  = sp.get('pipeline_status');
     const donorId         = sp.get('donor_id');
     const campaign        = sp.get('campaign');
-    const limit           = Math.min(parseInt(sp.get('limit') || '50'), 200);
-    const offset          = parseInt(sp.get('offset') || '0');
+    const requestedLimit  = Number.parseInt(sp.get('limit') || '50', 10);
+    const requestedOffset = Number.parseInt(sp.get('offset') || '0', 10);
+    const limit           = Number.isFinite(requestedLimit) && requestedLimit > 0
+      ? Math.min(requestedLimit, 200)
+      : 50;
+    const offset          = Number.isFinite(requestedOffset) && requestedOffset >= 0 ? requestedOffset : 0;
 
     // --- Pledge rows from view ---
     let q = supabase.from('v_pledge_pipeline').select('*', { count: 'exact' }).eq('org_id', orgId);
     if (statusFilter !== 'all') q = q.eq('status', statusFilter);
+    if (pipelineFilter) q = q.eq('pipeline_status', pipelineFilter);
     if (donorId)   q = q.eq('donor_id', donorId);
     if (campaign)  q = q.eq('campaign', campaign);
     q = q.order('created_at', { ascending: false }).range(offset, offset + limit - 1);
     const { data: pledges, count, error } = await q;
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (error) return json({ error: error.message }, { status: 500 });
 
-    // Apply pipeline_status filter in JS (it's a computed column in the view)
-    const rows = pipelineFilter
-      ? (pledges ?? []).filter((p: any) => p.pipeline_status === pipelineFilter)
-      : (pledges ?? []);
-
-    // --- KPIs across ALL non-deleted pledges for this org ---
-    const { data: allInstallments } = await supabase
-      .from('pledge_installments')
-      .select('amount, status, due_date, pledge_id')
-      .eq('org_id', orgId);
-
-    const { data: allPledges } = await supabase
-      .from('pledges')
-      .select('id, total_amount, status')
-      .eq('org_id', orgId)
-      .is('deleted_at', null);
-
-    const today = new Date().toISOString().slice(0, 10);
-    const activePledgeIds = new Set(
-      (allPledges ?? []).filter((p: any) => !['cancelled','defaulted','written_off'].includes(p.status)).map((p: any) => p.id)
-    );
-    const committed  = (allPledges ?? []).filter((p: any) => activePledgeIds.has(p.id)).reduce((s: number, p: any) => s + Number(p.total_amount), 0);
-    const received   = (allInstallments ?? []).filter((i: any) => i.status === 'paid' && activePledgeIds.has(i.pledge_id)).reduce((s: number, i: any) => s + Number(i.amount), 0);
-    const outstanding= (allInstallments ?? []).filter((i: any) => i.status === 'pending' && activePledgeIds.has(i.pledge_id)).reduce((s: number, i: any) => s + Number(i.amount), 0);
-    const overdue    = (allInstallments ?? []).filter((i: any) => i.status === 'pending' && i.due_date < today && activePledgeIds.has(i.pledge_id)).reduce((s: number, i: any) => s + Number(i.amount), 0);
-    const dueSoon    = (allInstallments ?? []).filter((i: any) => {
-      const d30 = new Date(); d30.setDate(d30.getDate() + 30); const d30s = d30.toISOString().slice(0, 10);
-      return i.status === 'pending' && i.due_date >= today && i.due_date <= d30s && activePledgeIds.has(i.pledge_id);
-    }).reduce((s: number, i: any) => s + Number(i.amount), 0);
-    const fulfilledCount = (allPledges ?? []).filter((p: any) => p.status === 'fulfilled').length;
-    const totalCount     = (allPledges ?? []).filter((p: any) => !['cancelled','defaulted','written_off'].includes(p.status)).length;
-    const fulfillmentRate = totalCount > 0 ? Math.round((fulfilledCount / totalCount) * 100) : 0;
-
-    // --- Aging buckets (overdue installments) ---
-    const overdueInst = (allInstallments ?? []).filter((i: any) => i.status === 'pending' && i.due_date < today && activePledgeIds.has(i.pledge_id));
-    const aging = { current: 0, days1To30: 0, days31To60: 0, days61To90: 0, days90Plus: 0 };
-    const todayMs = new Date(today).getTime();
-    for (const i of overdueInst) {
-      const days = Math.floor((todayMs - new Date(i.due_date).getTime()) / 86400000);
-      const amt = Number(i.amount);
-      if (days <= 0)       aging.current    += amt;
-      else if (days <= 30) aging.days1To30   += amt;
-      else if (days <= 60) aging.days31To60  += amt;
-      else if (days <= 90) aging.days61To90  += amt;
-      else                 aging.days90Plus  += amt;
-    }
-
-    // --- 12-month forecast ---
-    const forecast: Array<{ month: string; expected: number; received: number }> = [];
-    for (let m = -6; m < 6; m++) {
-      const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() + m);
-      const month = d.toISOString().slice(0, 7);
-      const expected = (allInstallments ?? []).filter((i: any) => i.status === 'pending' && i.due_date.startsWith(month) && activePledgeIds.has(i.pledge_id)).reduce((s: number, i: any) => s + Number(i.amount), 0);
-      const rec      = (allInstallments ?? []).filter((i: any) => i.status === 'paid'    && i.due_date.startsWith(month) && activePledgeIds.has(i.pledge_id)).reduce((s: number, i: any) => s + Number(i.amount), 0);
-      forecast.push({ month, expected, received: rec });
-    }
+    const { data: metrics, error: metricsError } = await supabase.rpc('get_pledge_dashboard_metrics', {
+      p_org_id: orgId,
+    });
+    if (metricsError) return json({ error: metricsError.message }, { status: 500 });
 
     // --- Attention lists (from the view rows) ---
     const { data: attRows } = await supabase
@@ -107,16 +71,16 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ orgI
       dueSoon:  (attRows ?? []).filter((r: any) => r.pipeline_status === 'due_soon').slice(0, 5),
     };
 
-    return NextResponse.json({
-      kpis: { committed, received, outstanding, overdue, dueSoon, fulfillmentRate },
-      aging,
-      forecast,
+    return json({
+      kpis: metrics?.kpis ?? { committed: 0, received: 0, outstanding: 0, overdue: 0, dueSoon: 0, fulfillmentRate: 0 },
+      aging: metrics?.aging ?? { current: 0, days1To30: 0, days31To60: 0, days61To90: 0, days90Plus: 0 },
+      forecast: metrics?.forecast ?? [],
       attention,
-      pledges: rows,
+      pledges: pledges ?? [],
       total: count ?? 0,
     });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return json({ error: err.message }, { status: 500 });
   }
 }
 
@@ -125,13 +89,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ org
     const { orgId } = await params;
     const supabase = await createServerClient();
     const role = await authorize(supabase, orgId);
-    if (!role) return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
+    if (!role) return json({ error: 'Not authorized' }, { status: 403 });
 
     let body: any;
-    try { body = await req.json(); } catch { return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 }); }
+    try { body = await req.json(); } catch { return json({ error: 'Invalid JSON' }, { status: 400 }); }
 
     const parsed = CreatePledgeSchema.safeParse(body);
-    if (!parsed.success) return NextResponse.json({ error: parsed.error.issues }, { status: 400 });
+    if (!parsed.success) return json({ error: parsed.error.issues }, { status: 400 });
 
     const d = parsed.data;
     const { data: result, error } = await supabase.rpc('create_pledge_with_installments', {
@@ -149,16 +113,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ org
       p_relationship_manager: d.relationship_manager ?? null,
       p_signed_at:            d.signed_at ?? null,
       p_notes:                d.notes ?? null,
-      p_installments:         JSON.stringify(d.installments),
+      p_installments:         d.installments,
     });
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (error) return json({ error: error.message }, { status: 500 });
 
     const pledgeId = (result as any).pledge_id;
     const { data: pledge } = await supabase.from('v_pledge_pipeline').select('*').eq('id', pledgeId).single();
     const { data: installments } = await supabase.from('pledge_installments').select('*').eq('pledge_id', pledgeId).order('due_date');
 
-    return NextResponse.json({ pledge, installments }, { status: 201 });
+    return json({ pledge, installments }, { status: 201 });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return json({ error: err.message }, { status: 500 });
   }
 }

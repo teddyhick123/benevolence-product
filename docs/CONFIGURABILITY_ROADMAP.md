@@ -4,7 +4,7 @@
 
 ## Purpose
 
-This roadmap governs how the platform moves from its current state (module on/off, Builder KPI config) to the full vision: an org admin can describe how their organization works, and the platform configures itself to match — without a developer.
+This roadmap governs how the platform moves from its current state (module on/off, Builder KPI config, coarse AI instructions) to the full vision: an org admin can describe how their organization works, and the platform configures itself to match — without a developer.
 
 Each phase has a defined scope boundary, a concrete acceptance test, and a just-in-time implementation spec. Phases are sequential except where noted. Each phase ships a Builder integration and an onboarding integration so that new orgs get the full configured experience from day one.
 
@@ -14,7 +14,7 @@ Each phase has a defined scope boundary, a concrete acceptance test, and a just-
 
 | Phase | Name | What It Unlocks | Key Dependency |
 |-------|------|-----------------|----------------|
-| 0 | Current State | Module selection, KPI config, AI tool filtering | — |
+| 0 | Current State | Module selection, KPI config, AI tool filtering, coarse AI instructions | — |
 | 1 | Runtime Workflow Configuration | Stage checklists, required fields per stage, stage labels | None |
 | 2 | Custom Fields | Org-scoped typed fields on any entity, AI-queryable | Phase 1 (`required_at_stage` references stage names) |
 | 3 | Configurable Automations | Admin-defined trigger → action rules | Phases 1 + 2 (stages and fields as triggers/conditions) |
@@ -29,11 +29,12 @@ Each phase has a defined scope boundary, a concrete acceptance test, and a just-
 **What exists today:**
 
 - **Module selection** — org admins enable/disable feature modules. Enforced at nav, API (RLS + `org_has_module()`), and AI tool filtering.
-- **Builder** — AI chat in org settings. Can toggle modules and create KPI definitions. Scaffold proposals for deeper changes require developer deployment via PR.
-- **AI tool filtering** — assistant receives only tools for enabled modules. No org-specific context beyond that.
+- **Builder** — AI chat in org settings. Can toggle modules, create KPI definitions, update branding, update coarse AI instructions, and create scaffold proposals. Scaffold proposals for deeper changes require developer deployment via PR.
+- **AI tool filtering** — assistant receives only tools for enabled modules.
+- **Coarse AI instructions** — org admins can store one free-text instruction block that is injected into assistant sessions.
 - **Branding** — app name, logo, colors via env vars.
 
-**What every org shares regardless of configuration:** schema, workflows, fields, views, automations, AI behavior within any given module.
+**What every org shares regardless of configuration:** schema, workflows, fields, views, automations, and tool behavior within any given module. Org-specific AI behavior exists only as coarse free text, not structured context.
 
 ---
 
@@ -58,7 +59,7 @@ An org admin can define, via Builder chat, the rules governing their grant workf
 **Out:**
 - Cross-module workflow rules (this phase is grants only)
 - Custom automation triggers (Phase 3)
-- Custom fields as required items (Phase 2 ships first; integration comes in Phase 3)
+- Custom fields as required transition items (Phase 2; Phase 1 only enforces canonical grant fields and checklist items)
 - Configurable views of checklist status (Phase 5)
 
 ### Key Schema
@@ -71,17 +72,26 @@ org_workflow_config (
   config_key text,         -- e.g. checklist item key or field name
   config_value jsonb,      -- e.g. { label: "Site visit completed", required: true }
   sort_order int,
-  created_at, updated_at
+  created_at, updated_at,
+  UNIQUE(org_id, module, config_type, stage_key, config_key)
 )
 
 grant_checklist_completions (
-  id, org_id, grant_id, stage_key text, checklist_item_key text,
+  id, org_id, grant_id, workflow_config_id uuid REFERENCES org_workflow_config(id) ON DELETE CASCADE,
+  stage_key text, checklist_item_key text,
   completed_by uuid REFERENCES profiles(id),
-  completed_at timestamptz
+  completed_at timestamptz,
+  UNIQUE(grant_id, workflow_config_id)
 )
 ```
 
 RLS: org-scoped via `can_view_org(org_id)` for reads; `is_org_admin(org_id)` for writes to `org_workflow_config`.
+
+Integrity requirements for the phase spec:
+- `stage_key` must be validated against the canonical grant lifecycle stages when `module = 'grant_management'`.
+- `grant_checklist_completions.org_id` must match both the referenced grant's `org_id` and the referenced config row's `org_id`.
+- `grant_checklist_completions.stage_key` and `checklist_item_key` are denormalized for query ergonomics but must match the referenced config row.
+- Checklist completions should be written through an RPC or trigger-protected path so callers cannot complete items for another org or for non-checklist config rows.
 
 ### Key Builder Tools Added
 
@@ -159,6 +169,13 @@ org_custom_field_values (
 ```
 
 RLS: org-scoped. Definitions: `can_view_org` read, `is_org_admin` write. Values: `can_view_org` read, members write.
+
+Integrity requirements for the phase spec:
+- `field_definition_id` must belong to the same `org_id` and `entity_type` as the value row.
+- The target entity must exist and belong to the same `org_id`; because `entity_id` is polymorphic, enforce this with RPCs/triggers or replace the polymorphic value table with entity-specific value tables in the phase spec.
+- Exactly one typed value column must be populated, and it must match `org_custom_field_definitions.field_type`.
+- Enum values must be validated against `enum_options`.
+- Grant `required_at_stage` values must be canonical lifecycle stages and must participate in Phase 1 transition validation when the entity type is `grant`.
 
 ### Key Builder Tools Added
 
@@ -245,11 +262,12 @@ The existing task automation producer framework (`lib/tasks/automation/task-writ
 ### Acceptance Criteria
 
 1. An org admin tells the Builder: "When a grant reaches active, create a task for the program officer titled 'Schedule 90-day check-in' due in 7 days." A grant transitions to `active`. The task appears in the task inbox for the program officer, due 7 days from today.
-2. An org admin disables the rule. The next grant transitions to `active`. No task is created.
+2. An org admin defines a date-relative reminder, a task-completed notification, and a custom-field-set field update. Each rule fires from the existing automation/event paths and writes an `org_automation_runs` row.
+3. An org admin disables the rule. The next matching event occurs. No action is created.
 
 ### Implementation Spec
 
-Spec created when phase begins: `docs/superpowers/specs/<date>-phase3-automations-design.md`
+Spec: `docs/superpowers/specs/2026-07-08-phase3-configurable-automations-design.md`
 
 ---
 
@@ -316,7 +334,7 @@ org_ai_context (
 
 ### Implementation Spec
 
-Spec created when phase begins: `docs/superpowers/specs/<date>-phase4-ai-context-design.md`
+Spec: `docs/superpowers/specs/2026-07-08-phase4-ai-context-design.md`
 
 ---
 
@@ -374,7 +392,7 @@ All entity label rendering goes through a `useEntityVocabulary()` hook (or serve
 
 ### Implementation Spec
 
-Spec created when phase begins: `docs/superpowers/specs/<date>-phase5-views-vocabulary-design.md`
+Spec: `docs/superpowers/specs/2026-07-08-phase5-views-vocabulary-design.md`
 
 ---
 
@@ -407,7 +425,7 @@ The platform feels like a coherent "dream OS" from first login. Onboarding captu
 
 ### Implementation Spec
 
-Spec created when phase begins: `docs/superpowers/specs/<date>-phase6-integration-polish-design.md`
+Spec: `docs/superpowers/specs/2026-07-08-phase6-integration-polish-design.md`
 
 ---
 

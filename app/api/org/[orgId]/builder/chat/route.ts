@@ -20,6 +20,16 @@ interface StoredMessage {
   timestamp: string;
 }
 
+function json(body: Record<string, unknown>, init?: ResponseInit) {
+  return NextResponse.json(body, {
+    ...init,
+    headers: {
+      ...init?.headers,
+      'Cache-Control': 'no-store',
+    },
+  });
+}
+
 function sseEvent(data: Record<string, unknown>): string {
   return `data: ${JSON.stringify(data)}\n\n`;
 }
@@ -31,17 +41,17 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
 
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    return json({ error: 'Unauthorized' }, { status: 401 });
   }
   const { data: isAdmin } = await supabase.rpc('is_org_admin', { p_org_id: orgId });
   if (!isAdmin) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    return json({ error: 'Forbidden' }, { status: 403 });
   }
 
   const body = await req.json().catch(() => ({}));
   const userMessage = body.message;
   if (typeof userMessage !== 'string' || !userMessage.trim()) {
-    return NextResponse.json({ error: 'Message is required' }, { status: 400 });
+    return json({ error: 'Message is required' }, { status: 400 });
   }
 
   const { error: eventError } = await adminSupabase.from('builder_events').insert({
@@ -51,7 +61,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     request_text: userMessage,
   });
   if (eventError) {
-    console.error('Failed to emit builder ai_request event:', eventError.message);
+    return json({ error: eventError.message }, { status: 500 });
   }
 
   const [snapshot, sessionRes] = await Promise.all([
@@ -65,7 +75,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
   ]);
 
   if (!snapshot) {
-    return NextResponse.json({ error: 'Organization not found' }, { status: 404 });
+    return json({ error: 'Organization not found' }, { status: 404 });
   }
 
   const existingMessages: StoredMessage[] = (sessionRes.data?.messages as StoredMessage[]) || [];
@@ -223,12 +233,13 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
 
         const updatedMessages = [...existingMessages, newMessage, assistantMessage];
 
-        await adminSupabase.from('builder_sessions').upsert({
+        const { error: sessionError } = await adminSupabase.from('builder_sessions').upsert({
           org_id: orgId,
           user_id: user.id,
           messages: updatedMessages,
           updated_at: new Date().toISOString(),
         }, { onConflict: 'org_id,user_id' });
+        if (sessionError) throw sessionError;
 
         send({ type: 'done' });
       } catch (err) {
@@ -243,7 +254,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
   return new Response(stream, {
     headers: {
       'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache',
+      'Cache-Control': 'no-store',
       'Connection': 'keep-alive',
     },
   });

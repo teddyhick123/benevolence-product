@@ -3,8 +3,32 @@ import { createServerClient, createAdminClient } from '@/lib/supabase';
 
 export const dynamic = 'force-dynamic';
 
+const NO_STORE = { 'Cache-Control': 'no-store' } as const;
+const ADMIN_ROLES = new Set(['owner', 'admin']);
+
 interface RouteParams {
   params: Promise<{ orgId: string }>;
+}
+
+function json(body: unknown, init: ResponseInit = {}) {
+  return NextResponse.json(body, {
+    ...init,
+    headers: {
+      ...NO_STORE,
+      ...(init.headers || {}),
+    },
+  });
+}
+
+async function countActiveOwners(adminClient: ReturnType<typeof createAdminClient>, orgId: string) {
+  const { count, error } = await adminClient
+    .from('organization_members')
+    .select('id', { count: 'exact', head: true })
+    .eq('org_id', orgId)
+    .eq('role', 'owner')
+    .is('deleted_at', null);
+  if (error) throw error;
+  return count ?? 0;
 }
 
 // GET /api/org/[orgId]/members — list members with profile info
@@ -14,7 +38,7 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
     const supabase = await createServerClient();
 
     const { data: role } = await supabase.rpc('user_org_role', { p_org_id: orgId });
-    if (!role) return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
+    if (!role) return json({ error: 'Not authorized' }, { status: 403 });
 
     const adminClient = createAdminClient();
     const { data, error } = await adminClient
@@ -24,7 +48,7 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
       .is('deleted_at', null)
       .order('created_at', { ascending: true });
 
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (error) return json({ error: error.message }, { status: 500 });
 
     const userIds = Array.from(new Set((data || []).map((member: any) => member.user_id).filter(Boolean)));
     const { data: profiles, error: profilesError } = userIds.length > 0
@@ -34,7 +58,7 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
         .in('id', userIds)
       : { data: [], error: null };
 
-    if (profilesError) return NextResponse.json({ error: profilesError.message }, { status: 500 });
+    if (profilesError) return json({ error: profilesError.message }, { status: 500 });
 
     const profilesById = new Map((profiles || []).map((profile: any) => [profile.id, profile]));
     const members = (data || []).map((m: any) => ({
@@ -47,9 +71,9 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
       avatar_url: profilesById.get(m.user_id)?.avatar_url || null,
     }));
 
-    return NextResponse.json({ members, currentRole: role });
+    return json({ members, currentRole: role });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return json({ error: err.message }, { status: 500 });
   }
 }
 
@@ -59,17 +83,23 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     const { orgId } = await params;
     const supabase = await createServerClient();
 
-    const { data: isAdmin } = await supabase.rpc('is_org_admin', { p_org_id: orgId });
-    if (!isAdmin) {
-      return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
+    const { data: actorRole } = await supabase.rpc('user_org_role', { p_org_id: orgId });
+    if (!actorRole || !ADMIN_ROLES.has(actorRole)) {
+      return json({ error: 'Not authorized' }, { status: 403 });
     }
+
+    const { data: { user: actor } } = await supabase.auth.getUser();
+    if (!actor) return json({ error: 'Unauthorized' }, { status: 401 });
 
     const body = await req.json();
     const { email, user_id, role } = body;
 
     const validRoles = ['owner', 'admin', 'member', 'viewer'];
     if (!role || !validRoles.includes(role)) {
-      return NextResponse.json({ error: 'Invalid role' }, { status: 400 });
+      return json({ error: 'Invalid role' }, { status: 400 });
+    }
+    if (role === 'owner' && actorRole !== 'owner') {
+      return json({ error: 'Only owners can add another owner' }, { status: 403 });
     }
 
     let targetUserId = user_id;
@@ -78,7 +108,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       const { data: users, error: lookupError } = await adminClientForLookup.auth.admin.listUsers();
 
       if (lookupError) {
-        return NextResponse.json({ error: 'Failed to lookup user' }, { status: 500 });
+        return json({ error: 'Failed to lookup user' }, { status: 500 });
       }
 
       const foundUser = users.users.find(
@@ -86,17 +116,26 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       );
 
       if (!foundUser) {
-        return NextResponse.json({ error: 'No user found with that email address' }, { status: 404 });
+        return json({ error: 'No user found with that email address' }, { status: 404 });
       }
 
       targetUserId = foundUser.id;
     }
 
     if (!targetUserId) {
-      return NextResponse.json({ error: 'Either email or user_id is required' }, { status: 400 });
+      return json({ error: 'Either email or user_id is required' }, { status: 400 });
     }
 
     const adminClient = createAdminClient();
+    const { data: existing } = await adminClient
+      .from('organization_members')
+      .select('id')
+      .eq('org_id', orgId)
+      .eq('user_id', targetUserId)
+      .is('deleted_at', null)
+      .maybeSingle();
+    if (existing) return json({ error: 'User is already a member of this organization' }, { status: 409 });
+
     const { data: member, error } = await adminClient
       .from('organization_members')
       .insert({ org_id: orgId, user_id: targetUserId, role })
@@ -104,12 +143,28 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       .single();
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json(member, { status: 201 });
+    const { error: auditError } = await adminClient.from('org_audit_log').insert({
+      org_id: orgId,
+      actor_id: actor.id,
+      action: 'member_added',
+      target_id: targetUserId,
+      metadata: { role },
+    });
+    if (auditError) {
+      await adminClient
+        .from('organization_members')
+        .update({ deleted_at: new Date().toISOString(), deleted_by: actor.id })
+        .eq('org_id', orgId)
+        .eq('user_id', targetUserId);
+      return json({ error: auditError.message }, { status: 500 });
+    }
+
+    return json(member, { status: 201 });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return json({ error: err.message }, { status: 500 });
   }
 }
 
@@ -119,24 +174,45 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     const { orgId } = await params;
     const supabase = await createServerClient();
 
-    const { data: isAdmin } = await supabase.rpc('is_org_admin', { p_org_id: orgId });
-    if (!isAdmin) {
-      return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
+    const { data: actorRole } = await supabase.rpc('user_org_role', { p_org_id: orgId });
+    if (!actorRole || !ADMIN_ROLES.has(actorRole)) {
+      return json({ error: 'Not authorized' }, { status: 403 });
     }
+
+    const { data: { user: actor } } = await supabase.auth.getUser();
+    if (!actor) return json({ error: 'Unauthorized' }, { status: 401 });
 
     const body = await req.json();
     const { user_id, role } = body;
 
     if (!user_id) {
-      return NextResponse.json({ error: 'user_id is required' }, { status: 400 });
+      return json({ error: 'user_id is required' }, { status: 400 });
     }
 
     const validRoles = ['owner', 'admin', 'member', 'viewer'];
     if (!role || !validRoles.includes(role)) {
-      return NextResponse.json({ error: 'Invalid role' }, { status: 400 });
+      return json({ error: 'Invalid role' }, { status: 400 });
+    }
+    if (role === 'owner' && actorRole !== 'owner') {
+      return json({ error: 'Only owners can assign owner role' }, { status: 403 });
     }
 
-    const { data: member, error } = await supabase
+    const adminClient = createAdminClient();
+    const { data: existing, error: existingError } = await adminClient
+      .from('organization_members')
+      .select('id, role')
+      .eq('org_id', orgId)
+      .eq('user_id', user_id)
+      .is('deleted_at', null)
+      .maybeSingle();
+
+    if (existingError) return json({ error: existingError.message }, { status: 500 });
+    if (!existing) return json({ error: 'Member not found' }, { status: 404 });
+    if (existing.role === 'owner' && role !== 'owner' && (await countActiveOwners(adminClient, orgId)) <= 1) {
+      return json({ error: 'Cannot change the last owner role' }, { status: 400 });
+    }
+
+    const { data: member, error } = await adminClient
       .from('organization_members')
       .update({ role })
       .eq('org_id', orgId)
@@ -145,11 +221,27 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
       .single();
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json(member);
+    const { error: auditError } = await adminClient.from('org_audit_log').insert({
+      org_id: orgId,
+      actor_id: actor.id,
+      action: 'role_changed',
+      target_id: user_id,
+      metadata: { before_role: existing.role, after_role: role },
+    });
+    if (auditError) {
+      await adminClient
+        .from('organization_members')
+        .update({ role: existing.role })
+        .eq('org_id', orgId)
+        .eq('user_id', user_id);
+      return json({ error: auditError.message }, { status: 500 });
+    }
+
+    return json(member);
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return json({ error: err.message }, { status: 500 });
   }
 }

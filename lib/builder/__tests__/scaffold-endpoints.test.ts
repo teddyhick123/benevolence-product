@@ -89,6 +89,12 @@ describe('org-scoped apply endpoint', () => {
     expect(src).toMatch(/503|GitHub integration not configured/);
   });
 
+  it('enforces the path policy and review gate before GitHub', () => {
+    expect(src).toMatch(/evaluatePathPolicy/);
+    expect(src).toMatch(/evaluateReviewGate/);
+    expect(src).toMatch(/422/);
+  });
+
   it('fails when proposal_applied audit event is not recorded', () => {
     expect(src).toMatch(/if \(eventErr\)/);
     expect(src).toMatch(/error: eventErr\.message/);

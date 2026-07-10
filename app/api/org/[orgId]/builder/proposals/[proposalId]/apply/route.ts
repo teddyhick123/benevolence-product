@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient, createAdminClient } from '@/lib/supabase';
 import { applyProposalToGitHub, isGitHubConfigured } from '@/lib/builder/github-apply';
 import { canReviewImplementation } from '@/lib/org-capabilities';
+import { evaluatePathPolicy, formatPathPolicyViolations } from '@/lib/builder/path-policy';
+import { evaluateReviewGate } from '@/lib/builder/review-gate';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -70,6 +72,28 @@ export async function POST(_req: NextRequest, { params }: RouteParams) {
 
     if (files.length === 0) {
       return json({ error: 'No generated files to apply' }, { status: 400 });
+    }
+
+    const policy = evaluatePathPolicy(files.map(f => f.path));
+    if (!policy.allowed) {
+      return json(
+        {
+          error: `Proposal touches protected paths. ${formatPathPolicyViolations(policy.violations)}`,
+          violations: policy.violations,
+        },
+        { status: 422 }
+      );
+    }
+
+    const gate = evaluateReviewGate(proposal.review_report);
+    if (!gate.pass) {
+      return json(
+        {
+          error: gate.reason ?? 'Automated review has not passed for this proposal.',
+          blockers: gate.blockers,
+        },
+        { status: 409 }
+      );
     }
 
     const { prUrl, branchName } = await applyProposalToGitHub(

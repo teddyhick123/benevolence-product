@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
 
@@ -24,8 +25,26 @@ describe('scaffold-worker', () => {
     expect(src).toMatch(/phase.*building|building.*phase/);
   });
 
-  it('updates proposal phase to ready_to_apply after review', () => {
-    expect(src).toMatch(/ready_to_apply/);
+  it('routes review outcomes through the review gate — never unconditionally ready_to_apply', () => {
+    expect(src).toMatch(/evaluateReviewGate/);
+    expect(src).toMatch(/needs_repair/);
+    expect(src).toMatch(/gate\.pass \? 'ready_to_apply' : 'needs_repair'/);
+  });
+
+  it('enforces the path policy on generated files before review', () => {
+    expect(src).toMatch(/evaluatePathPolicy/);
+  });
+
+  it('reviews supplied files for generic proposals instead of requiring a plan', () => {
+    expect(src).toMatch(/generated_code/);
+  });
+
+  it('marks the proposal failed when a run fails', () => {
+    expect(src).toMatch(/phase: 'failed'/);
+  });
+
+  it('treats unparseable review output as a blocking error, not a passing warning', () => {
+    expect(src).not.toMatch(/score: 50/);
   });
 
   it('writes review_report to proposal', () => {

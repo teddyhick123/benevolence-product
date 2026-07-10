@@ -5,6 +5,8 @@ import { createAIProvider } from '@/lib/ai/factory';
 import { AI_MODELS } from '@/lib/ai/models';
 import { buildScaffoldContext, formatScaffoldContextForPrompt } from './scaffold-context';
 import { getCodebaseIndex, formatIndexForPrompt } from './codebase-index';
+import { evaluatePathPolicy } from './path-policy';
+import { evaluateReviewGate, parseReviewReport, type ReviewReport } from './review-gate';
 import type { ScaffoldPlanContent } from './tools';
 import { branding } from '@/lib/config';
 
@@ -41,6 +43,10 @@ export function createScaffoldWorker(): Worker {
 
   worker.on('failed', (job, err) => {
     console.error(`[scaffold-worker] Job ${job?.id} failed:`, err.message);
+    const data = job?.data as ScaffoldBuildJobData | undefined;
+    if (data?.proposalId) {
+      void markProposalRunFailed(data.proposalId, err.message);
+    }
   });
 
   worker.on('completed', (job) => {
@@ -50,28 +56,84 @@ export function createScaffoldWorker(): Worker {
   return worker;
 }
 
+async function markProposalRunFailed(proposalId: string, message: string): Promise<void> {
+  try {
+    const supabase = createAdminClient();
+    await supabase
+      .from('builder_proposals')
+      .update({
+        phase: 'failed',
+        review_report: {
+          score: 0,
+          findings: [{ severity: 'error', description: `Run failed before review completed: ${message.slice(0, 500)}` }],
+        },
+      })
+      .eq('id', proposalId);
+  } catch (updateError) {
+    console.error(`[scaffold-worker] Could not mark proposal ${proposalId} failed:`, updateError);
+  }
+}
+
 async function runBuildPhase(data: ScaffoldBuildJobData): Promise<void> {
   const { proposalId } = data;
   const supabase = createAdminClient();
 
   const { data: proposal, error: fetchError } = await supabase
     .from('builder_proposals')
-    .select('plan_content, org_id')
+    .select('plan_content, generated_code, org_id')
     .eq('id', proposalId)
     .single();
 
-  if (fetchError || !proposal?.plan_content) {
-    throw new Error(`Proposal ${proposalId} not found or has no plan_content`);
+  if (fetchError || !proposal) {
+    throw new Error(`Proposal ${proposalId} not found`);
   }
 
-  const planContent = proposal.plan_content as ScaffoldPlanContent;
-
-  // Mark as building
   await supabase
     .from('builder_proposals')
     .update({ phase: 'building' })
     .eq('id', proposalId);
 
+  const planContent = proposal.plan_content as ScaffoldPlanContent | null;
+  let generatedFiles: Array<{ path: string; content: string }>;
+
+  if (planContent?.files?.length) {
+    generatedFiles = await generateFilesFromPlan(supabase, proposalId, planContent);
+  } else {
+    // Generic proposals arrive with their files already attached; they skip
+    // generation and go straight to policy check + review.
+    const supplied = (proposal.generated_code as { files?: Array<{ path: string; content: string }> } | null)?.files ?? [];
+    if (supplied.length === 0) {
+      throw new Error(`Proposal ${proposalId} has no plan and no supplied files to review`);
+    }
+    generatedFiles = supplied;
+  }
+
+  await supabase
+    .from('builder_proposals')
+    .update({ phase: 'build_ready' })
+    .eq('id', proposalId);
+
+  const policy = evaluatePathPolicy(generatedFiles.map(f => f.path));
+  if (!policy.allowed) {
+    const report: ReviewReport = {
+      score: 0,
+      findings: policy.violations.map(v => ({ severity: 'error', description: `Protected path ${v.path}: ${v.detail}` })),
+    };
+    await supabase
+      .from('builder_proposals')
+      .update({ phase: 'needs_repair', review_report: report })
+      .eq('id', proposalId);
+    return;
+  }
+
+  await runReviewPhase(proposalId, planContent, generatedFiles);
+}
+
+async function generateFilesFromPlan(
+  supabase: ReturnType<typeof createAdminClient>,
+  proposalId: string,
+  planContent: ScaffoldPlanContent
+): Promise<Array<{ path: string; content: string }>> {
   let indexStr = '';
   try {
     const index = getCodebaseIndex();
@@ -105,17 +167,12 @@ async function runBuildPhase(data: ScaffoldBuildJobData): Promise<void> {
       .eq('id', proposalId);
   }
 
-  await supabase
-    .from('builder_proposals')
-    .update({ phase: 'build_ready' })
-    .eq('id', proposalId);
-
-  await runReviewPhase(proposalId, planContent, generatedFiles);
+  return generatedFiles;
 }
 
 async function runReviewPhase(
   proposalId: string,
-  planContent: ScaffoldPlanContent,
+  planContent: ScaffoldPlanContent | null,
   generatedFiles: Array<{ path: string; content: string }>
 ): Promise<void> {
   const supabase = createAdminClient();
@@ -131,18 +188,22 @@ async function runReviewPhase(
     .map(f => `### ${f.path}\n\`\`\`\n${f.content.slice(0, 3000)}\n\`\`\``)
     .join('\n\n');
 
-  const reviewPrompt = `Review this generated module implementation against the plan and ${branding.appName} codebase standards.
+  const planText = planContent
+    ? JSON.stringify(planContent, null, 2)
+    : 'No structured plan: this is a directly submitted code proposal. Review the files on their own merits.';
+
+  const reviewPrompt = `Review this proposed implementation against the plan and ${branding.appName} codebase standards.
 
 Module plan:
-${JSON.stringify(planContent, null, 2)}
+${planText}
 
-Generated files:
+Proposed files:
 ${filesText}
 
 Check for:
-1. Missing auth guards (routes must use is_org_admin or is_org_member checks)
+1. Missing auth guards (org-scoped routes must check can_view_org, is_org_admin, user_org_role, or the implementation-reviewer capability as appropriate)
 2. RLS policy gaps (every new table needs read/write/service_role policies)
-3. Naming inconsistencies (slug, table names, component names must be consistent)
+3. Naming inconsistencies (slug, table names, component names must be consistent; org-scoped FK columns are org_id)
 4. Type mismatches (TypeScript types should match DB column definitions)
 
 Respond with ONLY a valid JSON object (no markdown fences):
@@ -154,7 +215,7 @@ Respond with ONLY a valid JSON object (no markdown fences):
   ]
 }
 
-Score: 0=unusable, 60=has issues, 80=minor issues only, 95+=production ready`;
+Severity contract: use "error" for anything that must block a pull request (security, org isolation, RLS, schema canon violations, broken code). Use "warning" for improvements. The score is a summary only; it does not gate anything.`;
 
   const response = await provider.createMessage({
     model: AI_MODELS.scaffoldReview,
@@ -164,22 +225,31 @@ Score: 0=unusable, 60=has issues, 80=minor issues only, 95+=production ready`;
   });
 
   const textBlock = response.content.find(b => b.type === 'text');
-  let reviewReport: { score: number; findings: Array<{ severity: string; description: string }> } = {
+  let reviewReport: ReviewReport = {
     score: 0,
-    findings: [{ severity: 'error', description: 'Review failed to produce output.' }],
+    findings: [{ severity: 'error', description: 'Automated review produced no output. Retry the run before opening a PR.' }],
   };
 
   if (textBlock?.type === 'text') {
     try {
       const raw = textBlock.text.replace(/^```json?\n?|```$/gm, '').trim();
-      reviewReport = JSON.parse(raw);
+      const validated = parseReviewReport(JSON.parse(raw));
+      reviewReport = validated ?? {
+        score: 0,
+        findings: [{ severity: 'error', description: 'Automated review returned a malformed report. Retry the run before opening a PR.' }],
+      };
     } catch {
-      reviewReport = { score: 50, findings: [{ severity: 'warning', description: 'Could not parse review output.' }] };
+      reviewReport = {
+        score: 0,
+        findings: [{ severity: 'error', description: 'Automated review output could not be parsed. Retry the run before opening a PR.' }],
+      };
     }
   }
 
+  const gate = evaluateReviewGate(reviewReport);
+
   await supabase
     .from('builder_proposals')
-    .update({ phase: 'ready_to_apply', review_report: reviewReport })
+    .update({ phase: gate.pass ? 'ready_to_apply' : 'needs_repair', review_report: reviewReport })
     .eq('id', proposalId);
 }

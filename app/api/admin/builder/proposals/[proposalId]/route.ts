@@ -1,6 +1,7 @@
 // app/api/admin/builder/proposals/[proposalId]/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { createServerClient, createAdminClient } from '@/lib/supabase';
+import { createAdminClient } from '@/lib/supabase';
+import { requireAdmin } from '@/lib/admin-auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -11,18 +12,8 @@ interface RouteParams {
 export async function PATCH(req: NextRequest, { params }: RouteParams) {
   try {
     const { proposalId } = await params;
-    const supabase = await createServerClient();
-
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('is_super_admin')
-      .eq('id', user.id)
-      .single();
-
-    if (!profile?.is_super_admin) {
+    const userId = await requireAdmin();
+    if (!userId) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
@@ -40,7 +31,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
       .update({
         status,
         reviewer_notes: reviewer_notes || null,
-        reviewed_by: user.id,
+        reviewed_by: userId,
         reviewed_at: new Date().toISOString(),
       })
       .eq('id', proposalId)

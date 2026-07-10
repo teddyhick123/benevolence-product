@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient, createAdminClient } from '@/lib/supabase';
 import { applyProposalToGitHub, isGitHubConfigured } from '@/lib/builder/github-apply';
+import { canReviewImplementation } from '@/lib/org-capabilities';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -27,8 +28,10 @@ export async function POST(_req: NextRequest, { params }: RouteParams) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return json({ error: 'Unauthorized' }, { status: 401 });
 
-    const { data: isAdmin } = await supabase.rpc('is_org_admin', { p_org_id: orgId });
-    if (!isAdmin) return json({ error: 'Forbidden' }, { status: 403 });
+    const canReview = await canReviewImplementation(supabase as any, orgId);
+    if (!canReview) {
+      return json({ error: 'Implementation reviewer access required' }, { status: 403 });
+    }
 
     if (!isGitHubConfigured()) {
       return json(
@@ -79,8 +82,8 @@ export async function POST(_req: NextRequest, { params }: RouteParams) {
     const { error: updateErr } = await adminSupabase
       .from('builder_proposals')
       .update({
-        phase: 'applied',
-        status: 'applied',
+        phase: 'pr_opened',
+        status: 'approved',
         pr_url: prUrl,
         reviewed_by: user.id,
         reviewed_at: new Date().toISOString(),

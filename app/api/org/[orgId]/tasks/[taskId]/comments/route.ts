@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient, createServerClient } from '@/lib/supabase';
 import { createTaskCommentSchema } from '@/lib/schemas/task';
+import { getOrgAccess, hasOrgAccess } from '@/lib/org-access';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,11 +25,10 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
   try {
     const { orgId, taskId } = await params;
     const supabase = await createServerClient();
-    const { data: role } = await supabase.rpc('user_org_role', { p_org_id: orgId });
-    if (!role) return json({ error: 'Not authorized' }, { status: 403 });
-
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return json({ error: 'Unauthorized' }, { status: 401 });
+    const access = await getOrgAccess(supabase, orgId);
+    if (!access.user) return json({ error: 'Unauthorized' }, { status: 401 });
+    if (!hasOrgAccess(access, 'member')) return json({ error: 'Member access required' }, { status: 403 });
+    const { user } = access;
 
     const body = await req.json().catch(() => ({}));
     const parsed = createTaskCommentSchema.safeParse(body);

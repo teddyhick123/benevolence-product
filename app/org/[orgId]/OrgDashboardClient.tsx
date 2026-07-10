@@ -161,7 +161,7 @@ export default function OrgDashboardClient({
             <h3 className="text-base font-medium text-neutral-900">Your Modules</h3>
             {(userRole === "admin" || userRole === "owner") && (
               <Link
-                href={`/org/${orgId}/settings/modules`}
+                href={`/builder-studio?org_id=${encodeURIComponent(orgId)}#modules`}
                 className="text-sm text-azure hover:underline"
               >
                 Manage
@@ -177,7 +177,7 @@ export default function OrgDashboardClient({
               <p className="text-sm text-neutral-600 mb-3">No modules enabled yet.</p>
               {(userRole === "admin" || userRole === "owner") && (
                 <Link
-                  href={`/org/${orgId}/settings/modules`}
+                  href={`/builder-studio?org_id=${encodeURIComponent(orgId)}#modules`}
                   className="inline-block px-4 py-2 bg-azure text-white text-sm rounded-lg hover:bg-azure/90 transition-colors"
                 >
                   Enable Modules

@@ -1,6 +1,6 @@
 # Database Migrations
 
-Single source of truth for the schema. 43 ordered migrations replace the ad-hoc
+Single source of truth for the schema. 53 ordered migrations replace the ad-hoc
 legacy files and the stale consolidated module files. Late prerelease patches
 have been folded into the canonical owning migrations.
 
@@ -32,7 +32,7 @@ psql $DATABASE_URL -f db/demo/seed_demo_org.sql
 | 0009_grants | Historical | Placeholder only; canonical grant lifecycle tables are created in 0041 |
 | 0010_charities_and_news | Reference | Charity lookup DB, investees, external caches, news, events |
 | 0011_reports | Reports | Reports, templates, generated documents, schedules |
-| 0012_owner_tax_profile | Tax | Portfolio owner's personal tax data (NOT the donor CRM) |
+| 0012_owner_tax_profile | Historical | Placeholder only; personal tax data lives in 0013 tax tables |
 | 0013_tax_contributions | Tax | Charitable deductions, Form 8283, carryforward |
 | 0014_donors | Donors | Donor CRM, contributions received, communications |
 | 0015_acknowledgments | Donors | Letter templates and acknowledgment letters |
@@ -64,6 +64,19 @@ psql $DATABASE_URL -f db/demo/seed_demo_org.sql
 | 0041_task_workflow_foundation | Workflow | Tasks, workflow tables, canonical grant lifecycle tables, grant-linked compliance, and deadline views |
 | 0042_task_automation_runs | Workflow | Task automation run log and advisory lock helper |
 | 0043_tax_cpa_sharing | Tax | CPA share links and access logging |
+| 0044_builder_events | Builder | Builder event log and activity views |
+| 0045_security_invoker_views | Security | Rebuild scoped views with `security_invoker = true` |
+| 0046_compliance_documents_bucket | Compliance | Private compliance document storage bucket and policies |
+| 0047_grant_lifecycle_transition_rpc | Grants | Canonical grant lifecycle transition RPC and history enforcement |
+| 0048_cpa_atomic_access_logging | Tax | Atomic CPA access logging and share-link validation helper |
+| 0049_workflow_config | Workflow | Org workflow configuration and grant checklist completions |
+| 0050_custom_fields | Configurability | Org custom field definitions and entity values |
+| 0051_configurable_automations | Automation | Org automation rules and run history |
+| 0052_org_ai_context | AI | Organization AI context and guidance configuration |
+| 0053_org_view_config | Configurability | Per-org view configuration |
+| 0054_org_member_capabilities | Access | Additive org-member capabilities for implementation review |
+| 0055_role_permission_alignment | Access | Align canonical role and ownership enforcement |
+| 0056_onboarding_provisioning_recovery | Onboarding | Retry-safe onboarding automation seeding |
 
 ## Architecture decisions
 
@@ -87,11 +100,12 @@ Sensitive tables (tax, donors, compliance, quickbooks) check
 A user with org membership but a disabled module gets a 0-row response,
 not a 403 — consistent with PostgREST behavior.
 
-### owner_tax_profile vs donors
-- `owner_tax_profiles` (0012): the portfolio owner's personal tax data
-  (AGI, filing status, QCD eligibility). Portfolio-scoped. Strict access.
-- `donors` (0014): the donor CRM — external people who give to this org.
-  Org-scoped. Member access.
+### Tax profiles vs donors
+- `0012_owner_tax_profile` is an empty historical placeholder. The removed
+  `owner_tax_profiles` table must not be recreated.
+- Personal tax planning data lives in `tax_profiles` and `tax_years`.
+- `donors` (0014) is the donor CRM — external people who give to this org.
+  It is org-scoped with member access.
 
 ### QuickBooks is org-scoped, no portfolio_id
 One QB connection per org. `quickbooks_connections` and `qb_accounts` have

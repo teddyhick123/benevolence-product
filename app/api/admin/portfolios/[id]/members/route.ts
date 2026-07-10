@@ -41,7 +41,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     return NextResponse.json({ error: adminErr.message }, { status: 500 });
   }
 
-  let callerRole: 'viewer' | 'editor' | 'owner' | 'admin' = 'viewer';
+  let callerRole: 'viewer' | 'member' | 'owner' | 'admin' = 'viewer';
   if (isAdmin) {
     callerRole = 'admin';
   } else {

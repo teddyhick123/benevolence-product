@@ -6,7 +6,8 @@ export type OrgType =
   | 'nonprofit'
   | 'corporation'
   | 'individual';
-export type OrgRole = 'owner' | 'admin' | 'member' | 'viewer';
+import type { OrgRole } from '@/lib/roles';
+export type { OrgRole } from '@/lib/roles';
 
 export interface OrgModules {
   portfolio: boolean;

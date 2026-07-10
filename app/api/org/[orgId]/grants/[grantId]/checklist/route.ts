@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { createAdminClient, createServerClient } from '@/lib/supabase';
 import { LIFECYCLE_STAGES } from '@/lib/grants/lifecycle-shared';
+import { getOrgAccess, hasOrgAccess } from '@/lib/org-access';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,15 +28,15 @@ function json(body: unknown, init: ResponseInit = {}) {
   });
 }
 
-async function requireOrgMember(orgId: string) {
+async function requireOrgAccess(orgId: string, minimum: 'viewer' | 'member') {
   const supabase = await createServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { error: json({ error: 'Unauthorized' }, { status: 401 }) };
+  const access = await getOrgAccess(supabase, orgId);
+  if (!access.user) return { error: json({ error: 'Unauthorized' }, { status: 401 }) };
+  if (!hasOrgAccess(access, minimum)) {
+    return { error: json({ error: minimum === 'member' ? 'Member access required' : 'Not authorized' }, { status: 403 }) };
+  }
 
-  const { data: role } = await supabase.rpc('user_org_role', { p_org_id: orgId });
-  if (!role) return { error: json({ error: 'Not authorized' }, { status: 403 }) };
-
-  return { supabase, user, role };
+  return { supabase, user: access.user, role: access.role };
 }
 
 async function ensureGrantModuleAndScope(db: ReturnType<typeof createAdminClient>, orgId: string, grantId: string) {
@@ -59,7 +60,7 @@ async function ensureGrantModuleAndScope(db: ReturnType<typeof createAdminClient
 export async function GET(_req: NextRequest, { params }: RouteParams) {
   try {
     const { orgId, grantId } = await params;
-    const auth = await requireOrgMember(orgId);
+    const auth = await requireOrgAccess(orgId, 'viewer');
     if ('error' in auth) return auth.error;
 
     const db = createAdminClient();
@@ -141,7 +142,7 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
 export async function POST(req: NextRequest, { params }: RouteParams) {
   try {
     const { orgId, grantId } = await params;
-    const auth = await requireOrgMember(orgId);
+    const auth = await requireOrgAccess(orgId, 'member');
     if ('error' in auth) return auth.error;
 
     const body = await req.json().catch(() => ({}));

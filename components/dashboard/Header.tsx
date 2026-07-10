@@ -16,8 +16,9 @@ function HeaderContent() {
   const [portfolioId, setPortfolioId] = useState<string | null>(null);
   const [orgName, setOrgName] = useState<string | null>(null);
   const [orgModules, setOrgModules] = useState<Record<string, boolean>>({});
-  const [allOrgs, setAllOrgs] = useState<Array<{ id: string; name: string }>>([]);
+  const [allOrgs, setAllOrgs] = useState<Array<{ id: string; name: string; role?: string }>>([]);
   const [activeOrgId, setActiveOrgIdState] = useState<string | null>(null);
+  const [activeOrgRole, setActiveOrgRole] = useState<string | null>(null);
   const [orgSwitcherOpen, setOrgSwitcherOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const orgSwitcherRef = useRef<HTMLDivElement>(null);
@@ -60,12 +61,13 @@ function HeaderContent() {
         const res = await fetch('/api/org', { cache: 'no-store' });
         if (res.ok) {
           const data = await res.json();
-          const orgs: Array<{ id: string; name: string; modules?: Record<string, boolean> }> = data?.organizations ?? [];
+          const orgs: Array<{ id: string; name: string; role?: string; modules?: Record<string, boolean> }> = data?.organizations ?? [];
           setAllOrgs(orgs);
           const activeOrg = pickActiveOrg(orgs);
           if (activeOrg?.modules) setOrgModules(activeOrg.modules);
           if (activeOrg?.name) setOrgName(activeOrg.name);
           if (activeOrg?.id) setActiveOrgIdState(activeOrg.id);
+          setActiveOrgRole(activeOrg?.role ?? null);
         }
       } catch {
         // ignore
@@ -101,6 +103,7 @@ function HeaderContent() {
   const dashboardHref = currentPortfolioId ? `/dashboard?portfolio_id=${encodeURIComponent(currentPortfolioId)}` : '/dashboard';
   const charitiesHref = '/charities';
   const taxHref = currentPortfolioId ? `/dashboard/tax?portfolio_id=${encodeURIComponent(currentPortfolioId)}` : '/dashboard/tax';
+  const canAccessBuilderStudio = activeOrgRole === 'admin' || activeOrgRole === 'owner';
 
   async function handleSignOut() {
     await supabase.auth.signOut();
@@ -228,6 +231,15 @@ function HeaderContent() {
               >
                 Integrations
               </Link>
+              {canAccessBuilderStudio && (
+                <Link
+                  href="/builder-studio"
+                  aria-current={pathname.startsWith('/builder-studio') ? 'page' : undefined}
+                  className={navLinkClass}
+                >
+                  Builder Studio
+                </Link>
+              )}
               <Link
                 href="/settings"
                 aria-current={pathname.startsWith('/settings') ? 'page' : undefined}
@@ -339,6 +351,15 @@ function HeaderContent() {
             >
               Integrations
             </Link>
+            {canAccessBuilderStudio && (
+              <Link
+                href="/builder-studio"
+                aria-current={pathname.startsWith('/builder-studio') ? 'page' : undefined}
+                className={mobileNavLinkClass}
+              >
+                Builder Studio
+              </Link>
+            )}
             <Link
               href="/settings"
               aria-current={pathname.startsWith('/settings') ? 'page' : undefined}

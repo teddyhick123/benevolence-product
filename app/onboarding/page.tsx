@@ -68,6 +68,7 @@ export default async function OnboardingPage() {
         quick_intake: existingSession.quick_intake,
         messages: existingSession.messages,
         conversation_state: existingSession.conversation_state,
+        onboarding_profiles: existingSession.onboarding_profiles,
         organization_id: existingSession.organization_id,
       } : undefined}
     />

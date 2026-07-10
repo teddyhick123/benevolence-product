@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient, createServerClient } from '@/lib/supabase';
+import { getOrgAccess, hasOrgAccess } from '@/lib/org-access';
 
 export const dynamic = 'force-dynamic';
 
 const NO_STORE = { 'Cache-Control': 'no-store' } as const;
-const ADMIN_ROLES = new Set(['owner', 'admin']);
-
 // Fields that can be PATCHed; lifecycle_stage is excluded — use /transition instead
 const PATCHABLE_FIELDS = new Set([
   'purpose',
@@ -41,11 +40,9 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     const { orgId, grantId } = await params;
 
     const supabase = await createServerClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return json({ error: 'Unauthorized' }, { status: 401 });
-
-    const { data: role } = await supabase.rpc('user_org_role', { p_org_id: orgId });
-    if (!role) return json({ error: 'Not authorized' }, { status: 403 });
+    const access = await getOrgAccess(supabase, orgId);
+    if (!access.user) return json({ error: 'Unauthorized' }, { status: 401 });
+    if (!hasOrgAccess(access, 'viewer')) return json({ error: 'Not authorized' }, { status: 403 });
 
     const db = createAdminClient();
 
@@ -117,13 +114,9 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     const { orgId, grantId } = await params;
 
     const supabase = await createServerClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return json({ error: 'Unauthorized' }, { status: 401 });
-
-    const { data: role } = await supabase.rpc('user_org_role', { p_org_id: orgId });
-    if (!role || !ADMIN_ROLES.has(role)) {
-      return json({ error: 'Admin access required' }, { status: 403 });
-    }
+    const access = await getOrgAccess(supabase, orgId);
+    if (!access.user) return json({ error: 'Unauthorized' }, { status: 401 });
+    if (!hasOrgAccess(access, 'member')) return json({ error: 'Member access required' }, { status: 403 });
 
     const body = await req.json();
 

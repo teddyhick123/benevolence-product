@@ -1,13 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase';
 import { PatchPledgeSchema } from '@/lib/schemas/pledge';
+import { isOrgOperator, isWorkspaceManager, type OrgRole } from '@/lib/roles';
 
 export const dynamic = 'force-dynamic';
 
 const NO_STORE = { 'Cache-Control': 'no-store' } as const;
-const ALLOWED_ROLES = ['owner', 'admin', 'member'];
-const ADMIN_ROLES   = ['owner', 'admin'];
-
 function json(body: unknown, init: ResponseInit = {}) {
   return NextResponse.json(body, {
     ...init,
@@ -18,9 +16,9 @@ function json(body: unknown, init: ResponseInit = {}) {
   });
 }
 
-async function getRole(supabase: any, orgId: string): Promise<string | null> {
+async function getRole(supabase: any, orgId: string): Promise<OrgRole | null> {
   const { data: role } = await supabase.rpc('user_org_role', { p_org_id: orgId });
-  return role || null;
+  return isOrgOperator(role) ? role : null;
 }
 
 export async function GET(
@@ -31,7 +29,7 @@ export async function GET(
     const { orgId, pledgeId } = await params;
     const supabase = await createServerClient();
     const role = await getRole(supabase, orgId);
-    if (!role || !ALLOWED_ROLES.includes(role)) return json({ error: 'Not authorized' }, { status: 403 });
+    if (!role) return json({ error: 'Not authorized' }, { status: 403 });
 
     const [
       { data: pledge, error: pledgeError },
@@ -83,7 +81,7 @@ export async function PATCH(
     const { orgId, pledgeId } = await params;
     const supabase = await createServerClient();
     const role = await getRole(supabase, orgId);
-    if (!role || !ALLOWED_ROLES.includes(role)) return json({ error: 'Not authorized' }, { status: 403 });
+    if (!role) return json({ error: 'Not authorized' }, { status: 403 });
 
     let body: any;
     try { body = await req.json(); } catch { return json({ error: 'Invalid JSON' }, { status: 400 }); }
@@ -112,7 +110,7 @@ export async function DELETE(
     const { orgId, pledgeId } = await params;
     const supabase = await createServerClient();
     const role = await getRole(supabase, orgId);
-    if (!role || !ADMIN_ROLES.includes(role)) return json({ error: 'Admin required' }, { status: 403 });
+    if (!isWorkspaceManager(role)) return json({ error: 'Admin required' }, { status: 403 });
 
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return json({ error: 'Unauthorized' }, { status: 401 });

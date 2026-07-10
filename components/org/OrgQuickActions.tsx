@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import type { ModuleId } from "@/lib/modules/types";
+import { canManageWorkspace, canOperateOrg, type OrgRole } from "@/lib/roles";
 
 interface QuickAction {
   label: string;
@@ -23,8 +24,9 @@ export default function OrgQuickActions({
   enabledModules,
   userRole,
 }: OrgQuickActionsProps) {
-  const isAdmin = userRole === "admin" || userRole === "owner";
-  const canEdit = isAdmin || userRole === "editor";
+  const role = userRole as OrgRole;
+  const isAdmin = canManageWorkspace(role);
+  const canEdit = canOperateOrg(role);
 
   const allActions: QuickAction[] = [
     // Donor management actions
@@ -81,7 +83,7 @@ export default function OrgQuickActions({
     },
     {
       label: "Manage Modules",
-      href: `/org/${orgId}/settings/modules`,
+      href: `/builder-studio?org_id=${encodeURIComponent(orgId)}#modules`,
       icon: <CubeIcon className="w-5 h-5" />,
       adminOnly: true,
     },
@@ -103,7 +105,7 @@ export default function OrgQuickActions({
     if (action.adminOnly && !isAdmin) {
       return false;
     }
-    // If not admin/editor, hide editing actions
+    // Operational actions are available to members and above.
     if (!canEdit && action.primary) {
       return false;
     }

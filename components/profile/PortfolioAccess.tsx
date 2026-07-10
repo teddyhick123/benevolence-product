@@ -19,7 +19,8 @@ export default function PortfolioAccess({ portfolios, isAdmin }: PortfolioAccess
   const getRoleBadge = (role: string) => {
     const roleStyles = {
       owner: 'bg-azure/10 text-azure border-azure/20',
-      editor: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+      admin: 'bg-violet-50 text-violet-700 border-violet-200',
+      member: 'bg-emerald-50 text-emerald-700 border-emerald-200',
       viewer: 'bg-neutral-100 text-neutral-600 border-neutral-200'
     };
 

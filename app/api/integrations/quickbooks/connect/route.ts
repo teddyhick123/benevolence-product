@@ -4,6 +4,7 @@
 
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase';
+import { isWorkspaceManager } from '@/lib/roles';
 import { createOAuthClient, OAuthClient } from '@/lib/integrations/quickbooks/client';
 
 export async function GET(req: Request): Promise<NextResponse> {
@@ -29,7 +30,7 @@ export async function GET(req: Request): Promise<NextResponse> {
     .eq('user_id', user.id)
     .single();
 
-  if (!membership || !['owner', 'admin'].includes(membership.role as string)) {
+  if (!membership || !isWorkspaceManager(membership.role)) {
     return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
   }
 

@@ -1,7 +1,9 @@
 import { createSupabaseServerClient } from "@/lib/supabase";
 import Link from "next/link";
 import OrgDataEntry from "@/components/org/OrgDataEntry";
+import OrgImportWorkbench from "@/components/org/OrgImportWorkbench";
 import OrgReportUploader from "@/components/org/OrgReportUploader";
+import type { ImportJob } from "@/lib/import/types";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -18,8 +20,9 @@ async function loadDataPageData(orgId: string) {
   const { data: roleData } = await supabase.rpc("user_org_role", { p_org_id: orgId });
 
   if (!roleData) {
-    return { error: "Not authorized", canEdit: false, holdings: [], pendingFacts: [], uploads: [], metrics: [] };
+    return { error: "Not authorized", canEdit: false, canManageImports: false, holdings: [], portfolios: [], importJobs: [], pendingFacts: [], uploads: [], metrics: [] };
   }
+  const canManageImports = roleData === "owner" || roleData === "admin";
 
   // Load organization
   const { data: org } = await supabase
@@ -39,6 +42,22 @@ async function loadDataPageData(orgId: string) {
     .eq("org_id", orgId)
     .is("deleted_at", null)
     .order("name");
+
+  const { data: portfoliosData } = await supabase
+    .from("portfolios")
+    .select("id, name, org_id")
+    .eq("org_id", orgId)
+    .is("deleted_at", null)
+    .order("name");
+
+  const { data: importJobs } = canManageImports
+    ? await supabase
+        .from("import_jobs")
+        .select("*")
+        .eq("org_id", orgId)
+        .order("created_at", { ascending: false })
+        .limit(20)
+    : { data: [] };
 
   // Load pending staging facts
   const { data: pendingFacts } = await supabase
@@ -79,8 +98,11 @@ async function loadDataPageData(orgId: string) {
     error: null,
     org,
     canEdit: !!canEdit,
+    canManageImports,
     role: roleData,
     holdings: holdingsData || [],
+    portfolios: portfoliosData || [],
+    importJobs: importJobs || [],
     pendingFacts: pendingFacts || [],
     uploads: uploads || [],
     metrics: metrics || [],
@@ -89,7 +111,7 @@ async function loadDataPageData(orgId: string) {
 
 export default async function OrgDataPage({ params }: Props) {
   const { orgId } = await params;
-  const { error, org, canEdit, role, holdings, pendingFacts, uploads, metrics } = await loadDataPageData(orgId);
+  const { error, org, canEdit, canManageImports, holdings, portfolios, importJobs, pendingFacts, uploads, metrics } = await loadDataPageData(orgId);
 
   if (error) {
     return (
@@ -108,16 +130,26 @@ export default async function OrgDataPage({ params }: Props) {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Data Management</h1>
+        <div>
+          <div className="text-sm text-neutral-500">{org?.name || "Organization"}</div>
+          <h1 className="text-2xl font-semibold">Data Workbench</h1>
+        </div>
       </div>
 
       {!canEdit && (
         <div className="card p-4 bg-amber-50 border-amber-200">
           <p className="text-sm text-amber-800">
-            You have viewer access. Contact an admin or editor to submit data.
+            You have viewer access. Contact an admin or member to submit data.
           </p>
         </div>
       )}
+
+      <OrgImportWorkbench
+        orgId={orgId}
+        canManageImports={!!canManageImports}
+        initialJobs={(importJobs as ImportJob[]) || []}
+        portfolios={(portfolios as { id: string; name: string; org_id: string }[]) || []}
+      />
 
       {ownedHoldings.length === 0 && (
         <div className="card p-6 text-center">

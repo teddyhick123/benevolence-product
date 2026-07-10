@@ -5,6 +5,7 @@
 // Reads grants across ALL portfolios belonging to the org and creates Journal Entries in QuickBooks.
 
 import { createAdminClient, createServerClient } from '@/lib/supabase';
+import { isWorkspaceManager } from '@/lib/roles';
 import { branding } from '@/lib/config';
 import {
   getAuthenticatedQBClientByOrg,
@@ -125,7 +126,7 @@ export async function POST(req: Request): Promise<Response> {
     .single();
   if (membershipError) return json({ error: membershipError.message }, { status: 500 });
 
-  if (!membership || !['owner', 'admin'].includes(membership.role as string)) {
+  if (!membership || !isWorkspaceManager(membership.role)) {
     return json({ error: 'Admin access required' }, { status: 403 });
   }
 

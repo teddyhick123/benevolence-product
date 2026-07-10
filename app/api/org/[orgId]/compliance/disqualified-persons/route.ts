@@ -2,11 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { createServerClient } from '@supabase/ssr';
 import { createClient } from '@supabase/supabase-js';
+import { isWorkspaceManager } from '@/lib/roles';
 
 export const runtime = 'nodejs';
 
 const NO_STORE = { 'Cache-Control': 'no-store' } as const;
-const ADMIN_ROLES = new Set(['owner', 'admin']);
 
 function json(body: unknown, init: ResponseInit = {}) {
   return NextResponse.json(body, {
@@ -116,7 +116,7 @@ export async function POST(
       .eq('user_id', user.id)
       .is('deleted_at', null)
       .maybeSingle();
-    if (!membership || !ADMIN_ROLES.has(membership.role)) {
+    if (!membership || !isWorkspaceManager(membership.role)) {
       return json({ error: 'Admin access required' }, { status: 403 });
     }
 
@@ -168,7 +168,7 @@ export async function DELETE(
       .eq('user_id', user.id)
       .is('deleted_at', null)
       .maybeSingle();
-    if (!membership || !ADMIN_ROLES.has(membership.role)) {
+    if (!membership || !isWorkspaceManager(membership.role)) {
       return json({ error: 'Admin access required' }, { status: 403 });
     }
 

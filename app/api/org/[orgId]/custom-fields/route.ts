@@ -10,11 +10,11 @@ import {
   type CustomFieldEntityType,
   type CustomFieldType,
 } from '@/lib/custom-fields';
+import { isWorkspaceManager } from '@/lib/roles';
 
 export const dynamic = 'force-dynamic';
 
 const NO_STORE = { 'Cache-Control': 'no-store' } as const;
-const ADMIN_ROLES = new Set(['owner', 'admin']);
 
 interface RouteParams {
   params: Promise<{ orgId: string }>;
@@ -51,7 +51,7 @@ async function requireOrgRole(orgId: string, adminOnly = false) {
 
   const { data: role } = await supabase.rpc('user_org_role', { p_org_id: orgId });
   if (!role) return { error: json({ error: 'Not authorized' }, { status: 403 }) };
-  if (adminOnly && !ADMIN_ROLES.has(role)) {
+  if (adminOnly && !isWorkspaceManager(role)) {
     return { error: json({ error: 'Admin access required' }, { status: 403 }) };
   }
 

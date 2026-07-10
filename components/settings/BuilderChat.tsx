@@ -62,9 +62,10 @@ interface BuilderChatProps {
   orgId: string;
   initialMessages: StoredMessage[];
   githubEnabled: boolean;
+  canReviewImplementation?: boolean;
 }
 
-export default function BuilderChat({ orgId, initialMessages, githubEnabled }: BuilderChatProps) {
+export default function BuilderChat({ orgId, initialMessages, githubEnabled, canReviewImplementation = false }: BuilderChatProps) {
   const [messages, setMessages] = useState<ChatMessage[]>(() =>
     initialMessages.map(m => ({
       type: 'text' as const,
@@ -82,6 +83,15 @@ export default function BuilderChat({ orgId, initialMessages, githubEnabled }: B
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, streamingText]);
+
+  useEffect(() => {
+    function receiveGuidedPrompt(event: Event) {
+      const prompt = (event as CustomEvent<string>).detail;
+      if (typeof prompt === 'string') setInput(prompt);
+    }
+    window.addEventListener('builder-studio:prompt', receiveGuidedPrompt);
+    return () => window.removeEventListener('builder-studio:prompt', receiveGuidedPrompt);
+  }, []);
 
   async function handleSend() {
     const message = input.trim();
@@ -198,7 +208,7 @@ export default function BuilderChat({ orgId, initialMessages, githubEnabled }: B
         {messages.length === 0 && !streaming && (
           <div className="text-center text-black/40 text-sm mt-8">
             <p className="font-medium mb-1">Welcome to Builder</p>
-            <p>Ask me to customize your instance — add a metric, adjust branding, or build a new feature.</p>
+            <p>Configure your foundation&apos;s workspace. Builder can apply safe settings now and route larger implementation changes for review.</p>
           </div>
         )}
 
@@ -266,6 +276,7 @@ export default function BuilderChat({ orgId, initialMessages, githubEnabled }: B
                   orgId={orgId}
                   proposalId={msg.proposalId}
                   planContent={msg.planContent}
+                  canReviewImplementation={canReviewImplementation}
                   onApproved={() => {
                     setMessages(prev => prev.map((m, idx) => idx === i
                       ? { type: 'build_progress' as const, proposalId: msg.proposalId, plannedFiles: msg.planContent.files }
@@ -311,6 +322,7 @@ export default function BuilderChat({ orgId, initialMessages, githubEnabled }: B
                   proposalId={msg.proposalId}
                   orgId={orgId}
                   githubEnabled={githubEnabled}
+                  canReviewImplementation={canReviewImplementation}
                   phase={msg.phase}
                   initialPrUrl={msg.initialPrUrl}
                 />

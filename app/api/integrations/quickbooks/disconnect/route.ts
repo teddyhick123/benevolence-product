@@ -4,6 +4,7 @@
 // Revokes the QB OAuth token and removes the stored connection record.
 
 import { createServerClient } from '@/lib/supabase';
+import { isWorkspaceManager } from '@/lib/roles';
 import { createOAuthClient } from '@/lib/integrations/quickbooks/client';
 import { decryptToken, isEncrypted } from '@/lib/integrations/quickbooks/token-crypto';
 
@@ -30,7 +31,7 @@ export async function POST(req: Request): Promise<Response> {
     .eq('user_id', user.id)
     .single();
 
-  if (!membership || !['owner', 'admin'].includes(membership.role as string)) {
+  if (!membership || !isWorkspaceManager(membership.role)) {
     return Response.json({ error: 'Admin access required' }, { status: 403 });
   }
 

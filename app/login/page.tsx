@@ -8,6 +8,16 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
+
+function authErrorMessage(error: unknown, fallback: string) {
+  if (error instanceof TypeError && error.message === 'Failed to fetch') {
+    return 'We could not connect to secure sign-in. Check your connection and try again.';
+  }
+
+  if (error instanceof Error && error.message) return error.message;
+  return fallback;
+}
+
 async function postAuthDestination(fallback: string, isNewUser: boolean = false) {
   // New users always go to onboarding
   if (isNewUser) {
@@ -40,12 +50,12 @@ async function postAuthDestination(fallback: string, isNewUser: boolean = false)
       }
     }
   } catch {}
-  return fallback; // '/welcome' if onboarding completed
+  return fallback; // '/dashboard' if onboarding completed
 }
 function LoginPageContent() {
   const sp = useSearchParams();
   const router = useRouter();
-  const redirect = useMemo(() => sp.get('redirect') || '/welcome', [sp]);
+  const redirect = useMemo(() => sp.get('redirect') || '/dashboard', [sp]);
   const brandInitial = branding.appName.charAt(0).toUpperCase();
 
   const [mode, setMode] = useState<'signin' | 'signup'>(
@@ -61,15 +71,22 @@ function LoginPageContent() {
 
   useEffect(() => {
     let mounted = true;
-    supabase.auth.getUser().then(({ data }) => {
-      if (!mounted) return;
-      if (data.user) {
-        setExistingUserEmail(data.user.email ?? '');
-      } else {
+    supabase.auth.getUser()
+      .then(({ data }) => {
+        if (!mounted) return;
+        if (data.user) {
+          setExistingUserEmail(data.user.email ?? '');
+        } else {
+          setExistingUserEmail(null);
+        }
+        setSessionChecked(true);
+      })
+      .catch((authError) => {
+        if (!mounted) return;
         setExistingUserEmail(null);
-      }
-      setSessionChecked(true);
-    });
+        setError(authErrorMessage(authError, 'We could not check your sign-in session.'));
+        setSessionChecked(true);
+      });
     return () => { mounted = false; };
   }, []);
   async function syncServerCookies(tokens?: { access_token: string; refresh_token: string }) {
@@ -111,15 +128,20 @@ function LoginPageContent() {
   async function onSignIn(e: React.FormEvent) {
     e.preventDefault();
     setError(null); setInfo(null); setBusy(true);
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-    setBusy(false);
-    if (error) return setError(error.message);
-    await syncServerCookies({
-      access_token: data.session?.access_token!,
-      refresh_token: data.session?.refresh_token!,
-    });
-    const dest = await postAuthDestination(redirect);
-    router.replace(dest);
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) return setError(error.message);
+      await syncServerCookies({
+        access_token: data.session?.access_token!,
+        refresh_token: data.session?.refresh_token!,
+      });
+      const dest = await postAuthDestination(redirect);
+      router.replace(dest);
+    } catch (authError) {
+      setError(authErrorMessage(authError, 'We could not sign you in. Please try again.'));
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function onSignUp(e: React.FormEvent) {
@@ -127,22 +149,27 @@ function LoginPageContent() {
     setError(null); setInfo(null);
     if (password !== password2) return setError('Passwords do not match.');
     setBusy(true);
-    const { data, error } = await supabase.auth.signUp({ email, password });
-    setBusy(false);
-    if (error) return setError(error.message);
+    try {
+      const { data, error } = await supabase.auth.signUp({ email, password });
+      if (error) return setError(error.message);
 
-    if (data?.user && data?.session) {
-      await syncServerCookies({
-        access_token: data.session.access_token,
-        refresh_token: data.session.refresh_token,
-      });
-      // New users go directly to onboarding
-      const dest = await postAuthDestination(redirect, true);
-      router.replace(dest);
-    } else {
-      // If confirmations are ON, ask user to verify email:
-      setInfo('Account created. Check your email to confirm your address, then sign in.');
-      setMode('signin');
+      if (data?.user && data?.session) {
+        await syncServerCookies({
+          access_token: data.session.access_token,
+          refresh_token: data.session.refresh_token,
+        });
+        // New users go directly to onboarding
+        const dest = await postAuthDestination(redirect, true);
+        router.replace(dest);
+      } else {
+        // If confirmations are ON, ask user to verify email:
+        setInfo('Account created. Check your email to confirm your address, then sign in.');
+        setMode('signin');
+      }
+    } catch (authError) {
+      setError(authErrorMessage(authError, 'We could not create your account. Please try again.'));
+    } finally {
+      setBusy(false);
     }
   }
 

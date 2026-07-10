@@ -5,7 +5,7 @@
 //
 // Auth model:
 //   - createServerClient() → auth.getUser() → rpc('user_org_role')
-//   - POST: role must be in ADMIN_ROLES = {'owner', 'admin'}
+//   - POST: role must be member, admin, or owner
 //
 // DB boundary:
 //   - transitionGrant() in lib/grants/lifecycle.ts calls createAdminClient() internally.
@@ -194,7 +194,7 @@ describe('POST /api/org/[orgId]/grants/[grantId]/transition — auth', () => {
     expect(body).not.toHaveProperty('success');
   });
 
-  it('returns 403 when user has a non-admin role (member)', async () => {
+  it('allows a member to transition a grant inside the configured workflow', async () => {
     // Arrange
     _orgRole = 'member';
     const req = makeRequest(transitionUrl(), { to_stage: 'prospect' });
@@ -203,7 +203,7 @@ describe('POST /api/org/[orgId]/grants/[grantId]/transition — auth', () => {
     const res = await POST(req, makeParams(ORG_ID, GRANT_ID));
 
     // Assert
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(200);
   });
 
   it('returns 403 when user has no role in the org', async () => {
@@ -421,7 +421,7 @@ describe('POST /api/org/[orgId]/grants/[grantId]/transition — valid transition
   });
 
   it('returns 200 when owner role is used instead of admin', async () => {
-    // Arrange — both owner and admin are in ADMIN_ROLES
+    // Arrange — owner retains the full operational grant role.
     _orgRole = 'owner';
     _grantFetchData = { lifecycle_stage: 'prospect', org_id: ORG_ID };
     const req = makeRequest(transitionUrl(), { to_stage: 'invited' });

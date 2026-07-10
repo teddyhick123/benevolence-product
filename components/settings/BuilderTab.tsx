@@ -7,9 +7,10 @@ interface BuilderTabProps {
   snapshot: OrgSnapshot;
   initialMessages: StoredMessage[];
   githubEnabled: boolean;
+  canReviewImplementation?: boolean;
 }
 
-export default function BuilderTab({ snapshot, initialMessages, githubEnabled }: BuilderTabProps) {
+export default function BuilderTab({ snapshot, initialMessages, githubEnabled, canReviewImplementation = false }: BuilderTabProps) {
   return (
     <div className="flex gap-6 h-[calc(100vh-280px)] min-h-[500px]">
       {/* Left: System visualization */}
@@ -47,9 +48,14 @@ export default function BuilderTab({ snapshot, initialMessages, githubEnabled }:
       <div className="flex-1 flex flex-col bg-white border border-black/10 rounded-xl overflow-hidden">
         <div className="px-4 py-3 border-b border-black/10 flex items-center gap-2">
           <span className="text-sm font-semibold">Builder</span>
-          <span className="text-xs text-black/40">AI-powered instance customization</span>
+          <span className="text-xs text-black/40">Foundation workspace configuration</span>
         </div>
-        <BuilderChat orgId={snapshot.orgId} initialMessages={initialMessages} githubEnabled={githubEnabled} />
+        <BuilderChat
+          orgId={snapshot.orgId}
+          initialMessages={initialMessages}
+          githubEnabled={githubEnabled}
+          canReviewImplementation={canReviewImplementation}
+        />
       </div>
     </div>
   );

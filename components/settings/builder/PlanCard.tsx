@@ -8,10 +8,11 @@ interface PlanCardProps {
   orgId: string;
   proposalId: string;
   planContent: ScaffoldPlanContent;
+  canReviewImplementation?: boolean;
   onApproved: () => void;
 }
 
-export default function PlanCard({ orgId, proposalId, planContent, onApproved }: PlanCardProps) {
+export default function PlanCard({ orgId, proposalId, planContent, canReviewImplementation = false, onApproved }: PlanCardProps) {
   const [expanded, setExpanded] = useState(true);
   const [approving, setApproving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -74,23 +75,29 @@ export default function PlanCard({ orgId, proposalId, planContent, onApproved }:
             </div>
           )}
 
-          <button
-            onClick={handleApprove}
-            disabled={approving}
-            className="mt-2 flex items-center gap-1.5 px-4 py-1.5 bg-blue-600 text-white text-xs font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            {approving ? (
-              <>
-                <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                Starting build…
-              </>
-            ) : (
-              <>
-                <CheckCircle className="w-3.5 h-3.5" />
-                Approve Plan &amp; Build
-              </>
-            )}
-          </button>
+          {canReviewImplementation ? (
+            <button
+              onClick={handleApprove}
+              disabled={approving}
+              className="mt-2 flex items-center gap-1.5 px-4 py-1.5 bg-blue-600 text-white text-xs font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {approving ? (
+                <>
+                  <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  Starting build…
+                </>
+              ) : (
+                <>
+                  <CheckCircle className="w-3.5 h-3.5" />
+                  Start Implementation Review
+                </>
+              )}
+            </button>
+          ) : (
+            <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+              This plan needs an implementation reviewer before code generation can start.
+            </div>
+          )}
         </div>
       )}
     </div>

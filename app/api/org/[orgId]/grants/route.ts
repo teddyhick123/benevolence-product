@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient, createServerClient } from '@/lib/supabase';
 import { LIFECYCLE_STAGES } from '@/lib/grants/lifecycle';
+import { getOrgAccess, hasOrgAccess } from '@/lib/org-access';
 
 export const dynamic = 'force-dynamic';
 
 const NO_STORE = { 'Cache-Control': 'no-store' } as const;
-const ADMIN_ROLES = new Set(['owner', 'admin']);
 const LIFECYCLE_STAGE_SET = new Set<string>(LIFECYCLE_STAGES);
 
 interface RouteParams {
@@ -29,11 +29,9 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     const { orgId } = await params;
 
     const supabase = await createServerClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return json({ error: 'Unauthorized' }, { status: 401 });
-
-    const { data: role } = await supabase.rpc('user_org_role', { p_org_id: orgId });
-    if (!role) return json({ error: 'Not authorized' }, { status: 403 });
+    const access = await getOrgAccess(supabase, orgId);
+    if (!access.user) return json({ error: 'Unauthorized' }, { status: 401 });
+    if (!hasOrgAccess(access, 'viewer')) return json({ error: 'Not authorized' }, { status: 403 });
 
     const url = new URL(req.url);
     const stage = url.searchParams.get('stage');
@@ -94,13 +92,10 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     const { orgId } = await params;
 
     const supabase = await createServerClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return json({ error: 'Unauthorized' }, { status: 401 });
-
-    const { data: role } = await supabase.rpc('user_org_role', { p_org_id: orgId });
-    if (!role || !ADMIN_ROLES.has(role)) {
-      return json({ error: 'Admin access required' }, { status: 403 });
-    }
+    const access = await getOrgAccess(supabase, orgId);
+    if (!access.user) return json({ error: 'Unauthorized' }, { status: 401 });
+    if (!hasOrgAccess(access, 'member')) return json({ error: 'Member access required' }, { status: 403 });
+    const { user } = access;
 
     const body = await req.json();
     const {

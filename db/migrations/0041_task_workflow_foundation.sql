@@ -758,10 +758,10 @@ CREATE POLICY "tasks: assignees can update own tasks"
   USING (assigned_to = auth.uid() AND public.can_view_org(org_id) AND deleted_at IS NULL)
   WITH CHECK (assigned_to = auth.uid() AND public.can_view_org(org_id));
 DROP POLICY IF EXISTS "tasks: org admins can manage" ON public.tasks;
-CREATE POLICY "tasks: org admins can manage"
+CREATE POLICY "tasks: org members can manage"
   ON public.tasks FOR ALL
-  USING (public.is_org_admin(org_id) AND deleted_at IS NULL)
-  WITH CHECK (public.is_org_admin(org_id));
+  USING (public.can_edit_org(org_id) AND deleted_at IS NULL)
+  WITH CHECK (public.can_edit_org(org_id));
 DROP POLICY IF EXISTS "tasks: service role can manage" ON public.tasks;
 CREATE POLICY "tasks: service role can manage"
   ON public.tasks FOR ALL TO service_role
@@ -777,10 +777,10 @@ CREATE POLICY "task_entity_links: org members can view"
   ON public.task_entity_links FOR SELECT
   USING (public.can_view_org(org_id));
 DROP POLICY IF EXISTS "task_entity_links: org admins can manage" ON public.task_entity_links;
-CREATE POLICY "task_entity_links: org admins can manage"
+CREATE POLICY "task_entity_links: org members can manage"
   ON public.task_entity_links FOR ALL
-  USING (public.is_org_admin(org_id))
-  WITH CHECK (public.is_org_admin(org_id));
+  USING (public.can_edit_org(org_id))
+  WITH CHECK (public.can_edit_org(org_id));
 DROP POLICY IF EXISTS "task_entity_links: service role can manage" ON public.task_entity_links;
 CREATE POLICY "task_entity_links: service role can manage"
   ON public.task_entity_links FOR ALL TO service_role
@@ -829,10 +829,10 @@ CREATE POLICY "grants: org members can view"
   ON public.grants FOR SELECT
   USING (public.can_view_org(org_id));
 DROP POLICY IF EXISTS "grants: org admins can manage" ON public.grants;
-CREATE POLICY "grants: org admins can manage"
+CREATE POLICY "grants: org members can manage"
   ON public.grants FOR ALL
-  USING (public.is_org_admin(org_id))
-  WITH CHECK (public.is_org_admin(org_id));
+  USING (public.can_edit_org(org_id))
+  WITH CHECK (public.can_edit_org(org_id));
 DROP POLICY IF EXISTS "grants: service role can manage" ON public.grants;
 CREATE POLICY "grants: service role can manage"
   ON public.grants FOR ALL TO service_role
@@ -848,10 +848,10 @@ CREATE POLICY "grant_milestones: org members can view"
   ON public.grant_milestones FOR SELECT
   USING (public.can_view_org((SELECT g.org_id FROM public.grants g WHERE g.id = grant_id)));
 DROP POLICY IF EXISTS "grant_milestones: org admins can manage" ON public.grant_milestones;
-CREATE POLICY "grant_milestones: org admins can manage"
+CREATE POLICY "grant_milestones: org members can manage"
   ON public.grant_milestones FOR ALL
-  USING (public.is_org_admin((SELECT g.org_id FROM public.grants g WHERE g.id = grant_id)))
-  WITH CHECK (public.is_org_admin((SELECT g.org_id FROM public.grants g WHERE g.id = grant_id)));
+  USING (public.can_edit_org((SELECT g.org_id FROM public.grants g WHERE g.id = grant_id)))
+  WITH CHECK (public.can_edit_org((SELECT g.org_id FROM public.grants g WHERE g.id = grant_id)));
 DROP POLICY IF EXISTS "grant_milestones: service role can manage" ON public.grant_milestones;
 CREATE POLICY "grant_milestones: service role can manage"
   ON public.grant_milestones FOR ALL TO service_role USING (true) WITH CHECK (true);
@@ -864,10 +864,10 @@ CREATE POLICY "grant_reports: org members can view"
   ON public.grant_reports FOR SELECT
   USING (public.can_view_org((SELECT g.org_id FROM public.grants g WHERE g.id = grant_id)));
 DROP POLICY IF EXISTS "grant_reports: org admins can manage" ON public.grant_reports;
-CREATE POLICY "grant_reports: org admins can manage"
+CREATE POLICY "grant_reports: org members can manage"
   ON public.grant_reports FOR ALL
-  USING (public.is_org_admin((SELECT g.org_id FROM public.grants g WHERE g.id = grant_id)))
-  WITH CHECK (public.is_org_admin((SELECT g.org_id FROM public.grants g WHERE g.id = grant_id)));
+  USING (public.can_edit_org((SELECT g.org_id FROM public.grants g WHERE g.id = grant_id)))
+  WITH CHECK (public.can_edit_org((SELECT g.org_id FROM public.grants g WHERE g.id = grant_id)));
 DROP POLICY IF EXISTS "grant_reports: service role can manage" ON public.grant_reports;
 CREATE POLICY "grant_reports: service role can manage"
   ON public.grant_reports FOR ALL TO service_role USING (true) WITH CHECK (true);
@@ -889,10 +889,10 @@ CREATE POLICY "grant_payments: org members can view"
   ON public.grant_payments FOR SELECT
   USING (public.can_view_org((SELECT g.org_id FROM public.grants g WHERE g.id = grant_id)));
 DROP POLICY IF EXISTS "grant_payments: org admins can manage" ON public.grant_payments;
-CREATE POLICY "grant_payments: org admins can manage"
+CREATE POLICY "grant_payments: org members can manage"
   ON public.grant_payments FOR ALL
-  USING (public.is_org_admin((SELECT g.org_id FROM public.grants g WHERE g.id = grant_id)))
-  WITH CHECK (public.is_org_admin((SELECT g.org_id FROM public.grants g WHERE g.id = grant_id)));
+  USING (public.can_edit_org((SELECT g.org_id FROM public.grants g WHERE g.id = grant_id)))
+  WITH CHECK (public.can_edit_org((SELECT g.org_id FROM public.grants g WHERE g.id = grant_id)));
 DROP POLICY IF EXISTS "grant_payments: service role can manage" ON public.grant_payments;
 CREATE POLICY "grant_payments: service role can manage"
   ON public.grant_payments FOR ALL TO service_role USING (true) WITH CHECK (true);
@@ -936,10 +936,10 @@ CREATE POLICY "grant_budget_items: org members can view"
   ON public.grant_budget_items FOR SELECT
   USING (public.can_view_org((SELECT g.org_id FROM public.grants g WHERE g.id = grant_id)));
 DROP POLICY IF EXISTS "grant_budget_items: org admins can manage" ON public.grant_budget_items;
-CREATE POLICY "grant_budget_items: org admins can manage"
+CREATE POLICY "grant_budget_items: org members can manage"
   ON public.grant_budget_items FOR ALL
-  USING (public.is_org_admin((SELECT g.org_id FROM public.grants g WHERE g.id = grant_id)))
-  WITH CHECK (public.is_org_admin((SELECT g.org_id FROM public.grants g WHERE g.id = grant_id)));
+  USING (public.can_edit_org((SELECT g.org_id FROM public.grants g WHERE g.id = grant_id)))
+  WITH CHECK (public.can_edit_org((SELECT g.org_id FROM public.grants g WHERE g.id = grant_id)));
 DROP POLICY IF EXISTS "grant_budget_items: service role can manage" ON public.grant_budget_items;
 CREATE POLICY "grant_budget_items: service role can manage"
   ON public.grant_budget_items FOR ALL TO service_role USING (true) WITH CHECK (true);
@@ -949,10 +949,10 @@ CREATE POLICY "grant_communications: org members can view"
   ON public.grant_communications FOR SELECT
   USING (public.can_view_org((SELECT g.org_id FROM public.grants g WHERE g.id = grant_id)));
 DROP POLICY IF EXISTS "grant_communications: org admins can manage" ON public.grant_communications;
-CREATE POLICY "grant_communications: org admins can manage"
+CREATE POLICY "grant_communications: org members can manage"
   ON public.grant_communications FOR ALL
-  USING (public.is_org_admin((SELECT g.org_id FROM public.grants g WHERE g.id = grant_id)))
-  WITH CHECK (public.is_org_admin((SELECT g.org_id FROM public.grants g WHERE g.id = grant_id)));
+  USING (public.can_edit_org((SELECT g.org_id FROM public.grants g WHERE g.id = grant_id)))
+  WITH CHECK (public.can_edit_org((SELECT g.org_id FROM public.grants g WHERE g.id = grant_id)));
 DROP POLICY IF EXISTS "grant_communications: service role can manage" ON public.grant_communications;
 CREATE POLICY "grant_communications: service role can manage"
   ON public.grant_communications FOR ALL TO service_role USING (true) WITH CHECK (true);
@@ -962,10 +962,10 @@ CREATE POLICY "grant_documents: org members can view"
   ON public.grant_documents FOR SELECT
   USING (public.can_view_org((SELECT g.org_id FROM public.grants g WHERE g.id = grant_id)));
 DROP POLICY IF EXISTS "grant_documents: org admins can manage" ON public.grant_documents;
-CREATE POLICY "grant_documents: org admins can manage"
+CREATE POLICY "grant_documents: org members can manage"
   ON public.grant_documents FOR ALL
-  USING (public.is_org_admin((SELECT g.org_id FROM public.grants g WHERE g.id = grant_id)))
-  WITH CHECK (public.is_org_admin((SELECT g.org_id FROM public.grants g WHERE g.id = grant_id)));
+  USING (public.can_edit_org((SELECT g.org_id FROM public.grants g WHERE g.id = grant_id)))
+  WITH CHECK (public.can_edit_org((SELECT g.org_id FROM public.grants g WHERE g.id = grant_id)));
 DROP POLICY IF EXISTS "grant_documents: service role can manage" ON public.grant_documents;
 CREATE POLICY "grant_documents: service role can manage"
   ON public.grant_documents FOR ALL TO service_role USING (true) WITH CHECK (true);
@@ -975,10 +975,10 @@ CREATE POLICY "grant_contacts: org members can view"
   ON public.grant_contacts FOR SELECT
   USING (public.can_view_org((SELECT g.org_id FROM public.grants g WHERE g.id = grant_id)));
 DROP POLICY IF EXISTS "grant_contacts: org admins can manage" ON public.grant_contacts;
-CREATE POLICY "grant_contacts: org admins can manage"
+CREATE POLICY "grant_contacts: org members can manage"
   ON public.grant_contacts FOR ALL
-  USING (public.is_org_admin((SELECT g.org_id FROM public.grants g WHERE g.id = grant_id)))
-  WITH CHECK (public.is_org_admin((SELECT g.org_id FROM public.grants g WHERE g.id = grant_id)));
+  USING (public.can_edit_org((SELECT g.org_id FROM public.grants g WHERE g.id = grant_id)))
+  WITH CHECK (public.can_edit_org((SELECT g.org_id FROM public.grants g WHERE g.id = grant_id)));
 DROP POLICY IF EXISTS "grant_contacts: service role can manage" ON public.grant_contacts;
 CREATE POLICY "grant_contacts: service role can manage"
   ON public.grant_contacts FOR ALL TO service_role USING (true) WITH CHECK (true);
@@ -1005,10 +1005,10 @@ CREATE POLICY "grant_status_history: org members can view"
   ON public.grant_status_history FOR SELECT TO authenticated
   USING (public.can_view_org(org_id));
 DROP POLICY IF EXISTS "grant_status_history: org admins can manage" ON public.grant_status_history;
-CREATE POLICY "grant_status_history: org admins can manage"
+CREATE POLICY "grant_status_history: org members can manage"
   ON public.grant_status_history FOR ALL TO authenticated
-  USING (public.is_org_admin(org_id))
-  WITH CHECK (public.is_org_admin(org_id));
+  USING (public.can_edit_org(org_id))
+  WITH CHECK (public.can_edit_org(org_id));
 DROP POLICY IF EXISTS "grant_status_history: service role can manage" ON public.grant_status_history;
 CREATE POLICY "grant_status_history: service role can manage"
   ON public.grant_status_history FOR ALL TO service_role USING (true) WITH CHECK (true);
@@ -1396,9 +1396,9 @@ CREATE POLICY "grant_decisions: org members can view"
   ON public.grant_decisions FOR SELECT TO authenticated
   USING (public.can_view_org(org_id));
 DROP POLICY IF EXISTS "grant_decisions: org admins can manage" ON public.grant_decisions;
-CREATE POLICY "grant_decisions: org admins can insert"
+CREATE POLICY "grant_decisions: org members can insert"
   ON public.grant_decisions FOR INSERT TO authenticated
-  WITH CHECK (public.is_org_admin(org_id));
+  WITH CHECK (public.can_edit_org(org_id));
 DROP POLICY IF EXISTS "grant_decisions: service role can manage" ON public.grant_decisions;
 CREATE POLICY "grant_decisions: service role can manage"
   ON public.grant_decisions FOR ALL TO service_role USING (true) WITH CHECK (true);

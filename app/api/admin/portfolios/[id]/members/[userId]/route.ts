@@ -23,7 +23,7 @@ export async function DELETE(_req: Request, ctx: { params: Promise<{ id: string;
   const { data: isAdmin, error: adminErr } = await supabase.rpc('is_app_admin');
   if (adminErr) return NextResponse.json({ error: adminErr.message }, { status: 500 });
 
-  let callerRole: 'viewer'|'editor'|'owner'|'admin' = 'viewer';
+  let callerRole: 'viewer'|'member'|'owner'|'admin' = 'viewer';
   if (isAdmin) {
     callerRole = 'admin';
   } else {
@@ -100,7 +100,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string; u
   const { data: isAdmin, error: adminErr } = await supabase.rpc('is_app_admin');
   if (adminErr) return NextResponse.json({ error: adminErr.message }, { status: 500 });
 
-  let callerRole: 'viewer'|'editor'|'owner'|'admin' = 'viewer';
+  let callerRole: 'viewer'|'member'|'owner'|'admin' = 'viewer';
   if (isAdmin) {
     callerRole = 'admin';
   } else {
@@ -109,7 +109,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string; u
     callerRole = (roleRow as any) ?? 'viewer';
   }
 
-  // Owners can only set viewer<->editor. Admin can set any.
+  // Owners can only set non-owner operational roles. App admins can set any role.
   if (callerRole !== 'admin') {
     if (callerRole !== 'owner') {
       return NextResponse.json({ error: 'not authorized' }, { status: 403 });

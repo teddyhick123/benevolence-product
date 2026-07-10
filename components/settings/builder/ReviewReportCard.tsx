@@ -14,6 +14,7 @@ interface ReviewReportCardProps {
   proposalId: string;
   orgId: string;
   githubEnabled: boolean;
+  canReviewImplementation?: boolean;
   phase: string;
   initialPrUrl: string | null;
 }
@@ -30,7 +31,7 @@ function ScoreBadge({ score }: { score: number }) {
   );
 }
 
-export default function ReviewReportCard({ score, findings, proposalId, orgId, githubEnabled, phase, initialPrUrl }: ReviewReportCardProps) {
+export default function ReviewReportCard({ score, findings, proposalId, orgId, githubEnabled, canReviewImplementation = false, phase, initialPrUrl }: ReviewReportCardProps) {
   const hasIssues = findings.some(f => f.severity === 'error' || f.severity === 'warning');
   const [expanded, setExpanded] = useState(hasIssues || score < 80);
   const [applying, setApplying] = useState(false);
@@ -99,15 +100,15 @@ export default function ReviewReportCard({ score, findings, proposalId, orgId, g
             </p>
           )}
           <a
-            href="/admin/builder"
+            href="/builder-studio"
             className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline mt-1"
           >
-            View full diff in admin <ExternalLink className="w-3 h-3" />
+            Track proposal in Builder Studio <ExternalLink className="w-3 h-3" />
           </a>
 
           {githubEnabled && (
             <div className="mt-3 flex flex-col gap-1.5">
-              {phase === 'ready_to_apply' && !prUrl && (
+              {phase === 'ready_to_apply' && !prUrl && canReviewImplementation && (
                 <button
                   onClick={handleOpenPR}
                   disabled={applying}
@@ -116,6 +117,11 @@ export default function ReviewReportCard({ score, findings, proposalId, orgId, g
                   <GitPullRequest className="w-3.5 h-3.5" />
                   {applying ? 'Opening PR…' : 'Open PR'}
                 </button>
+              )}
+              {phase === 'ready_to_apply' && !prUrl && !canReviewImplementation && (
+                <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                  An implementation reviewer is required to open a PR for this proposal.
+                </p>
               )}
               {prUrl && (
                 <a

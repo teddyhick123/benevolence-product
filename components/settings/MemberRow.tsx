@@ -1,6 +1,8 @@
 // components/settings/MemberRow.tsx
 'use client';
 
+import { ORG_ROLES, isOrgOwner, isWorkspaceManager } from '@/lib/roles';
+
 interface Member {
   id: string;
   user_id: string;
@@ -14,15 +16,15 @@ interface MemberRowProps {
   member: Member;
   currentUserId: string;
   currentRole: string;
-  onRoleChange: (userId: string, newRole: string) => void;
-  onRemove: (userId: string) => void;
+  onRoleChange: (_userId: string, _newRole: string) => void;
+  onRemove: (_userId: string) => void;
 }
 
-const ROLE_OPTIONS = ['owner', 'admin', 'member', 'viewer'];
+const ROLE_OPTIONS = [...ORG_ROLES].reverse();
 
 export default function MemberRow({ member, currentUserId, currentRole, onRoleChange, onRemove }: MemberRowProps) {
   const isSelf = member.user_id === currentUserId;
-  const canEdit = currentRole === 'owner' || (currentRole === 'admin' && member.role !== 'owner' && member.role !== 'admin');
+  const canEdit = isOrgOwner(currentRole) || (isWorkspaceManager(currentRole) && member.role !== 'owner' && member.role !== 'admin');
   const canRemove = canEdit && !isSelf;
   const displayName = member.full_name || member.email || member.user_id.slice(0, 8);
 
@@ -47,7 +49,7 @@ export default function MemberRow({ member, currentUserId, currentRole, onRoleCh
             className="text-xs border border-black/10 rounded px-2 py-1 bg-white"
             aria-label={`Role for ${displayName}`}
           >
-            {ROLE_OPTIONS.filter(r => currentRole === 'owner' || r !== 'owner').map(r => (
+            {ROLE_OPTIONS.filter(r => isOrgOwner(currentRole) || r !== 'owner').map(r => (
               <option key={r} value={r}>{r}</option>
             ))}
           </select>

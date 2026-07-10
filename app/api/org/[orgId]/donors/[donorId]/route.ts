@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase';
+import { isOrgOperator } from '@/lib/roles';
 
 export const dynamic = 'force-dynamic';
 
 const NO_STORE = { 'Cache-Control': 'no-store' } as const;
-const ALLOWED_DONOR_ROLES = ['owner', 'admin', 'member'];
 
 interface RouteParams {
   params: Promise<{ orgId: string; donorId: string }>;
@@ -27,7 +27,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     const supabase = await createServerClient();
 
     const { data: role } = await supabase.rpc('user_org_role', { p_org_id: orgId });
-    if (!role || !ALLOWED_DONOR_ROLES.includes(role)) {
+    if (!isOrgOperator(role)) {
       return json({ error: 'Not authorized' }, { status: 403 });
     }
 

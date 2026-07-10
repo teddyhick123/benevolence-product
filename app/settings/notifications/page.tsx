@@ -7,7 +7,7 @@ import NotificationsTab from '@/components/settings/NotificationsTab';
 export default async function NotificationsPage() {
   const cookieStore = await cookies();
   const orgId = cookieStore.get('x-org-id')?.value;
-  if (!orgId) redirect('/welcome');
+  if (!orgId) redirect('/onboarding');
 
   const supabase = await createServerClient();
   const { data: { user } } = await supabase.auth.getUser();

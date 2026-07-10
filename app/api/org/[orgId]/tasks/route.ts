@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient, createServerClient } from '@/lib/supabase';
 import { createTaskSchema } from '@/lib/schemas/task';
 import { TASK_ENTITY_TYPES } from '@/lib/tasks/automation/types';
+import { getOrgAccess, hasOrgAccess } from '@/lib/org-access';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,7 +11,6 @@ interface RouteParams {
 }
 
 const NO_STORE = { 'Cache-Control': 'no-store' } as const;
-const ADMIN_ROLES = new Set(['owner', 'admin']);
 const DIRECT_ORG_ENTITY_TABLES: Record<string, string> = {
   filing: 'compliance_filings',
   state_registration: 'state_registrations',
@@ -124,11 +124,10 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
   try {
     const { orgId } = await params;
     const supabase = await createServerClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return json({ error: 'Unauthorized' }, { status: 401 });
-
-    const { data: role } = await supabase.rpc('user_org_role', { p_org_id: orgId });
-    if (!role) return json({ error: 'Not authorized' }, { status: 403 });
+    const access = await getOrgAccess(supabase, orgId);
+    if (!access.user) return json({ error: 'Unauthorized' }, { status: 401 });
+    if (!hasOrgAccess(access, 'viewer')) return json({ error: 'Not authorized' }, { status: 403 });
+    const { user } = access;
 
     const { searchParams } = new URL(req.url);
     const tab = searchParams.get('tab') || 'all';
@@ -188,7 +187,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
 
     return json({
       tasks: tasks.map((task: any) => normalizeTask(task, profilesById)),
-      currentRole: role,
+      currentRole: access.role,
     });
   } catch (err: any) {
     return json({ error: err.message }, { status: 500 });
@@ -199,13 +198,10 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
   try {
     const { orgId } = await params;
     const supabase = await createServerClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return json({ error: 'Unauthorized' }, { status: 401 });
-
-    const { data: role } = await supabase.rpc('user_org_role', { p_org_id: orgId });
-    if (!role || !ADMIN_ROLES.has(role)) {
-      return json({ error: 'Admin access required' }, { status: 403 });
-    }
+    const access = await getOrgAccess(supabase, orgId);
+    if (!access.user) return json({ error: 'Unauthorized' }, { status: 401 });
+    if (!hasOrgAccess(access, 'member')) return json({ error: 'Member access required' }, { status: 403 });
+    const { user } = access;
 
     const body = await req.json().catch(() => ({}));
     const parsed = createTaskSchema.safeParse(body);

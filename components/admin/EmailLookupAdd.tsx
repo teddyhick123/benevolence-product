@@ -9,7 +9,7 @@ type Props = {
 
 export default function EmailLookupAdd({ portfolioId }: Props) {
   const [email, setEmail] = useState('');
-  const [role, setRole] = useState<'viewer' | 'editor' | 'owner'>('viewer');
+  const [role, setRole] = useState<'viewer' | 'member' | 'admin' | 'owner'>('viewer');
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
 
@@ -65,7 +65,8 @@ export default function EmailLookupAdd({ portfolioId }: Props) {
         className="border rounded-2xl px-3 py-2"
       >
         <option value="viewer">viewer</option>
-        <option value="editor">editor</option>
+        <option value="member">member</option>
+        <option value="admin">admin</option>
         <option value="owner">owner</option>
       </select>
       <button

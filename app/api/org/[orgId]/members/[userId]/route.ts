@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient, createAdminClient } from '@/lib/supabase';
+import { isOrgRole, isWorkspaceManager } from '@/lib/roles';
 
 export const dynamic = 'force-dynamic';
 
@@ -36,14 +37,13 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     const { orgId, userId } = await params;
     const supabase = await createServerClient();
 
-    const { data: isAdmin } = await supabase.rpc('is_org_admin', { p_org_id: orgId });
-    if (!isAdmin) {
+    const { data: actorRole } = await supabase.rpc('user_org_role', { p_org_id: orgId });
+    if (!isWorkspaceManager(actorRole)) {
       return json({ error: 'Not authorized' }, { status: 403 });
     }
 
     const { role } = await req.json();
-    const validRoles = ['admin', 'member', 'viewer'];
-    if (!role || !validRoles.includes(role)) {
+    if (!isOrgRole(role) || role === 'owner') {
       return json({ error: 'Invalid role' }, { status: 400 });
     }
 
@@ -58,6 +58,9 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
 
     if (existingError) return json({ error: existingError.message }, { status: 500 });
     if (!existing) return json({ error: 'Member not found' }, { status: 404 });
+    if (actorRole !== 'owner' && existing.role === 'owner') {
+      return json({ error: 'Only owners can change owner membership' }, { status: 403 });
+    }
     if (existing.role === 'owner' && (await countActiveOwners(adminClient, orgId)) <= 1) {
       return json({ error: 'Cannot change the last owner role' }, { status: 400 });
     }
@@ -105,8 +108,8 @@ export async function DELETE(_req: NextRequest, { params }: RouteParams) {
     const { orgId, userId } = await params;
     const supabase = await createServerClient();
 
-    const { data: isAdmin } = await supabase.rpc('is_org_admin', { p_org_id: orgId });
-    if (!isAdmin) {
+    const { data: actorRole } = await supabase.rpc('user_org_role', { p_org_id: orgId });
+    if (!isWorkspaceManager(actorRole)) {
       return json({ error: 'Not authorized' }, { status: 403 });
     }
 
@@ -121,6 +124,9 @@ export async function DELETE(_req: NextRequest, { params }: RouteParams) {
 
     if (existingError) return json({ error: existingError.message }, { status: 500 });
     if (!existing) return json({ error: 'Member not found' }, { status: 404 });
+    if (actorRole !== 'owner' && existing.role === 'owner') {
+      return json({ error: 'Only owners can remove owner membership' }, { status: 403 });
+    }
     if (existing.role === 'owner' && (await countActiveOwners(adminClient, orgId)) <= 1) {
       return json({ error: 'Cannot remove the last owner' }, { status: 400 });
     }

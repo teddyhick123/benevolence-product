@@ -103,7 +103,7 @@ CREATE POLICY "grant_checklist_completions_read" ON public.grant_checklist_compl
 
 CREATE POLICY "grant_checklist_completions_insert" ON public.grant_checklist_completions
   FOR INSERT TO authenticated
-  WITH CHECK (public.can_view_org(org_id) AND completed_by = auth.uid());
+  WITH CHECK (public.can_edit_org(org_id) AND completed_by = auth.uid());
 
 CREATE POLICY "grant_checklist_completions_delete" ON public.grant_checklist_completions
   FOR DELETE TO authenticated

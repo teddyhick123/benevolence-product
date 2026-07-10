@@ -172,7 +172,10 @@ export default function BuilderProposalsClient() {
   return (
     <div className="min-h-screen bg-creme">
       <div className="max-w-4xl mx-auto px-4 py-8">
-        <h1 className="font-serif text-3xl mb-6">Builder Proposals</h1>
+        <h1 className="font-serif text-3xl mb-2">Implementation Review Queue</h1>
+        <p className="mb-6 max-w-2xl text-sm text-black/50">
+          Internal review for Builder proposals that require platform or code-level approval.
+        </p>
 
         <div className="flex gap-2 mb-6">
           {['pending', 'approved', 'applied', 'rejected'].map(s => (

@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase';
 import { CreatePledgeSchema } from '@/lib/schemas/pledge';
+import { isOrgOperator, type OrgRole } from '@/lib/roles';
 
 export const dynamic = 'force-dynamic';
 
 const NO_STORE = { 'Cache-Control': 'no-store' } as const;
-const ALLOWED_ROLES = ['owner', 'admin', 'member'];
-
 function json(body: unknown, init: ResponseInit = {}) {
   return NextResponse.json(body, {
     ...init,
@@ -19,8 +18,8 @@ function json(body: unknown, init: ResponseInit = {}) {
 
 async function authorize(supabase: any, orgId: string) {
   const { data: role } = await supabase.rpc('user_org_role', { p_org_id: orgId });
-  if (!role || !ALLOWED_ROLES.includes(role)) return null;
-  return role as string;
+  if (!isOrgOperator(role)) return null;
+  return role as OrgRole;
 }
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ orgId: string }> }) {

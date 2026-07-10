@@ -6,10 +6,10 @@ import { useState } from 'react';
 type Props = {
   portfolioId: string;
   userId: string;
-  initialRole: 'viewer' | 'editor' | 'owner' | string;
+  initialRole: 'viewer' | 'member' | 'admin' | 'owner' | string;
 };
 
-const ROLES = ['viewer', 'editor', 'owner'] as const;
+const ROLES = ['viewer', 'member', 'admin', 'owner'] as const;
 
 export default function AdminRoleSelect({ portfolioId, userId, initialRole }: Props) {
   const [role, setRole] = useState<string>(initialRole || 'viewer');

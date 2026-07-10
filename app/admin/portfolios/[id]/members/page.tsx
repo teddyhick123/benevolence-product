@@ -9,7 +9,7 @@ export const revalidate = 0;
 
 type MemberRow = {
   user_id: string;
-  role: 'owner' | 'editor' | 'viewer' | string;
+  role: 'owner' | 'admin' | 'member' | 'viewer' | string;
   added_at: string | null;
   profiles?: { display_name?: string | null } | null;
 };
@@ -85,7 +85,8 @@ export default async function MembersPage(ctx: { params: Promise<{ id: string }>
           />
           <select name="role" className="border rounded-2xl px-3 py-2">
             <option value="viewer">viewer</option>
-            <option value="editor">editor</option>
+            <option value="member">member</option>
+            <option value="admin">admin</option>
             <option value="owner">owner</option>
           </select>
           <button

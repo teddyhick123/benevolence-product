@@ -3,11 +3,11 @@ import { z } from 'zod';
 import { createAdminClient, createServerClient } from '@/lib/supabase';
 import { LIFECYCLE_STAGES } from '@/lib/grants/lifecycle-shared';
 import { CUSTOM_FIELD_KEY_PATTERN, CUSTOM_FIELD_TYPES } from '@/lib/custom-fields';
+import { isWorkspaceManager } from '@/lib/roles';
 
 export const dynamic = 'force-dynamic';
 
 const NO_STORE = { 'Cache-Control': 'no-store' } as const;
-const ADMIN_ROLES = new Set(['owner', 'admin']);
 
 interface RouteParams {
   params: Promise<{ orgId: string; fieldId: string }>;
@@ -35,7 +35,7 @@ async function requireOrgAdmin(orgId: string) {
   if (!user) return { error: json({ error: 'Unauthorized' }, { status: 401 }) };
 
   const { data: role } = await supabase.rpc('user_org_role', { p_org_id: orgId });
-  if (!role || !ADMIN_ROLES.has(role)) {
+  if (!isWorkspaceManager(role)) {
     return { error: json({ error: 'Admin access required' }, { status: 403 }) };
   }
 

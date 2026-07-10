@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient, createServerClient } from '@/lib/supabase';
+import { getOrgAccess, hasOrgAccess } from '@/lib/org-access';
 
 export const dynamic = 'force-dynamic';
 
@@ -8,8 +9,6 @@ const NO_STORE = { 'Cache-Control': 'no-store' } as const;
 interface RouteParams {
   params: Promise<{ orgId: string; taskId: string }>;
 }
-
-const ADMIN_ROLES = new Set(['owner', 'admin']);
 
 function json(body: unknown, init: ResponseInit = {}) {
   return NextResponse.json(body, {
@@ -25,11 +24,10 @@ export async function POST(_req: NextRequest, { params }: RouteParams) {
   try {
     const { orgId, taskId } = await params;
     const supabase = await createServerClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return json({ error: 'Unauthorized' }, { status: 401 });
-
-    const { data: role } = await supabase.rpc('user_org_role', { p_org_id: orgId });
-    if (!role) return json({ error: 'Not authorized' }, { status: 403 });
+    const access = await getOrgAccess(supabase, orgId);
+    if (!access.user) return json({ error: 'Unauthorized' }, { status: 401 });
+    if (!hasOrgAccess(access, 'member')) return json({ error: 'Member access required' }, { status: 403 });
+    const { user } = access;
 
     const adminClient = createAdminClient();
     const { data: existing } = await adminClient
@@ -41,7 +39,7 @@ export async function POST(_req: NextRequest, { params }: RouteParams) {
       .maybeSingle();
 
     if (!existing) return json({ error: 'Task not found' }, { status: 404 });
-    if (!ADMIN_ROLES.has(role) && existing.assigned_to !== user.id) {
+    if (!hasOrgAccess(access, 'admin') && existing.assigned_to !== user.id) {
       return json({ error: 'Not authorized to reopen this task' }, { status: 403 });
     }
 

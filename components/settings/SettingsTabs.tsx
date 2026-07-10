@@ -6,12 +6,10 @@ import { usePathname } from 'next/navigation';
 
 const TABS = [
   { href: '/settings/team',          label: 'Team' },
-  { href: '/settings/modules',       label: 'Modules' },
   { href: '/settings/organization',  label: 'Organization' },
   { href: '/settings/integrations',  label: 'Integrations' },
   { href: '/settings/audit',         label: 'Audit Log' },
   { href: '/settings/notifications', label: 'Notifications' },
-  { href: '/settings/builder',       label: 'Builder' },
 ];
 
 export default function SettingsTabs() {

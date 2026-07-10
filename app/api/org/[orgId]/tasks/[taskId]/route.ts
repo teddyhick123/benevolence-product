@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient, createServerClient } from '@/lib/supabase';
 import { updateTaskSchema } from '@/lib/schemas/task';
 import { runAutomationRulesForEvent } from '@/lib/tasks/automation/dynamic-rules';
+import { getOrgAccess, hasOrgAccess } from '@/lib/org-access';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,8 +11,6 @@ const NO_STORE = { 'Cache-Control': 'no-store' } as const;
 interface RouteParams {
   params: Promise<{ orgId: string; taskId: string }>;
 }
-
-const ADMIN_ROLES = new Set(['owner', 'admin']);
 
 function json(body: unknown, init: ResponseInit = {}) {
   return NextResponse.json(body, {
@@ -100,16 +99,14 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
   try {
     const { orgId, taskId } = await params;
     const supabase = await createServerClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return json({ error: 'Unauthorized' }, { status: 401 });
-
-    const { data: role } = await supabase.rpc('user_org_role', { p_org_id: orgId });
-    if (!role) return json({ error: 'Not authorized' }, { status: 403 });
+    const access = await getOrgAccess(supabase, orgId);
+    if (!access.user) return json({ error: 'Unauthorized' }, { status: 401 });
+    if (!hasOrgAccess(access, 'viewer')) return json({ error: 'Not authorized' }, { status: 403 });
 
     const task = await loadTask(orgId, taskId);
     if (!task) return json({ error: 'Task not found' }, { status: 404 });
 
-    return json({ task, currentRole: role });
+    return json({ task, currentRole: access.role });
   } catch (err: any) {
     return json({ error: err.message }, { status: 500 });
   }
@@ -119,16 +116,15 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
   try {
     const { orgId, taskId } = await params;
     const supabase = await createServerClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return json({ error: 'Unauthorized' }, { status: 401 });
-
-    const { data: role } = await supabase.rpc('user_org_role', { p_org_id: orgId });
-    if (!role) return json({ error: 'Not authorized' }, { status: 403 });
+    const access = await getOrgAccess(supabase, orgId);
+    if (!access.user) return json({ error: 'Unauthorized' }, { status: 401 });
+    if (!hasOrgAccess(access, 'member')) return json({ error: 'Member access required' }, { status: 403 });
+    const { user } = access;
 
     const existing = await loadTask(orgId, taskId);
     if (!existing) return json({ error: 'Task not found' }, { status: 404 });
 
-    const isAdmin = ADMIN_ROLES.has(role);
+    const isAdmin = hasOrgAccess(access, 'admin');
     const isAssignee = existing.assigned_to === user.id;
     if (!isAdmin && !isAssignee) {
       return json({ error: 'Not authorized to update this task' }, { status: 403 });
@@ -222,15 +218,26 @@ export async function DELETE(_req: NextRequest, { params }: RouteParams) {
   try {
     const { orgId, taskId } = await params;
     const supabase = await createServerClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return json({ error: 'Unauthorized' }, { status: 401 });
-
-    const { data: role } = await supabase.rpc('user_org_role', { p_org_id: orgId });
-    if (!role || !ADMIN_ROLES.has(role)) {
-      return json({ error: 'Admin access required' }, { status: 403 });
-    }
+    const access = await getOrgAccess(supabase, orgId);
+    if (!access.user) return json({ error: 'Unauthorized' }, { status: 401 });
+    if (!hasOrgAccess(access, 'member')) return json({ error: 'Member access required' }, { status: 403 });
+    const { user } = access;
 
     const adminClient = createAdminClient();
+    const { data: existing, error: existingError } = await adminClient
+      .from('tasks')
+      .select('id, created_by')
+      .eq('id', taskId)
+      .eq('org_id', orgId)
+      .is('deleted_at', null)
+      .maybeSingle();
+
+    if (existingError) return json({ error: existingError.message }, { status: 500 });
+    if (!existing) return json({ error: 'Task not found' }, { status: 404 });
+    if (!hasOrgAccess(access, 'admin') && existing.created_by !== user.id) {
+      return json({ error: 'Only task creators or admins can delete a task' }, { status: 403 });
+    }
+
     const { data: deleted, error } = await adminClient
       .from('tasks')
       .update({ deleted_at: new Date().toISOString(), deleted_by: user.id })

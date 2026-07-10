@@ -55,8 +55,15 @@ npm install -g supabase
 # Link to project
 supabase link --project-ref <project-id>
 
-# Run all migrations
+# Run all migrations. The tracked supabase/migrations symlink points to
+# ../db/migrations, which is the schema source of truth.
 supabase db push
+```
+
+For hosted client projects, you can also run the canonical migration runner:
+```bash
+SUPABASE_URL=https://xxx.supabase.co SUPABASE_ACCESS_TOKEN=sbp_xxx \
+./scripts/run-migrations.sh
 ```
 
 Or manually run migrations:
@@ -248,8 +255,9 @@ git push origin main
 ### Database Migrations
 For new migrations:
 ```bash
-supabase db push
-# Or run manually in SQL Editor
+SUPABASE_URL=https://xxx.supabase.co SUPABASE_ACCESS_TOKEN=sbp_xxx \
+./scripts/run-migrations.sh
+# Or run each new file from db/migrations/ manually in SQL Editor
 ```
 
 ---

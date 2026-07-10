@@ -1,11 +1,11 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, useCallback } from 'react';
 import QuickIntakeForm, { QuickIntakeData } from './QuickIntakeForm';
 import OnboardingChat from './OnboardingChat';
 import ModuleRecommendations from './ModuleRecommendations';
 import OnboardingComplete from './OnboardingComplete';
+import type { FoundationBlueprintData } from './FoundationBlueprint';
 
 type OnboardingStep = 'intake' | 'conversation' | 'recommendations' | 'complete';
 
@@ -30,30 +30,49 @@ interface Session {
     message_count: number;
     ready_for_recommendations: boolean;
   };
+  onboarding_profiles?: OnboardingProfile | OnboardingProfile[];
   organization_id?: string;
+}
+
+interface OnboardingProfile {
+  pain_points?: FoundationBlueprintData['pain_points'];
+  goals?: FoundationBlueprintData['goals'];
+  workflows?: FoundationBlueprintData['workflows'];
+  team_context?: FoundationBlueprintData['team_context'];
+}
+
+function blueprintFromSession(session: Session | null): FoundationBlueprintData {
+  const profile = Array.isArray(session?.onboarding_profiles)
+    ? session.onboarding_profiles[0]
+    : session?.onboarding_profiles;
+
+  return {
+    pain_points: profile?.pain_points || [],
+    goals: profile?.goals || [],
+    workflows: profile?.workflows || {},
+    team_context: profile?.team_context || {},
+  };
 }
 
 interface OnboardingFlowProps {
   initialSession?: Session;
 }
 
+interface ProvisionError {
+  message: string;
+  moduleErrors: string[];
+  setupErrors: string[];
+}
+
 export default function OnboardingFlow({ initialSession }: OnboardingFlowProps) {
-  const router = useRouter();
   const [session, setSession] = useState<Session | null>(initialSession || null);
   const [step, setStep] = useState<OnboardingStep>(initialSession?.status || 'intake');
   const [isLoading, setIsLoading] = useState(!initialSession);
   const [enabledModules, setEnabledModules] = useState<string[]>([]);
+  const [provisionError, setProvisionError] = useState<ProvisionError | null>(null);
+  const [blueprint, setBlueprint] = useState<FoundationBlueprintData>(() => blueprintFromSession(initialSession || null));
 
-  // Load or create session on mount
-  useEffect(() => {
-    if (!initialSession) {
-      const controller = new AbortController();
-      loadOrCreateSession(controller.signal);
-      return () => controller.abort();
-    }
-  }, []);
-
-  const loadOrCreateSession = async (signal?: AbortSignal) => {
+  const loadOrCreateSession = useCallback(async (signal?: AbortSignal) => {
     try {
       setIsLoading(true);
 
@@ -64,6 +83,7 @@ export default function OnboardingFlow({ initialSession }: OnboardingFlowProps) 
 
       if (getData.session) {
         setSession(getData.session);
+        setBlueprint(blueprintFromSession(getData.session));
         setStep(getData.session.status || 'intake');
       } else {
         // Create new session
@@ -82,7 +102,15 @@ export default function OnboardingFlow({ initialSession }: OnboardingFlowProps) 
     } finally {
       if (!signal?.aborted) setIsLoading(false);
     }
-  };
+  }, []);
+
+  // Load or create a session only when the server did not already hydrate one.
+  useEffect(() => {
+    if (initialSession) return;
+    const controller = new AbortController();
+    void loadOrCreateSession(controller.signal);
+    return () => controller.abort();
+  }, [initialSession, loadOrCreateSession]);
 
   const handleIntakeComplete = async (data: QuickIntakeData) => {
     if (!session) return;
@@ -120,7 +148,8 @@ export default function OnboardingFlow({ initialSession }: OnboardingFlowProps) 
     }
   };
 
-  const handleReadyForRecommendations = () => {
+  const handleReadyForRecommendations = (nextBlueprint?: FoundationBlueprintData) => {
+    if (nextBlueprint) setBlueprint(nextBlueprint);
     setStep('recommendations');
     // Update session status
     if (session) {
@@ -133,31 +162,56 @@ export default function OnboardingFlow({ initialSession }: OnboardingFlowProps) 
 
     try {
       setIsLoading(true);
+      setProvisionError(null);
 
-      const res = await fetch('/api/onboarding/complete', {
+      const res = await fetch('/api/onboarding/provision', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          sessionId: session.id,
-          modules: selectedModules,
+          name: session.quick_intake?.org_name,
+          org_type: session.quick_intake?.org_type,
+          module_ids: selectedModules,
+          session_id: session.id,
         }),
       });
 
       const result = await res.json();
 
-      if (res.ok) {
+      const moduleErrors = Array.isArray(result.module_errors) ? result.module_errors : [];
+      const setupErrors = Array.isArray(result.setup_errors) ? result.setup_errors : [];
+      if (res.ok && moduleErrors.length === 0 && setupErrors.length === 0) {
         setEnabledModules(result.enabled_modules || selectedModules);
         setSession({
           ...session,
           status: 'complete',
-          organization_id: result.organization_id,
+          organization_id: result.org_id,
         });
         setStep('complete');
+      } else if (res.ok && (moduleErrors.length > 0 || setupErrors.length > 0)) {
+        setEnabledModules(result.enabled_modules || []);
+        setSession({
+          ...session,
+          organization_id: result.org_id,
+          status: 'recommendations',
+        });
+        setProvisionError({
+          message: 'Some foundation setup changes could not be applied yet.',
+          moduleErrors,
+          setupErrors,
+        });
       } else {
-        console.error('Complete failed:', result.error);
+        setProvisionError({
+          message: result.error || 'We could not finish setting up your foundation.',
+          moduleErrors: [],
+          setupErrors: [],
+        });
       }
     } catch (err) {
-      console.error('Error completing onboarding:', err);
+      setProvisionError({
+        message: err instanceof Error ? err.message : 'We could not finish setting up your foundation.',
+        moduleErrors: [],
+        setupErrors: [],
+      });
     } finally {
       setIsLoading(false);
     }
@@ -244,6 +298,8 @@ export default function OnboardingFlow({ initialSession }: OnboardingFlowProps) 
             sessionId={session.id}
             initialMessages={session.messages || []}
             initialState={session.conversation_state}
+            initialBlueprint={blueprint}
+            quickIntake={session.quick_intake}
             onReadyForRecommendations={handleReadyForRecommendations}
           />
         )}
@@ -253,6 +309,8 @@ export default function OnboardingFlow({ initialSession }: OnboardingFlowProps) 
             sessionId={session.id}
             onComplete={handleModulesSelected}
             isLoading={isLoading}
+            provisionError={provisionError}
+            blueprint={blueprint}
           />
         )}
 

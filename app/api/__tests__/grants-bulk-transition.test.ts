@@ -189,10 +189,10 @@ describe('POST bulk-transition — auth', () => {
     expect(res.status).toBe(403);
   });
 
-  it('returns 403 when role is member', async () => {
+  it('accepts member role for operational workflow transitions', async () => {
     _orgRole = 'member';
     const res = await POST(makeRequest({ transitions: [{ grantId: GRANT_A, expectedFromStage: 'draft', targetStage: 'prospect' }] }), makeParams());
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(207);
   });
 
   it('accepts owner role', async () => {

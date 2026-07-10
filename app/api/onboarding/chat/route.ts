@@ -103,12 +103,11 @@ export async function POST(req: NextRequest) {
     }
 
     // Add user message to history
-    const messages = session.messages || [];
-    messages.push({
+    const messages = [...(session.messages || []), {
       role: 'user',
       content: message,
       timestamp: new Date().toISOString(),
-    });
+    }];
 
     // Update session with user message
     await sb
@@ -119,12 +118,13 @@ export async function POST(req: NextRequest) {
     // Initialize assistant and process message
     const assistant = new OnboardingAssistant(SUPABASE_SERVICE_ROLE);
 
-    const conversationHistory = (session.messages || []).map((m: any) => ({
+    // The assistant receives prior turns only. Including the just-persisted
+    // message here would append it a second time inside OnboardingAssistant.
+    const conversationHistory = messages.slice(0, -1).map((m: any) => ({
       role: m.role as 'user' | 'assistant',
       content: m.content,
     }));
 
-    console.log('Calling onboarding assistant chat...');
     const result = await assistant.chat({
       sessionId,
       userId: user.id,
@@ -133,12 +133,6 @@ export async function POST(req: NextRequest) {
       conversationHistory,
       conversationState: session.conversation_state || undefined,
     });
-    console.log('Assistant response:', {
-      hasMessage: !!result.message,
-      messageLength: result.message?.length,
-      hasExtractions: Object.keys(result.extractions || {}).length > 0
-    });
-
     // Add assistant message to history
     messages.push({
       role: 'assistant',

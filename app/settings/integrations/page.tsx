@@ -6,7 +6,7 @@ import IntegrationsTab from '@/components/settings/IntegrationsTab';
 export default async function IntegrationsPage() {
   const cookieStore = await cookies();
   const orgId = cookieStore.get('x-org-id')?.value;
-  if (!orgId) redirect('/welcome');
+  if (!orgId) redirect('/onboarding');
 
   const adminClient = createAdminClient();
   const { data: qbConn } = await adminClient

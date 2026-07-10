@@ -3,6 +3,7 @@
 // Returns the most recent sync log entries for the org (admin only).
 
 import { createServerClient } from '@/lib/supabase';
+import { isWorkspaceManager } from '@/lib/roles';
 
 export async function GET(req: Request): Promise<Response> {
   const supabase = await createServerClient();
@@ -29,7 +30,7 @@ export async function GET(req: Request): Promise<Response> {
     .eq('user_id', user.id)
     .single();
 
-  if (!membership || !['owner', 'admin'].includes(membership.role as string)) {
+  if (!membership || !isWorkspaceManager(membership.role)) {
     return Response.json({ error: 'Admin access required' }, { status: 403 });
   }
 

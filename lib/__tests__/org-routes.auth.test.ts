@@ -62,7 +62,7 @@ describe('org-scoped route auth contracts', () => {
     ]) {
       const src = readFileSync(route, 'utf8');
 
-      expect(src, route).toContain('user_org_role');
+      expect(src, route).toContain(route.includes('tasks/summary') ? 'user_org_role' : 'getOrgAccess');
       expect(src, route).toContain("'Cache-Control': 'no-store'");
     }
 
@@ -108,7 +108,7 @@ describe('org-scoped route auth contracts', () => {
       'app/api/org/[orgId]/donors/[donorId]/route.ts',
     ]) {
       const src = readFileSync(route, 'utf8');
-      expect(src, route).toContain('ALLOWED_DONOR_ROLES');
+      expect(src, route).toContain('isOrgOperator');
       expect(src, route).toContain("'Cache-Control': 'no-store'");
     }
 
@@ -330,7 +330,8 @@ describe('org-scoped route auth contracts', () => {
   it('module and member collection routes no-store authority data and protect owner changes', () => {
     const modulesRoute = readFileSync('app/api/org/[orgId]/modules/route.ts', 'utf8');
     expect(modulesRoute).toContain("'Cache-Control': 'no-store'");
-    expect(modulesRoute).toContain('ADMIN_ROLES');
+    expect(modulesRoute).toContain('isWorkspaceManager');
+    expect(modulesRoute).toContain('enableModule');
 
     const membersRoute = readFileSync('app/api/org/[orgId]/members/route.ts', 'utf8');
     expect(membersRoute).toContain("'Cache-Control': 'no-store'");
@@ -376,7 +377,7 @@ describe('org-scoped route auth contracts', () => {
 
     const disqualifiedRoute = readFileSync('app/api/org/[orgId]/compliance/disqualified-persons/route.ts', 'utf8');
     expect(disqualifiedRoute).toContain("'Cache-Control': 'no-store'");
-    expect(disqualifiedRoute).toContain('ADMIN_ROLES');
+    expect(disqualifiedRoute).toContain('isWorkspaceManager');
     expect(disqualifiedRoute).toContain(".is('deleted_at', null)");
     expect(disqualifiedRoute).toContain('end_date');
   });

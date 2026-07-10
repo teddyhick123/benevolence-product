@@ -45,19 +45,27 @@ Create a `.env` file in the root of the `benevolence-product` directory and popu
 ## Database Setup
 
 1.  **Run Migrations:**
-    You can apply database migrations using the Supabase CLI:
+    The canonical schema lives in `db/migrations`. For local Supabase, the
+    repo tracks `supabase/migrations` as a symlink to that directory, so the
+    Supabase CLI applies the same canonical files:
     ```bash
     supabase db push
     ```
-    Alternatively, you can run the SQL commands directly in your Supabase project's SQL editor.
-    **Note:** Files in `db/scripts/` are one-off utilities and not part of the migration sequence.
+    For a hosted client project, use the migration runner:
+    ```bash
+    SUPABASE_URL=https://xxx.supabase.co SUPABASE_ACCESS_TOKEN=sbp_xxx \
+    ./scripts/run-migrations.sh
+    ```
+    Alternatively, run each SQL file from `db/migrations/` in order in the
+    Supabase SQL editor. Files in `db/legacy/` and `db/scripts/` are not part
+    of the migration sequence.
 
 ## Load Demo Data
 
 To populate your database with sample data for testing and demonstration purposes:
 
 *   **Option A (Admin Console):** If deployed, use the "Load Demo Data" button available in the admin console.
-*   **Option B (SQL Editor):** Execute the `db/demo_data.sql` script directly in your Supabase SQL editor.
+*   **Option B (SQL Editor):** Execute the `db/demo/seed_demo_org.sql` script directly in your Supabase SQL editor.
 
 ## Run Locally
 

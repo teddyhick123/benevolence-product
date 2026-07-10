@@ -3,11 +3,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient, createAdminClient } from '@/lib/supabase';
 import { createInvitationSchema } from '@/lib/schemas/invitations';
 import { sendInviteEmail } from '@/lib/email/resend';
+import { isWorkspaceManager } from '@/lib/roles';
 
 export const dynamic = 'force-dynamic';
 
 const NO_STORE = { 'Cache-Control': 'no-store' } as const;
-const ADMIN_ROLES = new Set(['owner', 'admin']);
 
 interface RouteParams {
   params: Promise<{ orgId: string }>;
@@ -30,7 +30,7 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
     const supabase = await createServerClient();
 
     const { data: role } = await supabase.rpc('user_org_role', { p_org_id: orgId });
-    if (!role || !ADMIN_ROLES.has(role)) return json({ error: 'Not authorized' }, { status: 403 });
+    if (!isWorkspaceManager(role)) return json({ error: 'Not authorized' }, { status: 403 });
 
     const { data, error } = await supabase
       .from('org_invitations')
@@ -54,7 +54,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     const supabase = await createServerClient();
 
     const { data: actorRole } = await supabase.rpc('user_org_role', { p_org_id: orgId });
-    if (!actorRole || !ADMIN_ROLES.has(actorRole)) return json({ error: 'Not authorized' }, { status: 403 });
+    if (!isWorkspaceManager(actorRole)) return json({ error: 'Not authorized' }, { status: 403 });
 
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return json({ error: 'Unauthorized' }, { status: 401 });

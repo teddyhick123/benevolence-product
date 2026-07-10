@@ -2,7 +2,7 @@
 // components/admin/NewImportWizard.tsx
 // 3-step wizard for creating a new import job
 
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 interface Portfolio {
@@ -14,6 +14,9 @@ interface Portfolio {
 interface NewImportWizardProps {
   portfolios: Portfolio[];
   onClose: () => void;
+  apiEndpoint?: string;
+  detailHrefForJob?: (_jobId: string) => string;
+  initialPortfolioId?: string;
 }
 
 type SourceSystem =
@@ -39,11 +42,17 @@ const FILE_SLOTS = [
 
 type FileKey = (typeof FILE_SLOTS)[number]['key'];
 
-export function NewImportWizard({ portfolios, onClose }: NewImportWizardProps) {
+export function NewImportWizard({
+  portfolios,
+  onClose,
+  apiEndpoint = '/api/admin/imports',
+  detailHrefForJob = (jobId) => `/admin/imports/${jobId}`,
+  initialPortfolioId,
+}: NewImportWizardProps) {
   const router = useRouter();
   const [step, setStep] = useState(1);
   const [name, setName] = useState('');
-  const [portfolioId, setPortfolioId] = useState(portfolios[0]?.id ?? '');
+  const [portfolioId, setPortfolioId] = useState(initialPortfolioId ?? portfolios[0]?.id ?? '');
   const [sourceSystem, setSourceSystem] = useState<SourceSystem>('blackbaud_re_nxt');
   const [files, setFiles] = useState<Partial<Record<FileKey, File>>>({});
   const [loading, setLoading] = useState(false);
@@ -75,7 +84,7 @@ export function NewImportWizard({ portfolios, onClose }: NewImportWizardProps) {
         formData.append(key, file as File);
       }
 
-      const res = await fetch('/api/admin/imports', {
+      const res = await fetch(apiEndpoint, {
         method: 'POST',
         body: formData,
       });
@@ -257,7 +266,7 @@ export function NewImportWizard({ portfolios, onClose }: NewImportWizardProps) {
                     <p className="text-green-700 font-mono text-xs">Job ID: {createdJobId}</p>
                   </div>
                   <a
-                    href={`/admin/imports/${createdJobId}`}
+                    href={detailHrefForJob(createdJobId)}
                     className="block text-center px-4 py-2 rounded-2xl bg-gradient-to-r from-azure via-azure/90 to-azure/70 text-white text-sm font-medium hover:opacity-90 transition-opacity"
                     onClick={onClose}
                   >

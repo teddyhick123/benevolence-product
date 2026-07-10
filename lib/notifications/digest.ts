@@ -4,6 +4,7 @@ import { Resend } from 'resend';
 import { render } from '@react-email/components';
 import { branding } from '@/lib/config';
 import TaskDigestEmail from '@/lib/email/templates/task-digest';
+import { isWorkspaceManager } from '@/lib/roles';
 
 const LOG = '[notifications:digest]';
 
@@ -67,7 +68,7 @@ async function buildDigestForUser(
       .single(),
   ]);
 
-  const isAdmin = memberRes.data && ['owner', 'admin'].includes((memberRes.data as any).role);
+  const isAdmin = memberRes.data && isWorkspaceManager((memberRes.data as any).role);
 
   let automationFailures: DigestTask[] = [];
   if (isAdmin) {
@@ -157,6 +158,7 @@ export async function runDigestForOrg(
       });
       if (error) throw new Error(error.message);
       sent++;
+      // eslint-disable-next-line no-console
       console.log(`${LOG} digest sent to ${email} for org ${orgId}`);
     } catch (err: any) {
       errors.push(`${member.user_id}: ${err.message}`);

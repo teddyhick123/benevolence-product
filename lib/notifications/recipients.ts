@@ -1,5 +1,6 @@
 // lib/notifications/recipients.ts
 import { SupabaseClient } from '@supabase/supabase-js';
+import { WORKSPACE_MANAGER_ROLES } from '@/lib/roles';
 
 export type Recipient = {
   userId: string;
@@ -14,7 +15,7 @@ export async function getOrgAdminRecipients(
     .from('organization_members')
     .select('user_id, role')
     .eq('org_id', orgId)
-    .in('role', ['owner', 'admin']);
+    .in('role', WORKSPACE_MANAGER_ROLES);
   return (data ?? []).map((m: any) => ({ userId: m.user_id, role: m.role }));
 }
 

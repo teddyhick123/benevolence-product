@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient, createServerClient } from '@/lib/supabase';
 import { startWorkflowSchema } from '@/lib/schemas/workflow';
+import { isWorkspaceManager } from '@/lib/roles';
 
 export const dynamic = 'force-dynamic';
 
@@ -9,8 +10,6 @@ const NO_STORE = { 'Cache-Control': 'no-store' } as const;
 interface RouteParams {
   params: Promise<{ orgId: string }>;
 }
-
-const ADMIN_ROLES = new Set(['owner', 'admin']);
 
 function json(body: unknown, init: ResponseInit = {}) {
   return NextResponse.json(body, {
@@ -237,7 +236,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     if (!user) return json({ error: 'Unauthorized' }, { status: 401 });
 
     const { data: role } = await supabase.rpc('user_org_role', { p_org_id: orgId });
-    if (!role || !ADMIN_ROLES.has(role)) {
+    if (!isWorkspaceManager(role)) {
       return json({ error: 'Admin access required' }, { status: 403 });
     }
 

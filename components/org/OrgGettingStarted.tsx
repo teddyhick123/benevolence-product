@@ -23,7 +23,7 @@ interface OrgGettingStartedProps {
 const TASK_LINKS: Record<string, string> = {
   profile: "settings",
   members: "members",
-  modules: "settings/modules",
+  modules: "/builder-studio#modules",
   donor: "donors/new",
   grant: "/dashboard/grants",
 };
@@ -77,7 +77,9 @@ export default function OrgGettingStarted({
         {progress.tasks.map((task) => {
           const linkPath = TASK_LINKS[task.id];
           const description = TASK_DESCRIPTIONS[task.id];
-          const href = linkPath?.startsWith("/")
+          const href = task.id === "modules"
+            ? `/builder-studio?org_id=${encodeURIComponent(orgId)}#modules`
+            : linkPath?.startsWith("/")
             ? linkPath
             : `/org/${orgId}/${linkPath}`;
 

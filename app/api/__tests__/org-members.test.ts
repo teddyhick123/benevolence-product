@@ -3,11 +3,10 @@
 // Tests for PATCH and DELETE /api/org/[orgId]/members/[userId]
 //
 // Route facts confirmed by reading the source:
-//   - Both handlers use `createServerClient` for the `is_org_admin` RPC check.
+//   - Both handlers use `createServerClient` for the canonical `user_org_role` check.
 //   - Both handlers use `createAdminClient` for the write operation (bypasses RLS).
 //   - The route exports PATCH (not PUT) for role changes.
-//   - No built-in owner-protection or self-escalation protection in the route itself;
-//     tests document that gap where relevant.
+//   - Owner membership changes require an owner, while admin can manage non-owner members.
 //   - Audit writes are durable; failures roll back the member mutation.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -22,8 +21,8 @@ const ACTOR_ID = '55555555-5555-5555-5555-555555555555';
 
 // ── Mock state ─────────────────────────────────────────────────────────────────
 
-let _isAdmin = true;
-let _isAdminError: { message: string } | null = null;
+let _actorRole: string | null = 'admin';
+let _roleError: { message: string } | null = null;
 
 let _updateResult: any = { id: USER_ID, org_id: ORG_ID, user_id: USER_ID, role: 'member' };
 let _updateError:  { message: string } | null = null;
@@ -58,10 +57,10 @@ vi.mock('@/lib/supabase', () => ({
 // ── Setup helpers ──────────────────────────────────────────────────────────────
 
 function setupMocks() {
-  // Server client: is_org_admin RPC
+  // Server client: canonical org role lookup
   mockServerRpc.mockImplementation(async (fn: string) => {
-    if (fn === 'is_org_admin') {
-      return { data: _isAdmin, error: _isAdminError };
+    if (fn === 'user_org_role') {
+      return { data: _actorRole, error: _roleError };
     }
     return { data: null, error: null };
   });
@@ -120,8 +119,8 @@ function setupMocks() {
 }
 
 beforeEach(() => {
-  _isAdmin = true;
-  _isAdminError = null;
+  _actorRole = 'admin';
+  _roleError = null;
   _updateResult = { id: USER_ID, org_id: ORG_ID, user_id: USER_ID, role: 'member' };
   _updateError = null;
   _deleteError = null;
@@ -168,7 +167,7 @@ function makeCtx(orgId = ORG_ID, userId = USER_ID) {
 describe('PATCH /api/org/[orgId]/members/[userId] — auth', () => {
   it('returns 403 and no data when caller is not an org admin', async () => {
     // Arrange
-    _isAdmin = false;
+    _actorRole = 'viewer';
 
     // Act
     const res = await PATCH(makePatchRequest({ role: 'admin' }), makeCtx());
@@ -182,7 +181,7 @@ describe('PATCH /api/org/[orgId]/members/[userId] — auth', () => {
 
   it('does NOT write to organization_members when the caller is not an admin', async () => {
     // Arrange
-    _isAdmin = false;
+    _actorRole = 'viewer';
 
     // Act
     await PATCH(makePatchRequest({ role: 'admin' }), makeCtx());
@@ -192,9 +191,9 @@ describe('PATCH /api/org/[orgId]/members/[userId] — auth', () => {
     expect(membersCalls).toHaveLength(0);
   });
 
-  it('returns 403 when is_org_admin returns false even for a valid role payload', async () => {
+  it('returns 403 when the canonical role is below admin even for a valid role payload', async () => {
     // Arrange — non-admin trying a valid role change
-    _isAdmin = false;
+    _actorRole = 'viewer';
 
     // Act
     const res = await PATCH(makePatchRequest({ role: 'viewer' }), makeCtx());
@@ -207,7 +206,7 @@ describe('PATCH /api/org/[orgId]/members/[userId] — auth', () => {
 describe('DELETE /api/org/[orgId]/members/[userId] — auth', () => {
   it('returns 403 and no data when caller is not an org admin', async () => {
     // Arrange
-    _isAdmin = false;
+    _actorRole = 'viewer';
 
     // Act
     const res = await DELETE(makeDeleteRequest(), makeCtx());
@@ -221,7 +220,7 @@ describe('DELETE /api/org/[orgId]/members/[userId] — auth', () => {
 
   it('does NOT touch organization_members when the caller is not an admin', async () => {
     // Arrange
-    _isAdmin = false;
+    _actorRole = 'viewer';
 
     // Act
     await DELETE(makeDeleteRequest(), makeCtx());
@@ -239,7 +238,7 @@ describe('DELETE /api/org/[orgId]/members/[userId] — auth', () => {
 describe('PATCH — security: role escalation', () => {
   it('returns 400 when the requested role is "owner" (owner role must not be granted via API)', async () => {
     // Arrange — admin caller, but target role is "owner"
-    _isAdmin = true;
+    _actorRole = 'admin';
 
     // Act
     const res = await PATCH(makePatchRequest({ role: 'owner' }), makeCtx());
@@ -252,7 +251,7 @@ describe('PATCH — security: role escalation', () => {
 
   it('a non-admin member cannot escalate their own role to admin', async () => {
     // Arrange — caller is NOT an org admin
-    _isAdmin = false;
+    _actorRole = 'viewer';
 
     // Act — non-admin tries to promote themselves
     const res = await PATCH(
@@ -268,6 +267,17 @@ describe('PATCH — security: role escalation', () => {
     // No DB write must have occurred
     const membersCalls = mockAdminFrom.mock.calls.filter(([t]) => t === 'organization_members');
     expect(membersCalls).toHaveLength(0);
+  });
+
+  it('does not let an admin change an owner membership', async () => {
+    _actorRole = 'admin';
+    _existingResult = { id: 'membership-id', role: 'owner' };
+
+    const res = await PATCH(makePatchRequest({ role: 'admin' }), makeCtx());
+
+    expect(res.status).toBe(403);
+    const membersCalls = mockAdminFrom.mock.calls.filter(([t]) => t === 'organization_members');
+    expect(membersCalls).toHaveLength(1);
   });
 });
 

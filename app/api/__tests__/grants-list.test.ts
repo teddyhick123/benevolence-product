@@ -8,7 +8,7 @@
 // Auth model:
 //   - Both verbs: createServerClient() → auth.getUser() → rpc('user_org_role')
 //   - GET: any non-null role is sufficient (member, viewer, admin, owner)
-//   - POST: role must be in ADMIN_ROLES = {'owner', 'admin'}
+//   - POST: role must be member, admin, or owner
 // DB:
 //   - Auth checks via createServerClient (RLS)
 //   - Data access via createAdminClient (bypasses RLS)
@@ -353,8 +353,8 @@ describe('POST /api/org/[orgId]/grants', () => {
     expect(body).not.toHaveProperty('grant');
   });
 
-  it('returns 403 when the user has a non-admin role (member)', async () => {
-    // Arrange
+  it('creates a grant when the user has the operational member role', async () => {
+    // Arrange — members can create grants inside configured workflows.
     _orgRole = 'member';
     const req = makeRequest('POST', `http://localhost/api/org/${ORG_ID}/grants`, VALID_BODY);
 
@@ -362,7 +362,7 @@ describe('POST /api/org/[orgId]/grants', () => {
     const res = await POST(req, makeParams({ orgId: ORG_ID }));
 
     // Assert
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(201);
   });
 
   it('returns 403 when the user has no role in the org', async () => {

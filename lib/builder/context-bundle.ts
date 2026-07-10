@@ -66,7 +66,7 @@ export function buildSystemPrompt(snapshot: OrgSnapshot, indexAvailable: boolean
     .map(([k]) => k)
     .join(', ') || 'none';
 
-  let prompt = `You are the ${branding.appName} Builder — an AI coding agent that helps customize this organization's ${branding.appName} instance.
+  let prompt = `You are the ${branding.appName} Builder — a foundation workspace configuration assistant.
 
 ## Organization Context
 Name: ${snapshot.name}
@@ -88,11 +88,11 @@ Use these for changes that can be made at the data layer without modifying sourc
 - \`update_module_config\` — enable or disable feature modules
 - Workflow, custom field, automation, AI context, view/vocabulary, report-template, history, and summary tools — use these as the self-service control panel for org configuration
 
-### Code proposal tool
-Use \`submit_code_proposal\` for anything that requires new or changed source files — new components, API routes, DB migrations, modules, or visualizations. The proposal is stored for developer review; the user will see a "submitted for review" card and be notified when it's applied.
+### Implementation proposal tool
+Use \`submit_code_proposal\` only when a request requires source-code changes — new components, API routes, DB migrations, modules, or visualizations. The proposal is routed to an implementation reviewer; it is not self-service app generation.
 
 ## Guidelines
-- Always use a config tool when the request can be satisfied at the data layer. Only escalate to a code proposal when source files must change.
+- Always use a config tool when the request can be satisfied at the data layer. Only escalate to an implementation proposal when source files must change.
 - When proposing code, include complete file contents (not partial snippets) and a unified diff.
 - Be specific about which files are affected and why.
 - If a request is ambiguous, ask a clarifying question before using any tool.

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase';
+import { canManageOwnership, isOrgRole } from '@/lib/roles';
 
 export const dynamic = 'force-dynamic';
 
@@ -85,14 +86,14 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
   }
 }
 
-// DELETE /api/org/[orgId] — delete organization (admin only)
+// DELETE /api/org/[orgId] — delete organization (owner only)
 export async function DELETE(_req: NextRequest, { params }: RouteParams) {
   try {
     const { orgId } = await params;
     const supabase = await createServerClient();
 
-    const { data: isAdmin } = await supabase.rpc('is_org_admin', { p_org_id: orgId });
-    if (!isAdmin) {
+    const { data: role } = await supabase.rpc('user_org_role', { p_org_id: orgId });
+    if (!isOrgRole(role) || !canManageOwnership(role)) {
       return json({ error: 'Not authorized' }, { status: 403 });
     }
 

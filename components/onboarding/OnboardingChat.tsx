@@ -3,8 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { PaperAirplaneIcon, SparklesIcon } from '@heroicons/react/24/outline';
 import ReactMarkdown from 'react-markdown';
-import ProgressIndicator from './ProgressIndicator';
-import { branding } from '@/lib/config';
+import FoundationBlueprint, { type FoundationBlueprintData } from './FoundationBlueprint';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -28,13 +27,34 @@ interface OnboardingChatProps {
   sessionId: string;
   initialMessages?: Message[];
   initialState?: ConversationState;
-  onReadyForRecommendations: () => void;
+  initialBlueprint?: FoundationBlueprintData;
+  quickIntake?: { org_name?: string; org_size?: string; primary_focus?: string[] };
+  onReadyForRecommendations: (blueprint?: FoundationBlueprintData) => void;
+}
+
+const EMPTY_BLUEPRINT: FoundationBlueprintData = {
+  pain_points: [],
+  goals: [],
+  workflows: {},
+  team_context: {},
+};
+
+function mergeByIdentity<T extends { id?: string }>(current: T[], incoming: T[], label: (item: T) => string) {
+  const seen = new Set(current.map((item) => item.id || label(item)));
+  return [...current, ...incoming.filter((item) => {
+    const identity = item.id || label(item);
+    if (seen.has(identity)) return false;
+    seen.add(identity);
+    return true;
+  })];
 }
 
 export default function OnboardingChat({
   sessionId,
   initialMessages = [],
   initialState,
+  initialBlueprint,
+  quickIntake,
   onReadyForRecommendations,
 }: OnboardingChatProps) {
   const [messages, setMessages] = useState<Message[]>(initialMessages);
@@ -48,6 +68,7 @@ export default function OnboardingChat({
       ready_for_recommendations: false,
     }
   );
+  const [blueprint, setBlueprint] = useState<FoundationBlueprintData>(initialBlueprint || EMPTY_BLUEPRINT);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -88,14 +109,11 @@ export default function OnboardingChat({
       });
 
       const data = await res.json();
-      console.log('Chat API response:', data);
-
       if (!res.ok) {
         throw new Error(data.error || 'Failed to send message');
       }
 
       if (data.message) {
-        console.log('Adding assistant message:', data.message);
         const assistantMessage: Message = {
           role: 'assistant',
           content: data.message,
@@ -108,8 +126,17 @@ export default function OnboardingChat({
         setConversationState(data.conversation_state);
       }
 
+      if (data.extractions) {
+        setBlueprint((current) => ({
+          pain_points: mergeByIdentity(current.pain_points, data.extractions.pain_points || [], (item) => item.description),
+          goals: mergeByIdentity(current.goals, data.extractions.goals || [], (item) => item.goal),
+          workflows: { ...current.workflows, ...(data.extractions.workflows || {}) },
+          team_context: { ...current.team_context, ...(data.extractions.team_context || {}) },
+        }));
+      }
+
       if (data.ready_for_recommendations) {
-        onReadyForRecommendations();
+        onReadyForRecommendations(blueprint);
       }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Unknown error';
@@ -143,8 +170,8 @@ export default function OnboardingChat({
             <SparklesIcon className="w-5 h-5 text-white" />
           </div>
           <div>
-            <h2 className="font-semibold text-neutral-900">Chat with {branding.onboardingAssistantName}</h2>
-            <p className="text-xs text-neutral-500">Your onboarding assistant</p>
+            <h2 className="font-semibold text-neutral-900">Foundation Setup</h2>
+            <p className="text-xs text-neutral-500">Shape a workspace around the way your foundation operates.</p>
           </div>
         </div>
 
@@ -217,30 +244,12 @@ export default function OnboardingChat({
       </div>
 
       {/* Sidebar with progress */}
-      <div className="w-72 flex-shrink-0">
-        <ProgressIndicator conversationState={conversationState} />
-
-        {/* Quick tips */}
-        <div className="mt-4 bg-azure/5 rounded-xl p-4">
-          <h4 className="text-sm font-semibold text-neutral-900 mb-2">Tips</h4>
-          <ul className="text-xs text-neutral-600 space-y-2">
-            <li>Share what takes up most of your time</li>
-            <li>Mention any frustrations or challenges</li>
-            <li>Describe your goals for the next year</li>
-            <li>Tell {branding.onboardingAssistantName} about your team</li>
-          </ul>
-        </div>
-
-        {/* Skip to recommendations */}
-        {conversationState.message_count >= 3 && (
-          <button
-            onClick={onReadyForRecommendations}
-            className="mt-4 w-full px-4 py-2 text-sm text-azure border border-azure rounded-lg hover:bg-azure/5 transition-colors"
-          >
-            Skip to recommendations
-          </button>
-        )}
-      </div>
+      <FoundationBlueprint
+        intake={quickIntake}
+        blueprint={blueprint}
+        messageCount={conversationState.message_count}
+        onReviewSetup={() => onReadyForRecommendations(blueprint)}
+      />
     </div>
   );
 }

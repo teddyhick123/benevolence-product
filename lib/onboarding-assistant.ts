@@ -18,9 +18,9 @@ import { AI_MODELS } from '@/lib/ai/models';
 import type { AIContentBlock, AIMessage, ToolDefinition } from '@/lib/ai/types';
 import type { AIProvider } from '@/lib/ai/provider';
 import { extractText } from '@/lib/ai/text';
+import type { OrgType } from '@/lib/types/org';
 
 // Types for onboarding data structures
-export type OrgType = 'foundation' | 'daf' | 'nonprofit' | 'impact_investor';
 export type OrgSize = 'solo' | 'small' | 'medium' | 'large';
 export type Severity = 'low' | 'medium' | 'high';
 export type Priority = 'low' | 'medium' | 'high';
@@ -76,24 +76,6 @@ export interface ExcludedModule {
   module_id: ModuleId;
   reason: string;
 }
-
-// Pain point to module mapping
-const PAIN_POINT_MODULE_MAP: Record<string, ModuleId[]> = {
-  'manual tracking': ['impact_tracking'],
-  'spreadsheets': ['impact_tracking', 'reporting'],
-  'reporting takes too long': ['reporting', 'analytics'],
-  'board report': ['reporting'],
-  'donor communication': ['donor_management'],
-  'tax receipt': ['donor_management', 'tax_optimization'],
-  'grant due diligence': ['grant_management'],
-  'deadline tracking': ['grant_management'],
-  'automated reminders': ['grant_management'],
-  'milestone tracking': ['grant_management'],
-  'charity vetting': ['external_data'],
-  'trend analysis': ['analytics'],
-  'forecasting': ['analytics'],
-  'benchmarking': ['analytics'],
-};
 
 // Onboarding-specific tools for the AI
 const ONBOARDING_TOOLS: ToolDefinition[] = [
@@ -248,10 +230,13 @@ const ONBOARDING_TOOLS: ToolDefinition[] = [
  */
 function buildOnboardingSystemPrompt(quickIntake: QuickIntake, conversationState: ConversationState): string {
   const orgTypeDescriptions: Record<OrgType, string> = {
-    foundation: 'private or family foundation managing grants',
-    daf: 'donor-advised fund sponsor',
+    private_foundation: 'private foundation managing grants',
+    family_office: 'family office managing investments and philanthropy',
+    daf_sponsor: 'donor-advised fund sponsor',
+    community_foundation: 'community foundation serving donors and local organizations',
     nonprofit: 'nonprofit organization',
-    impact_investor: 'impact investor tracking portfolio metrics',
+    corporation: 'corporate giving program',
+    individual: 'individual philanthropist',
   };
 
   const orgDescription = quickIntake.org_type
@@ -281,14 +266,14 @@ function buildOnboardingSystemPrompt(quickIntake: QuickIntake, conversationState
   if (!topicsCovered.includes('org_context')) topicsToExplore.push('org_context');
   if (!topicsCovered.includes('view_preferences')) topicsToExplore.push('view_preferences');
 
-  return `You are ${branding.onboardingAssistantName}, a warm and curious onboarding assistant for ${branding.appName}, a platform that helps philanthropic organizations manage their impact.
+  return `You lead Foundation Setup for ${branding.appName}, helping philanthropic organizations shape a useful operating space from their first conversation.
 
 ## Your Personality
 - Warm, friendly, and genuinely curious
-- Ask open-ended "day in the life" questions to naturally surface needs
-- Listen actively and reflect back what you hear
+- Start with a specific, high-signal question based on what they have already shared
+- Reflect back the concrete operating need you heard before moving to the next question
 - Be encouraging and supportive
-- Keep responses concise (2-3 sentences for questions, brief acknowledgments)
+- Keep responses concise: one reflection and one focused question
 
 ## User Context
 - Organization: ${quickIntake.org_name || 'Their organization'} (${orgDescription})
@@ -303,7 +288,7 @@ function buildOnboardingSystemPrompt(quickIntake: QuickIntake, conversationState
 - Message count: ${conversationState.message_count || 0}
 
 ## Your Goals
-1. Understand their day-to-day operations and pain points
+1. Turn their operating needs into a clear workspace blueprint
 2. Learn about their goals and what they want to improve
 3. Understand their current workflows (grants, donors, reporting)
 4. Capture automation preferences: deadline reminders, follow-up tasks, notifications, and field updates they want the system to handle
@@ -342,20 +327,21 @@ When you detect pain points, map them to relevant modules:
 - Use generate_recommendations ONLY when all confidence scores are > 0.7 AND you've had at least 4-5 exchanges
 
 ## Conversation Flow
-1. Start by asking about their typical day/week managing their philanthropic work
-2. Follow up on pain points they mention - dig deeper
-3. Ask about specific workflows based on their org type
+1. Start with the most important outcome they want from the workspace in the next 90 days
+2. Follow up on the single workflow or decision that makes that outcome difficult today
+3. Ask which information they need at a glance and who needs it
 4. Ask which recurring reminders or follow-ups they wish happened automatically
 5. Ask whether there are policies, vocabulary choices, or operating norms the AI should remember
-6. Ask what they want to see first on the dashboard and whether they use different names for core entities
-7. Understand their goals and what success looks like
-8. When ready, offer to show them personalized recommendations
+6. Summarize the emerging blueprint before asking for anything else
+7. When ready, offer to show and apply their Foundation Setup
 
 ## Important Guidelines
 - Don't mention modules by name until recommendations
 - Focus on understanding their needs, not selling features
 - If they seem ready to move on, offer recommendations
-- Keep the conversation natural and empathetic`;
+- Never ask the same broad question twice
+- Do not use generic acknowledgments such as "I've noted that information"
+- Keep the conversation natural, specific, and grounded in the details they shared`;
 }
 
 /**
@@ -387,7 +373,7 @@ export class OnboardingAssistant {
   }) {
     const {
       sessionId,
-      userId,
+      userId: _userId,
       message,
       quickIntake,
       conversationHistory = [],
@@ -402,7 +388,7 @@ export class OnboardingAssistant {
     // Build system prompt
     const systemPrompt = buildOnboardingSystemPrompt(quickIntake, conversationState);
 
-    const aiMessages: AIMessage[] = [
+    const currentMessages: AIMessage[] = [
       ...conversationHistory.map(msg => ({
         role: msg.role as 'user' | 'assistant',
         content: msg.content,
@@ -410,15 +396,6 @@ export class OnboardingAssistant {
       { role: 'user', content: message },
     ];
 
-    const response = await this.provider.createMessage({
-      model: AI_MODELS.assistant,
-      maxTokens: 2048,
-      system: systemPrompt,
-      tools: ONBOARDING_TOOLS,
-      messages: aiMessages,
-    });
-
-    // Process the response
     const extractions: {
       pain_points: PainPoint[];
       goals: Goal[];
@@ -433,16 +410,28 @@ export class OnboardingAssistant {
       team_context: {},
     };
 
-    const toolResults: Array<{ tool_use_id: string; content: string }> = [];
-    let textContent = extractText(response);
+    let textContent = '';
+    const MAX_TOOL_TURNS = 4;
 
-    // Check for tool use
-    const toolUseBlocks = response.content.filter(
-      (block): block is AIContentBlock & { type: 'tool_use' } => block.type === 'tool_use'
-    );
+    // A model may need more than one tool round before it has enough persisted
+    // context to give the user a useful reply. Keep its full tool transcript.
+    for (let turn = 0; turn < MAX_TOOL_TURNS; turn++) {
+      const response = await this.provider.createMessage({
+        model: AI_MODELS.assistant,
+        maxTokens: 2048,
+        system: systemPrompt,
+        tools: ONBOARDING_TOOLS,
+        messages: currentMessages,
+      });
+      const turnText = extractText(response);
+      if (turnText.trim()) textContent = turnText;
 
-    // Process tool calls
-    if (toolUseBlocks.length > 0) {
+      const toolUseBlocks = response.content.filter(
+        (block): block is AIContentBlock & { type: 'tool_use' } => block.type === 'tool_use'
+      );
+      if (toolUseBlocks.length === 0 || response.stopReason !== 'tool_use') break;
+
+      const toolResults: Array<{ tool_use_id: string; content: string }> = [];
       for (const toolUse of toolUseBlocks) {
         const args = toolUse.input as Record<string, any>;
 
@@ -526,39 +515,28 @@ export class OnboardingAssistant {
         }
       }
 
-      // Get final response with tool results
-      const finalResponse = await this.provider.createMessage({
-        model: AI_MODELS.assistant,
-        maxTokens: 2048,
-        system: systemPrompt,
-        tools: ONBOARDING_TOOLS,
-        messages: [
-          ...aiMessages,
-          { role: 'assistant', content: response.content },
-          {
-            role: 'user',
-            content: toolResults.map(tr => ({
-              type: 'tool_result' as const,
-              tool_use_id: tr.tool_use_id,
-              content: tr.content,
-            })),
-          },
-        ],
-      });
-
-      textContent = extractText(finalResponse);
-
-      // If still no text after tool processing, provide a fallback
-      if (!textContent.trim()) {
-        console.warn('No text content in final response after tool processing');
-        textContent = "I've noted that information. Could you tell me more about your day-to-day work?";
-      }
+      currentMessages.push(
+        { role: 'assistant', content: response.content },
+        {
+          role: 'user',
+          content: toolResults.map(tr => ({
+            type: 'tool_result' as const,
+            tool_use_id: tr.tool_use_id,
+            content: tr.content,
+          })),
+        }
+      );
     }
 
-    // If no text at all (no tools and no text), provide a fallback
+    // Tool-only responses should still move the setup forward without repeating
+    // a generic day-in-the-life question.
     if (!textContent.trim()) {
-      console.warn('No text content in response');
-      textContent = "I'd love to hear more about your work. What does a typical day look like for you?";
+      const covered = new Set(extractions.updated_state?.topics_covered || conversationState.topics_covered || []);
+      textContent = !covered.has('daily_operations')
+        ? 'To shape the first version of your workspace, what is the one recurring decision, deadline, or handoff that is hardest to manage today?'
+        : !covered.has('reporting')
+          ? 'What does your board or leadership team need to see regularly, and how do you prepare that today?'
+          : 'I have enough to sketch a useful first setup. Is there one more workflow or preference you want reflected before we do that?';
     }
 
     // Update session with new extractions
@@ -812,18 +790,21 @@ export class OnboardingAssistant {
   static getWelcomeMessage(quickIntake: QuickIntake): string {
     const orgName = quickIntake.org_name || 'your organization';
     const orgTypeGreeting: Record<OrgType, string> = {
-      foundation: `managing grants at ${orgName}`,
-      daf: `managing your donor-advised fund at ${orgName}`,
+      private_foundation: `managing grants at ${orgName}`,
+      family_office: `coordinating investments and philanthropy at ${orgName}`,
+      daf_sponsor: `supporting donors and grantmaking at ${orgName}`,
+      community_foundation: `serving donors and local organizations through ${orgName}`,
       nonprofit: `running ${orgName}`,
-      impact_investor: `tracking impact investments at ${orgName}`,
+      corporation: `running the giving program at ${orgName}`,
+      individual: `organizing philanthropy through ${orgName}`,
     };
 
     const greeting = quickIntake.org_type
       ? orgTypeGreeting[quickIntake.org_type]
       : `managing philanthropy at ${orgName}`;
 
-    return `Great to meet you! I'm ${branding.onboardingAssistantName}, and I'm here to help you get the most out of ${branding.appName}.
+    return `Let’s shape the first version of ${orgName}'s operating space.
 
-I'd love to learn a bit about your work ${greeting}. Could you walk me through what a typical week looks like for you? What are the main activities that take up your time?`;
+For ${greeting}, what would make this workspace indispensable over the next 90 days?`;
   }
 }

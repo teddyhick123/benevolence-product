@@ -16,9 +16,10 @@ interface Props {
   orgId: string;
   members: Member[];
   isAdmin: boolean;
+  currentRole: OrgRole;
 }
 
-export default function OrgMembersTable({ orgId, members, isAdmin }: Props) {
+export default function OrgMembersTable({ orgId, members, isAdmin, currentRole }: Props) {
   const router = useRouter();
   const [loading, setLoading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -139,8 +140,9 @@ export default function OrgMembersTable({ orgId, members, isAdmin }: Props) {
                   className="px-3 py-2 border border-black/10 rounded-lg"
                 >
                   <option value="viewer">Viewer</option>
-                  <option value="editor">Editor</option>
+                  <option value="member">Member</option>
                   <option value="admin">Admin</option>
+                  {currentRole === 'owner' ? <option value="owner">Owner</option> : null}
                 </select>
                 <div className="flex gap-2">
                   <button
@@ -198,7 +200,7 @@ export default function OrgMembersTable({ orgId, members, isAdmin }: Props) {
                     </div>
                   </td>
                   <td className="px-3 py-2">
-                    {isAdmin && m.role !== "admin" ? (
+                    {isAdmin && m.role !== "owner" ? (
                       <select
                         value={m.role}
                         onChange={(e) => updateRole(m.user_id, e.target.value as OrgRole)}
@@ -206,16 +208,19 @@ export default function OrgMembersTable({ orgId, members, isAdmin }: Props) {
                         className="px-2 py-1 border border-black/10 rounded text-sm"
                       >
                         <option value="viewer">Viewer</option>
-                        <option value="editor">Editor</option>
+                        <option value="member">Member</option>
                         <option value="admin">Admin</option>
+                        {currentRole === 'owner' ? <option value="owner">Owner</option> : null}
                       </select>
                     ) : (
                       <span
                         className={`px-2 py-1 rounded text-xs ${
-                          m.role === "admin"
+                          m.role === "owner"
                             ? "bg-purple-100 text-purple-700"
-                            : m.role === "editor"
+                            : m.role === "admin"
                             ? "bg-blue-100 text-blue-700"
+                            : m.role === "member"
+                            ? "bg-emerald-100 text-emerald-700"
                             : "bg-neutral-100 text-neutral-700"
                         }`}
                       >
@@ -228,7 +233,7 @@ export default function OrgMembersTable({ orgId, members, isAdmin }: Props) {
                   </td>
                   {isAdmin && (
                     <td className="px-3 py-2 text-right">
-                      {m.role !== "admin" && (
+                      {m.role !== "owner" && (
                         <button
                           onClick={() => removeMember(m.user_id)}
                           disabled={loading === m.user_id}

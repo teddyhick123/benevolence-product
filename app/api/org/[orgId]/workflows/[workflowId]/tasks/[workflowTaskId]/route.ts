@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient, createServerClient } from '@/lib/supabase';
 import { updateWorkflowTaskSchema } from '@/lib/schemas/workflow';
+import { isWorkspaceManager } from '@/lib/roles';
 
 export const dynamic = 'force-dynamic';
 
@@ -9,8 +10,6 @@ const NO_STORE = { 'Cache-Control': 'no-store' } as const;
 interface RouteParams {
   params: Promise<{ orgId: string; workflowId: string; workflowTaskId: string }>;
 }
-
-const ADMIN_ROLES = new Set(['owner', 'admin']);
 
 function json(body: unknown, init: ResponseInit = {}) {
   return NextResponse.json(body, {
@@ -83,7 +82,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     if (!existing) return json({ error: 'Workflow task not found' }, { status: 404 });
 
     const linkedTask = Array.isArray(existing.tasks) ? existing.tasks[0] : existing.tasks;
-    const isAdmin = ADMIN_ROLES.has(role);
+    const isAdmin = isWorkspaceManager(role);
     const isAssignee = linkedTask?.assigned_to === user.id;
     if (!isAdmin && !isAssignee) {
       return json({ error: 'Not authorized to update this workflow task' }, { status: 403 });

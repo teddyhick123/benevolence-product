@@ -6,7 +6,7 @@ import OrganizationTab from '@/components/settings/OrganizationTab';
 export default async function OrganizationPage() {
   const cookieStore = await cookies();
   const orgId = cookieStore.get('x-org-id')?.value;
-  if (!orgId) redirect('/welcome');
+  if (!orgId) redirect('/onboarding');
 
   const supabase = await createServerClient();
   const { data: org } = await supabase

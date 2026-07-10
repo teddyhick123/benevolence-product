@@ -34,7 +34,7 @@ export async function GET(
   const asOf = url.searchParams.get('as_of') ?? new Date().toISOString().slice(0, 10);
   const taxYear = Number(url.searchParams.get('year') ?? new Date().getFullYear());
   const templateId = url.searchParams.get('template_id');
-  const useDefaultTemplate =
+  const useDefaultTemplate = !templateId ||
     url.searchParams.get('template') === 'default' ||
     url.searchParams.get('use_default_template') === 'true';
 
@@ -62,12 +62,14 @@ export async function GET(
     if (templateError) {
       return json({ error: templateError.message }, { status: 500 });
     }
-    if (!template) {
+    if (!template && templateId) {
       return json({ error: 'Report template not found' }, { status: 404 });
     }
 
-    templateConfig = (template.config as Record<string, unknown>) ?? {};
-    templateName = template.name;
+    if (template) {
+      templateConfig = (template.config as Record<string, unknown>) ?? {};
+      templateName = template.name;
+    }
   }
 
   const [

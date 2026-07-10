@@ -1,7 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import ModuleCard from './ModuleCard';
+import FoundationSetupPreview from './FoundationSetupPreview';
+import type { FoundationBlueprintData } from './FoundationBlueprint';
 import { SparklesIcon, ChevronDownIcon, ChevronUpIcon } from '@heroicons/react/24/outline';
 
 interface ModuleDefinition {
@@ -29,14 +31,18 @@ interface ExcludedModule {
 
 interface ModuleRecommendationsProps {
   sessionId: string;
-  onComplete: (selectedModules: string[]) => void;
+  onComplete: (_selectedModules: string[]) => void;
   isLoading?: boolean;
+  provisionError?: { message: string; moduleErrors: string[]; setupErrors: string[] } | null;
+  blueprint: FoundationBlueprintData;
 }
 
 export default function ModuleRecommendations({
   sessionId,
   onComplete,
   isLoading: externalLoading,
+  provisionError,
+  blueprint,
 }: ModuleRecommendationsProps) {
   const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
   const [excluded, setExcluded] = useState<ExcludedModule[]>([]);
@@ -45,12 +51,7 @@ export default function ModuleRecommendations({
   const [error, setError] = useState<string | null>(null);
   const [showExcluded, setShowExcluded] = useState(false);
 
-  // Fetch recommendations on mount
-  useEffect(() => {
-    fetchRecommendations();
-  }, [sessionId]);
-
-  const fetchRecommendations = async () => {
+  const fetchRecommendations = useCallback(async () => {
     try {
       setIsLoading(true);
       setError(null);
@@ -77,7 +78,11 @@ export default function ModuleRecommendations({
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [sessionId]);
+
+  useEffect(() => {
+    void fetchRecommendations();
+  }, [fetchRecommendations]);
 
   const toggleModule = (moduleId: string, enabled: boolean) => {
     setSelectedModules(prev => {
@@ -147,13 +152,18 @@ export default function ModuleRecommendations({
           <SparklesIcon className="w-8 h-8 text-azure" />
         </div>
         <h2 className="text-2xl font-semibold text-neutral-900 mb-2">
-          Your Personalized Modules
+          Your Initial Setup
         </h2>
         <p className="text-neutral-600 max-w-lg mx-auto">
-          Based on your conversation, we&apos;ve selected the modules that best match your needs.
-          You can toggle any module on or off.
+          Based on your Foundation Blueprint, these are the capabilities we can configure now.
+          You can refine them in Builder Studio after setup.
         </p>
       </div>
+
+      <FoundationSetupPreview
+        blueprint={blueprint}
+        selectedModules={Array.from(selectedModules)}
+      />
 
       {/* Summary */}
       <div className="flex items-center justify-center gap-6 text-sm">
@@ -174,7 +184,7 @@ export default function ModuleRecommendations({
       {/* Recommended Modules */}
       <div className="space-y-4">
         <h3 className="text-lg font-semibold text-neutral-900">
-          Recommended for You
+          Recommended Capabilities
         </h3>
         <div className="grid gap-4">
           {recommendations.map((rec) => (
@@ -230,7 +240,7 @@ export default function ModuleRecommendations({
       {/* Actions */}
       <div className="flex items-center justify-between pt-6 border-t border-neutral-200">
         <p className="text-sm text-neutral-500">
-          You can always change your modules later in Settings
+          Your Blueprint will also seed your dashboard, workflow, and AI preferences.
         </p>
         <button
           onClick={handleComplete}
@@ -246,10 +256,28 @@ export default function ModuleRecommendations({
               Setting up...
             </span>
           ) : (
-            `Continue with ${selectedModules.size} Module${selectedModules.size !== 1 ? 's' : ''}`
+            provisionError ? 'Retry setup' : 'Create Foundation Setup'
           )}
         </button>
       </div>
+
+      {provisionError && (
+        <div className="border border-red-200 bg-red-50 p-4 text-left" role="alert">
+          <h3 className="text-sm font-semibold text-red-900">Setup needs another try</h3>
+          <p className="mt-1 text-sm text-red-800">{provisionError.message}</p>
+          {provisionError.moduleErrors.length > 0 && (
+            <ul className="mt-2 space-y-1 text-xs text-red-800">
+              {provisionError.moduleErrors.map((moduleError) => <li key={moduleError}>{moduleError}</li>)}
+            </ul>
+          )}
+          {provisionError.setupErrors.length > 0 && (
+            <ul className="mt-2 space-y-1 text-xs text-red-800">
+              {provisionError.setupErrors.map((setupError) => <li key={setupError}>{setupError}</li>)}
+            </ul>
+          )}
+          <p className="mt-2 text-xs text-red-700">Your successful setup work is preserved. Retry to enable the remaining capabilities.</p>
+        </div>
+      )}
     </div>
   );
 }

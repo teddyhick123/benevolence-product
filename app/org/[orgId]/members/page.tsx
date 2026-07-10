@@ -56,7 +56,7 @@ async function loadMembersData(orgId: string) {
 
 export default async function OrgMembersPage({ params }: Props) {
   const { orgId } = await params;
-  const { error, org, members, isAdmin, currentRole } = await loadMembersData(orgId);
+  const { error, members, isAdmin, currentRole } = await loadMembersData(orgId);
 
   if (error) {
     return (
@@ -88,6 +88,7 @@ export default async function OrgMembersPage({ params }: Props) {
         orgId={orgId}
         members={members as any}
         isAdmin={isAdmin}
+        currentRole={currentRole as any}
       />
 
       {/* Role descriptions */}
@@ -101,7 +102,7 @@ export default async function OrgMembersPage({ params }: Props) {
             </span>
           </div>
           <div className="flex gap-4">
-            <span className="font-medium w-20">Editor</span>
+            <span className="font-medium w-20">Member</span>
             <span className="text-neutral-600">
               Submit metrics, upload reports, view all data
             </span>

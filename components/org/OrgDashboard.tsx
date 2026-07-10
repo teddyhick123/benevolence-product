@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { OrgRole } from "@/lib/roles";
+import { canManageWorkspace, canOperateOrg, OrgRole } from "@/lib/roles";
 
 interface Props {
   org: {
@@ -86,7 +86,7 @@ export default function OrgDashboard({
       <div className="card p-4">
         <h2 className="font-medium mb-3">Quick Actions</h2>
         <div className="flex flex-wrap gap-3">
-          {(role === "admin" || role === "editor") && (
+          {canOperateOrg(role) && (
             <>
               <Link
                 href={`/org/${org.id}/data`}
@@ -102,7 +102,7 @@ export default function OrgDashboard({
               </Link>
             </>
           )}
-          {role === "admin" && (
+          {canManageWorkspace(role) && (
             <>
               <Link
                 href={`/org/${org.id}/members`}
@@ -125,7 +125,7 @@ export default function OrgDashboard({
       <div className="card p-4">
         <div className="flex items-center justify-between mb-3">
           <h2 className="font-medium">Linked Holdings</h2>
-          {role === "admin" && (
+          {canManageWorkspace(role) && (
             <Link
               href={`/org/${org.id}/settings`}
               className="text-sm text-azure hover:underline"

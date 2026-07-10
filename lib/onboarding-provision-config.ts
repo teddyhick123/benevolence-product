@@ -284,7 +284,7 @@ export function customFieldRowsFromOnboardingProfile(profile: any, orgId: string
   return uniqueBy(rows, row => [row.org_id, row.entity_type, row.field_key].join(':'));
 }
 
-export function automationRowsFromOnboardingProfile(profile: any, orgId: string, userId: string) {
+export function automationRowsFromOnboardingProfile(profile: any, orgId: string, userId: string, onboardingSessionId?: string) {
   const workflows = profile?.workflows && typeof profile.workflows === 'object' ? profile.workflows : {};
   const prefs = (workflows as any).automation_preferences;
   const rules = asRecord(prefs)?.rules ?? prefs;
@@ -328,6 +328,7 @@ export function automationRowsFromOnboardingProfile(profile: any, orgId: string,
       action_type: actionType as AutomationActionType,
       action_config: actionConfig,
       created_by: userId,
+      ...(onboardingSessionId ? { onboarding_session_id: onboardingSessionId } : {}),
     }];
   });
 

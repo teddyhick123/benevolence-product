@@ -111,6 +111,14 @@ export async function GET(req: NextRequest) {
     const assistant = new OnboardingAssistant(SUPABASE_SERVICE_ROLE);
     const { recommendations, excluded } = await assistant.generateRecommendations(sessionId);
 
+    await sb
+      .from('onboarding_sessions')
+      .update({
+        status: 'recommendations',
+        conversation_completed_at: new Date().toISOString(),
+      })
+      .eq('id', sessionId);
+
     // Update analytics
     await sb
       .from('onboarding_analytics')

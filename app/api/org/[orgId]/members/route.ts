@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient, createAdminClient } from '@/lib/supabase';
+import { isOrgRole, isWorkspaceManager } from '@/lib/roles';
 
 export const dynamic = 'force-dynamic';
 
 const NO_STORE = { 'Cache-Control': 'no-store' } as const;
-const ADMIN_ROLES = new Set(['owner', 'admin']);
 
 interface RouteParams {
   params: Promise<{ orgId: string }>;
@@ -84,7 +84,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     const supabase = await createServerClient();
 
     const { data: actorRole } = await supabase.rpc('user_org_role', { p_org_id: orgId });
-    if (!actorRole || !ADMIN_ROLES.has(actorRole)) {
+    if (!isWorkspaceManager(actorRole)) {
       return json({ error: 'Not authorized' }, { status: 403 });
     }
 
@@ -94,8 +94,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     const body = await req.json();
     const { email, user_id, role } = body;
 
-    const validRoles = ['owner', 'admin', 'member', 'viewer'];
-    if (!role || !validRoles.includes(role)) {
+    if (!isOrgRole(role)) {
       return json({ error: 'Invalid role' }, { status: 400 });
     }
     if (role === 'owner' && actorRole !== 'owner') {
@@ -175,7 +174,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     const supabase = await createServerClient();
 
     const { data: actorRole } = await supabase.rpc('user_org_role', { p_org_id: orgId });
-    if (!actorRole || !ADMIN_ROLES.has(actorRole)) {
+    if (!isWorkspaceManager(actorRole)) {
       return json({ error: 'Not authorized' }, { status: 403 });
     }
 
@@ -189,8 +188,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
       return json({ error: 'user_id is required' }, { status: 400 });
     }
 
-    const validRoles = ['owner', 'admin', 'member', 'viewer'];
-    if (!role || !validRoles.includes(role)) {
+    if (!isOrgRole(role)) {
       return json({ error: 'Invalid role' }, { status: 400 });
     }
     if (role === 'owner' && actorRole !== 'owner') {
@@ -208,6 +206,9 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
 
     if (existingError) return json({ error: existingError.message }, { status: 500 });
     if (!existing) return json({ error: 'Member not found' }, { status: 404 });
+    if (actorRole !== 'owner' && (existing.role === 'owner' || role === 'owner')) {
+      return json({ error: 'Only owners can change owner membership' }, { status: 403 });
+    }
     if (existing.role === 'owner' && role !== 'owner' && (await countActiveOwners(adminClient, orgId)) <= 1) {
       return json({ error: 'Cannot change the last owner role' }, { status: 400 });
     }

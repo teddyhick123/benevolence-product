@@ -1773,6 +1773,7 @@ export async function executeTool(
           request_text: requestText,
           proposal_type: 'code',
           status: 'pending',
+          phase: 'ready_to_apply',
           generated_code: { files },
         }).select('id').single();
 

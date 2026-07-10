@@ -80,7 +80,7 @@ export const branding = {
   /**
    * Onboarding assistant personality name
    */
-  onboardingAssistantName: process.env.NEXT_PUBLIC_ONBOARDING_ASSISTANT_NAME || 'Guide',
+  onboardingAssistantName: process.env.NEXT_PUBLIC_ONBOARDING_ASSISTANT_NAME || 'Foundation Setup',
 } as const;
 
 /**

@@ -6,6 +6,6 @@ import AuditLogTab from '@/components/settings/AuditLogTab';
 export default async function AuditPage() {
   const cookieStore = await cookies();
   const orgId = cookieStore.get('x-org-id')?.value;
-  if (!orgId) redirect('/welcome');
+  if (!orgId) redirect('/onboarding');
   return <AuditLogTab orgId={orgId} />;
 }

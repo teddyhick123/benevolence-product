@@ -1,7 +1,7 @@
 /**
  * Shared admin authorization helper.
- * Returns the user's UUID if they are a super-admin, or null otherwise.
- * Uses the is_admin() RPC (backed by the admins table).
+ * Returns the user's UUID if they are an internal app admin, or null otherwise.
+ * Uses the canonical is_app_admin() RPC.
  */
 
 import { createServerClient } from '@/lib/supabase';

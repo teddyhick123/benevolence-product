@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase';
+import { isOrgOperator } from '@/lib/roles';
 
 export const dynamic = 'force-dynamic';
 
 const NO_STORE = { 'Cache-Control': 'no-store' } as const;
-const ALLOWED_DONOR_ROLES = ['owner', 'admin', 'member'];
 
 interface RouteParams {
   params: Promise<{ orgId: string }>;
@@ -30,7 +30,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     const { data: role } = await supabase.rpc('user_org_role', { p_org_id: orgId });
     // Donor PII (email, phone, address) is restricted to member-and-above.
     // Viewer role can read aggregate org data but not individual donor records.
-    if (!role || !ALLOWED_DONOR_ROLES.includes(role)) {
+    if (!isOrgOperator(role)) {
       return json({ error: 'Not authorized' }, { status: 403 });
     }
 

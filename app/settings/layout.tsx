@@ -9,7 +9,7 @@ export default async function SettingsLayout({ children }: { children: React.Rea
   const cookieStore = await cookies();
   const orgId = cookieStore.get('x-org-id')?.value;
 
-  if (!orgId) redirect('/welcome');
+  if (!orgId) redirect('/onboarding');
 
   const { data: isAdmin } = await supabase.rpc('is_org_admin', { p_org_id: orgId });
   if (!isAdmin) redirect('/dashboard');

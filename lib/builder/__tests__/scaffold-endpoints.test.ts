@@ -12,8 +12,8 @@ describe('build trigger endpoint', () => {
     expect(src).toMatch(/export async function POST/);
   });
 
-  it('checks is_org_admin before dispatching', () => {
-    expect(src).toMatch(/is_org_admin/);
+  it('checks implementation reviewer access before dispatching', () => {
+    expect(src).toMatch(/canReviewImplementation/);
   });
 
   it('dispatches enqueueScaffoldBuildJob', () => {
@@ -56,8 +56,8 @@ describe('org-scoped apply endpoint', () => {
     expect(src).toMatch(/export async function POST/);
   });
 
-  it('checks is_org_admin', () => {
-    expect(src).toMatch(/is_org_admin/);
+  it('checks implementation reviewer access', () => {
+    expect(src).toMatch(/canReviewImplementation/);
   });
 
   it('requires ready_to_apply phase — returns 409 otherwise', () => {
@@ -73,9 +73,9 @@ describe('org-scoped apply endpoint', () => {
     expect(src).toMatch(/pr_url/);
   });
 
-  it('marks the proposal status as applied after opening the PR', () => {
-    expect(src).toMatch(/phase:\s*['"]applied['"]/);
-    expect(src).toMatch(/status:\s*['"]applied['"]/);
+  it('records an open PR until the separate ship action completes deployment', () => {
+    expect(src).toMatch(/phase:\s*['"]pr_opened['"]/);
+    expect(src).toMatch(/status:\s*['"]approved['"]/);
   });
 
   it('emits proposal_applied builder_event', () => {

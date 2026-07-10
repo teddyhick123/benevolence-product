@@ -10,9 +10,9 @@ import {
   applyModulePreset,
   getModulePresets,
 } from '@/lib/modules';
+import { isWorkspaceManager } from '@/lib/roles';
 
 const NO_STORE = { 'Cache-Control': 'no-store' } as const;
-const ADMIN_ROLES = new Set(['owner', 'admin']);
 
 function json(body: unknown, init: ResponseInit = {}) {
   return NextResponse.json(body, {
@@ -117,7 +117,7 @@ export async function POST(
     // Verify org admin
     const { data: role } = await supabase.rpc('user_org_role', { p_org_id: orgId });
 
-    if (!role || !ADMIN_ROLES.has(role)) {
+    if (!isWorkspaceManager(role)) {
       return json(
         { error: 'Only organization admins can manage modules' },
         { status: 403 }

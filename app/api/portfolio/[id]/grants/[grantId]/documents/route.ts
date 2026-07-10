@@ -120,7 +120,7 @@ export async function POST(
       return json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Require editor role or above
+    // Require member role or above
     const { data: membership } = await supabase
       .from('portfolio_members')
       .select('role')
@@ -128,7 +128,7 @@ export async function POST(
       .eq('user_id', user.id)
       .single();
 
-    if (!membership || !['owner', 'admin', 'editor'].includes(membership.role)) {
+    if (!membership || !['owner', 'admin', 'member'].includes(membership.role)) {
       return json({ error: 'Insufficient permissions' }, { status: 403 });
     }
 
@@ -228,7 +228,7 @@ export async function DELETE(
       return json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Require editor role or above
+    // Require member role or above
     const { data: membership } = await supabase
       .from('portfolio_members')
       .select('role')
@@ -236,7 +236,7 @@ export async function DELETE(
       .eq('user_id', user.id)
       .single();
 
-    if (!membership || !['owner', 'admin', 'editor'].includes(membership.role)) {
+    if (!membership || !['owner', 'admin', 'member'].includes(membership.role)) {
       return json({ error: 'Insufficient permissions' }, { status: 403 });
     }
 

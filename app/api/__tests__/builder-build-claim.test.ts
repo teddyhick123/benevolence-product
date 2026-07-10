@@ -18,7 +18,7 @@ let _claimPhases: string[] = [];
 let _updateValues: Array<Record<string, unknown>> = [];
 let _fetchRow: { id: string; phase: string } | null = null;
 
-const enqueueMock = vi.fn(async () => 'job-1');
+const enqueueMock = vi.fn(async (_data?: unknown) => 'job-1');
 
 vi.mock('@/lib/supabase', () => ({
   createServerClient: vi.fn(async () => ({

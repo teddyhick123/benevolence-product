@@ -19,7 +19,7 @@ let _proposalRow: Record<string, unknown> | null = null;
 let _updateCalls: Array<Record<string, unknown>> = [];
 let _eventInserts: Array<Record<string, unknown>> = [];
 
-const applyMock = vi.fn(async () => ({
+const applyMock = vi.fn(async (..._args: unknown[]) => ({
   prUrl: 'https://github.com/acme/repo/pull/7',
   branchName: 'builder/scaffold-22222222',
 }));

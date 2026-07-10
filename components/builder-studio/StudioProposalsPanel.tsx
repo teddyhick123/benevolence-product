@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { AlertCircle, CheckCircle2, ChevronDown, ChevronRight, Clock3, FileCode2, GitPullRequest, Loader2, Send, UserRound } from 'lucide-react';
+import { AlertCircle, ChevronDown, ChevronRight, Clock3, FileCode2, GitPullRequest, Loader2, Send, UserRound } from 'lucide-react';
 import {
   getProposalLifecycle,
   proposalLifecycleLabel,
@@ -35,8 +35,10 @@ const STATUS_CLASS: Record<ProposalLifecycleStatus, string> = {
   applied: 'border-emerald-200 bg-emerald-50 text-emerald-700',
   needs_implementation_review: 'border-amber-200 bg-amber-50 text-amber-800',
   in_review: 'border-violet-200 bg-violet-50 text-violet-700',
+  needs_repair: 'border-orange-200 bg-orange-50 text-orange-800',
+  ready_to_apply: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+  run_failed: 'border-red-200 bg-red-50 text-red-700',
   pr_opened: 'border-cyan-200 bg-cyan-50 text-cyan-700',
-  shipped: 'border-emerald-200 bg-emerald-50 text-emerald-700',
   rejected: 'border-red-200 bg-red-50 text-red-700',
 };
 
@@ -58,7 +60,6 @@ export default function StudioProposalsPanel({ orgId, canReviewImplementation }:
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [startingId, setStartingId] = useState<string | null>(null);
   const [openingId, setOpeningId] = useState<string | null>(null);
-  const [shippingId, setShippingId] = useState<string | null>(null);
 
   const loadProposals = useCallback(async () => {
     setLoading(true);
@@ -76,21 +77,6 @@ export default function StudioProposalsPanel({ orgId, canReviewImplementation }:
   }, [orgId]);
 
   useEffect(() => { void loadProposals(); }, [loadProposals]);
-
-  async function markShipped(proposalId: string) {
-    setShippingId(proposalId);
-    setError(null);
-    try {
-      const res = await fetch(`/api/org/${orgId}/builder/proposals/${proposalId}/ship`, { method: 'POST' });
-      const data = await res.json().catch(() => ({})) as { error?: string };
-      if (!res.ok) throw new Error(data.error || 'Failed to mark proposal shipped');
-      await loadProposals();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to mark proposal shipped');
-    } finally {
-      setShippingId(null);
-    }
-  }
 
   async function startImplementationReview(proposalId: string) {
     setStartingId(proposalId);
@@ -177,12 +163,15 @@ export default function StudioProposalsPanel({ orgId, canReviewImplementation }:
                 </div>
               </div> : null}
 
-              {proposal.review_report ? <div className="flex flex-wrap items-center gap-2 text-xs"><span className="rounded-full bg-white px-2 py-1 text-neutral-700">Review score: {proposal.review_report.score ?? 'pending'}</span><span className="text-neutral-500">{proposal.review_report.findings?.length || 0} finding{proposal.review_report.findings?.length === 1 ? '' : 's'}</span></div> : null}
+              {proposal.review_report ? <div className="space-y-1.5">
+                <div className="flex flex-wrap items-center gap-2 text-xs"><span className="rounded-full bg-white px-2 py-1 text-neutral-700">Review score: {proposal.review_report.score ?? 'pending'}</span><span className="text-neutral-500">{proposal.review_report.findings?.length || 0} finding{proposal.review_report.findings?.length === 1 ? '' : 's'}</span></div>
+                {(proposal.review_report.findings || []).slice(0, 5).map((finding, index) => <div key={index} className={`rounded px-2 py-1 text-xs ${finding.severity === 'error' ? 'bg-red-50 text-red-800' : 'bg-white text-neutral-600'}`}><span className="font-semibold uppercase">{finding.severity}</span> {finding.description}</div>)}
+              </div> : null}
 
               {proposal.pr_url ? <a href={proposal.pr_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-xs font-medium text-azure hover:underline"><GitPullRequest className="h-3.5 w-3.5" />Open pull request</a> : null}
               {lifecycle === 'needs_implementation_review' && canReviewImplementation ? <button onClick={() => startImplementationReview(proposal.id)} disabled={startingId === proposal.id} className="inline-flex h-8 items-center gap-1.5 rounded-md bg-azure px-3 text-xs font-medium text-white hover:bg-azure/90 disabled:opacity-50"><FileCode2 className="h-3.5 w-3.5" />{startingId === proposal.id ? 'Starting...' : 'Start implementation review'}</button> : null}
-              {proposal.phase === 'ready_to_apply' && !proposal.pr_url && canReviewImplementation ? <button onClick={() => openPullRequest(proposal.id)} disabled={openingId === proposal.id} className="inline-flex h-8 items-center gap-1.5 rounded-md bg-azure px-3 text-xs font-medium text-white hover:bg-azure/90 disabled:opacity-50"><GitPullRequest className="h-3.5 w-3.5" />{openingId === proposal.id ? 'Opening...' : 'Open pull request'}</button> : null}
-              {lifecycle === 'pr_opened' && canReviewImplementation ? <button onClick={() => markShipped(proposal.id)} disabled={shippingId === proposal.id} className="inline-flex h-8 items-center gap-1.5 rounded-md bg-emerald-600 px-3 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-50"><CheckCircle2 className="h-3.5 w-3.5" />{shippingId === proposal.id ? 'Updating...' : 'Mark shipped'}</button> : null}
+              {(lifecycle === 'needs_repair' || lifecycle === 'run_failed') && canReviewImplementation ? <button onClick={() => startImplementationReview(proposal.id)} disabled={startingId === proposal.id} className="inline-flex h-8 items-center gap-1.5 rounded-md bg-azure px-3 text-xs font-medium text-white hover:bg-azure/90 disabled:opacity-50"><FileCode2 className="h-3.5 w-3.5" />{startingId === proposal.id ? 'Starting...' : 'Retry review run'}</button> : null}
+              {lifecycle === 'ready_to_apply' && !proposal.pr_url && canReviewImplementation ? <button onClick={() => openPullRequest(proposal.id)} disabled={openingId === proposal.id} className="inline-flex h-8 items-center gap-1.5 rounded-md bg-azure px-3 text-xs font-medium text-white hover:bg-azure/90 disabled:opacity-50"><GitPullRequest className="h-3.5 w-3.5" />{openingId === proposal.id ? 'Opening...' : 'Open pull request'}</button> : null}
               {lifecycle === 'needs_implementation_review' && !canReviewImplementation ? <div className="flex items-center gap-1.5 rounded-md border border-amber-200 bg-amber-50 px-2 py-1.5 text-xs text-amber-800"><Send className="h-3.5 w-3.5" />An implementation reviewer is required to advance this request.</div> : null}
             </div> : null}
           </div>;

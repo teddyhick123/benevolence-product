@@ -5,6 +5,7 @@ import { createAIProvider } from '@/lib/ai/factory';
 import { AI_MODELS } from '@/lib/ai/models';
 import { buildScaffoldContext, formatScaffoldContextForPrompt } from './scaffold-context';
 import { getCodebaseIndex, formatIndexForPrompt } from './codebase-index';
+import { evaluatePathPolicy, evaluateFileBudget, formatPathPolicyViolations } from './path-policy';
 import { branding } from '@/lib/config';
 import type { ModuleId } from '@/lib/modules/types';
 import { MODULE_REGISTRY, canDisableModule } from '@/lib/modules/registry';
@@ -53,7 +54,7 @@ const MUTABLE_MODULE_IDS: readonly ModuleId[] = [
 ];
 const METRIC_AGGREGATIONS = ['sum', 'avg', 'last', 'first'] as const;
 const METRIC_DIRECTIONS = ['higher_is_better', 'lower_is_better', 'neutral'] as const;
-const PROPOSAL_PHASES = ['pending', 'plan_ready', 'building', 'build_ready', 'reviewing', 'ready_to_apply', 'applied'] as const;
+const PROPOSAL_PHASES = ['pending', 'plan_ready', 'queued', 'building', 'build_ready', 'reviewing', 'needs_repair', 'ready_to_apply', 'failed', 'pr_opened'] as const;
 const BUILDER_EVENT_TYPES = ['tool_call', 'ai_request', 'proposal_created', 'proposal_applied', 'proposal_rejected'] as const;
 const REPORT_TEMPLATE_SCOPES = ['portfolio', 'holding', 'sector'] as const;
 const BOARD_REPORT_SECTIONS = ['overview', 'financials', 'holdings', 'impact', 'tax', 'tasks', 'appendix'] as const;
@@ -126,7 +127,7 @@ function validateProposalFiles(value: unknown): Array<{ path: string; content: s
   const files = value as unknown[];
   if (files.length === 0) throw new Error('files must contain at least one file');
 
-  return files.map((file, index) => {
+  const validated = files.map((file, index) => {
     if (!file || typeof file !== 'object' || Array.isArray(file)) {
       throw new Error(`files[${index}] must be an object`);
     }
@@ -137,6 +138,50 @@ function validateProposalFiles(value: unknown): Array<{ path: string; content: s
       diff: requiredString(item.diff, `files[${index}].diff`, { maxLength: 500_000, allowEmpty: true }),
     };
   });
+
+  const budgetError = evaluateFileBudget(validated);
+  if (budgetError) throw new Error(budgetError);
+
+  const policy = evaluatePathPolicy(validated.map(f => f.path));
+  if (!policy.allowed) {
+    throw new Error(`Proposal touches protected paths. ${formatPathPolicyViolations(policy.violations)}`);
+  }
+
+  return validated;
+}
+
+function validateScaffoldPlanContent(value: unknown): ScaffoldPlanContent {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('plan must be a JSON object');
+  const plan = value as Record<string, unknown>;
+  const moduleName = requiredString(plan.moduleName, 'plan.moduleName', { maxLength: 120 });
+  const moduleSlug = requiredString(plan.moduleSlug, 'plan.moduleSlug', { maxLength: 64, pattern: /^[a-z][a-z0-9_]*$/ });
+  const moduleIcon = requiredString(plan.moduleIcon, 'plan.moduleIcon', { maxLength: 64 });
+  if (!Array.isArray(plan.files) || plan.files.length === 0) throw new Error('plan.files must be a non-empty array');
+  if (plan.files.length > 50) throw new Error('plan.files is limited to 50 files');
+
+  const files = plan.files.map((file, index) => {
+    if (!file || typeof file !== 'object' || Array.isArray(file)) throw new Error(`plan.files[${index}] must be an object`);
+    const item = file as Record<string, unknown>;
+    return {
+      path: validateBuilderPath(item.path, `plan.files[${index}].path`),
+      description: requiredString(item.description, `plan.files[${index}].description`, { maxLength: 2000 }),
+    };
+  });
+
+  const policy = evaluatePathPolicy(files.map(f => f.path));
+  if (!policy.allowed) {
+    throw new Error(`Plan touches protected paths. ${formatPathPolicyViolations(policy.violations)}`);
+  }
+
+  return {
+    moduleName,
+    moduleSlug,
+    moduleIcon,
+    tables: Array.isArray(plan.tables) ? (plan.tables as ScaffoldPlanContent['tables']) : [],
+    files,
+    registryEntry: typeof plan.registryEntry === 'string' ? plan.registryEntry : '',
+    apiShape: typeof plan.apiShape === 'string' ? plan.apiShape : '',
+  };
 }
 
 function validateWorkflowSteps(value: unknown): Array<{ name: string; description?: string; order: number; required?: boolean }> {
@@ -602,7 +647,7 @@ export const BUILDER_TOOLS: ToolDefinition[] = [
   },
   {
     name: 'submit_code_proposal',
-    description: 'Submit a code change proposal for developer review. Use this when source files must be created or modified.',
+    description: 'Submit a code change proposal. The proposal starts in implementation review: an implementation reviewer must run the automated build/review gate before a pull request can open. Never tell the user a PR will open immediately.',
     input_schema: {
       type: 'object' as const,
       properties: {
@@ -674,7 +719,7 @@ export const BUILDER_TOOLS: ToolDefinition[] = [
       properties: {
         phase: {
           type: 'string',
-          enum: ['pending', 'plan_ready', 'building', 'build_ready', 'reviewing', 'ready_to_apply', 'applied'],
+          enum: [...PROPOSAL_PHASES],
           description: 'Filter by phase (omit to return all recent proposals)',
         },
       },
@@ -1773,7 +1818,7 @@ export async function executeTool(
           request_text: requestText,
           proposal_type: 'code',
           status: 'pending',
-          phase: 'ready_to_apply',
+          phase: 'plan_ready',
           generated_code: { files },
         }).select('id').single();
 
@@ -1854,9 +1899,9 @@ Respond with ONLY a valid JSON object matching this exact schema (no markdown, n
         let planContent: ScaffoldPlanContent;
         try {
           const raw = textBlock.text.replace(/^```json?\n?|```$/gm, '').trim();
-          planContent = JSON.parse(raw) as ScaffoldPlanContent;
-        } catch {
-          return { type: 'error', tool: toolName, message: `Failed to parse plan JSON: ${textBlock.text.slice(0, 200)}` };
+          planContent = validateScaffoldPlanContent(JSON.parse(raw));
+        } catch (e) {
+          return { type: 'error', tool: toolName, message: `Plan validation failed: ${validationMessage(e)}` };
         }
 
         const { data: proposal, error: proposalError } = await adminSupabase
@@ -1990,7 +2035,7 @@ Respond with ONLY a valid JSON object matching this exact schema (no markdown, n
 
         const lines = data.map(p => {
           const summary = (p.request_text as string | null)?.slice(0, 80) ?? '(no description)';
-          const prSuffix = p.phase === 'applied' && p.pr_url ? ` | PR: ${p.pr_url}` : '';
+          const prSuffix = p.pr_url ? ` | PR: ${p.pr_url}` : '';
           return `[${p.phase}] ${(p.id as string).slice(0, 8)} — "${summary}"${prSuffix}`;
         }).join('\n');
 

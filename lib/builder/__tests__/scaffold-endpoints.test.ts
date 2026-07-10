@@ -20,8 +20,10 @@ describe('build trigger endpoint', () => {
     expect(src).toMatch(/enqueueScaffoldBuildJob/);
   });
 
-  it('updates proposal phase to building', () => {
-    expect(src).toMatch(/phase.*plan_ready|plan_ready.*phase/);
+  it('atomically claims the proposal with a compare-and-set before enqueueing', () => {
+    expect(src).toMatch(/\.in\('phase', CLAIMABLE_PHASES\)/);
+    expect(src).toMatch(/'plan_ready', 'needs_repair', 'failed'/);
+    expect(src).toMatch(/alreadyRunning/);
   });
 });
 

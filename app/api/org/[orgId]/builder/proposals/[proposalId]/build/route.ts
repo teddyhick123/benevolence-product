@@ -9,6 +9,11 @@ interface RouteParams {
   params: Promise<{ orgId: string; proposalId: string }>;
 }
 
+// Phases from which a reviewer may start (or retry) a run, and phases that
+// mean a run is already active. Any other phase is a state-machine violation.
+const CLAIMABLE_PHASES = ['plan_ready', 'needs_repair', 'failed'];
+const IN_FLIGHT_PHASES = ['queued', 'building', 'build_ready', 'reviewing'];
+
 function json(body: Record<string, unknown>, init?: ResponseInit) {
   return NextResponse.json(body, {
     ...init,
@@ -19,7 +24,7 @@ function json(body: Record<string, unknown>, init?: ResponseInit) {
   });
 }
 
-export async function POST(req: NextRequest, { params }: RouteParams) {
+export async function POST(_req: NextRequest, { params }: RouteParams) {
   try {
     const { orgId, proposalId } = await params;
     const supabase = await createServerClient();
@@ -34,27 +39,48 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
 
     const adminSupabase = createAdminClient();
 
-    const { data: proposal, error: fetchError } = await adminSupabase
+    // Atomic compare-and-set claim: only one caller can move the proposal
+    // into `queued`; a concurrent duplicate start updates zero rows.
+    const { data: claimed, error: claimError } = await adminSupabase
       .from('builder_proposals')
-      .select('id, phase, org_id')
+      .update({ phase: 'queued' })
       .eq('id', proposalId)
       .eq('org_id', orgId)
-      .single();
+      .in('phase', CLAIMABLE_PHASES)
+      .select('id')
+      .maybeSingle();
+    if (claimError) throw claimError;
 
-    if (fetchError || !proposal) {
-      return json({ error: 'Proposal not found' }, { status: 404 });
-    }
-
-    if (proposal.phase !== 'plan_ready') {
+    if (!claimed) {
+      const { data: proposal, error: fetchError } = await adminSupabase
+        .from('builder_proposals')
+        .select('id, phase')
+        .eq('id', proposalId)
+        .eq('org_id', orgId)
+        .maybeSingle();
+      if (fetchError) throw fetchError;
+      if (!proposal) return json({ error: 'Proposal not found' }, { status: 404 });
+      if (IN_FLIGHT_PHASES.includes(proposal.phase ?? '')) {
+        return json({ proposalId, alreadyRunning: true });
+      }
       return json(
-        { error: `Proposal must be in plan_ready phase, currently: ${proposal.phase}` },
+        { error: `Proposal must be in one of [${CLAIMABLE_PHASES.join(', ')}] to start a run, currently: ${proposal.phase}` },
         { status: 409 }
       );
     }
 
-    const jobId = await enqueueScaffoldBuildJob({ proposalId, orgId });
-
-    return json({ jobId, proposalId });
+    try {
+      const jobId = await enqueueScaffoldBuildJob({ proposalId, orgId });
+      return json({ jobId, proposalId });
+    } catch (queueError) {
+      // Don't strand the proposal in `queued` with no job behind it.
+      await adminSupabase
+        .from('builder_proposals')
+        .update({ phase: 'failed' })
+        .eq('id', proposalId)
+        .eq('org_id', orgId);
+      throw queueError;
+    }
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';
     return json({ error: message }, { status: 500 });

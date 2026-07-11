@@ -45,7 +45,10 @@ CREATE TABLE IF NOT EXISTS organizations (
   -- Status
   is_active       boolean NOT NULL DEFAULT true,
   deleted_at      timestamptz,            -- soft-delete
-  deleted_by      uuid REFERENCES auth.users(id)
+  deleted_by      uuid REFERENCES auth.users(id),
+
+  -- Per-org AI assistant instructions (Builder tab)
+  ai_instructions   TEXT
 );
 
 CREATE INDEX idx_organizations_slug       ON organizations (slug) WHERE slug IS NOT NULL;

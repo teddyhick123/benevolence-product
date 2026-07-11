@@ -45,8 +45,7 @@ psql $DATABASE_URL -f db/demo/seed_demo_org.sql
 | 0022_module_enforcement | Admin | Module flags validation, module_definitions table |
 | 0023_admin_superuser_policies | Admin | App admin policies, org type defaults, provision RPC |
 | 0024_settings_ops_hub | Settings | org_audit_log and notification_prefs |
-| 0025_builder | Builder | Portfolio builder tables |
-| 0026_builder_enhancement | Builder | Builder enhancements |
+| 0025_builder | Builder | Canonical Builder schema: proposals, sessions, and the durable orchestration contract (revisions, review attempts, verification runs, findings, delivery records) |
 | 0027_portfolio_charities | Charities | Portfolio-level charity links |
 | 0028_foundation_payout | Historical | Placeholder only; foundation_990pf_data is defined in 0013 |
 | 0029_ai_action_source | Historical | Placeholder only; ai_actions.initiated_by is defined in 0033 |

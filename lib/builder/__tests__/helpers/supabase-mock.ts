@@ -1,6 +1,6 @@
 // lib/builder/__tests__/helpers/supabase-mock.ts
 //
-// Shared minimal Supabase client mock for Builder test suites (Tasks 2, 5-9).
+// Shared minimal Supabase client mock for Builder test suites (Tasks 2-3, 5-9).
 // Deliberately explicit rather than a generic proxy: each table/RPC/storage
 // bucket gets a FIFO queue of canned responses, and every chain call is
 // recorded to `calls` for assertions on exact eq()/in()/select() arguments.
@@ -11,7 +11,7 @@
 //   from(table).insert(values).select().single()
 //   from(table).update(values).eq(...)              (awaited directly, no .select())
 //   rpc(name, args)
-//   storage.from(bucket).upload(...) / .createSignedUrl(...)
+//   storage.from(bucket).upload(...) / .createSignedUrl(...) / .download(...)
 
 export interface MockResult<T = any> {
   data: T | null;
@@ -54,6 +54,12 @@ export class SupabaseMock {
   /** Queue the next storage.from(bucket).createSignedUrl(...) response. */
   queueStorageSignedUrl(bucket: string, result: MockResult): this {
     this.push(this.storageQueues, `${bucket}:createSignedUrl`, result);
+    return this;
+  }
+
+  /** Queue the next storage.from(bucket).download(...) response. */
+  queueStorageDownload(bucket: string, result: MockResult): this {
+    this.push(this.storageQueues, `${bucket}:download`, result);
     return this;
   }
 
@@ -135,6 +141,10 @@ export class SupabaseMock {
             createSignedUrl: async (...args: unknown[]) => {
               self.calls.push({ method: 'storage.createSignedUrl', args: [bucket, ...args] });
               return self.shift(self.storageQueues, `${bucket}:createSignedUrl`, 'storage createSignedUrl');
+            },
+            download: async (...args: unknown[]) => {
+              self.calls.push({ method: 'storage.download', args: [bucket, ...args] });
+              return self.shift(self.storageQueues, `${bucket}:download`, 'storage download');
             },
           };
         },

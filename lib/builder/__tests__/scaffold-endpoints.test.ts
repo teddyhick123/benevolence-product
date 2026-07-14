@@ -20,9 +20,9 @@ describe('build trigger endpoint', () => {
     expect(src).toMatch(/enqueueScaffoldBuildJob/);
   });
 
-  it('atomically claims the proposal with a compare-and-set before enqueueing', () => {
-    expect(src).toMatch(/\.in\('phase', CLAIMABLE_PHASES\)/);
-    expect(src).toMatch(/'plan_ready', 'needs_repair', 'failed'/);
+  it('atomically claims the proposal via the builder_claim_code_run RPC before enqueueing', () => {
+    expect(src).toMatch(/claimCodeRun\(/);
+    expect(src).toMatch(/IN_FLIGHT_STATES/);
     expect(src).toMatch(/alreadyRunning/);
   });
 });

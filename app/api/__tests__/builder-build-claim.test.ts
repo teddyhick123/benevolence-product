@@ -1,24 +1,36 @@
 // @vitest-environment node
 //
 // Tests for POST /api/org/[orgId]/builder/proposals/[proposalId]/build
-// The route must atomically claim the proposal (compare-and-set on phase)
-// before enqueueing, so two concurrent starts produce one job.
+//
+// Increment 2: the route no longer does its own phase-based compare-and-set.
+// It reads code_state once to short-circuit in-flight runs (so an
+// already-running proposal doesn't consume the claim RPC's row lock), then
+// delegates the atomic claim to claimCodeRun (builder_claim_code_run RPC,
+// Task 2), best-effort stamps the new revision's base_commit_sha from
+// GitHub, and enqueues the build job keyed by revisionId.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { NextRequest } from 'next/server';
+import type { ClaimResult } from '@/lib/builder/proposal-state';
 
 const ORG_ID = '11111111-1111-1111-1111-111111111111';
 const PROPOSAL_ID = '22222222-2222-2222-2222-222222222222';
 const USER_ID = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
+const REVISION_ID = '33333333-3333-3333-3333-333333333333';
 
 let _authUser: { id: string } | null = { id: USER_ID };
 let _canReview = true;
-let _claimResult: { id: string } | null = { id: PROPOSAL_ID };
-let _claimPhases: string[] = [];
-let _updateValues: Array<Record<string, unknown>> = [];
-let _fetchRow: { id: string; phase: string } | null = null;
+let _codeStateRow: { code_state: string } | null = { code_state: 'plan_ready' };
+let _revisionUpdateValues: Array<Record<string, unknown>> = [];
+let _revisionUpdateError: { message: string } | null = null;
 
 const enqueueMock = vi.fn(async (_data?: unknown) => 'job-1');
+const claimCodeRunMock = vi.fn(async (..._args: unknown[]): Promise<ClaimResult> => (
+  { ok: true, revisionId: REVISION_ID, reused: false }
+));
+const failInFlightRunMock = vi.fn(async (..._args: unknown[]) => {});
+const getDefaultBranchShaMock = vi.fn(async (..._args: unknown[]) => 'sha-abc123');
+let _githubConfigured = false;
 
 vi.mock('@/lib/supabase', () => ({
   createServerClient: vi.fn(async () => ({
@@ -26,23 +38,27 @@ vi.mock('@/lib/supabase', () => ({
   })),
   createAdminClient: vi.fn(() => ({
     from: (table: string) => {
-      if (table !== 'builder_proposals') throw new Error(`unexpected table ${table}`);
-      const claimChain: any = {
-        eq: () => claimChain,
-        in: (_col: string, phases: string[]) => { _claimPhases = phases; return claimChain; },
-        select: () => claimChain,
-        maybeSingle: async () => ({ data: _claimResult, error: null }),
-        // The reset-on-enqueue-failure path awaits update().eq().eq() directly.
-        then: (resolve: any) => Promise.resolve({ error: null }).then(resolve),
-      };
-      const fetchChain: any = {
-        eq: () => fetchChain,
-        maybeSingle: async () => ({ data: _fetchRow, error: null }),
-      };
-      return {
-        update: (values: Record<string, unknown>) => { _updateValues.push(values); return claimChain; },
-        select: () => fetchChain,
-      };
+      if (table === 'builder_proposals') {
+        const chain: any = {
+          select: () => chain,
+          eq: () => chain,
+          maybeSingle: async () => ({ data: _codeStateRow, error: null }),
+        };
+        return chain;
+      }
+      if (table === 'builder_proposal_revisions') {
+        const chain: any = {
+          update: (values: Record<string, unknown>) => {
+            _revisionUpdateValues.push(values);
+            return chain;
+          },
+          eq: () => chain,
+          then: (resolve: any, reject: any) =>
+            Promise.resolve({ data: null, error: _revisionUpdateError }).then(resolve, reject),
+        };
+        return chain;
+      }
+      throw new Error(`unexpected table ${table}`);
     },
   })),
 }));
@@ -53,6 +69,23 @@ vi.mock('@/lib/org-capabilities', () => ({
 
 vi.mock('@/lib/builder/scaffold-worker', () => ({
   enqueueScaffoldBuildJob: (data: unknown) => enqueueMock(data),
+}));
+
+// Every export below is wrapped in a lambda (rather than referencing the
+// mock function directly) so the outer `const` binding is only read when
+// actually *called*, not when this factory object literal is constructed.
+// vi.mock() factories are hoisted above local const declarations and can
+// run before they've been initialized when this file's module graph is
+// evaluated alongside sibling test files (TDZ ReferenceError otherwise).
+vi.mock('@/lib/builder/proposal-state', () => ({
+  claimCodeRun: (...args: unknown[]) => claimCodeRunMock(...args),
+  failInFlightRun: (...args: unknown[]) => failInFlightRunMock(...args),
+  IN_FLIGHT_STATES: ['queued', 'generating', 'verifying'],
+}));
+
+vi.mock('@/lib/builder/github-apply', () => ({
+  isGitHubConfigured: () => _githubConfigured,
+  getDefaultBranchSha: (...args: unknown[]) => getDefaultBranchShaMock(...args),
 }));
 
 import { POST } from '@/app/api/org/[orgId]/builder/proposals/[proposalId]/build/route';
@@ -66,12 +99,17 @@ function call() {
 beforeEach(() => {
   _authUser = { id: USER_ID };
   _canReview = true;
-  _claimResult = { id: PROPOSAL_ID };
-  _claimPhases = [];
-  _updateValues = [];
-  _fetchRow = null;
+  _codeStateRow = { code_state: 'plan_ready' };
+  _revisionUpdateValues = [];
+  _revisionUpdateError = null;
+  _githubConfigured = false;
   enqueueMock.mockClear();
   enqueueMock.mockResolvedValue('job-1');
+  claimCodeRunMock.mockClear();
+  claimCodeRunMock.mockResolvedValue({ ok: true, revisionId: REVISION_ID, reused: false });
+  failInFlightRunMock.mockClear();
+  getDefaultBranchShaMock.mockClear();
+  getDefaultBranchShaMock.mockResolvedValue('sha-abc123');
 });
 
 describe('POST build — auth', () => {
@@ -79,6 +117,7 @@ describe('POST build — auth', () => {
     _authUser = null;
     const res = await call();
     expect(res.status).toBe(401);
+    expect(claimCodeRunMock).not.toHaveBeenCalled();
     expect(enqueueMock).not.toHaveBeenCalled();
   });
 
@@ -86,51 +125,111 @@ describe('POST build — auth', () => {
     _canReview = false;
     const res = await call();
     expect(res.status).toBe(403);
+    expect(claimCodeRunMock).not.toHaveBeenCalled();
     expect(enqueueMock).not.toHaveBeenCalled();
   });
 });
 
-describe('POST build — atomic claim', () => {
-  it('claims via compare-and-set on retryable phases and enqueues exactly one job', async () => {
-    const res = await call();
-    expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(body).toEqual({ jobId: 'job-1', proposalId: PROPOSAL_ID });
-    expect(_updateValues[0]).toEqual({ phase: 'queued' });
-    expect(_claimPhases).toEqual(['plan_ready', 'needs_repair', 'failed']);
-    expect(enqueueMock).toHaveBeenCalledTimes(1);
-    expect(enqueueMock).toHaveBeenCalledWith({ proposalId: PROPOSAL_ID, orgId: ORG_ID });
-  });
-
-  it('returns alreadyRunning without enqueueing when a run is in flight (lost the claim)', async () => {
-    _claimResult = null;
-    _fetchRow = { id: PROPOSAL_ID, phase: 'building' };
+describe('POST build — in-flight short-circuit', () => {
+  it('returns alreadyRunning without calling claimCodeRun when code_state is already in flight', async () => {
+    _codeStateRow = { code_state: 'generating' };
     const res = await call();
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body).toEqual({ proposalId: PROPOSAL_ID, alreadyRunning: true });
-    expect(enqueueMock).not.toHaveBeenCalled();
-  });
-
-  it('409 when the proposal is not in a claimable phase', async () => {
-    _claimResult = null;
-    _fetchRow = { id: PROPOSAL_ID, phase: 'pr_opened' };
-    const res = await call();
-    expect(res.status).toBe(409);
+    expect(claimCodeRunMock).not.toHaveBeenCalled();
     expect(enqueueMock).not.toHaveBeenCalled();
   });
 
   it('404 when the proposal does not exist in this org', async () => {
-    _claimResult = null;
-    _fetchRow = null;
+    _codeStateRow = null;
     const res = await call();
     expect(res.status).toBe(404);
+    const body = await res.json();
+    expect(body).toEqual({ error: 'Proposal not found' });
+    expect(claimCodeRunMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('POST build — claim via RPC', () => {
+  it('409 with currentState when claimCodeRun reports a conflict', async () => {
+    claimCodeRunMock.mockResolvedValueOnce({ ok: false, code: 'conflict', currentState: 'pr_opened' });
+    const res = await call();
+    expect(res.status).toBe(409);
+    const body = await res.json();
+    expect(body).toEqual({
+      error: 'Proposal must be claimable to start a run, currently: pr_opened',
+      currentState: 'pr_opened',
+    });
+    expect(claimCodeRunMock).toHaveBeenCalledWith(
+      expect.anything(),
+      { proposalId: PROPOSAL_ID, orgId: ORG_ID, actorId: USER_ID }
+    );
+    expect(enqueueMock).not.toHaveBeenCalled();
   });
 
-  it('resets the claim to failed when the queue rejects the job', async () => {
+  it('404 when claimCodeRun reports not_found (race after the pre-check)', async () => {
+    claimCodeRunMock.mockResolvedValueOnce({ ok: false, code: 'not_found' });
+    const res = await call();
+    expect(res.status).toBe(404);
+    const body = await res.json();
+    expect(body).toEqual({ error: 'Proposal not found' });
+    expect(enqueueMock).not.toHaveBeenCalled();
+  });
+
+  it('500 when claimCodeRun reports no_revision (generic proposal missing its revision)', async () => {
+    claimCodeRunMock.mockResolvedValueOnce({ ok: false, code: 'no_revision' });
+    const res = await call();
+    expect(res.status).toBe(500);
+    const body = await res.json();
+    expect(body).toEqual({ error: 'Proposal has no revision to build' });
+    expect(enqueueMock).not.toHaveBeenCalled();
+  });
+
+  it('succeeds, returns revisionId, and enqueues exactly one job keyed by proposalId/orgId/revisionId', async () => {
+    const res = await call();
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body).toEqual({ jobId: 'job-1', proposalId: PROPOSAL_ID, revisionId: REVISION_ID });
+    expect(enqueueMock).toHaveBeenCalledTimes(1);
+    expect(enqueueMock).toHaveBeenCalledWith({ proposalId: PROPOSAL_ID, orgId: ORG_ID, revisionId: REVISION_ID });
+  });
+});
+
+describe('POST build — base SHA capture', () => {
+  it('stamps base_commit_sha on the revision when GitHub is configured', async () => {
+    _githubConfigured = true;
+    const res = await call();
+    expect(res.status).toBe(200);
+    expect(getDefaultBranchShaMock).toHaveBeenCalledTimes(1);
+    expect(_revisionUpdateValues).toEqual([{ base_commit_sha: 'sha-abc123' }]);
+  });
+
+  it('leaves base_commit_sha untouched when GitHub is not configured, and still returns 200', async () => {
+    _githubConfigured = false;
+    const res = await call();
+    expect(res.status).toBe(200);
+    expect(getDefaultBranchShaMock).not.toHaveBeenCalled();
+    expect(_revisionUpdateValues).toEqual([]);
+  });
+
+  it('is best-effort: a GitHub error during SHA capture does not fail the claim', async () => {
+    _githubConfigured = true;
+    getDefaultBranchShaMock.mockRejectedValueOnce(new Error('GitHub is down'));
+    const res = await call();
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body).toEqual({ jobId: 'job-1', proposalId: PROPOSAL_ID, revisionId: REVISION_ID });
+    expect(enqueueMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('POST build — enqueue failure', () => {
+  it('fails the in-flight run and returns 500 when the queue rejects the job', async () => {
     enqueueMock.mockRejectedValueOnce(new Error('redis down'));
     const res = await call();
     expect(res.status).toBe(500);
-    expect(_updateValues).toEqual([{ phase: 'queued' }, { phase: 'failed' }]);
+    expect(failInFlightRunMock).toHaveBeenCalledTimes(1);
+    expect(failInFlightRunMock).toHaveBeenCalledWith(expect.anything(), PROPOSAL_ID);
   });
 });

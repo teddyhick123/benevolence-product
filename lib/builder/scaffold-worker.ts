@@ -19,10 +19,15 @@ export const scaffoldQueue = new Queue('scaffold-jobs', { connection: redisConne
 export interface ScaffoldBuildJobData {
   proposalId: string;
   orgId: string;
+  revisionId: string;
 }
 
 export async function enqueueScaffoldBuildJob(data: ScaffoldBuildJobData): Promise<string> {
   const job = await scaffoldQueue.add('scaffold-build', data, {
+    // Keying the BullMQ job by revisionId (the claim RPC's idempotency key)
+    // means a duplicate enqueue for the same revision returns the existing
+    // job instead of creating a second one.
+    jobId: data.revisionId,
     attempts: 1,
     removeOnComplete: { count: 50 },
     removeOnFail: { count: 25 },

@@ -18,6 +18,37 @@ export function isGitHubConfigured(): boolean {
   );
 }
 
+/**
+ * Reads the current tip SHA of the repo's default (main) branch. Used both
+ * by applyProposalToGitHub (to branch off of) and by the build-claim route
+ * (to stamp base_commit_sha on a freshly claimed revision, best-effort).
+ */
+export async function getDefaultBranchSha(): Promise<string> {
+  const token = process.env.GITHUB_TOKEN;
+  const owner = process.env.GITHUB_REPO_OWNER;
+  const repo  = process.env.GITHUB_REPO_NAME;
+
+  if (!token || !owner || !repo) {
+    throw new Error('GitHub integration not configured');
+  }
+
+  const headers = {
+    Authorization: `Bearer ${token}`,
+    Accept: 'application/vnd.github+json',
+    'X-GitHub-Api-Version': '2022-11-28',
+    'Content-Type': 'application/json',
+  };
+  const base = `https://api.github.com/repos/${owner}/${repo}`;
+
+  const refRes = await fetch(`${base}/git/ref/heads/main`, { headers });
+  if (!refRes.ok) {
+    const refErr = await refRes.json().catch(() => ({})) as Record<string, unknown>;
+    throw new Error(`Failed to read main branch: ${refRes.status} — ${refErr.message ?? JSON.stringify(refErr)}`);
+  }
+  const refData = await refRes.json() as { object: { sha: string } };
+  return refData.object.sha;
+}
+
 async function readGitHubError(res: Response): Promise<string> {
   const err = await res.json().catch(() => ({})) as Record<string, unknown>;
   return String(err.message ?? JSON.stringify(err));
@@ -57,13 +88,7 @@ export async function applyProposalToGitHub(
   const base = `https://api.github.com/repos/${owner}/${repo}`;
 
   // 1. Get main branch SHA
-  const refRes = await fetch(`${base}/git/ref/heads/main`, { headers });
-  if (!refRes.ok) {
-    const refErr = await refRes.json().catch(() => ({})) as Record<string, unknown>;
-    throw new Error(`Failed to read main branch: ${refRes.status} — ${refErr.message ?? JSON.stringify(refErr)}`);
-  }
-  const refData = await refRes.json() as { object: { sha: string } };
-  const mainSha = refData.object.sha;
+  const mainSha = await getDefaultBranchSha();
 
   // 2. Create or reuse branch. Reusing makes retries safe after partial failures.
   const branchName = `builder/scaffold-${proposalId.slice(0, 8)}`;

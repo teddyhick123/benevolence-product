@@ -1,12 +1,45 @@
 // lib/builder/scaffold-worker.ts
+//
+// Build worker for Builder code proposals (Increment 2 durable data contract).
+// Consumes {proposalId, orgId, revisionId} jobs and records IMMUTABLE facts:
+// a frozen revision (artifacts + hashes), a review attempt, and its findings.
+// It never mutates the deleted phase/generated_code/review_report columns.
+//
+// Critical ordering invariant (migration 0025 immutability trigger): the
+// revision's manifest/diff/context hashes and artifacts must be frozen BEFORE
+// the first builder_review_attempts row for that revision is inserted — after
+// that, the trigger rejects any change to those fields (ERRCODE P0031).
 import { Queue, Worker, type Job } from 'bullmq';
 import { createAdminClient } from '@/lib/supabase';
 import { createAIProvider } from '@/lib/ai/factory';
 import { AI_MODELS } from '@/lib/ai/models';
 import { buildScaffoldContext, formatScaffoldContextForPrompt } from './scaffold-context';
 import { getCodebaseIndex, formatIndexForPrompt } from './codebase-index';
-import { evaluatePathPolicy } from './path-policy';
-import { evaluateReviewGate, parseReviewReport, type ReviewReport } from './review-gate';
+import { evaluatePathPolicy, evaluateFileBudget } from './path-policy';
+import {
+  transitionProposal,
+  failInFlightRun,
+  REVIEW_POLICY_VERSION,
+  REQUIRED_CHECK_KEYS,
+  type CodeState,
+  type RevisionRow,
+  type ReviewAttemptRow,
+  type FindingRow,
+  type VerificationRunRow,
+} from './proposal-state';
+import {
+  buildFileManifest,
+  manifestHash,
+  buildUnifiedDiff,
+  canonicalJson,
+  sha256Hex,
+  capAndRedactLog,
+  ARTIFACT_KEYS,
+  putJsonArtifact,
+  putTextArtifact,
+  readJsonArtifact,
+} from './artifacts';
+import { evaluateAttemptGate, parseModelReviewOutput } from './review-gate';
 import type { ScaffoldPlanContent } from './tools';
 import { branding } from '@/lib/config';
 
@@ -20,6 +53,12 @@ export interface ScaffoldBuildJobData {
   proposalId: string;
   orgId: string;
   revisionId: string;
+}
+
+interface ProposalFile {
+  path: string;
+  content: string;
+  diff?: string;
 }
 
 export async function enqueueScaffoldBuildJob(data: ScaffoldBuildJobData): Promise<string> {
@@ -49,8 +88,8 @@ export function createScaffoldWorker(): Worker {
   worker.on('failed', (job, err) => {
     console.error(`[scaffold-worker] Job ${job?.id} failed:`, err.message);
     const data = job?.data as ScaffoldBuildJobData | undefined;
-    if (data?.proposalId) {
-      void markProposalRunFailed(data.proposalId, err.message);
+    if (data?.proposalId && data?.orgId) {
+      void markProposalRunFailed(data.proposalId, data.orgId, err.message);
     }
   });
 
@@ -61,84 +100,348 @@ export function createScaffoldWorker(): Worker {
   return worker;
 }
 
-async function markProposalRunFailed(proposalId: string, message: string): Promise<void> {
+// ============================================================
+// Build phase
+// ============================================================
+
+export async function runBuildPhase(data: ScaffoldBuildJobData): Promise<void> {
+  const { proposalId, orgId, revisionId } = data;
+  const supabase = createAdminClient();
+
+  // ── Step 1: load + re-entry guard ────────────────────────────────────────
+  const { data: proposal, error: proposalError } = await supabase
+    .from('builder_proposals')
+    .select('id, org_id, code_state, current_revision_id, plan_content')
+    .eq('id', proposalId)
+    .eq('org_id', orgId)
+    .maybeSingle();
+  if (proposalError) throw proposalError;
+
+  if (!proposal || proposal.code_state !== 'queued' || proposal.current_revision_id !== revisionId) {
+    // Idempotent re-entry: a duplicate delivery, a stale job, or a run already
+    // claimed by another worker. Exit cleanly with zero writes.
+    console.log(
+      `[scaffold-worker] Skipping build for proposal ${proposalId} revision ${revisionId}: ` +
+        `state=${proposal?.code_state ?? 'missing'} current_revision=${proposal?.current_revision_id ?? 'none'}`
+    );
+    return;
+  }
+
+  const { data: revision, error: revisionError } = await supabase
+    .from('builder_proposal_revisions')
+    .select('*')
+    .eq('id', revisionId)
+    .maybeSingle();
+  if (revisionError) throw revisionError;
+  if (!revision) {
+    console.log(`[scaffold-worker] Revision ${revisionId} not found for proposal ${proposalId}; exiting.`);
+    return;
+  }
+
+  const planContent = proposal.plan_content as ScaffoldPlanContent | null;
+  const prefix: string = revision.artifact_prefix;
+
+  let files: ProposalFile[];
+  // Hashes that the review gate needs. For scaffold we compute + freeze them
+  // here; for generic proposals they were frozen at submission time.
+  let gateRevision: RevisionRow = revision as RevisionRow;
+  let budgetError: string | null = null;
+
+  if (planContent && Array.isArray(planContent.files) && planContent.files.length > 0) {
+    // ── Scaffold path ──────────────────────────────────────────────────────
+    await transition(supabase, proposalId, orgId, 'queued', 'generating');
+
+    files = await generateFilesFromPlan(supabase, revisionId, planContent);
+
+    // Step 3: policy + budget are evaluated here, but the decision (which
+    // needs an attempt row to hang findings off) is deferred to step 5.
+    budgetError = evaluateFileBudget(files);
+
+    // Freeze artifacts + hashes on the revision BEFORE any attempt exists.
+    const manifestInput = files.map(f => ({ path: f.path, content: f.content }));
+    const manifest = buildFileManifest(manifestInput);
+    const diffText = buildUnifiedDiff(manifestInput);
+    const contextPayload = {
+      request_text: (planContent as { moduleName?: string }).moduleName ?? '',
+      files: manifest.entries.map(e => e.path),
+    };
+    const mHash = manifestHash(manifest);
+    const dHash = sha256Hex(diffText);
+    const cHash = sha256Hex(canonicalJson(contextPayload));
+
+    await putJsonArtifact(supabase, `${prefix}/${ARTIFACT_KEYS.files}`, {
+      files: files.map(f => ({ path: f.path, content: f.content, diff: f.diff ?? '' })),
+    });
+    await putJsonArtifact(supabase, `${prefix}/${ARTIFACT_KEYS.manifest}`, manifest);
+    await putTextArtifact(supabase, `${prefix}/${ARTIFACT_KEYS.diff}`, diffText, 'text/x-diff');
+    await putJsonArtifact(supabase, `${prefix}/${ARTIFACT_KEYS.context}`, contextPayload);
+
+    const { error: stampError } = await supabase
+      .from('builder_proposal_revisions')
+      .update({
+        manifest_hash: mHash,
+        diff_hash: dHash,
+        context_hash: cHash,
+        file_count: manifest.fileCount,
+        total_bytes: manifest.totalBytes,
+      })
+      .eq('id', revisionId);
+    if (stampError) throw stampError;
+
+    gateRevision = {
+      ...(revision as RevisionRow),
+      manifest_hash: mHash,
+      diff_hash: dHash,
+      context_hash: cHash,
+      file_count: manifest.fileCount,
+      total_bytes: manifest.totalBytes,
+    };
+
+    await transition(supabase, proposalId, orgId, 'generating', 'verifying');
+  } else {
+    // ── Generic path ───────────────────────────────────────────────────────
+    await transition(supabase, proposalId, orgId, 'queued', 'verifying');
+
+    const stored = await readJsonArtifact<{ files: ProposalFile[] }>(
+      supabase,
+      `${prefix}/${ARTIFACT_KEYS.files}`
+    );
+    files = stored?.files ?? [];
+    if (files.length === 0) {
+      throw new Error(`Proposal ${proposalId} revision ${revisionId} has no files.json to review`);
+    }
+  }
+
+  // ── Step 4: insert the review attempt (revision is now frozen) ────────────
+  const { data: latestAttempt } = await supabase
+    .from('builder_review_attempts')
+    .select('attempt_number')
+    .eq('revision_id', revisionId)
+    .order('attempt_number', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const attemptNumber = (latestAttempt?.attempt_number ?? 0) + 1;
+  const trigger = attemptNumber === 1 ? 'initial' : 'retry';
+
+  const { data: attemptRow, error: attemptError } = await supabase
+    .from('builder_review_attempts')
+    .insert({
+      proposal_id: proposalId,
+      revision_id: revisionId,
+      attempt_number: attemptNumber,
+      trigger,
+      status: 'running',
+      policy_version: REVIEW_POLICY_VERSION,
+      required_check_keys: REQUIRED_CHECK_KEYS,
+    })
+    .select('id')
+    .single();
+  if (attemptError) throw attemptError;
+  const attemptId = attemptRow.id as string;
+
+  // ── Step 5: path policy / budget violations block before review ───────────
+  const policy = evaluatePathPolicy(files.map(f => f.path));
+  if (!policy.allowed || budgetError) {
+    const findingRows = policy.violations.map(v => ({
+      review_attempt_id: attemptId,
+      reviewer_kind: 'system',
+      severity: 'blocker',
+      category: 'path-policy',
+      rule_id: v.rule,
+      file_path: v.path,
+      evidence: v.detail,
+      state: 'open',
+    }));
+    if (budgetError) {
+      findingRows.push({
+        review_attempt_id: attemptId,
+        reviewer_kind: 'system',
+        severity: 'blocker',
+        category: 'file-budget',
+        rule_id: 'file-budget',
+        file_path: null as unknown as string,
+        evidence: budgetError,
+        state: 'open',
+      });
+    }
+    const { error: findingsError } = await supabase.from('builder_review_findings').insert(findingRows);
+    if (findingsError) throw findingsError;
+
+    const reason = 'Proposal touches protected paths or exceeds the file budget.';
+    await completeAttempt(supabase, attemptId, 'blocked', reason);
+    await transition(supabase, proposalId, orgId, 'verifying', 'needs_repair');
+    return;
+  }
+
+  // ── Step 6: single-model automated review ─────────────────────────────────
+  const { promptText, rawResponse } = await runModelReview(planContent ?? null, files);
+
+  await putTextArtifact(supabase, `${prefix}/${ARTIFACT_KEYS.reviewPrompt(attemptId)}`, promptText);
+  await putTextArtifact(
+    supabase,
+    `${prefix}/${ARTIFACT_KEYS.reviewResponse(attemptId)}`,
+    capAndRedactLog(rawResponse, 200_000),
+    'application/json'
+  );
+
+  const parsed = parseReview(rawResponse);
+  if (!parsed) {
+    // Infrastructure failure — NOT a review verdict. Never synthesize a
+    // finding; a null parse means the reviewer output is unusable.
+    await completeAttempt(supabase, attemptId, 'failed', 'Model review output invalid');
+    await transition(supabase, proposalId, orgId, 'verifying', 'failed');
+    return;
+  }
+
+  if (parsed.findings.length > 0) {
+    const { error: findingsError } = await supabase.from('builder_review_findings').insert(
+      parsed.findings.map(f => ({
+        review_attempt_id: attemptId,
+        reviewer_kind: 'automated_review',
+        severity: f.severity,
+        category: f.category,
+        rule_id: null,
+        file_path: f.file_path,
+        line_start: f.line_start,
+        line_end: f.line_end,
+        evidence: f.evidence,
+        recommendation: f.recommendation,
+        state: 'open',
+      }))
+    );
+    if (findingsError) throw findingsError;
+  }
+
+  // ── Step 7: re-load findings/runs and let the gate decide ─────────────────
+  const { data: findings } = await supabase
+    .from('builder_review_findings')
+    .select('*')
+    .eq('review_attempt_id', attemptId);
+  const { data: verificationRuns } = await supabase
+    .from('builder_verification_runs')
+    .select('*')
+    .eq('review_attempt_id', attemptId);
+
+  const nowIso = new Date().toISOString();
+  const attemptForGate: ReviewAttemptRow = {
+    id: attemptId,
+    proposal_id: proposalId,
+    revision_id: revisionId,
+    attempt_number: attemptNumber,
+    trigger,
+    status: 'passed', // hypothesis — the gate confirms or rejects it
+    policy_version: REVIEW_POLICY_VERSION,
+    required_check_keys: REQUIRED_CHECK_KEYS,
+    summary_score: parsed.summaryScore,
+    started_at: nowIso,
+    completed_at: nowIso,
+    decision_reason: null,
+  };
+
+  const gate = evaluateAttemptGate({
+    proposal: { code_state: 'verifying', current_revision_id: revisionId },
+    revision: gateRevision,
+    attempt: attemptForGate,
+    findings: (findings ?? []) as FindingRow[],
+    verificationRuns: (verificationRuns ?? []) as VerificationRunRow[],
+    currentPolicyVersion: REVIEW_POLICY_VERSION,
+  });
+
+  if (gate.pass) {
+    await completeAttempt(supabase, attemptId, 'passed', 'All gates passed', parsed.summaryScore);
+    await transition(supabase, proposalId, orgId, 'verifying', 'ready_to_apply');
+  } else {
+    await completeAttempt(supabase, attemptId, 'blocked', gate.reason ?? 'Review gate failed', parsed.summaryScore);
+    await transition(supabase, proposalId, orgId, 'verifying', 'needs_repair');
+  }
+}
+
+// ============================================================
+// Failure handling
+// ============================================================
+
+export async function markProposalRunFailed(proposalId: string, orgId: string, message: string): Promise<void> {
   try {
     const supabase = createAdminClient();
-    await supabase
-      .from('builder_proposals')
-      .update({
-        phase: 'failed',
-        review_report: {
-          score: 0,
-          findings: [{ severity: 'error', description: `Run failed before review completed: ${message.slice(0, 500)}` }],
-        },
-      })
-      .eq('id', proposalId);
+
+    // Complete the latest still-running attempt (if any) so it isn't stranded.
+    const { data: running } = await supabase
+      .from('builder_review_attempts')
+      .select('id')
+      .eq('proposal_id', proposalId)
+      .eq('status', 'running')
+      .order('started_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (running?.id) {
+      await supabase
+        .from('builder_review_attempts')
+        .update({
+          status: 'failed',
+          completed_at: new Date().toISOString(),
+          decision_reason: 'Run failed before review completed',
+        })
+        .eq('id', running.id);
+
+      await supabase.from('builder_review_findings').insert({
+        review_attempt_id: running.id,
+        reviewer_kind: 'system',
+        severity: 'error',
+        category: 'infrastructure',
+        evidence: capAndRedactLog(`Run failed before review completed: ${message}`, 10_000),
+        state: 'open',
+      });
+    }
+
+    await failInFlightRun(supabase, proposalId);
   } catch (updateError) {
     console.error(`[scaffold-worker] Could not mark proposal ${proposalId} failed:`, updateError);
   }
 }
 
-async function runBuildPhase(data: ScaffoldBuildJobData): Promise<void> {
-  const { proposalId } = data;
-  const supabase = createAdminClient();
+// ============================================================
+// Helpers
+// ============================================================
 
-  const { data: proposal, error: fetchError } = await supabase
-    .from('builder_proposals')
-    .select('plan_content, generated_code, org_id')
-    .eq('id', proposalId)
-    .single();
-
-  if (fetchError || !proposal) {
-    throw new Error(`Proposal ${proposalId} not found`);
+async function transition(
+  supabase: ReturnType<typeof createAdminClient>,
+  proposalId: string,
+  orgId: string,
+  from: CodeState,
+  to: CodeState
+): Promise<void> {
+  const result = await transitionProposal(supabase, { proposalId, orgId, from, to });
+  if (!result.ok) {
+    throw new Error(
+      `Builder transition ${from}->${to} failed for proposal ${proposalId} (current: ${result.currentState})`
+    );
   }
+}
 
-  await supabase
-    .from('builder_proposals')
-    .update({ phase: 'building' })
-    .eq('id', proposalId);
-
-  const planContent = proposal.plan_content as ScaffoldPlanContent | null;
-  let generatedFiles: Array<{ path: string; content: string }>;
-
-  if (planContent?.files?.length) {
-    generatedFiles = await generateFilesFromPlan(supabase, proposalId, planContent);
-  } else {
-    // Generic proposals arrive with their files already attached; they skip
-    // generation and go straight to policy check + review.
-    const supplied = (proposal.generated_code as { files?: Array<{ path: string; content: string }> } | null)?.files ?? [];
-    if (supplied.length === 0) {
-      throw new Error(`Proposal ${proposalId} has no plan and no supplied files to review`);
-    }
-    generatedFiles = supplied;
-  }
-
-  await supabase
-    .from('builder_proposals')
-    .update({ phase: 'build_ready' })
-    .eq('id', proposalId);
-
-  const policy = evaluatePathPolicy(generatedFiles.map(f => f.path));
-  if (!policy.allowed) {
-    const report: ReviewReport = {
-      score: 0,
-      findings: policy.violations.map(v => ({ severity: 'error', description: `Protected path ${v.path}: ${v.detail}` })),
-    };
-    await supabase
-      .from('builder_proposals')
-      .update({ phase: 'needs_repair', review_report: report })
-      .eq('id', proposalId);
-    return;
-  }
-
-  await runReviewPhase(proposalId, planContent, generatedFiles);
+async function completeAttempt(
+  supabase: ReturnType<typeof createAdminClient>,
+  attemptId: string,
+  status: 'passed' | 'blocked' | 'failed',
+  decisionReason: string,
+  summaryScore?: number | null
+): Promise<void> {
+  const patch: Record<string, unknown> = {
+    status,
+    completed_at: new Date().toISOString(),
+    decision_reason: decisionReason,
+  };
+  if (summaryScore !== undefined) patch.summary_score = summaryScore;
+  const { error } = await supabase.from('builder_review_attempts').update(patch).eq('id', attemptId);
+  if (error) throw error;
 }
 
 async function generateFilesFromPlan(
   supabase: ReturnType<typeof createAdminClient>,
-  proposalId: string,
+  revisionId: string,
   planContent: ScaffoldPlanContent
-): Promise<Array<{ path: string; content: string }>> {
+): Promise<ProposalFile[]> {
   let indexStr = '';
   try {
     const index = getCodebaseIndex();
@@ -150,7 +453,8 @@ async function generateFilesFromPlan(
   const systemPrompt = `You are a senior software engineer implementing a module for the ${branding.appName} platform.${contextPrompt}`;
 
   const provider = createAIProvider();
-  const generatedFiles: Array<{ path: string; content: string }> = [];
+  const generatedFiles: ProposalFile[] = [];
+  const progress: Array<{ path: string; done: boolean }> = [];
 
   for (const file of planContent.files) {
     const userPrompt = `Module plan:\n${JSON.stringify(planContent, null, 2)}\n\nImplement this specific file: ${file.path}\n${file.description}\n\nReturn ONLY the complete file content with no explanation or markdown fences.`;
@@ -165,31 +469,26 @@ async function generateFilesFromPlan(
     const textBlock = response.content.find(b => b.type === 'text');
     const content = textBlock?.type === 'text' ? textBlock.text : '';
     generatedFiles.push({ path: file.path, content });
+    progress.push({ path: file.path, done: true });
 
+    // Incremental progress is allowed pre-attempt (the immutability trigger
+    // only freezes `progress` once an attempt row exists).
     await supabase
-      .from('builder_proposals')
-      .update({ generated_code: { files: generatedFiles } })
-      .eq('id', proposalId);
+      .from('builder_proposal_revisions')
+      .update({ progress: { files: [...progress] } })
+      .eq('id', revisionId);
   }
 
   return generatedFiles;
 }
 
-async function runReviewPhase(
-  proposalId: string,
+async function runModelReview(
   planContent: ScaffoldPlanContent | null,
-  generatedFiles: Array<{ path: string; content: string }>
-): Promise<void> {
-  const supabase = createAdminClient();
-
-  await supabase
-    .from('builder_proposals')
-    .update({ phase: 'reviewing' })
-    .eq('id', proposalId);
-
+  files: ProposalFile[]
+): Promise<{ promptText: string; rawResponse: string }> {
   const provider = createAIProvider();
 
-  const filesText = generatedFiles
+  const filesText = files
     .map(f => `### ${f.path}\n\`\`\`\n${f.content.slice(0, 3000)}\n\`\`\``)
     .join('\n\n');
 
@@ -197,7 +496,7 @@ async function runReviewPhase(
     ? JSON.stringify(planContent, null, 2)
     : 'No structured plan: this is a directly submitted code proposal. Review the files on their own merits.';
 
-  const reviewPrompt = `Review this proposed implementation against the plan and ${branding.appName} codebase standards.
+  const promptText = `Review this proposed implementation against the plan and ${branding.appName} codebase standards.
 
 Module plan:
 ${planText}
@@ -213,48 +512,32 @@ Check for:
 
 Respond with ONLY a valid JSON object (no markdown fences):
 {
-  "score": 85,
+  "summary_score": 85,
   "findings": [
-    { "severity": "error", "description": "..." },
-    { "severity": "warning", "description": "..." }
+    { "severity": "error", "category": "security", "file_path": "app/api/...", "line_start": 1, "line_end": 1, "evidence": "...", "recommendation": "..." }
   ]
 }
 
-Severity contract: use "error" for anything that must block a pull request (security, org isolation, RLS, schema canon violations, broken code). Use "warning" for improvements. The score is a summary only; it does not gate anything.`;
+Severity contract: use "blocker" or "error" for anything that must block a pull request (security, org isolation, RLS, schema canon violations, broken code). Use "warning"/"info" for improvements. The summary_score is a summary only; it does not gate anything.`;
 
   const response = await provider.createMessage({
     model: AI_MODELS.scaffoldReview,
     maxTokens: 2048,
-    messages: [{ role: 'user', content: reviewPrompt }],
+    messages: [{ role: 'user', content: promptText }],
     system: 'You are a senior code reviewer. Return only valid JSON.',
   });
 
   const textBlock = response.content.find(b => b.type === 'text');
-  let reviewReport: ReviewReport = {
-    score: 0,
-    findings: [{ severity: 'error', description: 'Automated review produced no output. Retry the run before opening a PR.' }],
-  };
+  const rawResponse = textBlock?.type === 'text' ? textBlock.text : '';
+  return { promptText, rawResponse };
+}
 
-  if (textBlock?.type === 'text') {
-    try {
-      const raw = textBlock.text.replace(/^```json?\n?|```$/gm, '').trim();
-      const validated = parseReviewReport(JSON.parse(raw));
-      reviewReport = validated ?? {
-        score: 0,
-        findings: [{ severity: 'error', description: 'Automated review returned a malformed report. Retry the run before opening a PR.' }],
-      };
-    } catch {
-      reviewReport = {
-        score: 0,
-        findings: [{ severity: 'error', description: 'Automated review output could not be parsed. Retry the run before opening a PR.' }],
-      };
-    }
+function parseReview(rawResponse: string): ReturnType<typeof parseModelReviewOutput> {
+  if (!rawResponse) return null;
+  try {
+    const stripped = rawResponse.replace(/^```json?\n?|```$/gm, '').trim();
+    return parseModelReviewOutput(JSON.parse(stripped));
+  } catch {
+    return null;
   }
-
-  const gate = evaluateReviewGate(reviewReport);
-
-  await supabase
-    .from('builder_proposals')
-    .update({ phase: gate.pass ? 'ready_to_apply' : 'needs_repair', review_report: reviewReport })
-    .eq('id', proposalId);
 }

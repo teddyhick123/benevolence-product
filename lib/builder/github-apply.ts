@@ -7,7 +7,10 @@ export interface GitHubFile {
 
 export interface ApplyResult {
   prUrl: string;
+  prNumber: number;
   branchName: string;
+  baseSha: string;
+  headSha: string;
 }
 
 export function isGitHubConfigured(): boolean {
@@ -69,7 +72,7 @@ export async function applyProposalToGitHub(
   proposalId: string,
   moduleName: string,
   files: GitHubFile[],
-  reviewScore: number,
+  facts?: { attemptNumber?: number; policyVersion?: string },
 ): Promise<ApplyResult> {
   const token = process.env.GITHUB_TOKEN;
   const owner = process.env.GITHUB_REPO_OWNER;
@@ -114,9 +117,10 @@ export async function applyProposalToGitHub(
     if (!openPrRes.ok) {
       throw new Error(`Failed to check existing PR: ${openPrRes.status} — ${await readGitHubError(openPrRes)}`);
     }
-    const openPrs = await openPrRes.json() as Array<{ html_url?: string }>;
-    if (openPrs[0]?.html_url) {
-      return { prUrl: openPrs[0].html_url, branchName };
+    const openPrs = await openPrRes.json() as Array<{ number?: number; html_url?: string; head?: { sha?: string } }>;
+    const openPr = openPrs[0];
+    if (openPr?.html_url && openPr.number != null && openPr.head?.sha) {
+      return { prUrl: openPr.html_url, prNumber: openPr.number, branchName, baseSha: mainSha, headSha: openPr.head.sha };
     }
   }
 
@@ -173,15 +177,21 @@ export async function applyProposalToGitHub(
   if (!existingPrRes.ok) {
     throw new Error(`Failed to check existing PR: ${existingPrRes.status} — ${await readGitHubError(existingPrRes)}`);
   }
-  const existingPrs = await existingPrRes.json() as Array<{ html_url?: string }>;
-  if (existingPrs[0]?.html_url) {
-    return { prUrl: existingPrs[0].html_url, branchName };
+  const existingPrs = await existingPrRes.json() as Array<{ number?: number; html_url?: string; head?: { sha?: string } }>;
+  const existingPr = existingPrs[0];
+  if (existingPr?.html_url && existingPr.number != null && existingPr.head?.sha) {
+    return { prUrl: existingPr.html_url, prNumber: existingPr.number, branchName, baseSha: mainSha, headSha: existingPr.head.sha };
   }
 
+  // PR body states verification facts, never a score — a model score is never
+  // an authorization signal (audit Phase 0, item 2).
+  const attemptFact = facts?.attemptNumber != null && facts?.policyVersion
+    ? `**Verification:** review attempt ${facts.attemptNumber} passed under ${facts.policyVersion}`
+    : '**Verification:** review gate passed under the durable review policy';
   const prBody = [
     `## AI-Generated Module: ${moduleName}`,
     '',
-    `**Review Score:** ${reviewScore}/100`,
+    attemptFact,
     '',
     '**Files changed:**',
     files.map(f => `- \`${f.path}\``).join('\n'),
@@ -206,7 +216,26 @@ export async function applyProposalToGitHub(
       `Failed to create PR: ${prRes.status} — ${await readGitHubError(prRes)}`
     );
   }
-  const prData = await prRes.json() as { html_url: string };
+  const prData = await prRes.json() as { number: number; html_url: string; head?: { sha?: string } };
 
-  return { prUrl: prData.html_url, branchName };
+  // Prefer the PR's head SHA; fall back to the branch tip if the create
+  // response omitted it (some GitHub error shapes / test doubles do).
+  const headSha = prData.head?.sha ?? (await readBranchHeadSha(base, branchName, headers));
+
+  return { prUrl: prData.html_url, prNumber: prData.number, branchName, baseSha: mainSha, headSha };
+}
+
+/** Reads the current tip SHA of an arbitrary branch (used to resolve a PR head SHA). */
+async function readBranchHeadSha(
+  base: string,
+  branchName: string,
+  headers: Record<string, string>,
+): Promise<string> {
+  const res = await fetch(`${base}/git/ref/heads/${branchName}`, { headers });
+  if (!res.ok) {
+    throw new Error(`Failed to read branch head: ${res.status} — ${await readGitHubError(res)}`);
+  }
+  const data = await res.json() as { object?: { sha?: string } };
+  if (!data.object?.sha) throw new Error('Failed to read branch head: missing sha');
+  return data.object.sha;
 }

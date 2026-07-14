@@ -71,13 +71,18 @@ describe('org-scoped apply endpoint', () => {
     expect(src).toMatch(/applyProposalToGitHub/);
   });
 
-  it('stores pr_url on the proposal', () => {
+  it('records provider facts in a builder_delivery_records row', () => {
+    expect(src).toMatch(/builder_delivery_records/);
     expect(src).toMatch(/pr_url/);
+    expect(src).toMatch(/status:\s*['"]pr_open['"]/);
   });
 
-  it('records an open PR until the separate ship action completes deployment', () => {
-    expect(src).toMatch(/phase:\s*['"]pr_opened['"]/);
-    expect(src).toMatch(/status:\s*['"]approved['"]/);
+  it('transitions to pr_opened via the state service and never writes a status/pr_url column on the proposal', () => {
+    expect(src).toMatch(/transitionProposal/);
+    expect(src).toMatch(/to:\s*['"]pr_opened['"]/);
+    // The deleted phase/status columns must not be written on builder_proposals.
+    expect(src).not.toMatch(/phase:\s*['"]pr_opened['"]/);
+    expect(src).not.toMatch(/status:\s*['"]approved['"]/);
   });
 
   it('emits proposal_applied builder_event', () => {
@@ -91,7 +96,7 @@ describe('org-scoped apply endpoint', () => {
 
   it('enforces the path policy and review gate before GitHub', () => {
     expect(src).toMatch(/evaluatePathPolicy/);
-    expect(src).toMatch(/evaluateReviewGate/);
+    expect(src).toMatch(/evaluateAttemptGate/);
     expect(src).toMatch(/422/);
   });
 

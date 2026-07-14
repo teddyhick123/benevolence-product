@@ -46,6 +46,11 @@ describe('github-apply source', () => {
   it('branch name includes proposalId prefix', () => {
     expect(src).toMatch(/builder\/scaffold-/);
   });
+
+  it('does not embed a review score in the PR body (score is never an authorization signal)', () => {
+    expect(src).not.toMatch(/Review Score/i);
+    expect(src).not.toMatch(/reviewScore/);
+  });
 });
 
 describe('isGitHubConfigured', () => {
@@ -116,7 +121,7 @@ describe('applyProposalToGitHub', () => {
         const existingPrUrl = options.existingPrUrl;
         return {
           ok: true,
-          json: async () => existingPrUrl ? [{ html_url: existingPrUrl }] : [],
+          json: async () => existingPrUrl ? [{ number: 42, html_url: existingPrUrl, head: { sha: 'existingprsha' } }] : [],
         };
       }
       // GET existing file contents
@@ -137,7 +142,7 @@ describe('applyProposalToGitHub', () => {
       }
       // POST create PR
       if (u.includes('/pulls') && reqOpts?.method === 'POST') {
-        return { ok: true, json: async () => ({ html_url: 'https://github.com/owner/repo/pull/1' }) };
+        return { ok: true, json: async () => ({ number: 1, html_url: 'https://github.com/owner/repo/pull/1', head: { sha: 'newprsha' } }) };
       }
       return { ok: false, status: 500, json: async () => ({ message: 'unexpected' }) };
     });
@@ -147,7 +152,7 @@ describe('applyProposalToGitHub', () => {
     const mockFetch = makeFetch(false);
     vi.stubGlobal('fetch', mockFetch as unknown as typeof fetch);
 
-    await applyProposalToGitHub('aabbccdd-1234-5678', 'MyModule', [{ path: 'lib/foo.ts', content: 'export {}' }], 85);
+    await applyProposalToGitHub('aabbccdd-1234-5678', 'MyModule', [{ path: 'lib/foo.ts', content: 'export {}' }]);
 
     const putCall = mockFetch.mock.calls.find((args: unknown[]) =>
       String(args[0]).includes('/contents/') && (args[1] as RequestInit)?.method === 'PUT'
@@ -161,7 +166,7 @@ describe('applyProposalToGitHub', () => {
     const mockFetch = makeFetch(true, 'abc123sha');
     vi.stubGlobal('fetch', mockFetch as unknown as typeof fetch);
 
-    await applyProposalToGitHub('aabbccdd-1234-5678', 'MyModule', [{ path: 'lib/foo.ts', content: 'export {}' }], 85);
+    await applyProposalToGitHub('aabbccdd-1234-5678', 'MyModule', [{ path: 'lib/foo.ts', content: 'export {}' }]);
 
     const putCall = mockFetch.mock.calls.find((args: unknown[]) =>
       String(args[0]).includes('/contents/') && (args[1] as RequestInit)?.method === 'PUT'
@@ -185,24 +190,47 @@ describe('applyProposalToGitHub', () => {
     vi.stubGlobal('fetch', mockFetch as unknown as typeof fetch);
 
     await expect(
-      applyProposalToGitHub('aabbccdd-1234-5678', 'MyModule', [{ path: 'lib/foo.ts', content: 'x' }], 80)
+      applyProposalToGitHub('aabbccdd-1234-5678', 'MyModule', [{ path: 'lib/foo.ts', content: 'x' }])
     ).rejects.toThrow(/Failed to check/);
   });
 
   it('returns prUrl and branchName on success', async () => {
     vi.stubGlobal('fetch', makeFetch(false) as unknown as typeof fetch);
 
-    const result = await applyProposalToGitHub('aabbccdd-1234-5678', 'MyModule', [{ path: 'lib/foo.ts', content: 'x' }], 90);
+    const result = await applyProposalToGitHub('aabbccdd-1234-5678', 'MyModule', [{ path: 'lib/foo.ts', content: 'x' }]);
 
     expect(result.prUrl).toBe('https://github.com/owner/repo/pull/1');
+    expect(result.prNumber).toBe(1);
     expect(result.branchName).toBe('builder/scaffold-aabbccdd');
+    expect(result.baseSha).toBe('mainsha123');
+    expect(result.headSha).toBe('newprsha');
+  });
+
+  it('writes a PR body that states verification facts, never a score', async () => {
+    const mockFetch = makeFetch(false);
+    vi.stubGlobal('fetch', mockFetch as unknown as typeof fetch);
+
+    await applyProposalToGitHub(
+      'aabbccdd-1234-5678',
+      'MyModule',
+      [{ path: 'lib/foo.ts', content: 'x' }],
+      { attemptNumber: 2, policyVersion: 'builder-review-policy/v1' },
+    );
+
+    const prCall = mockFetch.mock.calls.find((args: unknown[]) =>
+      String(args[0]).endsWith('/pulls') && (args[1] as RequestInit)?.method === 'POST'
+    );
+    const prBody = JSON.parse((prCall![1] as RequestInit).body as string).body as string;
+    expect(prBody).not.toMatch(/score/i);
+    expect(prBody).toMatch(/attempt 2/);
+    expect(prBody).toMatch(/builder-review-policy\/v1/);
   });
 
   it('reuses an existing branch instead of failing on retry', async () => {
     const mockFetch = makeFetch(false, undefined, { branchExists: true });
     vi.stubGlobal('fetch', mockFetch as unknown as typeof fetch);
 
-    await applyProposalToGitHub('aabbccdd-1234-5678', 'MyModule', [{ path: 'lib/foo.ts', content: 'x' }], 90);
+    await applyProposalToGitHub('aabbccdd-1234-5678', 'MyModule', [{ path: 'lib/foo.ts', content: 'x' }]);
 
     const createBranchCall = mockFetch.mock.calls.find((args: unknown[]) =>
       String(args[0]).includes('/git/refs') && (args[1] as RequestInit)?.method === 'POST'
@@ -217,12 +245,14 @@ describe('applyProposalToGitHub', () => {
     });
     vi.stubGlobal('fetch', mockFetch as unknown as typeof fetch);
 
-    const result = await applyProposalToGitHub('aabbccdd-1234-5678', 'MyModule', [{ path: 'lib/foo.ts', content: 'x' }], 90);
+    const result = await applyProposalToGitHub('aabbccdd-1234-5678', 'MyModule', [{ path: 'lib/foo.ts', content: 'x' }]);
 
     const putCall = mockFetch.mock.calls.find((args: unknown[]) =>
       String(args[0]).includes('/contents/') && (args[1] as RequestInit)?.method === 'PUT'
     );
     expect(result.prUrl).toBe('https://github.com/owner/repo/pull/42');
+    expect(result.prNumber).toBe(42);
+    expect(result.headSha).toBe('existingprsha');
     expect(putCall).toBeUndefined();
   });
 
@@ -233,7 +263,7 @@ describe('applyProposalToGitHub', () => {
     });
     vi.stubGlobal('fetch', mockFetch as unknown as typeof fetch);
 
-    await applyProposalToGitHub('aabbccdd-1234-5678', 'MyModule', [{ path: 'lib/foo.ts', content }], 90);
+    await applyProposalToGitHub('aabbccdd-1234-5678', 'MyModule', [{ path: 'lib/foo.ts', content }]);
 
     const putCall = mockFetch.mock.calls.find((args: unknown[]) =>
       String(args[0]).includes('/contents/') && (args[1] as RequestInit)?.method === 'PUT'

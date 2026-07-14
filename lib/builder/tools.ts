@@ -46,6 +46,18 @@ import {
   type GrantsTableColumn,
   type ViewConfigScope,
 } from '@/lib/view-config';
+import { CODE_STATES } from '@/lib/builder/proposal-state';
+import {
+  buildFileManifest,
+  manifestHash,
+  buildUnifiedDiff,
+  canonicalJson,
+  sha256Hex,
+  artifactPrefix,
+  putJsonArtifact,
+  putTextArtifact,
+  ARTIFACT_KEYS,
+} from '@/lib/builder/artifacts';
 
 const MUTABLE_MODULE_IDS: readonly ModuleId[] = [
   'impact_tracking', 'reporting', 'tax_optimization', 'grant_management',
@@ -54,7 +66,6 @@ const MUTABLE_MODULE_IDS: readonly ModuleId[] = [
 ];
 const METRIC_AGGREGATIONS = ['sum', 'avg', 'last', 'first'] as const;
 const METRIC_DIRECTIONS = ['higher_is_better', 'lower_is_better', 'neutral'] as const;
-const PROPOSAL_PHASES = ['pending', 'plan_ready', 'queued', 'building', 'build_ready', 'reviewing', 'needs_repair', 'ready_to_apply', 'failed', 'pr_opened'] as const;
 const BUILDER_EVENT_TYPES = ['tool_call', 'ai_request', 'proposal_created', 'proposal_applied', 'proposal_rejected'] as const;
 const REPORT_TEMPLATE_SCOPES = ['portfolio', 'holding', 'sector'] as const;
 const BOARD_REPORT_SECTIONS = ['overview', 'financials', 'holdings', 'impact', 'tax', 'tasks', 'appendix'] as const;
@@ -717,10 +728,10 @@ export const BUILDER_TOOLS: ToolDefinition[] = [
     input_schema: {
       type: 'object' as const,
       properties: {
-        phase: {
+        code_state: {
           type: 'string',
-          enum: [...PROPOSAL_PHASES],
-          description: 'Filter by phase (omit to return all recent proposals)',
+          enum: [...CODE_STATES],
+          description: 'Filter by code state (omit to return all recent proposals)',
         },
       },
     },
@@ -1817,22 +1828,61 @@ export async function executeTool(
           requested_by: userId,
           request_text: requestText,
           proposal_type: 'code',
-          status: 'pending',
-          phase: 'plan_ready',
-          generated_code: { files },
+          code_state: 'plan_ready',
         }).select('id').single();
 
         if (error) return { type: 'error', tool: toolName, message: error.message };
-        await emitBuilderEvent(adminSupabase, orgId, userId, 'proposal_created', {
-          tool_name: toolName,
-          payload: { proposalId: data.id, fileCount: files?.length ?? 0 },
-        });
-        return {
-          type: 'proposal_created',
-          proposalId: data.id,
-          summary,
-          fileCount: files.length,
-        };
+
+        const proposalId = data.id as string;
+
+        try {
+          const manifestInput = files.map(f => ({ path: f.path, content: f.content }));
+          const manifest = buildFileManifest(manifestInput);
+          const diffText = buildUnifiedDiff(manifestInput);
+          const contextPayload = { request_text: requestText, files: manifest.entries.map(e => e.path) };
+
+          const revisionId = crypto.randomUUID();
+          const prefix = artifactPrefix(orgId, proposalId, revisionId);
+
+          const { error: revisionError } = await adminSupabase.from('builder_proposal_revisions').insert({
+            id: revisionId,
+            proposal_id: proposalId,
+            revision_number: 1,
+            kind: 'generic_submission',
+            artifact_prefix: prefix,
+            manifest_hash: manifestHash(manifest),
+            diff_hash: sha256Hex(diffText),
+            context_hash: sha256Hex(canonicalJson(contextPayload)),
+            file_count: manifest.fileCount,
+            total_bytes: manifest.totalBytes,
+            created_by: userId,
+          });
+          if (revisionError) throw revisionError;
+
+          await putJsonArtifact(adminSupabase, `${prefix}/${ARTIFACT_KEYS.files}`, { files });
+          await putJsonArtifact(adminSupabase, `${prefix}/${ARTIFACT_KEYS.manifest}`, manifest);
+          await putTextArtifact(adminSupabase, `${prefix}/${ARTIFACT_KEYS.diff}`, diffText, 'text/x-diff');
+          await putJsonArtifact(adminSupabase, `${prefix}/${ARTIFACT_KEYS.context}`, contextPayload);
+
+          const { error: updateError } = await adminSupabase.from('builder_proposals')
+            .update({ current_revision_id: revisionId })
+            .eq('id', proposalId);
+          if (updateError) throw updateError;
+
+          await emitBuilderEvent(adminSupabase, orgId, userId, 'proposal_created', {
+            tool_name: toolName,
+            payload: { proposalId, fileCount: files.length },
+          });
+          return {
+            type: 'proposal_created',
+            proposalId,
+            summary,
+            fileCount: files.length,
+          };
+        } catch (e) {
+          await adminSupabase.from('builder_proposals').delete().eq('id', proposalId);
+          throw e;
+        }
       }
 
       case 'scaffold_module': {
@@ -1911,10 +1961,8 @@ Respond with ONLY a valid JSON object matching this exact schema (no markdown, n
             requested_by: userId,
             request_text: requestText,
             proposal_type: 'code',
-            status: 'pending',
-            phase: 'plan_ready',
+            code_state: 'plan_ready',
             plan_content: planContent,
-            generated_code: { files: [] },
           })
           .select('id')
           .single();
@@ -2004,22 +2052,22 @@ Respond with ONLY a valid JSON object matching this exact schema (no markdown, n
       }
 
       case 'list_proposals': {
-        let phase: typeof PROPOSAL_PHASES[number] | undefined;
+        let codeState: typeof CODE_STATES[number] | undefined;
         try {
-          phase = optionalEnum(toolInput.phase, 'phase', PROPOSAL_PHASES);
+          codeState = optionalEnum(toolInput.code_state, 'code_state', CODE_STATES);
         } catch (e) {
           return { type: 'error', tool: toolName, message: validationMessage(e) };
         }
 
         let query = adminSupabase
           .from('builder_proposals')
-          .select('id, phase, proposal_type, request_text, created_at, pr_url')
+          .select('id, code_state, proposal_type, request_text, created_at')
           .eq('org_id', orgId)
           .order('created_at', { ascending: false })
           .limit(10);
 
-        if (phase) {
-          query = query.eq('phase', phase);
+        if (codeState) {
+          query = query.eq('code_state', codeState);
         }
 
         const { data, error: fetchErr } = await query;
@@ -2029,14 +2077,14 @@ Respond with ONLY a valid JSON object matching this exact schema (no markdown, n
           return {
             type: 'config_success',
             tool: toolName,
-            message: phase ? `No proposals in phase "${phase}".` : 'No proposals found.',
+            message: codeState ? `No proposals in state "${codeState}".` : 'No proposals found.',
           };
         }
 
         const lines = data.map(p => {
           const summary = (p.request_text as string | null)?.slice(0, 80) ?? '(no description)';
-          const prSuffix = p.pr_url ? ` | PR: ${p.pr_url}` : '';
-          return `[${p.phase}] ${(p.id as string).slice(0, 8)} — "${summary}"${prSuffix}`;
+          const stateLabel = p.code_state ?? p.proposal_type;
+          return `[${stateLabel}] ${(p.id as string).slice(0, 8)} — "${summary}"`;
         }).join('\n');
 
         return {

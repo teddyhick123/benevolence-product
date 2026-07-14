@@ -8,8 +8,11 @@
 // Supported chains:
 //   from(table).update(values).eq(...).eq(...).in(...)/.eq(...).select(cols).maybeSingle()/.single()
 //   from(table).select(cols).eq(...).maybeSingle()/.single()
+//   from(table).select(cols).eq(...).order(...).limit(...)  (awaited directly)
 //   from(table).insert(values).select().single()
+//   from(table).insert(values)                       (awaited directly, no .select())
 //   from(table).update(values).eq(...)              (awaited directly, no .select())
+//   from(table).delete().eq(...)                    (awaited directly, no .select())
 //   rpc(name, args)
 //   storage.from(bucket).upload(...) / .createSignedUrl(...) / .download(...)
 
@@ -91,6 +94,10 @@ export class SupabaseMock {
           self.calls.push({ table, method: 'insert', args: [values] });
           return chain;
         },
+        delete() {
+          self.calls.push({ table, method: 'delete', args: [] });
+          return chain;
+        },
         select(cols?: string) {
           self.calls.push({ table, method: 'select', args: [cols] });
           return chain;
@@ -101,6 +108,14 @@ export class SupabaseMock {
         },
         in(col: string, vals: unknown[]) {
           self.calls.push({ table, method: 'in', args: [col, vals] });
+          return chain;
+        },
+        order(col: string, opts?: Record<string, unknown>) {
+          self.calls.push({ table, method: 'order', args: [col, opts] });
+          return chain;
+        },
+        limit(n: number) {
+          self.calls.push({ table, method: 'limit', args: [n] });
           return chain;
         },
         maybeSingle: async () => {

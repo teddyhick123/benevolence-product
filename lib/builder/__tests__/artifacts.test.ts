@@ -420,4 +420,18 @@ describe('readJsonArtifact', () => {
 
     await expect(readJsonArtifact(mock.client(), 'k.json')).rejects.toThrow('network error');
   });
+
+  it('returns null (not a throw) when the stored artifact is not valid JSON', async () => {
+    // Regression: a review/{attemptId}/response.json artifact can contain raw
+    // markdown-fence-wrapped model text even on a successful review run
+    // (flagged by Task 7's reviewer). Callers must never crash on this.
+    const mock = new SupabaseMock();
+    mock.queueStorageDownload(BUCKET, {
+      data: { text: async () => '```json\n{"not": "closed"' },
+      error: null,
+    });
+
+    const value = await readJsonArtifact(mock.client(), 'org/prop/rev/review/attempt/response.json');
+    expect(value).toBeNull();
+  });
 });

@@ -42,9 +42,9 @@ describe('proposal GET endpoint', () => {
     expect(src).not.toMatch(/user_org_role/);
   });
 
-  it('selects pr_url so applied proposals can show review links', () => {
-    const selectIdx = src.indexOf('.select(');
-    expect(src.slice(selectIdx, selectIdx + 300)).toMatch(/pr_url/);
+  it('surfaces pr_url via builder_delivery_records, not a proposal column (that column was dropped)', () => {
+    expect(src).toMatch(/builder_delivery_records/);
+    expect(src).toMatch(/pr_url/);
   });
 });
 

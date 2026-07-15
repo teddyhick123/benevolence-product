@@ -232,7 +232,13 @@ export async function putTextArtifact(
   if (error) throw error;
 }
 
-/** Downloads and JSON-parses a stored artifact. Returns null if the object does not exist. */
+/**
+ * Downloads and JSON-parses a stored artifact. Returns null if the object
+ * does not exist OR if its contents are not valid JSON (e.g. a review
+ * response artifact that stored raw markdown-fence-wrapped model text on a
+ * malformed run) — callers should treat both cases the same way: the
+ * artifact isn't usable yet, not a 500.
+ */
 export async function readJsonArtifact<T>(admin: SupabaseClient, key: string): Promise<T | null> {
   const { data, error } = await admin.storage.from(BUCKET).download(key);
   if (error) {
@@ -242,7 +248,11 @@ export async function readJsonArtifact<T>(admin: SupabaseClient, key: string): P
   if (!data) return null;
 
   const text = await blobLikeToText(data);
-  return JSON.parse(text) as T;
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    return null;
+  }
 }
 
 /** Signs a time-limited URL for a stored artifact. Returns null if the object cannot be signed (e.g. missing). */

@@ -367,6 +367,50 @@ describe.skipIf(!RUN_LIVE)('builder schema: live RLS + behavior', () => {
     expect(lockedUpdateErr?.message).toMatch(/builder_revision_immutable/);
   });
 
+  it('base_commit_sha may be stamped NULL->value after an attempt exists, but re-stamping a non-null base_commit_sha raises builder_revision_immutable', async () => {
+    // Fresh revision with a NULL base_commit_sha.
+    const { data: freshRevision, error: freshErr } = await svc
+      .from('builder_proposal_revisions')
+      .insert({
+        proposal_id: proposalA,
+        revision_number: 3,
+        kind: 'repair',
+        artifact_prefix: `${orgA}/${proposalA}/rev3`,
+        created_by: adminA.id,
+      })
+      .select('id')
+      .single();
+    expect(freshErr).toBeNull();
+    expect(freshRevision).toBeTruthy();
+
+    // Attach a review attempt, which freezes identity fields.
+    const { error: attemptErr } = await svc.from('builder_review_attempts').insert({
+      proposal_id: proposalA,
+      revision_id: freshRevision!.id,
+      attempt_number: 1,
+      trigger: 'initial',
+      policy_version: 'v1',
+    });
+    expect(attemptErr).toBeNull();
+
+    // (a) Stamping base_commit_sha from NULL to a value AFTER the attempt exists
+    //     must SUCCEED (the apply route's Step 6 recovery path).
+    const { error: stampErr } = await svc
+      .from('builder_proposal_revisions')
+      .update({ base_commit_sha: 'a'.repeat(40) })
+      .eq('id', freshRevision!.id);
+    expect(stampErr).toBeNull();
+
+    // (b) Changing an ALREADY-non-null base_commit_sha to a different value must
+    //     still RAISE (immutability preserved once stamped).
+    const { error: reStampErr } = await svc
+      .from('builder_proposal_revisions')
+      .update({ base_commit_sha: 'b'.repeat(40) })
+      .eq('id', freshRevision!.id);
+    expect(reStampErr).not.toBeNull();
+    expect(reStampErr?.message).toMatch(/builder_revision_immutable/);
+  });
+
   it('builder_claim_code_run creates revision 1 and sets code_state=queued for a plan_ready scaffold, then raises builder_claim_conflict on immediate re-claim', async () => {
     const { data: claimed, error: claimErr } = await svc.rpc('builder_claim_code_run', {
       p_proposal_id: scaffoldProposalId,

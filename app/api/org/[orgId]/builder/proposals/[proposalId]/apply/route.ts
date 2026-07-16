@@ -210,18 +210,21 @@ export async function POST(_req: NextRequest, { params }: RouteParams) {
       { attemptNumber: attempt!.attempt_number, policyVersion: attempt!.policy_version },
     );
 
-    const { error: deliveryErr } = await admin.from('builder_delivery_records').insert({
-      proposal_id: proposalId,
-      revision_id: frozenRevision.id,
-      provider: 'github',
-      status: 'pr_open',
-      pr_number: prNumber,
-      pr_url: prUrl,
-      branch_name: branchName,
-      commit_sha: headSha,
-      provider_event_id: `pr:${prNumber}`,
-      payload_hash: sha256Hex(canonicalJson({ prNumber, headSha })),
-    });
+    const { error: deliveryErr } = await admin.from('builder_delivery_records').upsert(
+      {
+        proposal_id: proposalId,
+        revision_id: frozenRevision.id,
+        provider: 'github',
+        status: 'pr_open',
+        pr_number: prNumber,
+        pr_url: prUrl,
+        branch_name: branchName,
+        commit_sha: headSha,
+        provider_event_id: `pr:${prNumber}`,
+        payload_hash: sha256Hex(canonicalJson({ prNumber, headSha })),
+      },
+      { onConflict: 'provider,provider_event_id' },
+    );
     if (deliveryErr) throw deliveryErr;
 
     // Stamp head_commit_sha on the revision (NULL -> value, allowed exactly once).

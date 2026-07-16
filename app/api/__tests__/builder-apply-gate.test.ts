@@ -61,7 +61,7 @@ let _defaultBranchSha: string;
 
 let _allUpdates: Array<{ table: string; values: Record<string, unknown> }>;
 let _revisionUpdates: Array<Record<string, unknown>>;
-let _deliveryInserts: Array<Record<string, unknown>>;
+let _deliveryUpserts: Array<{ row: Record<string, unknown>; options: Record<string, unknown> | undefined }>;
 let _eventInserts: Array<Record<string, unknown>>;
 
 const applyMock = vi.fn(async (..._args: unknown[]) => ({
@@ -126,8 +126,13 @@ function makeQB(table: string) {
     insert: (row: Record<string, unknown>) => {
       state.op = 'insert';
       state.payload = row;
-      if (table === 'builder_delivery_records') _deliveryInserts.push(row);
       if (table === 'builder_events') _eventInserts.push(row);
+      return qb;
+    },
+    upsert: (row: Record<string, unknown>, options?: Record<string, unknown>) => {
+      state.op = 'upsert';
+      state.payload = row;
+      if (table === 'builder_delivery_records') _deliveryUpserts.push({ row, options });
       return qb;
     },
     maybeSingle: async () => computeResult(state),
@@ -220,7 +225,7 @@ beforeEach(() => {
   _defaultBranchSha = BASE_SHA;
   _allUpdates = [];
   _revisionUpdates = [];
-  _deliveryInserts = [];
+  _deliveryUpserts = [];
   _eventInserts = [];
   applyMock.mockClear();
   getDefaultBranchShaMock.mockClear();
@@ -366,9 +371,13 @@ describe('POST apply — happy path', () => {
     expect(typeof factsArg).not.toBe('number');
     expect(factsArg).toMatchObject({ policyVersion: REVIEW_POLICY_VERSION });
 
-    // Delivery record captures provider facts.
-    expect(_deliveryInserts).toHaveLength(1);
-    expect(_deliveryInserts[0]).toMatchObject({
+    // Delivery record captures provider facts via an idempotent upsert on
+    // (provider, provider_event_id) so retries after a partial failure are safe.
+    expect(_deliveryUpserts).toHaveLength(1);
+    expect(_deliveryUpserts[0].options).toMatchObject({
+      onConflict: 'provider,provider_event_id',
+    });
+    expect(_deliveryUpserts[0].row).toMatchObject({
       proposal_id: PROPOSAL_ID,
       revision_id: REVISION_ID,
       provider: 'github',
@@ -379,7 +388,7 @@ describe('POST apply — happy path', () => {
       commit_sha: HEAD_SHA,
       provider_event_id: 'pr:7',
     });
-    expect(_deliveryInserts[0].payload_hash).toBe(
+    expect(_deliveryUpserts[0].row.payload_hash).toBe(
       sha256Hex(canonicalJson({ prNumber: 7, headSha: HEAD_SHA }))
     );
 
@@ -407,5 +416,32 @@ describe('POST apply — happy path', () => {
       expect(u.values).not.toHaveProperty('status');
       expect(u.values).not.toHaveProperty('pr_url');
     }
+  });
+
+  it('retry after a partial failure re-runs safely: idempotent delivery upsert still proceeds through head-stamp, transition, and 200', async () => {
+    // Simulate the retry scenario: applyProposalToGitHub is idempotent and
+    // returns the SAME pr number/head sha (finds the existing PR), so the
+    // delivery record already exists for (github, pr:7). The upsert on
+    // (provider, provider_event_id) no-ops/refreshes instead of throwing a
+    // UNIQUE violation — the route must proceed normally, not 500.
+    const res = await call();
+    expect(res.status).toBe(200);
+
+    // The write is an upsert (not a bare insert) with the conflict target set,
+    // which is what makes a same-pr-number retry safe.
+    expect(_deliveryUpserts).toHaveLength(1);
+    expect(_deliveryUpserts[0].options).toMatchObject({
+      onConflict: 'provider,provider_event_id',
+    });
+    expect(_deliveryUpserts[0].row.provider_event_id).toBe('pr:7');
+
+    // Execution continued past the delivery write: head_commit_sha stamped and
+    // the ready_to_apply -> pr_opened transition applied.
+    const headStamps = _revisionUpdates.filter(u => 'head_commit_sha' in u);
+    expect(headStamps).toHaveLength(1);
+    const transitionUpdate = _allUpdates.find(
+      u => u.table === 'builder_proposals' && u.values.code_state === 'pr_opened'
+    );
+    expect(transitionUpdate).toBeDefined();
   });
 });

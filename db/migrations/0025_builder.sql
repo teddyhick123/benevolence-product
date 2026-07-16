@@ -144,7 +144,8 @@ GRANT SELECT ON public.builder_proposal_revisions TO authenticated;
 GRANT ALL ON public.builder_proposal_revisions TO service_role;
 
 -- Immutability: once a review attempt exists for a revision, its identity
--- fields are frozen. head_commit_sha may be stamped once (NULL -> value).
+-- fields are frozen. base_commit_sha and head_commit_sha may each be stamped
+-- once (NULL -> value).
 CREATE OR REPLACE FUNCTION public.builder_revision_immutability_guard()
 RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN
@@ -156,12 +157,16 @@ BEGIN
        OR NEW.manifest_hash   IS DISTINCT FROM OLD.manifest_hash
        OR NEW.diff_hash       IS DISTINCT FROM OLD.diff_hash
        OR NEW.context_hash    IS DISTINCT FROM OLD.context_hash
-       OR NEW.base_commit_sha IS DISTINCT FROM OLD.base_commit_sha
        OR NEW.progress        IS DISTINCT FROM OLD.progress
     THEN
       RAISE EXCEPTION 'builder_revision_immutable: revision % has review attempts', OLD.id
         USING ERRCODE = 'P0031';
     END IF;
+  END IF;
+  IF OLD.base_commit_sha IS NOT NULL
+     AND NEW.base_commit_sha IS DISTINCT FROM OLD.base_commit_sha THEN
+    RAISE EXCEPTION 'builder_revision_immutable: base_commit_sha already stamped on %', OLD.id
+      USING ERRCODE = 'P0031';
   END IF;
   IF OLD.head_commit_sha IS NOT NULL
      AND NEW.head_commit_sha IS DISTINCT FROM OLD.head_commit_sha THEN

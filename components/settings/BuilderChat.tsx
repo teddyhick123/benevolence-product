@@ -4,9 +4,10 @@
 import { useState, useRef, useEffect } from 'react';
 import { CheckCircle, Clock, FileCode, AlertCircle, Send } from 'lucide-react';
 import PlanCard from './builder/PlanCard';
-import BuildProgressCard from './builder/BuildProgressCard';
-import ReviewReportCard from './builder/ReviewReportCard';
+import BuildProgressCard, { type BuildProgressResult } from './builder/BuildProgressCard';
+import ReviewReportCard, { type ReviewReportAttempt } from './builder/ReviewReportCard';
 import type { ScaffoldPlanContent } from '@/lib/builder/tools';
+import type { CodeState, FindingRow } from '@/lib/builder/proposal-state';
 
 interface TextMessage {
   type: 'text';
@@ -42,10 +43,10 @@ interface BuildProgressMessage {
 
 interface ReviewReportMessage {
   type: 'review_report';
-  score: number;
-  findings: Array<{ severity: 'error' | 'warning' | 'info'; description: string }>;
+  attempt: ReviewReportAttempt | null;
+  findings: FindingRow[];
+  codeState: CodeState;
   proposalId: string;
-  phase: string;
   initialPrUrl: string | null;
 }
 
@@ -295,15 +296,15 @@ export default function BuilderChat({ orgId, initialMessages, githubEnabled, can
                   orgId={orgId}
                   proposalId={msg.proposalId}
                   plannedFiles={msg.plannedFiles}
-                  onComplete={(proposal) => {
+                  onComplete={(result: BuildProgressResult) => {
                     setMessages(prev => prev.map((m, idx) => idx === i
                       ? {
                           type: 'review_report' as const,
-                          score: proposal.review_report?.score ?? 0,
-                          findings: (proposal.review_report?.findings ?? []) as Array<{ severity: 'error' | 'warning' | 'info'; description: string }>,
+                          attempt: result.attempt,
+                          findings: result.findings,
+                          codeState: result.codeState,
                           proposalId: msg.proposalId,
-                          phase: proposal.phase,
-                          initialPrUrl: proposal.pr_url ?? null,
+                          initialPrUrl: result.prUrl,
                         }
                       : m
                     ));
@@ -317,14 +318,14 @@ export default function BuilderChat({ orgId, initialMessages, githubEnabled, can
             return (
               <div key={i} className="flex justify-start">
                 <ReviewReportCard
-                  score={msg.score}
+                  attempt={msg.attempt}
                   findings={msg.findings}
+                  codeState={msg.codeState}
+                  prUrl={msg.initialPrUrl}
                   proposalId={msg.proposalId}
                   orgId={orgId}
                   githubEnabled={githubEnabled}
                   canReviewImplementation={canReviewImplementation}
-                  phase={msg.phase}
-                  initialPrUrl={msg.initialPrUrl}
                 />
               </div>
             );

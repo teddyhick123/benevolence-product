@@ -2,7 +2,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { CheckCircle, XCircle, CheckSquare, FileCode, ChevronDown, ChevronUp, AlertCircle } from 'lucide-react';
+import { CheckCircle, XCircle, CheckSquare, ChevronDown, ChevronUp, AlertCircle } from 'lucide-react';
+import { codeStateLabel, type CodeState } from '@/lib/builder/proposal-state';
 
 interface Proposal {
   id: string;
@@ -11,7 +12,8 @@ interface Proposal {
   request_text: string;
   proposal_type: 'config' | 'code';
   status: 'pending' | 'approved' | 'rejected' | 'applied';
-  generated_code: { files: Array<{ path: string; content: string; diff: string }> } | null;
+  code_state: CodeState | null;
+  file_count: number | null;
   config_patch: Record<string, unknown> | null;
   reviewer_notes: string | null;
   created_at: string;
@@ -70,10 +72,10 @@ function ProposalCard({ proposal, onUpdate }: { proposal: Proposal; onUpdate: (i
               </span>
             </div>
             <p className="text-sm font-medium">{proposal.request_text}</p>
-            {proposal.generated_code && (
+            {proposal.proposal_type === 'code' && proposal.file_count != null && (
               <p className="text-xs text-black/50 mt-1">
-                {proposal.generated_code.files.length} file{proposal.generated_code.files.length !== 1 ? 's' : ''}:{' '}
-                {proposal.generated_code.files.map(f => f.path).join(', ')}
+                {proposal.file_count} file{proposal.file_count !== 1 ? 's' : ''}
+                {proposal.code_state ? ` · ${codeStateLabel(proposal.code_state)}` : ''}
               </p>
             )}
           </div>
@@ -129,19 +131,13 @@ function ProposalCard({ proposal, onUpdate }: { proposal: Proposal; onUpdate: (i
         )}
       </div>
 
-      {expanded && proposal.generated_code && (
-        <div className="border-t border-black/10 bg-neutral-50 p-4 space-y-4">
-          {proposal.generated_code.files.map(file => (
-            <div key={file.path}>
-              <div className="flex items-center gap-2 mb-2">
-                <FileCode className="w-3.5 h-3.5 text-black/40" />
-                <span className="text-xs font-mono text-black/70">{file.path}</span>
-              </div>
-              <pre className="text-xs font-mono bg-white border border-black/10 rounded p-3 overflow-x-auto whitespace-pre-wrap max-h-64">
-                {file.diff || file.content}
-              </pre>
-            </div>
-          ))}
+      {expanded && proposal.proposal_type === 'code' && (
+        <div className="border-t border-black/10 bg-neutral-50 p-4 text-xs text-black/60">
+          {proposal.file_count != null
+            ? `This proposal touches ${proposal.file_count} file${proposal.file_count === 1 ? '' : 's'}.`
+            : 'No revision recorded for this proposal yet.'}
+          {proposal.code_state ? ` Code state: ${codeStateLabel(proposal.code_state)}.` : ''}
+          {' '}Full diff and findings are available in the organization&apos;s Builder Studio.
         </div>
       )}
     </div>

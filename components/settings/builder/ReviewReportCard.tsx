@@ -1,39 +1,61 @@
 'use client';
 
 import { useState } from 'react';
-import { CheckCircle, AlertTriangle, XCircle, ChevronDown, ChevronRight, ExternalLink, GitPullRequest } from 'lucide-react';
+import { CheckCircle, AlertTriangle, XCircle, Info, ChevronDown, ChevronRight, ExternalLink, GitPullRequest } from 'lucide-react';
+import type { CodeState, FindingRow } from '@/lib/builder/proposal-state';
 
-interface Finding {
-  severity: 'error' | 'warning' | 'info';
-  description: string;
+export interface ReviewReportAttempt {
+  status: string;
+  policy_version: string;
+  summary_score: number | null;
+  decision_reason: string | null;
 }
 
 interface ReviewReportCardProps {
-  score: number;
-  findings: Finding[];
+  attempt: ReviewReportAttempt | null;
+  findings: FindingRow[];
+  codeState: CodeState;
+  prUrl: string | null;
   proposalId: string;
   orgId: string;
   githubEnabled: boolean;
   canReviewImplementation?: boolean;
-  phase: string;
-  initialPrUrl: string | null;
 }
 
-function ScoreBadge({ score }: { score: number }) {
-  const color = score >= 80 ? 'text-green-700 bg-green-50 border-green-200'
-    : score >= 60 ? 'text-amber-700 bg-amber-50 border-amber-200'
-    : 'text-red-700 bg-red-50 border-red-200';
-  return (
-    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded border text-xs font-medium ${color}`}>
-      {score >= 80 ? <CheckCircle className="w-3 h-3" /> : <AlertTriangle className="w-3 h-3" />}
-      {score}/100
-    </span>
-  );
+const SEVERITY_ORDER: Record<FindingRow['severity'], number> = { blocker: 0, error: 1, warning: 2, info: 3 };
+const SEVERITY_LABEL: Record<FindingRow['severity'], string> = { blocker: 'Blocker', error: 'Error', warning: 'Warning', info: 'Info' };
+const SEVERITY_TEXT_CLASS: Record<FindingRow['severity'], string> = {
+  blocker: 'text-red-700',
+  error: 'text-red-700',
+  warning: 'text-amber-700',
+  info: 'text-slate-600',
+};
+
+function SeverityIcon({ severity }: { severity: FindingRow['severity'] }) {
+  if (severity === 'blocker' || severity === 'error') return <XCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />;
+  if (severity === 'warning') return <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />;
+  return <Info className="w-3.5 h-3.5 shrink-0 mt-0.5 text-slate-400" />;
 }
 
-export default function ReviewReportCard({ score, findings, proposalId, orgId, githubEnabled, canReviewImplementation = false, phase, initialPrUrl }: ReviewReportCardProps) {
-  const hasIssues = findings.some(f => f.severity === 'error' || f.severity === 'warning');
-  const [expanded, setExpanded] = useState(hasIssues || score < 80);
+export default function ReviewReportCard({
+  attempt,
+  findings,
+  codeState,
+  prUrl: initialPrUrl,
+  proposalId,
+  orgId,
+  githubEnabled,
+  canReviewImplementation = false,
+}: ReviewReportCardProps) {
+  // Blockers/errors first — severity is always shown as text, not by color alone.
+  const openFindings = findings
+    .filter(f => f.state === 'open')
+    .slice()
+    .sort((a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity]);
+
+  const hasIssues = openFindings.some(f => f.severity === 'blocker' || f.severity === 'error')
+    || attempt?.status === 'blocked' || attempt?.status === 'failed';
+  const [expanded, setExpanded] = useState(hasIssues);
   const [applying, setApplying] = useState(false);
   const [prUrl, setPrUrl] = useState<string | null>(initialPrUrl);
   const [applyError, setApplyError] = useState<string | null>(null);
@@ -56,10 +78,6 @@ export default function ReviewReportCard({ score, findings, proposalId, orgId, g
     }
   }
 
-  const errors = findings.filter(f => f.severity === 'error');
-  const warnings = findings.filter(f => f.severity === 'warning');
-  const infos = findings.filter(f => f.severity === 'info');
-
   return (
     <div className="rounded-xl border border-slate-200 bg-slate-50 text-slate-800 text-sm max-w-[90%]">
       <button
@@ -68,35 +86,35 @@ export default function ReviewReportCard({ score, findings, proposalId, orgId, g
       >
         <div className="flex items-center gap-2">
           <span className="font-medium">Review Report</span>
-          <ScoreBadge score={score} />
+          {attempt?.summary_score != null && (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded border text-xs font-medium text-slate-700 bg-white border-slate-200">
+              Summary score {attempt.summary_score} (non-authoritative)
+            </span>
+          )}
         </div>
         {expanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
       </button>
 
       {expanded && (
         <div className="px-4 pb-4 border-t border-slate-200 space-y-2 mt-2">
-          {errors.map((f, i) => (
-            <div key={i} className="flex gap-2 text-xs text-red-700">
-              <XCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-              <span>{f.description}</span>
+          {attempt?.decision_reason && (
+            <p className="text-xs text-slate-600">{attempt.decision_reason}</p>
+          )}
+
+          {openFindings.map((f) => (
+            <div key={f.id} className={`flex gap-2 text-xs ${SEVERITY_TEXT_CLASS[f.severity]}`}>
+              <SeverityIcon severity={f.severity} />
+              <span>
+                <span className="font-semibold uppercase mr-1">{SEVERITY_LABEL[f.severity]}</span>
+                {f.evidence}
+                {f.recommendation ? <span className="block text-slate-500 mt-0.5">{f.recommendation}</span> : null}
+              </span>
             </div>
           ))}
-          {warnings.map((f, i) => (
-            <div key={i} className="flex gap-2 text-xs text-amber-700">
-              <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-              <span>{f.description}</span>
-            </div>
-          ))}
-          {infos.map((f, i) => (
-            <div key={i} className="flex gap-2 text-xs text-slate-600">
-              <CheckCircle className="w-3.5 h-3.5 shrink-0 mt-0.5 text-slate-400" />
-              <span>{f.description}</span>
-            </div>
-          ))}
-          {findings.length === 0 && (
+          {openFindings.length === 0 && (
             <p className="text-xs text-green-700 flex items-center gap-1">
               <CheckCircle className="w-3.5 h-3.5" />
-              No issues found.
+              No open issues found.
             </p>
           )}
           <a
@@ -105,10 +123,13 @@ export default function ReviewReportCard({ score, findings, proposalId, orgId, g
           >
             Track proposal in Builder Studio <ExternalLink className="w-3 h-3" />
           </a>
+          <p className="text-xs text-slate-400 italic">
+            Diff shown against an empty base until sandbox verification ships (Increment 3).
+          </p>
 
           {githubEnabled && (
             <div className="mt-3 flex flex-col gap-1.5">
-              {phase === 'ready_to_apply' && !prUrl && canReviewImplementation && (
+              {codeState === 'ready_to_apply' && !prUrl && canReviewImplementation && (
                 <button
                   onClick={handleOpenPR}
                   disabled={applying}
@@ -118,7 +139,7 @@ export default function ReviewReportCard({ score, findings, proposalId, orgId, g
                   {applying ? 'Opening PR…' : 'Open PR'}
                 </button>
               )}
-              {phase === 'ready_to_apply' && !prUrl && !canReviewImplementation && (
+              {codeState === 'ready_to_apply' && !prUrl && !canReviewImplementation && (
                 <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
                   An implementation reviewer is required to open a PR for this proposal.
                 </p>

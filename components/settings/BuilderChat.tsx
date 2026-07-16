@@ -42,7 +42,7 @@ interface BuildProgressMessage {
 }
 
 interface ReviewReportMessage {
-  type: 'review_report';
+  type: 'review_result';
   attempt: ReviewReportAttempt | null;
   findings: FindingRow[];
   codeState: CodeState;
@@ -299,7 +299,7 @@ export default function BuilderChat({ orgId, initialMessages, githubEnabled, can
                   onComplete={(result: BuildProgressResult) => {
                     setMessages(prev => prev.map((m, idx) => idx === i
                       ? {
-                          type: 'review_report' as const,
+                          type: 'review_result' as const,
                           attempt: result.attempt,
                           findings: result.findings,
                           codeState: result.codeState,
@@ -314,7 +314,7 @@ export default function BuilderChat({ orgId, initialMessages, githubEnabled, can
             );
           }
 
-          if (msg.type === 'review_report') {
+          if (msg.type === 'review_result') {
             return (
               <div key={i} className="flex justify-start">
                 <ReviewReportCard

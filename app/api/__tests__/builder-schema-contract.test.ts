@@ -102,3 +102,81 @@ describe('migration set hygiene', () => {
     expect(org).toMatch(/ai_instructions\s+TEXT/i);
   });
 });
+
+describe('transitional builder field guard', () => {
+  const SOURCE_ROOTS = ['app', 'lib', 'components'];
+  const SKIP_DIR_NAMES = new Set(['node_modules', '__tests__', '.next']);
+  const SOURCE_EXT = /\.(ts|tsx)$/;
+
+  /** Recursively collect .ts/.tsx files under root, skipping test dirs/files. */
+  function walk(dir: string, out: string[] = []): string[] {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      if (entry.isDirectory()) {
+        if (SKIP_DIR_NAMES.has(entry.name)) continue;
+        walk(path.join(dir, entry.name), out);
+      } else if (entry.isFile()) {
+        if (!SOURCE_EXT.test(entry.name)) continue;
+        if (entry.name.includes('.test.')) continue;
+        out.push(path.join(dir, entry.name));
+      }
+    }
+    return out;
+  }
+
+  /**
+   * Strip `//` line comments and `/* *\/` block comments so historical
+   * documentation references (e.g. "the deleted phase/generated_code/
+   * review_report columns") don't trip the guard. `://` (URLs) is left
+   * alone since the char before `//` is `:`. Only LIVE CODE usage of the
+   * transitional tokens is a violation.
+   */
+  function stripComments(src: string): string {
+    return src
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/(^|[^:])\/\/.*$/gm, '$1');
+  }
+
+  it('no runtime source references transitional builder fields', () => {
+    const files = SOURCE_ROOTS.flatMap((root) => walk(path.join(process.cwd(), root)));
+    const violations: string[] = [];
+
+    for (const file of files) {
+      const raw = readFileSync(file, 'utf8');
+      // Only inspect files that touch the Builder domain at all.
+      if (!/builder/i.test(raw)) continue;
+      const code = stripComments(raw);
+
+      for (const token of ['generated_code', 'review_report', 'proposal-lifecycle']) {
+        if (code.includes(token)) {
+          violations.push(`${file}: live code contains transitional token '${token}'`);
+        }
+      }
+
+      // 'phase' as a quoted string or member-access — NOT bare identifiers,
+      // so unrelated domain usage (e.g. an onboarding "phase" concept) is
+      // never flagged.
+      if (/(['"])phase\1|\.phase\b/.test(code)) {
+        violations.push(`${file}: live code references a 'phase' field/property`);
+      }
+
+      // pr_url is a LEGITIMATE column on builder_delivery_records. It is
+      // only a violation when selected/updated directly on the
+      // builder_proposals table (that column was deleted from 0025).
+      const fromCalls = [...code.matchAll(/\.from\(\s*['"](\w+)['"]\s*\)/g)];
+      for (const call of fromCalls) {
+        if (call[1] !== 'builder_proposals') continue;
+        const statementStart = call.index! + call[0].length;
+        const nextFromIdx = code.indexOf('.from(', statementStart);
+        const windowEnd = nextFromIdx === -1
+          ? Math.min(code.length, statementStart + 500)
+          : Math.min(nextFromIdx, statementStart + 500);
+        const window = code.slice(statementStart, windowEnd);
+        if (/\bpr_url\b/.test(window)) {
+          violations.push(`${file}: 'pr_url' referenced against builder_proposals (only builder_delivery_records.pr_url is legitimate)`);
+        }
+      }
+    }
+
+    expect(violations).toEqual([]);
+  });
+});

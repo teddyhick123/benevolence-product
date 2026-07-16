@@ -1,6 +1,6 @@
 # Database Migrations
 
-Single source of truth for the schema. 53 ordered migrations replace the ad-hoc
+Single source of truth for the schema. 55 ordered migrations replace the ad-hoc
 legacy files and the stale consolidated module files. Late prerelease patches
 have been folded into the canonical owning migrations.
 

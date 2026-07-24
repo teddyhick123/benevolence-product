@@ -65,6 +65,11 @@ describe('unitTestTargets', () => {
     expect(t.relatedFiles).toEqual(['lib/builder/tools.ts']);
     expect(t.extraSuiteGlobs).toContain('app/api/__tests__/builder-schema-contract.test.ts');
   });
+
+  it('adds the api contract suite glob when app/api/ is touched', () => {
+    const t = unitTestTargets(['app/api/org/[orgId]/x/route.ts']);
+    expect(t.extraSuiteGlobs).toContain('app/api/__tests__/*.test.ts');
+  });
 });
 
 describe('package.json verify scripts contract', () => {

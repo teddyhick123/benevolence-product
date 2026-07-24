@@ -4,9 +4,15 @@
 //
 // Pure module: check definitions (what command runs for each verify:* key)
 // and change-class classification (which checks a given set of changed
-// paths requires). No I/O beyond the package.json contract test reading
-// the repo's own package.json to keep the developer-facing scripts and the
-// runner's scoped argv from silently diverging.
+// paths requires). This module performs no I/O itself; a companion test
+// (lib/builder/__tests__/check-matrix.test.ts) separately reads the repo's
+// own package.json to assert the developer-facing scripts and this
+// module's scoped argv can't silently diverge.
+//
+// Path matching throughout this file assumes POSIX-style, repo-relative
+// paths (forward slashes, no leading './' or drive letters) — the shape
+// git always supplies for changed-file lists. No case/slash normalization
+// is performed.
 
 export const CHECK_KEYS = ['verify:types', 'verify:lint', 'verify:unit', 'verify:migrations', 'verify:build'] as const;
 export type CheckKey = (typeof CHECK_KEYS)[number];
@@ -28,6 +34,12 @@ const BUILD_EXACT = ['middleware.ts', 'package.json'];
 const BUILD_PATTERNS = [/^next\.config\.[a-z]+$/, /^tailwind\.config\.[a-z]+$/, /^postcss\.config\.[a-z]+$/, /^tsconfig(\..+)?\.json$/];
 
 const SCHEMA_CONTRACT_SUITE = 'app/api/__tests__/builder-schema-contract.test.ts';
+// Intentionally-unexpanded glob pattern, not a literal file path. CHECK_COMMANDS
+// argv is always passed to spawn() (never a shell), so this '*' will not
+// shell-expand — it's left for the Task 3 verification runner to resolve
+// (e.g. by expanding it itself before invoking `vitest run related`, or by
+// passing it through to a vitest invocation that performs its own glob
+// resolution). Do not treat this constant as a ready-to-use path.
 const API_CONTRACT_SUITE_GLOB = 'app/api/__tests__/*.test.ts';
 const API_PREFIX = 'app/api/';
 const UNIT_FLOOR_ARGV = ['npx', 'vitest', 'run', 'lib/builder'];

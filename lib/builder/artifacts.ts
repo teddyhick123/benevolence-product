@@ -184,6 +184,7 @@ export const ARTIFACT_KEYS = {
   files: 'files.json',
   manifest: 'manifest.json',
   diff: 'diff.patch',
+  authoritativeDiff: 'diff.authoritative.patch',
   reviewPrompt: (attemptId: string) => `review/${attemptId}/prompt.txt`,
   reviewResponse: (attemptId: string) => `review/${attemptId}/response.json`,
   checkLog: (checkKey: string) => `checks/${checkKey}.log`,

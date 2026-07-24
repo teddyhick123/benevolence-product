@@ -25,7 +25,12 @@
     "setup": "bash scripts/setup-client.sh",
     "provision": "ts-node --project tsconfig.scripts.json scripts/provision-client.ts",
     "handoff": "ts-node --project tsconfig.scripts.json scripts/export-client-package.ts",
-    "migrate-client": "ts-node --project tsconfig.scripts.json scripts/migrate-client.ts"
+    "migrate-client": "ts-node --project tsconfig.scripts.json scripts/migrate-client.ts",
+    "verify:types": "tsc --noEmit",
+    "verify:lint": "eslint . --ext .js,.jsx,.ts,.tsx",
+    "verify:unit": "vitest run",
+    "verify:migrations": "supabase db reset && bash scripts/verify/migrations-assert.sh",
+    "verify:build": "next build"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.2.68",

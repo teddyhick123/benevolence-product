@@ -286,6 +286,40 @@ describe('LocalWorktreeRunner — path policy defense-in-depth', () => {
   });
 });
 
+describe('LocalWorktreeRunner — patch application failure (step 6 write failure)', () => {
+  it('skips all checks and reports setupFailure.stage "patch" when a manifest write fails', async () => {
+    const fake = new FakeExecutor();
+    // The first file writes to `lib/foo` as a FILE. The second file's path
+    // treats `lib/foo` as a DIRECTORY it needs to write inside — the parent
+    // mkdirSync for the second entry collides with the first entry's file and
+    // genuinely throws (EEXIST), exercising the try/catch around step 6's
+    // manifest application, not a mocked failure.
+    const outcome = await makeRunner(fake).run({
+      baseSha: 'abc123',
+      files: [
+        { path: 'lib/foo', content: 'this occupies the path as a file\n' },
+        { path: 'lib/foo/bar.ts', content: 'export const x = 1;\n' },
+      ],
+      requiredKeys: ALL_KEYS,
+    });
+
+    expect(outcome.setupFailure?.stage).toBe('patch');
+    expect(outcome.setupFailure?.detail).toContain('failed to apply proposal files');
+    expect(outcome.authoritativeDiff).toBeNull();
+    // Plan-mandated: patch failures are `skipped`, NOT `error` — checks never
+    // even ran, distinct from `no_base_sha` where nothing was set up at all.
+    expect(outcome.checks.map((c) => c.status)).toEqual(['skipped', 'skipped', 'skipped']);
+    expect(outcome.checks.every((c) => c.log === outcome.setupFailure?.detail)).toBe(true);
+    // no check subprocess ever ran — the write failure happens before step 8
+    expect(fake.calls.some((c) => c.argv[0] === 'npx')).toBe(false);
+    // git add -A / diff --cached (step 7) never ran either — patch failed before step 7
+    expect(fake.calls.some((c) => gitDiffCached(c.argv))).toBe(false);
+    // worktree was created, so cleanup still runs
+    expect(fake.calls.some((c) => gitWorktreeRemove(c.argv))).toBe(true);
+    expect(fake.calls.some((c) => gitWorktreePrune(c.argv))).toBe(true);
+  });
+});
+
 describe('LocalWorktreeRunner — no short-circuit', () => {
   it('runs later checks even after an earlier check fails (exit 1)', async () => {
     const fake = new FakeExecutor().when(exact(['npx', 'eslint', 'lib/sample/foo.ts']), {

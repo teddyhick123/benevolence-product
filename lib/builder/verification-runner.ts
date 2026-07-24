@@ -20,11 +20,15 @@
 //   - Git/tool invocations run with the HOST env (they operate on the host repo
 //     and, for `git fetch`, need host credentials — the one permitted use).
 //     Only CHECK/version subprocesses get buildSandboxEnv output.
-//   - Setup-failure → check-status mapping:
-//       no_base_sha, worktree, patch → every required check `error`
-//         (the environment/base could not be established — an infra failure).
-//       path_policy, file_budget     → every required check `skipped`
-//         (a deliberate policy rejection; we chose not to run).
+//   - Setup-failure → check-status mapping (plan-mandated):
+//       no_base_sha            → every required check `error`
+//         (checks never even got a chance to attempt anything).
+//       worktree                → every required check `error`
+//         (infra failure establishing the base; not pinned by the plan, kept
+//         as `error` per Task 3 code-review confirmation).
+//       path_policy, file_budget, patch → every required check `skipped`
+//         (setup failures after the worktree exists but before checks run —
+//         a deliberate "we chose not to run", not an infra error).
 //   - node_modules symlink is best-effort: a failure surfaces as failed checks,
 //     not a crashed run (there is no dedicated setup-failure stage for it).
 //   - Empty argv (e.g. lint with no lintable files) → `passed` with exitCode 0,
@@ -242,7 +246,7 @@ export class LocalWorktreeRunner implements VerificationRunner {
       } catch (err) {
         const detail = `failed to apply proposal files: ${errMsg(err)}`;
         return {
-          checks: bulkChecks(orderedRequired, 'error', detail),
+          checks: bulkChecks(orderedRequired, 'skipped', detail),
           setupFailure: { stage: 'patch', detail },
           authoritativeDiff: null,
         };

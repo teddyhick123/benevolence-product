@@ -213,10 +213,7 @@ export class LocalWorktreeRunner implements VerificationRunner {
 
     // The worktree now exists — cleanup MUST run from here on, on every path.
     try {
-      // ---- Step 4: link node_modules (best-effort) ----
-      this.linkNodeModules(worktreeDir);
-
-      // ---- Step 5: re-enforce path policy + file budget (defense in depth) ----
+      // ---- Step 4: re-enforce path policy + file budget (defense in depth) ----
       const policy = evaluatePathPolicy(input.files.map((f) => f.path));
       if (!policy.allowed) {
         const detail = formatPathPolicyViolations(policy.violations);
@@ -235,7 +232,7 @@ export class LocalWorktreeRunner implements VerificationRunner {
         };
       }
 
-      // ---- Step 6: apply the manifest (full file contents, overwrite) ----
+      // ---- Step 5: apply the manifest (full file contents, overwrite) ----
       try {
         for (const file of input.files) {
           const rel = normalizeProposalPath(file.path);
@@ -252,12 +249,23 @@ export class LocalWorktreeRunner implements VerificationRunner {
         };
       }
 
-      // ---- Step 7: stage + capture the authoritative diff ----
+      // ---- Step 6: stage + capture the authoritative diff ----
       await this.gitInWorktree(worktreeDir, ['add', '-A']);
       const diffResult = await this.gitInWorktree(worktreeDir, ['diff', '--cached']);
       const authoritativeDiff = diffResult.output;
 
-      // ---- Step 8: run every required check IN ORDER, no short-circuit ----
+      // ---- Step 7: link node_modules (best-effort), then run every required
+      // check IN ORDER, no short-circuit.
+      //
+      // node_modules is linked HERE — AFTER the authoritative diff is captured —
+      // not earlier. linkNodeModules creates node_modules as a SYMLINK, and a
+      // directory-only `node_modules/` .gitignore rule (trailing slash) does not
+      // match a symlink, so `git add -A` in step 6 would otherwise stage the
+      // symlink and pollute the authoritative diff on every run. The checks are
+      // the only consumers of node_modules, so deferring the link keeps the diff
+      // clean without costing anything.
+      this.linkNodeModules(worktreeDir);
+
       const changedFiles = input.files.map((f) => normalizeProposalPath(f.path)).sort();
       const checks: CheckExecution[] = [];
       for (const key of orderedRequired) {

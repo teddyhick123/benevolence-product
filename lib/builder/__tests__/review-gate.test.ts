@@ -81,6 +81,10 @@ function makeRun(overrides: Partial<VerificationRunRow> = {}): VerificationRunRo
     duration_ms: 100,
     log_artifact_key: null,
     evidence_hash: null,
+    command_version: null,
+    started_at: null,
+    completed_at: null,
+    created_at: '2026-07-24T00:00:00.000Z',
     ...overrides,
   };
 }

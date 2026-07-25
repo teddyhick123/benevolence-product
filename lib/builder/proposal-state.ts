@@ -170,6 +170,10 @@ export interface VerificationRunRow {
   duration_ms: number | null;
   log_artifact_key: string | null;
   evidence_hash: string | null;
+  command_version: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+  created_at: string;
 }
 
 export interface DeliveryRecordRow {

@@ -12,6 +12,7 @@
 //   from(table).insert(values).select().single()
 //   from(table).insert(values)                       (awaited directly, no .select())
 //   from(table).update(values).eq(...)              (awaited directly, no .select())
+//   from(table).upsert(values, { onConflict })       (awaited directly, no .select())
 //   from(table).delete().eq(...)                    (awaited directly, no .select())
 //   rpc(name, args)
 //   storage.from(bucket).upload(...) / .createSignedUrl(...) / .download(...)
@@ -92,6 +93,10 @@ export class SupabaseMock {
         },
         insert(values: unknown) {
           self.calls.push({ table, method: 'insert', args: [values] });
+          return chain;
+        },
+        upsert(values: unknown, options?: Record<string, unknown>) {
+          self.calls.push({ table, method: 'upsert', args: [values, options] });
           return chain;
         },
         delete() {

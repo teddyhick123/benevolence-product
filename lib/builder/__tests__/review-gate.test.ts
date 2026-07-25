@@ -12,7 +12,7 @@ import type { RevisionRow, ReviewAttemptRow, FindingRow, VerificationRunRow } fr
 // Fixtures — a fully healthy, passing input. Each test mutates one field.
 // ============================================================
 
-const POLICY_VERSION = 'builder-review-policy/v1';
+const POLICY_VERSION = 'builder-review-policy/v2';
 
 function makeRevision(overrides: Partial<RevisionRow> = {}): RevisionRow {
   return {

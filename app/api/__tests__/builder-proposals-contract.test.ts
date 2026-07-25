@@ -256,7 +256,7 @@ function attemptRow(): Record<string, unknown> {
     attempt_number: 2,
     trigger: 'retry',
     status: 'blocked',
-    policy_version: 'builder-review-policy/v1',
+    policy_version: 'builder-review-policy/v2',
     required_check_keys: ['verify:types', 'verify:lint'],
     summary_score: 62,
     started_at: '2026-07-02T00:10:00.000Z',
@@ -350,7 +350,7 @@ describe('GET /builder/proposals — shape and aggregation', () => {
     const code = body.proposals.find((p: any) => p.id === CODE_PROPOSAL_ID);
     expect(code.code.latest_attempt).toMatchObject({
       status: 'blocked',
-      policy_version: 'builder-review-policy/v1',
+      policy_version: 'builder-review-policy/v2',
       blocker_count: 2,
       warning_count: 1,
       summary_score: 62,

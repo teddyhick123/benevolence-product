@@ -11,7 +11,6 @@ import {
   type CodeState,
   PROPOSAL_STATE_POLICY_VERSION,
   REVIEW_POLICY_VERSION,
-  REQUIRED_CHECK_KEYS,
   CLAIMABLE_STATES,
   IN_FLIGHT_STATES,
   TERMINAL_STATES,
@@ -59,11 +58,10 @@ describe('CODE_STATES and policy constants', () => {
 
   it('exposes stable policy version strings', () => {
     expect(PROPOSAL_STATE_POLICY_VERSION).toBe('builder-state/v1');
-    expect(REVIEW_POLICY_VERSION).toBe('builder-review-policy/v1');
-  });
-
-  it('REQUIRED_CHECK_KEYS is empty pending Increment 3', () => {
-    expect(REQUIRED_CHECK_KEYS).toEqual([]);
+    // Increment 3 cutover: the review policy is v2 now that deterministic
+    // verification is enforced. REQUIRED_CHECK_KEYS was deleted — required checks
+    // are derived per-attempt by the change-class classifier (check-matrix.ts).
+    expect(REVIEW_POLICY_VERSION).toBe('builder-review-policy/v2');
   });
 
   it('CLAIMABLE_STATES / IN_FLIGHT_STATES / TERMINAL_STATES match the spec', () => {

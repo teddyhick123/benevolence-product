@@ -20,8 +20,12 @@ export const CODE_STATES = [
 export type CodeState = (typeof CODE_STATES)[number];
 
 export const PROPOSAL_STATE_POLICY_VERSION = 'builder-state/v1';
-export const REVIEW_POLICY_VERSION = 'builder-review-policy/v1';
-export const REQUIRED_CHECK_KEYS: string[] = []; // Increment 3 populates under v2
+// Increment 3 cutover: deterministic verification is now enforced. Required
+// checks are derived per-attempt from the change class (see
+// lib/builder/check-matrix.ts `requiredCheckKeys`); there is no longer a single
+// global constant. The gate compares an attempt's recorded policy_version to
+// this value, so bumping it here retires every attempt recorded under v1.
+export const REVIEW_POLICY_VERSION = 'builder-review-policy/v2';
 
 export const CLAIMABLE_STATES: CodeState[] = ['plan_ready', 'needs_repair', 'failed'];
 export const IN_FLIGHT_STATES: CodeState[] = ['queued', 'generating', 'verifying'];

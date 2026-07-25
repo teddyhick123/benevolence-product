@@ -214,7 +214,7 @@ describe('applyProposalToGitHub', () => {
       'aabbccdd-1234-5678',
       'MyModule',
       [{ path: 'lib/foo.ts', content: 'x' }],
-      { attemptNumber: 2, policyVersion: 'builder-review-policy/v1' },
+      { attemptNumber: 2, policyVersion: 'builder-review-policy/v2' },
     );
 
     const prCall = mockFetch.mock.calls.find((args: unknown[]) =>
@@ -223,7 +223,7 @@ describe('applyProposalToGitHub', () => {
     const prBody = JSON.parse((prCall![1] as RequestInit).body as string).body as string;
     expect(prBody).not.toMatch(/score/i);
     expect(prBody).toMatch(/attempt 2/);
-    expect(prBody).toMatch(/builder-review-policy\/v1/);
+    expect(prBody).toMatch(/builder-review-policy\/v2/);
   });
 
   it('reuses an existing branch instead of failing on retry', async () => {

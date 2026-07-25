@@ -417,6 +417,20 @@ export class LocalWorktreeRunner implements VerificationRunner {
 }
 
 // ============================================================
+// Factory
+// ============================================================
+
+/**
+ * The worker's seam for obtaining a verification runner. Today it always
+ * returns a LocalWorktreeRunner pinned to the host repo; Increment 3b swaps in
+ * a container-backed runner selected from config here without touching the
+ * worker.
+ */
+export function createVerificationRunner(): VerificationRunner {
+  return new LocalWorktreeRunner({ repoRoot: process.cwd() });
+}
+
+// ============================================================
 // Default (real) executor: child_process.spawn, no shell.
 // ============================================================
 

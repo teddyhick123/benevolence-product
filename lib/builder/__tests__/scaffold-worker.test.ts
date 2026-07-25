@@ -49,8 +49,21 @@ vi.mock('@/lib/ai/factory', () => ({
   }),
 }));
 
+// Deterministic verification is stubbed here (Task 6 wires it into the worker
+// between path-policy and model review). The real runner + persistence are
+// exercised in verification.test.ts / verification-runner.test.ts; these tests
+// assert the WORKER invokes it in the right ORDER and feeds the gate the same
+// required-check-keys it recorded on the attempt.
+const { runAndRecordVerificationMock } = vi.hoisted(() => ({
+  runAndRecordVerificationMock: vi.fn(),
+}));
+vi.mock('@/lib/builder/verification', () => ({
+  runAndRecordVerification: runAndRecordVerificationMock,
+}));
+
 import { runBuildPhase, markProposalRunFailed } from '@/lib/builder/scaffold-worker';
 import { REVIEW_POLICY_VERSION } from '@/lib/builder/proposal-state';
+import { requiredCheckKeys } from '@/lib/builder/check-matrix';
 
 // ── Fixtures ─────────────────────────────────────────────────────────────────
 
@@ -93,6 +106,19 @@ function baseRevision(overrides: Record<string, unknown> = {}) {
 
 const REVIEW_PASS = JSON.stringify({ summary_score: 92, findings: [] });
 
+// The three checks every proposal requires regardless of change class.
+const DEFAULT_REQUIRED = ['verify:types', 'verify:lint', 'verify:unit'];
+
+// verify:* run rows the gate will treat as satisfied (status 'passed').
+function passedRuns(keys: string[]) {
+  return keys.map((check_key, i) => ({
+    id: `run-${i}`,
+    review_attempt_id: ATTEMPT_ID,
+    check_key,
+    status: 'passed',
+  }));
+}
+
 // Helpers to read the recorded call log.
 function proposalStates(mock: SupabaseMock): string[] {
   return mock.calls
@@ -106,6 +132,10 @@ function idxOf(mock: SupabaseMock, pred: (c: any) => boolean): number {
 beforeEach(() => {
   aiQueue = [];
   currentAdmin = null;
+  runAndRecordVerificationMock.mockReset();
+  // Default: verification set up cleanly, all required checks passed. Individual
+  // tests override this to simulate setup failures or failing checks.
+  runAndRecordVerificationMock.mockResolvedValue({ setupFindings: [], allRequiredPassed: true });
 });
 
 // ── Scaffold happy path ──────────────────────────────────────────────────────
@@ -126,9 +156,10 @@ describe('runBuildPhase — scaffold happy path', () => {
     mock.queueTable('builder_review_attempts', { data: null, error: null }); // latest attempt count
     mock.queueTable('builder_review_attempts', { data: { id: ATTEMPT_ID }, error: null }); // insert
     mock.queueTable('builder_review_attempts', { data: null, error: null }); // final status update
-    // gate re-load: findings + verification runs
+    // gate re-load: findings + verification runs (verification is stubbed, so the
+    // Step 7 re-load must supply the passed runs the recorded gate expects)
     mock.queueTable('builder_review_findings', { data: [], error: null });
-    mock.queueTable('builder_verification_runs', { data: [], error: null });
+    mock.queueTable('builder_verification_runs', { data: passedRuns(DEFAULT_REQUIRED), error: null });
     // artifacts: files, manifest, diff, context + review prompt, response
     for (let i = 0; i < 6; i++) mock.queueStorageUpload('builder-artifacts', { data: { path: 'x' }, error: null });
 
@@ -175,7 +206,7 @@ describe('runBuildPhase — scaffold happy path', () => {
     expect(typeof payload.total_bytes).toBe('number');
   });
 
-  it('inserts the initial attempt with policy version and empty required checks', async () => {
+  it('inserts the initial attempt with policy version and classifier-derived required checks', async () => {
     const mock = setup();
     await runBuildPhase({ proposalId: PROPOSAL_ID, orgId: ORG_ID, revisionId: REVISION_ID });
     const insert = mock.calls.find(c => c.table === 'builder_review_attempts' && c.method === 'insert');
@@ -183,7 +214,9 @@ describe('runBuildPhase — scaffold happy path', () => {
     expect(payload.attempt_number).toBe(1);
     expect(payload.trigger).toBe('initial');
     expect(payload.policy_version).toBe(REVIEW_POLICY_VERSION);
-    expect(payload.required_check_keys).toEqual([]);
+    // SCAFFOLD_PLAN touches lib/volunteer/service.ts → types/lint/unit only (no build/migrations).
+    expect(payload.required_check_keys).toEqual(requiredCheckKeys(['lib/volunteer/service.ts']));
+    expect(payload.required_check_keys).toEqual(['verify:types', 'verify:lint', 'verify:unit']);
     expect(payload.revision_id).toBe(REVISION_ID);
   });
 
@@ -197,6 +230,173 @@ describe('runBuildPhase — scaffold happy path', () => {
     expect(finalUpdate.status).toBe('passed');
     expect(finalUpdate.completed_at).toEqual(expect.any(String));
     expect(mock.calls.some(c => c.table === 'builder_review_findings' && c.method === 'insert')).toBe(false);
+  });
+});
+
+// ── Deterministic verification wiring (Increment 3) ──────────────────────────
+
+describe('runBuildPhase — deterministic verification (Increment 3)', () => {
+  // Generic-path scaffolding shared by the ordering / failing-check / setup-failure
+  // cases. `verificationRuns` is the Step 7 re-load; `finalProposalState` is the
+  // last proposals transition queued (ready_to_apply | needs_repair).
+  function genericSetup(opts: {
+    finalProposalState: string;
+    verificationRuns: unknown[];
+    findingsReload?: unknown[];
+    findingsInsertResult?: boolean; // queue an extra findings-insert response (Step 5.5)
+  }) {
+    const mock = new SupabaseMock();
+    mock.queueTable('builder_proposals', { data: baseProposal({ plan_content: null }), error: null }); // load
+    mock.queueTable('builder_proposals', { data: { code_state: 'verifying' }, error: null }); // queued→verifying
+    mock.queueTable('builder_proposals', { data: { code_state: opts.finalProposalState }, error: null }); // verifying→final
+    mock.queueTable('builder_proposal_revisions', {
+      data: baseRevision({ manifest_hash: 'm', diff_hash: 'd', base_commit_sha: 'basesha000' }),
+      error: null,
+    });
+    mock.queueTable('builder_review_attempts', { data: null, error: null }); // count
+    mock.queueTable('builder_review_attempts', { data: { id: ATTEMPT_ID }, error: null }); // insert
+    mock.queueTable('builder_review_attempts', { data: null, error: null }); // final status update
+    if (opts.findingsInsertResult) {
+      mock.queueTable('builder_review_findings', { data: null, error: null }); // Step 5.5 setup-finding insert
+    }
+    mock.queueTable('builder_review_findings', { data: opts.findingsReload ?? [], error: null }); // Step 7 re-load
+    mock.queueTable('builder_verification_runs', { data: opts.verificationRuns, error: null }); // Step 7 re-load
+    mock.queueStorageDownload('builder-artifacts', {
+      data: JSON.stringify({ files: [{ path: 'lib/foo/bar.ts', content: 'export const x = 1;', diff: '' }] }),
+      error: null,
+    });
+    for (let i = 0; i < 2; i++) mock.queueStorageUpload('builder-artifacts', { data: { path: 'x' }, error: null });
+    aiQueue = [REVIEW_PASS];
+    currentAdmin = mock.client();
+    return mock;
+  }
+
+  it('runs verification AFTER the attempt insert and BEFORE model review, feeding it the attempt keys', async () => {
+    const mock = genericSetup({ finalProposalState: 'ready_to_apply', verificationRuns: passedRuns(DEFAULT_REQUIRED) });
+
+    let callsAtVerify = -1;
+    runAndRecordVerificationMock.mockImplementation(async () => {
+      callsAtVerify = mock.calls.length; // number of DB calls recorded before verification ran
+      return { setupFindings: [], allRequiredPassed: true };
+    });
+
+    await runBuildPhase({ proposalId: PROPOSAL_ID, orgId: ORG_ID, revisionId: REVISION_ID });
+
+    const attemptInsertIdx = mock.calls.findIndex(c => c.table === 'builder_review_attempts' && c.method === 'insert');
+    const firstReviewUploadIdx = mock.calls.findIndex(c => c.method === 'storage.upload'); // generic path: first upload is the review prompt
+    expect(attemptInsertIdx).toBeGreaterThanOrEqual(0);
+    expect(firstReviewUploadIdx).toBeGreaterThanOrEqual(0);
+    expect(callsAtVerify).toBeGreaterThan(attemptInsertIdx); // verification ran after the attempt row existed
+    expect(firstReviewUploadIdx).toBeGreaterThanOrEqual(callsAtVerify); // model-review artifacts written after verification
+
+    expect(runAndRecordVerificationMock).toHaveBeenCalledTimes(1);
+    const arg = runAndRecordVerificationMock.mock.calls[0][1] as Record<string, any>;
+    expect(arg).toMatchObject({
+      orgId: ORG_ID,
+      proposalId: PROPOSAL_ID,
+      revisionId: REVISION_ID,
+      attemptId: ATTEMPT_ID,
+      baseSha: 'basesha000',
+      requiredKeys: DEFAULT_REQUIRED, // same array recorded on the attempt row
+    });
+    expect(arg.runner).toBeDefined();
+    expect(Array.isArray(arg.files)).toBe(true);
+    expect(arg.files[0].path).toBe('lib/foo/bar.ts');
+  });
+
+  it('records classifier-derived required_check_keys including verify:migrations for a migration file', async () => {
+    const MIGRATION_PLAN = {
+      ...SCAFFOLD_PLAN,
+      files: [{ path: 'db/migrations/0099_volunteer_scaffold.sql', description: 'volunteer schema' }],
+    };
+    const mock = new SupabaseMock();
+    mock.queueTable('builder_proposals', { data: baseProposal({ plan_content: MIGRATION_PLAN }), error: null });
+    mock.queueTable('builder_proposals', { data: { code_state: 'generating' }, error: null });
+    mock.queueTable('builder_proposals', { data: { code_state: 'verifying' }, error: null });
+    mock.queueTable('builder_proposals', { data: { code_state: 'ready_to_apply' }, error: null });
+    mock.queueTable('builder_proposal_revisions', { data: baseRevision(), error: null });
+    mock.queueTable('builder_proposal_revisions', { data: null, error: null }); // progress
+    mock.queueTable('builder_proposal_revisions', { data: null, error: null }); // hash stamp
+    mock.queueTable('builder_review_attempts', { data: null, error: null }); // count
+    mock.queueTable('builder_review_attempts', { data: { id: ATTEMPT_ID }, error: null }); // insert
+    mock.queueTable('builder_review_attempts', { data: null, error: null }); // final update
+    mock.queueTable('builder_review_findings', { data: [], error: null });
+    const migrationKeys = ['verify:types', 'verify:lint', 'verify:unit', 'verify:migrations'];
+    mock.queueTable('builder_verification_runs', { data: passedRuns(migrationKeys), error: null });
+    for (let i = 0; i < 6; i++) mock.queueStorageUpload('builder-artifacts', { data: { path: 'x' }, error: null });
+    aiQueue = ['-- migration sql', REVIEW_PASS];
+    currentAdmin = mock.client();
+
+    await runBuildPhase({ proposalId: PROPOSAL_ID, orgId: ORG_ID, revisionId: REVISION_ID });
+
+    const insert = mock.calls.find(c => c.table === 'builder_review_attempts' && c.method === 'insert');
+    const payload = insert!.args[0] as Record<string, unknown>;
+    expect(payload.required_check_keys).toEqual(
+      requiredCheckKeys(['db/migrations/0099_volunteer_scaffold.sql'])
+    );
+    expect(payload.required_check_keys).toContain('verify:migrations');
+    // The gate is fed the SAME keys that were recorded — the run passes.
+    expect(proposalStates(mock)).toEqual(['generating', 'verifying', 'ready_to_apply']);
+    const verifyArg = runAndRecordVerificationMock.mock.calls[0][1] as Record<string, any>;
+    expect(verifyArg.requiredKeys).toEqual(payload.required_check_keys);
+  });
+
+  it('blocks the attempt and moves to needs_repair when a required check has not passed', async () => {
+    // A failing CHECK is not a setup failure: no setupFindings, but the Step 7
+    // verification-run re-load reports verify:types as failed, so the real gate
+    // fails on the required-checks clause.
+    runAndRecordVerificationMock.mockResolvedValue({ setupFindings: [], allRequiredPassed: false });
+    const mock = genericSetup({
+      finalProposalState: 'needs_repair',
+      verificationRuns: [
+        { id: 'r0', review_attempt_id: ATTEMPT_ID, check_key: 'verify:types', status: 'failed' },
+        { id: 'r1', review_attempt_id: ATTEMPT_ID, check_key: 'verify:lint', status: 'passed' },
+        { id: 'r2', review_attempt_id: ATTEMPT_ID, check_key: 'verify:unit', status: 'passed' },
+      ],
+    });
+
+    await runBuildPhase({ proposalId: PROPOSAL_ID, orgId: ORG_ID, revisionId: REVISION_ID });
+
+    const blocked = mock.calls
+      .filter(c => c.table === 'builder_review_attempts' && c.method === 'update')
+      .map(c => c.args[0] as any)
+      .find(v => v.status);
+    expect(blocked.status).toBe('blocked');
+    expect(blocked.decision_reason).toBe('Required verification checks have not passed.');
+    expect(proposalStates(mock)).toEqual(['verifying', 'needs_repair']);
+    // Model review still ran (the worker never short-circuits on verification).
+    expect(aiQueue.length).toBe(0);
+  });
+
+  it('inserts setup-failure findings tagged reviewer_kind deterministic_check', async () => {
+    const setupFinding = {
+      reviewer_kind: 'deterministic_check',
+      severity: 'blocker',
+      category: 'verification',
+      evidence: 'verification setup failed at no_base_sha: no pinned base SHA available',
+      state: 'open',
+    };
+    runAndRecordVerificationMock.mockResolvedValue({ setupFindings: [setupFinding], allRequiredPassed: false });
+    const mock = genericSetup({
+      finalProposalState: 'needs_repair',
+      verificationRuns: [],
+      findingsInsertResult: true, // Step 5.5 inserts the setup finding
+      // Step 7 re-load surfaces the same open blocker so the real gate blocks.
+      findingsReload: [
+        { id: 'sf1', review_attempt_id: ATTEMPT_ID, severity: 'blocker', state: 'open', evidence: setupFinding.evidence, reviewer_kind: 'deterministic_check' },
+      ],
+    });
+
+    await runBuildPhase({ proposalId: PROPOSAL_ID, orgId: ORG_ID, revisionId: REVISION_ID });
+
+    const findingsInsert = mock.calls.find(c => c.table === 'builder_review_findings' && c.method === 'insert');
+    expect(findingsInsert).toBeDefined();
+    const rows = findingsInsert!.args[0] as any[];
+    expect(rows[0].reviewer_kind).toBe('deterministic_check');
+    expect(rows[0].severity).toBe('blocker');
+    expect(rows[0].category).toBe('verification');
+    expect(rows[0].review_attempt_id).toBe(ATTEMPT_ID); // stamped by the worker
+    expect(proposalStates(mock)).toEqual(['verifying', 'needs_repair']);
   });
 });
 
@@ -217,7 +417,7 @@ describe('runBuildPhase — generic path', () => {
     mock.queueTable('builder_review_attempts', { data: { id: ATTEMPT_ID }, error: null }); // insert
     mock.queueTable('builder_review_attempts', { data: null, error: null }); // final update
     mock.queueTable('builder_review_findings', { data: [], error: null });
-    mock.queueTable('builder_verification_runs', { data: [], error: null });
+    mock.queueTable('builder_verification_runs', { data: passedRuns(DEFAULT_REQUIRED), error: null });
     // files.json download, then 2 review uploads (prompt, response)
     mock.queueStorageDownload('builder-artifacts', {
       data: JSON.stringify({ files: [{ path: 'lib/foo/bar.ts', content: 'export const x = 1;', diff: '' }] }),
@@ -474,7 +674,7 @@ describe('runBuildPhase — second attempt on same revision', () => {
     mock.queueTable('builder_review_attempts', { data: { id: ATTEMPT_ID }, error: null }); // insert
     mock.queueTable('builder_review_attempts', { data: null, error: null }); // final update
     mock.queueTable('builder_review_findings', { data: [], error: null });
-    mock.queueTable('builder_verification_runs', { data: [], error: null });
+    mock.queueTable('builder_verification_runs', { data: passedRuns(DEFAULT_REQUIRED), error: null });
     mock.queueStorageDownload('builder-artifacts', {
       data: JSON.stringify({ files: [{ path: 'lib/foo/bar.ts', content: 'x', diff: '' }] }),
       error: null,

@@ -16,11 +16,13 @@ import { AI_MODELS } from '@/lib/ai/models';
 import { buildScaffoldContext, formatScaffoldContextForPrompt } from './scaffold-context';
 import { getCodebaseIndex, formatIndexForPrompt } from './codebase-index';
 import { evaluatePathPolicy, evaluateFileBudget } from './path-policy';
+import { requiredCheckKeys } from './check-matrix';
+import { runAndRecordVerification } from './verification';
+import { createVerificationRunner } from './verification-runner';
 import {
   transitionProposal,
   failInFlightRun,
   REVIEW_POLICY_VERSION,
-  REQUIRED_CHECK_KEYS,
   type CodeState,
   type RevisionRow,
   type ReviewAttemptRow,
@@ -224,6 +226,12 @@ export async function runBuildPhase(data: ScaffoldBuildJobData): Promise<void> {
   const attemptNumber = (latestAttempt?.attempt_number ?? 0) + 1;
   const trigger = attemptNumber === 1 ? 'initial' : 'retry';
 
+  // The change-class classifier derives which verify:* checks this proposal
+  // must pass. Computed ONCE here and reused verbatim for the attempt row, the
+  // verification run (Step 5.5), and the gate input (Step 7) — no drift between
+  // what was recorded and what is enforced.
+  const attemptRequiredKeys = requiredCheckKeys(files.map(f => f.path));
+
   const { data: attemptRow, error: attemptError } = await supabase
     .from('builder_review_attempts')
     .insert({
@@ -233,7 +241,7 @@ export async function runBuildPhase(data: ScaffoldBuildJobData): Promise<void> {
       trigger,
       status: 'running',
       policy_version: REVIEW_POLICY_VERSION,
-      required_check_keys: REQUIRED_CHECK_KEYS,
+      required_check_keys: attemptRequiredKeys,
     })
     .select('id')
     .single();
@@ -273,6 +281,22 @@ export async function runBuildPhase(data: ScaffoldBuildJobData): Promise<void> {
     await transition(supabase, proposalId, orgId, 'verifying', 'needs_repair');
     return;
   }
+
+  // ── Step 5.5: deterministic verification (audit Phase 2 — before any AI review) ──
+  const verification = await runAndRecordVerification(supabase, {
+    orgId, proposalId, revisionId, attemptId,
+    files, baseSha: revision.base_commit_sha,
+    requiredKeys: attemptRequiredKeys,           // same array recorded on the attempt
+    runner: createVerificationRunner(),
+  });
+  if (verification.setupFindings.length > 0) {
+    const { error: setupFindingsError } = await supabase.from('builder_review_findings').insert(
+      verification.setupFindings.map(f => ({ ...f, review_attempt_id: attemptId }))
+    );
+    if (setupFindingsError) throw setupFindingsError;
+  }
+  // Do NOT branch on verification results here — Step 6 (model review) still runs,
+  // and Step 7's evaluateAttemptGate is the sole authority on pass/blocked.
 
   // ── Step 6: single-model automated review ─────────────────────────────────
   const { promptText, rawResponse } = await runModelReview(planContent ?? null, files);
@@ -332,7 +356,7 @@ export async function runBuildPhase(data: ScaffoldBuildJobData): Promise<void> {
     trigger,
     status: 'passed', // hypothesis — the gate confirms or rejects it
     policy_version: REVIEW_POLICY_VERSION,
-    required_check_keys: REQUIRED_CHECK_KEYS,
+    required_check_keys: attemptRequiredKeys,
     summary_score: parsed.summaryScore,
     started_at: nowIso,
     completed_at: nowIso,

@@ -93,6 +93,48 @@ beforeAll(() => {
   // Mirrors the real repo so the worktree inherits it.
   fs.writeFileSync(path.join(fixtureRepo, '.gitignore'), 'node_modules/\n');
 
+  // verify:unit fixtures. These live in SUBDIRECTORIES so tsconfig's root-only
+  // `include: ['*.ts']` never compiles them (they import 'vitest') — keeping the
+  // verify:types tests above unaffected. Vitest runs them zero-config via the
+  // symlinked real toolchain, exactly as the runner drives it in production.
+  //
+  //   unit/sum.ts + unit/sum.test.ts  -> the `related` dependency-graph case:
+  //     a proposal that edits sum.ts must make vitest pick up and run sum.test.ts.
+  fs.mkdirSync(path.join(fixtureRepo, 'unit'), { recursive: true });
+  fs.writeFileSync(
+    path.join(fixtureRepo, 'unit', 'sum.ts'),
+    'export function sum(a: number, b: number): number {\n  return a + b;\n}\n'
+  );
+  fs.writeFileSync(
+    path.join(fixtureRepo, 'unit', 'sum.test.ts'),
+    [
+      "import { describe, it, expect } from 'vitest';",
+      "import { sum } from './sum';",
+      "describe('sum', () => {",
+      "  it('adds', () => {",
+      '    expect(sum(2, 3)).toBe(5);',
+      '  });',
+      '});',
+      '',
+    ].join('\n')
+  );
+  //   app/api/__tests__/contract.test.ts -> the extraSuiteGlobs case: a contract
+  //     suite that imports NOTHING, so the ONLY way it runs is the app/api glob
+  //     (app/api/__tests__/*.test.ts) shell-expanding inside the bash wrapper.
+  fs.mkdirSync(path.join(fixtureRepo, 'app', 'api', '__tests__'), { recursive: true });
+  fs.writeFileSync(
+    path.join(fixtureRepo, 'app', 'api', '__tests__', 'contract.test.ts'),
+    [
+      "import { describe, it, expect } from 'vitest';",
+      "describe('api-contract', () => {",
+      "  it('holds', () => {",
+      '    expect(1 + 1).toBe(2);',
+      '  });',
+      '});',
+      '',
+    ].join('\n')
+  );
+
   git(fixtureRepo, ['add', '-A']);
   git(fixtureRepo, ['commit', '-qm', 'fixture base']);
   baseSha = git(fixtureRepo, ['rev-parse', 'HEAD']).trim();
@@ -275,4 +317,72 @@ describe('LocalWorktreeRunner integration — real git + real subprocesses', () 
     // the SIGTERM landed far below the process's own 60s lifetime
     expect(elapsedMs).toBeLessThan(10_000);
   }, 20_000);
+
+  // 8. verify:unit runs the REAL scoped vitest invocation and PASSES: a proposal
+  //    that edits unit/sum.ts (a non-test source file) must make Vitest 4's
+  //    `related` mode discover and run unit/sum.test.ts. This is the dominant
+  //    proposal shape the earlier `run related …` argv failed closed on.
+  it('runs related-mode vitest for a source change and passes when the test holds', async () => {
+    const outcome = await makeRunner().run({
+      baseSha,
+      // return b + a === return a + b -> sum(2,3) still 5 -> test passes
+      files: [{ path: 'unit/sum.ts', content: 'export function sum(a: number, b: number): number {\n  return b + a;\n}\n' }],
+      requiredKeys: ['verify:unit'],
+    });
+
+    expect(outcome.setupFailure).toBeNull();
+    expect(outcome.checks).toHaveLength(1);
+    const unit = outcome.checks[0];
+    expect(unit.key).toBe('verify:unit');
+    expect(unit.status).toBe('passed');
+    expect(unit.exitCode).toBe(0);
+    // proves related-mode actually SELECTED and executed the associated test,
+    // not that it trivially found zero files (which the old argv did)
+    expect(unit.log).toContain('unit/sum.test.ts');
+    expect(unit.log).toMatch(/1 passed/);
+    // proves `npx vitest --version` resolved the real runner via the symlink chain
+    expect(unit.commandVersion).toMatch(/\d+\.\d+\.\d+/);
+  }, 120_000);
+
+  // 9. The same path BLOCKS with reproducible assertion evidence when the edit
+  //    breaks the related test — the gate this whole check exists to enforce.
+  it('blocks a source change that breaks its related test, with the failing suite in the log', async () => {
+    const outcome = await makeRunner().run({
+      baseSha,
+      // return a - b -> sum(2,3) === -1 !== 5 -> unit/sum.test.ts assertion fails
+      files: [{ path: 'unit/sum.ts', content: 'export function sum(a: number, b: number): number {\n  return a - b;\n}\n' }],
+      requiredKeys: ['verify:unit'],
+    });
+
+    expect(outcome.setupFailure).toBeNull();
+    const unit = outcome.checks[0];
+    expect(unit.key).toBe('verify:unit');
+    expect(unit.status).toBe('failed');
+    expect(unit.exitCode).not.toBe(0);
+    // reproducible evidence, mirroring the TS2322 / no-debugger patterns above
+    expect(unit.log).toContain('unit/sum.test.ts');
+    expect(unit.log).toMatch(/AssertionError|1 failed/);
+  }, 120_000);
+
+  // 10. The extraSuiteGlobs path is real: touching an app/api/ source file routes
+  //     verify:unit through the bash wrapper, whose `app/api/__tests__/*.test.ts`
+  //     glob must shell-expand and actually RUN the contract suite — even though
+  //     nothing imports the changed file, so `related` alone would run nothing.
+  it('shell-expands the api contract glob and runs the contract suite for an app/api change', async () => {
+    const outcome = await makeRunner().run({
+      baseSha,
+      files: [{ path: 'app/api/health/route.ts', content: 'export const dynamic = "force-dynamic";\n' }],
+      requiredKeys: ['verify:unit'],
+    });
+
+    expect(outcome.setupFailure).toBeNull();
+    const unit = outcome.checks[0];
+    expect(unit.key).toBe('verify:unit');
+    // the glob-expanded contract suite ran and passed
+    expect(unit.status).toBe('passed');
+    expect(unit.exitCode).toBe(0);
+    // the ONLY reason this suite ran is the shell-expanded glob (nothing imports
+    // the changed route) — its presence in the log proves expansion happened
+    expect(unit.log).toContain('app/api/__tests__/contract.test.ts');
+  }, 120_000);
 });

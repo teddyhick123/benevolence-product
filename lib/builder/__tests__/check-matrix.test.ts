@@ -50,9 +50,37 @@ describe('CHECK_COMMANDS', () => {
     const argv = CHECK_COMMANDS['verify:unit'].argv({ changedFiles: [] });
     expect(argv).toEqual(['npx','vitest','run','lib/builder']);
   });
-  it('verify:unit adds schema-contract suite for migration changes', () => {
+  it('verify:unit uses Vitest 4 related-mode for ordinary source changes', () => {
+    // `related <files> --run`, NOT the broken `run related <files>` (which vitest
+    // treats as filename filters and fails closed with "No test files found").
+    const argv = CHECK_COMMANDS['verify:unit'].argv({ changedFiles: ['lib/b.ts','lib/a.ts'] });
+    expect(argv).toEqual(['npx','vitest','related','lib/a.ts','lib/b.ts','--run']);
+    // guard against a regression to the invalid sibling-command ordering
+    expect(argv.indexOf('run')).toBe(-1);
+  });
+  it('verify:unit resolves extra suite globs via a bash wrapper for migration changes', () => {
+    // The schema-contract suite is a glob-free literal, but any extra suite
+    // routes verify:unit through bash so glob patterns can shell-expand.
     const argv = CHECK_COMMANDS['verify:unit'].argv({ changedFiles: ['db/migrations/0057_x.sql'] });
-    expect(argv).toContain('app/api/__tests__/builder-schema-contract.test.ts');
+    expect(argv.slice(0, 2)).toEqual(['bash','-lc']);
+    const script = argv[2];
+    expect(script).toContain('vitest related');
+    expect(script).toContain('app/api/__tests__/builder-schema-contract.test.ts');
+    expect(script).toContain('--run');
+    // migration-only change: no related source files, so no positionals beyond $0
+    expect(argv.slice(3)).toEqual(['bash']);
+  });
+  it('verify:unit passes proposal source files as bash positionals, not interpolated', () => {
+    // app/api/ touch -> API contract glob (needs shell expansion) + the changed
+    // route as a "$@" positional (never spliced into the script -> injection-safe).
+    const argv = CHECK_COMMANDS['verify:unit'].argv({ changedFiles: ['app/api/org/[orgId]/x/route.ts'] });
+    expect(argv.slice(0, 2)).toEqual(['bash','-lc']);
+    const script = argv[2];
+    expect(script).toContain('related "$@"');
+    expect(script).toContain('app/api/__tests__/*.test.ts');
+    // the proposal path is a trailing positional, absent from the script string
+    expect(argv.slice(3)).toEqual(['bash','app/api/org/[orgId]/x/route.ts']);
+    expect(script).not.toContain('app/api/org/[orgId]/x/route.ts');
   });
   it('verify:build sets production env overrides', () => {
     expect(CHECK_COMMANDS['verify:build'].envOverrides).toMatchObject({ NODE_ENV: 'production' });

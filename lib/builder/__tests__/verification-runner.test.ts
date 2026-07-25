@@ -157,7 +157,7 @@ describe('LocalWorktreeRunner — happy path orchestration', () => {
     expect(fake.calls[6].argv).toEqual(['npx', 'eslint', '--version']);
     expect(fake.calls[7].argv).toEqual(['npx', 'eslint', 'lib/sample/foo.ts']);
     expect(fake.calls[8].argv).toEqual(['npx', 'vitest', '--version']);
-    expect(fake.calls[9].argv).toEqual(['npx', 'vitest', 'run', 'related', 'lib/sample/foo.ts']);
+    expect(fake.calls[9].argv).toEqual(['npx', 'vitest', 'related', 'lib/sample/foo.ts', '--run']);
     for (const i of [4, 5, 6, 7, 8, 9]) {
       expect(fake.calls[i].cwd).toBe(worktreeDir);
     }
@@ -337,7 +337,7 @@ describe('LocalWorktreeRunner — no short-circuit', () => {
     expect(outcome.checks[1].exitCode).toBe(1);
     expect(outcome.checks[1].log).toContain('lint error');
     // unit check (the one after the failure) actually executed
-    expect(fake.calls.some((c) => c.argv.join(' ').startsWith('npx vitest run related'))).toBe(true);
+    expect(fake.calls.some((c) => c.argv.join(' ').startsWith('npx vitest related'))).toBe(true);
   });
 });
 

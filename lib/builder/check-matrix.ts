@@ -34,12 +34,13 @@ const BUILD_EXACT = ['middleware.ts', 'package.json'];
 const BUILD_PATTERNS = [/^next\.config\.[a-z]+$/, /^tailwind\.config\.[a-z]+$/, /^postcss\.config\.[a-z]+$/, /^tsconfig(\..+)?\.json$/];
 
 const SCHEMA_CONTRACT_SUITE = 'app/api/__tests__/builder-schema-contract.test.ts';
-// Intentionally-unexpanded glob pattern, not a literal file path. CHECK_COMMANDS
-// argv is always passed to spawn() (never a shell), so this '*' will not
-// shell-expand — it's left for the Task 3 verification runner to resolve
-// (e.g. by expanding it itself before invoking `vitest run related`, or by
-// passing it through to a vitest invocation that performs its own glob
-// resolution). Do not treat this constant as a ready-to-use path.
+// A glob pattern, not a literal file path. Vitest does NOT expand a '*' it is
+// handed as a `related` argument (verified against Vitest 4.0.12: it silently
+// treats the literal '*' string as a non-matching filter), and CHECK_COMMANDS
+// argv normally goes to spawn() with no shell. So verify:unit resolves this
+// glob via a `bash -lc` wrapper (the same documented shell exception used by
+// verify:migrations) that lets bash perform filename expansion. Do not treat
+// this constant as a ready-to-use argv element on the no-shell path.
 const API_CONTRACT_SUITE_GLOB = 'app/api/__tests__/*.test.ts';
 const API_PREFIX = 'app/api/';
 const UNIT_FLOOR_ARGV = ['npx', 'vitest', 'run', 'lib/builder'];
@@ -106,12 +107,39 @@ export const CHECK_COMMANDS: Record<CheckKey, CheckCommandSpec> = {
   },
   'verify:unit': {
     key: 'verify:unit',
+    // Vitest 4 CLI shape (verified empirically against 4.0.12):
+    //   - `vitest related <sourceFiles> --run` runs the tests that import the
+    //     given NON-test source files (dependency-graph selection). `related`
+    //     and `run` are SIBLING commands; `run related …` treats both as
+    //     filename FILTERS and finds nothing (exit 1) — the bug this replaces.
+    //   - `related` also accepts explicit test-file paths mixed into the same
+    //     list: an entry that is itself a test file is run directly, while a
+    //     source-file entry triggers related-test lookup. So relatedFiles and
+    //     the extra contract suites can share one invocation.
+    //   - a glob like `app/api/__tests__/*.test.ts` is NOT expanded by vitest
+    //     itself, so when extra suites are present we resolve it through a
+    //     `bash -lc` wrapper (see verify:migrations for the shell exception).
     argv: ({ changedFiles }) => {
       const { relatedFiles, extraSuiteGlobs } = unitTestTargets(changedFiles);
       if (relatedFiles.length === 0 && extraSuiteGlobs.length === 0) {
+        // Nothing changed maps to a scoped selection — run the builder floor.
         return [...UNIT_FLOOR_ARGV];
       }
-      return ['npx', 'vitest', 'run', 'related', ...relatedFiles, ...extraSuiteGlobs];
+      if (extraSuiteGlobs.length === 0) {
+        // Dominant case (ordinary source change): a plain, spawn-able argv with
+        // no globs to expand. `--run` forces single-run mode under `related`.
+        return ['npx', 'vitest', 'related', ...relatedFiles, '--run'];
+      }
+      // Extra contract suites are in play (a migration and/or app/api/ touch).
+      // Some are glob patterns vitest won't expand, so hand the whole command
+      // to bash for filename expansion. relatedFiles are proposal-controlled,
+      // so they are passed as bash POSITIONALS ("$@") — never interpolated into
+      // the script string — which keeps the shell wrapper injection-safe.
+      // extraSuiteGlobs are hardcoded constants, so embedding them is safe and
+      // lets bash expand the '*'. An empty "$@" (migration-only, no related
+      // source files) expands to zero words, leaving just the suites.
+      const script = `exec npx vitest related "$@" ${extraSuiteGlobs.join(' ')} --run`;
+      return ['bash', '-lc', script, 'bash', ...relatedFiles];
     },
     versionArgv: ['npx', 'vitest', '--version'],
     timeoutMs: 600000,

@@ -97,6 +97,64 @@ Every code proposal — generic (`submit_code_proposal`) and scaffolded (`scaffo
 4. Only a proposal in `ready_to_apply` whose latest passing `builder_review_attempts` row clears the gate (`lib/builder/review-gate.ts` — blocking findings, not score) can open a PR. The apply endpoint re-checks the attempt/findings and the path policy before writing to GitHub, and re-hashes the revision's frozen artifacts to detect tampering between worker and apply.
 5. On success the apply route inserts a `builder_delivery_records` row (`status: 'pr_open'`, `pr_url`, `pr_number`, `branch_name`, `commit_sha`) and transitions `ready_to_apply -> pr_opened`. Proposals stop at `pr_opened`; merge and deployment are handled through the normal engineering release process. There is no automated "mark shipped" action — delivery state changes only ever come from evidence recorded in `builder_delivery_records`.
 
+## Deterministic verification
+
+As of Increment 3, every code proposal passes through a deterministic, isolated verification stage (`lib/builder/verification-runner.ts`, `lib/builder/verification.ts`) before the automated model review runs. The worker (`lib/builder/scaffold-worker.ts`) computes the required check set from the proposal's changed paths (`requiredCheckKeys()`, `lib/builder/check-matrix.ts`), executes each required check inside a throwaway `git worktree` checked out at the revision's `base_commit_sha`, and persists one `builder_verification_runs` row per check via `runAndRecordVerification`. `evaluateAttemptGate` (`lib/builder/review-gate.ts`) then fails closed if any required check key did not reach `passed` — reason string `'Required verification checks have not passed.'`.
+
+### The five check keys and the required-check matrix
+
+`CHECK_KEYS` (`lib/builder/check-matrix.ts`): `verify:types`, `verify:lint`, `verify:unit`, `verify:migrations`, `verify:build`. `requiredCheckKeys(paths)` computes the required subset for a given set of changed proposal paths — always start from `{verify:types, verify:lint, verify:unit}`, then add the other two conditionally:
+
+| Check | `package.json` script | Required when |
+|---|---|---|
+| `verify:types` | `tsc --noEmit` | Always |
+| `verify:lint` | `eslint . --ext .js,.jsx,.ts,.tsx` (the runner scopes this to only the proposal's changed lintable files) | Always |
+| `verify:unit` | `vitest run` (the runner scopes this to `vitest related` on changed files plus schema/API contract suites when relevant, falling back to `vitest run lib/builder` when nothing else applies) | Always |
+| `verify:migrations` | `supabase db reset && bash scripts/verify/migrations-assert.sh` | Any changed path starts with `db/migrations/` |
+| `verify:build` | `next build` | Any changed path starts with `app/`, `components/`, or `contexts/`; OR is exactly `middleware.ts` or `package.json`; OR matches `next.config.*`, `tailwind.config.*`, `postcss.config.*`, or `tsconfig(.*)?.json` |
+
+### Worker host requirements
+
+The worker host must have:
+
+- A `git` binary on `PATH`.
+- A checkout of this repo with a **fetchable `origin`** — the runner checks out the revision's pinned base commit into a detached worktree, fetching it from `origin` if it isn't already present locally. A worker deployed from a tarball (no `.git`) cannot verify anything: `LocalWorktreeRunner` reports every required check as `error` (`setupFailure.stage: 'worktree'`) and the gate blocks. This is intentional fail-closed behavior, not a bug.
+- `node_modules` installed in the host checkout. The runner best-effort-symlinks the host's `node_modules` into each worktree; if that fails, checks that need it simply fail (not crash the run).
+- A local Supabase stack is **optional**. It is only needed to actually execute `verify:migrations`. Without one, any proposal that touches `db/migrations/` will have `verify:migrations` required and failing (Supabase CLI errors trying to reach a stack that isn't there) — the proposal correctly lands in `needs_repair`. This is fail-closed by design: no local stack means migration-touching proposals cannot be verified, so they do not pass.
+
+### Walkthrough-stack reset hazard
+
+**`npm run verify:migrations` runs `supabase db reset` against the same local Supabase stack used by `npm run walkthrough:*` (`walkthrough:setup`, `walkthrough:seed`, `walkthrough:dev`, `walkthrough:test`, etc.).** Running it — directly, via dogfooding, or via a live Builder worker verifying a migration-touching proposal — **destroys all local walkthrough data** (reset drops and recreates the database from migrations). Do not run `verify:migrations`, and do not let a Builder worker verify a migration-touching proposal, against a Supabase stack you're using for an in-progress walkthrough session without expecting to lose that session's data. Re-run `walkthrough:setup`/`walkthrough:seed` afterward to restore a clean walkthrough environment.
+
+### Worktree hygiene
+
+Each verification run creates a detached worktree at `<tmpRoot>/builder-verify-<uuid>` (`tmpRoot` defaults to the OS temp directory, `os.tmpdir()`). Per-run cleanup is automatic: `LocalWorktreeRunner.run()` wraps the entire check-execution path in a `try`/`finally` that calls `git worktree remove --force <dir>` followed by `git worktree prune`, so a worktree is removed whether the checks pass, fail, or throw. If a worker process is killed mid-run (e.g. `SIGKILL`, host crash) a worktree can be orphaned. Manual recovery:
+
+```bash
+git worktree list        # inspect for stale builder-verify-* entries
+git worktree prune        # remove stale worktree administrative data
+```
+
+### Environment scrubbing
+
+Check subprocesses (`tsc`, `eslint`, `vitest`, `next build`, `supabase`) never run with the worker's full environment. `buildSandboxEnv()` (`lib/builder/sandbox-env.ts`) builds an **allowlist-only** environment from scratch for every check invocation:
+
+- Copied from the host only if present: `PATH`, `HOME`, `TMPDIR`, `TMP`, `TEMP`, `LANG`, `LC_ALL`, `SHELL`, `USER`, `NODE_OPTIONS_SAFE_UNUSED`.
+- Always set to fixed values: `CI=1`, `NO_COLOR=1`, `FORCE_COLOR=0`, `NEXT_TELEMETRY_DISABLED=1`, `NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321`, `NEXT_PUBLIC_SUPABASE_ANON_KEY=sandbox-placeholder-anon-key`. **Both `NEXT_PUBLIC_SUPABASE_*` values are fake placeholders** — they exist only so `next build`/`tsc` don't crash on undefined env vars, and do not point at any real project.
+- Everything else is dropped, regardless of name or shape. In particular, check subprocesses never see `SUPABASE_SERVICE_ROLE`, `SUPABASE_SERVICE_KEY`, `SUPABASE_ACCESS_TOKEN`, `ANTHROPIC_API_KEY`, `GITHUB_TOKEN`, `REDIS_URL`, or `DATABASE_URL` — even though the worker process itself has all of these loaded from `.env` to do its own job (claiming runs, calling the model, opening PRs).
+
+Git/tool plumbing that operates on the **host repo** (worktree add/remove/prune, the base-commit fetch) is the one exception and runs with the full host environment, since `git fetch` needs host credentials. Only the check/version subprocesses that execute proposal-modified code get the scrubbed environment.
+
+### Policy v2 rollout
+
+`REVIEW_POLICY_VERSION` (`lib/builder/proposal-state.ts`) is now `'builder-review-policy/v2'`. `evaluateAttemptGate` rejects any attempt whose stored `policy_version` doesn't match the current constant (reason string `'Review attempt was evaluated under an outdated review policy.'`) — this is intentional: a policy change (adding deterministic verification as a gate condition) must force every proposal to be re-evaluated under the new rules, not grandfather in old passing attempts. Practical consequence: **every `builder_review_attempts` row created under `'builder-review-policy/v1'` is now stale**, including any proposal currently sitting in `ready_to_apply` from before this deploy — it will fail the gate on its next apply attempt and needs a fresh review run (retry from `needs_repair`/`failed`, or however the current UI surfaces "re-review") before it can open a PR.
+
+### Increment 3b: container isolation is still required for production
+
+The current `LocalWorktreeRunner` executes proposal-modified code (`tsc`, `eslint`, `vitest`, `next build`) as **real subprocesses on the worker host's own process**, isolated only by: the environment allowlist above (no secret exposure), and the existing path-policy denials (`lib/builder/path-policy.ts`) that block proposals from touching `package.json`, lockfiles, `.github/**`, and a handful of other protected paths/prefixes before a check ever runs. There is no OS-level or container-level sandbox around the check subprocesses themselves — a proposal could still, for example, add a test file whose body does something malicious within the worktree, and that code runs with the worker host's CPU/filesystem/network access (net of the env scrubbing).
+
+This is acceptable for Increment 3's stated scope (a local-dev verification runner), but it is **not a production-safe sandbox on its own**. The container/Docker-isolated runner is Increment 3b, the production-hardening follow-up to this increment. **Do not point a production Builder worker at Builder-enabled orgs until Increment 3b ships.**
+
 ## Detail API contract
 
 `GET /api/org/[orgId]/builder/proposals/[proposalId]` explains every state from persisted evidence alone: the current revision, the review attempts and their findings, the verification runs, and the delivery history, each with signed artifact links where applicable. It never reconstructs state from a cached/derived field — every claim in the response traces back to a row in one of the five durable tables.

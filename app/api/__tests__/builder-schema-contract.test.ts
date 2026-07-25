@@ -146,7 +146,7 @@ describe('transitional builder field guard', () => {
       if (!/builder/i.test(raw)) continue;
       const code = stripComments(raw);
 
-      for (const token of ['generated_code', 'review_report', 'proposal-lifecycle']) {
+      for (const token of ['generated_code', 'review_report', 'proposal-lifecycle', 'REQUIRED_CHECK_KEYS', 'builder-review-policy/v1']) {
         if (code.includes(token)) {
           violations.push(`${file}: live code contains transitional token '${token}'`);
         }

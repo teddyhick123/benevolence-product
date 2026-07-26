@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Land the refactor's guardrails — tracked lockfile, a CI gate on types/lint/tests/build, a lint-warning floor, unified test conventions (contract tests in `tests/integration/`, shared mocks in `tests/helpers/`, quiet test output), and local cleanup — with zero behavior change.
+**Goal:** Land the refactor's guardrails — tracked lockfile, a CI gate on types/lint/tests/build, a lint-warning floor, unified test conventions (contract tests in `tests/integration/`, shared mocks in `tests/helpers/`, quiet test output), and an optional safely authorized local-cleanup procedure — with zero intended product behavior change.
 
 **Architecture:** Phase 1 of `docs/superpowers/specs/2026-07-26-full-refactor-design.md`. Everything here is infrastructure: no route, page, or library behavior changes. The only product-code file touched is `lib/builder/check-matrix.ts`, whose hardcoded contract-suite paths must follow the moved test files (the spec's sanctioned shared-infrastructure touch on Builder).
 
@@ -10,14 +10,40 @@
 
 ## Global Constraints
 
-- No URL changes, no schema changes, no dependency upgrades, no lint-rule changes (spec cross-phase rules). `npm install --package-lock-only` must not alter any resolved version — if it does, stop.
+- No URL changes, no schema changes, no dependency upgrades, no lint-rule changes in this phase. `npm install --package-lock-only` must not alter any resolved version — if it does, stop.
 - Verified baseline that must hold at every commit: **1,939 tests passed / 6 skipped across 133 files** (Tasks 4–5 add tests; none may be lost), **`tsc --noEmit` clean**, **lint 0 errors / 511 warnings** (344 `no-unused-vars`, 129 `no-console`, 33 `react-hooks/exhaustive-deps`, 5 `@next/next/no-img-element`; **none auto-fixable** — do not attempt `--fix` burn-down).
 - Lint floor starts at **511** and only ratchets down.
 - `lib/builder/**` is out of scope **except** the contract-suite path constants in `check-matrix.ts` + their tests (Task 3) and the `console.warn` spy in `lib/builder/__tests__/verification.test.ts` (Task 5).
-- Behavior quirks discovered along the way: log to `docs/superpowers/specs/2026-07-26-refactor-findings.md`, don't fix. Security bugs: fix inline and call out in the commit message.
+- Behavior quirks discovered along the way: log to `docs/superpowers/specs/2026-07-26-refactor-findings.md`, don't fix. Security bugs: stop this infrastructure plan and create a dedicated, explicitly reviewed fix commit with regression coverage.
 - Dev machine is macOS: BSD sed (`sed -i ''`). CI runners are ubuntu.
-- All work on branch `refactor/phase1-guardrails` (create it in Task 1 if the worktree flow hasn't already). Commit messages use the repo's conventional style (`chore:`, `ci:`, `test:`) and end with `Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>`.
+- All work on branch `refactor/phase1-guardrails` (create it only after Task 0 if the worktree flow hasn't already). Commit messages use the repo's conventional style (`chore:`, `ci:`, `test:`) and must accurately identify their actual authors.
 - The full suite takes ~20s locally; run it before every commit (superpowers:verification-before-completion).
+
+---
+
+### Task 0: Confirm the intended PR base
+
+**Files:** none.
+
+The local `main` branch may contain commits not yet present on `origin/main`. A
+Phase 1 branch must not accidentally turn those unrelated commits into part of
+the refactor PR.
+
+- [ ] **Step 1: Refresh and inspect the base relationship**
+
+```bash
+git fetch origin
+git status --short --branch
+git log --oneline origin/main..main
+```
+
+- [ ] **Step 2: Choose and record the base**
+
+If `main` is ahead of `origin/main`, stop and obtain a user decision: push/merge
+the existing `main` work first, or create the refactor branch from the intended
+remote base and explicitly carry only the required documentation commits. Record
+the chosen base SHA in the PR description. Do not create the Phase 1 branch until
+the expected PR diff is limited to the refactor work.
 
 ---
 
@@ -80,8 +106,8 @@ Create `docs/superpowers/specs/2026-07-26-refactor-findings.md`:
 **Spec:** [2026-07-26-full-refactor-design.md](2026-07-26-full-refactor-design.md)
 
 Non-security behavior quirks discovered during the refactor are logged here
-instead of fixed. Security bugs are fixed inline and called out in commit
-messages — see the spec's bug policy.
+instead of fixed. Security bugs are fixed in dedicated commits with regression
+coverage — see the spec's bug policy.
 
 Each entry: date, phase/task, `file:line`, what the code actually does vs.
 what was expected, and why it was left alone.
@@ -98,9 +124,7 @@ git add .gitignore package-lock.json docs/superpowers/specs/2026-07-26-refactor-
 git commit -m "chore: track package-lock.json and add refactor findings log
 
 Reproducible installs are a precondition for the CI gate (npm ci). yarn/pnpm
-lockfiles stay ignored deliberately: npm is the only supported package manager.
-
-Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
+lockfiles stay ignored deliberately: npm is the only supported package manager."
 ```
 
 ---
@@ -150,21 +174,26 @@ Expected: `ESLint found too many warnings (maximum: 510).` and `exit: 1`. (Trans
 
 - [ ] **Step 4: Prove `verify:build` works under placeholder env**
 
-`lib/supabase.ts` reads `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY` / `SUPABASE_SERVICE_ROLE` inside factory functions, so `next build` should not need real values — prove it before encoding that assumption in CI. Temporarily hide local env files so the build sees only the placeholders:
+`lib/supabase.ts` reads `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY` / `SUPABASE_SERVICE_ROLE` inside factory functions, so `next build` should not need real values — prove it before encoding that assumption in CI. Temporarily hide only the environment files Next loads for a production build, with an exit trap that restores them even if the command is interrupted:
 
 ```bash
-ls .env* 2>/dev/null   # note which exist
-moved=""
-for f in .env .env.local .env.production; do
-  if [ -f "$f" ]; then mv "$f" "$f.ci-check"; moved="$moved $f"; fi
+refactor_env_moved=""
+restore_refactor_env() {
+  for f in $refactor_env_moved; do mv "$f.ci-check" "$f"; done
+}
+trap restore_refactor_env EXIT INT TERM
+for f in .env .env.local .env.production .env.production.local; do
+  if [ -f "$f" ]; then mv "$f" "$f.ci-check"; refactor_env_moved="$refactor_env_moved $f"; fi
 done
 NEXT_PUBLIC_SUPABASE_URL=http://placeholder.invalid \
 NEXT_PUBLIC_SUPABASE_ANON_KEY=ci-placeholder-anon-key \
 SUPABASE_SERVICE_ROLE=ci-placeholder-service-role \
 npm run verify:build
 status=$?
-for f in $moved; do mv "$f.ci-check" "$f"; done
+trap - EXIT INT TERM
+restore_refactor_env
 echo "build exit: $status"
+(exit "$status")
 ```
 
 Expected: build completes with `✓ Compiled successfully`, the route table includes `ƒ Middleware`, and `build exit: 0`. **If the build fails**, some page evaluates Supabase at build time — do not work around it silently: restore env files (the script does), log the failing page to the findings file, and stop for user input.
@@ -179,7 +208,10 @@ name: CI
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: ['**']
+
+permissions:
+  contents: read
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -200,7 +232,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version-file: '.nvmrc'
           cache: npm
 
       - run: npm ci
@@ -210,7 +242,7 @@ jobs:
       - run: npm run verify:build
 ```
 
-Notes: node 22 matches the existing `walkthrough-smoke.yml`; the env-gated `builder-rls.live.test.ts` self-skips in CI (`describe.skipIf(!RUN_LIVE)`); `verify:migrations` needs a local Supabase Docker stack and stays out of this gate.
+Notes: CI reads the same Node version as local development from `.nvmrc`; the env-gated `builder-rls.live.test.ts` self-skips in CI (`describe.skipIf(!RUN_LIVE)`); `verify:migrations` needs a local Supabase Docker stack and stays out of this gate.
 
 - [ ] **Step 6: Switch walkthrough-smoke to reproducible installs**
 
@@ -219,7 +251,7 @@ In `.github/workflows/walkthrough-smoke.yml`, change:
 ```yaml
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version-file: '.nvmrc'
 
       - run: npm install
 ```
@@ -229,7 +261,7 @@ to:
 ```yaml
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version-file: '.nvmrc'
           cache: npm
 
       - run: npm ci
@@ -259,9 +291,7 @@ git add package.json .github/workflows/ci.yml .github/workflows/walkthrough-smok
 git commit -m "ci: gate pushes and PRs on types, lint floor, unit tests, and build
 
 Lint floor starts at the verified current count (511 warnings, none
-auto-fixable) and only ratchets down at phase boundaries per the refactor spec.
-
-Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
+auto-fixable) and only ratchets down at phase boundaries per the refactor spec."
 ```
 
 ---
@@ -448,9 +478,7 @@ git commit -m "test: move API contract suites to tests/integration and repoint b
 Same 26 suites, new canonical home per the refactor spec's test conventions.
 check-matrix.ts is the sanctioned Builder touch: its hardcoded suite paths must
 follow the files, and integration-test edits now trigger the contract glob the
-same way app/api edits always have.
-
-Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
+same way app/api edits always have."
 ```
 
 ---
@@ -468,7 +496,7 @@ Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
 - Consumes: `tests/integration/` layout from Task 3.
 - Produces (used by the exemplar here and by every Phase 2 contract test):
   - `stubQuery<T>(result: SupabaseResult<T>, overrides?: { single?: SupabaseResult; maybeSingle?: SupabaseResult }): QueryStub` — thenable chainable builder; records `calls: {method, args}[]`.
-  - `stubSupabase(config: { tables?: Record<string, () => object>; rpc?: Record<string, (args?: Record<string, unknown>) => SupabaseResult>; fallbackTable?: () => object }): { from: Mock; rpc: Mock }`.
+  - `stubSupabase(config: { tables?: Record<string, () => object>; rpc?: Record<string, (args?: Record<string, unknown>) => SupabaseResult>; fallbackTable?: () => object; fallbackRpc?: (name: string, args?: Record<string, unknown>) => SupabaseResult }): { from: Mock; rpc: Mock }`.
   - `makeRequest(path, init?)`, `makeJsonRequest(path, body, method = 'POST')`, `makeRouteCtx(params)`, `readJson(res)`.
 
 Scope note: Phase 1 creates the helpers and proves them on **one** exemplar file. The other 25 contract suites migrate opportunistically in Phase 2 as each route family gets its contract pass — bulk-rewriting working test mocks now is churn without payoff. `vi.mock('@/lib/supabase', …)` stays in each test file (Vitest hoists it per-module; a helper cannot install it for the importing file) — the helpers build what goes *inside* the mock.
@@ -532,12 +560,12 @@ describe('stubSupabase', () => {
     expect(() => client.from('nope')).toThrow('no stub for table "nope"');
   });
 
-  it('dispatches rpc handlers by name and defaults unknown fns to { data: null, error: null }', async () => {
+  it('dispatches rpc handlers by name and fails loudly for unstubbed functions', async () => {
     const client = stubSupabase({
       rpc: { can_view_org: (args) => ({ data: args?.p_org_id === 'o1', error: null }) },
     });
     expect(await client.rpc('can_view_org', { p_org_id: 'o1' })).toEqual({ data: true, error: null });
-    expect(await client.rpc('mystery_fn')).toEqual({ data: null, error: null });
+    await expect(client.rpc('mystery_fn')).rejects.toThrow('no stub for rpc "mystery_fn"');
   });
 });
 ```
@@ -613,12 +641,14 @@ export function stubQuery<T = unknown>(
  * Supabase client stub: .from(table) dispatches to per-table stub factories —
  * a fresh stub per call, so factories can read current test state — and
  * .rpc(fn, args) to configured handlers. Unstubbed tables throw (typos fail
- * loudly); unstubbed rpcs resolve { data: null, error: null }.
+ * loudly); unstubbed RPCs do the same unless a test explicitly provides a
+ * fallbackRpc handler.
  */
 export function stubSupabase(config: {
   tables?: Record<string, () => object>;
   rpc?: Record<string, (args?: Record<string, unknown>) => SupabaseResult>;
   fallbackTable?: () => object;
+  fallbackRpc?: (name: string, args?: Record<string, unknown>) => SupabaseResult;
 }) {
   const from = vi.fn((table: string) => {
     const factory = config.tables?.[table] ?? config.fallbackTable;
@@ -629,7 +659,9 @@ export function stubSupabase(config: {
   });
   const rpc = vi.fn(async (fn: string, args?: Record<string, unknown>) => {
     const handler = config.rpc?.[fn];
-    return handler ? handler(args) : { data: null, error: null };
+    if (handler) return handler(args);
+    if (config.fallbackRpc) return config.fallbackRpc(fn, args);
+    throw new Error(`stubSupabase: no stub for rpc "${fn}"`);
   });
   return { from, rpc };
 }
@@ -706,8 +738,8 @@ export function makeRouteCtx<P extends Record<string, string>>(params: P): { par
 }
 
 /** Unpack a route Response for assertions. */
-export async function readJson(res: Response): Promise<{ status: number; body: any }> {
-  return { status: res.status, body: await res.json() };
+export async function readJson<T = unknown>(res: Response): Promise<{ status: number; body: T }> {
+  return { status: res.status, body: await res.json() as T };
 }
 ```
 
@@ -780,9 +812,7 @@ git commit -m "test: add shared Supabase/request test helpers and adopt in tax c
 
 tests/helpers is the go-forward mock convention for Phase 2's per-family
 contract passes; one exemplar file migrates now to prove the helpers, the rest
-migrate opportunistically as each family is touched.
-
-Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
+migrate opportunistically as each family is touched."
 ```
 
 ---
@@ -810,43 +840,30 @@ npx vitest run 2>&1 | perl -pe 's/\e\[[0-9;]*m//g' | grep -c '^stderr' || true
 
 Expected: `13`.
 
-- [ ] **Step 2: Spy the expected console output in the six console files**
+- [ ] **Step 2: Capture only the known expected console output**
 
-In each of the five `console.error` files (`tax-documents.behavior`, `tax-documents.auth`, `cpa-share`, `tax-form8283`, `builder-build-claim` under `tests/integration/`), add — **after** any existing top-level `beforeEach` (hooks run in registration order; the spy must be installed last so a `vi.restoreAllMocks()` in an earlier hook can't strip it):
+Do **not** install a file-wide `beforeEach` console spy: that would hide
+unexpected errors in happy-path tests. In each known error-path test in the five
+`console.error` files (`tax-documents.behavior`, `tax-documents.auth`,
+`cpa-share`, `tax-form8283`, and `builder-build-claim` under
+`tests/integration/`), scope the spy to the test and assert that the expected
+error was logged:
 
 ```ts
-// The routes under test log their expected error paths; keep suite output clean.
-let consoleErrorSpy: MockInstance;
-
-beforeEach(() => {
-  consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-});
-
-afterEach(() => {
+const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+try {
+  // Existing request and error-response assertions.
+  expect(consoleErrorSpy).toHaveBeenCalled();
+} finally {
   consoleErrorSpy.mockRestore();
-});
+}
 ```
 
-Extend each file's vitest import as needed, e.g.:
-
-```ts
-import { describe, it, expect, vi, beforeEach, afterEach, type MockInstance } from 'vitest';
-```
-
-In `lib/builder/__tests__/verification.test.ts`, do the same with `console.warn`:
-
-```ts
-// lib/builder/verification.ts warns on expected log-upload failures; keep suite output clean.
-let consoleWarnSpy: MockInstance;
-
-beforeEach(() => {
-  consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-});
-
-afterEach(() => {
-  consoleWarnSpy.mockRestore();
-});
-```
+Use the same per-test pattern with `console.warn` for the three expected warning
+paths in `lib/builder/__tests__/verification.test.ts`. Keep the existing Vitest
+imports unless a specific file does not already import `vi`. Any console output
+outside an explicitly covered error-path test remains visible and fails the
+stderr-clean check.
 
 - [ ] **Step 3: Fix (not silence) the act() warning in the compliance component test**
 
@@ -888,52 +905,58 @@ Expected: `0`, then `Tests  1950 passed | 6 skipped (1956)`. If any stderr line 
 git add tests/integration lib/builder/__tests__/verification.test.ts components/compliance/DisqualifiedPersonsRegistry.test.tsx
 git commit -m "test: silence expected-error logging and fix act warning in compliance test
 
-Per-file console spies for routes that log expected error paths; the
+Per-test console spies for routes that log expected error paths; the
 DisqualifiedPersonsRegistry act() warning is a real test gap (assertion raced
-the fetch effect) and is fixed by awaiting the settled empty state.
-
-Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
+the fetch effect) and is fixed by awaiting the settled empty state."
 ```
 
 ---
 
-### Task 6: Local cleanup — stale worktrees and empty directory
+### Task 6: Optional local cleanup — stale worktrees and empty directory
 
-**Files:** none tracked — everything here is gitignored local state, so there is **no commit**.
+**Files:** none tracked. This task is optional, requires explicit user approval at
+execution time, and does not affect the Phase 1 PR or exit criteria.
 
-Context: `.claude/worktrees/` holds six stale, **locked** agent worktrees (~48MB) registered in `git worktree list` on `worktree-agent-*` branches; `impact-viz-mvp/` contains only an empty `.next` cache.
+Context: `.claude/worktrees/` may hold locked agent worktrees and
+`worktree-agent-*` branches with committed work that is not merged into `main`.
+A clean status alone proves only that there are no *uncommitted* changes; it does
+not authorize deleting a branch. `impact-viz-mvp/` contains only an ignored build
+cache and can be considered separately.
 
-- [ ] **Step 1: Safety check — confirm no stale worktree holds unique uncommitted work**
-
-```bash
-for wt in .claude/worktrees/agent-*; do
-  echo "== $wt"; git -C "$wt" status --porcelain | head -5
-done
-```
-
-Expected: every worktree shows no output (clean). **If any shows modifications, stop and ask the user before removing that one** — the rest may proceed.
-
-- [ ] **Step 2: Remove the worktrees, their branches, and the empty directory**
+- [ ] **Step 1: Produce a preservation report**
 
 ```bash
 for wt in .claude/worktrees/agent-*; do
-  git worktree unlock "$wt" 2>/dev/null || true
-  git worktree remove --force "$wt"
+  branch=$(git -C "$wt" branch --show-current)
+  echo "== $wt ($branch)"
+  git -C "$wt" status --short
+  git log --oneline main.."$branch"
 done
-git worktree prune
-git for-each-ref --format='%(refname:short)' 'refs/heads/worktree-agent-*' | xargs -n1 git branch -D
-rm -rf impact-viz-mvp
 ```
 
-- [ ] **Step 3: Verify**
+- [ ] **Step 2: Obtain a per-branch user decision**
+
+For every branch with commits not reachable from `main`, ask the user to choose
+one of: merge/cherry-pick, retain, archive with a named tag/backup branch, or
+delete. Do not unlock, remove, or force-delete any worktree/branch before that
+decision. If a worktree is not clean, stop and preserve it regardless of branch
+ancestry.
+
+- [ ] **Step 3: Perform only approved removals**
+
+For a clean worktree whose branch the user explicitly approved for removal:
 
 ```bash
-git worktree list
-ls .claude/worktrees 2>/dev/null; ls impact-viz-mvp 2>&1
-git status --porcelain
+git worktree unlock <approved-worktree-path>
+git worktree remove <approved-worktree-path>
+git branch -d <approved-branch>
 ```
 
-Expected: `git worktree list` shows only the main checkout (plus this phase's own worktree if executing in one); `.claude/worktrees` empty or gone; `impact-viz-mvp` `No such file or directory`; `git status` clean.
+Use `git branch -D` only after an explicit user decision to discard an unmerged
+branch. After all approved removals, run `git worktree prune`.
+
+Remove `impact-viz-mvp/` only after separately confirming it still contains no
+source files and receiving approval for that local deletion.
 
 ---
 
@@ -947,10 +970,13 @@ Expected: `git worktree list` shows only the main checkout (plus this phase's ow
 
 ```bash
 npm run verify:types && npm run verify:lint && npm run verify:unit
-git log --oneline main..HEAD
+git log --oneline <recorded-base-sha>..HEAD
+git diff --stat <recorded-base-sha>...HEAD
 ```
 
-Expected: all green (1950 passed / 6 skipped; 511/0 lint); exactly the 5 commits from Tasks 1–5.
+Expected: all green (1950 passed / 6 skipped; 511/0 lint); exactly the 5 commits
+from Tasks 1–5 above the base recorded in Task 0, with no unrelated commits in
+the diff.
 
 - [ ] **Step 2: Ratchet check**
 
@@ -962,9 +988,7 @@ If the warning total now prints **below** 511 (possible if edits incidentally re
 
 ```bash
 git add package.json
-git commit -m "chore: ratchet lint floor to post-guardrails count
-
-Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
+git commit -m "chore: ratchet lint floor to post-guardrails count"
 ```
 
 If it still prints 511, skip this — the floor only moves down.
@@ -973,18 +997,16 @@ If it still prints 511, skip this — the floor only moves down.
 
 ```bash
 git push -u origin refactor/phase1-guardrails
-gh pr create --title "Phase 1 — Refactor guardrails: lockfile, CI gate, test conventions" --body "$(cat <<'EOF'
+gh pr create --base main --title "Phase 1 — Refactor guardrails: lockfile, CI gate, test conventions" --body "$(cat <<'EOF'
 Phase 1 of docs/superpowers/specs/2026-07-26-full-refactor-design.md. Infrastructure only — no route, page, or library behavior changes.
 
 - Track package-lock.json (npm is the single supported package manager); add the refactor findings log stub
 - New CI workflow gating pushes/PRs: npm ci → verify:types → verify:lint (--max-warnings=511 floor, ratchets down only) → verify:unit → verify:build; walkthrough-smoke switched to npm ci
 - 26 API contract suites moved from app/api/__tests__/ to tests/integration/; Builder check-matrix suite paths follow them (the spec's sanctioned Builder touch), and integration-test edits now trigger the contract glob like app/api edits always have
 - Shared test helpers in tests/helpers/ (thenable Supabase query stub, request builders), adopted by one exemplar suite; remaining suites migrate per-family in Phase 2
-- Test output is stderr-clean: per-file console spies for expected error paths; one real act() race fixed in DisqualifiedPersonsRegistry.test.tsx
+- Test output is stderr-clean: scoped console spies in known error-path tests; one real act() race fixed in DisqualifiedPersonsRegistry.test.tsx
 
 Baseline held: 1,939 → 1,950 passed (11 new helper tests) / 6 skipped; tsc clean; lint 0 errors / 511 warnings.
-
-🤖 Generated with [Claude Code](https://claude.com/claude-code)
 EOF
 )"
 ```

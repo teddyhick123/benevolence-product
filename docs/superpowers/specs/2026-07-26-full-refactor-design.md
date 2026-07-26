@@ -8,9 +8,10 @@
 
 A clean, well-organized, efficient codebase with exactly one supported pattern per
 concern — auth guards, Supabase clients, API responses, data fetching, tests —
-without changing URLs, database schema, or user-visible behavior. Exception:
-security bugs discovered while refactoring are fixed inline in the same commit and
-called out explicitly; non-security behavior quirks are logged to
+without changing URLs or intended user-visible behavior. Exception: security bugs
+discovered while refactoring are fixed in dedicated, explicitly called-out commits;
+when a security fix requires an active-migration correction, it may change the
+canonical prerelease schema. Non-security behavior quirks are logged to
 `docs/superpowers/specs/2026-07-26-refactor-findings.md` instead of fixed.
 
 ## Verified baseline (2026-07-26)
@@ -72,7 +73,7 @@ Order is deliberate: guardrails before risky change; the highest-stakes rollout
 
 1. Track `package-lock.json`: remove lockfile lines from `.gitignore`, commit the
    lockfile.
-2. Add a CI workflow gating pushes/PRs: `npm ci` → `verify:types` → lint with
+2. Add a CI workflow gating every PR update and push: `npm ci` → `verify:types` → lint with
    `--max-warnings=<floor>` → `vitest run` → `verify:build`. All scripts already
    exist in `package.json`.
 3. Lint floor: none of the 511 warnings are ESLint-auto-fixable (verified
@@ -92,11 +93,13 @@ Order is deliberate: guardrails before risky change; the highest-stakes rollout
 5. Create the findings file stub
    (`docs/superpowers/specs/2026-07-26-refactor-findings.md`) so behavior quirks
    have a landing place from the first commit.
-6. Local cleanup: delete stale `.claude/worktrees/*` (six locked git worktrees —
-   unlock/remove, then prune and delete their `worktree-agent-*` branches) and
-   the empty `impact-viz-mvp/` directory.
+6. Optional local cleanup: only after a unique-commit audit and explicit user
+   approval, remove stale `.claude/worktrees/*` and the empty `impact-viz-mvp/`
+   directory. Never delete an unmerged `worktree-agent-*` branch without an
+   explicit preservation or deletion decision.
 
-**Exit:** CI red/green on every push; test count ≥ baseline; lockfile tracked.
+**Exit:** CI runs green on every PR update and push; test count ≥ baseline;
+lockfile tracked.
 
 ### Phase 2 — API & auth standardization
 
@@ -104,30 +107,37 @@ Consolidate `lib/org-access.ts`, `lib/portfolio-auth.ts`, `lib/admin-auth.ts` in
 `lib/api/` (do not add a fourth competing pattern):
 
 - `requireAppAdmin()`, `requireOrgAccess(orgId, minRole)`,
-  `requirePortfolioAccess(portfolioId, minRole)`, `requireCpaToken(token)` — each
-  returns `{ user, supabase }` or a typed 401/403 the route returns as-is.
-- A `service()` (admin client) factory reachable only after a guard. Invariant:
-  **every service-role query filters by the tenant id the guard validated.**
-  Enforced, not just conventional: the factory takes the guard-validated tenant
-  id as a required argument, and a CI check forbids direct
-  `createAdminClient(`/`SUPABASE_SERVICE_ROLE` references in `app/api/**`
-  outside `lib/api/`.
+  `requirePortfolioAccess(portfolioId, minRole)`, and `requireCpaToken(token)`
+  return a typed access context or a typed 401/403 response. Contexts use a
+  discriminated principal (`user`, `cpa_share`, `job`, `invitation`, `oauth`, or
+  `public`) rather than assuming every caller has a user. Each route category
+  has an explicit supported guard.
+- Service-role access is provided through tenant-scoped repositories, not a
+  generic client handed to routes. An org/portfolio context is mandatory at
+  construction and each repository method applies or proves its tenant scope;
+  tables without a direct `org_id` use a documented parent-scope helper. A CI
+  check forbids direct `createAdminClient(`/`SUPABASE_SERVICE_ROLE` references
+  in `app/api/**` outside `lib/api/`, and contract tests verify representative
+  scope predicates for every route family.
 - `jsonOk` / `jsonError` response helpers with standard cache headers; `no-store`
   is the default for authenticated data.
 - Route ownership per CLAUDE.md: org mutations under `/api/org/[orgId]`, portfolio
-  reads under `/api/portfolio/[id]`. URLs never change in this refactor.
+  reads under `/api/portfolio/[id]`. URLs never change in this refactor: legacy
+  endpoints become thin adapters over the canonical domain service until a
+  separately approved URL migration.
 
 Rollout is one route family at a time — tax → grants → donors/compliance →
 imports/integrations → remainder. Each family is preceded by contract tests
 capturing current status codes and response shapes so migration is provably
-behavior-preserving. Tenant-scoping holes get fixed inline per the bug policy.
+behavior-preserving. Tenant-scoping holes get fixed in dedicated commits per the
+bug policy.
 The repeated per-route cookie/client boilerplate collapses into the guards.
 
 Known collision: the backlog already records portfolio membership/view RLS gaps
 across 14+ routes and 13 views. Under the bug policy those are security bugs
-fixed inline, so families touching portfolio scoping (tax is first) will carry
-real behavior-affecting fixes and should be budgeted accordingly — Phase 2 is
-not purely behavior-preserving.
+fixed in dedicated commits, so families touching portfolio scoping (tax is first)
+will carry real behavior-affecting fixes and should be budgeted accordingly —
+Phase 2 is not purely behavior-preserving.
 
 **Exit:** zero routes construct auth inline; contract tests cover every family;
 service-role usage always tenant-scoped after a guard.
@@ -162,11 +172,14 @@ walkthrough journeys.
 
 ### Phase 5 — Client data normalization
 
-- One shared fetcher (JSON parsing, error shape, org header) + per-domain SWR
-  hooks in `lib/<domain>/`. Pages prefer server-side initial load; interactive
-  refresh goes through domain hooks.
+- One shared JSON fetcher (parsing, error shape, non-authoritative org context)
+  + per-domain SWR hooks in `lib/<domain>/`. Pages prefer server-side initial
+  load; interactive refresh goes through domain hooks. Uploads, downloads,
+  streams, SSE, and binary responses use named transport helpers rather than
+  being forced through the JSON fetcher.
 - Convert the 175 ad-hoc `fetch` call sites per-domain, not big-bang.
-- Consolidate hooks into `lib/hooks/`; remove `/hooks`.
+- Consolidate generic hooks into `lib/hooks/`; domain hooks live in their owning
+  `lib/<domain>/` folder. Remove the root `/hooks` directory.
 
 **Exit:** every dashboard domain's interactive fetches go through its domain
 hook; no raw `fetch` in components outside the shared fetcher (enforced by a CI
@@ -188,10 +201,12 @@ grep once the last domain converts); single hooks home.
 
 - Every phase lands as reviewable commits on green tests; user reviews at phase
   boundaries before the next phase's plan is written.
-- Security bugs: fixed inline, called out in the commit message. Behavior quirks:
-  logged to the findings file, not fixed.
-- No URL changes, no schema changes, no major dependency upgrades anywhere in the
-  refactor.
+- Security bugs: fixed in dedicated commits with regression coverage and called
+  out in the commit message. Behavior quirks: logged to the findings file, not
+  fixed.
+- No URL changes or major dependency upgrades anywhere in the refactor. Active
+  migration changes are allowed only when required to correct a confirmed
+  security issue, with the reason and regression test recorded in the commit.
 - Lint warning floor only ratchets down.
 
 ## Decisions log
@@ -200,7 +215,7 @@ grep once the last domain converts); single hooks home.
 |---|---|
 | Middleware fix | Shipped immediately as standalone hotfix (`fbca6720`) |
 | Phase order | Guardrails → Auth/API → AI split → Thin pages → Client data → Hygiene |
-| Bug policy | Security bugs fixed inline + flagged; quirks logged to findings file |
+| Bug policy | Security bugs fixed in dedicated commits + flagged; quirks logged to findings file |
 | Planning model | This umbrella spec + just-in-time per-phase implementation plans |
 
 ## Risks

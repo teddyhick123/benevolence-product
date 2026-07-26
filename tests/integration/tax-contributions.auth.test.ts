@@ -5,6 +5,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { GET, POST } from '@/app/api/portfolio/[id]/tax/contributions/route';
+import { stubQuery, stubSupabase } from '@/tests/helpers/supabase-mock';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -34,39 +35,31 @@ vi.mock('@/lib/supabase', () => ({
 }));
 
 function setupMocks() {
-  mockRpc.mockImplementation(async (fn: string) => {
-    if (fn === 'can_view_portfolio') return { data: _canView, error: _canViewError };
-    if (fn === 'can_edit_portfolio') return { data: _canEdit, error: _canEditError };
-    return { data: null, error: null };
+  const stub = stubSupabase({
+    rpc: {
+      can_view_portfolio: () => ({ data: _canView, error: _canViewError }),
+      can_edit_portfolio: () => ({ data: _canEdit, error: _canEditError }),
+    },
+    tables: {
+      v_tax_contributions_enriched: () =>
+        stubQuery(
+          { data: _contributions, error: _contributionsError },
+          { single: { data: _enrichedResult, error: null } }
+        ),
+      tax_documents: () => stubQuery({ data: [], error: null }),
+      tax_contributions: () => {
+        const q = stubQuery({ data: _insertResult, error: _insertError });
+        q.insert.mockImplementation((args: unknown) => {
+          _capturedInsertArgs = args;
+          return q;
+        });
+        return q;
+      },
+    },
+    fallbackTable: () => stubQuery({ data: null, error: null }),
   });
-
-  mockFrom.mockImplementation((table: string) => {
-    if (table === 'v_tax_contributions_enriched') {
-      const b: any = {
-        select: vi.fn(() => b),
-        eq: vi.fn(() => b),
-        order: vi.fn(() => Promise.resolve({ data: _contributions, error: _contributionsError })),
-        single: vi.fn(() => Promise.resolve({ data: _enrichedResult, error: null })),
-      };
-      return b;
-    }
-    if (table === 'tax_documents') {
-      const b: any = {
-        select: vi.fn(() => b),
-        in: vi.fn(() => Promise.resolve({ data: [], error: null })),
-      };
-      return b;
-    }
-    if (table === 'tax_contributions') {
-      const b: any = {
-        insert: vi.fn((args: any) => { _capturedInsertArgs = args; return b; }),
-        select: vi.fn(() => b),
-        single: vi.fn(() => Promise.resolve({ data: _insertResult, error: _insertError })),
-      };
-      return b;
-    }
-    return { select: vi.fn().mockReturnThis(), eq: vi.fn().mockReturnThis(), single: vi.fn(async () => ({ data: null, error: null })) };
-  });
+  mockRpc.mockImplementation(stub.rpc);
+  mockFrom.mockImplementation(stub.from);
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

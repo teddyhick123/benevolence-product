@@ -187,6 +187,8 @@ describe('GET /api/portfolio/[id]/tax/cpa-share — contract', () => {
   });
 
   it('returns 500 when the cpa_share_links DB query errors', async () => {
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
     // Arrange
     _shareLinksError = { message: 'relation "cpa_share_links" does not exist' };
     _shareLinks      = null as any;
@@ -199,6 +201,10 @@ describe('GET /api/portfolio/[id]/tax/cpa-share — contract', () => {
     expect(res.status).toBe(500);
     expect(body).toHaveProperty('error');
     expect(body).not.toHaveProperty('data');
+    expect(consoleErrorSpy).toHaveBeenCalled();
+    } finally {
+      consoleErrorSpy.mockRestore();
+    }
   });
 });
 
@@ -374,6 +380,8 @@ describe('POST /api/portfolio/[id]/tax/cpa-share — happy path & security invar
 
 describe('POST /api/portfolio/[id]/tax/cpa-share — DB error propagation', () => {
   it('returns 500 when the cpa_share_links insert fails', async () => {
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
     // Arrange
     _insertError  = { message: 'unique constraint violation' };
     _insertResult = null;
@@ -386,6 +394,10 @@ describe('POST /api/portfolio/[id]/tax/cpa-share — DB error propagation', () =
     expect(res.status).toBe(500);
     expect(body).toHaveProperty('error');
     expect(body).not.toHaveProperty('data');
+    expect(consoleErrorSpy).toHaveBeenCalled();
+    } finally {
+      consoleErrorSpy.mockRestore();
+    }
   });
 });
 
@@ -427,6 +439,8 @@ describe('PATCH /api/portfolio/[id]/tax/cpa-share — auth', () => {
 
 describe('PATCH /api/portfolio/[id]/tax/cpa-share — error propagation', () => {
   it('returns 500 when the revoke_share_link RPC errors', async () => {
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
     // Arrange
     _revokeError = { message: 'share link not found' };
 
@@ -437,6 +451,10 @@ describe('PATCH /api/portfolio/[id]/tax/cpa-share — error propagation', () => 
     // Assert
     expect(res.status).toBe(500);
     expect(body).toHaveProperty('error');
+    expect(consoleErrorSpy).toHaveBeenCalled();
+    } finally {
+      consoleErrorSpy.mockRestore();
+    }
   });
 });
 

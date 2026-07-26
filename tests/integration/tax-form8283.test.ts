@@ -226,6 +226,8 @@ describe('GET /api/portfolio/[id]/tax/form8283 — DB errors', () => {
   });
 
   it('returns 500 when the v_tax_contributions_with_limits query errors', async () => {
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
     // Arrange
     _contributionsError = { message: 'relation does not exist' };
     _contributions = null as any;
@@ -238,6 +240,10 @@ describe('GET /api/portfolio/[id]/tax/form8283 — DB errors', () => {
     expect(res.status).toBe(500);
     expect(body).toHaveProperty('error');
     expect(res.headers.get('Content-Type')).not.toMatch(/pdf/i);
+    expect(consoleErrorSpy).toHaveBeenCalled();
+    } finally {
+      consoleErrorSpy.mockRestore();
+    }
   });
 });
 

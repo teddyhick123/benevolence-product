@@ -321,6 +321,8 @@ describe('POST /documents — file size validation', () => {
 
 describe('POST /documents — storage error propagation', () => {
   it('returns 500 when the storage upload call fails', async () => {
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
     // Arrange
     _uploadErr = { message: 'S3 bucket quota exceeded' };
 
@@ -332,6 +334,10 @@ describe('POST /documents — storage error propagation', () => {
     expect(res.status).toBe(500);
     expect(body).toHaveProperty('error');
     expect(body).not.toHaveProperty('data');
+    expect(consoleErrorSpy).toHaveBeenCalled();
+    } finally {
+      consoleErrorSpy.mockRestore();
+    }
   });
 
   it('returns 500 when createSignedUrl fails after a successful upload', async () => {
@@ -355,6 +361,8 @@ describe('POST /documents — storage error propagation', () => {
 
 describe('GET /documents/[documentId] — DB error propagation', () => {
   it('returns 500 when the DB query for the document record errors', async () => {
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
     // Arrange — simulate a DB-level error fetching the document
     _singleDoc    = null;
     _singleDocErr = { message: 'connection to server on socket "/run/postgresql/.s.PGSQL.5432" failed' };
@@ -367,6 +375,10 @@ describe('GET /documents/[documentId] — DB error propagation', () => {
     expect(res.status).toBe(500);
     expect(body).toHaveProperty('error');
     expect(body).not.toHaveProperty('data');
+    expect(consoleErrorSpy).toHaveBeenCalled();
+    } finally {
+      consoleErrorSpy.mockRestore();
+    }
   });
 });
 
@@ -374,6 +386,8 @@ describe('GET /documents/[documentId] — DB error propagation', () => {
 
 describe('DELETE /documents/[documentId] — storage error handling', () => {
   it('continues to delete the database record even when storage remove returns an error', async () => {
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
     // Arrange — route comments state it continues anyway on storage error
     _singleDoc = {
       id: DOCUMENT_ID,
@@ -390,6 +404,10 @@ describe('DELETE /documents/[documentId] — storage error handling', () => {
     // Assert — route intentionally continues; verify it does not 500 due to storage error alone
     // The route proceeds to delete the DB record; as long as that succeeds, it returns 200.
     expect(res.status).toBe(200);
+    expect(consoleErrorSpy).toHaveBeenCalled();
+    } finally {
+      consoleErrorSpy.mockRestore();
+    }
   });
 });
 

@@ -214,6 +214,8 @@ describe('POST build — base SHA capture', () => {
   });
 
   it('is best-effort: a GitHub error during SHA capture does not fail the claim', async () => {
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
     _githubConfigured = true;
     getDefaultBranchShaMock.mockRejectedValueOnce(new Error('GitHub is down'));
     const res = await call();
@@ -221,6 +223,10 @@ describe('POST build — base SHA capture', () => {
     const body = await res.json();
     expect(body).toEqual({ jobId: 'job-1', proposalId: PROPOSAL_ID, revisionId: REVISION_ID });
     expect(enqueueMock).toHaveBeenCalledTimes(1);
+    expect(consoleErrorSpy).toHaveBeenCalled();
+    } finally {
+      consoleErrorSpy.mockRestore();
+    }
   });
 });
 

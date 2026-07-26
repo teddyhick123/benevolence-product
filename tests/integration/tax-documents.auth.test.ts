@@ -416,6 +416,8 @@ describe('GET /documents/[documentId] — auth/access control', () => {
 
 describe('GET /documents/[documentId] — cross-contribution security', () => {
   it('does not return a document that belongs to a different contribution_id', async () => {
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
     // Arrange — document exists but belongs to a different contribution; DB row returns null
     // because the query includes .eq('tax_contribution_id', contribution_id) which won't match.
     // We simulate the DB correctly scoping the result.
@@ -433,6 +435,10 @@ describe('GET /documents/[documentId] — cross-contribution security', () => {
     expect(res.status).not.toBe(200);
     expect(body).toHaveProperty('error');
     expect(body).not.toHaveProperty('data');
+    expect(consoleErrorSpy).toHaveBeenCalled();
+    } finally {
+      consoleErrorSpy.mockRestore();
+    }
   });
 });
 

@@ -12,7 +12,7 @@
 // -> one blocker finding, authoritative-diff upload (+ non-fatal failure),
 // genuine redaction, and re-run idempotency (upsert, never insert).
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { runAndRecordVerification } from '@/lib/builder/verification';
 import type { CheckKey } from '@/lib/builder/check-matrix';
 import type {
@@ -195,6 +195,8 @@ describe('runAndRecordVerification — happy path', () => {
 
 describe('runAndRecordVerification — log-upload failure', () => {
   it('downgrades log_artifact_key to null but leaves status/evidence_hash intact, and does not throw', async () => {
+    const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
     const mock = new SupabaseMock();
     const checks = [exec('verify:types', 'passed', { log: 'all good' })];
     const outcome: VerificationOutcome = { checks, setupFailure: null, authoritativeDiff: null };
@@ -210,9 +212,15 @@ describe('runAndRecordVerification — log-upload failure', () => {
     expect(row.status).toBe('passed'); // unchanged by the upload failure
     expect(row.evidence_hash).toBe(sha256Hex('all good')); // still computed from the capped log
     expect(result.allRequiredPassed).toBe(false); // verify:lint from REQUIRED never ran
+    expect(consoleWarnSpy).toHaveBeenCalled();
+    } finally {
+      consoleWarnSpy.mockRestore();
+    }
   });
 
   it('the run row is still written even though the log upload failed (evidence must not be lost)', async () => {
+    const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
     const mock = new SupabaseMock();
     const checks = [exec('verify:types', 'error', { log: 'boom' })];
     const outcome: VerificationOutcome = { checks, setupFailure: null, authoritativeDiff: null };
@@ -224,6 +232,10 @@ describe('runAndRecordVerification — log-upload failure', () => {
 
     const upsertCalls = mock.calls.filter((c) => c.table === RUNS_TABLE && c.method === 'upsert');
     expect(upsertCalls).toHaveLength(1);
+    expect(consoleWarnSpy).toHaveBeenCalled();
+    } finally {
+      consoleWarnSpy.mockRestore();
+    }
   });
 });
 
@@ -319,6 +331,8 @@ describe('runAndRecordVerification — authoritative diff', () => {
   });
 
   it('a diff-upload failure is non-fatal: swallowed, does not propagate, does not affect the returned result', async () => {
+    const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
     const mock = new SupabaseMock();
     const diff = 'diff body';
     const checks = [exec('verify:types', 'passed'), exec('verify:lint', 'passed')];
@@ -330,6 +344,10 @@ describe('runAndRecordVerification — authoritative diff', () => {
       allRequiredPassed: true,
       setupFindings: [],
     });
+    expect(consoleWarnSpy).toHaveBeenCalled();
+    } finally {
+      consoleWarnSpy.mockRestore();
+    }
   });
 });
 

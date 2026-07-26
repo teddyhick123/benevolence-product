@@ -42,6 +42,7 @@ describe('DisqualifiedPersonsRegistry', () => {
     setupFetch([]);
     render(<DisqualifiedPersonsRegistry orgId="org-1" />);
     expect(screen.getByText('Quick Transaction Screen')).toBeInTheDocument();
+    await screen.findByText('No disqualified persons registered.');
   });
 
   it('renders active persons from the API', async () => {

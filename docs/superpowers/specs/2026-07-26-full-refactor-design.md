@@ -75,15 +75,26 @@ Order is deliberate: guardrails before risky change; the highest-stakes rollout
 2. Add a CI workflow gating pushes/PRs: `npm ci` → `verify:types` → lint with
    `--max-warnings=<floor>` → `vitest run` → `verify:build`. All scripts already
    exist in `package.json`.
-3. Lint burn-down: auto-fix mechanical warnings (unused vars/imports dominate the
-   511), set the max-warnings floor at the post-fix count, ratchet the floor down
-   at each subsequent phase boundary. No lint-rule changes.
+3. Lint floor: none of the 511 warnings are ESLint-auto-fixable (verified
+   2026-07-26: 344 `no-unused-vars`, 129 `no-console`, 33
+   `react-hooks/exhaustive-deps`, 5 `@next/next/no-img-element` — none carry a
+   fixer). Set the max-warnings floor at the current count and ratchet it down at
+   each subsequent phase boundary as touched files are cleaned. No lint-rule
+   changes, no bulk manual edits in this phase.
 4. Test conventions: keep colocated `__tests__/` for units; move cross-cutting
-   contract tests from `app/api/__tests__/` to `tests/integration/`; extract shared
-   Supabase/request mocks to `tests/helpers/`; silence expected-error logging in
-   tests.
-5. Local cleanup: delete stale `.claude/worktrees/*` and the empty
-   `impact-viz-mvp/` directory.
+   contract tests from `app/api/__tests__/` (26 files) to `tests/integration/`;
+   extract shared Supabase/request mocks to `tests/helpers/`; silence
+   expected-error logging in tests. The move must update
+   `lib/builder/check-matrix.ts` (`SCHEMA_CONTRACT_SUITE`,
+   `API_CONTRACT_SUITE_GLOB` hardcode `app/api/__tests__/` paths) and its tests
+   in the same commit — this is the sanctioned shared-infrastructure touch on
+   Builder, not a scope violation.
+5. Create the findings file stub
+   (`docs/superpowers/specs/2026-07-26-refactor-findings.md`) so behavior quirks
+   have a landing place from the first commit.
+6. Local cleanup: delete stale `.claude/worktrees/*` (six locked git worktrees —
+   unlock/remove, then prune and delete their `worktree-agent-*` branches) and
+   the empty `impact-viz-mvp/` directory.
 
 **Exit:** CI red/green on every push; test count ≥ baseline; lockfile tracked.
 
@@ -97,6 +108,10 @@ Consolidate `lib/org-access.ts`, `lib/portfolio-auth.ts`, `lib/admin-auth.ts` in
   returns `{ user, supabase }` or a typed 401/403 the route returns as-is.
 - A `service()` (admin client) factory reachable only after a guard. Invariant:
   **every service-role query filters by the tenant id the guard validated.**
+  Enforced, not just conventional: the factory takes the guard-validated tenant
+  id as a required argument, and a CI check forbids direct
+  `createAdminClient(`/`SUPABASE_SERVICE_ROLE` references in `app/api/**`
+  outside `lib/api/`.
 - `jsonOk` / `jsonError` response helpers with standard cache headers; `no-store`
   is the default for authenticated data.
 - Route ownership per CLAUDE.md: org mutations under `/api/org/[orgId]`, portfolio
@@ -107,6 +122,12 @@ imports/integrations → remainder. Each family is preceded by contract tests
 capturing current status codes and response shapes so migration is provably
 behavior-preserving. Tenant-scoping holes get fixed inline per the bug policy.
 The repeated per-route cookie/client boilerplate collapses into the guards.
+
+Known collision: the backlog already records portfolio membership/view RLS gaps
+across 14+ routes and 13 views. Under the bug policy those are security bugs
+fixed inline, so families touching portfolio scoping (tax is first) will carry
+real behavior-affecting fixes and should be budgeted accordingly — Phase 2 is
+not purely behavior-preserving.
 
 **Exit:** zero routes construct auth inline; contract tests cover every family;
 service-role usage always tenant-scoped after a guard.
@@ -148,7 +169,8 @@ walkthrough journeys.
 - Consolidate hooks into `lib/hooks/`; remove `/hooks`.
 
 **Exit:** every dashboard domain's interactive fetches go through its domain
-hook; no raw `fetch` in components outside the shared fetcher; single hooks home.
+hook; no raw `fetch` in components outside the shared fetcher (enforced by a CI
+grep once the last domain converts); single hooks home.
 
 ### Phase 6 — Final hygiene
 

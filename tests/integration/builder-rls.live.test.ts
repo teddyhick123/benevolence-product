@@ -5,7 +5,7 @@
 // (local `supabase start` or a disposable project) and is skipped by default —
 // it is NOT run in CI. To run locally:
 //
-//   BUILDER_DB_TESTS=1 npx vitest run app/api/__tests__/builder-rls.live.test.ts
+//   BUILDER_DB_TESTS=1 npx vitest run tests/integration/builder-rls.live.test.ts
 //
 // Requires NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE, and
 // NEXT_PUBLIC_SUPABASE_ANON_KEY in the environment, with migrations 0001-0025
@@ -449,3 +449,4 @@ describe.skipIf(!RUN_LIVE)('builder schema: live RLS + behavior', () => {
     expect(secondClaimErr?.message).toMatch(/builder_claim_conflict/);
   });
 });
+// Integration test.

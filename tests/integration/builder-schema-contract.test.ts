@@ -180,3 +180,4 @@ describe('transitional builder field guard', () => {
     expect(violations).toEqual([]);
   });
 });
+// Integration test.

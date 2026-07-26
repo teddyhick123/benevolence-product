@@ -483,3 +483,4 @@ describe('DELETE /api/portfolio/[id]/tax/cpa-share — compatibility alias', () 
  * - Email delivery (send_email: true): Phase B — not implemented; the route returns
  *   email_preview only (format data, no actual send).
  */
+// Integration test.

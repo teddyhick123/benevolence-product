@@ -53,3 +53,4 @@ describe('DELETE /api/org/[orgId]', () => {
     expect(mockFrom).toHaveBeenCalledWith('organizations');
   });
 });
+// Integration test.

@@ -3,7 +3,7 @@
 // lib/__tests__/tax-schema-contract.test.ts
 //
 // DB schema contract tests for the tax module.
-// Focuses on gaps not already covered in app/api/__tests__/schema-contract.test.ts:
+// Focuses on gaps not already covered in tests/integration/schema-contract.test.ts:
 //
 //   - All core tax tables have RLS enabled
 //   - All core tax tables have a service_role policy

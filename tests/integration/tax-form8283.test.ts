@@ -467,3 +467,4 @@ describe('GET /api/portfolio/[id]/tax/form8283 — behavior', () => {
  * - Tax year boundaries (e.g. future years, year 0): no validation in the route;
  *   would be caught by Zod schema if one were added.
  */
+// Integration test.

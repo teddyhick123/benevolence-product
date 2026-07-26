@@ -52,3 +52,4 @@ describe('CPA public portal contract', () => {
     expect(pageSrc).toContain('/api/tax/cpa/');
   });
 });
+// Integration test.

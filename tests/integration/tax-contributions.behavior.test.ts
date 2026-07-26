@@ -474,3 +474,4 @@ describe('POST /api/portfolio/[id]/tax/contributions — business logic', () => 
  * - Supabase RLS policies (can_view_portfolio / can_edit_portfolio enforcement at DB level):
  *   tested at the DB layer in db/migrations; application code trusts RLS as a second line.
  */
+// Integration test.

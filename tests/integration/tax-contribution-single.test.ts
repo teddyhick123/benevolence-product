@@ -602,3 +602,4 @@ describe('DELETE /api/portfolio/[id]/tax/contributions/[contributionId]', () => 
  *   .eq('portfolio_id', portfolio_id) filter, so a mismatched ID returns null/
  *   error from the DB — already covered by the "DB returns null" test above.
  */
+// Integration test.

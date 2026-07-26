@@ -517,3 +517,4 @@ describe('GET /builder/proposals/[proposalId] — shape', () => {
     expect(body.proposal.plan_summary).toBeNull();
   });
 });
+// Integration test.

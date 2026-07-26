@@ -549,3 +549,4 @@ describe('Schema contract: owner_tax_profiles removal', () => {
     expect(appSrc).not.toContain('owner_tax_profiles');
   });
 });
+// Integration test.

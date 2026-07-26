@@ -545,3 +545,4 @@ describe('POST /api/org/[orgId]/grants/[grantId]/transition — workflow gate', 
 // - All 14 × 14 transition pairs (covered by lib/grants/lifecycle unit tests)
 // - Concurrent transition race conditions (requires integration test)
 // - Idempotency of repeated identical transitions
+// Integration test.

@@ -216,3 +216,4 @@ describe('DELETE /attachments', () => {
     expect(mockRemove).toHaveBeenCalledWith([`${ORG_ID}/${FILING_ID}/file.pdf`]);
   });
 });
+// Integration test.

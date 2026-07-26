@@ -233,3 +233,4 @@ describe('POST build — enqueue failure', () => {
     expect(failInFlightRunMock).toHaveBeenCalledWith(expect.anything(), PROPOSAL_ID);
   });
 });
+// Integration test.

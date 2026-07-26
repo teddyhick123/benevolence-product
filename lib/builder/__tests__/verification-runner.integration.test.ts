@@ -118,12 +118,12 @@ beforeAll(() => {
       '',
     ].join('\n')
   );
-  //   app/api/__tests__/contract.test.ts -> the extraSuiteGlobs case: a contract
-  //     suite that imports NOTHING, so the ONLY way it runs is the app/api glob
-  //     (app/api/__tests__/*.test.ts) shell-expanding inside the bash wrapper.
-  fs.mkdirSync(path.join(fixtureRepo, 'app', 'api', '__tests__'), { recursive: true });
+  //   tests/integration/contract.test.ts -> the extraSuiteGlobs case: a contract
+  //     suite that imports NOTHING, so the ONLY way it runs is the integration
+  //     glob shell-expanding inside the bash wrapper.
+  fs.mkdirSync(path.join(fixtureRepo, 'tests', 'integration'), { recursive: true });
   fs.writeFileSync(
-    path.join(fixtureRepo, 'app', 'api', '__tests__', 'contract.test.ts'),
+    path.join(fixtureRepo, 'tests', 'integration', 'contract.test.ts'),
     [
       "import { describe, it, expect } from 'vitest';",
       "describe('api-contract', () => {",
@@ -365,7 +365,7 @@ describe('LocalWorktreeRunner integration — real git + real subprocesses', () 
   }, 120_000);
 
   // 10. The extraSuiteGlobs path is real: touching an app/api/ source file routes
-  //     verify:unit through the bash wrapper, whose `app/api/__tests__/*.test.ts`
+  //     verify:unit through the bash wrapper, whose `tests/integration/*.test.ts`
   //     glob must shell-expand and actually RUN the contract suite — even though
   //     nothing imports the changed file, so `related` alone would run nothing.
   it('shell-expands the api contract glob and runs the contract suite for an app/api change', async () => {
@@ -383,6 +383,6 @@ describe('LocalWorktreeRunner integration — real git + real subprocesses', () 
     expect(unit.exitCode).toBe(0);
     // the ONLY reason this suite ran is the shell-expanded glob (nothing imports
     // the changed route) — its presence in the log proves expansion happened
-    expect(unit.log).toContain('app/api/__tests__/contract.test.ts');
+    expect(unit.log).toContain('tests/integration/contract.test.ts');
   }, 120_000);
 });

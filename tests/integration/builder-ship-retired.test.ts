@@ -10,3 +10,4 @@ describe('POST ship — retired', () => {
     expect(body.error).toMatch(/retired/i);
   });
 });
+// Integration test.

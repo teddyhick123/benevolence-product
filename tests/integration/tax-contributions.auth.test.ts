@@ -352,3 +352,4 @@ describe('POST /api/portfolio/[id]/tax/contributions — DB error propagation', 
  * - Cache-Control header correctness: all routes in this file set no-store;
  *   verified by inspection — no runtime variability.
  */
+// Integration test.

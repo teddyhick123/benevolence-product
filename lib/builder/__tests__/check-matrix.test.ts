@@ -65,7 +65,7 @@ describe('CHECK_COMMANDS', () => {
     expect(argv.slice(0, 2)).toEqual(['bash','-lc']);
     const script = argv[2];
     expect(script).toContain('vitest related');
-    expect(script).toContain('app/api/__tests__/builder-schema-contract.test.ts');
+    expect(script).toContain('tests/integration/builder-schema-contract.test.ts');
     expect(script).toContain('--run');
     // migration-only change: no related source files, so no positionals beyond $0
     expect(argv.slice(3)).toEqual(['bash']);
@@ -77,7 +77,7 @@ describe('CHECK_COMMANDS', () => {
     expect(argv.slice(0, 2)).toEqual(['bash','-lc']);
     const script = argv[2];
     expect(script).toContain('related "$@"');
-    expect(script).toContain('app/api/__tests__/*.test.ts');
+    expect(script).toContain('tests/integration/*.test.ts');
     // the proposal path is a trailing positional, absent from the script string
     expect(argv.slice(3)).toEqual(['bash','app/api/org/[orgId]/x/route.ts']);
     expect(script).not.toContain('app/api/org/[orgId]/x/route.ts');
@@ -91,12 +91,17 @@ describe('unitTestTargets', () => {
   it('separates related source files from extra suites', () => {
     const t = unitTestTargets(['lib/builder/tools.ts','db/migrations/0057_x.sql']);
     expect(t.relatedFiles).toEqual(['lib/builder/tools.ts']);
-    expect(t.extraSuiteGlobs).toContain('app/api/__tests__/builder-schema-contract.test.ts');
+    expect(t.extraSuiteGlobs).toContain('tests/integration/builder-schema-contract.test.ts');
   });
 
   it('adds the api contract suite glob when app/api/ is touched', () => {
     const t = unitTestTargets(['app/api/org/[orgId]/x/route.ts']);
-    expect(t.extraSuiteGlobs).toContain('app/api/__tests__/*.test.ts');
+    expect(t.extraSuiteGlobs).toContain('tests/integration/*.test.ts');
+  });
+
+  it('adds the integration suite glob when an integration test changes', () => {
+    const t = unitTestTargets(['tests/integration/tax-contributions.auth.test.ts']);
+    expect(t.extraSuiteGlobs).toContain('tests/integration/*.test.ts');
   });
 });
 

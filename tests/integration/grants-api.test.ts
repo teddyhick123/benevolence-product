@@ -93,8 +93,8 @@ function buildAdminMock() {
   };
 }
 
-import { GET as collectionGET, POST as collectionPOST } from '../org/[orgId]/grants/route';
-import { GET as detailGET, PATCH as detailPATCH } from '../org/[orgId]/grants/[grantId]/route';
+import { GET as collectionGET, POST as collectionPOST } from '@/app/api/org/[orgId]/grants/route';
+import { GET as detailGET, PATCH as detailPATCH } from '@/app/api/org/[orgId]/grants/[grantId]/route';
 
 const ORG_ID = 'org-1';
 const GRANT_ID = 'grant-1';
@@ -243,3 +243,4 @@ describe('PATCH /api/org/[orgId]/grants/[grantId]', () => {
     expect(json.data).toBeDefined();
   });
 });
+// Integration test.

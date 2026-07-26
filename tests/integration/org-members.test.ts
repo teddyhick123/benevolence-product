@@ -453,3 +453,4 @@ describe('DELETE /api/org/[orgId]/members/[userId] — behavior', () => {
  * - GET handler: the route file (confirmed by reading source) does NOT export
  *   a GET handler — only PATCH and DELETE are exported.
  */
+// Integration test.

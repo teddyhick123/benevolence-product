@@ -590,3 +590,4 @@ describe('POST bulk-transition — workflow gate', () => {
     expect(body.results[0].success).toBe(false);
   });
 });
+// Integration test.

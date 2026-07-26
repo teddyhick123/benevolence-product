@@ -33,7 +33,7 @@ const BUILD_PREFIXES = ['app/', 'components/', 'contexts/'];
 const BUILD_EXACT = ['middleware.ts', 'package.json'];
 const BUILD_PATTERNS = [/^next\.config\.[a-z]+$/, /^tailwind\.config\.[a-z]+$/, /^postcss\.config\.[a-z]+$/, /^tsconfig(\..+)?\.json$/];
 
-const SCHEMA_CONTRACT_SUITE = 'app/api/__tests__/builder-schema-contract.test.ts';
+const SCHEMA_CONTRACT_SUITE = 'tests/integration/builder-schema-contract.test.ts';
 // A glob pattern, not a literal file path. Vitest does NOT expand a '*' it is
 // handed as a `related` argument (verified against Vitest 4.0.12: it silently
 // treats the literal '*' string as a non-matching filter), and CHECK_COMMANDS
@@ -41,8 +41,9 @@ const SCHEMA_CONTRACT_SUITE = 'app/api/__tests__/builder-schema-contract.test.ts
 // glob via a `bash -lc` wrapper (the same documented shell exception used by
 // verify:migrations) that lets bash perform filename expansion. Do not treat
 // this constant as a ready-to-use argv element on the no-shell path.
-const API_CONTRACT_SUITE_GLOB = 'app/api/__tests__/*.test.ts';
+const API_CONTRACT_SUITE_GLOB = 'tests/integration/*.test.ts';
 const API_PREFIX = 'app/api/';
+const INTEGRATION_TEST_PREFIX = 'tests/integration/';
 const UNIT_FLOOR_ARGV = ['npx', 'vitest', 'run', 'lib/builder'];
 
 const TEST_DIR_PATTERN = /(^|\/)__tests__\//;
@@ -81,7 +82,7 @@ export function unitTestTargets(paths: string[]): { relatedFiles: string[]; extr
   if (paths.some((p) => p.startsWith(MIGRATION_PREFIX))) {
     extraSuiteGlobs.add(SCHEMA_CONTRACT_SUITE);
   }
-  if (paths.some((p) => p.startsWith(API_PREFIX))) {
+  if (paths.some((p) => p.startsWith(API_PREFIX) || p.startsWith(INTEGRATION_TEST_PREFIX))) {
     extraSuiteGlobs.add(API_CONTRACT_SUITE_GLOB);
   }
 
@@ -116,7 +117,7 @@ export const CHECK_COMMANDS: Record<CheckKey, CheckCommandSpec> = {
     //     list: an entry that is itself a test file is run directly, while a
     //     source-file entry triggers related-test lookup. So relatedFiles and
     //     the extra contract suites can share one invocation.
-    //   - a glob like `app/api/__tests__/*.test.ts` is NOT expanded by vitest
+    //   - a glob like `tests/integration/*.test.ts` is NOT expanded by vitest
     //     itself, so when extra suites are present we resolve it through a
     //     `bash -lc` wrapper (see verify:migrations for the shell exception).
     argv: ({ changedFiles }) => {

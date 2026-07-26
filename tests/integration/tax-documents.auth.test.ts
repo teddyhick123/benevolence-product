@@ -502,3 +502,4 @@ describe('DELETE /documents/[documentId] — success contract', () => {
  *
  * - Cache-Control header correctness: verified by reading the route; no runtime variability.
  */
+// Integration test.

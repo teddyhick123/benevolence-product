@@ -445,3 +445,4 @@ describe('POST apply — happy path', () => {
     expect(transitionUpdate).toBeDefined();
   });
 });
+// Integration test.

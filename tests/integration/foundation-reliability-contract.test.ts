@@ -466,3 +466,4 @@ describe('foundation reliability contracts', () => {
     }
   });
 });
+// Integration test.

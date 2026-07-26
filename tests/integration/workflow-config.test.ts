@@ -148,3 +148,4 @@ describe('GET /api/org/[orgId]/workflow-config/labels', () => {
     expect(res.headers.get('Cache-Control')).toMatch(/s-maxage/);
   });
 });
+// Integration test.

@@ -646,3 +646,4 @@ describe('PATCH /api/portfolio/[id]/tax/carryforwards', () => {
  * - Concurrent insert race (two identical carryforwards): DB-level unique constraint test;
  *   mock cannot simulate this authentically.
  */
+// Integration test.

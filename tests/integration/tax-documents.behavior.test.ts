@@ -432,3 +432,4 @@ describe('DELETE /documents/[documentId] — document not found', () => {
  * - getStoragePathField mapping for all document types: a pure function; tested directly
  *   as a unit test if extracted, or via integration.
  */
+// Integration test.

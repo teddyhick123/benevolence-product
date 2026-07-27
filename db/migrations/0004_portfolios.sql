@@ -72,10 +72,18 @@ RETURNS member_role_enum
 LANGUAGE sql STABLE SECURITY DEFINER
 SET search_path = public
 AS $$
-  SELECT pm.role FROM portfolio_members pm
+  SELECT pm.role
+  FROM portfolio_members pm
+  JOIN portfolios p ON p.id = pm.portfolio_id
+  JOIN organization_members om
+    ON om.org_id = p.org_id
+   AND om.user_id = pm.user_id
   WHERE pm.portfolio_id = p_portfolio_id
     AND pm.user_id = auth.uid()
     AND pm.deleted_at IS NULL
+    AND p.deleted_at IS NULL
+    AND om.deleted_at IS NULL
+    AND om.accepted_at IS NOT NULL
   LIMIT 1;
 $$;
 
@@ -83,10 +91,18 @@ CREATE OR REPLACE FUNCTION can_view_portfolio(p_portfolio_id uuid)
 RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS
 $$
   SELECT EXISTS (
-    SELECT 1 FROM portfolio_members pm
+    SELECT 1
+    FROM portfolio_members pm
+    JOIN portfolios p ON p.id = pm.portfolio_id
+    JOIN organization_members om
+      ON om.org_id = p.org_id
+     AND om.user_id = pm.user_id
     WHERE pm.portfolio_id = p_portfolio_id
       AND pm.user_id = auth.uid()
       AND pm.deleted_at IS NULL
+      AND p.deleted_at IS NULL
+      AND om.deleted_at IS NULL
+      AND om.accepted_at IS NOT NULL
   );
 $$;
 
@@ -94,10 +110,18 @@ CREATE OR REPLACE FUNCTION can_edit_portfolio(p_portfolio_id uuid)
 RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS
 $$
   SELECT EXISTS (
-    SELECT 1 FROM portfolio_members pm
+    SELECT 1
+    FROM portfolio_members pm
+    JOIN portfolios p ON p.id = pm.portfolio_id
+    JOIN organization_members om
+      ON om.org_id = p.org_id
+     AND om.user_id = pm.user_id
     WHERE pm.portfolio_id = p_portfolio_id
       AND pm.user_id = auth.uid()
       AND pm.deleted_at IS NULL
+      AND p.deleted_at IS NULL
+      AND om.deleted_at IS NULL
+      AND om.accepted_at IS NOT NULL
       AND pm.role IN ('member','admin','owner')
   );
 $$;
@@ -121,6 +145,7 @@ BEGIN
     WHERE org_id     = v_org_id
       AND user_id    = NEW.user_id
       AND deleted_at IS NULL
+      AND accepted_at IS NOT NULL
   ) THEN
     RAISE EXCEPTION
       'User % is not a member of org % — add them to the org before the portfolio.',

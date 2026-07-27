@@ -110,6 +110,7 @@ AS $$
     WHERE om.org_id = p_org_id
       AND om.user_id = auth.uid()
       AND om.deleted_at IS NULL
+      AND om.accepted_at IS NOT NULL
       AND CASE p_min_role
             WHEN 'viewer' THEN om.role IN ('viewer','member','admin','owner')
             WHEN 'member' THEN om.role IN ('member','admin','owner')
@@ -128,6 +129,7 @@ AS $$
   WHERE om.org_id = p_org_id
     AND om.user_id = auth.uid()
     AND om.deleted_at IS NULL
+    AND om.accepted_at IS NOT NULL
   LIMIT 1;
 $$;
 

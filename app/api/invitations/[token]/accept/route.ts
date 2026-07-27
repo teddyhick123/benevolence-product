@@ -43,13 +43,22 @@ export async function POST(_req: NextRequest, { params }: RouteParams) {
     // Check if already a member
     const { data: existingMember } = await adminClient
       .from('organization_members')
-      .select('id')
+      .select('id, accepted_at')
       .eq('org_id', invite.org_id)
       .eq('user_id', user.id)
       .is('deleted_at', null)
       .maybeSingle();
 
     if (existingMember) {
+      if (!existingMember.accepted_at) {
+        const { error: acceptMembershipError } = await adminClient
+          .from('organization_members')
+          .update({ accepted_at: new Date().toISOString() })
+          .eq('id', existingMember.id);
+        if (acceptMembershipError) {
+          return NextResponse.json({ error: acceptMembershipError.message }, { status: 500 });
+        }
+      }
       await adminClient
         .from('org_invitations')
         .update({ status: 'accepted', accepted_at: new Date().toISOString() })
@@ -60,7 +69,13 @@ export async function POST(_req: NextRequest, { params }: RouteParams) {
     // Add to org
     const { error: memberError } = await adminClient
       .from('organization_members')
-      .insert({ org_id: invite.org_id, user_id: user.id, role: invite.role, invited_by: user.id });
+      .insert({
+        org_id: invite.org_id,
+        user_id: user.id,
+        role: invite.role,
+        invited_by: user.id,
+        accepted_at: new Date().toISOString(),
+      });
 
     if (memberError) return NextResponse.json({ error: memberError.message }, { status: 500 });
 

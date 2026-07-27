@@ -79,6 +79,7 @@ export async function POST(req: NextRequest) {
         org_id: org.id,
         user_id: user.id,
         role: 'owner',
+        accepted_at: new Date().toISOString(),
       });
 
     if (memberError) {

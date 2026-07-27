@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { supabasePublic } from '@/lib/supabase';
-import { requirePortfolioAccess, isAccessDenied } from '@/lib/portfolio-auth';
+import { requirePortfolioAccess, isAccessDenied } from '@/lib/api/access';
+import { jsonError, jsonOk } from '@/lib/api/responses';
 import * as XLSX from 'xlsx';
 import {
   CONTRIBUTION_TYPE_LABELS,
@@ -22,13 +22,6 @@ function noStoreHeaders(headers: Record<string, string> = {}) {
   };
 }
 
-function json(body: Record<string, unknown>, init?: ResponseInit) {
-  return NextResponse.json(body, {
-    ...init,
-    headers: noStoreHeaders(init?.headers as Record<string, string> | undefined),
-  });
-}
-
 /**
  * GET /api/portfolio/[id]/tax/export?year=2024&format=json|csv|xlsx|txf|form8283
  * Export tax data in various formats
@@ -46,12 +39,12 @@ export async function GET(
 ) {
   const { id: portfolioId } = await ctx.params;
   const access = await requirePortfolioAccess(portfolioId);
-  if (isAccessDenied(access)) return access.error;
+  if (isAccessDenied(access)) return access.response;
   const url = new URL(req.url);
   const year = Number(url.searchParams.get('year') || new Date().getFullYear());
   const format = url.searchParams.get('format') || 'json';
 
-  const sb = await supabasePublic();
+  const sb = access.context.db;
 
   // Fetch all required data (RLS will enforce permissions)
   const [
@@ -88,7 +81,7 @@ export async function GET(
 
   // Check if user has access (RLS will return null if no access)
   if (!portfolio) {
-    return json({ error: 'Portfolio not found or access denied' }, { status: 403 });
+    return jsonError('Portfolio not found or access denied', 403);
   }
 
   // Calculate summary statistics
@@ -195,7 +188,7 @@ export async function GET(
 
   // Return based on format
   if (format === 'json') {
-    return json({ data: exportData });
+    return jsonOk({ data: exportData });
   }
 
   if (format === 'csv') {
@@ -362,7 +355,7 @@ export async function GET(
     });
   }
 
-  return json({ error: 'Invalid format' }, { status: 400 });
+  return jsonError('Invalid format', 400);
 }
 
 function csvCell(value: any): string {

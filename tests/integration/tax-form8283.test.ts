@@ -3,8 +3,8 @@
 // Tests for GET /api/portfolio/[id]/tax/form8283?year=YYYY
 //
 // Route facts confirmed by reading the source:
-//   - Auth is delegated to `requirePortfolioAccess` from `@/lib/portfolio-auth`.
-//   - DB queries use `supabasePublic` (createServerClient alias) from `@/lib/supabase`.
+//   - Auth is delegated to `requirePortfolioAccess` from `@/lib/api/access`.
+//   - DB queries use the guarded session client returned by the access context.
 //   - PDF generation is delegated to `generateForm8283PDF` from `@/lib/tax/form8283-generator`.
 //   - On success the route returns a PDF binary (Content-Type: application/pdf), NOT JSON.
 //   - "No qualifying contributions" returns 400 JSON (not 404).
@@ -57,6 +57,29 @@ vi.mock('@/lib/portfolio-auth', () => ({
     return { user: { id: USER_ID }, role: _accessRole };
   }),
   isAccessDenied: vi.fn((result: any) => 'error' in result),
+}));
+
+vi.mock('@/lib/api/access', () => ({
+  requirePortfolioAccess: vi.fn(async (_portfolioId: string) => {
+    if (_accessDenied) {
+      return {
+        ok: false,
+        response: NextResponse.json({ error: 'Access denied' }, { status: 403 }),
+      };
+    }
+    return {
+      ok: true,
+      context: {
+        db: { from: mockFrom },
+        user: { id: USER_ID },
+        role: _accessRole,
+        orgId: 'org-1',
+        portfolioId: PORTFOLIO_ID,
+        principal: { kind: 'user', userId: USER_ID },
+      },
+    };
+  }),
+  isAccessDenied: vi.fn((result: any) => !result.ok),
 }));
 
 // Mock supabase — the route uses supabasePublic (alias for createServerClient)

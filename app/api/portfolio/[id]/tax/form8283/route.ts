@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
-import { supabasePublic } from '@/lib/supabase';
+import { requirePortfolioAccess, isAccessDenied } from '@/lib/api/access';
+import { jsonError } from '@/lib/api/responses';
 import { generateForm8283PDF, type Form8283Contribution } from '@/lib/tax/form8283-generator';
-import { requirePortfolioAccess, isAccessDenied } from '@/lib/portfolio-auth';
 
 /**
  * GET /api/portfolio/[id]/tax/form8283?year=2024
@@ -13,11 +13,11 @@ export async function GET(
 ) {
   const { id: portfolio_id } = await ctx.params;
   const access = await requirePortfolioAccess(portfolio_id);
-  if (isAccessDenied(access)) return access.error;
+  if (isAccessDenied(access)) return access.response;
   const url = new URL(req.url);
   const year = Number(url.searchParams.get('year') || new Date().getFullYear());
 
-  const sb = await supabasePublic();
+  const sb = access.context.db;
 
   try {
     // Fetch portfolio for donor name
@@ -28,10 +28,7 @@ export async function GET(
       .single();
 
     if (portfolioError || !portfolio) {
-      return NextResponse.json(
-        { error: 'Portfolio not found or access denied' },
-        { status: 403, headers: { 'Cache-Control': 'no-store' } }
-      );
+      return jsonError('Portfolio not found or access denied', 403);
     }
 
     // NOTE: The legacy personal tax profile table has been removed. The donor name
@@ -52,10 +49,7 @@ export async function GET(
 
     if (contribError) {
       console.error('Error fetching contributions:', contribError);
-      return NextResponse.json(
-        { error: 'Failed to fetch contributions' },
-        { status: 500, headers: { 'Cache-Control': 'no-store' } }
-      );
+      return jsonError('Failed to fetch contributions', 500);
     }
 
     if (!contributions || contributions.length === 0) {
@@ -113,9 +107,6 @@ export async function GET(
     });
   } catch (error) {
     console.error('Form 8283 generation error:', error);
-    return NextResponse.json(
-      { error: 'Failed to generate Form 8283' },
-      { status: 500, headers: { 'Cache-Control': 'no-store' } }
-    );
+    return jsonError('Failed to generate Form 8283', 500);
   }
 }

@@ -346,6 +346,7 @@ describe('foundation reliability contracts', () => {
     const auditHelper = src('lib/audit/org-audit.ts');
     const receiptRoute = src('app/api/org/[orgId]/contributions/[id]/receipt/route.ts');
     const decisionRoute = src('app/api/org/[orgId]/grants/[grantId]/decisions/route.ts');
+    const grantRepository = src('lib/api/repositories/grants.ts');
     const pfRoute = src('app/api/portfolio/[id]/compliance/990pf-export/route.ts');
     const grantExecutor = src('lib/ai/assistant/executors/grants.ts');
     const assistantExecutor = src('lib/ai/assistant/executor.ts');
@@ -359,8 +360,9 @@ describe('foundation reliability contracts', () => {
 
     expect(receiptRoute).toContain('writeOrgAuditEvent');
     expect(receiptRoute).toContain('ORG_AUDIT_ACTIONS.CONTRIBUTION_RECEIPT_GENERATED');
-    expect(decisionRoute).toContain('writeOrgAuditEvent');
-    expect(decisionRoute).toContain('ORG_AUDIT_ACTIONS.GRANT_DECISION_RECORDED');
+    expect(decisionRoute).toContain('recordDecision');
+    expect(grantRepository).toContain('writeOrgAuditEvent');
+    expect(grantRepository).toContain('ORG_AUDIT_ACTIONS.GRANT_DECISION_RECORDED');
     expect(pfRoute).toContain('writeOrgAuditEvent');
     expect(pfRoute).toContain('ORG_AUDIT_ACTIONS.COMPLIANCE_990PF_EXPORTED');
     expect(pfRoute).toContain("select('id, name, org_id')");

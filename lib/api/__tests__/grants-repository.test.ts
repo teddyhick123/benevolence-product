@@ -4,14 +4,20 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createGrantRepository } from '@/lib/api/repositories/grants';
 import { stubQuery } from '@/tests/helpers/supabase-mock';
 
-const { mockCreateElevatedClient, mockFrom, mockRpc } = vi.hoisted(() => ({
+const { mockCreateElevatedClient, mockFrom, mockRpc, mockWriteOrgAuditEvent } = vi.hoisted(() => ({
   mockCreateElevatedClient: vi.fn(),
   mockFrom: vi.fn(),
   mockRpc: vi.fn(),
+  mockWriteOrgAuditEvent: vi.fn(),
 }));
 
 vi.mock('@/lib/api/admin-client', () => ({
   createElevatedClient: mockCreateElevatedClient,
+}));
+
+vi.mock('@/lib/audit/org-audit', () => ({
+  ORG_AUDIT_ACTIONS: { GRANT_DECISION_RECORDED: 'grant.decision_recorded' },
+  writeOrgAuditEvent: mockWriteOrgAuditEvent,
 }));
 
 beforeEach(() => {
@@ -84,6 +90,65 @@ describe('createGrantRepository', () => {
       p_renewal_eligible: false,
       p_workflow_template_id: null,
     });
+  });
+
+  it('records decisions and their audit event inside the authorized org scope', async () => {
+    const grantQuery = stubQuery(
+      { data: null, error: null },
+      { maybeSingle: { data: { id: 'grant-1' }, error: null } }
+    );
+    const decisionQuery = stubQuery(
+      { data: null, error: null },
+      { single: { data: { id: 'decision-1' }, error: null } }
+    );
+    mockFrom.mockImplementation(table => table === 'grants' ? grantQuery : decisionQuery);
+    const repository = createGrantRepository({ orgId: 'org-1', actorId: 'user-1' });
+
+    await repository.recordDecision({
+      grantId: 'grant-1',
+      decisionType: 'approval',
+      decision: 'approved',
+      decisionDate: '2026-07-27',
+      decidedBy: 'board-member-1',
+      amount: 25_000,
+    });
+
+    expect(mockFrom).toHaveBeenCalledWith('grant_decisions');
+    expect(grantQuery.calls).toContainEqual({ method: 'eq', args: ['org_id', 'org-1'] });
+    expect(decisionQuery.insert).toHaveBeenCalledWith(expect.objectContaining({
+      org_id: 'org-1',
+      grant_id: 'grant-1',
+      decided_by: 'board-member-1',
+    }));
+    expect(mockWriteOrgAuditEvent).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        orgId: 'org-1',
+        actorId: 'user-1',
+        targetId: 'grant-1',
+      })
+    );
+  });
+
+  it('refuses to record a decision when the grant is outside the repository org', async () => {
+    const grantQuery = stubQuery(
+      { data: null, error: null },
+      { maybeSingle: { data: null, error: null } }
+    );
+    mockFrom.mockReturnValue(grantQuery);
+    const repository = createGrantRepository({ orgId: 'org-1', actorId: 'user-1' });
+
+    const result = await repository.recordDecision({
+      grantId: 'grant-from-another-org',
+      decisionType: 'approval',
+      decision: 'approved',
+      decisionDate: '2026-07-27',
+      decidedBy: 'board-member-1',
+    });
+
+    expect(result.notFound).toBe(true);
+    expect(mockFrom).toHaveBeenCalledTimes(1);
+    expect(mockWriteOrgAuditEvent).not.toHaveBeenCalled();
   });
 
   it('does not expose the elevated client or generic table access', () => {

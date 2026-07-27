@@ -1,6 +1,7 @@
 import { createElevatedClient } from '@/lib/api/admin-client';
 import type { OrgAccessContext } from '@/lib/api/principals';
 import type { DecisionPayload, LifecycleStage } from '@/lib/grants/lifecycle-shared';
+import { ORG_AUDIT_ACTIONS, writeOrgAuditEvent } from '@/lib/audit/org-audit';
 import { checkWorkflowGate } from '@/lib/grants/workflow-config';
 import { runAutomationRulesForEvent } from '@/lib/tasks/automation/dynamic-rules';
 
@@ -47,6 +48,19 @@ export type GrantLifecycleTransitionInput = {
   targetStage: LifecycleStage;
   reason?: string;
   decisionPayload?: DecisionPayload;
+};
+
+export type RecordGrantDecisionInput = {
+  grantId: string;
+  decisionType: 'approval' | 'decline' | 'defer' | 'renewal' | 'closeout' | 'payment_release';
+  decision: 'approved' | 'declined' | 'deferred' | 'conditional' | 'not_applicable';
+  decisionDate: string;
+  decidedBy: string;
+  amount?: number | null;
+  conditions?: string | null;
+  rationale?: string | null;
+  boardMeetingDate?: string | null;
+  metadata?: Record<string, unknown> | null;
 };
 
 const GRANT_WORKFLOW_SELECT =
@@ -100,6 +114,56 @@ export function createGrantRepository(scope: GrantRepositoryScope) {
         p_renewal_eligible: input.renewalEligible,
         p_workflow_template_id: input.workflowTemplateId ?? null,
       });
+    },
+
+    async recordDecision(input: RecordGrantDecisionInput) {
+      const { data: grant, error: grantError } = await db
+        .from('grants')
+        .select('id')
+        .eq('id', input.grantId)
+        .eq('org_id', scope.orgId)
+        .maybeSingle();
+
+      if (grantError) return { data: null, error: grantError, notFound: false };
+      if (!grant) return { data: null, error: null, notFound: true };
+
+      const { data, error } = await db
+        .from('grant_decisions')
+        .insert({
+          grant_id: input.grantId,
+          org_id: scope.orgId,
+          decision_type: input.decisionType,
+          decision: input.decision,
+          decision_date: input.decisionDate,
+          decided_by: input.decidedBy,
+          amount: input.amount ?? null,
+          conditions: input.conditions ?? null,
+          rationale: input.rationale ?? null,
+          board_meeting_date: input.boardMeetingDate ?? null,
+          metadata: input.metadata ?? null,
+        })
+        .select()
+        .single();
+
+      if (error) return { data: null, error, notFound: false };
+
+      await writeOrgAuditEvent(db, {
+        orgId: scope.orgId,
+        actorId: scope.actorId,
+        action: ORG_AUDIT_ACTIONS.GRANT_DECISION_RECORDED,
+        targetId: input.grantId,
+        metadata: {
+          decision_id: data.id,
+          decision_type: input.decisionType,
+          decision: input.decision,
+          decision_date: input.decisionDate,
+          decided_by: input.decidedBy,
+          amount: input.amount ?? null,
+          board_meeting_date: input.boardMeetingDate ?? null,
+        },
+      });
+
+      return { data, error: null, notFound: false };
     },
 
     async findWorkflowGrant(grantId: string) {

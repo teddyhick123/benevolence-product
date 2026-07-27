@@ -1,12 +1,11 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { z } from 'zod';
-import { createAdminClient, createServerClient } from '@/lib/supabase';
 import { LIFECYCLE_STAGES } from '@/lib/grants/lifecycle-shared';
-import { getOrgAccess, hasOrgAccess } from '@/lib/org-access';
+import { requireOrgAccess } from '@/lib/api/access';
+import { jsonError, jsonOk } from '@/lib/api/responses';
+import type { SessionClient } from '@/lib/api/server-client';
 
 export const dynamic = 'force-dynamic';
-
-const NO_STORE = { 'Cache-Control': 'no-store' } as const;
 
 interface RouteParams {
   params: Promise<{ orgId: string; grantId: string }>;
@@ -18,28 +17,7 @@ const checklistToggleSchema = z.object({
   completed: z.boolean(),
 }).strict();
 
-function json(body: unknown, init: ResponseInit = {}) {
-  return NextResponse.json(body, {
-    ...init,
-    headers: {
-      ...NO_STORE,
-      ...(init.headers || {}),
-    },
-  });
-}
-
-async function requireOrgAccess(orgId: string, minimum: 'viewer' | 'member') {
-  const supabase = await createServerClient();
-  const access = await getOrgAccess(supabase, orgId);
-  if (!access.user) return { error: json({ error: 'Unauthorized' }, { status: 401 }) };
-  if (!hasOrgAccess(access, minimum)) {
-    return { error: json({ error: minimum === 'member' ? 'Member access required' : 'Not authorized' }, { status: 403 }) };
-  }
-
-  return { supabase, user: access.user, role: access.role };
-}
-
-async function ensureGrantModuleAndScope(db: ReturnType<typeof createAdminClient>, orgId: string, grantId: string) {
+async function ensureGrantModuleAndScope(db: SessionClient, orgId: string, grantId: string) {
   const [{ data: hasModule, error: moduleErr }, { data: grant, error: grantErr }] = await Promise.all([
     db.rpc('org_has_module', { p_org_id: orgId, p_module: 'grant_management' }),
     db
@@ -51,19 +29,19 @@ async function ensureGrantModuleAndScope(db: ReturnType<typeof createAdminClient
   ]);
 
   if (moduleErr) throw moduleErr;
-  if (!hasModule) return json({ error: 'Grant management module is not enabled' }, { status: 403 });
+  if (!hasModule) return jsonError('Grant management module is not enabled', 403);
   if (grantErr) throw grantErr;
-  if (!grant) return json({ error: 'Grant not found' }, { status: 404 });
+  if (!grant) return jsonError('Grant not found', 404);
   return null;
 }
 
 export async function GET(_req: NextRequest, { params }: RouteParams) {
   try {
     const { orgId, grantId } = await params;
-    const auth = await requireOrgAccess(orgId, 'viewer');
-    if ('error' in auth) return auth.error;
+    const access = await requireOrgAccess(orgId, 'viewer');
+    if (!access.ok) return access.response;
 
-    const db = createAdminClient();
+    const db = access.context.db;
     const scopeError = await ensureGrantModuleAndScope(db, orgId, grantId);
     if (scopeError) return scopeError;
 
@@ -133,25 +111,25 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
       stage.items.sort((a, b) => a.sort_order - b.sort_order || a.label.localeCompare(b.label));
     }
 
-    return json({ data: grouped });
-  } catch (err: any) {
-    return json({ error: err?.message ?? 'Internal error' }, { status: 500 });
+    return jsonOk({ data: grouped });
+  } catch (err: unknown) {
+    return jsonError(err instanceof Error ? err.message : 'Internal error', 500);
   }
 }
 
 export async function POST(req: NextRequest, { params }: RouteParams) {
   try {
     const { orgId, grantId } = await params;
-    const auth = await requireOrgAccess(orgId, 'member');
-    if ('error' in auth) return auth.error;
+    const access = await requireOrgAccess(orgId, 'member');
+    if (!access.ok) return access.response;
 
     const body = await req.json().catch(() => ({}));
     const parsed = checklistToggleSchema.safeParse(body);
     if (!parsed.success) {
-      return json({ error: 'Validation failed', details: parsed.error.format() }, { status: 400 });
+      return jsonError('Validation failed', 400, { details: parsed.error.format() });
     }
 
-    const db = createAdminClient();
+    const { db, user } = access.context;
     const scopeError = await ensureGrantModuleAndScope(db, orgId, grantId);
     if (scopeError) return scopeError;
 
@@ -167,10 +145,10 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       .maybeSingle();
 
     if (configErr) throw configErr;
-    if (!config) return json({ error: 'Checklist item not found' }, { status: 404 });
+    if (!config) return jsonError('Checklist item not found', 404);
 
     if (completed) {
-      const { error: insertErr } = await auth.supabase
+      const { error: insertErr } = await db
         .from('grant_checklist_completions')
         .upsert({
           org_id: orgId,
@@ -178,14 +156,14 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
           workflow_config_id: config.id,
           stage_key: stageKey,
           checklist_item_key: itemKey,
-          completed_by: auth.user.id,
+          completed_by: user.id,
         }, { onConflict: 'grant_id,workflow_config_id', ignoreDuplicates: true });
 
       if (insertErr) throw insertErr;
-      return json({ success: true });
+      return jsonOk({ success: true });
     }
 
-    const { data: deleteData, error: deleteErr } = await auth.supabase
+    const { data: deleteData, error: deleteErr } = await db
       .from('grant_checklist_completions')
       .delete()
       .eq('org_id', orgId)
@@ -195,11 +173,11 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
 
     if (deleteErr) throw deleteErr;
     if (!deleteData || deleteData.length === 0) {
-      return json({ error: 'Item is not completed or you do not have permission to uncheck it' }, { status: 404 });
+      return jsonError('Item is not completed or you do not have permission to uncheck it', 404);
     }
 
-    return json({ success: true });
-  } catch (err: any) {
-    return json({ error: err?.message ?? 'Internal error' }, { status: 500 });
+    return jsonOk({ success: true });
+  } catch (err: unknown) {
+    return jsonError(err instanceof Error ? err.message : 'Internal error', 500);
   }
 }

@@ -1,19 +1,8 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { createAdminClient, createServerClient } from '@/lib/supabase';
+import { NextRequest } from 'next/server';
+import { requireOrgAccess } from '@/lib/api/access';
+import { jsonError, jsonOk } from '@/lib/api/responses';
 
 export const dynamic = 'force-dynamic';
-
-const NO_STORE = { 'Cache-Control': 'no-store' } as const;
-
-function json(body: unknown, init: ResponseInit = {}) {
-  return NextResponse.json(body, {
-    ...init,
-    headers: {
-      ...NO_STORE,
-      ...(init.headers || {}),
-    },
-  });
-}
 
 export async function GET(
   req: NextRequest,
@@ -21,11 +10,8 @@ export async function GET(
 ) {
   try {
     const { orgId } = await params;
-    const supabase = await createServerClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return json({ error: 'Unauthorized' }, { status: 401 });
-    const { data: role } = await supabase.rpc('user_org_role', { p_org_id: orgId });
-    if (!role) return json({ error: 'Not authorized' }, { status: 403 });
+    const access = await requireOrgAccess(orgId, 'viewer');
+    if (!access.ok) return access.response;
 
     const { searchParams } = new URL(req.url);
     const portfolioId = searchParams.get('portfolio_id');
@@ -34,7 +20,7 @@ export async function GET(
       ? Math.min(requestedDaysAhead, 365)
       : 120;
 
-    const db = createAdminClient();
+    const db = access.context.db;
     const cutoff = new Date(Date.now() - 30 * 86_400_000).toISOString().slice(0, 10);
     const horizon = new Date(Date.now() + daysAhead * 86_400_000).toISOString().slice(0, 10);
 
@@ -51,7 +37,7 @@ export async function GET(
     const grantMap = new Map(grants.map(g => [g.id, g]));
 
     if (grantIds.length === 0) {
-      return json({ events: [] });
+      return jsonOk({ events: [] });
     }
 
     const events: any[] = [];
@@ -151,8 +137,8 @@ export async function GET(
 
     events.sort((a, b) => a.due_date.localeCompare(b.due_date));
 
-    return json({ events });
-  } catch (err: any) {
-    return json({ error: err.message }, { status: 500 });
+    return jsonOk({ events });
+  } catch (err: unknown) {
+    return jsonError(err instanceof Error ? err.message : 'Internal error', 500);
   }
 }

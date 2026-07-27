@@ -212,7 +212,9 @@ describe('org-scoped route auth contracts', () => {
     expect(complianceRoute).not.toContain('Fire-and-forget');
 
     const grantCalendarRoute = readFileSync('app/api/org/[orgId]/grants/calendar/route.ts', 'utf8');
-    expect(grantCalendarRoute).toContain("'Cache-Control': 'no-store'");
+    expect(grantCalendarRoute).toContain('requireOrgAccess');
+    expect(grantCalendarRoute).toContain('jsonOk');
+    expect(grantCalendarRoute).not.toContain('createAdminClient');
     expect(grantCalendarRoute).toContain('Number.isFinite(requestedDaysAhead)');
     expect(grantCalendarRoute).toContain('Math.min(requestedDaysAhead, 365)');
   });
@@ -251,7 +253,14 @@ describe('org-scoped route auth contracts', () => {
     const decisionsRoute = readFileSync('app/api/org/[orgId]/grants/[grantId]/decisions/route.ts', 'utf8');
     expect(decisionsRoute).toContain('decisionSchema');
     expect(decisionsRoute).toContain('requireUserInOrg');
+    expect(decisionsRoute).toContain('createGrantRepository');
+    expect(decisionsRoute).not.toContain('createAdminClient');
     expect(decisionsRoute).toContain('decided_by is not a member of this organization');
+
+    const checklistRoute = readFileSync('app/api/org/[orgId]/grants/[grantId]/checklist/route.ts', 'utf8');
+    expect(checklistRoute).toContain('requireOrgAccess');
+    expect(checklistRoute).toContain('jsonOk');
+    expect(checklistRoute).not.toContain('createAdminClient');
   });
 
   it('pledge routes no-store sensitive money views and await generated-task sync', () => {

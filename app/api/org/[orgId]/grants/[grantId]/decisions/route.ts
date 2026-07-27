@@ -1,12 +1,12 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { createAdminClient, createServerClient } from '@/lib/supabase';
+import { NextRequest } from 'next/server';
 import { z } from 'zod';
-import { ORG_AUDIT_ACTIONS, writeOrgAuditEvent } from '@/lib/audit/org-audit';
-import { getOrgAccess, hasOrgAccess } from '@/lib/org-access';
+import { requireOrgAccess } from '@/lib/api/access';
+import { jsonError, jsonOk } from '@/lib/api/responses';
+import { createGrantRepository } from '@/lib/api/repositories/grants';
+import type { SessionClient } from '@/lib/api/server-client';
 
 export const dynamic = 'force-dynamic';
 
-const NO_STORE = { 'Cache-Control': 'no-store' } as const;
 const decisionSchema = z.object({
   decision_type: z.enum(['approval', 'decline', 'defer', 'renewal', 'closeout', 'payment_release']),
   decision: z.enum(['approved', 'declined', 'deferred', 'conditional', 'not_applicable']),
@@ -23,21 +23,7 @@ interface RouteParams {
   params: Promise<{ orgId: string; grantId: string }>;
 }
 
-function json(body: unknown, init: ResponseInit = {}) {
-  return NextResponse.json(body, {
-    ...init,
-    headers: {
-      ...NO_STORE,
-      ...(init.headers || {}),
-    },
-  });
-}
-
-async function requireGrantInOrg(
-  db: ReturnType<typeof createAdminClient>,
-  grantId: string,
-  orgId: string
-) {
+async function requireGrantInOrg(db: SessionClient, grantId: string, orgId: string) {
   const { data, error } = await db
     .from('grants')
     .select('id')
@@ -49,11 +35,7 @@ async function requireGrantInOrg(
   return !!data;
 }
 
-async function requireUserInOrg(
-  db: ReturnType<typeof createAdminClient>,
-  userId: string,
-  orgId: string
-) {
+async function requireUserInOrg(db: SessionClient, userId: string, orgId: string) {
   const { data, error } = await db
     .from('organization_members')
     .select('id')
@@ -65,19 +47,17 @@ async function requireUserInOrg(
   return !!data;
 }
 
-export async function GET(req: NextRequest, { params }: RouteParams) {
+export async function GET(_req: NextRequest, { params }: RouteParams) {
   try {
     const { orgId, grantId } = await params;
 
-    const supabase = await createServerClient();
-    const access = await getOrgAccess(supabase, orgId);
-    if (!access.user) return json({ error: 'Unauthorized' }, { status: 401 });
-    if (!hasOrgAccess(access, 'viewer')) return json({ error: 'Not authorized' }, { status: 403 });
+    const access = await requireOrgAccess(orgId, 'viewer');
+    if (!access.ok) return access.response;
 
-    const db = createAdminClient();
+    const db = access.context.db;
     const grantInOrg = await requireGrantInOrg(db, grantId, orgId);
     if (!grantInOrg) {
-      return json({ error: 'Grant not found' }, { status: 404 });
+      return jsonError('Grant not found', 404);
     }
 
     const { data, error } = await db
@@ -89,9 +69,9 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
 
     if (error) throw error;
 
-    return json({ data });
-  } catch (err: any) {
-    return json({ error: err?.message ?? 'Internal error' }, { status: 500 });
+    return jsonOk({ data });
+  } catch (err: unknown) {
+    return jsonError(err instanceof Error ? err.message : 'Internal error', 500);
   }
 }
 
@@ -99,68 +79,41 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
   try {
     const { orgId, grantId } = await params;
 
-    const supabase = await createServerClient();
-    const access = await getOrgAccess(supabase, orgId);
-    if (!access.user) return json({ error: 'Unauthorized' }, { status: 401 });
-    if (!hasOrgAccess(access, 'member')) return json({ error: 'Member access required' }, { status: 403 });
-    const { user } = access;
+    const access = await requireOrgAccess(orgId, 'member');
+    if (!access.ok) return access.response;
+    const { db, user } = access.context;
 
     const body = await req.json().catch(() => ({}));
     const parsed = decisionSchema.safeParse(body);
     if (!parsed.success) {
-      return json({ error: 'Validation failed', details: parsed.error.format() }, { status: 400 });
+      return jsonError('Validation failed', 400, { details: parsed.error.format() });
     }
     const input = parsed.data;
 
-    const db = createAdminClient();
-    const grantInOrg = await requireGrantInOrg(db, grantId, orgId);
-    if (!grantInOrg) {
-      return json({ error: 'Grant not found' }, { status: 404 });
-    }
-
     const decidedBy = input.decided_by ?? user.id;
     if (!(await requireUserInOrg(db, decidedBy, orgId))) {
-      return json({ error: 'decided_by is not a member of this organization' }, { status: 400 });
+      return jsonError('decided_by is not a member of this organization', 400);
     }
 
-    const { data, error } = await db
-      .from('grant_decisions')
-      .insert({
-        grant_id: grantId,
-        org_id: orgId,
-        decision_type: input.decision_type,
-        decision: input.decision,
-        decision_date: input.decision_date,
-        decided_by: decidedBy,
-        amount: input.amount ?? null,
-        conditions: input.conditions ?? null,
-        rationale: input.rationale ?? null,
-        board_meeting_date: input.board_meeting_date ?? null,
-        metadata: input.metadata ?? null,
-      })
-      .select()
-      .single();
-
-    if (error) throw error;
-
-    await writeOrgAuditEvent(db, {
-      orgId,
-      actorId: user.id,
-      action: ORG_AUDIT_ACTIONS.GRANT_DECISION_RECORDED,
-      targetId: grantId,
-      metadata: {
-        decision_id: data.id,
-        decision_type: input.decision_type,
-        decision: input.decision,
-        decision_date: input.decision_date,
-        decided_by: decidedBy,
-        amount: input.amount ?? null,
-        board_meeting_date: input.board_meeting_date ?? null,
-      },
+    const repository = createGrantRepository({ orgId, actorId: user.id });
+    const { data, error, notFound } = await repository.recordDecision({
+      grantId,
+      decisionType: input.decision_type,
+      decision: input.decision,
+      decisionDate: input.decision_date,
+      decidedBy,
+      amount: input.amount,
+      conditions: input.conditions,
+      rationale: input.rationale,
+      boardMeetingDate: input.board_meeting_date,
+      metadata: input.metadata,
     });
 
-    return json({ data }, { status: 201 });
-  } catch (err: any) {
-    return json({ error: err?.message ?? 'Internal error' }, { status: 500 });
+    if (notFound) return jsonError('Grant not found', 404);
+    if (error) throw error;
+
+    return jsonOk({ data }, { status: 201 });
+  } catch (err: unknown) {
+    return jsonError(err instanceof Error ? err.message : 'Internal error', 500);
   }
 }

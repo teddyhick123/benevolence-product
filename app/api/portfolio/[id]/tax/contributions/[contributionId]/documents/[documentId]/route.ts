@@ -1,5 +1,6 @@
-import { NextResponse } from 'next/server';
-import { supabasePublic, createAdminClient } from '@/lib/supabase';
+import { requirePortfolioAccess, isAccessDenied } from '@/lib/api/access';
+import { createTaxRepository } from '@/lib/api/repositories/tax';
+import { jsonError, jsonOk } from '@/lib/api/responses';
 
 /**
  * GET /api/portfolio/[id]/tax/contributions/[contributionId]/documents/[documentId]
@@ -10,18 +11,13 @@ export async function GET(
   ctx: { params: Promise<{ id: string; contributionId: string; documentId: string }> }
 ) {
   const { id: portfolio_id, contributionId: contribution_id, documentId: doc_id } = await ctx.params;
-  const sb = await supabasePublic();
-
-  const { data: canView, error: canViewErr } = await sb.rpc('can_view_portfolio', {
-    p_portfolio_id: portfolio_id,
-  });
-
-  if (canViewErr || !canView) {
-    return NextResponse.json(
-      { error: 'Forbidden' },
-      { status: 403, headers: { 'Cache-Control': 'no-store' } }
-    );
+  const access = await requirePortfolioAccess(portfolio_id);
+  if (isAccessDenied(access)) {
+    return access.reason === 'infrastructure'
+      ? jsonError('Forbidden', 403)
+      : access.response;
   }
+  const sb = access.context.db;
 
   try {
     // Fetch document
@@ -38,39 +34,30 @@ export async function GET(
     }
 
     if (!document) {
-      return NextResponse.json(
-        { error: 'Document not found' },
-        { status: 404, headers: { 'Cache-Control': 'no-store' } }
-      );
+      return jsonError('Document not found', 404);
     }
 
     // Generate signed URL for private access (valid for 1 hour)
-    const { data: signedData, error: signedError } = await sb.storage
-      .from('tax-documents')
-      .createSignedUrl(document.storage_path, 3600);
+    const taxRepository = createTaxRepository(access.context);
+    const { data: signedData, error: signedError } = await taxRepository
+      .createSignedDocumentUrl({
+        contributionId: contribution_id,
+        storagePath: document.storage_path,
+      });
 
     if (signedError || !signedData?.signedUrl) {
-      return NextResponse.json(
-        { error: 'Failed to generate document URL' },
-        { status: 500, headers: { 'Cache-Control': 'no-store' } }
-      );
+      return jsonError('Failed to generate document URL', 500);
     }
 
-    return NextResponse.json(
-      {
-        data: {
-          ...document,
-          signed_url: signedData.signedUrl,
-        },
+    return jsonOk({
+      data: {
+        ...document,
+        signed_url: signedData.signedUrl,
       },
-      { headers: { 'Cache-Control': 'private, max-age=3600' } }
-    );
+    }, { headers: { 'Cache-Control': 'private, max-age=3600' } });
   } catch (error) {
     console.error('Error fetching document:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch document' },
-      { status: 500, headers: { 'Cache-Control': 'no-store' } }
-    );
+    return jsonError('Failed to fetch document', 500);
   }
 }
 
@@ -83,19 +70,13 @@ export async function DELETE(
   ctx: { params: Promise<{ id: string; contributionId: string; documentId: string }> }
 ) {
   const { id: portfolio_id, contributionId: contribution_id, documentId: doc_id } = await ctx.params;
-  const sb = await supabasePublic();
-
-  // Check permissions
-  const { data: canEdit, error: canEditErr } = await sb.rpc('can_edit_portfolio', {
-    p_portfolio_id: portfolio_id,
-  });
-
-  if (canEditErr || !canEdit) {
-    return NextResponse.json(
-      { error: 'Not authorized' },
-      { status: 403, headers: { 'Cache-Control': 'no-store' } }
-    );
+  const access = await requirePortfolioAccess(portfolio_id, 'member');
+  if (isAccessDenied(access)) {
+    return access.reason === 'unauthenticated'
+      ? access.response
+      : jsonError('Not authorized', 403);
   }
+  const sb = access.context.db;
 
   try {
     // Fetch document to get storage path (user-session client)
@@ -108,17 +89,14 @@ export async function DELETE(
       .single();
 
     if (fetchError || !document) {
-      return NextResponse.json(
-        { error: 'Document not found' },
-        { status: 404, headers: { 'Cache-Control': 'no-store' } }
-      );
+      return jsonError('Document not found', 404);
     }
 
-    // Delete from storage (admin client — avoids RLS policy issues)
-    const sbAdmin = createAdminClient();
-    const { error: storageError } = await sbAdmin.storage
-      .from('tax-documents')
-      .remove([document.storage_path]);
+    const taxRepository = createTaxRepository(access.context);
+    const { error: storageError } = await taxRepository.removeDocumentObject({
+      contributionId: contribution_id,
+      storagePath: document.storage_path,
+    });
 
     if (storageError) {
       console.error('Error deleting from storage:', storageError);
@@ -129,7 +107,9 @@ export async function DELETE(
     const { error: deleteError } = await sb
       .from('tax_documents')
       .delete()
-      .eq('id', doc_id);
+      .eq('id', doc_id)
+      .eq('tax_contribution_id', contribution_id)
+      .eq('portfolio_id', portfolio_id);
 
     if (deleteError) {
       throw deleteError;
@@ -142,19 +122,14 @@ export async function DELETE(
         .from('tax_contributions')
         .update({ [updateField]: null })
         .eq('id', contribution_id)
+        .eq('portfolio_id', portfolio_id)
         .eq(updateField, document.storage_path); // Only clear if it matches
     }
 
-    return NextResponse.json(
-      { success: true },
-      { headers: { 'Cache-Control': 'no-store' } }
-    );
+    return jsonOk({ success: true });
   } catch (error) {
     console.error('Error deleting document:', error);
-    return NextResponse.json(
-      { error: 'Failed to delete document' },
-      { status: 500, headers: { 'Cache-Control': 'no-store' } }
-    );
+    return jsonError('Failed to delete document', 500);
   }
 }
 

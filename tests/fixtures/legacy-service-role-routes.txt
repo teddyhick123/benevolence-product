@@ -113,6 +113,4 @@ app/api/portfolio/[id]/grants/[grantId]/documents/route.ts
 app/api/portfolio/[id]/grants/export/route.ts
 app/api/portfolio/[id]/holdings/[holdingId]/milestones/[milestoneId]/route.ts
 app/api/portfolio/[id]/map/route.ts
-app/api/portfolio/[id]/tax/contributions/[contributionId]/documents/[documentId]/route.ts
-app/api/portfolio/[id]/tax/contributions/[contributionId]/documents/route.ts
 app/api/portfolio/[id]/widgets/save-preview/route.ts

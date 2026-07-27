@@ -68,6 +68,55 @@ vi.mock('@/lib/supabase', () => ({
   })),
 }));
 
+vi.mock('@/lib/api/access', () => ({
+  requirePortfolioAccess: vi.fn(async (
+    portfolioId: string,
+    minRole: 'viewer' | 'member' = 'viewer'
+  ) => {
+    const error = minRole === 'member' ? _canEditErr : _canViewErr;
+    if (error) {
+      return {
+        ok: false,
+        reason: 'infrastructure',
+        response: Response.json(
+          { error: error.message },
+          { status: 500, headers: { 'Cache-Control': 'no-store' } }
+        ),
+      };
+    }
+    const allowed = minRole === 'member' ? _canEdit : _canView;
+    if (!allowed) {
+      return {
+        ok: false,
+        reason: 'forbidden',
+        response: Response.json(
+          { error: 'Access denied' },
+          { status: 403, headers: { 'Cache-Control': 'no-store' } }
+        ),
+      };
+    }
+    return {
+      ok: true,
+      context: {
+        db: { rpc: mockRpc, from: mockFrom, storage: { from: mockStorage } },
+        portfolioId,
+        orgId: 'org-1',
+        role: minRole,
+        principal: { kind: 'user', userId: 'user-1' },
+        user: { id: 'user-1' },
+      },
+    };
+  }),
+  isAccessDenied: vi.fn((result: { ok: boolean }) => !result.ok),
+}));
+
+vi.mock('@/lib/api/admin-client', () => ({
+  createElevatedClient: vi.fn(() => ({
+    from: mockAdminFrom,
+    storage: { from: mockAdminStorage },
+  })),
+}));
+
 // ── Mock setup ────────────────────────────────────────────────────────────────
 
 function setupMocks() {
@@ -352,7 +401,7 @@ describe('GET /documents/[documentId] — signed-URL security invariant', () => 
       createSignedUrl: vi.fn(async () => ({ data: { signedUrl: SIGNED_URL }, error: null })),
       getPublicUrl:    vi.fn(() => ({ data: { publicUrl: 'SHOULD-NEVER-BE-CALLED' } })),
     };
-    mockStorage.mockReturnValue(mockBucket);
+    mockAdminStorage.mockReturnValue(mockBucket);
 
     // Act
     await getDocument(makeGetDocReq(), makeDocCtx());

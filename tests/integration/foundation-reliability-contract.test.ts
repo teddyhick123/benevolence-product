@@ -91,8 +91,8 @@ describe('foundation reliability contracts', () => {
     const route = src('app/api/portfolio/[id]/tax/contributions/[contributionId]/documents/route.ts');
 
     expect(route).toContain('pointerError');
-    expect(route).toMatch(/from\('tax_documents'\)\.delete\(\)\.eq\('id', docRecord\.id\)/);
-    expect(route).toMatch(/storage\.from\('tax-documents'\)\.remove\(\[storagePath\]\)/);
+    expect(route).toMatch(/from\('tax_documents'\)[\s\S]{0,120}\.delete\(\)[\s\S]{0,120}\.eq\('id', docRecord\.id\)/);
+    expect(route).toMatch(/taxRepository\s*\.removeDocumentObject/);
   });
 
   it('locally reconciles QuickBooks grant exports', () => {

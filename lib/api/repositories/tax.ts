@@ -19,7 +19,11 @@ function assertDocumentPath(
   contributionId: string,
   storagePath: string
 ) {
-  if (!storagePath.startsWith(documentPrefix(portfolioId, contributionId))) {
+  if (
+    !storagePath.startsWith(documentPrefix(portfolioId, contributionId)) ||
+    storagePath.includes('..') ||
+    storagePath.includes('\\')
+  ) {
     throw new Error('Tax document storage path is outside the authorized scope');
   }
 }

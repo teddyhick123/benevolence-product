@@ -106,6 +106,16 @@ describe('createTaxRepository', () => {
     expect(mockStorageFrom).not.toHaveBeenCalled();
   });
 
+  it('rejects traversal segments even when the raw path begins with the scope', async () => {
+    const repository = createTaxRepository({ portfolioId: 'portfolio-1' });
+
+    await expect(repository.createSignedDocumentUrl({
+      contributionId: 'contribution-1',
+      storagePath: 'portfolio-1/contribution-1/../contribution-2/receipt.pdf',
+    })).rejects.toThrow('outside the authorized scope');
+    expect(mockStorageFrom).not.toHaveBeenCalled();
+  });
+
   it('creates one-hour signed URLs for scoped private documents', async () => {
     const createSignedUrl = vi.fn(async () => ({
       data: { signedUrl: 'https://signed.example.test' },

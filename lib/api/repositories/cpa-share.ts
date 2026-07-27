@@ -129,6 +129,16 @@ function validateActiveLink(link: CpaShareLinkRow): CpaRepositoryDenied | null {
       error: validation.reason ?? 'Share link is no longer valid',
     };
   }
+  if (
+    link.max_accesses !== undefined
+    && link.access_count >= link.max_accesses
+  ) {
+    return {
+      ok: false,
+      status: 410,
+      error: 'This share link has reached its maximum number of accesses.',
+    };
+  }
   return null;
 }
 

@@ -129,6 +129,10 @@ describe('resolveCpaToken', () => {
       { expires_at: '2020-01-01T00:00:00.000Z' },
       'This share link has expired.',
     ],
+    [
+      { max_accesses: 3, access_count: 3 },
+      'This share link has reached its maximum number of accesses.',
+    ],
   ])('rejects inactive links before constructing a repository', async (overrides, error) => {
     const lookup = stubQuery(
       { data: null, error: null },

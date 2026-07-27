@@ -400,22 +400,25 @@ describe('foundation reliability contracts', () => {
 
   it('grant document delete removes the DB pointer before storage cleanup', () => {
     const route = src('app/api/portfolio/[id]/grants/[grantId]/documents/route.ts');
-    const deleteStart = route.indexOf('export async function DELETE');
+    const repository = src('lib/api/repositories/grants.ts');
+    const deleteStart = repository.indexOf('async deleteDocument');
     expect(deleteStart).toBeGreaterThan(-1);
-    const deleteRoute = route.slice(deleteStart);
+    const deleteOperation = repository.slice(deleteStart);
 
-    const dbDeleteIndex = deleteRoute.indexOf(".from('grant_documents')");
-    const storageRemoveIndex = deleteRoute.indexOf(".from('grant-documents')");
+    const dbDeleteIndex = deleteOperation.indexOf('.delete()');
+    const storageRemoveIndex = deleteOperation.indexOf('.remove([document.storage_path])');
     expect(dbDeleteIndex).toBeGreaterThan(-1);
     expect(storageRemoveIndex).toBeGreaterThan(-1);
     expect(dbDeleteIndex).toBeLessThan(storageRemoveIndex);
 
-    expect(deleteRoute).toContain('.delete()');
-    expect(deleteRoute).toContain(".eq('id', documentId)");
-    expect(deleteRoute).toContain(".eq('grant_id', grantId)");
-    expect(deleteRoute).toContain(".select('storage_path')");
-    expect(deleteRoute).toContain('storage_cleanup_pending');
-    expect(deleteRoute).not.toMatch(/storageDeleteError\) throw storageDeleteError/);
+    expect(route).toContain('requirePortfolioAccess');
+    expect(route).toContain('createGrantDocumentRepository');
+    expect(route).toContain('storage_cleanup_pending');
+    expect(route).not.toContain('createAdminClient');
+    expect(deleteOperation).toContain(".eq('id', documentId)");
+    expect(deleteOperation).toContain(".eq('grant_id', grantId)");
+    expect(deleteOperation).toContain('assertScopedPath');
+    expect(deleteOperation).not.toMatch(/storageDeleteError\) throw storageDeleteError/);
   });
 
   it('payout and 990-PF endpoints use qualifying distributions and shared payout math', () => {

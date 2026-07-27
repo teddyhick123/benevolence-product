@@ -1,14 +1,32 @@
 // @vitest-environment node
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { createGrantRepository } from '@/lib/api/repositories/grants';
+import {
+  createGrantDocumentRepository,
+  createGrantRepository,
+  GrantDocumentGrantNotFoundError,
+  InvalidGrantDocumentPathError,
+} from '@/lib/api/repositories/grants';
 import { stubQuery } from '@/tests/helpers/supabase-mock';
 
-const { mockCreateElevatedClient, mockFrom, mockRpc, mockWriteOrgAuditEvent } = vi.hoisted(() => ({
+const {
+  mockCreateElevatedClient,
+  mockFrom,
+  mockRpc,
+  mockWriteOrgAuditEvent,
+  mockStorageFrom,
+  mockCreateSignedUrl,
+  mockUpload,
+  mockRemove,
+} = vi.hoisted(() => ({
   mockCreateElevatedClient: vi.fn(),
   mockFrom: vi.fn(),
   mockRpc: vi.fn(),
   mockWriteOrgAuditEvent: vi.fn(),
+  mockStorageFrom: vi.fn(),
+  mockCreateSignedUrl: vi.fn(),
+  mockUpload: vi.fn(),
+  mockRemove: vi.fn(),
 }));
 
 vi.mock('@/lib/api/admin-client', () => ({
@@ -22,7 +40,22 @@ vi.mock('@/lib/audit/org-audit', () => ({
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mockCreateElevatedClient.mockReturnValue({ from: mockFrom, rpc: mockRpc });
+  mockFrom.mockReset();
+  mockRpc.mockReset();
+  mockStorageFrom.mockReset();
+  mockCreateSignedUrl.mockReset();
+  mockUpload.mockReset();
+  mockRemove.mockReset();
+  mockStorageFrom.mockReturnValue({
+    createSignedUrl: mockCreateSignedUrl,
+    upload: mockUpload,
+    remove: mockRemove,
+  });
+  mockCreateElevatedClient.mockReturnValue({
+    from: mockFrom,
+    rpc: mockRpc,
+    storage: { from: mockStorageFrom },
+  });
 });
 
 describe('createGrantRepository', () => {
@@ -197,5 +230,78 @@ describe('createGrantRepository', () => {
       p_reason: 'Qualified prospect',
       p_decision_payload: null,
     });
+  });
+});
+
+describe('createGrantDocumentRepository', () => {
+  const scope = { orgId: 'org-1', portfolioId: 'portfolio-1', actorId: 'user-1' };
+
+  it('rejects grants outside the authorized org and portfolio', async () => {
+    const grantQuery = stubQuery(
+      { data: null, error: null },
+      { maybeSingle: { data: null, error: null } }
+    );
+    mockFrom.mockReturnValue(grantQuery);
+    const repository = createGrantDocumentRepository(scope);
+
+    await expect(repository.listDocuments('grant-2')).rejects.toBeInstanceOf(
+      GrantDocumentGrantNotFoundError
+    );
+
+    expect(grantQuery.calls).toContainEqual({ method: 'eq', args: ['org_id', 'org-1'] });
+    expect(grantQuery.calls).toContainEqual({ method: 'eq', args: ['portfolio_id', 'portfolio-1'] });
+    expect(mockStorageFrom).not.toHaveBeenCalled();
+  });
+
+  it('does not sign a document path outside the authorized portfolio and grant prefix', async () => {
+    const grantQuery = stubQuery(
+      { data: null, error: null },
+      { maybeSingle: { data: { id: 'grant-1' }, error: null } }
+    );
+    const documentsQuery = stubQuery({
+      data: [{ id: 'doc-1', storage_path: 'portfolio-2/grant-2/private.pdf' }],
+      error: null,
+    });
+    mockFrom.mockImplementation(table => table === 'grants' ? grantQuery : documentsQuery);
+    const repository = createGrantDocumentRepository(scope);
+
+    await expect(repository.listDocuments('grant-1')).rejects.toBeInstanceOf(
+      InvalidGrantDocumentPathError
+    );
+    expect(mockCreateSignedUrl).not.toHaveBeenCalled();
+  });
+
+  it('builds uploads inside the authorized portfolio and records the actor', async () => {
+    const grantQuery = stubQuery(
+      { data: null, error: null },
+      { maybeSingle: { data: { id: 'grant-1' }, error: null } }
+    );
+    const documentQuery = stubQuery(
+      { data: null, error: null },
+      { single: { data: { id: 'doc-1' }, error: null } }
+    );
+    mockFrom.mockImplementation(table => table === 'grants' ? grantQuery : documentQuery);
+    mockUpload.mockResolvedValue({ error: null });
+    const repository = createGrantDocumentRepository(scope);
+
+    await repository.uploadDocument({
+      grantId: 'grant-1',
+      documentType: 'proposal',
+      fileName: 'proposal.pdf',
+      fileSize: 128,
+      mimeType: 'application/pdf',
+      extension: 'pdf',
+      body: new ArrayBuffer(128),
+    });
+
+    expect(mockUpload).toHaveBeenCalledWith(
+      expect.stringMatching(/^portfolio-1\/grant-1\/proposal-[0-9a-f-]+\.pdf$/),
+      expect.any(ArrayBuffer),
+      { contentType: 'application/pdf', upsert: false }
+    );
+    expect(documentQuery.insert).toHaveBeenCalledWith(expect.objectContaining({
+      grant_id: 'grant-1',
+      uploaded_by: 'user-1',
+    }));
   });
 });

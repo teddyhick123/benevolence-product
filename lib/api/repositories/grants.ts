@@ -1,5 +1,5 @@
 import { createElevatedClient } from '@/lib/api/admin-client';
-import type { OrgAccessContext } from '@/lib/api/principals';
+import type { OrgAccessContext, PortfolioAccessContext } from '@/lib/api/principals';
 import type { DecisionPayload, LifecycleStage } from '@/lib/grants/lifecycle-shared';
 import { ORG_AUDIT_ACTIONS, writeOrgAuditEvent } from '@/lib/audit/org-audit';
 import { checkWorkflowGate } from '@/lib/grants/workflow-config';
@@ -8,6 +8,33 @@ import { runAutomationRulesForEvent } from '@/lib/tasks/automation/dynamic-rules
 type GrantRepositoryScope = Pick<OrgAccessContext, 'orgId'> & {
   actorId: string;
 };
+
+type GrantDocumentRepositoryScope = Pick<PortfolioAccessContext, 'orgId' | 'portfolioId'> & {
+  actorId: string;
+};
+
+const GRANT_DOCUMENT_BUCKET = 'grant-documents';
+
+export class GrantDocumentGrantNotFoundError extends Error {
+  constructor() {
+    super('Grant not found');
+    this.name = 'GrantDocumentGrantNotFoundError';
+  }
+}
+
+export class GrantDocumentNotFoundError extends Error {
+  constructor() {
+    super('Document not found');
+    this.name = 'GrantDocumentNotFoundError';
+  }
+}
+
+export class InvalidGrantDocumentPathError extends Error {
+  constructor() {
+    super('Grant document has an invalid storage path');
+    this.name = 'InvalidGrantDocumentPathError';
+  }
+}
 
 export type CreateGrantInput = {
   portfolioId: string;
@@ -61,6 +88,16 @@ export type RecordGrantDecisionInput = {
   rationale?: string | null;
   boardMeetingDate?: string | null;
   metadata?: Record<string, unknown> | null;
+};
+
+export type UploadGrantDocumentInput = {
+  grantId: string;
+  documentType: 'proposal' | 'agreement' | 'amendment' | 'report' | 'correspondence';
+  fileName: string;
+  fileSize: number;
+  mimeType: string;
+  extension: string;
+  body: ArrayBuffer;
 };
 
 const GRANT_WORKFLOW_SELECT =
@@ -245,6 +282,119 @@ export function createGrantRepository(scope: GrantRepositoryScope) {
           actor_id: scope.actorId,
         },
       });
+    },
+  };
+}
+
+/** Elevated grant-document storage constrained to one authorized portfolio. */
+export function createGrantDocumentRepository(scope: GrantDocumentRepositoryScope) {
+  const db = createElevatedClient();
+
+  async function requireScopedGrant(grantId: string) {
+    const { data, error } = await db
+      .from('grants')
+      .select('id')
+      .eq('id', grantId)
+      .eq('org_id', scope.orgId)
+      .eq('portfolio_id', scope.portfolioId)
+      .is('deleted_at', null)
+      .maybeSingle();
+
+    if (error) throw error;
+    if (!data) throw new GrantDocumentGrantNotFoundError();
+  }
+
+  function assertScopedPath(grantId: string, storagePath: string) {
+    if (!storagePath.startsWith(`${scope.portfolioId}/${grantId}/`)) {
+      throw new InvalidGrantDocumentPathError();
+    }
+  }
+
+  return {
+    async listDocuments(grantId: string) {
+      await requireScopedGrant(grantId);
+      const { data, error } = await db
+        .from('grant_documents')
+        .select('*')
+        .eq('grant_id', grantId)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+
+      return Promise.all((data ?? []).map(async document => {
+        assertScopedPath(grantId, document.storage_path);
+        const { data: signed, error: signedError } = await db.storage
+          .from(GRANT_DOCUMENT_BUCKET)
+          .createSignedUrl(document.storage_path, 3600);
+        if (signedError) throw signedError;
+        return { ...document, signed_url: signed?.signedUrl ?? null };
+      }));
+    },
+
+    async uploadDocument(input: UploadGrantDocumentInput) {
+      await requireScopedGrant(input.grantId);
+      const storagePath = `${scope.portfolioId}/${input.grantId}/${input.documentType}-${crypto.randomUUID()}.${input.extension}`;
+      assertScopedPath(input.grantId, storagePath);
+
+      const { error: uploadError } = await db.storage
+        .from(GRANT_DOCUMENT_BUCKET)
+        .upload(storagePath, input.body, {
+          contentType: input.mimeType,
+          upsert: false,
+        });
+      if (uploadError) throw uploadError;
+
+      const { data, error } = await db
+        .from('grant_documents')
+        .insert({
+          grant_id: input.grantId,
+          document_type: input.documentType,
+          file_name: input.fileName,
+          file_size: input.fileSize,
+          mime_type: input.mimeType,
+          storage_path: storagePath,
+          uploaded_by: scope.actorId,
+        })
+        .select()
+        .single();
+
+      if (error) {
+        const { error: removeError } = await db.storage
+          .from(GRANT_DOCUMENT_BUCKET)
+          .remove([storagePath]);
+        if (removeError) throw removeError;
+        throw error;
+      }
+
+      return data;
+    },
+
+    async deleteDocument(grantId: string, documentId: string) {
+      await requireScopedGrant(grantId);
+      const { data: document, error: findError } = await db
+        .from('grant_documents')
+        .select('id, storage_path')
+        .eq('id', documentId)
+        .eq('grant_id', grantId)
+        .maybeSingle();
+      if (findError) throw findError;
+      if (!document) throw new GrantDocumentNotFoundError();
+      assertScopedPath(grantId, document.storage_path);
+
+      const { data: deleted, error: deleteError } = await db
+        .from('grant_documents')
+        .delete()
+        .eq('id', documentId)
+        .eq('grant_id', grantId)
+        .select('id')
+        .maybeSingle();
+      if (deleteError) throw deleteError;
+      if (!deleted) throw new GrantDocumentNotFoundError();
+
+      const { error: storageDeleteError } = await db.storage
+        .from(GRANT_DOCUMENT_BUCKET)
+        .remove([document.storage_path]);
+
+      return { storageCleanupPending: Boolean(storageDeleteError) };
     },
   };
 }

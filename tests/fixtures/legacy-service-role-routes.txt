@@ -102,7 +102,6 @@ app/api/org/route.ts
 app/api/portfolio/[id]/compliance/990pf-export/route.ts
 app/api/portfolio/[id]/compliance/er-grants/route.ts
 app/api/portfolio/[id]/compliance/payout-forecast/route.ts
-app/api/portfolio/[id]/grants/[grantId]/documents/route.ts
 app/api/portfolio/[id]/holdings/[holdingId]/milestones/[milestoneId]/route.ts
 app/api/portfolio/[id]/map/route.ts
 app/api/portfolio/[id]/widgets/save-preview/route.ts

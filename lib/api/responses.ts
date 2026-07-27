@@ -16,13 +16,14 @@ export function jsonOk<T>(body: T, init: ResponseInit = {}): NextResponse<T> {
 }
 
 /** Standard JSON error response; defaults to no-store. */
-export function jsonError(
+export function jsonError<T extends Record<string, unknown> = Record<string, never>>(
   message: string,
   status: number,
+  details?: T,
   init: Omit<ResponseInit, 'status'> = {}
-): NextResponse<{ error: string }> {
+): NextResponse<{ error: string } & T> {
   return NextResponse.json(
-    { error: message },
+    { error: message, ...details } as { error: string } & T,
     withDefaultCache({ ...init, status })
   );
 }

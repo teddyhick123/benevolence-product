@@ -25,4 +25,14 @@ describe('API JSON responses', () => {
     expect(response.headers.get('Cache-Control')).toBe('no-store');
     expect(await response.json()).toEqual({ error: 'Forbidden' });
   });
+
+  it('preserves route-specific error details without losing the standard shape', async () => {
+    const response = jsonError('Sync failed', 500, { rollback_error: 'Rollback failed' });
+
+    expect(response.status).toBe(500);
+    expect(await response.json()).toEqual({
+      error: 'Sync failed',
+      rollback_error: 'Rollback failed',
+    });
+  });
 });

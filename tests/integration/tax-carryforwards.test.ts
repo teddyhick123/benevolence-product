@@ -52,6 +52,50 @@ vi.mock('@/lib/supabase', () => ({
   supabasePublic: vi.fn(async () => ({ rpc: mockRpc, from: mockFrom })),
 }));
 
+vi.mock('@/lib/api/access', () => ({
+  requirePortfolioAccess: vi.fn(async (
+    portfolioId: string,
+    minRole: 'viewer' | 'member' = 'viewer'
+  ) => {
+    const error = minRole === 'member' ? _canEditError : _canViewError;
+    if (error) {
+      return {
+        ok: false,
+        reason: 'infrastructure',
+        response: Response.json(
+          { error: error.message },
+          { status: 500, headers: { 'Cache-Control': 'no-store' } }
+        ),
+      };
+    }
+
+    const allowed = minRole === 'member' ? _canEdit : _canView;
+    if (!allowed) {
+      return {
+        ok: false,
+        reason: 'forbidden',
+        response: Response.json(
+          { error: 'Access denied' },
+          { status: 403, headers: { 'Cache-Control': 'no-store' } }
+        ),
+      };
+    }
+
+    return {
+      ok: true,
+      context: {
+        db: { rpc: mockRpc, from: mockFrom },
+        portfolioId,
+        orgId: 'org-1',
+        role: minRole,
+        principal: { kind: 'user', userId: 'user-1' },
+        user: { id: 'user-1' },
+      },
+    };
+  }),
+  isAccessDenied: vi.fn((result: { ok: boolean }) => !result.ok),
+}));
+
 // ── Mock setup ─────────────────────────────────────────────────────────────────
 
 function setupMocks() {

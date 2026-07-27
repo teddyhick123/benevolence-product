@@ -27,7 +27,7 @@
     "handoff": "ts-node --project tsconfig.scripts.json scripts/export-client-package.ts",
     "migrate-client": "ts-node --project tsconfig.scripts.json scripts/migrate-client.ts",
     "verify:types": "tsc --noEmit",
-    "verify:lint": "eslint . --ext .js,.jsx,.ts,.tsx --max-warnings=510",
+    "verify:lint": "eslint . --ext .js,.jsx,.ts,.tsx --max-warnings=509",
     "verify:unit": "vitest run",
     "verify:migrations": "supabase db reset && bash scripts/verify/migrations-assert.sh",
     "verify:build": "next build"

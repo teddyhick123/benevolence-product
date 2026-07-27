@@ -434,6 +434,9 @@ describe('foundation reliability contracts', () => {
       expect(route).not.toContain('description_of_property');
     }
 
+    expect(payoutRoute).toContain('requirePortfolioAccess');
+    expect(payoutRoute).toContain('Number.isFinite(requestedYear)');
+    expect(payoutRoute).not.toContain('createServerClient');
     expect(exportRoute).not.toContain('fair_market_value_assets * 0.05');
     expect(helper).toContain('minimumInvestmentReturn');
     expect(helper).toContain('actual_payout');

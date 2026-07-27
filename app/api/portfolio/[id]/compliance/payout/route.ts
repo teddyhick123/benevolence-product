@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { createServerClient } from '@/lib/supabase';
+import { NextRequest } from 'next/server';
+import { requirePortfolioAccess } from '@/lib/api/access';
+import { jsonError, jsonOk } from '@/lib/api/responses';
 import { calculatePayout } from '@/lib/compliance/payout';
 
 export const dynamic = 'force-dynamic';
@@ -8,52 +9,36 @@ interface RouteParams {
   params: Promise<{ id: string }>;
 }
 
-function json(body: Record<string, unknown>, init?: ResponseInit) {
-  return NextResponse.json(body, {
-    ...init,
-    headers: {
-      ...init?.headers,
-      'Cache-Control': 'no-store',
-    },
-  });
-}
-
 // GET /api/portfolio/[id]/compliance/payout?year=2025
 // Returns { net_assets, required_payout (5%), actual_distributions, surplus_or_deficit, pct_distributed }
 export async function GET(req: NextRequest, { params }: RouteParams) {
   try {
     const { id: portfolioId } = await params;
-    const supabase = await createServerClient();
+    const access = await requirePortfolioAccess(portfolioId, 'viewer');
+    if (!access.ok) return access.response;
+    const db = access.context.db;
     const { searchParams } = new URL(req.url);
-    const year = searchParams.get('year') ? parseInt(searchParams.get('year')!) : new Date().getFullYear() - 1;
-
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      return json({ error: 'Unauthorized' }, { status: 401 });
+    const requestedYear = Number.parseInt(
+      searchParams.get('year') ?? String(new Date().getFullYear() - 1),
+      10
+    );
+    if (!Number.isFinite(requestedYear) || requestedYear < 1900 || requestedYear > 2100) {
+      return jsonError('Invalid tax year', 400);
     }
+    const year = requestedYear;
 
-    const { data: canView, error: canViewErr } = await supabase.rpc('can_view_portfolio', {
-      p_portfolio_id: portfolioId,
-    });
-    if (canViewErr) {
-      return json({ error: canViewErr.message }, { status: 500 });
-    }
-    if (!canView) {
-      return json({ error: 'Access denied' }, { status: 403 });
-    }
-
-    const { data: portfolio, error: portErr } = await supabase
+    const { data: portfolio, error: portErr } = await db
       .from('portfolios')
       .select('id, name')
       .eq('id', portfolioId)
       .single();
 
     if (portErr || !portfolio) {
-      return json({ error: 'Access denied' }, { status: 403 });
+      return jsonError('Access denied', 403);
     }
 
     // Fetch 990-PF data
-    const { data: pf990, error: pf990Error } = await supabase
+    const { data: pf990, error: pf990Error } = await db
       .from('foundation_990pf_data')
       .select('*')
       .eq('portfolio_id', portfolioId)
@@ -61,19 +46,19 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       .maybeSingle();
 
     if (pf990Error) {
-      return json({ error: pf990Error.message }, { status: 500 });
+      return jsonError(pf990Error.message, 500);
     }
 
     // Fetch actual qualifying distributions for the year. Donor tax
     // contribution rows are not a valid source for foundation payout facts.
-    const { data: distributions, error: distributionsError } = await supabase
+    const { data: distributions, error: distributionsError } = await db
       .from('qualifying_distributions')
       .select('qualifying_amount')
       .eq('portfolio_id', portfolioId)
       .eq('tax_year', year);
 
     if (distributionsError) {
-      return json({ error: distributionsError.message }, { status: 500 });
+      return jsonError(distributionsError.message, 500);
     }
 
     const qualifyingDistributionTotal = (distributions || []).reduce(
@@ -82,7 +67,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     );
     const payout = calculatePayout(pf990, qualifyingDistributionTotal);
 
-    return json({
+    return jsonOk({
       portfolio_id: portfolioId,
       tax_year: year,
       net_assets: payout.assetBase,
@@ -99,7 +84,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       has_self_dealing: pf990?.has_self_dealing ?? false,
       self_dealing_notes: pf990?.self_dealing_notes ?? null,
     });
-  } catch (err: any) {
-    return json({ error: err.message }, { status: 500 });
+  } catch (err: unknown) {
+    return jsonError(err instanceof Error ? err.message : 'Internal error', 500);
   }
 }

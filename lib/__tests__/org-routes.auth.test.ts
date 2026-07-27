@@ -390,8 +390,11 @@ describe('org-scoped route auth contracts', () => {
     expect(dashboardRoute).not.toContain('compliance_regulatory');
 
     const stateRoute = readFileSync('app/api/org/[orgId]/compliance/state-registrations/route.ts', 'utf8');
-    expect(stateRoute).toContain("'Cache-Control': 'no-store'");
-    expect(stateRoute).toContain('is_org_admin');
+    expect(stateRoute).toContain('requireOrgAccess');
+    expect(stateRoute).toContain("requireOrgAccess(orgId, 'admin')");
+    expect(stateRoute).toContain('stateRegistrationSchema');
+    expect(stateRoute).toContain('jsonOk');
+    expect(stateRoute).not.toContain('createServerClient');
 
     const disqualifiedRoute = readFileSync('app/api/org/[orgId]/compliance/disqualified-persons/route.ts', 'utf8');
     expect(disqualifiedRoute).toContain("'Cache-Control': 'no-store'");

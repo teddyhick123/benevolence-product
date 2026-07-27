@@ -1,5 +1,5 @@
-import { NextResponse } from 'next/server';
-import { supabasePublic } from '@/lib/supabase';
+import { requirePortfolioAccess, isAccessDenied } from '@/lib/api/access';
+import { jsonError, jsonOk } from '@/lib/api/responses';
 import {
   calculateScenario,
   compareScenarios,
@@ -24,19 +24,13 @@ export async function POST(
   ctx: { params: Promise<{ id: string }> }
 ) {
   const { id: portfolio_id } = await ctx.params;
-  const sb = await supabasePublic();
-
-  // Check permissions
-  const { data: canEdit, error: canEditErr } = await sb.rpc('can_edit_portfolio', {
-    p_portfolio_id: portfolio_id,
-  });
-
-  if (canEditErr || !canEdit) {
-    return NextResponse.json(
-      { error: 'Not authorized' },
-      { status: 403, headers: { 'Cache-Control': 'no-store' } }
-    );
+  const access = await requirePortfolioAccess(portfolio_id, 'member');
+  if (isAccessDenied(access)) {
+    return access.reason === 'unauthenticated'
+      ? access.response
+      : jsonError('Not authorized', 403);
   }
+  const sb = access.context.db;
 
   try {
     const body = await req.json();
@@ -50,13 +44,9 @@ export async function POST(
       .maybeSingle();
 
     if (!taxYear || !taxYear.adjusted_gross_income) {
-      return NextResponse.json(
-        {
-          error: 'AGI not set',
-          message: `Please set your Adjusted Gross Income for ${year} before running scenarios.`,
-        },
-        { status: 400, headers: { 'Cache-Control': 'no-store' } }
-      );
+      return jsonError('AGI not set', 400, {
+        message: `Please set your Adjusted Gross Income for ${year} before running scenarios.`,
+      });
     }
 
     // Fetch existing contributions for the year
@@ -79,28 +69,19 @@ export async function POST(
     // Mode: Single scenario
     if (mode === 'single') {
       if (!scenarios || scenarios.length === 0) {
-        return NextResponse.json(
-          { error: 'No scenario provided' },
-          { status: 400, headers: { 'Cache-Control': 'no-store' } }
-        );
+        return jsonError('No scenario provided', 400);
       }
 
       const scenarioInput: ScenarioInput = { ...baseInput, ...scenarios[0] };
       const result = calculateScenario(scenarioInput);
 
-      return NextResponse.json(
-        { data: result },
-        { headers: { 'Cache-Control': 'no-store' } }
-      );
+      return jsonOk({ data: result });
     }
 
     // Mode: Compare scenarios
     if (mode === 'compare') {
       if (!scenarios || scenarios.length < 2) {
-        return NextResponse.json(
-          { error: 'Need at least 2 scenarios to compare' },
-          { status: 400, headers: { 'Cache-Control': 'no-store' } }
-        );
+        return jsonError('Need at least 2 scenarios to compare', 400);
       }
 
       const scenarioInputs: ScenarioInput[] = scenarios.map((s: any) => ({
@@ -110,19 +91,13 @@ export async function POST(
 
       const result = compareScenarios(scenarioInputs);
 
-      return NextResponse.json(
-        { data: result },
-        { headers: { 'Cache-Control': 'no-store' } }
-      );
+      return jsonOk({ data: result });
     }
 
     // Mode: Calculate optimal donation amount
     if (mode === 'optimal') {
       if (!donation_type) {
-        return NextResponse.json(
-          { error: 'donation_type required for optimal calculation' },
-          { status: 400, headers: { 'Cache-Control': 'no-store' } }
-        );
+        return jsonError('donation_type required for optimal calculation', 400);
       }
 
       const existingInCategory = getExistingContributionsForType(donation_type, summary);
@@ -133,18 +108,15 @@ export async function POST(
         existing_contributions_in_category: existingInCategory,
       });
 
-      return NextResponse.json(
-        { data: result },
-        { headers: { 'Cache-Control': 'no-store' } }
-      );
+      return jsonOk({ data: result });
     }
 
     // Mode: Bunching strategy analysis
     if (mode === 'bunching') {
       if (!annual_amount || !donation_type || !years) {
-        return NextResponse.json(
-          { error: 'annual_amount, donation_type, and years required for bunching analysis' },
-          { status: 400, headers: { 'Cache-Control': 'no-store' } }
+        return jsonError(
+          'annual_amount, donation_type, and years required for bunching analysis',
+          400
         );
       }
 
@@ -157,21 +129,15 @@ export async function POST(
         tax_year: year, // Pass tax year for correct standard deduction
       });
 
-      return NextResponse.json(
-        { data: result },
-        { headers: { 'Cache-Control': 'no-store' } }
-      );
+      return jsonOk({ data: result });
     }
 
-    return NextResponse.json(
-      { error: 'Invalid mode. Use: single, compare, optimal, or bunching' },
-      { status: 400, headers: { 'Cache-Control': 'no-store' } }
+    return jsonError(
+      'Invalid mode. Use: single, compare, optimal, or bunching',
+      400
     );
   } catch (error) {
-    return NextResponse.json(
-      { error: 'Failed to calculate scenarios' },
-      { status: 500, headers: { 'Cache-Control': 'no-store' } }
-    );
+    return jsonError('Failed to calculate scenarios', 500);
   }
 }
 

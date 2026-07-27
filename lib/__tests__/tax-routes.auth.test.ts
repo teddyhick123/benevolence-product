@@ -114,7 +114,8 @@ describe('tax routes auth contract: AGI reads stay under session RLS', () => {
     ]) {
       const src = readFileSync(route, 'utf8');
       expect(src, route).not.toContain('createAdminClient');
-      expect(src, route).toMatch(/const sb = await supabasePublic\(\);[\s\S]*from\('tax_years'\)/);
+      expect(src, route).toContain("requirePortfolioAccess(portfolio_id, 'member')");
+      expect(src, route).toMatch(/const sb = access\.context\.db;[\s\S]*from\('tax_years'\)/);
     }
   });
 

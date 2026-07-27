@@ -1,5 +1,5 @@
-import { NextResponse } from 'next/server';
-import { supabasePublic } from '@/lib/supabase';
+import { requirePortfolioAccess, isAccessDenied } from '@/lib/api/access';
+import { jsonError, jsonOk } from '@/lib/api/responses';
 import {
   optimizeDonationStrategy,
   generateOptimizationSummary,
@@ -29,19 +29,13 @@ export async function POST(
   ctx: { params: Promise<{ id: string }> }
 ) {
   const { id: portfolio_id } = await ctx.params;
-  const sb = await supabasePublic();
-
-  // Check permissions
-  const { data: canEdit, error: canEditErr } = await sb.rpc('can_edit_portfolio', {
-    p_portfolio_id: portfolio_id,
-  });
-
-  if (canEditErr || !canEdit) {
-    return NextResponse.json(
-      { error: 'Not authorized' },
-      { status: 403, headers: { 'Cache-Control': 'no-store' } }
-    );
+  const access = await requirePortfolioAccess(portfolio_id, 'member');
+  if (isAccessDenied(access)) {
+    return access.reason === 'unauthenticated'
+      ? access.response
+      : jsonError('Not authorized', 403);
   }
+  const sb = access.context.db;
 
   try {
     const body = await req.json();
@@ -55,13 +49,9 @@ export async function POST(
       .maybeSingle();
 
     if (!taxYear || !taxYear.adjusted_gross_income) {
-      return NextResponse.json(
-        {
-          error: 'AGI not set',
-          message: `Please set your Adjusted Gross Income for ${year} before running optimization.`,
-        },
-        { status: 400, headers: { 'Cache-Control': 'no-store' } }
-      );
+      return jsonError('AGI not set', 400, {
+        message: `Please set your Adjusted Gross Income for ${year} before running optimization.`,
+      });
     }
 
     // Fetch existing contributions summary
@@ -97,6 +87,7 @@ export async function POST(
     const { data: enhancedHoldings } = await sb
       .from('holdings')
       .select('id, cost_basis, fmv')
+      .eq('portfolio_id', portfolio_id)
       .in('id', holdingIds);
 
     // Map holdings to optimization format
@@ -124,21 +115,15 @@ export async function POST(
     const strategies = optimizeDonationStrategy(optimizationInput);
     const summary_text = generateOptimizationSummary(strategies);
 
-    return NextResponse.json(
-      {
-        data: {
-          strategies,
-          summary: summary_text,
-          tax_situation: taxSituation,
-          holdings_analyzed: portfolioHoldings.length,
-        },
+    return jsonOk({
+      data: {
+        strategies,
+        summary: summary_text,
+        tax_situation: taxSituation,
+        holdings_analyzed: portfolioHoldings.length,
       },
-      { headers: { 'Cache-Control': 'no-store' } }
-    );
+    });
   } catch (error) {
-    return NextResponse.json(
-      { error: 'Failed to run optimization' },
-      { status: 500, headers: { 'Cache-Control': 'no-store' } }
-    );
+    return jsonError('Failed to run optimization', 500);
   }
 }

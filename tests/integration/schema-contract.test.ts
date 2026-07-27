@@ -360,6 +360,7 @@ describe('Schema contract: tax document storage privacy', () => {
       return '';
     }
   })();
+  const taxRepositorySrc = readFileSync('lib/api/repositories/tax.ts', 'utf-8');
 
   it('0013_tax_contributions.sql creates the tax-documents storage bucket', () => {
     expect(migrationsSrc).toMatch(/INSERT\s+INTO\s+storage\.buckets/i);
@@ -372,10 +373,12 @@ describe('Schema contract: tax document storage privacy', () => {
 
   it('upload route does not use getPublicUrl (documents must be private)', () => {
     expect(uploadRouteSrc).not.toMatch(/getPublicUrl/);
+    expect(taxRepositorySrc).not.toMatch(/getPublicUrl/);
   });
 
   it('upload route uses createSignedUrl to return private document URLs', () => {
-    expect(uploadRouteSrc).toMatch(/createSignedUrl/);
+    expect(uploadRouteSrc).toMatch(/createSignedDocumentUrl/);
+    expect(taxRepositorySrc).toMatch(/createSignedUrl/);
   });
 });
 

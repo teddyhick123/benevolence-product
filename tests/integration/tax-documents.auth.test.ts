@@ -156,7 +156,7 @@ function setupMocks() {
   });
 
   // Admin DB mock (used in POST insert and DELETE)
-  mockAdminFrom.mockImplementation((table: string) => {
+  mockAdminFrom.mockImplementation((_table: string) => {
     const b: any = {
       select: vi.fn(() => b),
       insert: vi.fn(() => b),

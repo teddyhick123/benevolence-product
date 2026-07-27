@@ -105,7 +105,7 @@ function taxProfileBuilder() {
       if (operation === 'update' && selectedAfterWrite) return { data: _updated, error: null };
       return { data: _profile, error: null };
     }),
-    then: (resolve: (value: unknown) => unknown) => resolve({
+    then: (resolve: (_value: unknown) => unknown) => resolve({
       data: null,
       error: operation === 'delete' || (operation === 'update' && !selectedAfterWrite)
         ? _rollbackError
@@ -121,7 +121,7 @@ function adminBuilder() {
       _capturedTaxYearUpsert = value;
       return builder;
     }),
-    then: (resolve: (value: unknown) => unknown) => resolve({
+    then: (resolve: (_value: unknown) => unknown) => resolve({
       data: null,
       error: _taxYearError,
     }),

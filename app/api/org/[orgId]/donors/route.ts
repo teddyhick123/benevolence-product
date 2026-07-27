@@ -1,40 +1,25 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { createServerClient } from '@/lib/supabase';
-import { isOrgOperator } from '@/lib/roles';
+import { NextRequest } from 'next/server';
+import { requireOrgAccess } from '@/lib/api/access';
+import { jsonError, jsonOk } from '@/lib/api/responses';
+import { createDonorSchema } from '@/lib/schemas/donor';
 
 export const dynamic = 'force-dynamic';
 
-const NO_STORE = { 'Cache-Control': 'no-store' } as const;
-
 interface RouteParams {
   params: Promise<{ orgId: string }>;
-}
-
-function json(body: unknown, init: ResponseInit = {}) {
-  return NextResponse.json(body, {
-    ...init,
-    headers: {
-      ...NO_STORE,
-      ...(init.headers || {}),
-    },
-  });
 }
 
 // GET /api/org/[orgId]/donors — list donors via v_donor_summary
 export async function GET(req: NextRequest, { params }: RouteParams) {
   try {
     const { orgId } = await params;
-    const supabase = await createServerClient();
+    // Donor PII is intentionally stricter than ordinary org reads.
+    const access = await requireOrgAccess(orgId, 'member');
+    if (!access.ok) return access.response;
+    const db = access.context.db;
     const { searchParams } = new URL(req.url);
 
-    const { data: role } = await supabase.rpc('user_org_role', { p_org_id: orgId });
-    // Donor PII (email, phone, address) is restricted to member-and-above.
-    // Viewer role can read aggregate org data but not individual donor records.
-    if (!isOrgOperator(role)) {
-      return json({ error: 'Not authorized' }, { status: 403 });
-    }
-
-    let query = supabase
+    let query = db
       .from('v_donor_summary')
       .select('*', { count: 'exact' })
       .eq('org_id', orgId);
@@ -67,16 +52,16 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       .range(offset, offset + limit - 1);
 
     if (error) {
-      return json({ error: error.message }, { status: 500 });
+      return jsonError(error.message, 500);
     }
 
-    return json({
+    return jsonOk({
       donors,
       total: count ?? donors?.length ?? 0,
       count: donors?.length || 0,
     });
-  } catch (err: any) {
-    return json({ error: err.message }, { status: 500 });
+  } catch (err: unknown) {
+    return jsonError(err instanceof Error ? err.message : 'Internal error', 500);
   }
 }
 
@@ -84,22 +69,18 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
 export async function POST(req: NextRequest, { params }: RouteParams) {
   try {
     const { orgId } = await params;
-    const supabase = await createServerClient();
-
-    const { data: canEdit } = await supabase.rpc('can_edit_org', { p_org_id: orgId });
-    if (!canEdit) {
-      return json({ error: 'Not authorized' }, { status: 403 });
-    }
-
-    const body = await req.json();
+    const access = await requireOrgAccess(orgId, 'member');
+    if (!access.ok) return access.response;
+    const parsed = createDonorSchema.safeParse(await req.json().catch(() => ({})));
+    if (!parsed.success) return jsonError('Validation failed', 400, { details: parsed.error.format() });
     const {
       first_name, last_name, email, phone,
       organization_name, is_organization, preferred_name,
       address_line1, address_line2, city, state, zip, country,
       tier, notes, tags,
-    } = body;
+    } = parsed.data;
 
-    const { data: donor, error } = await supabase
+    const { data: donor, error } = await access.context.db
       .from('donors')
       .insert({
         org_id: orgId,
@@ -124,11 +105,11 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       .single();
 
     if (error) {
-      return json({ error: error.message }, { status: 500 });
+      return jsonError(error.message, 500);
     }
 
-    return json(donor, { status: 201 });
-  } catch (err: any) {
-    return json({ error: err.message }, { status: 500 });
+    return jsonOk(donor, { status: 201 });
+  } catch (err: unknown) {
+    return jsonError(err instanceof Error ? err.message : 'Internal error', 500);
   }
 }

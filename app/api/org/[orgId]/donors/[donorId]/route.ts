@@ -1,37 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createServerClient } from '@/lib/supabase';
-import { isOrgOperator } from '@/lib/roles';
+import { requireOrgAccess } from '@/lib/api/access';
+import { AUTHENTICATED_JSON_CACHE_CONTROL, jsonError, jsonOk } from '@/lib/api/responses';
+import { updateDonorSchema } from '@/lib/schemas/donor';
 
 export const dynamic = 'force-dynamic';
-
-const NO_STORE = { 'Cache-Control': 'no-store' } as const;
 
 interface RouteParams {
   params: Promise<{ orgId: string; donorId: string }>;
 }
 
-function json(body: unknown, init: ResponseInit = {}) {
-  return NextResponse.json(body, {
-    ...init,
-    headers: {
-      ...NO_STORE,
-      ...(init.headers || {}),
-    },
-  });
-}
-
 // GET /api/org/[orgId]/donors/[donorId]
-export async function GET(req: NextRequest, { params }: RouteParams) {
+export async function GET(_req: NextRequest, { params }: RouteParams) {
   try {
     const { orgId, donorId } = await params;
-    const supabase = await createServerClient();
+    const access = await requireOrgAccess(orgId, 'member');
+    if (!access.ok) return access.response;
+    const db = access.context.db;
 
-    const { data: role } = await supabase.rpc('user_org_role', { p_org_id: orgId });
-    if (!isOrgOperator(role)) {
-      return json({ error: 'Not authorized' }, { status: 403 });
-    }
-
-    const { data: donor, error } = await supabase
+    const { data: donor, error } = await db
       .from('v_donor_summary')
       .select('*')
       .eq('org_id', orgId)
@@ -39,31 +25,34 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       .maybeSingle();
 
     if (error) {
-      return json({ error: error.message }, { status: 500 });
+      return jsonError(error.message, 500);
     }
     if (!donor) {
-      return json({ error: 'Donor not found' }, { status: 404 });
+      return jsonError('Donor not found', 404);
     }
 
-    // Fetch contribution history
-    const { data: contributions } = await supabase
-      .from('contributions_received')
-      .select('*')
-      .eq('org_id', orgId)
-      .eq('donor_id', donorId)
-      .order('contribution_date', { ascending: false });
+    const [contributionResult, letterResult] = await Promise.all([
+      db.from('contributions_received')
+        .select('*')
+        .eq('org_id', orgId)
+        .eq('donor_id', donorId)
+        .order('contribution_date', { ascending: false }),
+      db.from('acknowledgment_letters')
+        .select('id, letter_type, status, subject, sent_via, sent_at, pdf_url, created_at')
+        .eq('org_id', orgId)
+        .eq('donor_id', donorId)
+        .order('created_at', { ascending: false }),
+    ]);
+    if (contributionResult.error) throw contributionResult.error;
+    if (letterResult.error) throw letterResult.error;
 
-    // Fetch acknowledgment letters
-    const { data: letters } = await supabase
-      .from('acknowledgment_letters')
-      .select('id, letter_type, status, subject, sent_via, sent_at, pdf_url, created_at')
-      .eq('org_id', orgId)
-      .eq('donor_id', donorId)
-      .order('created_at', { ascending: false });
-
-    return json({ donor, contributions: contributions || [], letters: letters || [] });
-  } catch (err: any) {
-    return json({ error: err.message }, { status: 500 });
+    return jsonOk({
+      donor,
+      contributions: contributionResult.data || [],
+      letters: letterResult.data || [],
+    });
+  } catch (err: unknown) {
+    return jsonError(err instanceof Error ? err.message : 'Internal error', 500);
   }
 }
 
@@ -71,62 +60,39 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
 export async function PATCH(req: NextRequest, { params }: RouteParams) {
   try {
     const { orgId, donorId } = await params;
-    const supabase = await createServerClient();
+    const access = await requireOrgAccess(orgId, 'member');
+    if (!access.ok) return access.response;
+    const parsed = updateDonorSchema.safeParse(await req.json().catch(() => ({})));
+    if (!parsed.success) return jsonError('Validation failed', 400, { details: parsed.error.format() });
+    if (Object.keys(parsed.data).length === 0) return jsonError('No updates provided', 400);
 
-    const { data: canEdit } = await supabase.rpc('can_edit_org', { p_org_id: orgId });
-    if (!canEdit) {
-      return json({ error: 'Not authorized' }, { status: 403 });
-    }
-
-    const body = await req.json();
-    const allowedFields = [
-      'first_name', 'last_name', 'email', 'phone',
-      'organization_name', 'is_organization', 'preferred_name',
-      'address_line1', 'address_line2', 'city', 'state', 'zip', 'country',
-      'tier', 'recency_status', 'notes', 'tags',
-    ];
-
-    const updates: Record<string, any> = {};
-    for (const field of allowedFields) {
-      if (field in body) updates[field] = body[field];
-    }
-    if (Object.keys(updates).length === 0) {
-      return json({ error: 'No updates provided' }, { status: 400 });
-    }
-
-    const { data: donor, error } = await supabase
+    const { data: donor, error } = await access.context.db
       .from('donors')
-      .update(updates)
+      .update(parsed.data)
       .eq('id', donorId)
       .eq('org_id', orgId)
       .select()
       .single();
 
     if (error) {
-      return json({ error: error.message }, { status: 500 });
+      return jsonError(error.message, 500);
     }
 
-    return json(donor);
-  } catch (err: any) {
-    return json({ error: err.message }, { status: 500 });
+    return jsonOk(donor);
+  } catch (err: unknown) {
+    return jsonError(err instanceof Error ? err.message : 'Internal error', 500);
   }
 }
 
 // DELETE /api/org/[orgId]/donors/[donorId]
-export async function DELETE(req: NextRequest, { params }: RouteParams) {
+export async function DELETE(_req: NextRequest, { params }: RouteParams) {
   try {
     const { orgId, donorId } = await params;
-    const supabase = await createServerClient();
+    const access = await requireOrgAccess(orgId, 'admin');
+    if (!access.ok) return access.response;
+    const { db, user } = access.context;
 
-    const { data: isAdmin } = await supabase.rpc('is_org_admin', { p_org_id: orgId });
-    if (!isAdmin) {
-      return json({ error: 'Admin access required' }, { status: 403 });
-    }
-
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return json({ error: 'Unauthorized' }, { status: 401 });
-
-    const { data: donor, error } = await supabase
+    const { data: donor, error } = await db
       .from('donors')
       .update({
         deleted_at: new Date().toISOString(),
@@ -139,12 +105,15 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
       .maybeSingle();
 
     if (error) {
-      return json({ error: error.message }, { status: 500 });
+      return jsonError(error.message, 500);
     }
-    if (!donor) return json({ error: 'Donor not found' }, { status: 404 });
+    if (!donor) return jsonError('Donor not found', 404);
 
-    return new NextResponse(null, { status: 204, headers: NO_STORE });
-  } catch (err: any) {
-    return json({ error: err.message }, { status: 500 });
+    return new NextResponse(null, {
+      status: 204,
+      headers: { 'Cache-Control': AUTHENTICATED_JSON_CACHE_CONTROL },
+    });
+  } catch (err: unknown) {
+    return jsonError(err instanceof Error ? err.message : 'Internal error', 500);
   }
 }

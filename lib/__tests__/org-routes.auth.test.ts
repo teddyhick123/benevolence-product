@@ -108,11 +108,18 @@ describe('org-scoped route auth contracts', () => {
       'app/api/org/[orgId]/donors/[donorId]/route.ts',
     ]) {
       const src = readFileSync(route, 'utf8');
-      expect(src, route).toContain('isOrgOperator');
-      expect(src, route).toContain("'Cache-Control': 'no-store'");
+      expect(src, route).toContain('requireOrgAccess');
+      expect(src, route).toContain('jsonError');
+      expect(src, route).not.toContain('createServerClient');
     }
 
+    const listRoute = readFileSync('app/api/org/[orgId]/donors/route.ts', 'utf8');
+    expect(listRoute).toContain("requireOrgAccess(orgId, 'member')");
+    expect(listRoute).toContain('createDonorSchema');
+
     const detailRoute = readFileSync('app/api/org/[orgId]/donors/[donorId]/route.ts', 'utf8');
+    expect(detailRoute).toContain("requireOrgAccess(orgId, 'admin')");
+    expect(detailRoute).toContain('updateDonorSchema');
     expect(detailRoute).toContain('deleted_at');
     expect(detailRoute).toContain('deleted_by');
     expect(detailRoute).not.toContain(".delete()");

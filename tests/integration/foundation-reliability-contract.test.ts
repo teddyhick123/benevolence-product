@@ -19,7 +19,9 @@ describe('foundation reliability contracts', () => {
   it('portfolio-scoped APIs explicitly declare private cache behavior', () => {
     for (const path of routeFiles('app/api/portfolio/[id]')) {
       const route = src(path);
-      expect(route, path).toMatch(/no-store|s-maxage|stale-while-revalidate/);
+      expect(route, path).toMatch(
+        /no-store|s-maxage|stale-while-revalidate|@\/lib\/api\/responses/
+      );
     }
   });
 

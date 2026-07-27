@@ -178,11 +178,15 @@ describe('foundation reliability contracts', () => {
 
   it('tax profile mutations always create the canonical tax year row', () => {
     const route = src('app/api/portfolio/[id]/tax/profile/route.ts');
+    const repository = src('lib/api/repositories/tax.ts');
 
-    expect(route.match(/from\('tax_years'\)[\s\S]{0,80}\.upsert\(/g)?.length).toBe(2);
+    expect(route.match(/taxRepository\.syncTaxYear\(/g)?.length).toBe(2);
+    expect(repository).toContain("from('tax_years')");
+    expect(repository).toContain('.upsert({');
+    expect(repository).toContain('portfolio_id: scope.portfolioId');
     expect(route).toContain('Always ensure the canonical tax_years row exists');
-    expect(route).toContain('adjusted_gross_income: created.estimated_agi ?? null');
-    expect(route).toContain('adjusted_gross_income: updated.estimated_agi ?? null');
+    expect(route).toContain('adjustedGrossIncome: created.estimated_agi ?? null');
+    expect(route).toContain('adjustedGrossIncome: updated.estimated_agi ?? null');
     expect(route).not.toContain('if (validated.estimated_agi || validated.filing_status)');
     expect(route).not.toContain('if (validated.estimated_agi !== undefined || validated.filing_status !== undefined)');
   });

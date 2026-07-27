@@ -5,7 +5,7 @@ import { readFileSync } from 'fs';
 
 const publicRouteSrc = readFileSync('app/api/tax/cpa/[token]/route.ts', 'utf8');
 const downloadRouteSrc = readFileSync('app/api/tax/cpa/[token]/download/route.ts', 'utf8');
-const publicAccessSrc = readFileSync('lib/tax/cpa-public-access.ts', 'utf8');
+const publicAccessSrc = readFileSync('lib/api/repositories/cpa-share.ts', 'utf8');
 const pageSrc = readFileSync('app/tax/cpa/[token]/page.tsx', 'utf8');
 
 describe('CPA public portal contract', () => {
@@ -41,11 +41,17 @@ describe('CPA public portal contract', () => {
   });
 
   it('revalidates share links around admin-client payload reads', () => {
-    expect(publicAccessSrc).toContain('async function refreshValidCPAShareLink');
-    expect(publicAccessSrc).toMatch(/const refreshed = await refreshValidCPAShareLink\(supabase, link\)/);
-    expect(publicAccessSrc).toMatch(/const finalRefresh = await refreshValidCPAShareLink\(supabase, activeLink\)/);
-    expect(publicAccessSrc).toMatch(/const finalRefresh = await refreshValidCPAShareLink\(supabase, link\)/);
+    expect(publicAccessSrc).toContain('async function refreshValidLink');
+    expect(publicAccessSrc).toMatch(/const refreshed = await refreshValidLink\(link\)/);
+    expect(publicAccessSrc).toMatch(/const finalRefresh = await refreshValidLink\(activeLink\)/);
+    expect(publicAccessSrc).toMatch(/const finalRefresh = await refreshValidLink\(link\)/);
     expect(publicAccessSrc).toContain('share: sanitizeLink(finalRefresh.link)');
+  });
+
+  it('keeps elevated construction inside the principal-scoped repository', () => {
+    const compatibilitySrc = readFileSync('lib/tax/cpa-public-access.ts', 'utf8');
+    expect(publicAccessSrc).toContain('createElevatedClient()');
+    expect(compatibilitySrc).not.toContain('createElevatedClient');
   });
 
   it('public page fetches the public API route', () => {

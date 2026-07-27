@@ -4,11 +4,21 @@ import { createServerClient } from '@/lib/api/server-client';
 import { jsonError } from '@/lib/api/responses';
 import type {
   AppAdminAccessContext,
+  CpaShareAccessContext,
   OrgAccessContext,
   PortfolioAccessContext,
 } from '@/lib/api/principals';
+import {
+  resolveCpaToken,
+  type CpaShareRepository,
+} from '@/lib/api/repositories/cpa-share';
 
-export type AccessDenialReason = 'unauthenticated' | 'forbidden' | 'infrastructure';
+export type AccessDenialReason =
+  | 'unauthenticated'
+  | 'forbidden'
+  | 'not_found'
+  | 'gone'
+  | 'infrastructure';
 
 export type AccessDenied = {
   ok: false;
@@ -18,6 +28,10 @@ export type AccessDenied = {
 
 export type AccessGranted<T> = { ok: true; context: T };
 export type AccessResult<T> = AccessGranted<T> | AccessDenied;
+
+export type CpaTokenAccessContext = CpaShareAccessContext & {
+  repository: CpaShareRepository;
+};
 
 export function isAccessDenied<T>(result: AccessResult<T>): result is AccessDenied {
   return !result.ok;
@@ -121,6 +135,28 @@ export async function requirePortfolioAccess(
       orgId,
       portfolioId,
       role: membership.role,
+    },
+  };
+}
+
+export async function requireCpaToken(
+  token: string
+): Promise<AccessResult<CpaTokenAccessContext>> {
+  const resolved = await resolveCpaToken(token);
+  if (!resolved.ok) {
+    const reason: AccessDenialReason = resolved.status === 404
+      ? 'not_found'
+      : resolved.status === 410
+        ? 'gone'
+        : 'infrastructure';
+    return denied(reason, resolved.error, resolved.status);
+  }
+
+  return {
+    ok: true,
+    context: {
+      ...resolved.context,
+      repository: resolved.repository,
     },
   };
 }

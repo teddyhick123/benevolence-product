@@ -4,11 +4,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const {
   mockCheckRateLimit,
+  mockRequireCpaToken,
   mockGetCPAPortalPayload,
   mockCreateCPADownload,
   mockRateLimitExceeded,
 } = vi.hoisted(() => ({
   mockCheckRateLimit: vi.fn(),
+  mockRequireCpaToken: vi.fn(),
   mockGetCPAPortalPayload: vi.fn(),
   mockCreateCPADownload: vi.fn(),
   mockRateLimitExceeded: vi.fn(),
@@ -24,9 +26,8 @@ vi.mock('@/lib/rate-limit-response', () => ({
   rateLimitExceeded: mockRateLimitExceeded,
 }));
 
-vi.mock('@/lib/tax/cpa-public-access', () => ({
-  getCPAPortalPayload: mockGetCPAPortalPayload,
-  createCPADownload: mockCreateCPADownload,
+vi.mock('@/lib/api/access', () => ({
+  requireCpaToken: mockRequireCpaToken,
 }));
 
 import { GET as getPortal } from '@/app/api/tax/cpa/[token]/route';
@@ -45,6 +46,15 @@ beforeEach(() => {
   mockRateLimitExceeded.mockReturnValue(
     new Response(JSON.stringify({ error: 'Too many requests' }), { status: 429 })
   );
+  mockRequireCpaToken.mockResolvedValue({
+    ok: true,
+    context: {
+      repository: {
+        getPortalPayload: mockGetCPAPortalPayload,
+        createDownload: mockCreateCPADownload,
+      },
+    },
+  });
 });
 
 describe('public CPA portal route', () => {
@@ -62,6 +72,7 @@ describe('public CPA portal route', () => {
     );
 
     expect(response.status).toBe(429);
+    expect(mockRequireCpaToken).not.toHaveBeenCalled();
     expect(mockGetCPAPortalPayload).not.toHaveBeenCalled();
   });
 
@@ -72,7 +83,13 @@ describe('public CPA portal route', () => {
     ['revoked', 410, 'This share link has been revoked by the portfolio owner.'],
     ['max-accessed', 410, 'Maximum access count reached'],
   ])('preserves the %s token response', async (token, status, error) => {
-    mockGetCPAPortalPayload.mockResolvedValue({ ok: false, status, error });
+    mockRequireCpaToken.mockResolvedValue({
+      ok: false,
+      response: new Response(JSON.stringify({ error }), {
+        status,
+        headers: { 'Cache-Control': 'no-store', 'Content-Type': 'application/json' },
+      }),
+    });
 
     const response = await getPortal(
       new Request(`https://example.test/api/tax/cpa/${token}`),
@@ -80,6 +97,7 @@ describe('public CPA portal route', () => {
     );
 
     expect(response.status).toBe(status);
+    expect(mockGetCPAPortalPayload).not.toHaveBeenCalled();
     expect(response.headers.get('Cache-Control')).toBe('no-store');
     await expect(response.json()).resolves.toEqual({ error });
   });
@@ -95,7 +113,8 @@ describe('public CPA portal route', () => {
       context('raw-token')
     );
 
-    expect(mockGetCPAPortalPayload).toHaveBeenCalledWith('raw-token', {
+    expect(mockRequireCpaToken).toHaveBeenCalledWith('raw-token');
+    expect(mockGetCPAPortalPayload).toHaveBeenCalledWith({
       year: undefined,
       ip: '203.0.113.10',
       userAgent: 'test-agent',
@@ -121,6 +140,7 @@ describe('public CPA download route', () => {
     );
 
     expect(response.status).toBe(429);
+    expect(mockRequireCpaToken).not.toHaveBeenCalled();
     expect(mockCreateCPADownload).not.toHaveBeenCalled();
   });
 
@@ -155,7 +175,8 @@ describe('public CPA download route', () => {
       context('raw-token')
     );
 
-    expect(mockCreateCPADownload).toHaveBeenCalledWith('raw-token', {
+    expect(mockRequireCpaToken).toHaveBeenCalledWith('raw-token');
+    expect(mockCreateCPADownload).toHaveBeenCalledWith({
       format: 'csv',
       year: 2025,
       documentId: null,

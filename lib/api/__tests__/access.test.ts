@@ -3,17 +3,23 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   requireAppAdmin,
+  requireCpaToken,
   requireOrgAccess,
   requirePortfolioAccess,
 } from '@/lib/api/access';
 import { stubQuery } from '@/tests/helpers/supabase-mock';
 
-const { mockCreateServerClient } = vi.hoisted(() => ({
+const { mockCreateServerClient, mockResolveCpaToken } = vi.hoisted(() => ({
   mockCreateServerClient: vi.fn(),
+  mockResolveCpaToken: vi.fn(),
 }));
 
 vi.mock('@/lib/api/server-client', () => ({
   createServerClient: mockCreateServerClient,
+}));
+
+vi.mock('@/lib/api/repositories/cpa-share', () => ({
+  resolveCpaToken: mockResolveCpaToken,
 }));
 
 const USER = { id: 'user-1', email: 'member@example.test' };
@@ -58,6 +64,7 @@ function client(options: ClientOptions = {}) {
 
 beforeEach(() => {
   mockCreateServerClient.mockReset();
+  mockResolveCpaToken.mockReset();
 });
 
 describe('requireOrgAccess', () => {
@@ -170,5 +177,53 @@ describe('requireAppAdmin', () => {
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error('expected access denial');
     expect(result.response.status).toBe(403);
+  });
+});
+
+describe('requireCpaToken', () => {
+  it('returns the CPA principal scope and scoped repository', async () => {
+    const repository = { getPortalPayload: vi.fn(), createDownload: vi.fn() };
+    mockResolveCpaToken.mockResolvedValue({
+      ok: true,
+      context: {
+        principal: { kind: 'cpa_share', shareLinkId: 'share-1' },
+        orgId: 'org-1',
+        portfolioId: 'portfolio-1',
+        taxYears: [2024, 2025],
+        permissions: { view_tax_summary: true },
+      },
+      repository,
+    });
+
+    await expect(requireCpaToken('raw-token')).resolves.toMatchObject({
+      ok: true,
+      context: {
+        principal: { kind: 'cpa_share', shareLinkId: 'share-1' },
+        orgId: 'org-1',
+        portfolioId: 'portfolio-1',
+        taxYears: [2024, 2025],
+        repository,
+      },
+    });
+  });
+
+  it.each([
+    [404, 'not_found'],
+    [410, 'gone'],
+    [500, 'infrastructure'],
+  ])('maps a %i token failure to a typed denial', async (status, reason) => {
+    mockResolveCpaToken.mockResolvedValue({
+      ok: false,
+      status,
+      error: 'Token failure',
+    });
+
+    const result = await requireCpaToken('raw-token');
+
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error('expected access denial');
+    expect(result.reason).toBe(reason);
+    expect(result.response.status).toBe(status);
+    await expect(result.response.json()).resolves.toEqual({ error: 'Token failure' });
   });
 });

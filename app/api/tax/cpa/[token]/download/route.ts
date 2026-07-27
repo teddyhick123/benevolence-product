@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { checkRateLimit, cpaPortalLimiter, getIP } from '@/lib/rate-limit';
 import { rateLimitExceeded } from '@/lib/rate-limit-response';
-import { createCPADownload } from '@/lib/tax/cpa-public-access';
+import { requireCpaToken } from '@/lib/api/access';
+import { jsonError } from '@/lib/api/responses';
 
 export const runtime = 'nodejs';
 
@@ -16,12 +17,15 @@ export async function GET(
     return rateLimitExceeded(limited.reset, limited.remaining, limited.limit);
   }
 
+  const access = await requireCpaToken(token);
+  if (!access.ok) return access.response;
+
   const url = new URL(req.url);
   const format = url.searchParams.get('format') ?? 'csv';
   const yearParam = url.searchParams.get('year');
   const documentId = url.searchParams.get('documentId');
 
-  const result = await createCPADownload(token, {
+  const result = await access.context.repository.createDownload({
     format,
     year: yearParam ? Number(yearParam) : undefined,
     documentId,
@@ -30,10 +34,7 @@ export async function GET(
   });
 
   if (!result.ok) {
-    return NextResponse.json(
-      { error: result.error },
-      { status: result.status, headers: { 'Cache-Control': 'no-store' } }
-    );
+    return jsonError(result.error, result.status);
   }
 
   if (result.signedUrl) {

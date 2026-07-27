@@ -1,7 +1,7 @@
-import { NextResponse } from 'next/server';
 import { checkRateLimit, cpaPortalLimiter, getIP } from '@/lib/rate-limit';
 import { rateLimitExceeded } from '@/lib/rate-limit-response';
-import { getCPAPortalPayload } from '@/lib/tax/cpa-public-access';
+import { requireCpaToken } from '@/lib/api/access';
+import { jsonError, jsonOk } from '@/lib/api/responses';
 
 export const runtime = 'nodejs';
 
@@ -16,25 +16,22 @@ export async function GET(
     return rateLimitExceeded(limited.reset, limited.remaining, limited.limit);
   }
 
+  const access = await requireCpaToken(token);
+  if (!access.ok) return access.response;
+
   const url = new URL(req.url);
   const yearParam = url.searchParams.get('year');
   const year = yearParam ? Number(yearParam) : undefined;
 
-  const result = await getCPAPortalPayload(token, {
+  const result = await access.context.repository.getPortalPayload({
     year: Number.isFinite(year) ? year : undefined,
     ip,
     userAgent: req.headers.get('user-agent') ?? undefined,
   });
 
   if (!result.ok) {
-    return NextResponse.json(
-      { error: result.error },
-      { status: result.status, headers: { 'Cache-Control': 'no-store' } }
-    );
+    return jsonError(result.error, result.status);
   }
 
-  return NextResponse.json(
-    { data: result.payload },
-    { headers: { 'Cache-Control': 'no-store' } }
-  );
+  return jsonOk({ data: result.payload });
 }

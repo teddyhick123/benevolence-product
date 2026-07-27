@@ -388,7 +388,7 @@ describe('Schema contract: CPA sharing', () => {
   const publicRoutePath = join(process.cwd(), 'app/api/tax/cpa/[token]/route.ts');
   const publicDownloadPath = join(process.cwd(), 'app/api/tax/cpa/[token]/download/route.ts');
   const publicPagePath = join(process.cwd(), 'app/tax/cpa/[token]/page.tsx');
-  const publicAccessPath = join(process.cwd(), 'lib/tax/cpa-public-access.ts');
+  const publicAccessPath = join(process.cwd(), 'lib/api/repositories/cpa-share.ts');
   const helperPath = join(process.cwd(), 'lib/tax/cpa-collaboration.ts');
   let src: string;
   let routeSrc: string;
@@ -436,8 +436,9 @@ describe('Schema contract: CPA sharing', () => {
   });
 
   it('public CPA portal route and page exist', () => {
-    expect(publicRouteSrc).toContain('getCPAPortalPayload');
-    expect(publicDownloadSrc).toContain('createCPADownload');
+    expect(publicRouteSrc).toContain('requireCpaToken');
+    expect(publicRouteSrc).toContain('repository.getPortalPayload');
+    expect(publicDownloadSrc).toContain('repository.createDownload');
     expect(publicPageSrc).toContain('/api/tax/cpa/');
   });
 

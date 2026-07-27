@@ -249,9 +249,11 @@ describe('foundation reliability contracts', () => {
 
   it('grant creation uses the atomic foundation-records RPC', () => {
     const route = src('app/api/org/[orgId]/grants/route.ts');
+    const repository = src('lib/api/repositories/grants.ts');
     const migration = src('db/migrations/0041_task_workflow_foundation.sql');
 
-    expect(route).toContain("rpc('create_grant_with_foundation_records'");
+    expect(route).toContain('createWithFoundationRecords');
+    expect(repository).toContain("rpc('create_grant_with_foundation_records'");
     expect(route).not.toMatch(/from\('holdings'\)[\s\S]{0,180}\.insert\(/);
     expect(route).not.toMatch(/from\('grants'\)[\s\S]{0,180}\.insert\(/);
     expect(route).not.toContain("from('grant_status_history').insert");

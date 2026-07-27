@@ -1,25 +1,24 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { createAdminClient, createServerClient } from '@/lib/supabase';
+import { NextRequest } from 'next/server';
 import { LIFECYCLE_STAGES } from '@/lib/grants/lifecycle';
-import { getOrgAccess, hasOrgAccess } from '@/lib/org-access';
+import { requireOrgAccess } from '@/lib/api/access';
+import { jsonError, jsonOk } from '@/lib/api/responses';
+import { createGrantRepository } from '@/lib/api/repositories/grants';
 
 export const dynamic = 'force-dynamic';
 
-const NO_STORE = { 'Cache-Control': 'no-store' } as const;
 const LIFECYCLE_STAGE_SET = new Set<string>(LIFECYCLE_STAGES);
 
 interface RouteParams {
   params: Promise<{ orgId: string }>;
 }
 
-function json(body: unknown, init: ResponseInit = {}) {
-  return NextResponse.json(body, {
-    ...init,
-    headers: {
-      ...NO_STORE,
-      ...(init.headers || {}),
-    },
-  });
+function errorMessage(error: unknown): string {
+  return typeof error === 'object'
+    && error !== null
+    && 'message' in error
+    && typeof error.message === 'string'
+    ? error.message
+    : 'Internal error';
 }
 
 // GET /api/org/[orgId]/grants
@@ -28,10 +27,8 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
   try {
     const { orgId } = await params;
 
-    const supabase = await createServerClient();
-    const access = await getOrgAccess(supabase, orgId);
-    if (!access.user) return json({ error: 'Unauthorized' }, { status: 401 });
-    if (!hasOrgAccess(access, 'viewer')) return json({ error: 'Not authorized' }, { status: 403 });
+    const access = await requireOrgAccess(orgId, 'viewer');
+    if (!access.ok) return access.response;
 
     const url = new URL(req.url);
     const stage = url.searchParams.get('stage');
@@ -47,7 +44,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       ? Math.min(100, requestedPageSize)
       : 50;
 
-    const db = createAdminClient();
+    const db = access.context.db;
 
     let query = db
       .from('grants')
@@ -75,12 +72,12 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     const { data, error, count } = await (query as any);
     if (error) throw error;
 
-    return json({
+    return jsonOk({
       data,
       pagination: { page, page_size, total: count ?? 0 },
     });
-  } catch (err: any) {
-    return json({ error: err?.message ?? 'Internal error' }, { status: 500 });
+  } catch (err: unknown) {
+    return jsonError(errorMessage(err), 500);
   }
 }
 
@@ -91,11 +88,9 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
   try {
     const { orgId } = await params;
 
-    const supabase = await createServerClient();
-    const access = await getOrgAccess(supabase, orgId);
-    if (!access.user) return json({ error: 'Unauthorized' }, { status: 401 });
-    if (!hasOrgAccess(access, 'member')) return json({ error: 'Member access required' }, { status: 403 });
-    const { user } = access;
+    const access = await requireOrgAccess(orgId, 'member');
+    if (!access.ok) return access.response;
+    const { user } = access.context;
 
     const body = await req.json();
     const {
@@ -117,89 +112,68 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     } = body;
 
     if (!portfolio_id) {
-      return json({ error: 'portfolio_id is required' }, { status: 400 });
+      return jsonError('portfolio_id is required', 400);
     }
     if (!purpose) {
-      return json({ error: 'purpose is required' }, { status: 400 });
+      return jsonError('purpose is required', 400);
     }
     const numericRequestedAmount = Number(requested_amount);
     if (!Number.isFinite(numericRequestedAmount) || numericRequestedAmount < 0) {
-      return json({ error: 'requested_amount must be a non-negative number' }, { status: 400 });
+      return jsonError('requested_amount must be a non-negative number', 400);
     }
     if (!LIFECYCLE_STAGE_SET.has(lifecycle_stage)) {
-      return json({ error: 'Invalid lifecycle_stage' }, { status: 400 });
+      return jsonError('Invalid lifecycle_stage', 400);
     }
     if (!investee_id && !new_grantee) {
-      return json(
-        { error: 'Provide either investee_id or new_grantee' },
-        { status: 422 }
-      );
+      return jsonError('Provide either investee_id or new_grantee', 422);
     }
     if (investee_id && new_grantee) {
-      return json(
-        { error: 'Provide investee_id OR new_grantee, not both' },
-        { status: 422 }
-      );
+      return jsonError('Provide investee_id OR new_grantee, not both', 422);
     }
 
-    const db = createAdminClient();
+    const repository = createGrantRepository({ orgId, actorId: user.id });
 
     // Verify portfolio belongs to org
-    const { data: portfolio } = await db
-      .from('portfolios')
-      .select('id, org_id')
-      .eq('id', portfolio_id)
-      .eq('org_id', orgId)
-      .is('deleted_at', null)
-      .maybeSingle();
+    const { data: portfolio } = await repository.findPortfolio(portfolio_id);
     if (!portfolio) {
-      return json({ error: 'Portfolio not found in this org' }, { status: 404 });
+      return jsonError('Portfolio not found in this org', 404);
     }
 
     if (internal_owner_id) {
-      const { data: owner } = await db
-        .from('organization_members')
-        .select('id')
-        .eq('org_id', orgId)
-        .eq('user_id', internal_owner_id)
-        .is('deleted_at', null)
-        .maybeSingle();
-      if (!owner) return json({ error: 'internal_owner_id is not a member of this organization' }, { status: 400 });
+      const { data: owner } = await repository.findOrganizationMember(internal_owner_id);
+      if (!owner) return jsonError('internal_owner_id is not a member of this organization', 400);
     }
 
-    const { data: created, error: createError } = await db.rpc('create_grant_with_foundation_records', {
-      p_org_id: orgId,
-      p_portfolio_id: portfolio_id,
-      p_actor_id: user.id,
-      p_purpose: purpose,
-      p_requested_amount: numericRequestedAmount,
-      p_investee_id: investee_id ?? null,
-      p_new_grantee: new_grantee ?? null,
-      p_currency: currency,
-      p_grant_type: grant_type ?? null,
-      p_grant_period_start: grant_period_start ?? null,
-      p_grant_period_end: grant_period_end ?? null,
-      p_lifecycle_stage: lifecycle_stage,
-      p_internal_owner_id: internal_owner_id ?? null,
-      p_risk_level: risk_level ?? null,
-      p_reporting_frequency: reporting_frequency ?? null,
-      p_renewal_eligible: renewal_eligible ?? false,
-      p_workflow_template_id: workflow_template_id ?? null,
+    const { data: created, error: createError } = await repository.createWithFoundationRecords({
+      portfolioId: portfolio_id,
+      purpose,
+      requestedAmount: numericRequestedAmount,
+      investeeId: investee_id,
+      newGrantee: new_grantee,
+      currency,
+      grantType: grant_type,
+      grantPeriodStart: grant_period_start,
+      grantPeriodEnd: grant_period_end,
+      lifecycleStage: lifecycle_stage,
+      internalOwnerId: internal_owner_id,
+      riskLevel: risk_level,
+      reportingFrequency: reporting_frequency,
+      renewalEligible: renewal_eligible ?? false,
+      workflowTemplateId: workflow_template_id,
     });
 
     if (createError) {
       throw new Error(`Failed to create grant atomically: ${createError.message}`);
     }
 
-    return json(
-      {
-        grant: created?.grant ?? null,
-        holding: created?.holding ?? null,
-        workflow_instance: created?.workflow_instance ?? null,
-      },
+    return jsonOk({
+      grant: created?.grant ?? null,
+      holding: created?.holding ?? null,
+      workflow_instance: created?.workflow_instance ?? null,
+    },
       { status: 201 }
     );
-  } catch (err: any) {
-    return json({ error: err?.message ?? 'Internal error' }, { status: 500 });
+  } catch (err: unknown) {
+    return jsonError(errorMessage(err), 500);
   }
 }

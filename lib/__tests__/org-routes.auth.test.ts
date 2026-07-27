@@ -219,12 +219,13 @@ describe('org-scoped route auth contracts', () => {
 
   it('grant routes use no-store, safe inputs, and checked lifecycle side effects', () => {
     const grantsRoute = readFileSync('app/api/org/[orgId]/grants/route.ts', 'utf8');
-    expect(grantsRoute).toContain("'Cache-Control': 'no-store'");
+    expect(grantsRoute).toContain('jsonOk');
+    expect(grantsRoute).toContain('jsonError');
     expect(grantsRoute).toContain('Number.isFinite(requestedPage)');
     expect(grantsRoute).toContain('Number.isFinite(numericRequestedAmount)');
     expect(grantsRoute).toContain('LIFECYCLE_STAGES');
     expect(grantsRoute).toContain('internal_owner_id is not a member of this organization');
-    expect(grantsRoute).toContain("rpc('create_grant_with_foundation_records'");
+    expect(grantsRoute).toContain('createWithFoundationRecords');
     expect(grantsRoute).toContain('Failed to create grant atomically');
     expect(grantsRoute).not.toContain('historyError');
     expect(grantsRoute).not.toContain('workflowError');

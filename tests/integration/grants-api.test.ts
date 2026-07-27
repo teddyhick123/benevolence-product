@@ -33,6 +33,32 @@ vi.mock('@/lib/supabase', () => ({
   createAdminClient: vi.fn(() => buildAdminMock()),
 }));
 
+vi.mock('@/lib/api/admin-client', () => ({
+  createElevatedClient: vi.fn(() => buildAdminMock()),
+}));
+
+vi.mock('@/lib/api/access', () => ({
+  requireOrgAccess: vi.fn(async (orgId: string, minimum: string) => {
+    if (!_authUser) {
+      return { ok: false, response: new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 }) };
+    }
+    const ranks: Record<string, number> = { viewer: 0, member: 1, admin: 2, owner: 3 };
+    if (!_orgRole || (ranks[_orgRole] ?? -1) < (ranks[minimum] ?? 0)) {
+      return { ok: false, response: new Response(JSON.stringify({ error: 'Forbidden' }), { status: 403 }) };
+    }
+    return {
+      ok: true,
+      context: {
+        orgId,
+        role: _orgRole,
+        user: _authUser,
+        principal: { kind: 'user', userId: _authUser.id },
+        db: buildAdminMock(),
+      },
+    };
+  }),
+}));
+
 function buildAdminMock() {
   return {
     rpc: vi.fn(async (fn: string) => {

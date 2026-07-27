@@ -1,6 +1,5 @@
-import { NextResponse } from 'next/server';
-import { supabasePublic } from '@/lib/supabase';
-import { requirePortfolioAccess, isAccessDenied } from '@/lib/portfolio-auth';
+import { requirePortfolioAccess, isAccessDenied } from '@/lib/api/access';
+import { jsonError, jsonOk } from '@/lib/api/responses';
 import { calculateAGILimits } from '@/lib/tax/agi-calculator';
 import { generateComplianceReport } from '@/lib/tax/substantiation-validator';
 import { summarizeCarryforwards, generateCarryforwardAlerts } from '@/lib/tax/carryforward-tracker';
@@ -15,11 +14,11 @@ export async function GET(
 ) {
   const { id: portfolio_id } = await ctx.params;
   const access = await requirePortfolioAccess(portfolio_id);
-  if (isAccessDenied(access)) return access.error;
+  if (isAccessDenied(access)) return access.response;
   const url = new URL(req.url);
   const year = Number(url.searchParams.get('year') || new Date().getFullYear());
 
-  const sb = await supabasePublic();
+  const sb = access.context.db;
 
   try {
     // Fetch tax profile
@@ -118,35 +117,29 @@ export async function GET(
       (c) => !c.is_compliant
     ).length ?? 0;
 
-    return NextResponse.json(
-      {
-        data: {
-          taxYear: year,
-          taxProfile: taxProfile ?? null,
-          summary: {
-            totalContributions,
-            totalDeductible,
-            contributionCount: contributions?.length ?? 0,
-            missingDocumentation,
-            complianceScore: complianceReport?.overallScore ?? null,
-          },
-          agiLimits,
-          contributions: contributions ?? [],
-          contributionsByRecipient: Object.values(contributionsByRecipient ?? {}),
-          contributionsByType,
-          carryforwards: carryforwardData,
-          carryforwardSummary,
-          carryforwardAlerts,
-          complianceReport,
+    return jsonOk({
+      data: {
+        taxYear: year,
+        taxProfile: taxProfile ?? null,
+        summary: {
+          totalContributions,
+          totalDeductible,
+          contributionCount: contributions?.length ?? 0,
+          missingDocumentation,
+          complianceScore: complianceReport?.overallScore ?? null,
         },
+        agiLimits,
+        contributions: contributions ?? [],
+        contributionsByRecipient: Object.values(contributionsByRecipient ?? {}),
+        contributionsByType,
+        carryforwards: carryforwardData,
+        carryforwardSummary,
+        carryforwardAlerts,
+        complianceReport,
       },
-      { headers: { 'Cache-Control': 'no-store' } }
-    );
+    });
   } catch (error) {
     console.error('Error fetching tax overview:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch tax overview' },
-      { status: 500, headers: { 'Cache-Control': 'no-store' } }
-    );
+    return jsonError('Failed to fetch tax overview', 500);
   }
 }

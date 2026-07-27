@@ -52,8 +52,9 @@ function sessionClient() {
           { maybeSingle: { data: { id: 'membership-1' }, error: null } }
         );
       }
-      throw new Error(`Unexpected session table: ${table}`);
+      return publicDb.from(table);
     }),
+    rpc: (...args: Parameters<typeof publicDb.rpc>) => publicDb.rpc(...args),
   };
 }
 
@@ -128,7 +129,7 @@ beforeEach(() => {
   publicDb.rpc = vi.fn(() => {
     const result = { data: { remaining_capacity: 20_000 }, error: null };
     return stubQuery(result, { maybeSingle: result });
-  }) as typeof publicDb.rpc;
+  }) as unknown as typeof publicDb.rpc;
   mockSupabasePublic.mockResolvedValue(publicDb);
 });
 

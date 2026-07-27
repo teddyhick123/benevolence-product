@@ -1,6 +1,5 @@
-import { NextResponse } from 'next/server';
-import { supabasePublic } from '@/lib/supabase';
-import { requirePortfolioAccess, isAccessDenied } from '@/lib/portfolio-auth';
+import { requirePortfolioAccess, isAccessDenied } from '@/lib/api/access';
+import { jsonError, jsonOk } from '@/lib/api/responses';
 
 /**
  * GET /api/portfolio/[id]/tax/summary?year=2024
@@ -12,11 +11,11 @@ export async function GET(
 ) {
   const { id: portfolio_id } = await ctx.params;
   const access = await requirePortfolioAccess(portfolio_id);
-  if (isAccessDenied(access)) return access.error;
+  if (isAccessDenied(access)) return access.response;
   const url = new URL(req.url);
   const year = Number(url.searchParams.get('year') || new Date().getFullYear());
 
-  const sb = await supabasePublic();
+  const sb = access.context.db;
 
   try {
     // Fetch tax year data
@@ -79,24 +78,18 @@ export async function GET(
       console.error('Error fetching donation capacity:', capacityError);
     }
 
-    return NextResponse.json(
-      {
-        data: {
-          taxYear: year,
-          taxYearData: taxYear ?? null,
-          summary: summary ?? null,
-          contributions: contributions ?? [],
-          carryforwards: carryforwards ?? [],
-          capacity: capacity ?? null,
-        },
+    return jsonOk({
+      data: {
+        taxYear: year,
+        taxYearData: taxYear ?? null,
+        summary: summary ?? null,
+        contributions: contributions ?? [],
+        carryforwards: carryforwards ?? [],
+        capacity: capacity ?? null,
       },
-      { headers: { 'Cache-Control': 'no-store' } }
-    );
+    });
   } catch (error) {
     console.error('Error fetching tax summary:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch tax summary' },
-      { status: 500, headers: { 'Cache-Control': 'no-store' } }
-    );
+    return jsonError('Failed to fetch tax summary', 500);
   }
 }

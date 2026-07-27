@@ -4,13 +4,15 @@
 // For CLIENT components, use:
 //   import { createBrowserClient } from '@/lib/supabase-browser';
 //
-// For SERVER components/API routes, use:
-//   import { createServerClient, createAdminClient } from '@/lib/supabase';
+// New API routes should use the typed guards and scoped repositories under
+// '@/lib/api'. The exports in this file remain as migration compatibility for
+// existing server components, services, and unmigrated route families.
 
-import { createServerClient as createServerClientSSR } from '@supabase/ssr';
-import { createClient as createSupabaseClient } from '@supabase/supabase-js';
-import { cookies } from 'next/headers';
 import { createBrowserClient } from './supabase-browser';
+import { createServerClient } from './api/server-client';
+import { createElevatedClient } from './api/admin-client';
+
+export { createServerClient };
 
 /**
  * Creates a Supabase client for use in Server Components, Route Handlers, and Server Actions
@@ -24,27 +26,6 @@ import { createBrowserClient } from './supabase-browser';
  * const supabase = await createServerClient();
  * const { data } = await supabase.from('portfolios').select('*');
  */
-export async function createServerClient() {
-  const cookieStore = await cookies();
-
-  return createServerClientSSR(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll();
-        },
-        setAll(cookiesToSet: { name: string; value: string; options: any }[]) {
-          for (const { name, value, options } of cookiesToSet) {
-            cookieStore.set(name, value, options);
-          }
-        },
-      },
-    }
-  );
-}
-
 /**
  * Creates a Supabase admin client with service role key
  * ⚠️ BYPASSES Row Level Security (RLS) - use with extreme caution!
@@ -60,16 +41,7 @@ export async function createServerClient() {
  * const { data } = await supabase.from('portfolios').select('*'); // Bypasses RLS
  */
 export function createAdminClient() {
-  return createSupabaseClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE!,
-    {
-      auth: {
-        persistSession: false,
-        autoRefreshToken: false,
-      },
-    }
-  );
+  return createElevatedClient();
 }
 
 // ============================================================================

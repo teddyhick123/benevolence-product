@@ -4,9 +4,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createTaxRepository } from '@/lib/api/repositories/tax';
 import { stubQuery } from '@/tests/helpers/supabase-mock';
 
-const { mockCreateElevatedClient, mockFrom } = vi.hoisted(() => ({
+const { mockCreateElevatedClient, mockFrom, mockStorageFrom } = vi.hoisted(() => ({
   mockCreateElevatedClient: vi.fn(),
   mockFrom: vi.fn(),
+  mockStorageFrom: vi.fn(),
 }));
 
 vi.mock('@/lib/api/admin-client', () => ({
@@ -15,8 +16,12 @@ vi.mock('@/lib/api/admin-client', () => ({
 
 beforeEach(() => {
   mockFrom.mockReset();
+  mockStorageFrom.mockReset();
   mockCreateElevatedClient.mockReset();
-  mockCreateElevatedClient.mockReturnValue({ from: mockFrom });
+  mockCreateElevatedClient.mockReturnValue({
+    from: mockFrom,
+    storage: { from: mockStorageFrom },
+  });
 });
 
 describe('createTaxRepository', () => {
@@ -49,5 +54,72 @@ describe('createTaxRepository', () => {
 
     expect(repository).not.toHaveProperty('db');
     expect(repository).not.toHaveProperty('from');
+  });
+
+  it('constructs upload paths inside the portfolio and contribution scope', async () => {
+    const upload = vi.fn(async () => ({ data: { path: 'stored' }, error: null }));
+    mockStorageFrom.mockReturnValue({ upload });
+    const repository = createTaxRepository({ portfolioId: 'portfolio-1' });
+
+    const result = await repository.uploadDocumentObject({
+      contributionId: 'contribution-1',
+      objectName: 'receipt-123.pdf',
+      body: Buffer.from('document'),
+      contentType: 'application/pdf',
+    });
+
+    expect(mockStorageFrom).toHaveBeenCalledWith('tax-documents');
+    expect(upload).toHaveBeenCalledWith(
+      'portfolio-1/contribution-1/receipt-123.pdf',
+      expect.any(Buffer),
+      { contentType: 'application/pdf', upsert: false }
+    );
+    expect(result.storagePath).toBe(
+      'portfolio-1/contribution-1/receipt-123.pdf'
+    );
+  });
+
+  it('rejects object names that could escape their storage prefix', async () => {
+    const repository = createTaxRepository({ portfolioId: 'portfolio-1' });
+
+    await expect(repository.uploadDocumentObject({
+      contributionId: 'contribution-1',
+      objectName: '../outside.pdf',
+      body: Buffer.from('document'),
+      contentType: 'application/pdf',
+    })).rejects.toThrow('Invalid tax document object name');
+    expect(mockStorageFrom).not.toHaveBeenCalled();
+  });
+
+  it('refuses to sign or remove paths outside the scoped contribution', async () => {
+    const repository = createTaxRepository({ portfolioId: 'portfolio-1' });
+    const foreignPath = 'portfolio-2/contribution-2/receipt.pdf';
+
+    await expect(repository.createSignedDocumentUrl({
+      contributionId: 'contribution-1',
+      storagePath: foreignPath,
+    })).rejects.toThrow('outside the authorized scope');
+    await expect(repository.removeDocumentObject({
+      contributionId: 'contribution-1',
+      storagePath: foreignPath,
+    })).rejects.toThrow('outside the authorized scope');
+    expect(mockStorageFrom).not.toHaveBeenCalled();
+  });
+
+  it('creates one-hour signed URLs for scoped private documents', async () => {
+    const createSignedUrl = vi.fn(async () => ({
+      data: { signedUrl: 'https://signed.example.test' },
+      error: null,
+    }));
+    mockStorageFrom.mockReturnValue({ createSignedUrl });
+    const repository = createTaxRepository({ portfolioId: 'portfolio-1' });
+    const storagePath = 'portfolio-1/contribution-1/receipt.pdf';
+
+    await repository.createSignedDocumentUrl({
+      contributionId: 'contribution-1',
+      storagePath,
+    });
+
+    expect(createSignedUrl).toHaveBeenCalledWith(storagePath, 3600);
   });
 });

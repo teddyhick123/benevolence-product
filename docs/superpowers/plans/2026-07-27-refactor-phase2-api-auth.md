@@ -110,12 +110,14 @@ The final rule is zero direct `createAdminClient(` or service-role environment
 references under `app/api/**`. The current count is 119, so an immediate global
 ban would make every intermediate commit red.
 
-Add a Phase 2 contract test plus an explicit baseline fixture containing the
-current legacy paths. The test must:
+Add a Phase 2 contract test, an immutable baseline fixture, and a current
+allowlist containing the current legacy paths. The test must:
 
 - fail if a new route starts using either forbidden token;
-- fail if a removed legacy path remains in the fixture, forcing the allowlist to
+- fail if a removed legacy path remains in the current allowlist, forcing it to
   ratchet down with every family;
+- reject any current-allowlist path absent from the immutable baseline, so an
+  old exception cannot be swapped for a new one;
 - ignore comments and tests where practical;
 - allow elevated construction only inside `lib/api/admin-client.ts`;
 - end Phase 2 with the fixture deleted and a zero-match assertion.
@@ -137,12 +139,14 @@ scoped repository; jobs and OAuth callbacks use their explicit principal types.
 **Create:**
 
 - `tests/integration/api-boundary-contract.test.ts`
+- `tests/fixtures/legacy-service-role-baseline.txt`
 - `tests/fixtures/legacy-service-role-routes.txt`
 
 **Tests first:**
 
-- The fixture exactly equals the current set of route files containing direct
+- The current allowlist exactly equals the set of route files containing direct
   elevated access.
+- The current allowlist is a subset of the immutable 119-route baseline.
 - A synthetic/new path is rejected.
 - `lib/api/admin-client.ts` is the only intended constructor location after the
   foundation exists.

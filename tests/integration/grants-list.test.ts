@@ -6,12 +6,12 @@
 // Route: app/api/org/[orgId]/grants/route.ts
 //
 // Auth model:
-//   - Both verbs: createServerClient() → auth.getUser() → rpc('user_org_role')
+//   - Both verbs use requireOrgAccess()
 //   - GET: any non-null role is sufficient (member, viewer, admin, owner)
 //   - POST: role must be member, admin, or owner
 // DB:
-//   - Auth checks via createServerClient (RLS)
-//   - Data access via createAdminClient (bypasses RLS)
+//   - Reads use the authorized session client and RLS
+//   - Atomic creation uses the org-scoped grants repository
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { NextRequest } from 'next/server';

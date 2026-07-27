@@ -1,6 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { createServerClient } from '@/lib/supabase';
-import { getOrgAccess, hasOrgAccess } from '@/lib/org-access';
+import { NextRequest } from 'next/server';
+import { requireOrgAccess } from '@/lib/api/access';
+import { jsonError, jsonOk } from '@/lib/api/responses';
 import {
   transitionGrant,
   InvalidTransitionError,
@@ -14,30 +14,17 @@ import {
 
 export const dynamic = 'force-dynamic';
 
-const NO_STORE = { 'Cache-Control': 'no-store' } as const;
 interface RouteParams {
   params: Promise<{ orgId: string; grantId: string }>;
-}
-
-function json(body: unknown, init: ResponseInit = {}) {
-  return NextResponse.json(body, {
-    ...init,
-    headers: {
-      ...NO_STORE,
-      ...(init.headers || {}),
-    },
-  });
 }
 
 export async function POST(req: NextRequest, { params }: RouteParams) {
   try {
     const { orgId, grantId } = await params;
 
-    const supabase = await createServerClient();
-    const access = await getOrgAccess(supabase, orgId);
-    if (!access.user) return json({ error: 'Unauthorized' }, { status: 401 });
-    if (!hasOrgAccess(access, 'member')) return json({ error: 'Member access required' }, { status: 403 });
-    const { user } = access;
+    const access = await requireOrgAccess(orgId, 'member');
+    if (!access.ok) return access.response;
+    const { user } = access.context;
 
     const body = await req.json();
     const { to_stage, reason, decision } = body as {
@@ -47,25 +34,25 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     };
 
     if (!to_stage) {
-      return json({ error: 'to_stage is required' }, { status: 400 });
+      return jsonError('to_stage is required', 400);
     }
 
     await transitionGrant(grantId, to_stage, user.id, reason, decision, orgId);
 
-    return json({ success: true, to_stage });
-  } catch (err: any) {
+    return jsonOk({ success: true, to_stage });
+  } catch (err: unknown) {
     if (err instanceof WorkflowGateBlockedError) {
-      return json({ error: err.message, blocking_items: err.reasons }, { status: 422 });
+      return jsonError(err.message, 422, { blocking_items: err.reasons });
     }
     if (err instanceof InvalidTransitionError || err instanceof DecisionRequiredError) {
-      return json({ error: err.message }, { status: 422 });
+      return jsonError(err.message, 422);
     }
     if (err instanceof GrantNotFoundError) {
-      return json({ error: err.message }, { status: 404 });
+      return jsonError(err.message, 404);
     }
     if (err instanceof GrantTransitionConflictError) {
-      return json({ error: err.message }, { status: 409 });
+      return jsonError(err.message, 409);
     }
-    return json({ error: err?.message ?? 'Internal error' }, { status: 500 });
+    return jsonError(err instanceof Error ? err.message : 'Internal error', 500);
   }
 }

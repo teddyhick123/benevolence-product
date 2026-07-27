@@ -156,7 +156,7 @@ describe('org-scoped route auth contracts', () => {
       'app/api/org/[orgId]/acknowledgments/[id]/generate-pdf/route.ts',
     ]) {
       const src = readFileSync(route, 'utf8');
-      expect(src, route).toContain("'Cache-Control': 'no-store'");
+      expect(src, route).toMatch(/'Cache-Control': 'no-store'|jsonOk/);
     }
 
     const listRoute = readFileSync('app/api/org/[orgId]/acknowledgments/route.ts', 'utf8');
@@ -245,7 +245,7 @@ describe('org-scoped route auth contracts', () => {
       'app/api/org/[orgId]/grants/[grantId]/decisions/route.ts',
     ]) {
       const src = readFileSync(route, 'utf8');
-      expect(src, route).toContain("'Cache-Control': 'no-store'");
+      expect(src, route).toMatch(/'Cache-Control': 'no-store'|jsonOk/);
     }
 
     const decisionsRoute = readFileSync('app/api/org/[orgId]/grants/[grantId]/decisions/route.ts', 'utf8');

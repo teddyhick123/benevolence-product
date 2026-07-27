@@ -92,4 +92,45 @@ describe('createGrantRepository', () => {
     expect(repository).not.toHaveProperty('db');
     expect(repository).not.toHaveProperty('from');
   });
+
+  it('forces lifecycle grant reads into the repository org scope', async () => {
+    const query = stubQuery(
+      { data: null, error: null },
+      {
+        maybeSingle: {
+          data: { id: 'grant-1', org_id: 'org-1', lifecycle_stage: 'draft' },
+          error: null,
+        },
+      }
+    );
+    mockFrom.mockReturnValue(query);
+    const repository = createGrantRepository({ orgId: 'org-1', actorId: 'user-1' });
+
+    await repository.findWorkflowGrant('grant-1');
+
+    expect(query.calls).toContainEqual({ method: 'eq', args: ['id', 'grant-1'] });
+    expect(query.calls).toContainEqual({ method: 'eq', args: ['org_id', 'org-1'] });
+  });
+
+  it('injects org, actor, and expected stage into the atomic transition RPC', async () => {
+    mockRpc.mockResolvedValue({ data: null, error: null });
+    const repository = createGrantRepository({ orgId: 'org-1', actorId: 'user-1' });
+
+    await repository.transitionLifecycle({
+      grantId: 'grant-1',
+      expectedFromStage: 'draft',
+      targetStage: 'prospect',
+      reason: 'Qualified prospect',
+    });
+
+    expect(mockRpc).toHaveBeenCalledWith('transition_grant_lifecycle', {
+      p_grant_id: 'grant-1',
+      p_expected_org_id: 'org-1',
+      p_expected_from_stage: 'draft',
+      p_to_stage: 'prospect',
+      p_actor_id: 'user-1',
+      p_reason: 'Qualified prospect',
+      p_decision_payload: null,
+    });
+  });
 });

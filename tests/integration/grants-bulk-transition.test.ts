@@ -76,6 +76,32 @@ vi.mock('@/lib/supabase', () => ({
   createAdminClient: vi.fn(() => ({ from: mockAdminFrom, rpc: mockAdminRpc })),
 }));
 
+vi.mock('@/lib/api/admin-client', () => ({
+  createElevatedClient: vi.fn(() => ({ from: mockAdminFrom, rpc: mockAdminRpc })),
+}));
+
+vi.mock('@/lib/api/access', () => ({
+  requireOrgAccess: vi.fn(async (orgId: string, minimum: string) => {
+    if (!_authUser) {
+      return { ok: false, response: new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 }) };
+    }
+    const ranks: Record<string, number> = { viewer: 0, member: 1, admin: 2, owner: 3 };
+    if (!_orgRole || (ranks[_orgRole] ?? -1) < (ranks[minimum] ?? 0)) {
+      return { ok: false, response: new Response(JSON.stringify({ error: 'Forbidden' }), { status: 403 }) };
+    }
+    return {
+      ok: true,
+      context: {
+        orgId,
+        role: _orgRole,
+        user: _authUser,
+        principal: { kind: 'user', userId: _authUser.id },
+        db: { from: mockAdminFrom, rpc: mockAdminRpc },
+      },
+    };
+  }),
+}));
+
 function setupMocks() {
   mockServerRpc.mockClear();
   mockAdminFrom.mockClear();
@@ -108,15 +134,13 @@ function setupMocks() {
 
   mockAdminFrom.mockImplementation((table: string) => {
     if (table === 'grants') {
-      return {
-        // Preflight uses .eq().in() — transitionGrant uses .eq().single()
-        select: vi.fn(() => ({
-          eq: vi.fn(() => ({
-            in: vi.fn(async () => ({ data: _prefetchError ? null : _prefetchData, error: _prefetchError })),
-            maybeSingle: vi.fn(async () => ({ data: _grantFetchData, error: _grantFetchError })),
-          })),
-        })),
+      const b: any = {
+        select: vi.fn(() => b),
+        eq: vi.fn(() => b),
+        in: vi.fn(async () => ({ data: _prefetchError ? null : _prefetchData, error: _prefetchError })),
+        maybeSingle: vi.fn(async () => ({ data: _grantFetchData, error: _grantFetchError })),
       };
+      return b;
     }
     if (table === 'org_workflow_config') {
       const b: any = {

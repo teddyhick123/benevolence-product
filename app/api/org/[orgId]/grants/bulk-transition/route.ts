@@ -1,6 +1,5 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { z } from 'zod';
-import { createServerClient, createAdminClient } from '@/lib/supabase';
 import {
   LIFECYCLE_STAGES,
   type LifecycleStage,
@@ -9,12 +8,15 @@ import {
   requiresDecision,
   transitionGrant,
 } from '@/lib/grants/lifecycle';
-import { checkWorkflowGate } from '@/lib/grants/workflow-config';
-import { getOrgAccess, hasOrgAccess } from '@/lib/org-access';
+import { requireOrgAccess } from '@/lib/api/access';
+import { jsonOk } from '@/lib/api/responses';
+import {
+  createGrantRepository,
+  type GrantWorkflowRow,
+} from '@/lib/api/repositories/grants';
 
 export const dynamic = 'force-dynamic';
 
-const NO_STORE = { 'Cache-Control': 'no-store' } as const;
 interface RouteParams {
   params: Promise<{ orgId: string }>;
 }
@@ -43,40 +45,18 @@ const bulkTransitionSchema = z.object({
   rollback_on_error: z.boolean().optional().default(false),
 }).strict();
 
-type PreflightGrantRow = {
-  id: string;
-  lifecycle_stage: string;
-  org_id: string;
-  purpose: string | null;
-  internal_owner_id: string | null;
-  requested_amount: number | null;
-  approved_amount: number | null;
-  grant_period_start: string | null;
-  grant_period_end: string | null;
-  risk_level: string | null;
-  deliverables: string | null;
-  reporting_frequency: string | null;
-};
-
 function json(body: unknown, init: ResponseInit = {}) {
-  return NextResponse.json(body, {
-    ...init,
-    headers: {
-      ...NO_STORE,
-      ...(init.headers || {}),
-    },
-  });
+  return jsonOk(body, init);
 }
 
 export async function POST(req: NextRequest, { params }: RouteParams) {
   try {
     const { orgId } = await params;
 
-    const supabase = await createServerClient();
-    const access = await getOrgAccess(supabase, orgId);
-    if (!access.user) return json({ error: 'Unauthorized' }, { status: 401 });
-    if (!hasOrgAccess(access, 'member')) return json({ error: 'Member access required' }, { status: 403 });
-    const { user } = access;
+    const access = await requireOrgAccess(orgId, 'member');
+    if (!access.ok) return access.response;
+    const { user } = access.context;
+    const repository = createGrantRepository({ orgId, actorId: user.id });
 
     const body = await req.json().catch(() => ({}));
     const parsed = bulkTransitionSchema.safeParse(body);
@@ -94,22 +74,14 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     }
 
     // Preflight: fetch all requested grants scoped to this org in one query
-    const adminSupabase = createAdminClient();
-    const { data: scopedGrants, error: prefetchErr } = await (adminSupabase
-      .from('grants')
-      .select(
-        'id, lifecycle_stage, org_id, purpose, internal_owner_id, requested_amount, ' +
-        'approved_amount, grant_period_start, grant_period_end, risk_level, ' +
-        'deliverables, reporting_frequency'
-      )
-      .eq('org_id', orgId)
-      .in('id', grantIds) as unknown as Promise<{ data: PreflightGrantRow[] | null; error: { message: string } | null }>);
+    const { data: scopedGrants, error: prefetchErr } =
+      await repository.findWorkflowGrants(grantIds);
 
     if (prefetchErr) {
       return json({ error: 'Failed to fetch grants' }, { status: 500 });
     }
 
-    const grantMap = new Map<string, PreflightGrantRow>();
+    const grantMap = new Map<string, GrantWorkflowRow>();
     for (const g of scopedGrants ?? []) {
       grantMap.set(g.id, g);
     }
@@ -164,12 +136,10 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       }
 
       // Workflow gate check — runs before the rollbackOnError branch decision.
-      const gate = await checkWorkflowGate(
-        adminSupabase,
-        orgId,
+      const gate = await repository.checkWorkflowGate(
         item.grantId,
         item.expectedFromStage as LifecycleStage,
-        dbGrant as Record<string, unknown>
+        dbGrant
       );
       if (gate.blocked) {
         results.push({
@@ -231,17 +201,16 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     }
 
     if (rollbackOnError) {
-      const { data: batchResult, error: batchError } = await adminSupabase.rpc('transition_grant_lifecycle_batch', {
-        p_expected_org_id: orgId,
-        p_actor_id: user.id,
-        p_transitions: executableTransitions.map(({ item, decisionPayload }) => ({
-          grant_id: item.grantId,
-          expected_from_stage: item.expectedFromStage,
-          target_stage: item.targetStage,
-          reason: item.reason ?? null,
-          decision_payload: decisionPayload ?? null,
-        })),
-      });
+      const { data: batchResult, error: batchError } =
+        await repository.transitionLifecycleBatch(
+          executableTransitions.map(({ item, decisionPayload }) => ({
+            grantId: item.grantId,
+            expectedFromStage: item.expectedFromStage as LifecycleStage,
+            targetStage: item.targetStage as LifecycleStage,
+            reason: item.reason,
+            decisionPayload,
+          }))
+        );
 
       if (batchError) {
         return json({

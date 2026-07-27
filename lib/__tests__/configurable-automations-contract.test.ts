@@ -39,11 +39,13 @@ describe('Phase 3 configurable automations contract', () => {
   it('wires Builder tools and transition runtime evaluator', () => {
     const tools = readFileSync('lib/builder/tools.ts', 'utf8');
     const lifecycle = readFileSync('lib/grants/lifecycle.ts', 'utf8');
+    const grantRepository = readFileSync('lib/api/repositories/grants.ts', 'utf8');
     expect(tools).toMatch(/create_automation_rule/);
     expect(tools).toMatch(/disable_automation_rule/);
     expect(tools).toMatch(/remove_automation_rule/);
-    expect(lifecycle).toMatch(/runAutomationRulesForEvent/);
-    expect(lifecycle).toMatch(/grant_stage_change/);
+    expect(lifecycle).toMatch(/runLifecycleAutomation/);
+    expect(grantRepository).toMatch(/runAutomationRulesForEvent/);
+    expect(grantRepository).toMatch(/grant_stage_change/);
   });
 
   it('wires dynamic automation triggers, actions, and producer registration', () => {

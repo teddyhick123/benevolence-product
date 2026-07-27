@@ -8,9 +8,9 @@
 //   - POST: role must be member, admin, or owner
 //
 // DB boundary:
-//   - transitionGrant() in lib/grants/lifecycle.ts calls createAdminClient() internally.
-//   - We mock createAdminClient at the module boundary so canTransition() (pure
-//     in-process logic) runs real — only DB calls are stubbed.
+//   - transitionGrant() uses the org-scoped grant repository.
+//   - We mock the elevated constructor beneath that repository so the pure
+//     lifecycle rules run for real while DB calls remain deterministic.
 //
 // Error mapping (from the route's catch block):
 //   - InvalidTransitionError | DecisionRequiredError → 422
@@ -73,6 +73,32 @@ vi.mock('@/lib/supabase', () => ({
   createAdminClient: vi.fn(() => ({ from: mockAdminFrom, rpc: mockAdminRpc })),
 }));
 
+vi.mock('@/lib/api/admin-client', () => ({
+  createElevatedClient: vi.fn(() => ({ from: mockAdminFrom, rpc: mockAdminRpc })),
+}));
+
+vi.mock('@/lib/api/access', () => ({
+  requireOrgAccess: vi.fn(async (orgId: string, minimum: string) => {
+    if (!_authUser) {
+      return { ok: false, response: new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 }) };
+    }
+    const ranks: Record<string, number> = { viewer: 0, member: 1, admin: 2, owner: 3 };
+    if (!_orgRole || (ranks[_orgRole] ?? -1) < (ranks[minimum] ?? 0)) {
+      return { ok: false, response: new Response(JSON.stringify({ error: 'Forbidden' }), { status: 403 }) };
+    }
+    return {
+      ok: true,
+      context: {
+        orgId,
+        role: _orgRole,
+        user: _authUser,
+        principal: { kind: 'user', userId: _authUser.id },
+        db: { from: mockAdminFrom, rpc: mockAdminRpc },
+      },
+    };
+  }),
+}));
+
 function setupMocks() {
   mockServerRpc.mockImplementation(async (fn: string) => {
     if (fn === 'user_org_role') return { data: _orgRole, error: null };
@@ -86,17 +112,15 @@ function setupMocks() {
 
   mockAdminFrom.mockImplementation((table: string) => {
     if (table === 'grants') {
-      return {
-        // transitionGrant: fetch current stage
-        select: vi.fn(() => ({
-          eq: vi.fn(() => ({
-            maybeSingle: vi.fn(async () => ({
-              data: _grantFetchData,
-              error: _grantFetchError,
-            })),
-          })),
+      const b: any = {
+        select: vi.fn(() => b),
+        eq: vi.fn(() => b),
+        maybeSingle: vi.fn(async () => ({
+          data: _grantFetchData,
+          error: _grantFetchError,
         })),
       };
+      return b;
     }
     if (table === 'org_workflow_config') {
       const b: any = {

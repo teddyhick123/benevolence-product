@@ -131,7 +131,9 @@ describe('tax routes auth contract: AGI reads stay under session RLS', () => {
       'app/api/portfolio/[id]/tax-years/route.ts',
     ]) {
       const src = readFileSync(route, 'utf8');
-      expect(src, route).toContain("'Cache-Control': 'no-store'");
+      expect(src, route).toMatch(
+        /'Cache-Control': 'no-store'|@\/lib\/api\/responses/
+      );
       expect(src, route).not.toContain('s-maxage');
       expect(src, route).not.toContain('private,');
     }

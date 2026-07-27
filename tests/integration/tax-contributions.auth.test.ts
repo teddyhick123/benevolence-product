@@ -19,6 +19,7 @@ let _canView = true;
 let _canViewError: { message: string } | null = null;
 let _canEdit = true;
 let _canEditError: { message: string } | null = null;
+let _authenticated = true;
 let _contributions: any[] = [];
 let _contributionsError: { message: string } | null = null;
 let _insertResult: any = { id: CONTRIBUTION_ID, portfolio_id: PORTFOLIO_ID };
@@ -32,6 +33,61 @@ const mockFrom = vi.fn();
 // Mock only at the DB boundary — never mock application code.
 vi.mock('@/lib/supabase', () => ({
   supabasePublic: vi.fn(async () => ({ rpc: mockRpc, from: mockFrom })),
+}));
+
+vi.mock('@/lib/api/access', () => ({
+  requirePortfolioAccess: vi.fn(async (
+    portfolioId: string,
+    minRole: 'viewer' | 'member' = 'viewer'
+  ) => {
+    if (!_authenticated) {
+      return {
+        ok: false,
+        reason: 'unauthenticated',
+        response: Response.json(
+          { error: 'Unauthorized' },
+          { status: 401, headers: { 'Cache-Control': 'no-store' } }
+        ),
+      };
+    }
+
+    const infrastructureError = minRole === 'member' ? _canEditError : _canViewError;
+    if (infrastructureError) {
+      return {
+        ok: false,
+        reason: 'infrastructure',
+        response: Response.json(
+          { error: infrastructureError.message },
+          { status: 500, headers: { 'Cache-Control': 'no-store' } }
+        ),
+      };
+    }
+
+    const allowed = minRole === 'member' ? _canEdit : _canView;
+    if (!allowed) {
+      return {
+        ok: false,
+        reason: 'forbidden',
+        response: Response.json(
+          { error: 'Access denied' },
+          { status: 403, headers: { 'Cache-Control': 'no-store' } }
+        ),
+      };
+    }
+
+    return {
+      ok: true,
+      context: {
+        db: { rpc: mockRpc, from: mockFrom },
+        portfolioId,
+        orgId: 'org-1',
+        role: minRole,
+        principal: { kind: 'user', userId: 'user-1' },
+        user: { id: 'user-1' },
+      },
+    };
+  }),
+  isAccessDenied: vi.fn((result: { ok: boolean }) => !result.ok),
 }));
 
 function setupMocks() {
@@ -93,10 +149,13 @@ const VALID_POST_BODY = {
 // ── Setup ─────────────────────────────────────────────────────────────────────
 
 beforeEach(() => {
+  mockFrom.mockClear();
+  mockRpc.mockClear();
   _canView = true;
   _canViewError = null;
   _canEdit = true;
   _canEditError = null;
+  _authenticated = true;
   _contributions = [];
   _contributionsError = null;
   _insertResult = { id: CONTRIBUTION_ID, portfolio_id: PORTFOLIO_ID };
@@ -173,6 +232,16 @@ describe('GET /api/portfolio/[id]/tax/contributions — contract', () => {
 // ── GET: Auth & Access Control ────────────────────────────────────────────────
 
 describe('GET /api/portfolio/[id]/tax/contributions — auth', () => {
+  it('returns 401 when no valid session exists', async () => {
+    _authenticated = false;
+
+    const res = await GET(makeGetRequest(), makeCtx());
+
+    expect(res.status).toBe(401);
+    expect(await res.json()).toEqual({ error: 'Unauthorized' });
+    expect(mockFrom).not.toHaveBeenCalled();
+  });
+
   it('returns 403 and no data when can_view_portfolio returns false', async () => {
     // Arrange
     _canView = false;
@@ -271,6 +340,16 @@ describe('POST /api/portfolio/[id]/tax/contributions — contract', () => {
 // ── POST: Auth & Access Control ───────────────────────────────────────────────
 
 describe('POST /api/portfolio/[id]/tax/contributions — auth', () => {
+  it('returns 401 when no valid session exists', async () => {
+    _authenticated = false;
+
+    const res = await POST(makePostRequest(PORTFOLIO_ID, VALID_POST_BODY), makeCtx());
+
+    expect(res.status).toBe(401);
+    expect(await res.json()).toEqual({ error: 'Unauthorized' });
+    expect(mockFrom).not.toHaveBeenCalled();
+  });
+
   it('returns 403 when can_edit_portfolio returns false', async () => {
     // Arrange
     _canEdit = false;

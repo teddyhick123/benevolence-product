@@ -1,5 +1,5 @@
-import { NextResponse } from 'next/server';
-import { supabasePublic } from '@/lib/supabase';
+import { requirePortfolioAccess, isAccessDenied } from '@/lib/api/access';
+import { jsonError, jsonOk } from '@/lib/api/responses';
 import { createTaxContributionSchema } from '@/lib/schemas/tax';
 import { validateRequest } from '@/lib/validation';
 import { determineAGILimitCategory } from '@/lib/tax/agi-calculator';
@@ -16,18 +16,13 @@ export async function GET(
   const url = new URL(req.url);
   const year = Number(url.searchParams.get('year') || new Date().getFullYear());
 
-  const sb = await supabasePublic();
-
-  const { data: canView, error: canViewErr } = await sb.rpc('can_view_portfolio', {
-    p_portfolio_id: portfolio_id,
-  });
-
-  if (canViewErr || !canView) {
-    return NextResponse.json(
-      { error: 'Forbidden' },
-      { status: 403, headers: { 'Cache-Control': 'no-store' } }
-    );
+  const access = await requirePortfolioAccess(portfolio_id);
+  if (isAccessDenied(access)) {
+    return access.reason === 'infrastructure'
+      ? jsonError('Forbidden', 403)
+      : access.response;
   }
+  const sb = access.context.db;
 
   // Use enriched view for calculated fields
   const { data, error } = await sb
@@ -38,10 +33,7 @@ export async function GET(
     .order('contribution_date', { ascending: false });
 
   if (error) {
-    return NextResponse.json(
-      { error: error.message },
-      { status: 500, headers: { 'Cache-Control': 'no-store' } }
-    );
+    return jsonError(error.message, 500);
   }
 
   // Get document counts for each contribution
@@ -71,10 +63,7 @@ export async function GET(
     document_count: documentCounts[c.id] || 0,
   }));
 
-  return NextResponse.json(
-    { data: enrichedData, count: enrichedData.length },
-    { headers: { 'Cache-Control': 'no-store' } }
-  );
+  return jsonOk({ data: enrichedData, count: enrichedData.length });
 }
 
 /**
@@ -86,26 +75,13 @@ export async function POST(
   ctx: { params: Promise<{ id: string }> }
 ) {
   const { id: portfolio_id } = await ctx.params;
-  const sb = await supabasePublic();
-
-  // Check edit permissions
-  const { data: canEdit, error: canEditErr } = await sb.rpc('can_edit_portfolio', {
-    p_portfolio_id: portfolio_id,
-  });
-
-  if (canEditErr) {
-    return NextResponse.json(
-      { error: canEditErr.message },
-      { status: 500, headers: { 'Cache-Control': 'no-store' } }
-    );
+  const access = await requirePortfolioAccess(portfolio_id, 'member');
+  if (isAccessDenied(access)) {
+    return access.reason === 'forbidden'
+      ? jsonError('Not authorized', 403)
+      : access.response;
   }
-
-  if (!canEdit) {
-    return NextResponse.json(
-      { error: 'Not authorized' },
-      { status: 403, headers: { 'Cache-Control': 'no-store' } }
-    );
-  }
+  const sb = access.context.db;
 
   // Validate request body
   const validation = await validateRequest(req, createTaxContributionSchema);
@@ -117,10 +93,7 @@ export async function POST(
 
   // Ensure portfolio_id matches
   if (validated.portfolio_id !== portfolio_id) {
-    return NextResponse.json(
-      { error: 'Portfolio ID mismatch' },
-      { status: 400, headers: { 'Cache-Control': 'no-store' } }
-    );
+    return jsonError('Portfolio ID mismatch', 400);
   }
 
   // Auto-determine AGI limit category if not provided
@@ -183,10 +156,7 @@ export async function POST(
     .single();
 
   if (insertErr) {
-    return NextResponse.json(
-      { error: insertErr.message },
-      { status: 500, headers: { 'Cache-Control': 'no-store' } }
-    );
+    return jsonError(insertErr.message, 500);
   }
 
   // Fetch enriched version
@@ -194,10 +164,8 @@ export async function POST(
     .from('v_tax_contributions_enriched')
     .select('*')
     .eq('id', created.id)
+    .eq('portfolio_id', portfolio_id)
     .single();
 
-  return NextResponse.json(
-    { data: enriched ?? created },
-    { status: 201, headers: { 'Cache-Control': 'no-store' } }
-  );
+  return jsonOk({ data: enriched ?? created }, { status: 201 });
 }

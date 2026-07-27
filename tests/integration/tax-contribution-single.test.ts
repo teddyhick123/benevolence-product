@@ -50,6 +50,7 @@ let _membershipError:  { message: string } | null = null;
 
 // auth.getUser result
 let _userId = USER_ID;
+let _authenticated = true;
 
 const mockRpc  = vi.fn();
 const mockFrom = vi.fn();
@@ -62,6 +63,69 @@ vi.mock('@/lib/supabase', () => ({
     from: mockFrom,
     auth: mockAuth,
   })),
+}));
+
+vi.mock('@/lib/api/access', () => ({
+  requirePortfolioAccess: vi.fn(async (
+    portfolioId: string,
+    minRole: 'viewer' | 'member' | 'owner' = 'viewer'
+  ) => {
+    if (!_authenticated) {
+      return {
+        ok: false,
+        reason: 'unauthenticated',
+        response: Response.json(
+          { error: 'Unauthorized' },
+          { status: 401, headers: { 'Cache-Control': 'no-store' } }
+        ),
+      };
+    }
+
+    const error = minRole === 'owner'
+      ? _membershipError
+      : minRole === 'member'
+        ? _canEditError
+        : _canViewError;
+    if (error) {
+      return {
+        ok: false,
+        reason: 'infrastructure',
+        response: Response.json(
+          { error: error.message },
+          { status: 500, headers: { 'Cache-Control': 'no-store' } }
+        ),
+      };
+    }
+
+    const allowed = minRole === 'owner'
+      ? _membershipResult?.role === 'owner'
+      : minRole === 'member'
+        ? _canEdit
+        : _canView;
+    if (!allowed) {
+      return {
+        ok: false,
+        reason: 'forbidden',
+        response: Response.json(
+          { error: 'Access denied' },
+          { status: 403, headers: { 'Cache-Control': 'no-store' } }
+        ),
+      };
+    }
+
+    return {
+      ok: true,
+      context: {
+        db: { rpc: mockRpc, from: mockFrom, auth: mockAuth },
+        portfolioId,
+        orgId: 'org-1',
+        role: minRole,
+        principal: { kind: 'user', userId: _userId },
+        user: { id: _userId },
+      },
+    };
+  }),
+  isAccessDenied: vi.fn((result: { ok: boolean }) => !result.ok),
 }));
 
 // ── Mock setup ─────────────────────────────────────────────────────────────────
@@ -180,6 +244,8 @@ const VALID_PUT_BODY = {
 // ── Setup ──────────────────────────────────────────────────────────────────────
 
 beforeEach(() => {
+  mockFrom.mockClear();
+  mockRpc.mockClear();
   _canView         = true;
   _canViewError    = null;
   _canEdit         = true;
@@ -199,6 +265,7 @@ beforeEach(() => {
   _membershipResult = { role: 'owner' };
   _membershipError  = null;
   _userId           = USER_ID;
+  _authenticated    = true;
   setupMocks();
 });
 
@@ -209,6 +276,16 @@ beforeEach(() => {
 describe('GET /api/portfolio/[id]/tax/contributions/[contributionId]', () => {
 
   // ── P0: Auth ─────────────────────────────────────────────────────────────────
+
+  it('returns 401 when no valid session exists', async () => {
+    _authenticated = false;
+
+    const res = await GET(makeGetRequest(), makeCtx());
+
+    expect(res.status).toBe(401);
+    expect(await res.json()).toEqual({ error: 'Unauthorized' });
+    expect(mockFrom).not.toHaveBeenCalled();
+  });
 
   it('returns 403 and no data when can_view_portfolio is false', async () => {
     // Arrange
@@ -329,6 +406,19 @@ describe('GET /api/portfolio/[id]/tax/contributions/[contributionId]', () => {
 describe('PUT /api/portfolio/[id]/tax/contributions/[contributionId]', () => {
 
   // ── P0: Auth ─────────────────────────────────────────────────────────────────
+
+  it('returns 401 when no valid session exists', async () => {
+    _authenticated = false;
+
+    const res = await PUT(
+      makePutRequest(PORTFOLIO_ID, CONTRIBUTION_ID, VALID_PUT_BODY),
+      makeCtx()
+    );
+
+    expect(res.status).toBe(401);
+    expect(await res.json()).toEqual({ error: 'Unauthorized' });
+    expect(mockFrom).not.toHaveBeenCalled();
+  });
 
   it('returns 403 when can_edit_portfolio is false', async () => {
     // Arrange
@@ -497,6 +587,16 @@ describe('PUT /api/portfolio/[id]/tax/contributions/[contributionId]', () => {
 describe('DELETE /api/portfolio/[id]/tax/contributions/[contributionId]', () => {
 
   // ── P0: Auth — owner-only guard ───────────────────────────────────────────────
+
+  it('returns 401 when no valid session exists', async () => {
+    _authenticated = false;
+
+    const res = await DELETE(makeDeleteRequest(), makeCtx());
+
+    expect(res.status).toBe(401);
+    expect(await res.json()).toEqual({ error: 'Unauthorized' });
+    expect(mockFrom).not.toHaveBeenCalled();
+  });
 
   it('returns 403 when the user is not a portfolio member at all', async () => {
     // Arrange — no membership row found

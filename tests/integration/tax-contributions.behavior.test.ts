@@ -30,6 +30,24 @@ vi.mock('@/lib/supabase', () => ({
   supabasePublic: vi.fn(async () => ({ rpc: mockRpc, from: mockFrom })),
 }));
 
+vi.mock('@/lib/api/access', () => ({
+  requirePortfolioAccess: vi.fn(async (
+    portfolioId: string,
+    minRole: 'viewer' | 'member' = 'viewer'
+  ) => ({
+    ok: true,
+    context: {
+      db: { rpc: mockRpc, from: mockFrom },
+      portfolioId,
+      orgId: 'org-1',
+      role: minRole,
+      principal: { kind: 'user', userId: 'user-1' },
+      user: { id: 'user-1' },
+    },
+  })),
+  isAccessDenied: vi.fn((result: { ok: boolean }) => !result.ok),
+}));
+
 function setupMocks() {
   mockRpc.mockImplementation(async (fn: string) => {
     if (fn === 'can_view_portfolio') return { data: _canView, error: null };

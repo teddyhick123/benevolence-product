@@ -1,18 +1,8 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { createSupabaseServerClient } from '@/lib/supabase';
+import { NextRequest } from 'next/server';
+import { ZodError } from 'zod';
+import { requirePortfolioAccess } from '@/lib/api/access';
+import { jsonError, jsonOk } from '@/lib/api/responses';
 import { grantQuerySchema } from '@/lib/schemas/grant';
-
-const getSupabase = createSupabaseServerClient;
-
-function json(body: Record<string, unknown>, init?: ResponseInit) {
-  return NextResponse.json(body, {
-    ...init,
-    headers: {
-      ...init?.headers,
-      'Cache-Control': 'no-store',
-    },
-  });
-}
 
 /**
  * GET /api/portfolio/[id]/grants
@@ -25,7 +15,9 @@ export async function GET(
 ) {
   try {
     const { id: portfolioId } = await params;
-    const supabase = await getSupabase();
+    const access = await requirePortfolioAccess(portfolioId, 'viewer');
+    if (!access.ok) return access.response;
+    const db = access.context.db;
 
     // Parse and validate query parameters
     const { searchParams } = new URL(req.url);
@@ -43,20 +35,8 @@ export async function GET(
 
     const validated = grantQuerySchema.parse(queryParams);
 
-    // Verify user has access to this portfolio
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      return json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const { data: canView, error: canViewErr } = await supabase.rpc('can_view_portfolio', {
-      p_portfolio_id: portfolioId,
-    });
-    if (canViewErr) return json({ error: canViewErr.message }, { status: 500 });
-    if (!canView) return json({ error: 'Portfolio not found or access denied' }, { status: 403 });
-
     // Build query on the grants view
-    let query = supabase
+    let query = db
       .from('v_grants')
       .select('*', { count: 'exact' })
       .eq('portfolio_id', portfolioId);
@@ -90,20 +70,18 @@ export async function GET(
 
     if (error) {
       console.error('Error fetching grants:', error);
-      return json(
-        { error: 'Failed to fetch grants' },
-        { status: 500 }
-      );
+      return jsonError('Failed to fetch grants', 500);
     }
 
     // Also fetch portfolio-level summary
-    const { data: summary } = await supabase
+    const { data: summary, error: summaryError } = await db
       .from('v_portfolio_grant_summary')
       .select('*')
       .eq('portfolio_id', portfolioId)
-      .single();
+      .maybeSingle();
+    if (summaryError) return jsonError(summaryError.message, 500);
 
-    return json({
+    return jsonOk({
       data: grants || [],
       count: count || 0,
       summary: summary || null,
@@ -113,14 +91,11 @@ export async function GET(
         total: count || 0,
       },
     });
-  } catch (error: any) {
-    if (error?.name === 'ZodError') {
-      return json(
-        { error: 'Invalid query parameters', details: error.errors },
-        { status: 400 }
-      );
+  } catch (error: unknown) {
+    if (error instanceof ZodError) {
+      return jsonError('Invalid query parameters', 400, { details: error.issues });
     }
     console.error('Unexpected error in GET grants:', error);
-    return json({ error: 'Internal server error' }, { status: 500 });
+    return jsonError('Internal server error', 500);
   }
 }

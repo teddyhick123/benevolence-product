@@ -25,13 +25,15 @@ describe('foundation reliability contracts', () => {
     }
   });
 
-  it('scopes grant budget service-role access to the URL portfolio', () => {
+  it('scopes grant budget access to the URL portfolio through the shared guard', () => {
     const route = src('app/api/portfolio/[id]/grants/[grantId]/budget/route.ts');
 
     expect(route).toContain('requireGrantInPortfolio');
+    expect(route).toContain('requirePortfolioAccess');
     expect(route).toMatch(/from\('grants'\)[\s\S]{0,220}\.eq\('id', grantId\)[\s\S]{0,120}\.eq\('portfolio_id', portfolioId\)/);
     expect(route.match(/requireGrantInPortfolio\(sb, grantId, portfolioId\)/g)?.length).toBeGreaterThanOrEqual(4);
-    expect(route).toContain("'Cache-Control': 'no-store'");
+    expect(route).toContain('jsonOk');
+    expect(route).not.toContain('createAdminClient');
   });
 
   it('uses canonical valuation columns from db/migrations', () => {
@@ -136,10 +138,11 @@ describe('foundation reliability contracts', () => {
 
   it('grant exports and generated letters do not silently drop durable side effects', () => {
     const grantExport = src('app/api/portfolio/[id]/grants/export/route.ts');
-    expect(grantExport).toContain('can_view_portfolio');
+    expect(grantExport).toContain('requirePortfolioAccess');
     expect(grantExport).toContain('grantsError');
     expect(grantExport).toContain('milestonesResult');
     expect(grantExport).toContain("'Cache-Control': 'no-store'");
+    expect(grantExport).not.toContain('createAdminClient');
 
     const letterGenerate = src('app/api/portfolio/[id]/letter/generate/route.ts');
     expect(letterGenerate).toContain('can_view_portfolio');

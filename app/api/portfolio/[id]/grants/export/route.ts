@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { createServerClient, createAdminClient } from '@/lib/supabase';
+import { requirePortfolioAccess } from '@/lib/api/access';
+import { jsonError, jsonOk } from '@/lib/api/responses';
 import { withMilestoneDisplayStatus } from '@/lib/grants/milestones';
 import * as XLSX from 'xlsx';
 
@@ -8,13 +9,6 @@ function noStoreHeaders(headers: Record<string, string> = {}) {
     ...headers,
     'Cache-Control': 'no-store',
   };
-}
-
-function json(body: Record<string, unknown>, init?: ResponseInit) {
-  return NextResponse.json(body, {
-    ...init,
-    headers: noStoreHeaders(init?.headers as Record<string, string> | undefined),
-  });
 }
 
 /**
@@ -30,20 +24,9 @@ export async function GET(
   const format = url.searchParams.get('format') || 'csv';
   const grantId = url.searchParams.get('grantId') || null;
 
-  // Auth check
-  const supabase = await createServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
-  const { data: canView, error: canViewErr } = await supabase.rpc('can_view_portfolio', {
-    p_portfolio_id: portfolioId,
-  });
-  if (canViewErr) return json({ error: canViewErr.message }, { status: 500 });
-  if (!canView) return json({ error: 'Access denied' }, { status: 403 });
-
-  const sb = createAdminClient();
+  const access = await requirePortfolioAccess(portfolioId, 'viewer');
+  if (!access.ok) return access.response;
+  const sb = access.context.db;
 
   // Fetch portfolio info
   const { data: portfolio, error: portfolioError } = await sb
@@ -51,17 +34,17 @@ export async function GET(
     .select('name')
     .eq('id', portfolioId)
     .single();
-  if (portfolioError) return json({ error: portfolioError.message }, { status: 500 });
+  if (portfolioError) return jsonError(portfolioError.message, 500);
 
   if (!portfolio) {
-    return json({ error: 'Portfolio not found' }, { status: 404 });
+    return jsonError('Portfolio not found', 404);
   }
 
   // Build grant query
   let grantsQuery = sb.from('v_grants').select('*').eq('portfolio_id', portfolioId);
   if (grantId) grantsQuery = grantsQuery.eq('grant_id', grantId);
   const { data: grants, error: grantsError } = await grantsQuery;
-  if (grantsError) return json({ error: grantsError.message }, { status: 500 });
+  if (grantsError) return jsonError(grantsError.message, 500);
 
   const grantIds = (grants || []).map((g: any) => g.grant_id).filter(Boolean);
 
@@ -69,7 +52,6 @@ export async function GET(
   const [
     milestonesResult,
     paymentsResult,
-    communicationsResult,
     budgetItemsResult,
     decisionsResult,
   ] = await Promise.all([
@@ -80,23 +62,19 @@ export async function GET(
       ? sb.from('grant_payments').select('grant_id, payment_number, payment_type, amount, scheduled_date, paid_date, status, conditions_met, notes').in('grant_id', grantIds).order('scheduled_date')
       : Promise.resolve({ data: [] }),
     grantIds.length > 0
-      ? sb.from('grant_communications').select('grant_id, direction, comm_type, subject, summary, contact_name, occurred_at').in('grant_id', grantIds).order('occurred_at', { ascending: false })
-      : Promise.resolve({ data: [] }),
-    grantIds.length > 0
       ? sb.from('grant_budget_items').select('grant_id, category, description, budgeted_amount, actual_amount').in('grant_id', grantIds).order('category')
       : Promise.resolve({ data: [] }),
     grantIds.length > 0
       ? sb.from('grant_decisions').select('grant_id, decision_type, decision, decision_date, decided_by, amount, conditions, rationale').in('grant_id', grantIds).order('decision_date', { ascending: false })
       : Promise.resolve({ data: [] }),
   ]);
-  for (const result of [milestonesResult, paymentsResult, communicationsResult, budgetItemsResult, decisionsResult]) {
+  for (const result of [milestonesResult, paymentsResult, budgetItemsResult, decisionsResult]) {
     if ('error' in result && result.error) {
-      return json({ error: result.error.message }, { status: 500 });
+      return jsonError(result.error.message, 500);
     }
   }
   const milestones = (milestonesResult.data || []).map((milestone: any) => withMilestoneDisplayStatus(milestone));
   const payments = paymentsResult.data;
-  const communications = communicationsResult.data;
   const budgetItems = budgetItemsResult.data;
   const decisions = decisionsResult.data;
 
@@ -169,7 +147,7 @@ export async function GET(
   const dateStr = new Date().toISOString().split('T')[0];
 
   if (format === 'json') {
-    return json({ data: exportData });
+    return jsonOk({ data: exportData });
   }
 
   if (format === 'csv') {
@@ -192,7 +170,7 @@ export async function GET(
     });
   }
 
-  return json({ error: 'Invalid format. Use csv, json, or xlsx.' }, { status: 400 });
+  return jsonError('Invalid format. Use csv, json, or xlsx.', 400);
 }
 
 function q(s: string | null | undefined): string {

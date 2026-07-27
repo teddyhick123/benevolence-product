@@ -1,24 +1,29 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { createServerClient, createAdminClient } from '@/lib/supabase';
+import { NextRequest } from 'next/server';
+import { z } from 'zod';
+import { requirePortfolioAccess } from '@/lib/api/access';
+import { jsonError, jsonOk } from '@/lib/api/responses';
+import type { SessionClient } from '@/lib/api/server-client';
 
 export const runtime = 'nodejs';
 
 type Params = { id: string; grantId: string };
 
-const EDIT_ROLES = new Set(['owner', 'admin', 'member']);
+const createBudgetItemSchema = z.object({
+  category: z.string().trim().min(1).max(200),
+  description: z.string().trim().min(1).max(2000),
+  budgeted_amount: z.coerce.number().finite().nonnegative(),
+}).strict();
 
-function json(body: Record<string, unknown>, init?: ResponseInit) {
-  return NextResponse.json(body, {
-    ...init,
-    headers: {
-      ...init?.headers,
-      'Cache-Control': 'no-store',
-    },
-  });
-}
+const updateBudgetItemSchema = z.object({
+  category: z.string().trim().min(1).max(200).optional(),
+  description: z.string().trim().min(1).max(2000).optional(),
+  budgeted_amount: z.coerce.number().finite().nonnegative().optional(),
+  actual_amount: z.coerce.number().finite().nonnegative().nullable().optional(),
+  notes: z.string().max(5000).nullable().optional(),
+}).strict();
 
 async function requireGrantInPortfolio(
-  sb: ReturnType<typeof createAdminClient>,
+  sb: SessionClient,
   grantId: string,
   portfolioId: string
 ) {
@@ -44,28 +49,12 @@ export async function GET(
 ) {
   try {
     const { id: portfolioId, grantId } = await params;
-    const supabase = await createServerClient();
-
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      return json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const { data: membership } = await supabase
-      .from('portfolio_members')
-      .select('role')
-      .eq('portfolio_id', portfolioId)
-      .eq('user_id', user.id)
-      .single();
-
-    if (!membership) {
-      return json({ error: 'Access denied' }, { status: 403 });
-    }
-
-    const sb = createAdminClient();
+    const access = await requirePortfolioAccess(portfolioId, 'viewer');
+    if (!access.ok) return access.response;
+    const sb = access.context.db;
     const grantInPortfolio = await requireGrantInPortfolio(sb, grantId, portfolioId);
     if (!grantInPortfolio) {
-      return json({ error: 'Grant not found' }, { status: 404 });
+      return jsonError('Grant not found', 404);
     }
 
     const { data, error } = await sb
@@ -76,10 +65,10 @@ export async function GET(
 
     if (error) throw error;
 
-    return json({ data: data || [] });
-  } catch (err: any) {
+    return jsonOk({ data: data || [] });
+  } catch (err: unknown) {
     console.error('Error fetching budget items:', err);
-    return json({ error: err.message }, { status: 500 });
+    return jsonError(err instanceof Error ? err.message : 'Internal error', 500);
   }
 }
 
@@ -93,38 +82,17 @@ export async function POST(
 ) {
   try {
     const { id: portfolioId, grantId } = await params;
-    const supabase = await createServerClient();
+    const access = await requirePortfolioAccess(portfolioId, 'member');
+    if (!access.ok) return access.response;
 
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      return json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const parsed = createBudgetItemSchema.safeParse(await req.json().catch(() => ({})));
+    if (!parsed.success) return jsonError('Validation failed', 400, { details: parsed.error.format() });
+    const { category, description, budgeted_amount } = parsed.data;
 
-    const { data: membership } = await supabase
-      .from('portfolio_members')
-      .select('role')
-      .eq('portfolio_id', portfolioId)
-      .eq('user_id', user.id)
-      .single();
-
-    if (!membership || !EDIT_ROLES.has(membership.role)) {
-      return json({ error: 'Insufficient permissions' }, { status: 403 });
-    }
-
-    const body = await req.json();
-    const { category, description, budgeted_amount } = body;
-
-    if (!category || !description || budgeted_amount == null) {
-      return json(
-        { error: 'category, description, and budgeted_amount are required' },
-        { status: 400 }
-      );
-    }
-
-    const sb = createAdminClient();
+    const sb = access.context.db;
     const grantInPortfolio = await requireGrantInPortfolio(sb, grantId, portfolioId);
     if (!grantInPortfolio) {
-      return json({ error: 'Grant not found' }, { status: 404 });
+      return jsonError('Grant not found', 404);
     }
 
     const { data, error } = await sb
@@ -133,17 +101,17 @@ export async function POST(
         grant_id: grantId,
         category,
         description,
-        budgeted_amount: Number(budgeted_amount),
+        budgeted_amount,
       })
       .select()
       .single();
 
     if (error) throw error;
 
-    return json({ data }, { status: 201 });
-  } catch (err: any) {
+    return jsonOk({ data }, { status: 201 });
+  } catch (err: unknown) {
     console.error('Error creating budget item:', err);
-    return json({ error: err.message }, { status: 500 });
+    return jsonError(err instanceof Error ? err.message : 'Internal error', 500);
   }
 }
 
@@ -161,46 +129,24 @@ export async function PATCH(
     const itemId = searchParams.get('itemId');
 
     if (!itemId) {
-      return json({ error: 'itemId is required' }, { status: 400 });
+      return jsonError('itemId is required', 400);
     }
 
-    const supabase = await createServerClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      return json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const access = await requirePortfolioAccess(portfolioId, 'member');
+    if (!access.ok) return access.response;
+    const parsed = updateBudgetItemSchema.safeParse(await req.json().catch(() => ({})));
+    if (!parsed.success) return jsonError('Validation failed', 400, { details: parsed.error.format() });
+    if (Object.keys(parsed.data).length === 0) return jsonError('No valid fields to update', 400);
 
-    const { data: membership } = await supabase
-      .from('portfolio_members')
-      .select('role')
-      .eq('portfolio_id', portfolioId)
-      .eq('user_id', user.id)
-      .single();
-
-    if (!membership || !EDIT_ROLES.has(membership.role)) {
-      return json({ error: 'Insufficient permissions' }, { status: 403 });
-    }
-
-    const body = await req.json();
-    const allowedFields = ['category', 'description', 'budgeted_amount', 'actual_amount', 'notes'];
-    const updates: Record<string, any> = {};
-    for (const field of allowedFields) {
-      if (field in body) updates[field] = body[field];
-    }
-
-    if (Object.keys(updates).length === 0) {
-      return json({ error: 'No valid fields to update' }, { status: 400 });
-    }
-
-    const sb = createAdminClient();
+    const sb = access.context.db;
     const grantInPortfolio = await requireGrantInPortfolio(sb, grantId, portfolioId);
     if (!grantInPortfolio) {
-      return json({ error: 'Grant not found' }, { status: 404 });
+      return jsonError('Grant not found', 404);
     }
 
     const { data, error } = await sb
       .from('grant_budget_items')
-      .update(updates)
+      .update(parsed.data)
       .eq('id', itemId)
       .eq('grant_id', grantId)
       .select()
@@ -208,10 +154,10 @@ export async function PATCH(
 
     if (error) throw error;
 
-    return json({ data });
-  } catch (err: any) {
+    return jsonOk({ data });
+  } catch (err: unknown) {
     console.error('Error updating budget item:', err);
-    return json({ error: err.message }, { status: 500 });
+    return jsonError(err instanceof Error ? err.message : 'Internal error', 500);
   }
 }
 
@@ -229,30 +175,15 @@ export async function DELETE(
     const itemId = searchParams.get('itemId');
 
     if (!itemId) {
-      return json({ error: 'itemId is required' }, { status: 400 });
+      return jsonError('itemId is required', 400);
     }
 
-    const supabase = await createServerClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      return json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const { data: membership } = await supabase
-      .from('portfolio_members')
-      .select('role')
-      .eq('portfolio_id', portfolioId)
-      .eq('user_id', user.id)
-      .single();
-
-    if (!membership || !EDIT_ROLES.has(membership.role)) {
-      return json({ error: 'Insufficient permissions' }, { status: 403 });
-    }
-
-    const sb = createAdminClient();
+    const access = await requirePortfolioAccess(portfolioId, 'member');
+    if (!access.ok) return access.response;
+    const sb = access.context.db;
     const grantInPortfolio = await requireGrantInPortfolio(sb, grantId, portfolioId);
     if (!grantInPortfolio) {
-      return json({ error: 'Grant not found' }, { status: 404 });
+      return jsonError('Grant not found', 404);
     }
 
     const { error } = await sb
@@ -263,9 +194,9 @@ export async function DELETE(
 
     if (error) throw error;
 
-    return json({ success: true });
-  } catch (err: any) {
+    return jsonOk({ success: true });
+  } catch (err: unknown) {
     console.error('Error deleting budget item:', err);
-    return json({ error: err.message }, { status: 500 });
+    return jsonError(err instanceof Error ? err.message : 'Internal error', 500);
   }
 }

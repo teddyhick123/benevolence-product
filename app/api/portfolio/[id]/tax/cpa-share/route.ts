@@ -1,5 +1,5 @@
-import { NextResponse } from 'next/server';
-import { supabasePublic } from '@/lib/supabase';
+import { requirePortfolioAccess, isAccessDenied } from '@/lib/api/access';
+import { jsonError, jsonOk } from '@/lib/api/responses';
 import {
   generateShareToken,
   hashShareToken,
@@ -18,19 +18,13 @@ export async function GET(
   ctx: { params: Promise<{ id: string }> }
 ) {
   const { id: portfolio_id } = await ctx.params;
-  const sb = await supabasePublic();
-
-  // Check permissions
-  const { data: canEdit, error: canEditErr } = await sb.rpc('can_edit_portfolio', {
-    p_portfolio_id: portfolio_id,
-  });
-
-  if (canEditErr || !canEdit) {
-    return NextResponse.json(
-      { error: 'Not authorized' },
-      { status: 403, headers: { 'Cache-Control': 'no-store' } }
-    );
+  const access = await requirePortfolioAccess(portfolio_id, 'member');
+  if (isAccessDenied(access)) {
+    return access.reason === 'unauthenticated'
+      ? access.response
+      : jsonError('Not authorized', 403);
   }
+  const sb = access.context.db;
 
   try {
     const { data: shareLinks, error } = await sb
@@ -60,16 +54,10 @@ export async function GET(
       throw error;
     }
 
-    return NextResponse.json(
-      { data: shareLinks || [] },
-      { headers: { 'Cache-Control': 'no-store' } }
-    );
+    return jsonOk({ data: shareLinks || [] });
   } catch (error) {
     console.error('Error fetching share links:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch share links' },
-      { status: 500, headers: { 'Cache-Control': 'no-store' } }
-    );
+    return jsonError('Failed to fetch share links', 500);
   }
 }
 
@@ -95,19 +83,13 @@ export async function POST(
   ctx: { params: Promise<{ id: string }> }
 ) {
   const { id: portfolio_id } = await ctx.params;
-  const sb = await supabasePublic();
-
-  // Check permissions
-  const { data: canEdit, error: canEditErr } = await sb.rpc('can_edit_portfolio', {
-    p_portfolio_id: portfolio_id,
-  });
-
-  if (canEditErr || !canEdit) {
-    return NextResponse.json(
-      { error: 'Not authorized' },
-      { status: 403, headers: { 'Cache-Control': 'no-store' } }
-    );
+  const access = await requirePortfolioAccess(portfolio_id, 'member');
+  if (isAccessDenied(access)) {
+    return access.reason === 'unauthenticated'
+      ? access.response
+      : jsonError('Not authorized', 403);
   }
+  const sb = access.context.db;
 
   try {
     const body = await req.json();
@@ -124,10 +106,7 @@ export async function POST(
     } = body;
 
     if (!tax_years || tax_years.length === 0) {
-      return NextResponse.json(
-        { error: 'At least one tax year must be specified' },
-        { status: 400, headers: { 'Cache-Control': 'no-store' } }
-      );
+      return jsonError('At least one tax year must be specified', 400);
     }
 
     // Generate secure token
@@ -141,13 +120,11 @@ export async function POST(
       .from('portfolios')
       .select('org_id')
       .eq('id', portfolio_id)
+      .eq('org_id', access.context.orgId)
       .single();
 
     if (portfolioErr || !portfolioRow) {
-      return NextResponse.json(
-        { error: 'Portfolio not found' },
-        { status: 404, headers: { 'Cache-Control': 'no-store' } }
-      );
+      return jsonError('Portfolio not found', 404);
     }
 
     // Create share link
@@ -199,22 +176,16 @@ export async function POST(
       emailData = formatCPAEmailInvite(shareLink, shareURL);
     }
 
-    return NextResponse.json(
-      {
-        data: {
-          ...shareLink,
-          share_url: shareURL,
-          email_preview: emailData,
-        },
+    return jsonOk({
+      data: {
+        ...shareLink,
+        share_url: shareURL,
+        email_preview: emailData,
       },
-      { status: 201, headers: { 'Cache-Control': 'no-store' } }
-    );
+    }, { status: 201 });
   } catch (error) {
     console.error('Error creating share link:', error);
-    return NextResponse.json(
-      { error: 'Failed to create share link' },
-      { status: 500, headers: { 'Cache-Control': 'no-store' } }
-    );
+    return jsonError('Failed to create share link', 500);
   }
 }
 
@@ -231,25 +202,16 @@ export async function PATCH(
   const shareLinkId = url.searchParams.get('share_link_id');
 
   if (!shareLinkId) {
-    return NextResponse.json(
-      { error: 'share_link_id required' },
-      { status: 400, headers: { 'Cache-Control': 'no-store' } }
-    );
+    return jsonError('share_link_id required', 400);
   }
 
-  const sb = await supabasePublic();
-
-  // Check permissions
-  const { data: canEdit, error: canEditErr } = await sb.rpc('can_edit_portfolio', {
-    p_portfolio_id: portfolio_id,
-  });
-
-  if (canEditErr || !canEdit) {
-    return NextResponse.json(
-      { error: 'Not authorized' },
-      { status: 403, headers: { 'Cache-Control': 'no-store' } }
-    );
+  const access = await requirePortfolioAccess(portfolio_id, 'member');
+  if (isAccessDenied(access)) {
+    return access.reason === 'unauthenticated'
+      ? access.response
+      : jsonError('Not authorized', 403);
   }
+  const sb = access.context.db;
 
   try {
     // Revoke the share link
@@ -261,16 +223,10 @@ export async function PATCH(
       throw revokeError;
     }
 
-    return NextResponse.json(
-      { success: true },
-      { headers: { 'Cache-Control': 'no-store' } }
-    );
+    return jsonOk({ success: true });
   } catch (error) {
     console.error('Error revoking share link:', error);
-    return NextResponse.json(
-      { error: 'Failed to revoke share link' },
-      { status: 500, headers: { 'Cache-Control': 'no-store' } }
-    );
+    return jsonError('Failed to revoke share link', 500);
   }
 }
 

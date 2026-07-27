@@ -33,6 +33,43 @@ vi.mock('@/lib/supabase', () => ({
   supabasePublic: vi.fn(async () => ({ rpc: mockRpc, from: mockFrom })),
 }));
 
+vi.mock('@/lib/api/access', () => ({
+  requirePortfolioAccess: vi.fn(async (portfolioId: string) => {
+    if (_canEditError) {
+      return {
+        ok: false,
+        reason: 'infrastructure',
+        response: Response.json(
+          { error: _canEditError.message },
+          { status: 500, headers: { 'Cache-Control': 'no-store' } }
+        ),
+      };
+    }
+    if (!_canEdit) {
+      return {
+        ok: false,
+        reason: 'forbidden',
+        response: Response.json(
+          { error: 'Access denied' },
+          { status: 403, headers: { 'Cache-Control': 'no-store' } }
+        ),
+      };
+    }
+    return {
+      ok: true,
+      context: {
+        db: { rpc: mockRpc, from: mockFrom },
+        portfolioId,
+        orgId: ORG_ID,
+        role: 'member',
+        principal: { kind: 'user', userId: 'user-1' },
+        user: { id: 'user-1' },
+      },
+    };
+  }),
+  isAccessDenied: vi.fn((result: { ok: boolean }) => !result.ok),
+}));
+
 function setupMocks() {
   mockRpc.mockImplementation(async (fn: string) => {
     if (fn === 'can_edit_portfolio') return { data: _canEdit, error: _canEditError };

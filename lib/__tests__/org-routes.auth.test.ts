@@ -231,7 +231,8 @@ describe('org-scoped route auth contracts', () => {
     expect(grantsRoute).not.toContain('workflowError');
 
     const grantDetailRoute = readFileSync('app/api/org/[orgId]/grants/[grantId]/route.ts', 'utf8');
-    expect(grantDetailRoute).toContain("'Cache-Control': 'no-store'");
+    expect(grantDetailRoute).toContain('jsonOk');
+    expect(grantDetailRoute).toContain('jsonError');
     expect(grantDetailRoute).toContain('Use the /transition endpoint');
     expect(grantDetailRoute).toContain('.eq(\'org_id\', orgId)');
     expect(grantDetailRoute).toContain('internal_owner_id is not a member of this organization');

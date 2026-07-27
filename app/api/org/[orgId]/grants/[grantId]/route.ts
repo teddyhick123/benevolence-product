@@ -1,10 +1,9 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { createAdminClient, createServerClient } from '@/lib/supabase';
-import { getOrgAccess, hasOrgAccess } from '@/lib/org-access';
+import { NextRequest } from 'next/server';
+import { requireOrgAccess } from '@/lib/api/access';
+import { jsonError, jsonOk } from '@/lib/api/responses';
 
 export const dynamic = 'force-dynamic';
 
-const NO_STORE = { 'Cache-Control': 'no-store' } as const;
 // Fields that can be PATCHed; lifecycle_stage is excluded — use /transition instead
 const PATCHABLE_FIELDS = new Set([
   'purpose',
@@ -24,14 +23,13 @@ interface RouteParams {
   params: Promise<{ orgId: string; grantId: string }>;
 }
 
-function json(body: unknown, init: ResponseInit = {}) {
-  return NextResponse.json(body, {
-    ...init,
-    headers: {
-      ...NO_STORE,
-      ...(init.headers || {}),
-    },
-  });
+function errorMessage(error: unknown): string {
+  return typeof error === 'object'
+    && error !== null
+    && 'message' in error
+    && typeof error.message === 'string'
+    ? error.message
+    : 'Internal error';
 }
 
 // GET /api/org/[orgId]/grants/[grantId]
@@ -39,12 +37,9 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
   try {
     const { orgId, grantId } = await params;
 
-    const supabase = await createServerClient();
-    const access = await getOrgAccess(supabase, orgId);
-    if (!access.user) return json({ error: 'Unauthorized' }, { status: 401 });
-    if (!hasOrgAccess(access, 'viewer')) return json({ error: 'Not authorized' }, { status: 403 });
-
-    const db = createAdminClient();
+    const access = await requireOrgAccess(orgId, 'viewer');
+    if (!access.ok) return access.response;
+    const db = access.context.db;
 
     // Main grant row with holding
     const { data: grant, error: grantErr } = await db
@@ -59,7 +54,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       .maybeSingle();
 
     if (grantErr) throw grantErr;
-    if (!grant) return json({ error: 'Grant not found' }, { status: 404 });
+    if (!grant) return jsonError('Grant not found', 404);
 
     // Parallel fetches for the detail workspace
     const [healthResult, tasksResult, paymentsResult, commsResult, historyResult] =
@@ -95,7 +90,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
           .limit(50),
       ]);
 
-    return json({
+    return jsonOk({
       grant,
       health: healthResult.data ?? null,
       tasks: tasksResult.data ?? [],
@@ -103,8 +98,8 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       communications: commsResult.data ?? [],
       history: historyResult.data ?? [],
     });
-  } catch (err: any) {
-    return json({ error: err?.message ?? 'Internal error' }, { status: 500 });
+  } catch (err: unknown) {
+    return jsonError(errorMessage(err), 500);
   }
 }
 
@@ -113,19 +108,15 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
   try {
     const { orgId, grantId } = await params;
 
-    const supabase = await createServerClient();
-    const access = await getOrgAccess(supabase, orgId);
-    if (!access.user) return json({ error: 'Unauthorized' }, { status: 401 });
-    if (!hasOrgAccess(access, 'member')) return json({ error: 'Member access required' }, { status: 403 });
+    const access = await requireOrgAccess(orgId, 'member');
+    if (!access.ok) return access.response;
+    const db = access.context.db;
 
     const body = await req.json();
 
     // Only allow patchable fields; reject attempts to change lifecycle_stage directly
     if ('lifecycle_stage' in body) {
-      return json(
-        { error: 'Use the /transition endpoint to change lifecycle_stage' },
-        { status: 422 }
-      );
+      return jsonError('Use the /transition endpoint to change lifecycle_stage', 422);
     }
 
     const update: Record<string, unknown> = {};
@@ -136,10 +127,8 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     }
 
     if (Object.keys(update).length === 0) {
-      return json({ error: 'No patchable fields provided' }, { status: 400 });
+      return jsonError('No patchable fields provided', 400);
     }
-
-    const db = createAdminClient();
 
     // Verify grant belongs to org
     const { data: existing } = await db
@@ -149,7 +138,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
       .eq('org_id', orgId)
       .is('deleted_at', null)
       .maybeSingle();
-    if (!existing) return json({ error: 'Grant not found' }, { status: 404 });
+    if (!existing) return jsonError('Grant not found', 404);
 
     if (update.internal_owner_id) {
       const { data: owner } = await db
@@ -158,8 +147,9 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
         .eq('org_id', orgId)
         .eq('user_id', update.internal_owner_id as string)
         .is('deleted_at', null)
+        .not('accepted_at', 'is', null)
         .maybeSingle();
-      if (!owner) return json({ error: 'internal_owner_id is not a member of this organization' }, { status: 400 });
+      if (!owner) return jsonError('internal_owner_id is not a member of this organization', 400);
     }
 
     const { data, error } = await db
@@ -172,8 +162,8 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
 
     if (error) throw error;
 
-    return json({ data });
-  } catch (err: any) {
-    return json({ error: err?.message ?? 'Internal error' }, { status: 500 });
+    return jsonOk({ data });
+  } catch (err: unknown) {
+    return jsonError(errorMessage(err), 500);
   }
 }

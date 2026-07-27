@@ -68,7 +68,6 @@ app/api/org/[orgId]/custom-fields/values/route.ts
 app/api/org/[orgId]/dashboard/route.ts
 app/api/org/[orgId]/grants/[grantId]/checklist/route.ts
 app/api/org/[orgId]/grants/[grantId]/decisions/route.ts
-app/api/org/[orgId]/grants/[grantId]/route.ts
 app/api/org/[orgId]/grants/bulk-transition/route.ts
 app/api/org/[orgId]/grants/calendar/route.ts
 app/api/org/[orgId]/imports/[jobId]/audit/route.ts

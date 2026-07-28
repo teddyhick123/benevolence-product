@@ -384,9 +384,10 @@ describe('org-scoped route auth contracts', () => {
 
   it('compliance routes use canonical module/access checks and no-store responses', () => {
     const dashboardRoute = readFileSync('app/api/org/[orgId]/compliance/dashboard/route.ts', 'utf8');
-    expect(dashboardRoute).toContain("'Cache-Control': 'no-store'");
+    expect(dashboardRoute).toContain('requireOrgAccess');
+    expect(dashboardRoute).toContain('jsonOk');
     expect(dashboardRoute).toContain("p_module: 'compliance'");
-    expect(dashboardRoute).toContain(".is('deleted_at', null)");
+    expect(dashboardRoute).not.toContain('SUPABASE_SERVICE_ROLE');
     expect(dashboardRoute).not.toContain('compliance_regulatory');
 
     const stateRoute = readFileSync('app/api/org/[orgId]/compliance/state-registrations/route.ts', 'utf8');

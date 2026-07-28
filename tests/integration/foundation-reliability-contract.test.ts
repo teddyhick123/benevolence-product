@@ -451,6 +451,9 @@ describe('foundation reliability contracts', () => {
     expect(route).toContain('on_track: null');
     expect(route).toContain('pct_complete: null');
     expect(route).toContain('data_missing: false');
+    expect(route).toContain('requirePortfolioAccess');
+    expect(route).toContain('Number.isFinite(requestedYear)');
+    expect(route).not.toContain('SUPABASE_SERVICE_ROLE');
     expect(component).toContain('Payout Setup Required');
     expect(component).toContain('boolean | null');
   });

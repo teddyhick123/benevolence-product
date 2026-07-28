@@ -36,7 +36,7 @@ describe('qb_accounts column contract', () => {
     'utf8'
   );
   const syncSrc = readFileSync(
-    'app/api/integrations/quickbooks/sync/accounts/route.ts',
+    'lib/api/repositories/quickbooks.ts',
     'utf8'
   );
 
@@ -57,5 +57,9 @@ describe('qb_accounts column contract', () => {
   it('sync route conflict key uses org_id,qb_id', () => {
     expect(syncSrc).toContain("'org_id,qb_id'");
     expect(syncSrc).not.toContain("'org_id,qb_account_id'");
+  });
+
+  it('sync rows include the canonical connection_id foreign key', () => {
+    expect(syncSrc).toContain('connection_id: qbResult.connection.id');
   });
 });

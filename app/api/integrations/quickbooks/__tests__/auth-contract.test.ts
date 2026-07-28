@@ -32,12 +32,12 @@ describe('QB route role checks', () => {
     }
   });
 
-  it('account sync still uses role rather than the stale member_role column', () => {
+  it('account sync uses the shared admin guard', () => {
     const src = readFileSync(
       'app/api/integrations/quickbooks/sync/accounts/route.ts',
       'utf8'
     );
-    expect(src).toContain(".select('role')");
-    expect(src).not.toContain('member_role');
+    expect(src).toContain("requireOrgAccess(orgId, 'admin')");
+    expect(src).not.toContain('createServerClient');
   });
 });

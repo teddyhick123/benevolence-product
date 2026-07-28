@@ -1,100 +1,36 @@
-// app/api/integrations/quickbooks/sync/accounts/route.ts
 // POST /api/integrations/quickbooks/sync/accounts
-// Body: { org_id: string }
-// Fetches the Chart of Accounts from QuickBooks and upserts into qb_accounts.
 
-import { createServerClient } from '@/lib/supabase';
-import { isWorkspaceManager } from '@/lib/roles';
-import {
-  getAuthenticatedQBClientByOrg,
-  findAccountsAsync,
-} from '@/lib/integrations/quickbooks/client';
+import { NextRequest } from 'next/server';
+import { z } from 'zod';
+import { requireOrgAccess } from '@/lib/api/access';
+import { createQuickBooksRepository } from '@/lib/api/repositories/quickbooks';
+import { jsonError, jsonOk } from '@/lib/api/responses';
 
-export async function POST(req: Request): Promise<Response> {
-  const supabase = await createServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return Response.json({ error: 'Unauthorized' }, { status: 401 });
+const syncAccountsSchema = z.object({
+  org_id: z.string().uuid(),
+}).strict();
+
+export async function POST(req: NextRequest): Promise<Response> {
+  const parsed = syncAccountsSchema.safeParse(await req.json().catch(() => ({})));
+  if (!parsed.success) return jsonError('org_id is required', 400);
+
+  const orgId = parsed.data.org_id;
+  const access = await requireOrgAccess(orgId, 'admin');
+  if (!access.ok) return access.response;
+
+  const result = await createQuickBooksRepository({
+    orgId,
+    actorId: access.context.user.id,
+  }).syncAccounts();
+
+  if (result.status === 'not_connected') {
+    return jsonError('QuickBooks not connected or token refresh failed', 422);
   }
-
-  const body = (await req.json().catch(() => ({}))) as { org_id?: string };
-  const orgId = body.org_id;
-  if (!orgId) {
-    return Response.json({ error: 'org_id is required' }, { status: 400 });
+  if (result.status === 'provider_error') {
+    return jsonError('Failed to fetch accounts from QuickBooks', 502);
   }
-
-  const { data: membership } = await supabase
-    .from('organization_members')
-    .select('role')
-    .eq('org_id', orgId)
-    .eq('user_id', user.id)
-    .single();
-
-  if (!membership || !isWorkspaceManager(membership.role)) {
-    return Response.json({ error: 'Admin access required' }, { status: 403 });
+  if (result.status === 'storage_error') {
+    return jsonError('Failed to store accounts', 500);
   }
-
-  const qbResult = await getAuthenticatedQBClientByOrg(orgId);
-  if (!qbResult) {
-    return Response.json(
-      { error: 'QuickBooks not connected or token refresh failed' },
-      { status: 422 }
-    );
-  }
-
-  const { client } = qbResult;
-
-  let accounts;
-  try {
-    accounts = await findAccountsAsync(client);
-  } catch (err) {
-    console.error('[QB] findAccounts error:', err);
-    return Response.json({ error: 'Failed to fetch accounts from QuickBooks' }, { status: 502 });
-  }
-
-  const now = new Date().toISOString();
-
-  const rows = accounts.map((a) => ({
-    org_id: orgId,
-    qb_id: a.Id,
-    qb_name: a.Name,
-    qb_type: a.AccountType,
-    qb_subtype: a.AccountSubType ?? null,
-    current_balance: a.CurrentBalance ?? 0,
-    synced_at: now,
-  }));
-
-  // Upsert all accounts; conflict on (org_id, qb_id)
-  // RLS policy "qb_accounts: org admins can manage" enforces org scope at DB level
-  const { error: upsertError } = await supabase
-    .from('qb_accounts')
-    .upsert(rows, { onConflict: 'org_id,qb_id' });
-
-  if (upsertError) {
-    console.error('[QB] qb_accounts upsert error:', upsertError);
-    await supabase.from('qb_sync_log').insert({
-      org_id: orgId,
-      event_type: 'accounts_sync',
-      status: 'error',
-      error_msg: upsertError.message,
-    });
-    return Response.json({ error: 'Failed to store accounts' }, { status: 500 });
-  }
-
-  // Update last_sync_at on the connection record
-  await supabase
-    .from('quickbooks_connections')
-    .update({ last_sync_at: now })
-    .eq('org_id', orgId);
-
-  await supabase.from('qb_sync_log').insert({
-    org_id: orgId,
-    event_type: 'accounts_sync',
-    status: 'success',
-    record_count: rows.length,
-  });
-
-  return Response.json({ ok: true, synced: rows.length });
+  return jsonOk({ ok: true, synced: result.synced });
 }

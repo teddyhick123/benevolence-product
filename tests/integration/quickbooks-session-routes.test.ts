@@ -11,11 +11,15 @@ const {
   mockFrom,
   mockAuthorizeUri,
   mockCreateOAuthClient,
+  mockCreateQuickBooksRepository,
+  mockSyncAccounts,
 } = vi.hoisted(() => ({
   mockRequireOrgAccess: vi.fn(),
   mockFrom: vi.fn(),
   mockAuthorizeUri: vi.fn(),
   mockCreateOAuthClient: vi.fn(),
+  mockCreateQuickBooksRepository: vi.fn(),
+  mockSyncAccounts: vi.fn(),
 }));
 
 vi.mock('@/lib/api/access', () => ({
@@ -27,11 +31,16 @@ vi.mock('@/lib/integrations/quickbooks/client', () => ({
   createOAuthClient: mockCreateOAuthClient,
 }));
 
+vi.mock('@/lib/api/repositories/quickbooks', () => ({
+  createQuickBooksRepository: mockCreateQuickBooksRepository,
+}));
+
 import { GET as getAccounts } from '@/app/api/integrations/quickbooks/accounts/route';
 import { GET as connect } from '@/app/api/integrations/quickbooks/connect/route';
 import { POST as disconnect } from '@/app/api/integrations/quickbooks/disconnect/route';
 import { GET as getStatus } from '@/app/api/integrations/quickbooks/status/route';
 import { GET as getSyncLog } from '@/app/api/integrations/quickbooks/sync-log/route';
+import { POST as syncAccounts } from '@/app/api/integrations/quickbooks/sync/accounts/route';
 
 function get(path: string) {
   return new NextRequest(`http://localhost${path}`);
@@ -63,6 +72,8 @@ beforeEach(() => {
     setToken: vi.fn(),
     revoke: vi.fn(),
   });
+  mockCreateQuickBooksRepository.mockReturnValue({ syncAccounts: mockSyncAccounts });
+  mockSyncAccounts.mockResolvedValue({ status: 'success', synced: 3 });
 });
 
 describe('QuickBooks session routes', () => {
@@ -187,5 +198,43 @@ describe('QuickBooks session routes', () => {
     expect(connectionDelete.calls).toContainEqual({ method: 'eq', args: ['org_id', ORG_ID] });
     expect(accountsDelete.calls).toContainEqual({ method: 'eq', args: ['org_id', ORG_ID] });
     expect(await response.json()).toEqual({ ok: true });
+  });
+
+  it('syncs accounts through an operation-specific org repository', async () => {
+    const request = new NextRequest(
+      'http://localhost/api/integrations/quickbooks/sync/accounts',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ org_id: ORG_ID }),
+      }
+    );
+
+    const response = await syncAccounts(request);
+
+    expect(mockRequireOrgAccess).toHaveBeenCalledWith(ORG_ID, 'admin');
+    expect(mockCreateQuickBooksRepository).toHaveBeenCalledWith({
+      orgId: ORG_ID,
+      actorId: 'user-1',
+    });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ ok: true, synced: 3 });
+  });
+
+  it('does not construct the sync repository when cross-org access is denied', async () => {
+    mockRequireOrgAccess.mockResolvedValue(denied(403));
+    const request = new NextRequest(
+      'http://localhost/api/integrations/quickbooks/sync/accounts',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ org_id: ORG_ID }),
+      }
+    );
+
+    const response = await syncAccounts(request);
+
+    expect(response.status).toBe(403);
+    expect(mockCreateQuickBooksRepository).not.toHaveBeenCalled();
   });
 });

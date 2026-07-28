@@ -99,18 +99,21 @@ describe('foundation reliability contracts', () => {
 
   it('locally reconciles QuickBooks grant exports', () => {
     const route = src('app/api/integrations/quickbooks/export/grants/route.ts');
+    const repository = src('lib/api/repositories/quickbooks.ts');
     const migration = src('db/migrations/0041_task_workflow_foundation.sql');
 
     expect(migration).toContain('qb_exported_at');
     expect(migration).toContain('qb_journal_entry_id');
     expect(route).toContain('findJournalEntryByDocNumberAsync');
-    expect(route).toContain("event_type: 'grants_export'");
-    expect(route).toMatch(/from\('grants'\)[\s\S]{0,120}\.update\(\{[\s\S]*qb_exported_at[\s\S]*qb_journal_entry_id/);
+    expect(route).toContain("eventType: 'grants_export'");
+    expect(route).toContain('reconcileGrantExport');
+    expect(repository).toMatch(/from\('grants'\)[\s\S]{0,120}\.update\(\{[\s\S]*qb_exported_at[\s\S]*qb_journal_entry_id/);
   });
 
   it('QuickBooks money exports no-store responses and require durable sync logs', () => {
     const migration = src('db/migrations/0037_qb_sync_log.sql');
     const helper = src('lib/integrations/quickbooks/export-attempts.ts');
+    const repository = src('lib/api/repositories/quickbooks.ts');
 
     expect(migration).toContain('create table if not exists qb_export_attempts');
     expect(migration).toContain('qb_export_attempts_active_unique');
@@ -124,16 +127,18 @@ describe('foundation reliability contracts', () => {
       'app/api/integrations/quickbooks/export/contributions/route.ts',
     ]) {
       const route = src(path);
-      expect(route, path).toContain("'Cache-Control': 'no-store'");
-      expect(route, path).toContain('throw error');
-      expect(route, path).toContain('claimQBExportAttempt');
-      expect(route, path).toContain('completeQBExportAttempt');
-      expect(route, path).toContain('failQBExportAttempt');
+      expect(route, path).toContain('jsonOk');
+      expect(route, path).toContain('jsonError');
+      expect(route, path).toContain('claimExportAttempt');
+      expect(route, path).toContain('completeExportAttempt');
+      expect(route, path).toContain('failExportAttempt');
       expect(route, path).toContain('journalEntryMatchesExpected');
       expect(route, path).toContain('QuickBooks export already in flight');
       expect(route, path).not.toContain('Failed to write grants export sync log');
       expect(route, path).not.toContain('Failed to write contributions export sync log');
     }
+    expect(repository).toContain('claimQBExportAttempt');
+    expect(repository).toContain('if (error) throw error');
   });
 
   it('grant exports and generated letters do not silently drop durable side effects', () => {

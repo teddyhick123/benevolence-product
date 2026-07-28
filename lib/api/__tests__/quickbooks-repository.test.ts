@@ -7,13 +7,15 @@ import { stubQuery } from '@/tests/helpers/supabase-mock';
 const {
   mockCreateElevatedClient,
   mockFrom,
-  mockGetAuthenticatedQBClientByOrg,
+  mockGetAuthenticatedQBClientForStore,
   mockFindAccountsAsync,
+  mockClaimQBExportAttempt,
 } = vi.hoisted(() => ({
   mockCreateElevatedClient: vi.fn(),
   mockFrom: vi.fn(),
-  mockGetAuthenticatedQBClientByOrg: vi.fn(),
+  mockGetAuthenticatedQBClientForStore: vi.fn(),
   mockFindAccountsAsync: vi.fn(),
+  mockClaimQBExportAttempt: vi.fn(),
 }));
 
 vi.mock('@/lib/api/admin-client', () => ({
@@ -21,14 +23,18 @@ vi.mock('@/lib/api/admin-client', () => ({
 }));
 
 vi.mock('@/lib/integrations/quickbooks/client', () => ({
-  getAuthenticatedQBClientByOrg: mockGetAuthenticatedQBClientByOrg,
+  getAuthenticatedQBClientForStore: mockGetAuthenticatedQBClientForStore,
   findAccountsAsync: mockFindAccountsAsync,
+}));
+
+vi.mock('@/lib/integrations/quickbooks/export-attempts', () => ({
+  claimQBExportAttempt: mockClaimQBExportAttempt,
 }));
 
 beforeEach(() => {
   vi.clearAllMocks();
   mockCreateElevatedClient.mockReturnValue({ from: mockFrom });
-  mockGetAuthenticatedQBClientByOrg.mockResolvedValue({
+  mockGetAuthenticatedQBClientForStore.mockResolvedValue({
     client: { kind: 'quickbooks-client' },
     connection: { id: 'connection-1', org_id: 'org-1' },
   });
@@ -40,6 +46,7 @@ beforeEach(() => {
       CurrentBalance: 125,
     },
   ]);
+  mockClaimQBExportAttempt.mockResolvedValue({ status: 'claimed', attemptId: 'attempt-1' });
 });
 
 describe('createQuickBooksRepository', () => {
@@ -58,7 +65,10 @@ describe('createQuickBooksRepository', () => {
       actorId: 'user-1',
     }).syncAccounts();
 
-    expect(mockGetAuthenticatedQBClientByOrg).toHaveBeenCalledWith('org-1');
+    expect(mockGetAuthenticatedQBClientForStore).toHaveBeenCalledWith(expect.objectContaining({
+      getConnection: expect.any(Function),
+      updateTokens: expect.any(Function),
+    }));
     expect(accountQuery.upsert).toHaveBeenCalledWith([
       expect.objectContaining({
         org_id: 'org-1',
@@ -101,5 +111,86 @@ describe('createQuickBooksRepository', () => {
 
     expect(repository).not.toHaveProperty('db');
     expect(repository).not.toHaveProperty('from');
+  });
+
+  it('supplies an org-scoped connection store to the QuickBooks client factory', async () => {
+    const connectionQuery = stubQuery(
+      { data: null, error: null },
+      {
+        maybeSingle: {
+          data: { id: 'connection-1', org_id: 'org-1', realm_id: 'realm-1' },
+          error: null,
+        },
+      }
+    );
+    mockFrom.mockReturnValue(connectionQuery);
+    mockGetAuthenticatedQBClientForStore.mockImplementation(async store => {
+      await store.getConnection();
+      return null;
+    });
+
+    await createQuickBooksRepository({ orgId: 'org-1', actorId: 'user-1' })
+      .getAuthenticatedClient();
+
+    expect(connectionQuery.calls).toContainEqual({ method: 'eq', args: ['org_id', 'org-1'] });
+  });
+
+  it('forces refreshed token persistence into the repository org scope', async () => {
+    const updateQuery = stubQuery({ data: null, error: null });
+    mockFrom.mockReturnValue(updateQuery);
+    mockGetAuthenticatedQBClientForStore.mockImplementation(async store => {
+      await store.updateTokens({
+        accessToken: 'encrypted-access',
+        refreshToken: 'encrypted-refresh',
+        expiresAt: '2026-07-28T14:00:00.000Z',
+        refreshExpiresAt: '2026-11-06T14:00:00.000Z',
+      });
+      return null;
+    });
+
+    await createQuickBooksRepository({ orgId: 'org-1', actorId: 'user-1' })
+      .getAuthenticatedClient();
+
+    expect(updateQuery.update).toHaveBeenCalledWith({
+      access_token: 'encrypted-access',
+      refresh_token: 'encrypted-refresh',
+      expires_at: '2026-07-28T14:00:00.000Z',
+      refresh_expires_at: '2026-11-06T14:00:00.000Z',
+    });
+    expect(updateQuery.calls).toContainEqual({ method: 'eq', args: ['org_id', 'org-1'] });
+  });
+
+  it('forces export claims into the authorized organization scope', async () => {
+    const repository = createQuickBooksRepository({ orgId: 'org-1', actorId: 'user-1' });
+
+    await repository.claimExportAttempt({
+      exportType: 'grant',
+      sourceTable: 'grants',
+      sourceId: 'grant-1',
+      docNumber: 'GRANT-1',
+      expectedAmount: 100,
+      debitAccountId: 'expense-1',
+      creditAccountId: 'bank-1',
+    });
+
+    expect(mockClaimQBExportAttempt).toHaveBeenCalledWith(
+      expect.objectContaining({ from: mockFrom }),
+      expect.objectContaining({ orgId: 'org-1', sourceId: 'grant-1' })
+    );
+  });
+
+  it('scopes attempt completion and source reconciliation by org ID', async () => {
+    const attemptQuery = stubQuery({ data: null, error: null });
+    const grantQuery = stubQuery({ data: null, error: null });
+    mockFrom.mockImplementation(table => table === 'qb_export_attempts' ? attemptQuery : grantQuery);
+    const repository = createQuickBooksRepository({ orgId: 'org-1', actorId: 'user-1' });
+
+    await repository.completeExportAttempt('attempt-1', 'journal-1');
+    await repository.reconcileGrantExport('grant-1', 'journal-1');
+
+    expect(attemptQuery.calls).toContainEqual({ method: 'eq', args: ['id', 'attempt-1'] });
+    expect(attemptQuery.calls).toContainEqual({ method: 'eq', args: ['org_id', 'org-1'] });
+    expect(grantQuery.calls).toContainEqual({ method: 'eq', args: ['id', 'grant-1'] });
+    expect(grantQuery.calls).toContainEqual({ method: 'eq', args: ['org_id', 'org-1'] });
   });
 });

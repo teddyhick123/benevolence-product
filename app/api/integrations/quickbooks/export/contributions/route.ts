@@ -5,27 +5,24 @@
 // Fetches contributions across ALL portfolios belonging to the org for the given tax year
 // and creates Journal Entries in QuickBooks (debit Expense, credit Bank).
 
-import { createAdminClient, createServerClient } from '@/lib/supabase';
-import { isWorkspaceManager } from '@/lib/roles';
+import { NextRequest } from 'next/server';
+import { z } from 'zod';
+import { requireOrgAccess } from '@/lib/api/access';
+import { createQuickBooksRepository } from '@/lib/api/repositories/quickbooks';
+import { jsonError, jsonOk } from '@/lib/api/responses';
 import { branding } from '@/lib/config';
 import {
-  getAuthenticatedQBClientByOrg,
   createJournalEntryAsync,
   findJournalEntryByDocNumberAsync,
   QBJournalEntry,
 } from '@/lib/integrations/quickbooks/client';
-import {
-  claimQBExportAttempt,
-  completeQBExportAttempt,
-  failQBExportAttempt,
-} from '@/lib/integrations/quickbooks/export-attempts';
 
-interface ExportBody {
-  org_id?: string;
-  tax_year?: number;
-  expense_account_id?: string;
-  bank_account_id?: string;
-}
+const exportContributionsSchema = z.object({
+  org_id: z.string().uuid(),
+  tax_year: z.number().int().min(1900).max(2100),
+  expense_account_id: z.string().trim().min(1).max(200),
+  bank_account_id: z.string().trim().min(1).max(200),
+}).strict();
 
 interface ContributionRow {
   id: string;
@@ -33,16 +30,6 @@ interface ContributionRow {
   recipient_name: string;
   amount_usd: number;
   calculated_deductible_amount: number | null;
-}
-
-function json(body: Record<string, unknown>, init?: ResponseInit) {
-  return Response.json(body, {
-    ...init,
-    headers: {
-      ...init?.headers,
-      'Cache-Control': 'no-store',
-    },
-  });
 }
 
 function getJournalEntryId(result: unknown): string | null {
@@ -75,76 +62,41 @@ function journalEntryMatchesExpected(
   return matchesLine('Debit', debitAccountId) && matchesLine('Credit', creditAccountId);
 }
 
-async function logQBSync(
-  db: ReturnType<typeof createAdminClient>,
-  orgId: string,
-  status: 'success' | 'error',
-  recordCount: number | null,
-  errorMsg?: string
-) {
-  const { error } = await db.from('qb_sync_log').insert({
-    org_id: orgId,
-    event_type: 'contributions_export',
-    status,
-    record_count: recordCount,
-    error_msg: errorMsg ?? null,
-  });
-
-  if (error) {
-    throw error;
-  }
-}
-
-export async function POST(req: Request): Promise<Response> {
-  const supabase = await createServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
-  const body = (await req.json().catch(() => ({}))) as ExportBody;
-  const { org_id: orgId, tax_year: taxYear, expense_account_id, bank_account_id } = body;
-
-  if (!orgId || !taxYear || !expense_account_id || !bank_account_id) {
-    return json(
-      {
-        error:
-          'org_id, tax_year, expense_account_id, and bank_account_id are required',
-      },
-      { status: 400 }
+export async function POST(req: NextRequest): Promise<Response> {
+  const parsed = exportContributionsSchema.safeParse(await req.json().catch(() => ({})));
+  if (!parsed.success) {
+    return jsonError(
+      'org_id, tax_year, expense_account_id, and bank_account_id are required',
+      400
     );
   }
-
-  // Confirm user is an admin or owner of this org
-  const { data: membership, error: membershipError } = await supabase
-    .from('organization_members')
-    .select('role')
-    .eq('org_id', orgId)
-    .eq('user_id', user.id)
-    .single();
-  if (membershipError) return json({ error: membershipError.message }, { status: 500 });
-
-  if (!membership || !isWorkspaceManager(membership.role)) {
-    return json({ error: 'Admin access required' }, { status: 403 });
-  }
+  const {
+    org_id: orgId,
+    tax_year: taxYear,
+    expense_account_id,
+    bank_account_id,
+  } = parsed.data;
+  const access = await requireOrgAccess(orgId, 'admin');
+  if (!access.ok) return access.response;
+  const db = access.context.db;
+  const quickBooks = createQuickBooksRepository({
+    orgId,
+    actorId: access.context.user.id,
+  });
 
   // Fetch all portfolio IDs belonging to this org
-  const { data: portfolios, error: portfolioError } = await supabase
+  const { data: portfolios, error: portfolioError } = await db
     .from('portfolios')
     .select('id')
     .eq('org_id', orgId);
 
   if (portfolioError || !portfolios || portfolios.length === 0) {
-    return json({ ok: true, exported: 0, message: 'No portfolios found for this org' });
+    return jsonOk({ ok: true, exported: 0, message: 'No portfolios found for this org' });
   }
 
   const portfolioIds = portfolios.map((p) => p.id);
-  const db = createAdminClient();
-
   // Fetch contributions across all org portfolios for the given tax year
-  const { data: contributions, error: fetchError } = await supabase
+  const { data: contributions, error: fetchError } = await db
     .from('v_tax_contributions_enriched')
     .select(
       'id, contribution_date, recipient_name, amount_usd, calculated_deductible_amount'
@@ -156,22 +108,24 @@ export async function POST(req: Request): Promise<Response> {
     .limit(2000);
 
   if (fetchError) {
-    await logQBSync(db, orgId, 'error', null, 'Failed to fetch contributions');
-    return json({ error: 'Failed to fetch contributions' }, { status: 500 });
+    await quickBooks.recordExportLog({
+      eventType: 'contributions_export',
+      status: 'error',
+      recordCount: null,
+      errorMsg: 'Failed to fetch contributions',
+    });
+    return jsonError('Failed to fetch contributions', 500);
   }
 
   if (!contributions || contributions.length === 0) {
-    return json({ ok: true, exported: 0, message: 'No contributions found for this year' });
+    return jsonOk({ ok: true, exported: 0, message: 'No contributions found for this year' });
   }
 
   const truncated = contributions.length >= 2000;
 
-  const qbResult = await getAuthenticatedQBClientByOrg(orgId);
+  const qbResult = await quickBooks.getAuthenticatedClient();
   if (!qbResult) {
-    return json(
-      { error: 'QuickBooks not connected or token refresh failed' },
-      { status: 422 }
-    );
+    return jsonError('QuickBooks not connected or token refresh failed', 422);
   }
 
   const { client } = qbResult;
@@ -217,8 +171,7 @@ export async function POST(req: Request): Promise<Response> {
           ],
         };
         try {
-          const claim = await claimQBExportAttempt(db, {
-            orgId,
+          const claim = await quickBooks.claimExportAttempt({
             exportType: 'contribution',
             sourceTable: 'tax_contributions',
             sourceId: contribution.id,
@@ -238,7 +191,7 @@ export async function POST(req: Request): Promise<Response> {
             const existing = await findJournalEntryByDocNumberAsync(client, docNumber);
             const journalEntryId = getJournalEntryId(existing);
             if (journalEntryId && journalEntryMatchesExpected(existing, amount, expense_account_id, bank_account_id)) {
-              await completeQBExportAttempt(db, attemptId, journalEntryId);
+              await quickBooks.completeExportAttempt(attemptId, journalEntryId);
               exported.push({ id: contribution.id, qb_journal_entry_id: journalEntryId });
               return;
             }
@@ -258,7 +211,7 @@ export async function POST(req: Request): Promise<Response> {
           if (!journalEntryId) {
             throw new Error('QuickBooks journal entry created but no JournalEntry Id was returned');
           }
-          await completeQBExportAttempt(db, attemptId, journalEntryId);
+          await quickBooks.completeExportAttempt(attemptId, journalEntryId);
           exported.push({ id: contribution.id, qb_journal_entry_id: journalEntryId });
         } catch (err) {
           const errMsg = err instanceof Error ? err.message : 'Unknown error';
@@ -272,18 +225,18 @@ export async function POST(req: Request): Promise<Response> {
                 throw new Error(`Duplicate DocNumber ${docNumber} could not be resolved`);
               }
               if (attemptId) {
-                await completeQBExportAttempt(db, attemptId, journalEntryId);
+                await quickBooks.completeExportAttempt(attemptId, journalEntryId);
               }
               exported.push({ id: contribution.id, qb_journal_entry_id: journalEntryId });
             } catch (lookupErr) {
               const lookupMsg = lookupErr instanceof Error ? lookupErr.message : 'Unknown duplicate lookup error';
               console.error(`[QB] Duplicate lookup failed for contribution ${contribution.id}:`, lookupErr);
-              if (attemptId) await failQBExportAttempt(db, attemptId, lookupMsg);
+              if (attemptId) await quickBooks.failExportAttempt(attemptId, lookupMsg);
               failed.push({ id: contribution.id, error: lookupMsg });
             }
           } else {
             console.error(`[QB] Journal entry failed for contribution ${contribution.id}:`, err);
-            if (attemptId) await failQBExportAttempt(db, attemptId, errMsg);
+            if (attemptId) await quickBooks.failExportAttempt(attemptId, errMsg);
             failed.push({ id: contribution.id, error: errMsg });
           }
         }
@@ -294,14 +247,7 @@ export async function POST(req: Request): Promise<Response> {
   if (exported.length > 0) {
     const reconciliationResults = await Promise.all(
       exported.map(({ id, qb_journal_entry_id }) =>
-        db
-          .from('tax_contributions')
-          .update({
-            qb_exported_at: new Date().toISOString(),
-            qb_journal_entry_id,
-          })
-          .eq('id', id)
-          .eq('org_id', orgId)
+        quickBooks.reconcileContributionExport(id, qb_journal_entry_id)
       )
     );
     reconciliationResults.forEach(({ error }, index) => {
@@ -313,15 +259,14 @@ export async function POST(req: Request): Promise<Response> {
     });
   }
 
-  await logQBSync(
-    db,
-    orgId,
-    failed.length > 0 ? 'error' : 'success',
-    exported.length,
-    failed.length > 0 ? JSON.stringify(failed.slice(0, 25)) : undefined
-  );
+  await quickBooks.recordExportLog({
+    eventType: 'contributions_export',
+    status: failed.length > 0 ? 'error' : 'success',
+    recordCount: exported.length,
+    errorMsg: failed.length > 0 ? JSON.stringify(failed.slice(0, 25)) : undefined,
+  });
 
-  return json({
+  return jsonOk({
     ok: true,
     exported: exported.length,
     failed: failed.length,

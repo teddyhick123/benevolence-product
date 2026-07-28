@@ -1,7 +1,6 @@
 // lib/integrations/quickbooks/client.ts
 // Authenticated QuickBooks Online client factory with automatic token refresh.
 
-import { createAdminClient } from '@/lib/supabase';
 import { encryptToken, decryptToken, isEncrypted } from './token-crypto';
 
 // In-process mutex: prevents concurrent token refreshes for the same org from
@@ -130,6 +129,16 @@ export interface QBConnection {
   last_sync_at: string | null;
 }
 
+export interface QBConnectionStore {
+  getConnection(): Promise<QBConnection | null>;
+  updateTokens(_input: {
+    accessToken: string;
+    refreshToken: string;
+    expiresAt: string;
+    refreshExpiresAt: string;
+  }): Promise<void>;
+}
+
 export { OAuthClient };
 export type { QBAccount, QBAccountQueryResponse, QBJournalEntry, QBJournalLine };
 
@@ -146,45 +155,17 @@ export function createOAuthClient(): OAuthClientInstance {
   });
 }
 
-/** @deprecated QB connections are org-scoped — use getQBConnectionByOrg instead */
-export async function getQBConnection(_portfolioId: string): Promise<QBConnection | null> {
-  console.warn('[QB] getQBConnection(portfolioId) is deprecated; QB is org-scoped. Use getQBConnectionByOrg(orgId).');
-  return null;
-}
-
-export async function getQBConnectionByOrg(orgId: string): Promise<QBConnection | null> {
-  const supabase = createAdminClient();
-  const { data, error } = await supabase
-    .from('quickbooks_connections')
-    .select('*')
-    .eq('org_id', orgId)
-    .single();
-  if (error || !data) return null;
-  return data as QBConnection;
-}
-
 /**
- * @deprecated QB connections are org-scoped since the schema migration.
- * This function always returns null. Use getAuthenticatedQBClientByOrg(orgId) instead.
- */
-export async function getAuthenticatedQBClient(
-  _portfolioId: string
-): Promise<{ client: QBClientInstance; connection: QBConnection } | null> {
-  console.warn('[QB] getAuthenticatedQBClient(portfolioId) is deprecated — QB is org-scoped. Use getAuthenticatedQBClientByOrg(orgId).');
-  return null;
-}
-
-/**
- * Returns an authenticated node-quickbooks client for the given org.
+ * Returns an authenticated node-quickbooks client for a scoped connection store.
  * Auto-refreshes the OAuth token if it will expire within 5 minutes and
  * persists updated tokens back to the database.
  */
-export async function getAuthenticatedQBClientByOrg(
-  orgId: string
+export async function getAuthenticatedQBClientForStore(
+  store: QBConnectionStore
 ): Promise<{ client: QBClientInstance; connection: QBConnection } | null> {
-  const supabase = createAdminClient();
-  let connection = await getQBConnectionByOrg(orgId);
+  let connection = await store.getConnection();
   if (!connection) return null;
+  const orgId = connection.org_id;
 
   // Decrypt tokens — stored encrypted (isEncrypted guard for legacy plaintext rows)
   const accessToken = isEncrypted(connection.access_token)
@@ -212,7 +193,8 @@ export async function getAuthenticatedQBClientByOrg(
     // refreshing this org's token, wait for it and re-read the connection.
     if (refreshLocks.has(orgId)) {
       await refreshLocks.get(orgId);
-      connection = (await getQBConnectionByOrg(orgId))!;
+      connection = await store.getConnection();
+      if (!connection) return null;
       currentAccessToken = isEncrypted(connection.access_token)
         ? decryptToken(connection.access_token) : connection.access_token;
       currentRefreshToken = isEncrypted(connection.refresh_token)
@@ -244,15 +226,12 @@ export async function getAuthenticatedQBClientByOrg(
         currentAccessToken = newTokens.access_token;
         currentRefreshToken = newTokens.refresh_token;
 
-        await supabase
-          .from('quickbooks_connections')
-          .update({
-            access_token: encryptToken(newTokens.access_token),
-            refresh_token: encryptToken(newTokens.refresh_token),
-            expires_at: newExpiry.toISOString(),
-            refresh_expires_at: newRefreshExpiry.toISOString(),
-          })
-          .eq('org_id', orgId);
+        await store.updateTokens({
+          accessToken: encryptToken(newTokens.access_token),
+          refreshToken: encryptToken(newTokens.refresh_token),
+          expiresAt: newExpiry.toISOString(),
+          refreshExpiresAt: newRefreshExpiry.toISOString(),
+        });
       } catch (err) {
         console.error('[QB] Token refresh failed:', err);
         refreshLocks.delete(orgId);

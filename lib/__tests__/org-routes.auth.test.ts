@@ -398,9 +398,10 @@ describe('org-scoped route auth contracts', () => {
     expect(stateRoute).not.toContain('createServerClient');
 
     const disqualifiedRoute = readFileSync('app/api/org/[orgId]/compliance/disqualified-persons/route.ts', 'utf8');
-    expect(disqualifiedRoute).toContain("'Cache-Control': 'no-store'");
-    expect(disqualifiedRoute).toContain('isWorkspaceManager');
-    expect(disqualifiedRoute).toContain(".is('deleted_at', null)");
+    expect(disqualifiedRoute).toContain('requireOrgAccess');
+    expect(disqualifiedRoute).toContain("requireOrgAccess(orgId, 'admin')");
+    expect(disqualifiedRoute).toContain('disqualifiedPersonSchema');
+    expect(disqualifiedRoute).not.toContain('SUPABASE_SERVICE_ROLE');
     expect(disqualifiedRoute).toContain('end_date');
   });
 

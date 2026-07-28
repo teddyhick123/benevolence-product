@@ -1,44 +1,30 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
-import { createServerClient } from '@supabase/ssr';
-import { createClient } from '@supabase/supabase-js';
-import { isWorkspaceManager } from '@/lib/roles';
+import { NextRequest } from 'next/server';
+import { z } from 'zod';
+import { requireOrgAccess } from '@/lib/api/access';
+import { jsonError, jsonOk } from '@/lib/api/responses';
 
 export const runtime = 'nodejs';
 
-const NO_STORE = { 'Cache-Control': 'no-store' } as const;
-
-function json(body: unknown, init: ResponseInit = {}) {
-  return NextResponse.json(body, {
-    ...init,
-    headers: {
-      ...NO_STORE,
-      ...(init.headers || {}),
-    },
-  });
-}
-
-function getAuthClient(cookieStore: Awaited<ReturnType<typeof cookies>>) {
-  return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        get(name: string) { return cookieStore.get(name)?.value; },
-        set(name: string, value: string, options: any) { cookieStore.set({ name, value, ...options }); },
-        remove(name: string, options: any) { cookieStore.set({ name, value: '', ...options }); },
-      },
-    }
-  );
-}
-
-function getServiceClient() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE!,
-    { auth: { persistSession: false } }
-  );
-}
+const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable();
+const disqualifiedPersonSchema = z.object({
+  full_name: z.string().trim().min(1).max(300),
+  relationship_type: z.enum([
+    'substantial_contributor',
+    'foundation_manager',
+    '20pct_owner',
+    'family_member',
+    'corporation',
+    'partnership',
+    'trust',
+    'other',
+  ]),
+  title: z.string().trim().max(200).optional().nullable(),
+  ownership_pct: z.coerce.number().finite().min(0).max(100).optional().nullable(),
+  is_active: z.boolean().optional(),
+  start_date: dateSchema,
+  end_date: dateSchema,
+  notes: z.string().max(10_000).optional().nullable(),
+}).strict();
 
 /**
  * GET /api/org/[orgId]/compliance/disqualified-persons?q=name&active_only=true
@@ -53,23 +39,10 @@ export async function GET(
     const q = searchParams.get('q');
     const activeOnly = searchParams.get('active_only') !== 'false';
 
-    const cookieStore = await cookies();
-    const supabase = getAuthClient(cookieStore);
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return json({ error: 'Unauthorized' }, { status: 401 });
+    const access = await requireOrgAccess(orgId, 'viewer');
+    if (!access.ok) return access.response;
 
-    const sb = getServiceClient();
-
-    const { data: membership } = await sb
-      .from('organization_members')
-      .select('role')
-      .eq('org_id', orgId)
-      .eq('user_id', user.id)
-      .is('deleted_at', null)
-      .maybeSingle();
-    if (!membership) return json({ error: 'Access denied' }, { status: 403 });
-
-    let query = sb
+    let query = access.context.db
       .from('disqualified_persons')
       .select('*')
       .eq('org_id', orgId)
@@ -86,9 +59,9 @@ export async function GET(
     const { data, error } = await query;
     if (error) throw error;
 
-    return json({ data: data || [] });
-  } catch (err: any) {
-    return json({ error: err.message }, { status: 500 });
+    return jsonOk({ data: data || [] });
+  } catch (err: unknown) {
+    return jsonError(err instanceof Error ? err.message : 'Internal error', 500);
   }
 }
 
@@ -102,41 +75,21 @@ export async function POST(
 ) {
   try {
     const { orgId } = await params;
-    const cookieStore = await cookies();
-    const supabase = getAuthClient(cookieStore);
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return json({ error: 'Unauthorized' }, { status: 401 });
+    const access = await requireOrgAccess(orgId, 'admin');
+    if (!access.ok) return access.response;
+    const parsed = disqualifiedPersonSchema.safeParse(await req.json().catch(() => ({})));
+    if (!parsed.success) return jsonError('Validation failed', 400, { details: parsed.error.format() });
 
-    const sb = getServiceClient();
-
-    const { data: membership } = await sb
-      .from('organization_members')
-      .select('role')
-      .eq('org_id', orgId)
-      .eq('user_id', user.id)
-      .is('deleted_at', null)
-      .maybeSingle();
-    if (!membership || !isWorkspaceManager(membership.role)) {
-      return json({ error: 'Admin access required' }, { status: 403 });
-    }
-
-    const body = await req.json();
-    const { full_name, relationship_type, ...rest } = body;
-
-    if (!full_name || !relationship_type) {
-      return json({ error: 'full_name and relationship_type are required' }, { status: 400 });
-    }
-
-    const { data, error } = await sb
+    const { data, error } = await access.context.db
       .from('disqualified_persons')
-      .insert({ org_id: orgId, full_name, relationship_type, ...rest })
+      .insert({ org_id: orgId, ...parsed.data })
       .select()
       .single();
 
     if (error) throw error;
-    return json({ data }, { status: 201 });
-  } catch (err: any) {
-    return json({ error: err.message }, { status: 500 });
+    return jsonOk({ data }, { status: 201 });
+  } catch (err: unknown) {
+    return jsonError(err instanceof Error ? err.message : 'Internal error', 500);
   }
 }
 
@@ -152,27 +105,11 @@ export async function DELETE(
     const { orgId } = await params;
     const { searchParams } = new URL(req.url);
     const id = searchParams.get('id');
-    if (!id) return json({ error: 'id query param required' }, { status: 400 });
+    if (!id) return jsonError('id query param required', 400);
+    const access = await requireOrgAccess(orgId, 'admin');
+    if (!access.ok) return access.response;
 
-    const cookieStore = await cookies();
-    const supabase = getAuthClient(cookieStore);
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return json({ error: 'Unauthorized' }, { status: 401 });
-
-    const sb = getServiceClient();
-
-    const { data: membership } = await sb
-      .from('organization_members')
-      .select('role')
-      .eq('org_id', orgId)
-      .eq('user_id', user.id)
-      .is('deleted_at', null)
-      .maybeSingle();
-    if (!membership || !isWorkspaceManager(membership.role)) {
-      return json({ error: 'Admin access required' }, { status: 403 });
-    }
-
-    const { data, error } = await sb
+    const { data, error } = await access.context.db
       .from('disqualified_persons')
       .update({ end_date: new Date().toISOString().split('T')[0], is_active: false })
       .eq('id', id)
@@ -181,8 +118,8 @@ export async function DELETE(
       .single();
 
     if (error) throw error;
-    return json({ data, message: 'Person terminated (soft delete)' });
-  } catch (err: any) {
-    return json({ error: err.message }, { status: 500 });
+    return jsonOk({ data, message: 'Person terminated (soft delete)' });
+  } catch (err: unknown) {
+    return jsonError(err instanceof Error ? err.message : 'Internal error', 500);
   }
 }

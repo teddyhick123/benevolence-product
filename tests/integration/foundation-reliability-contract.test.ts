@@ -204,6 +204,17 @@ describe('foundation reliability contracts', () => {
     expect(migration).toContain('CREATE TRIGGER trg_disqualified_persons_active_state');
   });
 
+  it('expenditure-responsibility mutations use portfolio guards and strict fields', () => {
+    const route = src('app/api/portfolio/[id]/compliance/er-grants/route.ts');
+
+    expect(route).toContain('requirePortfolioAccess');
+    expect(route).toContain('createErGrantSchema');
+    expect(route).toContain('erFieldsSchema');
+    expect(route).toContain(".eq('portfolio_id', portfolioId)");
+    expect(route).not.toContain('SUPABASE_SERVICE_ROLE');
+    expect(route).toContain('}).strict()');
+  });
+
   it('portfolio milestone mutations scope joined grants and await task sync', () => {
     const route = src('app/api/portfolio/[id]/holdings/[holdingId]/milestones/[milestoneId]/route.ts');
     expect(route).toContain('grants!inner(holding_id, portfolio_id)');

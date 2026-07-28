@@ -1,41 +1,29 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
-import { createServerClient } from '@supabase/ssr';
-import { createClient } from '@supabase/supabase-js';
+import { NextRequest } from 'next/server';
+import { z } from 'zod';
+import { requirePortfolioAccess } from '@/lib/api/access';
+import { jsonError, jsonOk } from '@/lib/api/responses';
 
 export const runtime = 'nodejs';
 
-function getAuthClient(cookieStore: Awaited<ReturnType<typeof cookies>>) {
-  return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        get(name: string) { return cookieStore.get(name)?.value; },
-        set(name: string, value: string, options: any) { cookieStore.set({ name, value, ...options }); },
-        remove(name: string, options: any) { cookieStore.set({ name, value: '', ...options }); },
-      },
-    }
-  );
-}
-
-function getServiceClient() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE!,
-    { auth: { persistSession: false } }
-  );
-}
-
-function json(body: Record<string, unknown>, init?: ResponseInit) {
-  return NextResponse.json(body, {
-    ...init,
-    headers: {
-      ...init?.headers,
-      'Cache-Control': 'no-store',
-    },
-  });
-}
+const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable();
+const erFieldsSchema = z.object({
+  grantee_is_public_charity: z.boolean().optional(),
+  grantee_ein: z.string().trim().max(20).optional().nullable(),
+  grantee_501c3_verified: z.boolean().optional(),
+  grantee_501c3_verified_at: dateSchema,
+  er_agreement_signed_date: dateSchema,
+  er_agreement_url: z.union([z.string().url().max(2000), z.literal('')]).optional().nullable(),
+  er_reports_required: z.boolean().optional(),
+  er_report_frequency: z.enum(['monthly', 'quarterly', 'semi_annual', 'annual']).optional().nullable(),
+  er_reports_required_count: z.coerce.number().int().nonnegative().optional(),
+  er_reports_received_count: z.coerce.number().int().nonnegative().optional(),
+  terminal_report_required: z.boolean().optional(),
+  terminal_report_received: z.boolean().optional(),
+  terminal_report_date: dateSchema,
+  er_status: z.enum(['pending_agreement', 'active', 'reporting_overdue', 'completed', 'terminated']).optional(),
+  notes: z.string().max(10_000).optional().nullable(),
+}).strict();
+const createErGrantSchema = erFieldsSchema.extend({ grant_id: z.string().uuid() });
 
 /**
  * GET /api/portfolio/[id]/compliance/er-grants?status=deficient
@@ -50,20 +38,10 @@ export async function GET(
     const { searchParams } = new URL(req.url);
     const statusFilter = searchParams.get('status');
 
-    const cookieStore = await cookies();
-    const supabase = getAuthClient(cookieStore);
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return json({ error: 'Unauthorized' }, { status: 401 });
+    const access = await requirePortfolioAccess(portfolioId, 'viewer');
+    if (!access.ok) return access.response;
 
-    const { data: canView, error: canViewErr } = await supabase.rpc('can_view_portfolio', {
-      p_portfolio_id: portfolioId,
-    });
-    if (canViewErr) return json({ error: canViewErr.message }, { status: 500 });
-    if (!canView) return json({ error: 'Access denied' }, { status: 403 });
-
-    const sb = getServiceClient();
-
-    let query = sb
+    let query = access.context.db
       .from('v_er_grant_compliance')
       .select('*')
       .eq('portfolio_id', portfolioId);
@@ -75,9 +53,9 @@ export async function GET(
     const { data, error } = await query.order('created_at', { ascending: false });
     if (error) throw error;
 
-    return json({ data: data || [] });
-  } catch (err: any) {
-    return json({ error: err.message }, { status: 500 });
+    return jsonOk({ data: data || [] });
+  } catch (err: unknown) {
+    return jsonError(err instanceof Error ? err.message : 'Internal error', 500);
   }
 }
 
@@ -91,23 +69,14 @@ export async function POST(
 ) {
   try {
     const { id: portfolioId } = await params;
-    const cookieStore = await cookies();
-    const supabase = getAuthClient(cookieStore);
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return json({ error: 'Unauthorized' }, { status: 401 });
+    const access = await requirePortfolioAccess(portfolioId, 'member');
+    if (!access.ok) return access.response;
+    const parsed = createErGrantSchema.safeParse(await req.json().catch(() => ({})));
+    if (!parsed.success) return jsonError('Validation failed', 400, { details: parsed.error.format() });
+    const { grant_id, ...rest } = parsed.data;
+    const db = access.context.db;
 
-    const sb = getServiceClient();
-    const { data: canEdit, error: canEditErr } = await supabase.rpc('can_edit_portfolio', {
-      p_portfolio_id: portfolioId,
-    });
-    if (canEditErr) return json({ error: canEditErr.message }, { status: 500 });
-    if (!canEdit) return json({ error: 'Not authorized' }, { status: 403 });
-
-    const body = await req.json();
-    const { grant_id, ...rest } = body;
-    if (!grant_id) return json({ error: 'grant_id is required' }, { status: 400 });
-
-    const { data: grant, error: grantError } = await sb
+    const { data: grant, error: grantError } = await db
       .from('grants')
       .select('id')
       .eq('id', grant_id)
@@ -115,18 +84,18 @@ export async function POST(
       .is('deleted_at', null)
       .maybeSingle();
     if (grantError) throw grantError;
-    if (!grant) return json({ error: 'Grant not found' }, { status: 404 });
+    if (!grant) return jsonError('Grant not found', 404);
 
-    const { data, error } = await sb
+    const { data, error } = await db
       .from('expenditure_responsibility_grants')
       .insert({ portfolio_id: portfolioId, grant_id, ...rest })
       .select()
       .single();
 
     if (error) throw error;
-    return json({ data }, { status: 201 });
-  } catch (err: any) {
-    return json({ error: err.message }, { status: 500 });
+    return jsonOk({ data }, { status: 201 });
+  } catch (err: unknown) {
+    return jsonError(err instanceof Error ? err.message : 'Internal error', 500);
   }
 }
 
@@ -142,45 +111,24 @@ export async function PATCH(
     const { id: portfolioId } = await params;
     const { searchParams } = new URL(req.url);
     const erGrantId = searchParams.get('id');
-    if (!erGrantId) return json({ error: 'id query param required' }, { status: 400 });
+    if (!erGrantId) return jsonError('id query param required', 400);
+    const access = await requirePortfolioAccess(portfolioId, 'member');
+    if (!access.ok) return access.response;
+    const parsed = erFieldsSchema.safeParse(await req.json().catch(() => ({})));
+    if (!parsed.success) return jsonError('Validation failed', 400, { details: parsed.error.format() });
+    if (Object.keys(parsed.data).length === 0) return jsonError('No updates provided', 400);
 
-    const cookieStore = await cookies();
-    const supabase = getAuthClient(cookieStore);
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return json({ error: 'Unauthorized' }, { status: 401 });
-
-    const sb = getServiceClient();
-    const { data: canEdit, error: canEditErr } = await supabase.rpc('can_edit_portfolio', {
-      p_portfolio_id: portfolioId,
-    });
-    if (canEditErr) return json({ error: canEditErr.message }, { status: 500 });
-    if (!canEdit) return json({ error: 'Not authorized' }, { status: 403 });
-
-    const body = await req.json();
-    const allowedFields = [
-      'grantee_is_public_charity', 'grantee_ein', 'grantee_501c3_verified',
-      'grantee_501c3_verified_at', 'er_agreement_signed_date', 'er_agreement_url',
-      'er_reports_required', 'er_report_frequency', 'er_reports_required_count',
-      'er_reports_received_count', 'terminal_report_required', 'terminal_report_received',
-      'terminal_report_date', 'er_status', 'notes',
-    ];
-
-    const updateData: any = {};
-    for (const field of allowedFields) {
-      if (body[field] !== undefined) updateData[field] = body[field];
-    }
-
-    const { data, error } = await sb
+    const { data, error } = await access.context.db
       .from('expenditure_responsibility_grants')
-      .update(updateData)
+      .update(parsed.data)
       .eq('id', erGrantId)
       .eq('portfolio_id', portfolioId)
       .select()
       .single();
 
     if (error) throw error;
-    return json({ data });
-  } catch (err: any) {
-    return json({ error: err.message }, { status: 500 });
+    return jsonOk({ data });
+  } catch (err: unknown) {
+    return jsonError(err instanceof Error ? err.message : 'Internal error', 500);
   }
 }

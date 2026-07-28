@@ -1,39 +1,87 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { createServerClient, createAdminClient } from '@/lib/supabase';
-import { completeGeneratedTasks, cancelGeneratedTasks } from '@/lib/tasks/automation/task-writer';
+import { NextRequest } from 'next/server';
+import { z } from 'zod';
+import { requireOrgAccess } from '@/lib/api/access';
+import { createOrgComplianceRepository } from '@/lib/api/repositories/compliance';
+import { jsonError, jsonOk } from '@/lib/api/responses';
 
 export const dynamic = 'force-dynamic';
-
-const NO_STORE = { 'Cache-Control': 'no-store' } as const;
 
 interface RouteParams {
   params: Promise<{ orgId: string }>;
 }
 
-function json(body: unknown, init: ResponseInit = {}) {
-  return NextResponse.json(body, {
-    ...init,
-    headers: {
-      ...NO_STORE,
-      ...(init.headers || {}),
-    },
-  });
-}
+const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+const filingStatusSchema = z.enum([
+  'upcoming',
+  'in_progress',
+  'filed',
+  'extended',
+  'overdue',
+  'waived',
+  'not_applicable',
+]);
+const filingFields = {
+  filing_type: z.string().trim().min(1).max(100),
+  title: z.string().trim().min(1).max(500),
+  due_date: dateSchema,
+  description: z.string().max(10_000).nullable(),
+  jurisdiction: z.string().trim().max(100).nullable(),
+  extension_due_date: dateSchema.nullable(),
+  period_start: dateSchema.nullable(),
+  period_end: dateSchema.nullable(),
+  reminder_days: z.array(z.number().int().min(0).max(730)).max(20),
+  is_recurring: z.boolean(),
+  recurrence_rule: z.string().trim().max(1_000).nullable(),
+};
+const createFilingSchema = z.object({
+  filing_type: filingFields.filing_type,
+  title: filingFields.title,
+  due_date: filingFields.due_date,
+  description: filingFields.description.optional(),
+  jurisdiction: filingFields.jurisdiction.optional(),
+  extension_due_date: filingFields.extension_due_date.optional(),
+  period_start: filingFields.period_start.optional(),
+  period_end: filingFields.period_end.optional(),
+  reminder_days: filingFields.reminder_days.optional(),
+  is_recurring: filingFields.is_recurring.optional(),
+  recurrence_rule: filingFields.recurrence_rule.optional(),
+}).strict();
+const updateFilingSchema = z.object({
+  id: z.string().uuid(),
+  filing_type: filingFields.filing_type.optional(),
+  title: filingFields.title.optional(),
+  due_date: filingFields.due_date.optional(),
+  status: filingStatusSchema.optional(),
+  description: filingFields.description.optional(),
+  jurisdiction: filingFields.jurisdiction.optional(),
+  extension_due_date: filingFields.extension_due_date.optional(),
+  period_start: filingFields.period_start.optional(),
+  period_end: filingFields.period_end.optional(),
+  completed_at: z.string().datetime().nullable().optional(),
+  completed_by: z.string().uuid().nullable().optional(),
+  completed_by_name: z.string().trim().max(300).nullable().optional(),
+  filing_reference: z.string().trim().max(500).nullable().optional(),
+  notes: z.string().max(10_000).nullable().optional(),
+  reminder_days: filingFields.reminder_days.optional(),
+  is_recurring: filingFields.is_recurring.optional(),
+  recurrence_rule: filingFields.recurrence_rule.optional(),
+}).strict();
 
 // GET /api/org/[orgId]/compliance/filing-calendar?status=upcoming
 export async function GET(req: NextRequest, { params }: RouteParams) {
   try {
     const { orgId } = await params;
-    const supabase = await createServerClient();
+    const access = await requireOrgAccess(orgId, 'viewer');
+    if (!access.ok) return access.response;
     const { searchParams } = new URL(req.url);
 
-    const { data: role } = await supabase.rpc('user_org_role', { p_org_id: orgId });
-    if (!role) {
-      return json({ error: 'Not authorized' }, { status: 403 });
+    const rawStatus = searchParams.get('status');
+    const parsedStatus = rawStatus ? filingStatusSchema.safeParse(rawStatus) : null;
+    if (parsedStatus && !parsedStatus.success) {
+      return jsonError('Invalid filing status', 400);
     }
 
-    const statusFilter = searchParams.get('status');
-    // days param: return filings due within N days ahead; always include overdue
+    // Return filings due within N days ahead, while still including overdue rows.
     const requestedDays = Number.parseInt(searchParams.get('days') || '365', 10);
     const days = Number.isFinite(requestedDays) && requestedDays > 0
       ? Math.min(requestedDays, 730)
@@ -41,28 +89,24 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     const horizonDate = new Date();
     horizonDate.setDate(horizonDate.getDate() + days);
 
-    let query = supabase
+    let query = access.context.db
       .from('filing_calendar')
       .select('*')
       .eq('org_id', orgId)
       .lte('due_date', horizonDate.toISOString().slice(0, 10))
       .order('due_date');
 
-    if (statusFilter) {
-      query = query.eq('status', statusFilter);
+    if (parsedStatus?.success) {
+      query = query.eq('status', parsedStatus.data);
     } else {
-      // Exclude completed/waived/not_applicable by default; always show overdue
       query = query.in('status', ['upcoming', 'in_progress', 'extended', 'overdue']);
     }
 
     const { data, error } = await query;
-    if (error) {
-      return json({ error: error.message }, { status: 500 });
-    }
-
-    return json({ data: data || [] });
-  } catch (err: any) {
-    return json({ error: err.message }, { status: 500 });
+    if (error) return jsonError(error.message, 500);
+    return jsonOk({ data: data || [] });
+  } catch (err: unknown) {
+    return jsonError(err instanceof Error ? err.message : 'Internal error', 500);
   }
 }
 
@@ -70,54 +114,38 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
 export async function POST(req: NextRequest, { params }: RouteParams) {
   try {
     const { orgId } = await params;
-    const supabase = await createServerClient();
-
-    const { data: isAdmin } = await supabase.rpc('is_org_admin', { p_org_id: orgId });
-    if (!isAdmin) {
-      return json({ error: 'Admin access required' }, { status: 403 });
+    const access = await requireOrgAccess(orgId, 'admin');
+    if (!access.ok) return access.response;
+    const parsed = createFilingSchema.safeParse(await req.json().catch(() => ({})));
+    if (!parsed.success) {
+      return jsonError('Validation failed', 400, { details: parsed.error.format() });
     }
 
-    const body = await req.json();
-    const {
-      filing_type, title, due_date, description, jurisdiction,
-      extension_due_date, period_start, period_end, reminder_days,
-      is_recurring, recurrence_rule,
-    } = body;
-
-    if (!filing_type || !title || !due_date) {
-      return json(
-        { error: 'filing_type, title, and due_date are required' },
-        { status: 400 }
-      );
-    }
-
-    const { data, error } = await supabase
+    const input = parsed.data;
+    const { data, error } = await access.context.db
       .from('filing_calendar')
       .insert({
         org_id: orgId,
-        filing_type,
-        title,
-        due_date,
-        description: description || null,
-        jurisdiction: jurisdiction || 'federal',
-        extension_due_date: extension_due_date || null,
-        period_start: period_start || null,
-        period_end: period_end || null,
-        reminder_days: reminder_days || [30, 14, 7],
+        filing_type: input.filing_type,
+        title: input.title,
+        due_date: input.due_date,
+        description: input.description || null,
+        jurisdiction: input.jurisdiction || 'federal',
+        extension_due_date: input.extension_due_date ?? null,
+        period_start: input.period_start ?? null,
+        period_end: input.period_end ?? null,
+        reminder_days: input.reminder_days ?? [30, 14, 7],
         status: 'upcoming',
-        is_recurring: is_recurring || false,
-        recurrence_rule: recurrence_rule || null,
+        is_recurring: input.is_recurring ?? false,
+        recurrence_rule: input.recurrence_rule || null,
       })
       .select()
       .single();
 
-    if (error) {
-      return json({ error: error.message }, { status: 500 });
-    }
-
-    return json({ data }, { status: 201 });
-  } catch (err: any) {
-    return json({ error: err.message }, { status: 500 });
+    if (error) return jsonError(error.message, 500);
+    return jsonOk({ data }, { status: 201 });
+  } catch (err: unknown) {
+    return jsonError(err instanceof Error ? err.message : 'Internal error', 500);
   }
 }
 
@@ -125,71 +153,50 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
 export async function PATCH(req: NextRequest, { params }: RouteParams) {
   try {
     const { orgId } = await params;
-    const supabase = await createServerClient();
-
-    const { data: isAdmin } = await supabase.rpc('is_org_admin', { p_org_id: orgId });
-    if (!isAdmin) {
-      return json({ error: 'Admin access required' }, { status: 403 });
+    const access = await requireOrgAccess(orgId, 'admin');
+    if (!access.ok) return access.response;
+    const parsed = updateFilingSchema.safeParse(await req.json().catch(() => ({})));
+    if (!parsed.success) {
+      return jsonError('Validation failed', 400, { details: parsed.error.format() });
     }
-
-    const body = await req.json();
-    const { id, ...rest } = body;
-
-    if (!id) {
-      return json({ error: 'id is required' }, { status: 400 });
-    }
-
-    const allowedFields = [
-      'filing_type', 'title', 'due_date', 'status', 'description',
-      'jurisdiction', 'extension_due_date', 'period_start', 'period_end',
-      'completed_at', 'completed_by', 'completed_by_name', 'filing_reference',
-      'notes', 'reminder_days', 'is_recurring', 'recurrence_rule',
-    ];
-    const updates: Record<string, any> = {};
-    for (const field of allowedFields) {
-      if (field in rest) updates[field] = rest[field];
-    }
-
+    const { id, ...updates } = parsed.data;
     if (Object.keys(updates).length === 0) {
-      return json({ error: 'No valid fields to update' }, { status: 400 });
+      return jsonError('No valid fields to update', 400);
     }
 
-    const { data: existing, error: existingError } = await supabase
+    const db = access.context.db;
+    const { data: existing, error: existingError } = await db
       .from('filing_calendar')
       .select('*')
       .eq('id', id)
       .eq('org_id', orgId)
       .maybeSingle();
 
-    if (existingError) return json({ error: existingError.message }, { status: 500 });
-    if (!existing) return json({ error: 'Filing not found' }, { status: 404 });
+    if (existingError) return jsonError(existingError.message, 500);
+    if (!existing) return jsonError('Filing not found', 404);
 
-    const { data, error } = await supabase
+    const { data, error } = await db
       .from('filing_calendar')
       .update(updates)
       .eq('id', id)
       .eq('org_id', orgId)
       .select()
       .single();
+    if (error) return jsonError(error.message, 500);
 
-    if (error) {
-      return json({ error: error.message }, { status: 500 });
-    }
-
-    const newStatus = updates.status as string | undefined;
+    const newStatus = updates.status;
     if (newStatus && ['filed', 'waived', 'not_applicable'].includes(newStatus)) {
       try {
-        const adminDb = createAdminClient();
-        const sourcePrefix = `filing:${id}:`;
-        if (newStatus === 'filed') {
-          await completeGeneratedTasks(adminDb, orgId, sourcePrefix, 'Filing marked as filed');
-        } else if (newStatus === 'waived') {
-          await cancelGeneratedTasks(adminDb, orgId, sourcePrefix, 'Filing waived');
-        } else if (newStatus === 'not_applicable') {
-          await cancelGeneratedTasks(adminDb, orgId, sourcePrefix, 'Filing marked not applicable');
-        }
-      } catch (taskSyncError: any) {
-        await supabase
+        const compliance = createOrgComplianceRepository({
+          orgId,
+          actorId: access.context.user.id,
+        });
+        await compliance.syncFilingStatusTasks(
+          id,
+          newStatus as 'filed' | 'waived' | 'not_applicable'
+        );
+      } catch (taskSyncError: unknown) {
+        await db
           .from('filing_calendar')
           .update({
             filing_type: existing.filing_type,
@@ -212,12 +219,15 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
           })
           .eq('id', id)
           .eq('org_id', orgId);
-        return json({ error: taskSyncError.message }, { status: 500 });
+        return jsonError(
+          taskSyncError instanceof Error ? taskSyncError.message : 'Task synchronization failed',
+          500
+        );
       }
     }
 
-    return json({ data });
-  } catch (err: any) {
-    return json({ error: err.message }, { status: 500 });
+    return jsonOk({ data });
+  } catch (err: unknown) {
+    return jsonError(err instanceof Error ? err.message : 'Internal error', 500);
   }
 }

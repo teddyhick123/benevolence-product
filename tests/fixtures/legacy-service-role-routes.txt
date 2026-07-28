@@ -56,8 +56,6 @@ app/api/org/[orgId]/builder/proposals/[proposalId]/build/route.ts
 app/api/org/[orgId]/builder/proposals/[proposalId]/route.ts
 app/api/org/[orgId]/builder/proposals/route.ts
 app/api/org/[orgId]/capabilities/implementation-reviewers/route.ts
-app/api/org/[orgId]/compliance/filing-calendar/[filingId]/attachments/route.ts
-app/api/org/[orgId]/compliance/filing-calendar/route.ts
 app/api/org/[orgId]/contributions/[id]/receipt/route.ts
 app/api/org/[orgId]/custom-fields/[fieldId]/route.ts
 app/api/org/[orgId]/custom-fields/batch/route.ts
@@ -97,7 +95,6 @@ app/api/org/[orgId]/workflow-templates/route.ts
 app/api/org/[orgId]/workflows/[workflowId]/tasks/[workflowTaskId]/route.ts
 app/api/org/[orgId]/workflows/route.ts
 app/api/org/route.ts
-app/api/portfolio/[id]/compliance/990pf-export/route.ts
 app/api/portfolio/[id]/holdings/[holdingId]/milestones/[milestoneId]/route.ts
 app/api/portfolio/[id]/map/route.ts
 app/api/portfolio/[id]/widgets/save-preview/route.ts

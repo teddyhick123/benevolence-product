@@ -1,5 +1,13 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { createServerClient, createAdminClient } from '@/lib/supabase';
+import { NextRequest } from 'next/server';
+import { z } from 'zod';
+import { requireOrgAccess } from '@/lib/api/access';
+import {
+  ComplianceAttachmentNotFoundError,
+  ComplianceFilingNotFoundError,
+  InvalidComplianceAttachmentPathError,
+  createOrgComplianceRepository,
+} from '@/lib/api/repositories/compliance';
+import { jsonError, jsonOk } from '@/lib/api/responses';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,213 +22,100 @@ const ALLOWED_MIME_TYPES = new Set([
   'application/vnd.ms-excel',
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
 ]);
+const MAX_BYTES = 20 * 1024 * 1024;
+const deleteAttachmentSchema = z.object({
+  path: z.string().min(1).max(2_000),
+}).strict();
 
 interface RouteParams {
   params: Promise<{ orgId: string; filingId: string }>;
 }
 
-interface Attachment {
-  path: string;
-  name: string;
-  size: number;
-  uploaded_at: string;
-}
-
-const NO_STORE = { 'Cache-Control': 'no-store' } as const;
-
-function json(body: unknown, init?: ResponseInit) {
-  return NextResponse.json(body, {
-    ...init,
-    headers: {
-      ...NO_STORE,
-      ...(init?.headers ?? {}),
-    },
-  });
-}
-
-async function getAuthAndAdmin(orgId: string) {
-  const supabase = await createServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { user: null, isAdmin: false };
-  const { data: isAdmin } = await supabase.rpc('is_org_admin', { p_org_id: orgId });
-  return { user, isAdmin: !!isAdmin };
+function repositoryFor(orgId: string, actorId: string) {
+  return createOrgComplianceRepository({ orgId, actorId });
 }
 
 // GET /api/org/[orgId]/compliance/filing-calendar/[filingId]/attachments
-// Returns all attachments for a filing with fresh signed URLs (3600s expiry)
-export async function GET(req: NextRequest, { params }: RouteParams) {
+// Returns all attachments for a filing with fresh signed URLs (3600s expiry).
+export async function GET(_req: NextRequest, { params }: RouteParams) {
   try {
     const { orgId, filingId } = await params;
-    const { user, isAdmin } = await getAuthAndAdmin(orgId);
-    if (!user) return json({ error: 'Unauthorized' }, { status: 401 });
-    if (!isAdmin) return json({ error: 'Admin access required' }, { status: 403 });
+    const access = await requireOrgAccess(orgId, 'admin');
+    if (!access.ok) return access.response;
 
-    const db = createAdminClient();
-    const { data: filing, error } = await db
-      .from('filing_calendar')
-      .select('id, attachments')
-      .eq('id', filingId)
-      .eq('org_id', orgId)
-      .single();
-
-    if (error || !filing) {
-      return json({ error: 'Filing not found' }, { status: 404 });
+    const data = await repositoryFor(orgId, access.context.user.id)
+      .listFilingAttachments(filingId);
+    return jsonOk({ data });
+  } catch (err: unknown) {
+    if (err instanceof ComplianceFilingNotFoundError) {
+      return jsonError(err.message, 404);
     }
-
-    const attachments: Attachment[] = filing.attachments ?? [];
-    if (attachments.length === 0) {
-      return json({ data: [] });
-    }
-
-    const withUrls = await Promise.all(
-      attachments.map(async (att) => {
-        const { data } = await db.storage
-          .from('compliance-documents')
-          .createSignedUrl(att.path, 3600);
-        return { ...att, signed_url: data?.signedUrl ?? null };
-      })
-    );
-
-    return json({ data: withUrls });
-  } catch (err: any) {
-    return json({ error: err.message }, { status: 500 });
+    return jsonError(err instanceof Error ? err.message : 'Internal error', 500);
   }
 }
 
 // POST /api/org/[orgId]/compliance/filing-calendar/[filingId]/attachments
-// Uploads a file (multipart/form-data, field: "file") and appends metadata to filing.attachments
+// Uploads multipart field "file" and appends its metadata to the filing.
 export async function POST(req: NextRequest, { params }: RouteParams) {
   try {
     const { orgId, filingId } = await params;
-    const { user, isAdmin } = await getAuthAndAdmin(orgId);
-    if (!user) return json({ error: 'Unauthorized' }, { status: 401 });
-    if (!isAdmin) return json({ error: 'Admin access required' }, { status: 403 });
+    const access = await requireOrgAccess(orgId, 'admin');
+    if (!access.ok) return access.response;
 
     const formData = await req.formData();
-    const file = formData.get('file') as File | null;
-    if (!file) return json({ error: 'file is required' }, { status: 400 });
-
-    const MAX_BYTES = 20 * 1024 * 1024;
+    const file = formData.get('file');
+    if (!(file instanceof File)) {
+      return jsonError('file is required', 400);
+    }
     if (file.size > MAX_BYTES) {
-      return json({ error: 'File exceeds 20 MB limit' }, { status: 413 });
+      return jsonError('File exceeds 20 MB limit', 413);
     }
-
     if (!ALLOWED_MIME_TYPES.has(file.type)) {
-      return json(
-        { error: 'File type not allowed. Accepted: PDF, images, Word, Excel.' },
-        { status: 415 }
-      );
+      return jsonError('File type not allowed. Accepted: PDF, images, Word, Excel.', 415);
     }
 
-    const db = createAdminClient();
-
-    const { data: filing, error: fetchError } = await db
-      .from('filing_calendar')
-      .select('id, attachments')
-      .eq('id', filingId)
-      .eq('org_id', orgId)
-      .single();
-
-    if (fetchError || !filing) {
-      return json({ error: 'Filing not found' }, { status: 404 });
+    const data = await repositoryFor(orgId, access.context.user.id)
+      .uploadFilingAttachment({
+        filingId,
+        fileName: file.name,
+        fileSize: file.size,
+        contentType: file.type,
+        body: await file.arrayBuffer(),
+      });
+    return jsonOk({ data }, { status: 201 });
+  } catch (err: unknown) {
+    if (err instanceof ComplianceFilingNotFoundError) {
+      return jsonError(err.message, 404);
     }
-
-    const safeFileName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-    const path = `${orgId}/${filingId}/${Date.now()}_${safeFileName}`;
-
-    const bytes = await file.arrayBuffer();
-    const { error: uploadError } = await db.storage
-      .from('compliance-documents')
-      .upload(path, bytes, { contentType: file.type, upsert: false });
-
-    if (uploadError) {
-      return json({ error: uploadError.message }, { status: 500 });
-    }
-
-    const attachment: Attachment = {
-      path,
-      name: file.name,
-      size: file.size,
-      uploaded_at: new Date().toISOString(),
-    };
-
-    const currentAttachments: Attachment[] = filing.attachments ?? [];
-    const { error: updateError } = await db
-      .from('filing_calendar')
-      .update({ attachments: [...currentAttachments, attachment] })
-      .eq('id', filingId)
-      .eq('org_id', orgId);
-
-    if (updateError) {
-      // Clean up the orphaned storage object before returning the error
-      await db.storage.from('compliance-documents').remove([path]);
-      return json({ error: updateError.message }, { status: 500 });
-    }
-
-    const { data: signed } = await db.storage
-      .from('compliance-documents')
-      .createSignedUrl(path, 3600);
-
-    return json(
-      { data: { ...attachment, signed_url: signed?.signedUrl ?? null } },
-      { status: 201 }
-    );
-  } catch (err: any) {
-    return json({ error: err.message }, { status: 500 });
+    return jsonError(err instanceof Error ? err.message : 'Internal error', 500);
   }
 }
 
 // DELETE /api/org/[orgId]/compliance/filing-calendar/[filingId]/attachments
-// Body: { path: string } — removes the file from storage and the metadata from filing.attachments
 export async function DELETE(req: NextRequest, { params }: RouteParams) {
   try {
     const { orgId, filingId } = await params;
-    const { user, isAdmin } = await getAuthAndAdmin(orgId);
-    if (!user) return json({ error: 'Unauthorized' }, { status: 401 });
-    if (!isAdmin) return json({ error: 'Admin access required' }, { status: 403 });
-
-    const body = await req.json().catch(() => ({}));
-    const { path } = body;
-    if (!path) return json({ error: 'path is required' }, { status: 400 });
-
-    const db = createAdminClient();
-
-    const { data: filing, error: fetchError } = await db
-      .from('filing_calendar')
-      .select('id, attachments')
-      .eq('id', filingId)
-      .eq('org_id', orgId)
-      .single();
-
-    if (fetchError || !filing) {
-      return json({ error: 'Filing not found' }, { status: 404 });
+    const access = await requireOrgAccess(orgId, 'admin');
+    if (!access.ok) return access.response;
+    const parsed = deleteAttachmentSchema.safeParse(await req.json().catch(() => ({})));
+    if (!parsed.success) {
+      return jsonError('path is required', 400);
     }
 
-    const currentAttachments: Attachment[] = filing.attachments ?? [];
-    const filtered = currentAttachments.filter(a => a.path !== path);
-
-    if (filtered.length === currentAttachments.length) {
-      return json({ error: 'Attachment not found' }, { status: 404 });
+    const result = await repositoryFor(orgId, access.context.user.id)
+      .deleteFilingAttachment(filingId, parsed.data.path);
+    if (result.storageCleanupPending) {
+      console.warn('[compliance-attachments] Attachment metadata removed; storage cleanup pending');
     }
-
-    const { error: removeError } = await db.storage.from('compliance-documents').remove([path]);
-    // Storage removal failure is non-fatal (file is now unreferenced) but log it
-    if (removeError) {
-      console.warn('[compliance-attachments] Storage remove failed for path:', path, removeError.message);
+    return jsonOk({ ok: true });
+  } catch (err: unknown) {
+    if (
+      err instanceof ComplianceFilingNotFoundError ||
+      err instanceof ComplianceAttachmentNotFoundError ||
+      err instanceof InvalidComplianceAttachmentPathError
+    ) {
+      return jsonError('Attachment not found', 404);
     }
-
-    const { error: updateError } = await db
-      .from('filing_calendar')
-      .update({ attachments: filtered })
-      .eq('id', filingId)
-      .eq('org_id', orgId);
-
-    if (updateError) {
-      return json({ error: updateError.message }, { status: 500 });
-    }
-
-    return json({ ok: true });
-  } catch (err: any) {
-    return json({ error: err.message }, { status: 500 });
+    return jsonError(err instanceof Error ? err.message : 'Internal error', 500);
   }
 }

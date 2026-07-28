@@ -362,6 +362,7 @@ describe('foundation reliability contracts', () => {
     const decisionRoute = src('app/api/org/[orgId]/grants/[grantId]/decisions/route.ts');
     const grantRepository = src('lib/api/repositories/grants.ts');
     const pfRoute = src('app/api/portfolio/[id]/compliance/990pf-export/route.ts');
+    const complianceRepository = src('lib/api/repositories/compliance.ts');
     const grantExecutor = src('lib/ai/assistant/executors/grants.ts');
     const assistantExecutor = src('lib/ai/assistant/executor.ts');
 
@@ -377,9 +378,11 @@ describe('foundation reliability contracts', () => {
     expect(decisionRoute).toContain('recordDecision');
     expect(grantRepository).toContain('writeOrgAuditEvent');
     expect(grantRepository).toContain('ORG_AUDIT_ACTIONS.GRANT_DECISION_RECORDED');
-    expect(pfRoute).toContain('writeOrgAuditEvent');
-    expect(pfRoute).toContain('ORG_AUDIT_ACTIONS.COMPLIANCE_990PF_EXPORTED');
-    expect(pfRoute).toContain("select('id, name, org_id')");
+    expect(pfRoute).toContain('record990PfExport');
+    expect(pfRoute).toContain("select('id, name')");
+    expect(pfRoute).not.toContain('createAdminClient');
+    expect(complianceRepository).toContain('writeOrgAuditEvent');
+    expect(complianceRepository).toContain('ORG_AUDIT_ACTIONS.COMPLIANCE_990PF_EXPORTED');
     expect(assistantExecutor).toContain('recordGrantPayment(supabase, args, portfolioId, userId)');
     expect(grantExecutor).toContain('ORG_AUDIT_ACTIONS.GRANT_PAYMENT_RECORDED');
     expect(grantExecutor).toContain('operation: \'insert\'');

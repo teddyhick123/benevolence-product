@@ -211,11 +211,13 @@ describe('org-scoped route auth contracts', () => {
 
   it('compliance and grant calendars avoid stale obligation views', () => {
     const complianceRoute = readFileSync('app/api/org/[orgId]/compliance/filing-calendar/route.ts', 'utf8');
-    expect(complianceRoute).toContain("'Cache-Control': 'no-store'");
+    expect(complianceRoute).toContain('jsonOk');
+    expect(complianceRoute).toContain('jsonError');
     expect(complianceRoute).toContain('Number.isFinite(requestedDays)');
     expect(complianceRoute).toContain('taskSyncError');
-    expect(complianceRoute).toContain('completeGeneratedTasks');
-    expect(complianceRoute).toContain('cancelGeneratedTasks');
+    expect(complianceRoute).toContain('requireOrgAccess');
+    expect(complianceRoute).toContain('syncFilingStatusTasks');
+    expect(complianceRoute).not.toContain('createAdminClient');
     expect(complianceRoute).not.toContain('Fire-and-forget');
 
     const grantCalendarRoute = readFileSync('app/api/org/[orgId]/grants/calendar/route.ts', 'utf8');

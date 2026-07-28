@@ -28,6 +28,7 @@ const grantsSrc = read('lib/tasks/automation/producers/grants.ts');
 const importsSrc = read('lib/tasks/automation/producers/imports.ts');
 const generateSrc = read('app/api/jobs/tasks/generate/route.ts');
 const filingCalendarRouteSrc = read('app/api/org/[orgId]/compliance/filing-calendar/route.ts');
+const complianceRepositorySrc = read('lib/api/repositories/compliance.ts');
 const installmentRouteSrc = read('app/api/org/[orgId]/pledges/[pledgeId]/installments/[installmentId]/route.ts');
 const pledgeCancelRouteSrc = read('app/api/org/[orgId]/pledges/[pledgeId]/cancel/route.ts');
 const milestoneRouteSrc = read('app/api/portfolio/[id]/holdings/[holdingId]/milestones/[milestoneId]/route.ts');
@@ -243,8 +244,10 @@ describe('Job route security', () => {
 // 8. Source hook cancel prefix safety in mutation routes
 // ---------------------------------------------------------------------------
 describe('Source hook cancel prefix safety', () => {
-  it('filing-calendar PATCH route uses prefix form for cancelGeneratedTasks', () => {
-    expect(filingCalendarRouteSrc).toMatch(/cancelGeneratedTasks[^`]*`filing:\${[^}]+}:`/);
+  it('filing-calendar task sync uses prefix form for cancelGeneratedTasks', () => {
+    expect(filingCalendarRouteSrc).toContain('syncFilingStatusTasks');
+    expect(complianceRepositorySrc).toMatch(/sourcePrefix\s*=\s*`filing:\${[^}]+}:`/);
+    expect(complianceRepositorySrc).toMatch(/cancelGeneratedTasks\([\s\S]*sourcePrefix/);
   });
 
   it('installment route uses prefix form for completeGeneratedTasks on pay', () => {

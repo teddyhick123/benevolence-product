@@ -1,219 +1,246 @@
-// app/api/__tests__/compliance-attachments.test.ts
 // @vitest-environment node
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { NextRequest } from 'next/server';
 
-const ORG_ID    = '11111111-1111-1111-1111-111111111111';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { NextRequest, NextResponse } from 'next/server';
+import {
+  ComplianceAttachmentNotFoundError,
+  ComplianceFilingNotFoundError,
+} from '@/lib/api/repositories/compliance';
+
+const ORG_ID = '11111111-1111-1111-1111-111111111111';
 const FILING_ID = '22222222-2222-2222-2222-222222222222';
-const USER_ID   = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
+const USER_ID = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
 
-let _authUser: { id: string } | null = { id: USER_ID };
-let _isAdmin = true;
-let _filingData: { id: string; attachments: any[] } | null = {
-  id: FILING_ID,
-  attachments: [{ path: `${ORG_ID}/${FILING_ID}/file.pdf`, name: 'file.pdf', size: 1024, uploaded_at: '2026-06-13T00:00:00Z' }],
-};
-let _filingError: { message: string } | null = null;
-let _updateError: { message: string } | null = null;
-let _storageUploadError: { message: string } | null = null;
-
-const mockUpload = vi.fn();
-const mockCreateSignedUrl = vi.fn();
-const mockRemove = vi.fn();
-const mockAdminFrom = vi.fn();
-
-vi.mock('@/lib/supabase', () => ({
-  createServerClient: vi.fn(async () => ({
-    auth: { getUser: vi.fn(async () => ({ data: { user: _authUser } })) },
-    rpc: vi.fn(async (fn: string) => {
-      if (fn === 'is_org_admin') return { data: _isAdmin, error: null };
-      return { data: null, error: null };
-    }),
-  })),
-  createAdminClient: vi.fn(() => ({
-    from: mockAdminFrom,
-    storage: {
-      from: vi.fn(() => ({
-        upload: mockUpload,
-        createSignedUrl: mockCreateSignedUrl,
-        remove: mockRemove,
-      })),
-    },
-  })),
+const {
+  mockRequireOrgAccess,
+  mockCreateOrgComplianceRepository,
+  mockListFilingAttachments,
+  mockUploadFilingAttachment,
+  mockDeleteFilingAttachment,
+} = vi.hoisted(() => ({
+  mockRequireOrgAccess: vi.fn(),
+  mockCreateOrgComplianceRepository: vi.fn(),
+  mockListFilingAttachments: vi.fn(),
+  mockUploadFilingAttachment: vi.fn(),
+  mockDeleteFilingAttachment: vi.fn(),
 }));
 
-function setupMocks() {
-  // Each filing_calendar query uses a chain: .select().eq(id).eq(org_id).single()
-  mockAdminFrom.mockImplementation((table: string) => {
-    if (table === 'filing_calendar') {
-      let eqChain = {
-        single: vi.fn(async () => ({
-          data: _filingError ? null : _filingData,
-          error: _filingError,
-        })),
-        eq: vi.fn(() => eqChain),
-      };
-      return {
-        select: vi.fn(() => ({ eq: vi.fn(() => eqChain) })),
-        update: vi.fn(() => ({
-          eq: vi.fn(() => ({
-            eq: vi.fn(async () => ({ error: _updateError })),
-          })),
-        })),
-      };
+vi.mock('@/lib/api/access', () => ({
+  requireOrgAccess: mockRequireOrgAccess,
+}));
+
+vi.mock('@/lib/api/repositories/compliance', async importOriginal => {
+  const actual = await importOriginal<typeof import('@/lib/api/repositories/compliance')>();
+  return {
+    ...actual,
+    createOrgComplianceRepository: mockCreateOrgComplianceRepository,
+  };
+});
+
+import {
+  DELETE,
+  GET,
+  POST,
+} from '@/app/api/org/[orgId]/compliance/filing-calendar/[filingId]/attachments/route';
+
+const attachment = {
+  path: `${ORG_ID}/${FILING_ID}/file.pdf`,
+  name: 'file.pdf',
+  size: 1024,
+  uploaded_at: '2026-06-13T00:00:00Z',
+  signed_url: 'https://signed.example.test/file.pdf',
+};
+
+function makeGet() {
+  return new NextRequest(
+    `http://localhost/api/org/${ORG_ID}/compliance/filing-calendar/${FILING_ID}/attachments`
+  );
+}
+
+function makePost(file?: File) {
+  const formData = new FormData();
+  if (file) formData.append('file', file);
+  return new NextRequest(
+    `http://localhost/api/org/${ORG_ID}/compliance/filing-calendar/${FILING_ID}/attachments`,
+    { method: 'POST', body: formData }
+  );
+}
+
+function makeDelete(body: unknown) {
+  return new NextRequest(
+    `http://localhost/api/org/${ORG_ID}/compliance/filing-calendar/${FILING_ID}/attachments`,
+    {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
     }
-    return {};
-  });
-
-  mockUpload.mockResolvedValue({ data: { path: 'some/path.pdf' }, error: _storageUploadError });
-  mockCreateSignedUrl.mockResolvedValue({ data: { signedUrl: 'https://signed.url/file.pdf' }, error: null });
-  mockRemove.mockResolvedValue({ error: null });
+  );
 }
 
-import { GET, POST, DELETE } from '@/app/api/org/[orgId]/compliance/filing-calendar/[filingId]/attachments/route';
-
-function makeGet(orgId = ORG_ID, filingId = FILING_ID) {
-  return new NextRequest(`http://localhost/api/org/${orgId}/compliance/filing-calendar/${filingId}/attachments`);
-}
-function makeDelete(body: unknown, orgId = ORG_ID, filingId = FILING_ID) {
-  return new NextRequest(`http://localhost/api/org/${orgId}/compliance/filing-calendar/${filingId}/attachments`, {
-    method: 'DELETE',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-}
-function makeParams(orgId = ORG_ID, filingId = FILING_ID) {
-  return { params: Promise.resolve({ orgId, filingId }) } as any;
+function makeParams() {
+  return { params: Promise.resolve({ orgId: ORG_ID, filingId: FILING_ID }) } as any;
 }
 
-function expectNoStore(res: Response) {
-  expect(res.headers.get('Cache-Control')).toBe('no-store');
+function denied(message: string, status: number) {
+  return {
+    ok: false,
+    response: NextResponse.json(
+      { error: message },
+      { status, headers: { 'Cache-Control': 'no-store' } }
+    ),
+  };
+}
+
+function expectNoStore(response: Response) {
+  expect(response.headers.get('Cache-Control')).toBe('no-store');
 }
 
 beforeEach(() => {
-  _authUser = { id: USER_ID };
-  _isAdmin = true;
-  _filingData = { id: FILING_ID, attachments: [{ path: `${ORG_ID}/${FILING_ID}/file.pdf`, name: 'file.pdf', size: 1024, uploaded_at: '2026-06-13T00:00:00Z' }] };
-  _filingError = null;
-  _updateError = null;
-  _storageUploadError = null;
-  setupMocks();
+  vi.clearAllMocks();
+  mockRequireOrgAccess.mockResolvedValue({
+    ok: true,
+    context: { orgId: ORG_ID, user: { id: USER_ID }, db: {} },
+  });
+  mockCreateOrgComplianceRepository.mockReturnValue({
+    listFilingAttachments: mockListFilingAttachments,
+    uploadFilingAttachment: mockUploadFilingAttachment,
+    deleteFilingAttachment: mockDeleteFilingAttachment,
+  });
+  mockListFilingAttachments.mockResolvedValue([attachment]);
+  mockUploadFilingAttachment.mockResolvedValue(attachment);
+  mockDeleteFilingAttachment.mockResolvedValue({ storageCleanupPending: false });
 });
 
 describe('GET /attachments', () => {
   it('returns 401 when unauthenticated', async () => {
-    _authUser = null;
-    const res = await GET(makeGet(), makeParams());
-    expect(res.status).toBe(401);
-    expectNoStore(res);
+    mockRequireOrgAccess.mockResolvedValue(denied('Unauthorized', 401));
+
+    const response = await GET(makeGet(), makeParams());
+
+    expect(response.status).toBe(401);
+    expectNoStore(response);
+    expect(mockCreateOrgComplianceRepository).not.toHaveBeenCalled();
   });
 
-  it('returns 403 when not admin', async () => {
-    _isAdmin = false;
-    const res = await GET(makeGet(), makeParams());
-    expect(res.status).toBe(403);
+  it('returns 403 when the user is not an admin', async () => {
+    mockRequireOrgAccess.mockResolvedValue(denied('Forbidden', 403));
+
+    const response = await GET(makeGet(), makeParams());
+
+    expect(response.status).toBe(403);
+    expect(mockRequireOrgAccess).toHaveBeenCalledWith(ORG_ID, 'admin');
   });
 
-  it('returns 404 when filing not found', async () => {
-    _filingError = { message: 'Not found' };
-    const res = await GET(makeGet(), makeParams());
-    expect(res.status).toBe(404);
+  it('returns 404 when the scoped filing does not exist', async () => {
+    mockListFilingAttachments.mockRejectedValue(new ComplianceFilingNotFoundError());
+
+    const response = await GET(makeGet(), makeParams());
+
+    expect(response.status).toBe(404);
   });
 
   it('returns attachments with signed URLs', async () => {
-    const res = await GET(makeGet(), makeParams());
-    expect(res.status).toBe(200);
-    expectNoStore(res);
-    const body = await res.json();
-    expect(body.data).toHaveLength(1);
-    expect(body.data[0].signed_url).toBe('https://signed.url/file.pdf');
-    expect(body.data[0].name).toBe('file.pdf');
+    const response = await GET(makeGet(), makeParams());
+
+    expect(response.status).toBe(200);
+    expectNoStore(response);
+    expect(await response.json()).toEqual({ data: [attachment] });
   });
 
-  it('returns empty array when filing has no attachments', async () => {
-    _filingData = { id: FILING_ID, attachments: [] };
-    const res = await GET(makeGet(), makeParams());
-    expect(res.status).toBe(200);
-    expectNoStore(res);
-    const body = await res.json();
-    expect(body.data).toHaveLength(0);
+  it('returns an empty array when the filing has no attachments', async () => {
+    mockListFilingAttachments.mockResolvedValue([]);
+
+    const response = await GET(makeGet(), makeParams());
+
+    expect(await response.json()).toEqual({ data: [] });
   });
 });
 
 describe('POST /attachments', () => {
-  it('returns 401 when unauthenticated', async () => {
-    _authUser = null;
-    const formData = new FormData();
-    formData.append('file', new File(['content'], 'test.pdf', { type: 'application/pdf' }));
-    const req = new NextRequest(`http://localhost/api/org/${ORG_ID}/compliance/filing-calendar/${FILING_ID}/attachments`, {
-      method: 'POST',
-      body: formData,
-    });
-    const res = await POST(req, makeParams());
-    expect(res.status).toBe(401);
-    expectNoStore(res);
+  it('returns 401 before parsing multipart data when unauthenticated', async () => {
+    mockRequireOrgAccess.mockResolvedValue(denied('Unauthorized', 401));
+
+    const response = await POST(
+      makePost(new File(['content'], 'test.pdf', { type: 'application/pdf' })),
+      makeParams()
+    );
+
+    expect(response.status).toBe(401);
+    expectNoStore(response);
   });
 
-  it('returns 403 when not admin', async () => {
-    _isAdmin = false;
-    const formData = new FormData();
-    formData.append('file', new File(['content'], 'test.pdf', { type: 'application/pdf' }));
-    const req = new NextRequest(`http://localhost/api/org/${ORG_ID}/compliance/filing-calendar/${FILING_ID}/attachments`, {
-      method: 'POST',
-      body: formData,
-    });
-    const res = await POST(req, makeParams());
-    expect(res.status).toBe(403);
+  it('returns 403 when the user is not an admin', async () => {
+    mockRequireOrgAccess.mockResolvedValue(denied('Forbidden', 403));
+
+    const response = await POST(
+      makePost(new File(['content'], 'test.pdf', { type: 'application/pdf' })),
+      makeParams()
+    );
+
+    expect(response.status).toBe(403);
   });
 
-  it('returns 400 when no file provided', async () => {
-    const formData = new FormData();
-    const req = new NextRequest(`http://localhost/api/org/${ORG_ID}/compliance/filing-calendar/${FILING_ID}/attachments`, {
-      method: 'POST',
-      body: formData,
-    });
-    const res = await POST(req, makeParams());
-    expect(res.status).toBe(400);
+  it('returns 400 when no file is provided', async () => {
+    const response = await POST(makePost(), makeParams());
+
+    expect(response.status).toBe(400);
   });
 
-  it('returns 415 for disallowed MIME type', async () => {
-    const formData = new FormData();
-    formData.append('file', new File(['<html>evil</html>'], 'evil.html', { type: 'text/html' }));
-    const req = new NextRequest(`http://localhost/api/org/${ORG_ID}/compliance/filing-calendar/${FILING_ID}/attachments`, {
-      method: 'POST',
-      body: formData,
-    });
-    const res = await POST(req, makeParams());
-    expect(res.status).toBe(415);
-    expectNoStore(res);
+  it('returns 415 for a disallowed MIME type', async () => {
+    const response = await POST(
+      makePost(new File(['<html>evil</html>'], 'evil.html', { type: 'text/html' })),
+      makeParams()
+    );
+
+    expect(response.status).toBe(415);
+    expectNoStore(response);
+  });
+
+  it('uploads through the scoped repository and returns 201', async () => {
+    const response = await POST(
+      makePost(new File(['content'], 'board packet.pdf', { type: 'application/pdf' })),
+      makeParams()
+    );
+
+    expect(response.status).toBe(201);
+    expect(mockUploadFilingAttachment).toHaveBeenCalledWith(expect.objectContaining({
+      filingId: FILING_ID,
+      fileName: 'board packet.pdf',
+      contentType: 'application/pdf',
+    }));
   });
 });
 
 describe('DELETE /attachments', () => {
   it('returns 401 when unauthenticated', async () => {
-    _authUser = null;
-    const res = await DELETE(makeDelete({ path: `${ORG_ID}/${FILING_ID}/file.pdf` }), makeParams());
-    expect(res.status).toBe(401);
-    expectNoStore(res);
+    mockRequireOrgAccess.mockResolvedValue(denied('Unauthorized', 401));
+
+    const response = await DELETE(makeDelete({ path: attachment.path }), makeParams());
+
+    expect(response.status).toBe(401);
+    expectNoStore(response);
   });
 
-  it('returns 400 when path is missing', async () => {
-    const res = await DELETE(makeDelete({}), makeParams());
-    expect(res.status).toBe(400);
+  it('returns 400 when the path is missing', async () => {
+    const response = await DELETE(makeDelete({}), makeParams());
+
+    expect(response.status).toBe(400);
   });
 
-  it('returns 404 when attachment path not in filing', async () => {
-    const res = await DELETE(makeDelete({ path: 'nonexistent/path.pdf' }), makeParams());
-    expect(res.status).toBe(404);
+  it('returns 404 when the attachment is not in the scoped filing', async () => {
+    mockDeleteFilingAttachment.mockRejectedValue(new ComplianceAttachmentNotFoundError());
+
+    const response = await DELETE(makeDelete({ path: attachment.path }), makeParams());
+
+    expect(response.status).toBe(404);
   });
 
-  it('returns 200 and removes attachment from filing', async () => {
-    const res = await DELETE(makeDelete({ path: `${ORG_ID}/${FILING_ID}/file.pdf` }), makeParams());
-    expect(res.status).toBe(200);
-    expectNoStore(res);
-    const body = await res.json();
-    expect(body.ok).toBe(true);
-    expect(mockRemove).toHaveBeenCalledWith([`${ORG_ID}/${FILING_ID}/file.pdf`]);
+  it('returns success after removing attachment metadata and storage', async () => {
+    const response = await DELETE(makeDelete({ path: attachment.path }), makeParams());
+
+    expect(response.status).toBe(200);
+    expectNoStore(response);
+    expect(await response.json()).toEqual({ ok: true });
+    expect(mockDeleteFilingAttachment).toHaveBeenCalledWith(FILING_ID, attachment.path);
   });
 });
-// Integration test.

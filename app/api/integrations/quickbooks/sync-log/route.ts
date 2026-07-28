@@ -1,40 +1,26 @@
-// app/api/integrations/quickbooks/sync-log/route.ts
 // GET /api/integrations/quickbooks/sync-log?org_id=<uuid>&limit=10
-// Returns the most recent sync log entries for the org (admin only).
 
-import { createServerClient } from '@/lib/supabase';
-import { isWorkspaceManager } from '@/lib/roles';
+import { NextRequest } from 'next/server';
+import { z } from 'zod';
+import { requireOrgAccess } from '@/lib/api/access';
+import { jsonError, jsonOk } from '@/lib/api/responses';
 
-export async function GET(req: Request): Promise<Response> {
-  const supabase = await createServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return Response.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+const orgIdSchema = z.string().uuid();
 
+export async function GET(req: NextRequest): Promise<Response> {
   const { searchParams } = new URL(req.url);
-  const orgId = searchParams.get('org_id');
-  const limitParam = searchParams.get('limit');
-  const limit = limitParam ? Math.min(Math.max(parseInt(limitParam, 10) || 10, 1), 100) : 10;
+  const parsedOrgId = orgIdSchema.safeParse(searchParams.get('org_id'));
+  if (!parsedOrgId.success) return jsonError('org_id is required', 400);
 
-  if (!orgId) {
-    return Response.json({ error: 'org_id is required' }, { status: 400 });
-  }
+  const requestedLimit = Number.parseInt(searchParams.get('limit') ?? '10', 10);
+  const limit = Number.isFinite(requestedLimit)
+    ? Math.min(Math.max(requestedLimit, 1), 100)
+    : 10;
+  const orgId = parsedOrgId.data;
+  const access = await requireOrgAccess(orgId, 'admin');
+  if (!access.ok) return access.response;
 
-  const { data: membership } = await supabase
-    .from('organization_members')
-    .select('role')
-    .eq('org_id', orgId)
-    .eq('user_id', user.id)
-    .single();
-
-  if (!membership || !isWorkspaceManager(membership.role)) {
-    return Response.json({ error: 'Admin access required' }, { status: 403 });
-  }
-
-  const { data: log, error } = await supabase
+  const { data: log, error } = await access.context.db
     .from('qb_sync_log')
     .select('*')
     .eq('org_id', orgId)
@@ -43,8 +29,7 @@ export async function GET(req: Request): Promise<Response> {
 
   if (error) {
     console.error('[QB] sync-log fetch error:', error);
-    return Response.json({ error: 'Failed to fetch sync log' }, { status: 500 });
+    return jsonError('Failed to fetch sync log', 500);
   }
-
-  return Response.json({ log: log ?? [] });
+  return jsonOk({ log: log ?? [] });
 }

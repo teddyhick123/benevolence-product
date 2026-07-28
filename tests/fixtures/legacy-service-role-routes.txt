@@ -31,7 +31,6 @@ app/api/ai/redo/route.ts
 app/api/ai/undo/route.ts
 app/api/charities/enrich/route.ts
 app/api/charities/import/propublica/route.ts
-app/api/integrations/quickbooks/accounts/route.ts
 app/api/integrations/quickbooks/export/contributions/route.ts
 app/api/integrations/quickbooks/export/grants/route.ts
 app/api/invitations/[token]/accept/route.ts

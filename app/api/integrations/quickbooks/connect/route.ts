@@ -1,50 +1,31 @@
-// app/api/integrations/quickbooks/connect/route.ts
 // GET /api/integrations/quickbooks/connect?org_id=<uuid>
-// Redirects the authenticated user to Intuit's OAuth authorization page.
+// Redirects an authorized org manager to Intuit's OAuth page.
 
-import { NextResponse } from 'next/server';
-import { createServerClient } from '@/lib/supabase';
-import { isWorkspaceManager } from '@/lib/roles';
+import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
+import { requireOrgAccess } from '@/lib/api/access';
+import { jsonError } from '@/lib/api/responses';
 import { createOAuthClient, OAuthClient } from '@/lib/integrations/quickbooks/client';
 
-export async function GET(req: Request): Promise<NextResponse> {
-  const supabase = await createServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+const orgIdSchema = z.string().uuid();
+
+export async function GET(req: NextRequest): Promise<NextResponse> {
+  const parsedOrgId = orgIdSchema.safeParse(new URL(req.url).searchParams.get('org_id'));
+  if (!parsedOrgId.success) {
+    return jsonError('org_id is required', 400);
   }
 
-  const { searchParams } = new URL(req.url);
-  const orgId = searchParams.get('org_id');
-  if (!orgId) {
-    return NextResponse.json({ error: 'org_id is required' }, { status: 400 });
-  }
+  const orgId = parsedOrgId.data;
+  const access = await requireOrgAccess(orgId, 'admin');
+  if (!access.ok) return access.response;
 
-  // Confirm user is an admin or owner of this org
-  const { data: membership } = await supabase
-    .from('organization_members')
-    .select('role')
-    .eq('org_id', orgId)
-    .eq('user_id', user.id)
-    .single();
-
-  if (!membership || !isWorkspaceManager(membership.role)) {
-    return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
-  }
-
-  const oauthClient = createOAuthClient();
-
-  // Generate a CSRF nonce to validate in the callback
   const nonce = crypto.randomUUID();
-
-  // Encode orgId, userId, and nonce in the OAuth state parameter
-  const state = Buffer.from(JSON.stringify({ orgId, userId: user.id, nonce })).toString(
-    'base64url'
-  );
-
-  const authUri = oauthClient.authorizeUri({
+  const state = Buffer.from(JSON.stringify({
+    orgId,
+    userId: access.context.user.id,
+    nonce,
+  })).toString('base64url');
+  const authUri = createOAuthClient().authorizeUri({
     scope: [OAuthClient.scopes.Accounting, OAuthClient.scopes.OpenId],
     state,
   });

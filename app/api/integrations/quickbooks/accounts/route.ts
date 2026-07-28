@@ -1,38 +1,21 @@
-// app/api/integrations/quickbooks/accounts/route.ts
 // GET /api/integrations/quickbooks/accounts?org_id=<uuid>
-// Returns the locally-synced QuickBooks accounts for the org.
 
-import { createServerClient, createAdminClient } from '@/lib/supabase';
+import { NextRequest } from 'next/server';
+import { z } from 'zod';
+import { requireOrgAccess } from '@/lib/api/access';
+import { jsonError, jsonOk } from '@/lib/api/responses';
 
-export async function GET(req: Request): Promise<Response> {
-  const supabase = await createServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return Response.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+const orgIdSchema = z.string().uuid();
 
-  const { searchParams } = new URL(req.url);
-  const orgId = searchParams.get('org_id');
-  if (!orgId) {
-    return Response.json({ error: 'org_id is required' }, { status: 400 });
-  }
+export async function GET(req: NextRequest): Promise<Response> {
+  const parsedOrgId = orgIdSchema.safeParse(new URL(req.url).searchParams.get('org_id'));
+  if (!parsedOrgId.success) return jsonError('org_id is required', 400);
 
-  // Confirm user is a member of this org
-  const { data: membership } = await supabase
-    .from('organization_members')
-    .select('id')
-    .eq('org_id', orgId)
-    .eq('user_id', user.id)
-    .single();
+  const orgId = parsedOrgId.data;
+  const access = await requireOrgAccess(orgId, 'viewer');
+  if (!access.ok) return access.response;
 
-  if (!membership) {
-    return Response.json({ error: 'Forbidden' }, { status: 403 });
-  }
-
-  const adminSupabase = createAdminClient();
-  const { data: accounts, error } = await adminSupabase
+  const { data: accounts, error } = await access.context.db
     .from('qb_accounts')
     .select('id, qb_id, qb_name, qb_type, qb_subtype, current_balance, synced_at')
     .eq('org_id', orgId)
@@ -40,9 +23,6 @@ export async function GET(req: Request): Promise<Response> {
     .order('qb_type')
     .order('qb_name');
 
-  if (error) {
-    return Response.json({ error: 'Failed to fetch accounts' }, { status: 500 });
-  }
-
-  return Response.json({ accounts: accounts ?? [] });
+  if (error) return jsonError('Failed to fetch accounts', 500);
+  return jsonOk({ accounts: accounts ?? [] });
 }

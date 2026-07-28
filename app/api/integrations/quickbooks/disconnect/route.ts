@@ -1,48 +1,32 @@
-// app/api/integrations/quickbooks/disconnect/route.ts
 // POST /api/integrations/quickbooks/disconnect
-// Body: { org_id: string }
-// Revokes the QB OAuth token and removes the stored connection record.
+// Revokes the QB OAuth token and removes the stored org connection.
 
-import { createServerClient } from '@/lib/supabase';
-import { isWorkspaceManager } from '@/lib/roles';
+import { NextRequest } from 'next/server';
+import { z } from 'zod';
+import { requireOrgAccess } from '@/lib/api/access';
+import { jsonError, jsonOk } from '@/lib/api/responses';
 import { createOAuthClient } from '@/lib/integrations/quickbooks/client';
 import { decryptToken, isEncrypted } from '@/lib/integrations/quickbooks/token-crypto';
 
-export async function POST(req: Request): Promise<Response> {
-  const supabase = await createServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return Response.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+const disconnectSchema = z.object({
+  org_id: z.string().uuid(),
+}).strict();
 
-  const body = (await req.json().catch(() => ({}))) as { org_id?: string };
-  const orgId = body.org_id;
-  if (!orgId) {
-    return Response.json({ error: 'org_id is required' }, { status: 400 });
-  }
+export async function POST(req: NextRequest): Promise<Response> {
+  const parsed = disconnectSchema.safeParse(await req.json().catch(() => ({})));
+  if (!parsed.success) return jsonError('org_id is required', 400);
 
-  // Confirm user is an admin or owner of this org
-  const { data: membership } = await supabase
-    .from('organization_members')
-    .select('role')
-    .eq('org_id', orgId)
-    .eq('user_id', user.id)
-    .single();
+  const orgId = parsed.data.org_id;
+  const access = await requireOrgAccess(orgId, 'admin');
+  if (!access.ok) return access.response;
+  const db = access.context.db;
 
-  if (!membership || !isWorkspaceManager(membership.role)) {
-    return Response.json({ error: 'Admin access required' }, { status: 403 });
-  }
-
-  // Fetch the stored connection (RLS allows org admin to read their own connection)
-  const { data: connection } = await supabase
+  const { data: connection } = await db
     .from('quickbooks_connections')
     .select('access_token, refresh_token')
     .eq('org_id', orgId)
-    .single();
+    .maybeSingle();
 
-  // Best-effort token revocation — don't fail the whole request if this errors
   if (connection) {
     try {
       const rawAccess = connection.access_token as string;
@@ -57,11 +41,10 @@ export async function POST(req: Request): Promise<Response> {
     }
   }
 
-  // Remove the connection record and all synced accounts (RLS enforces org scope)
   await Promise.all([
-    supabase.from('quickbooks_connections').delete().eq('org_id', orgId),
-    supabase.from('qb_accounts').delete().eq('org_id', orgId),
+    db.from('quickbooks_connections').delete().eq('org_id', orgId),
+    db.from('qb_accounts').delete().eq('org_id', orgId),
   ]);
 
-  return Response.json({ ok: true });
+  return jsonOk({ ok: true });
 }

@@ -1,58 +1,41 @@
-// app/api/integrations/quickbooks/status/route.ts
 // GET /api/integrations/quickbooks/status?org_id=<uuid>
-// Returns the current connection status and metadata for the org.
 
-import { createServerClient } from '@/lib/supabase';
+import { NextRequest } from 'next/server';
+import { z } from 'zod';
+import { requireOrgAccess } from '@/lib/api/access';
+import { jsonError, jsonOk } from '@/lib/api/responses';
 
-export async function GET(req: Request): Promise<Response> {
-  const supabase = await createServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return Response.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+const orgIdSchema = z.string().uuid();
 
-  const { searchParams } = new URL(req.url);
-  const orgId = searchParams.get('org_id');
-  if (!orgId) {
-    return Response.json({ error: 'org_id is required' }, { status: 400 });
-  }
+export async function GET(req: NextRequest): Promise<Response> {
+  const parsedOrgId = orgIdSchema.safeParse(new URL(req.url).searchParams.get('org_id'));
+  if (!parsedOrgId.success) return jsonError('org_id is required', 400);
 
-  // Confirm user is a member of this org
-  const { data: membership } = await supabase
-    .from('organization_members')
-    .select('id')
-    .eq('org_id', orgId)
-    .eq('user_id', user.id)
-    .single();
+  const orgId = parsedOrgId.data;
+  const access = await requireOrgAccess(orgId, 'viewer');
+  if (!access.ok) return access.response;
 
-  if (!membership) {
-    return Response.json({ error: 'Forbidden' }, { status: 403 });
-  }
-
-  const { data: connection } = await supabase
+  const { data: connection } = await access.context.db
     .from('quickbooks_connections')
     .select('realm_id, created_at, last_sync_at, expires_at, refresh_expires_at')
     .eq('org_id', orgId)
-    .single();
+    .maybeSingle();
 
-  if (!connection) {
-    return Response.json({ connected: false });
-  }
+  if (!connection) return jsonOk({ connected: false });
 
   const tokenExpiry = new Date(connection.expires_at as string);
-  const isTokenExpired = tokenExpiry <= new Date();
-  const refreshExpiry = connection.refresh_expires_at ? new Date(connection.refresh_expires_at as string) : null;
+  const refreshExpiry = connection.refresh_expires_at
+    ? new Date(connection.refresh_expires_at as string)
+    : null;
   const isRefreshExpired = refreshExpiry ? refreshExpiry <= new Date() : false;
 
-  return Response.json({
+  return jsonOk({
     connected: true,
     realm_id: connection.realm_id,
     connected_at: connection.created_at,
     last_sync_at: connection.last_sync_at,
     token_expiry: connection.expires_at,
-    token_expired: isTokenExpired,
+    token_expired: tokenExpiry <= new Date(),
     refresh_expires_at: connection.refresh_expires_at,
     refresh_token_expired: isRefreshExpired,
     needs_reconnect: isRefreshExpired,

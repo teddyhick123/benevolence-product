@@ -6,6 +6,7 @@ import {
   requireCpaToken,
   requireOrgAccess,
   requirePortfolioAccess,
+  requireUserAccess,
 } from '@/lib/api/access';
 import { stubQuery } from '@/tests/helpers/supabase-mock';
 
@@ -65,6 +66,29 @@ function client(options: ClientOptions = {}) {
 beforeEach(() => {
   mockCreateServerClient.mockReset();
   mockResolveCpaToken.mockReset();
+});
+
+describe('requireUserAccess', () => {
+  it('returns the typed session context without performing an authorization RPC', async () => {
+    const db = client();
+    mockCreateServerClient.mockResolvedValue(db);
+
+    await expect(requireUserAccess()).resolves.toMatchObject({
+      ok: true,
+      context: { principal: { kind: 'user', userId: USER.id }, user: USER },
+    });
+    expect(db.rpc).not.toHaveBeenCalled();
+  });
+
+  it('returns 401 when the session has no valid user', async () => {
+    mockCreateServerClient.mockResolvedValue(client({ user: null }));
+
+    const result = await requireUserAccess();
+
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error('expected access denial');
+    expect(result.response.status).toBe(401);
+  });
 });
 
 describe('requireOrgAccess', () => {

@@ -9,6 +9,17 @@ describe('QB OAuth param contract', () => {
 });
 
 describe('QB route role checks', () => {
+  it('OAuth callback binds the session user and org through shared guards', () => {
+    const src = readFileSync(
+      'app/api/integrations/quickbooks/callback/route.ts',
+      'utf8'
+    );
+    expect(src).toContain('requireUserAccess');
+    expect(src).toContain("requireOrgAccess(state.orgId, 'admin')");
+    expect(src).toContain('state.userId !== userAccess.context.user.id');
+    expect(src).not.toContain('createServerClient');
+  });
+
   it('connection management uses the shared admin guard', () => {
     for (const file of [
       'app/api/integrations/quickbooks/connect/route.ts',

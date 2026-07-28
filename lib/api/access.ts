@@ -7,6 +7,7 @@ import type {
   CpaShareAccessContext,
   OrgAccessContext,
   PortfolioAccessContext,
+  UserAccessContext,
 } from '@/lib/api/principals';
 import {
   resolveCpaToken,
@@ -53,6 +54,10 @@ async function authenticatedSession() {
       principal: { kind: 'user' as const, userId: user.id },
     },
   };
+}
+
+export async function requireUserAccess(): Promise<AccessResult<UserAccessContext>> {
+  return authenticatedSession();
 }
 
 export async function requireAppAdmin(): Promise<AccessResult<AppAdminAccessContext>> {

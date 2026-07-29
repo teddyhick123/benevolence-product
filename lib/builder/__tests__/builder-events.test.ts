@@ -65,12 +65,9 @@ describe('builder_events instrumentation', () => {
   });
 
   it('chat route emits ai_request event', () => {
-    const src = readFileSync(
-      'app/api/org/[orgId]/builder/chat/route.ts',
-      'utf8'
-    );
-    expect(src).toMatch(/builder_events/);
-    expect(src).toMatch(/ai_request/);
+    const repositorySrc = readFileSync('lib/api/repositories/builder-chat.ts', 'utf8');
+    expect(repositorySrc).toMatch(/builder_events/);
+    expect(repositorySrc).toMatch(/ai_request/);
   });
 
   it('chat route awaits ai_request event insert and fails closed', () => {
@@ -78,9 +75,11 @@ describe('builder_events instrumentation', () => {
       'app/api/org/[orgId]/builder/chat/route.ts',
       'utf8'
     );
-    expect(src).toMatch(/await adminSupabase\.from\('builder_events'\)\.insert/);
-    expect(src).toMatch(/if \(eventError\)/);
-    expect(src).toMatch(/return json\(\{ error: eventError\.message \}, \{ status: 500 \}\)/);
+    const repositorySrc = readFileSync('lib/api/repositories/builder-chat.ts', 'utf8');
+    expect(src).toMatch(/await repository\.recordRequest/);
+    expect(src).toMatch(/return jsonError\(message, 500\)/);
+    expect(repositorySrc).toMatch(/await elevatedDb\.from\('builder_events'\)\.insert/);
+    expect(repositorySrc).toMatch(/if \(error\) throw error/);
   });
 
   it('chat route emits event after auth check', () => {
@@ -88,8 +87,8 @@ describe('builder_events instrumentation', () => {
       'app/api/org/[orgId]/builder/chat/route.ts',
       'utf8'
     );
-    const authIdx = src.indexOf('isAdmin');
-    const eventIdx = src.indexOf('ai_request');
+    const authIdx = src.indexOf('requireOrgAccess');
+    const eventIdx = src.indexOf('recordRequest');
     expect(authIdx).toBeGreaterThan(-1);
     expect(eventIdx).toBeGreaterThan(authIdx);
   });

@@ -428,10 +428,13 @@ describe('org-scoped route auth contracts', () => {
     expect(detailRoute).not.toContain('createAdminClient');
 
     const chatRoute = readFileSync('app/api/org/[orgId]/builder/chat/route.ts', 'utf8');
-    expect(chatRoute).toContain('eventError');
-    expect(chatRoute).toContain('return json({ error: eventError.message }, { status: 500 })');
-    expect(chatRoute).toContain('sessionError');
-    expect(chatRoute).toContain('if (sessionError) throw sessionError');
+    const chatRepository = readFileSync('lib/api/repositories/builder-chat.ts', 'utf8');
+    expect(chatRoute).toContain("requireOrgAccess(orgId, 'admin')");
+    expect(chatRoute).toContain('createOrgBuilderChatRepository');
+    expect(chatRoute).not.toContain('createAdminClient');
+    expect(chatRepository).toContain("event_type: 'ai_request'");
+    expect(chatRepository).toContain('if (error) throw error');
+    expect(chatRepository).toContain('saveSession');
 
     const applyRoute = readFileSync('app/api/org/[orgId]/builder/proposals/[proposalId]/apply/route.ts', 'utf8');
     const applyRepository = readFileSync('lib/api/repositories/builder-apply.ts', 'utf8');

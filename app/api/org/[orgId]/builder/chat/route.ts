@@ -1,33 +1,21 @@
-// app/api/org/[orgId]/builder/chat/route.ts
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { createAIProvider } from '@/lib/ai/factory';
 import { AI_MODELS } from '@/lib/ai/models';
-import type { AIStreamChunk, AIContentBlock, AIMessage } from '@/lib/ai/types';
-import { createServerClient, createAdminClient } from '@/lib/supabase';
-import { fetchOrgSnapshot, buildSystemPrompt } from '@/lib/builder/context-bundle';
-import { BUILDER_TOOLS, executeTool, ToolResult } from '@/lib/builder/tools';
+import type { AIContentBlock, AIMessage } from '@/lib/ai/types';
+import { isAccessDenied, requireOrgAccess } from '@/lib/api/access';
+import {
+  createOrgBuilderChatRepository,
+  type BuilderStoredMessage,
+} from '@/lib/api/repositories/builder-chat';
+import { jsonError } from '@/lib/api/responses';
 import { getCodebaseIndex } from '@/lib/builder/codebase-index';
+import { buildSystemPrompt } from '@/lib/builder/context-bundle';
+import { BUILDER_TOOLS, type ToolResult } from '@/lib/builder/tools';
 
 export const dynamic = 'force-dynamic';
 
 interface RouteParams {
   params: Promise<{ orgId: string }>;
-}
-
-interface StoredMessage {
-  role: 'user' | 'assistant';
-  content: string;
-  timestamp: string;
-}
-
-function json(body: Record<string, unknown>, init?: ResponseInit) {
-  return NextResponse.json(body, {
-    ...init,
-    headers: {
-      ...init?.headers,
-      'Cache-Control': 'no-store',
-    },
-  });
 }
 
 function sseEvent(data: Record<string, unknown>): string {
@@ -36,66 +24,49 @@ function sseEvent(data: Record<string, unknown>): string {
 
 export async function POST(req: NextRequest, { params }: RouteParams) {
   const { orgId } = await params;
-  const supabase = await createServerClient();
-  const adminSupabase = createAdminClient();
-
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return json({ error: 'Unauthorized' }, { status: 401 });
-  }
-  const { data: isAdmin } = await supabase.rpc('is_org_admin', { p_org_id: orgId });
-  if (!isAdmin) {
-    return json({ error: 'Forbidden' }, { status: 403 });
-  }
+  const access = await requireOrgAccess(orgId, 'admin');
+  if (isAccessDenied(access)) return access.response;
 
   const body = await req.json().catch(() => ({}));
   const userMessage = body.message;
   if (typeof userMessage !== 'string' || !userMessage.trim()) {
-    return json({ error: 'Message is required' }, { status: 400 });
+    return jsonError('Message is required', 400);
   }
 
-  const { error: eventError } = await adminSupabase.from('builder_events').insert({
-    org_id: orgId,
-    user_id: user.id,
-    event_type: 'ai_request',
-    request_text: userMessage,
+  const repository = createOrgBuilderChatRepository({
+    orgId,
+    actorId: access.context.user.id,
+    sessionDb: access.context.db,
   });
-  if (eventError) {
-    return json({ error: eventError.message }, { status: 500 });
+
+  let existingMessages: BuilderStoredMessage[];
+  let systemPrompt: string;
+  try {
+    await repository.recordRequest(userMessage);
+    const context = await repository.loadContext();
+    if (!context.snapshot) {
+      return jsonError('Organization not found', 404);
+    }
+    existingMessages = context.existingMessages;
+
+    let indexAvailable = true;
+    try {
+      getCodebaseIndex();
+    } catch {
+      indexAvailable = false;
+    }
+    systemPrompt = buildSystemPrompt(context.snapshot, indexAvailable);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    return jsonError(message, 500);
   }
-
-  const [snapshot, sessionRes] = await Promise.all([
-    fetchOrgSnapshot(supabase, orgId),
-    supabase
-      .from('builder_sessions')
-      .select('id, messages')
-      .eq('org_id', orgId)
-      .eq('user_id', user.id)
-      .maybeSingle(),
-  ]);
-
-  if (!snapshot) {
-    return json({ error: 'Organization not found' }, { status: 404 });
-  }
-
-  const existingMessages: StoredMessage[] = (sessionRes.data?.messages as StoredMessage[]) || [];
 
   const history: AIMessage[] = existingMessages
     .slice(-20)
-    .map(m => ({ role: m.role, content: m.content }));
-
+    .map(message => ({ role: message.role, content: message.content }));
   history.push({ role: 'user', content: userMessage });
 
-  let indexAvailable = true;
-  try {
-    getCodebaseIndex();
-  } catch {
-    indexAvailable = false;
-  }
-  const systemPrompt = buildSystemPrompt(snapshot, indexAvailable);
-
   const provider = createAIProvider();
-
   const stream = new ReadableStream({
     async start(controller) {
       function send(data: Record<string, unknown>) {
@@ -145,7 +116,11 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
             } else if (chunk.type === 'content_block_stop') {
               if (currentBlockType === 'tool_use' && currentToolName) {
                 let parsedInput: Record<string, unknown> = {};
-                try { parsedInput = JSON.parse(currentToolInput); } catch { /* ignore */ }
+                try {
+                  parsedInput = JSON.parse(currentToolInput);
+                } catch {
+                  // The tool receives an empty object and returns its normal validation error.
+                }
                 const toolBlock: AIContentBlock = {
                   type: 'tool_use',
                   id: currentToolId,
@@ -164,23 +139,20 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
             }
           }
 
-          if (stopReason !== 'tool_use' || toolUseBlocks.length === 0) {
-            break;
-          }
+          if (stopReason !== 'tool_use' || toolUseBlocks.length === 0) break;
 
-          const toolResults: Array<{ type: 'tool_result'; tool_use_id: string; content: string }> = [];
+          const toolResults: Array<{
+            type: 'tool_result';
+            tool_use_id: string;
+            content: string;
+          }> = [];
 
           for (const toolBlock of toolUseBlocks) {
             if (toolBlock.type !== 'tool_use') continue;
-
-            const result: ToolResult = await executeTool(
+            const result: ToolResult = await repository.runTool(
               toolBlock.name,
               toolBlock.input as Record<string, unknown>,
-              orgId,
-              user.id,
-              userMessage,
-              supabase,
-              adminSupabase
+              userMessage
             );
 
             if (result.type === 'proposal_created') {
@@ -209,42 +181,22 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
 
           currentMessages = [
             ...currentMessages,
-            {
-              role: 'assistant' as const,
-              content: assistantContentBlocks,
-            },
-            {
-              role: 'user' as const,
-              content: toolResults as AIContentBlock[],
-            },
+            { role: 'assistant' as const, content: assistantContentBlocks },
+            { role: 'user' as const, content: toolResults as AIContentBlock[] },
           ];
         }
 
-        const newMessage: StoredMessage = {
-          role: 'user',
-          content: userMessage,
-          timestamp: new Date().toISOString(),
-        };
-        const assistantMessage: StoredMessage = {
-          role: 'assistant',
-          content: fullAssistantText,
-          timestamp: new Date().toISOString(),
-        };
-
-        const updatedMessages = [...existingMessages, newMessage, assistantMessage];
-
-        const { error: sessionError } = await adminSupabase.from('builder_sessions').upsert({
-          org_id: orgId,
-          user_id: user.id,
-          messages: updatedMessages,
-          updated_at: new Date().toISOString(),
-        }, { onConflict: 'org_id,user_id' });
-        if (sessionError) throw sessionError;
-
+        const now = new Date().toISOString();
+        const updatedMessages: BuilderStoredMessage[] = [
+          ...existingMessages,
+          { role: 'user', content: userMessage, timestamp: now },
+          { role: 'assistant', content: fullAssistantText, timestamp: now },
+        ];
+        await repository.saveSession(updatedMessages);
         send({ type: 'done' });
-      } catch (err) {
-        const message = err instanceof Error ? err.message : 'Stream error';
-        controller.enqueue(new TextEncoder().encode(sseEvent({ type: 'error', message })));
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Stream error';
+        send({ type: 'error', message });
       } finally {
         controller.close();
       }

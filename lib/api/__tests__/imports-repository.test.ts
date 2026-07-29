@@ -6,11 +6,22 @@ import { stubQuery } from '@/tests/helpers/supabase-mock';
 const ORG_ID = '11111111-1111-1111-1111-111111111111';
 const JOB_ID = '22222222-2222-2222-2222-222222222222';
 
-const { mockCreateElevatedClient, mockFrom, mockRpc, mockRollbackImport } = vi.hoisted(() => ({
+const {
+  mockCreateElevatedClient,
+  mockFrom,
+  mockRpc,
+  mockRollbackImport,
+  mockLoadStagingToProduction,
+  mockGenerateReconciliationReport,
+  mockCompleteGeneratedTasks,
+} = vi.hoisted(() => ({
   mockCreateElevatedClient: vi.fn(),
   mockFrom: vi.fn(),
   mockRpc: vi.fn(),
   mockRollbackImport: vi.fn(),
+  mockLoadStagingToProduction: vi.fn(),
+  mockGenerateReconciliationReport: vi.fn(),
+  mockCompleteGeneratedTasks: vi.fn(),
 }));
 
 vi.mock('@/lib/api/admin-client', () => ({
@@ -21,9 +32,22 @@ vi.mock('@/lib/import/rollback', () => ({
   rollbackImport: mockRollbackImport,
 }));
 
+vi.mock('@/lib/import/loader', () => ({
+  loadStagingToProduction: mockLoadStagingToProduction,
+}));
+
+vi.mock('@/lib/import/reconciler', () => ({
+  generateReconciliationReport: mockGenerateReconciliationReport,
+}));
+
+vi.mock('@/lib/tasks/automation/task-writer', () => ({
+  completeGeneratedTasks: mockCompleteGeneratedTasks,
+}));
+
 import {
   createImportRollbackRepository,
   createAppAdminImportMaintenanceRepository,
+  createImportOrchestrationRepository,
   ImportRollbackJobNotFoundError,
   ImportRollbackStatusError,
 } from '@/lib/api/repositories/imports';
@@ -39,6 +63,18 @@ beforeEach(() => {
     durationMs: 1,
   });
   mockRpc.mockResolvedValue({ data: 2, error: null });
+  mockLoadStagingToProduction.mockResolvedValue([
+    { phase: 'donors', inserted: 2, updated: 1, skipped: 0, failed: 0, errors: [] },
+  ]);
+  mockGenerateReconciliationReport.mockResolvedValue({
+    importJobId: JOB_ID,
+    generatedAt: '2026-07-29T00:00:00.000Z',
+    overallSuccess: true,
+    entities: [],
+    summary: 'ok',
+    actionItems: [],
+  });
+  mockCompleteGeneratedTasks.mockResolvedValue(1);
 });
 
 describe('app-admin import maintenance repository', () => {
@@ -54,6 +90,68 @@ describe('app-admin import maintenance repository', () => {
     });
     expect(repository).not.toHaveProperty('db');
     expect(repository).not.toHaveProperty('rpc');
+  });
+
+  it('contains global PII cleanup behind the same app-admin principal', async () => {
+    const repository = createAppAdminImportMaintenanceRepository({
+      isAppAdmin: true,
+      actorId: 'app-admin-1',
+    });
+
+    await repository.cleanupStagingPii(30);
+
+    expect(mockRpc).toHaveBeenCalledWith('cleanup_staging_pii', { retention_days: 30 });
+  });
+});
+
+describe('import orchestration repository', () => {
+  it('verifies the organization-bound job before elevated reconciliation', async () => {
+    const jobQuery = stubQuery(
+      { data: null, error: null },
+      { maybeSingle: { data: { id: JOB_ID, org_id: ORG_ID, status: 'completed' }, error: null } }
+    );
+    mockFrom.mockReturnValue(jobQuery);
+    const repository = createImportOrchestrationRepository({ orgId: ORG_ID, actorId: 'app-admin-1' });
+
+    await repository.generateReconciliation(JOB_ID);
+
+    expect(jobQuery.calls).toContainEqual({ method: 'eq', args: ['org_id', ORG_ID] });
+    expect(mockGenerateReconciliationReport).toHaveBeenCalledWith(
+      expect.objectContaining({ from: mockFrom }),
+      JOB_ID
+    );
+  });
+
+  it('atomically claims an approved job before loading production data', async () => {
+    const currentQuery = stubQuery(
+      { data: null, error: null },
+      { maybeSingle: { data: { id: JOB_ID, org_id: ORG_ID, status: 'approved' }, error: null } }
+    );
+    const claimQuery = stubQuery(
+      { data: null, error: null },
+      { maybeSingle: { data: { id: JOB_ID, org_id: ORG_ID, status: 'committing' }, error: null } }
+    );
+    const completeQuery = stubQuery(
+      { data: null, error: null },
+      { single: { data: { id: JOB_ID, org_id: ORG_ID, status: 'completed' }, error: null } }
+    );
+    mockFrom
+      .mockReturnValueOnce(currentQuery)
+      .mockReturnValueOnce(claimQuery)
+      .mockReturnValueOnce(completeQuery);
+    const repository = createImportOrchestrationRepository({ orgId: ORG_ID, actorId: 'app-admin-1' });
+
+    const result = await repository.commit(JOB_ID);
+
+    expect(claimQuery.calls).toContainEqual({ method: 'eq', args: ['org_id', ORG_ID] });
+    expect(claimQuery.calls).toContainEqual({ method: 'eq', args: ['status', 'approved'] });
+    expect(mockLoadStagingToProduction).toHaveBeenCalledWith(
+      expect.objectContaining({ from: mockFrom }),
+      JOB_ID,
+      { upsertMode: 'upsert' }
+    );
+    expect(completeQuery.calls).toContainEqual({ method: 'eq', args: ['status', 'committing'] });
+    expect(result.load_summary).toMatchObject({ total_inserted: 3, total_failed: 0 });
   });
 });
 

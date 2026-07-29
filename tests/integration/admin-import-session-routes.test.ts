@@ -23,6 +23,9 @@ const {
   mockCreateImportMaintenanceRepository,
   mockRollback,
   mockReapStaleJobs,
+  mockCreateImportOrchestrationRepository,
+  mockCommitImport,
+  mockCleanupStagingPii,
 } = vi.hoisted(() => ({
   mockRequireAppAdmin: vi.fn(),
   mockFrom: vi.fn(),
@@ -39,6 +42,9 @@ const {
   mockCreateImportMaintenanceRepository: vi.fn(),
   mockRollback: vi.fn(),
   mockReapStaleJobs: vi.fn(),
+  mockCreateImportOrchestrationRepository: vi.fn(),
+  mockCommitImport: vi.fn(),
+  mockCleanupStagingPii: vi.fn(),
 }));
 
 vi.mock('@/lib/api/access', () => ({
@@ -76,8 +82,12 @@ vi.mock('@/lib/import/job-queue', () => ({
 vi.mock('@/lib/api/repositories/imports', () => ({
   createImportRollbackRepository: mockCreateImportRollbackRepository,
   createAppAdminImportMaintenanceRepository: mockCreateImportMaintenanceRepository,
+  createImportOrchestrationRepository: mockCreateImportOrchestrationRepository,
   ImportRollbackJobNotFoundError: class ImportRollbackJobNotFoundError extends Error {},
   ImportRollbackStatusError: class ImportRollbackStatusError extends Error {},
+  ImportCommitJobNotFoundError: class ImportCommitJobNotFoundError extends Error {},
+  ImportCommitStatusError: class ImportCommitStatusError extends Error {},
+  ImportCommitLoadError: class ImportCommitLoadError extends Error {},
 }));
 
 import {
@@ -98,6 +108,7 @@ import { GET as listJobs, POST as createJob } from '@/app/api/admin/imports/rout
 import { POST as rollbackJob } from '@/app/api/admin/imports/[id]/rollback/route';
 import { POST as runWatchdog } from '@/app/api/admin/imports/watchdog/route';
 import { GET as getReport } from '@/app/api/admin/imports/[id]/report/route';
+import { POST as commitJob } from '@/app/api/admin/imports/[id]/commit/route';
 
 function context() {
   return { params: Promise.resolve({ id: JOB_ID }) };
@@ -131,8 +142,17 @@ beforeEach(() => {
     result: { scope: 'full', recordsReverted: 1, recordsSkipped: 0, errors: [], durationMs: 1 },
     job: { id: JOB_ID, org_id: ORG_ID, status: 'rolled_back' },
   });
-  mockCreateImportMaintenanceRepository.mockReturnValue({ reapStaleJobs: mockReapStaleJobs });
+  mockCreateImportMaintenanceRepository.mockReturnValue({
+    reapStaleJobs: mockReapStaleJobs,
+    cleanupStagingPii: mockCleanupStagingPii,
+  });
   mockReapStaleJobs.mockResolvedValue({ data: 2, error: null });
+  mockCleanupStagingPii.mockResolvedValue({ data: 0, error: null });
+  mockCreateImportOrchestrationRepository.mockReturnValue({ commit: mockCommitImport });
+  mockCommitImport.mockResolvedValue({
+    job: { id: JOB_ID, org_id: ORG_ID, status: 'completed' },
+    load_summary: { total_inserted: 1, total_failed: 0, phases: [] },
+  });
 });
 
 describe('app-admin import session routes', () => {
@@ -477,5 +497,26 @@ describe('app-admin import session routes', () => {
     expect(response.status).toBe(404);
     expect(mockRequireAppAdmin).toHaveBeenCalledOnce();
     expect(jobQuery.calls).toContainEqual({ method: 'eq', args: ['id', JOB_ID] });
+  });
+
+  it('binds commit orchestration to the job organization and authenticated actor', async () => {
+    const jobQuery = stubQuery(
+      { data: null, error: null },
+      { maybeSingle: { data: { id: JOB_ID, org_id: ORG_ID }, error: null } }
+    );
+    mockFrom.mockReturnValue(jobQuery);
+
+    const response = await commitJob(
+      request(`/api/admin/imports/${JOB_ID}/commit`, { method: 'POST' }),
+      context()
+    );
+
+    expect(response.status).toBe(200);
+    expect(mockCreateImportOrchestrationRepository).toHaveBeenCalledWith({
+      orgId: ORG_ID,
+      actorId: 'app-admin-1',
+    });
+    expect(mockCommitImport).toHaveBeenCalledWith(JOB_ID);
+    expect(mockCleanupStagingPii).toHaveBeenCalledWith(30);
   });
 });

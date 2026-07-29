@@ -1,31 +1,26 @@
 // app/api/admin/builder/proposals/route.ts
-import { NextRequest, NextResponse } from 'next/server';
-import { createAdminClient } from '@/lib/supabase';
-import { requireAdmin } from '@/lib/admin-auth';
+import { NextRequest } from 'next/server';
+import { isAccessDenied, requireAppAdmin } from '@/lib/api/access';
+import { createAppAdminBuilderRepository } from '@/lib/api/repositories/builder';
+import { jsonError, jsonOk } from '@/lib/api/responses';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
   try {
-    const userId = await requireAdmin();
-    if (!userId) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
+    const access = await requireAppAdmin();
+    if (isAccessDenied(access)) return access.response;
 
     const status = req.nextUrl.searchParams.get('status') || 'pending';
     const validStatuses = ['pending', 'approved', 'rejected', 'applied'];
     if (!validStatuses.includes(status)) {
-      return NextResponse.json({ error: 'Invalid status filter' }, { status: 400 });
+      return jsonError('Invalid status filter', 400);
     }
 
-    const adminSupabase = createAdminClient();
-    const { data, error } = await adminSupabase
-      .from('builder_proposals')
-      .select('id, org_id, request_text, proposal_type, status, code_state, config_patch, reviewer_notes, created_at, reviewed_at, current_revision:builder_proposal_revisions!builder_proposals_current_revision_fkey(file_count), organizations(name)')
-      .eq('status', status)
-      .order('created_at', { ascending: false });
-
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    const data = await createAppAdminBuilderRepository({
+      isAppAdmin: access.context.isAppAdmin,
+      actorId: access.context.user.id,
+    }).listProposals(status);
 
     const proposals = (data || []).map(({ organizations, current_revision, ...p }) => {
       const revision = Array.isArray(current_revision) ? current_revision[0] : current_revision;
@@ -35,9 +30,9 @@ export async function GET(req: NextRequest) {
         org_name: (Array.isArray(organizations) ? organizations[0]?.name : (organizations as { name: string } | null)?.name) ?? null,
       };
     });
-    return NextResponse.json({ proposals });
+    return jsonOk({ proposals });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';
-    return NextResponse.json({ error: message }, { status: 500 });
+    return jsonError(message, 500);
   }
 }

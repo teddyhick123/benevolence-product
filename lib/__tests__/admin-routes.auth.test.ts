@@ -33,4 +33,18 @@ describe('admin route auth contracts', () => {
     expect(src).toContain('jsonOk');
     expect(src).not.toContain('createAdminClient');
   });
+
+  it('admin Builder proposal routes use the shared app-admin guard and scoped repository', () => {
+    for (const route of [
+      'app/api/admin/builder/proposals/route.ts',
+      'app/api/admin/builder/proposals/[proposalId]/route.ts',
+    ]) {
+      const src = readFileSync(route, 'utf8');
+      expect(src, route).toContain('requireAppAdmin');
+      expect(src, route).toContain('createAppAdminBuilderRepository');
+      expect(src, route).toContain('jsonOk');
+      expect(src, route).not.toContain('createAdminClient');
+      expect(src, route).not.toContain('requireAdmin');
+    }
+  });
 });

@@ -1,8 +1,8 @@
 // app/api/admin/builder/proposals/[proposalId]/route.ts
-import { NextRequest, NextResponse } from 'next/server';
-import { createAdminClient } from '@/lib/supabase';
-import { requireAdmin } from '@/lib/admin-auth';
-import { transitionProposal, type CodeState } from '@/lib/builder/proposal-state';
+import { NextRequest } from 'next/server';
+import { isAccessDenied, requireAppAdmin } from '@/lib/api/access';
+import { createAppAdminBuilderRepository } from '@/lib/api/repositories/builder';
+import { jsonError, jsonOk } from '@/lib/api/responses';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,93 +13,41 @@ interface RouteParams {
 export async function PATCH(req: NextRequest, { params }: RouteParams) {
   try {
     const { proposalId } = await params;
-    const userId = await requireAdmin();
-    if (!userId) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
+    const access = await requireAppAdmin();
+    if (isAccessDenied(access)) return access.response;
 
     const body = await req.json().catch(() => ({}));
     const { status, reviewer_notes } = body as { status?: string; reviewer_notes?: string };
 
-    const adminSupabase = createAdminClient();
+    const result = await createAppAdminBuilderRepository({
+      isAppAdmin: access.context.isAppAdmin,
+      actorId: access.context.user.id,
+    }).reviewProposal({ proposalId, status, reviewerNotes: reviewer_notes });
 
-    // Load the proposal so we can branch on config vs code. Config proposals
-    // keep the legacy status column; code proposals are driven by code_state
-    // and may only be REJECTED here (approve/apply happen via the org-scoped
-    // apply route, gated on canonical records — never a manual status write).
-    const { data: proposal, error: loadErr } = await adminSupabase
-      .from('builder_proposals')
-      .select('id, org_id, proposal_type, code_state')
-      .eq('id', proposalId)
-      .maybeSingle();
-    if (loadErr) return NextResponse.json({ error: loadErr.message }, { status: 500 });
-    if (!proposal) return NextResponse.json({ error: 'Proposal not found' }, { status: 404 });
-
-    if (proposal.proposal_type === 'code') {
-      if (status !== 'rejected') {
-        return NextResponse.json(
-          { error: 'Code proposals may only be rejected here; approval and apply happen via the org-scoped apply route.' },
-          { status: 400 }
+    if (!result.ok) {
+      if (result.reason === 'not_found') return jsonError('Proposal not found', 404);
+      if (result.reason === 'code_action_not_allowed') {
+        return jsonError(
+          'Code proposals may only be rejected here; approval and apply happen via the org-scoped apply route.',
+          400
         );
       }
-
-      const currentState = proposal.code_state as CodeState | null;
-      if (!currentState) {
-        return NextResponse.json({ error: 'Proposal has no code state to transition' }, { status: 409 });
+      if (result.reason === 'invalid_config_status') {
+        return jsonError('status must be one of: approved, rejected, applied', 400);
       }
-
-      const result = await transitionProposal(adminSupabase, {
-        proposalId,
-        orgId: proposal.org_id,
-        from: currentState,
-        to: 'rejected',
-        set: {
-          rejected_reason: reviewer_notes || null,
-          reviewer_notes: reviewer_notes || null,
-          reviewed_by: userId,
-          reviewed_at: new Date().toISOString(),
-        },
-      });
-
-      if (!result.ok) {
-        return NextResponse.json(
-          { error: `Cannot reject a proposal in state: ${result.currentState}`, currentState: result.currentState },
-          { status: 409 }
-        );
+      if (result.reason === 'missing_code_state') {
+        return jsonError('Proposal has no code state to transition', 409);
       }
-
-      return NextResponse.json({ proposal: { id: proposalId, code_state: 'rejected', org_id: proposal.org_id } });
+      return jsonError(
+        `Cannot reject a proposal in state: ${result.currentState}`,
+        409,
+        { currentState: result.currentState }
+      );
     }
 
-    // ── Config proposal: legacy status workflow ────────────────────────────────
-    const validStatuses = ['approved', 'rejected', 'applied'];
-    if (!status || !validStatuses.includes(status)) {
-      return NextResponse.json({ error: `status must be one of: ${validStatuses.join(', ')}` }, { status: 400 });
-    }
-
-    const { data, error } = await adminSupabase
-      .from('builder_proposals')
-      .update({
-        status,
-        reviewer_notes: reviewer_notes || null,
-        reviewed_by: userId,
-        reviewed_at: new Date().toISOString(),
-      })
-      .eq('id', proposalId)
-      .select('id, status, org_id')
-      .single();
-
-    if (error) {
-      if (error.code === 'PGRST116') {
-        return NextResponse.json({ error: 'Proposal not found' }, { status: 404 });
-      }
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
-    if (!data) return NextResponse.json({ error: 'Proposal not found' }, { status: 404 });
-
-    return NextResponse.json({ proposal: data });
+    return jsonOk({ proposal: result.proposal });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';
-    return NextResponse.json({ error: message }, { status: 500 });
+    return jsonError(message, 500);
   }
 }

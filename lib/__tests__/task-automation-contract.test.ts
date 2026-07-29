@@ -32,7 +32,7 @@ const complianceRepositorySrc = read('lib/api/repositories/compliance.ts');
 const installmentRouteSrc = read('app/api/org/[orgId]/pledges/[pledgeId]/installments/[installmentId]/route.ts');
 const pledgeCancelRouteSrc = read('app/api/org/[orgId]/pledges/[pledgeId]/cancel/route.ts');
 const milestoneRouteSrc = read('app/api/portfolio/[id]/holdings/[holdingId]/milestones/[milestoneId]/route.ts');
-const importCommitRouteSrc = read('app/api/admin/imports/[id]/commit/route.ts');
+const importRepositorySrc = read('lib/api/repositories/imports.ts');
 
 // ---------------------------------------------------------------------------
 // 1. Active producer tables exist in migrations
@@ -201,8 +201,8 @@ describe('Task writer prefix safety in producers', () => {
     expect(milestoneRouteSrc).toMatch(/cancelGeneratedTasks[^`]*`grant_milestone:\${[^}]+}:`/);
   });
 
-  it('import commit route completes import_job approval task on commit', () => {
-    expect(importCommitRouteSrc).toMatch(/completeGeneratedTasks[^`]*`import_job:\${[^}]+}:approval`/);
+  it('import commit orchestration completes import_job approval task on commit', () => {
+    expect(importRepositorySrc).toMatch(/completeGeneratedTasks[^`]*`import_job:\${[^}]+}:approval`/);
   });
 });
 

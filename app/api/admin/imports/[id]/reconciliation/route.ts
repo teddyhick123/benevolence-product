@@ -2,78 +2,80 @@
 // GET: return stored reconciliation report (or generate if missing)
 // POST: force-regenerate reconciliation report
 
-import { NextRequest, NextResponse } from 'next/server';
-import { createAdminClient, createServerClient } from '@/lib/supabase';
-import { generateReconciliationReport } from '@/lib/import/reconciler';
+import { NextRequest } from 'next/server';
+import { requireAppAdmin } from '@/lib/api/access';
+import { createImportOrchestrationRepository } from '@/lib/api/repositories/imports';
+import { jsonError, jsonOk } from '@/lib/api/responses';
 import { analyzeReconciliation } from '@/lib/import/ai/reconcile';
-import { requireAdmin } from '@/lib/admin-auth';
 
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const userId = await requireAdmin();
-  if (!userId) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  const access = await requireAppAdmin();
+  if (!access.ok) return access.response;
 
   const { id } = await params;
-  const supabase = createAdminClient();
+  const { db } = access.context;
 
-  const { data: job, error: jobError } = await supabase
+  const { data: job, error: jobError } = await db
     .from('import_jobs')
-    .select('reconciliation_data')
+    .select('id, org_id, reconciliation_data')
     .eq('id', id)
-    .single();
+    .maybeSingle();
 
   if (jobError || !job) {
-    return NextResponse.json({ error: 'Import job not found' }, { status: 404 });
+    return jsonError('Import job not found', 404);
   }
 
   // Return stored report if present
   if (job.reconciliation_data) {
-    return NextResponse.json(
-      { report: job.reconciliation_data },
-      { headers: { 'Cache-Control': 'no-store' } }
-    );
+    return jsonOk({ report: job.reconciliation_data });
   }
 
   // Generate on-demand
-  const report = await generateReconciliationReport(supabase, id);
-  const { error: cacheErr } = await supabase
+  const repository = createImportOrchestrationRepository({
+    orgId: job.org_id,
+    actorId: access.context.user.id,
+  });
+  const report = await repository.generateReconciliation(id);
+  const { error: cacheErr } = await db
     .from('import_jobs')
     .update({ reconciliation_data: report as unknown as Record<string, unknown> })
-    .eq('id', id);
+    .eq('id', id)
+    .eq('org_id', job.org_id);
   if (cacheErr) {
     console.error('[reconciliation GET] Failed to cache report:', cacheErr);
   }
 
-  return NextResponse.json({ report }, { headers: { 'Cache-Control': 'no-store' } });
+  return jsonOk({ report });
 }
 
 export async function POST(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const userId = await requireAdmin();
-  if (!userId) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  const access = await requireAppAdmin();
+  if (!access.ok) return access.response;
 
   const { id } = await params;
-  const supabase = createAdminClient();
+  const { db } = access.context;
 
-  const { data: job, error: jobError } = await supabase
+  const { data: job, error: jobError } = await db
     .from('import_jobs')
-    .select('id')
+    .select('id, org_id')
     .eq('id', id)
-    .single();
+    .maybeSingle();
 
   if (jobError || !job) {
-    return NextResponse.json({ error: 'Import job not found' }, { status: 404 });
+    return jsonError('Import job not found', 404);
   }
 
-  const report = await generateReconciliationReport(supabase, id);
+  const repository = createImportOrchestrationRepository({
+    orgId: job.org_id,
+    actorId: access.context.user.id,
+  });
+  const report = await repository.generateReconciliation(id);
 
   // Run AI analysis when there are discrepancies
   let reconciliationData: Record<string, unknown> = report as unknown as Record<string, unknown>;
@@ -81,7 +83,7 @@ export async function POST(
 
   if (hasDiscrepancies) {
     try {
-      const { data: stagingMismatches } = await supabase
+      const { data: stagingMismatches } = await db
         .from('staging_import_contributions')
         .select('id, transformed_data, final_contribution_id')
         .eq('import_job_id', id)
@@ -106,14 +108,15 @@ export async function POST(
     }
   }
 
-  const { error: updateErr } = await supabase
+  const { error: updateErr } = await db
     .from('import_jobs')
     .update({ reconciliation_data: reconciliationData })
-    .eq('id', id);
+    .eq('id', id)
+    .eq('org_id', job.org_id);
 
   if (updateErr) {
     console.error('[reconciliation POST] Failed to cache reconciliation data:', updateErr);
   }
 
-  return NextResponse.json({ report: reconciliationData }, { headers: { 'Cache-Control': 'no-store' } });
+  return jsonOk({ report: reconciliationData });
 }

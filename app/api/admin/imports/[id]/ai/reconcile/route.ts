@@ -1,33 +1,31 @@
 // app/api/admin/imports/[id]/ai/reconcile/route.ts
 // POST: trigger AI reconciliation analysis for an import job
 
-import { NextRequest, NextResponse } from 'next/server';
-import { createAdminClient, createServerClient } from '@/lib/supabase';
-import { generateReconciliationReport } from '@/lib/import/reconciler';
+import { NextRequest } from 'next/server';
+import { requireAppAdmin } from '@/lib/api/access';
+import { createImportOrchestrationRepository } from '@/lib/api/repositories/imports';
+import { jsonError, jsonOk } from '@/lib/api/responses';
 import { analyzeReconciliation } from '@/lib/import/ai/reconcile';
 import type { ReconciliationReport } from '@/lib/import/reconciler';
-import { requireAdmin } from '@/lib/admin-auth';
 
 export async function POST(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const userId = await requireAdmin();
-  if (!userId) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  const access = await requireAppAdmin();
+  if (!access.ok) return access.response;
 
   const { id } = await params;
-  const supabase = createAdminClient();
+  const { db } = access.context;
 
-  const { data: job, error: jobError } = await supabase
+  const { data: job, error: jobError } = await db
     .from('import_jobs')
-    .select('reconciliation_data')
+    .select('id, org_id, reconciliation_data')
     .eq('id', id)
-    .single();
+    .maybeSingle();
 
   if (jobError || !job) {
-    return NextResponse.json({ error: 'Import job not found' }, { status: 404 });
+    return jsonError('Import job not found', 404);
   }
 
   // Use stored report or generate fresh
@@ -35,11 +33,15 @@ export async function POST(
   if (job.reconciliation_data && (job.reconciliation_data as Record<string, unknown>).importJobId) {
     report = job.reconciliation_data as unknown as ReconciliationReport;
   } else {
-    report = await generateReconciliationReport(supabase, id);
+    const repository = createImportOrchestrationRepository({
+      orgId: job.org_id,
+      actorId: access.context.user.id,
+    });
+    report = await repository.generateReconciliation(id);
   }
 
   // Fetch sample mismatches: staging rows that failed to load
-  const { data: stagingMismatches } = await supabase
+  const { data: stagingMismatches } = await db
     .from('staging_import_contributions')
     .select('id, transformed_data, final_contribution_id')
     .eq('import_job_id', id)
@@ -65,10 +67,11 @@ export async function POST(
     ai_analysis: analysis,
   };
 
-  await supabase
+  await db
     .from('import_jobs')
     .update({ reconciliation_data: updatedReconciliation })
-    .eq('id', id);
+    .eq('id', id)
+    .eq('org_id', job.org_id);
 
-  return NextResponse.json({ analysis }, { headers: { 'Cache-Control': 'no-store' } });
+  return jsonOk({ analysis });
 }

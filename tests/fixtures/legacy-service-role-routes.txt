@@ -1,8 +1,6 @@
 app/api/admin/bootstrap/route.ts
 app/api/admin/builder/proposals/[proposalId]/route.ts
 app/api/admin/builder/proposals/route.ts
-app/api/admin/imports/[id]/ai/reconcile/route.ts
-app/api/admin/imports/[id]/reconciliation/route.ts
 app/api/admin/portfolios/[id]/members/route.ts
 app/api/admin/staged-facts/[factId]/approve/route.ts
 app/api/admin/staged-facts/[factId]/route.ts

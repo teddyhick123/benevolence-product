@@ -26,6 +26,8 @@ const {
   mockCreateImportOrchestrationRepository,
   mockCommitImport,
   mockCleanupStagingPii,
+  mockGenerateReconciliation,
+  mockAnalyzeReconciliation,
 } = vi.hoisted(() => ({
   mockRequireAppAdmin: vi.fn(),
   mockFrom: vi.fn(),
@@ -45,6 +47,8 @@ const {
   mockCreateImportOrchestrationRepository: vi.fn(),
   mockCommitImport: vi.fn(),
   mockCleanupStagingPii: vi.fn(),
+  mockGenerateReconciliation: vi.fn(),
+  mockAnalyzeReconciliation: vi.fn(),
 }));
 
 vi.mock('@/lib/api/access', () => ({
@@ -69,6 +73,10 @@ vi.mock('@/lib/import/ai/validate-row', () => ({
 
 vi.mock('@/lib/import/ai/mapping-assist', () => ({
   suggestMappings: mockSuggestMappings,
+}));
+
+vi.mock('@/lib/import/ai/reconcile', () => ({
+  analyzeReconciliation: mockAnalyzeReconciliation,
 }));
 
 vi.mock('@/lib/rate-limit', () => ({
@@ -109,6 +117,11 @@ import { POST as rollbackJob } from '@/app/api/admin/imports/[id]/rollback/route
 import { POST as runWatchdog } from '@/app/api/admin/imports/watchdog/route';
 import { GET as getReport } from '@/app/api/admin/imports/[id]/report/route';
 import { POST as commitJob } from '@/app/api/admin/imports/[id]/commit/route';
+import {
+  GET as getReconciliation,
+  POST as regenerateReconciliation,
+} from '@/app/api/admin/imports/[id]/reconciliation/route';
+import { POST as reconcileWithAi } from '@/app/api/admin/imports/[id]/ai/reconcile/route';
 
 function context() {
   return { params: Promise.resolve({ id: JOB_ID }) };
@@ -148,11 +161,23 @@ beforeEach(() => {
   });
   mockReapStaleJobs.mockResolvedValue({ data: 2, error: null });
   mockCleanupStagingPii.mockResolvedValue({ data: 0, error: null });
-  mockCreateImportOrchestrationRepository.mockReturnValue({ commit: mockCommitImport });
+  mockCreateImportOrchestrationRepository.mockReturnValue({
+    commit: mockCommitImport,
+    generateReconciliation: mockGenerateReconciliation,
+  });
   mockCommitImport.mockResolvedValue({
     job: { id: JOB_ID, org_id: ORG_ID, status: 'completed' },
     load_summary: { total_inserted: 1, total_failed: 0, phases: [] },
   });
+  mockGenerateReconciliation.mockResolvedValue({
+    importJobId: JOB_ID,
+    generatedAt: '2026-07-29T00:00:00.000Z',
+    overallSuccess: true,
+    entities: [],
+    summary: 'ok',
+    actionItems: [],
+  });
+  mockAnalyzeReconciliation.mockResolvedValue({ explanation: 'No material discrepancies' });
 });
 
 describe('app-admin import session routes', () => {
@@ -518,5 +543,85 @@ describe('app-admin import session routes', () => {
     });
     expect(mockCommitImport).toHaveBeenCalledWith(JOB_ID);
     expect(mockCleanupStagingPii).toHaveBeenCalledWith(30);
+  });
+
+  it('returns cached reconciliation without constructing an elevated repository', async () => {
+    const cached = { importJobId: JOB_ID, overallSuccess: true };
+    const jobQuery = stubQuery(
+      { data: null, error: null },
+      { maybeSingle: { data: { id: JOB_ID, org_id: ORG_ID, reconciliation_data: cached }, error: null } }
+    );
+    mockFrom.mockReturnValue(jobQuery);
+
+    const response = await getReconciliation(
+      request(`/api/admin/imports/${JOB_ID}/reconciliation`),
+      context()
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ report: cached });
+    expect(mockCreateImportOrchestrationRepository).not.toHaveBeenCalled();
+  });
+
+  it('scopes regenerated reconciliation and its cache update to the job organization', async () => {
+    mockGenerateReconciliation.mockResolvedValueOnce({
+      importJobId: JOB_ID,
+      generatedAt: '2026-07-29T00:00:00.000Z',
+      overallSuccess: false,
+      entities: [{ amountDelta: 1 }],
+      summary: 'review',
+      actionItems: ['Review discrepancy'],
+    });
+    const jobQuery = stubQuery(
+      { data: null, error: null },
+      { maybeSingle: { data: { id: JOB_ID, org_id: ORG_ID }, error: null } }
+    );
+    const mismatchQuery = stubQuery({ data: [], error: null });
+    const updateQuery = stubQuery({ data: null, error: null });
+    mockFrom
+      .mockReturnValueOnce(jobQuery)
+      .mockReturnValueOnce(mismatchQuery)
+      .mockReturnValueOnce(updateQuery);
+
+    const response = await regenerateReconciliation(
+      request(`/api/admin/imports/${JOB_ID}/reconciliation`, { method: 'POST' }),
+      context()
+    );
+
+    expect(response.status).toBe(200);
+    expect(mockCreateImportOrchestrationRepository).toHaveBeenCalledWith({
+      orgId: ORG_ID,
+      actorId: 'app-admin-1',
+    });
+    expect(mockGenerateReconciliation).toHaveBeenCalledWith(JOB_ID);
+    expect(updateQuery.calls).toContainEqual({ method: 'eq', args: ['org_id', ORG_ID] });
+  });
+
+  it('uses the same scoped reconciliation boundary for explicit AI analysis', async () => {
+    const jobQuery = stubQuery(
+      { data: null, error: null },
+      {
+        maybeSingle: {
+          data: { id: JOB_ID, org_id: ORG_ID, reconciliation_data: null },
+          error: null,
+        },
+      }
+    );
+    const mismatchQuery = stubQuery({ data: [], error: null });
+    const updateQuery = stubQuery({ data: null, error: null });
+    mockFrom
+      .mockReturnValueOnce(jobQuery)
+      .mockReturnValueOnce(mismatchQuery)
+      .mockReturnValueOnce(updateQuery);
+
+    const response = await reconcileWithAi(
+      request(`/api/admin/imports/${JOB_ID}/ai/reconcile`, { method: 'POST' }),
+      context()
+    );
+
+    expect(response.status).toBe(200);
+    expect(mockGenerateReconciliation).toHaveBeenCalledWith(JOB_ID);
+    expect(mockAnalyzeReconciliation).toHaveBeenCalledOnce();
+    expect(updateQuery.calls).toContainEqual({ method: 'eq', args: ['org_id', ORG_ID] });
   });
 });

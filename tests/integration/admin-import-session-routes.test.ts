@@ -16,6 +16,9 @@ const {
   mockSuggestRowFixes,
   mockSuggestMappings,
   mockAiLimit,
+  mockStorageFrom,
+  mockStorageUpload,
+  mockEnqueueImportJob,
 } = vi.hoisted(() => ({
   mockRequireAppAdmin: vi.fn(),
   mockFrom: vi.fn(),
@@ -25,6 +28,9 @@ const {
   mockSuggestRowFixes: vi.fn(),
   mockSuggestMappings: vi.fn(),
   mockAiLimit: vi.fn(),
+  mockStorageFrom: vi.fn(),
+  mockStorageUpload: vi.fn(),
+  mockEnqueueImportJob: vi.fn(),
 }));
 
 vi.mock('@/lib/api/access', () => ({
@@ -55,6 +61,10 @@ vi.mock('@/lib/rate-limit', () => ({
   aiLimiter: { limit: mockAiLimit },
 }));
 
+vi.mock('@/lib/import/job-queue', () => ({
+  enqueueImportJob: mockEnqueueImportJob,
+}));
+
 import {
   GET as listMappingProfiles,
   POST as saveMappingProfile,
@@ -69,6 +79,7 @@ import { POST as runValidate } from '@/app/api/admin/imports/[id]/run-validate/r
 import { POST as importChat } from '@/app/api/admin/imports/[id]/ai/chat/route';
 import { POST as suggestFixes } from '@/app/api/admin/import/ai/suggest/route';
 import { POST as mappingAssist } from '@/app/api/admin/imports/mapping-assist/route';
+import { GET as listJobs, POST as createJob } from '@/app/api/admin/imports/route';
 
 function context() {
   return { params: Promise.resolve({ id: JOB_ID }) };
@@ -85,7 +96,7 @@ beforeEach(() => {
     context: {
       isAppAdmin: true,
       user: { id: 'app-admin-1' },
-      db: { from: mockFrom },
+      db: { from: mockFrom, storage: { from: mockStorageFrom } },
     },
   });
   mockSubscribe.mockReturnValue(new ReadableStream({ start(controller) { controller.close(); } }));
@@ -94,6 +105,9 @@ beforeEach(() => {
   mockSuggestRowFixes.mockResolvedValue([]);
   mockSuggestMappings.mockResolvedValue({ field_map: {} });
   mockAiLimit.mockResolvedValue({ success: true, reset: 0, remaining: 99, limit: 100 });
+  mockStorageFrom.mockReturnValue({ upload: mockStorageUpload });
+  mockStorageUpload.mockResolvedValue({ data: {}, error: null });
+  mockEnqueueImportJob.mockResolvedValue('queue-job-1');
 });
 
 describe('app-admin import session routes', () => {
@@ -351,5 +365,39 @@ describe('app-admin import session routes', () => {
       sourceSystem: 'blackbaud',
       entityType: 'donors',
     }));
+  });
+
+  it('lists global import jobs through the authenticated app-admin session', async () => {
+    const query = stubQuery({ data: [], error: null });
+    mockFrom.mockReturnValue(query);
+
+    const response = await listJobs(request('/api/admin/imports?status=failed'));
+
+    expect(response.status).toBe(200);
+    expect(query.calls).toContainEqual({ method: 'eq', args: ['status', 'failed'] });
+  });
+
+  it('rejects a portfolio that does not belong to the selected organization', async () => {
+    const organizationQuery = stubQuery(
+      { data: null, error: null },
+      { maybeSingle: { data: { id: ORG_ID }, error: null } }
+    );
+    const portfolioQuery = stubQuery(
+      { data: null, error: null },
+      { maybeSingle: { data: null, error: null } }
+    );
+    mockFrom.mockReturnValueOnce(organizationQuery).mockReturnValueOnce(portfolioQuery);
+    const form = new FormData();
+    form.set('name', 'Cross-org attempt');
+    form.set('org_id', ORG_ID);
+    form.set('portfolio_id', '44444444-4444-4444-4444-444444444444');
+
+    const response = await createJob(
+      request('/api/admin/imports', { method: 'POST', body: form })
+    );
+
+    expect(response.status).toBe(400);
+    expect(portfolioQuery.calls).toContainEqual({ method: 'eq', args: ['org_id', ORG_ID] });
+    expect(mockEnqueueImportJob).not.toHaveBeenCalled();
   });
 });

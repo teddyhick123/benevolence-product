@@ -33,19 +33,20 @@ describe('proposal GET endpoint', () => {
     'app/api/org/[orgId]/builder/proposals/[proposalId]/route.ts',
     'utf8'
   );
+  const repositorySrc = readFileSync('lib/api/repositories/builder-reads.ts', 'utf8');
 
   it('exports a GET handler', () => {
     expect(src).toMatch(/export async function GET/);
   });
 
   it('requires org admin access', () => {
-    expect(src).toMatch(/is_org_admin/);
-    expect(src).not.toMatch(/user_org_role/);
+    expect(src).toMatch(/requireOrgAccess\(orgId, 'admin'\)/);
+    expect(src).not.toMatch(/createAdminClient/);
   });
 
   it('surfaces pr_url via builder_delivery_records, not a proposal column (that column was dropped)', () => {
-    expect(src).toMatch(/builder_delivery_records/);
-    expect(src).toMatch(/pr_url/);
+    expect(repositorySrc).toMatch(/builder_delivery_records/);
+    expect(repositorySrc).toMatch(/pr_url/);
   });
 });
 

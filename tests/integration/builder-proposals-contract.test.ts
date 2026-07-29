@@ -16,7 +16,7 @@
 // URLs for the current revision's diff/files/context artifacts.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 
 const ORG_ID = '11111111-1111-1111-1111-111111111111';
 const OTHER_ORG_ID = '99999999-9999-9999-9999-999999999999';
@@ -116,18 +116,33 @@ function makeQB(table: string) {
       state.terminal = 'single';
       return computeResult(state);
     },
-    then: (onF: (v: unknown) => unknown, onR?: (e: unknown) => unknown) =>
+    then: (onF: (_value: unknown) => unknown, onR?: (_error: unknown) => unknown) =>
       Promise.resolve(computeResult(state)).then(onF, onR),
   };
   return qb;
 }
 
-vi.mock('@/lib/supabase', () => ({
-  createServerClient: vi.fn(async () => ({
-    auth: { getUser: vi.fn(async () => ({ data: { user: _authUser } })) },
-    rpc: vi.fn(async () => ({ data: _isAdmin, error: null })),
-  })),
-  createAdminClient: vi.fn(() => ({
+vi.mock('@/lib/api/access', () => ({
+  requireOrgAccess: vi.fn(async () => {
+    if (!_authUser) {
+      return {
+        ok: false,
+        response: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }),
+      };
+    }
+    if (!_isAdmin) {
+      return {
+        ok: false,
+        response: NextResponse.json({ error: 'Forbidden' }, { status: 403 }),
+      };
+    }
+    return { ok: true, context: { user: _authUser, role: 'admin' } };
+  }),
+  isAccessDenied: (result: { ok: boolean }) => !result.ok,
+}));
+
+vi.mock('@/lib/api/admin-client', () => ({
+  createElevatedClient: vi.fn(() => ({
     from: (table: string) => makeQB(table),
   })),
 }));

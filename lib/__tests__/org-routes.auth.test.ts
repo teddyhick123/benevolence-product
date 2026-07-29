@@ -416,12 +416,16 @@ describe('org-scoped route auth contracts', () => {
       'app/api/org/[orgId]/builder/proposals/[proposalId]/apply/route.ts',
     ]) {
       const src = readFileSync(route, 'utf8');
-      expect(src, route).toContain("'Cache-Control': 'no-store'");
+      expect(
+        src.includes("'Cache-Control': 'no-store'") || src.includes('jsonOk'),
+        route
+      ).toBe(true);
     }
 
     const detailRoute = readFileSync('app/api/org/[orgId]/builder/proposals/[proposalId]/route.ts', 'utf8');
-    expect(detailRoute).toContain('is_org_admin');
-    expect(detailRoute).not.toContain('user_org_role');
+    expect(detailRoute).toContain("requireOrgAccess(orgId, 'admin')");
+    expect(detailRoute).toContain('createOrgBuilderReadRepository');
+    expect(detailRoute).not.toContain('createAdminClient');
 
     const chatRoute = readFileSync('app/api/org/[orgId]/builder/chat/route.ts', 'utf8');
     expect(chatRoute).toContain('eventError');

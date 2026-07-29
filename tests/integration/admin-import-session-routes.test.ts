@@ -7,10 +7,24 @@ import { stubQuery } from '@/tests/helpers/supabase-mock';
 const JOB_ID = '22222222-2222-2222-2222-222222222222';
 const ORG_ID = '11111111-1111-1111-1111-111111111111';
 
-const { mockRequireAppAdmin, mockFrom, mockSubscribe } = vi.hoisted(() => ({
+const {
+  mockRequireAppAdmin,
+  mockFrom,
+  mockSubscribe,
+  mockRunTransformValidate,
+  mockStreamMigrationChat,
+  mockSuggestRowFixes,
+  mockSuggestMappings,
+  mockAiLimit,
+} = vi.hoisted(() => ({
   mockRequireAppAdmin: vi.fn(),
   mockFrom: vi.fn(),
   mockSubscribe: vi.fn(),
+  mockRunTransformValidate: vi.fn(),
+  mockStreamMigrationChat: vi.fn(),
+  mockSuggestRowFixes: vi.fn(),
+  mockSuggestMappings: vi.fn(),
+  mockAiLimit: vi.fn(),
 }));
 
 vi.mock('@/lib/api/access', () => ({
@@ -19,6 +33,26 @@ vi.mock('@/lib/api/access', () => ({
 
 vi.mock('@/lib/import/progress-emitter', () => ({
   ImportProgressEmitter: { subscribe: mockSubscribe },
+}));
+
+vi.mock('@/lib/import/etl-runner', () => ({
+  runTransformValidate: mockRunTransformValidate,
+}));
+
+vi.mock('@/lib/import/ai/chat', () => ({
+  streamMigrationChat: mockStreamMigrationChat,
+}));
+
+vi.mock('@/lib/import/ai/validate-row', () => ({
+  suggestRowFixes: mockSuggestRowFixes,
+}));
+
+vi.mock('@/lib/import/ai/mapping-assist', () => ({
+  suggestMappings: mockSuggestMappings,
+}));
+
+vi.mock('@/lib/rate-limit', () => ({
+  aiLimiter: { limit: mockAiLimit },
 }));
 
 import {
@@ -30,6 +64,11 @@ import { GET as getAudit } from '@/app/api/admin/imports/[id]/audit/route';
 import { PATCH as correctError } from '@/app/api/admin/imports/[id]/errors/route';
 import { GET as getProgress } from '@/app/api/admin/imports/[id]/progress/route';
 import { POST as resumeJob } from '@/app/api/admin/imports/[id]/resume/route';
+import { POST as bulkFix } from '@/app/api/admin/imports/[id]/bulk-fix/route';
+import { POST as runValidate } from '@/app/api/admin/imports/[id]/run-validate/route';
+import { POST as importChat } from '@/app/api/admin/imports/[id]/ai/chat/route';
+import { POST as suggestFixes } from '@/app/api/admin/import/ai/suggest/route';
+import { POST as mappingAssist } from '@/app/api/admin/imports/mapping-assist/route';
 
 function context() {
   return { params: Promise.resolve({ id: JOB_ID }) };
@@ -50,6 +89,11 @@ beforeEach(() => {
     },
   });
   mockSubscribe.mockReturnValue(new ReadableStream({ start(controller) { controller.close(); } }));
+  mockRunTransformValidate.mockResolvedValue({ validated: 1 });
+  mockStreamMigrationChat.mockResolvedValue({ actions: [] });
+  mockSuggestRowFixes.mockResolvedValue([]);
+  mockSuggestMappings.mockResolvedValue({ field_map: {} });
+  mockAiLimit.mockResolvedValue({ success: true, reset: 0, remaining: 99, limit: 100 });
 });
 
 describe('app-admin import session routes', () => {
@@ -191,5 +235,121 @@ describe('app-admin import session routes', () => {
     expect(mockRequireAppAdmin).toHaveBeenCalledOnce();
     expect(mockSubscribe).toHaveBeenCalledWith(JOB_ID);
     expect(response.headers.get('Content-Type')).toBe('text/event-stream');
+  });
+
+  it('rejects an invalid bulk-fix operation before reading staging data', async () => {
+    const response = await bulkFix(
+      request(`/api/admin/imports/${JOB_ID}/bulk-fix`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ entity: 'donors', field: 'ein', fix: 'delete_rows' }),
+      }),
+      context()
+    );
+
+    expect(response.status).toBe(400);
+    expect(mockFrom).not.toHaveBeenCalled();
+  });
+
+  it('binds validation profile lookup to the import job organization', async () => {
+    const jobQuery = stubQuery(
+      { data: null, error: null },
+      {
+        single: {
+          data: { id: JOB_ID, org_id: ORG_ID, mapping_profile_id: 'profile-1', portfolio_id: null },
+          error: null,
+        },
+      }
+    );
+    const profileQuery = stubQuery(
+      { data: null, error: null },
+      { single: { data: { id: 'profile-1', org_id: ORG_ID }, error: null } }
+    );
+    mockFrom.mockReturnValueOnce(jobQuery).mockReturnValueOnce(profileQuery);
+
+    const response = await runValidate(
+      request(`/api/admin/imports/${JOB_ID}/run-validate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ entityTypes: ['donors'] }),
+      }),
+      context()
+    );
+
+    expect(response.status).toBe(200);
+    expect(profileQuery.calls).toContainEqual({ method: 'eq', args: ['org_id', ORG_ID] });
+    expect(mockRunTransformValidate).toHaveBeenCalledWith(
+      expect.objectContaining({ from: mockFrom }),
+      JOB_ID,
+      expect.objectContaining({ id: 'profile-1' }),
+      { entityTypes: ['donors'], portfolioId: undefined }
+    );
+  });
+
+  it('validates AI chat input before reading import context', async () => {
+    const response = await importChat(
+      request(`/api/admin/imports/${JOB_ID}/ai/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: '' }),
+      }),
+      context()
+    );
+
+    expect(response.status).toBe(400);
+    expect(mockAiLimit).toHaveBeenCalledWith('app-admin-1');
+    expect(mockFrom).not.toHaveBeenCalled();
+  });
+
+  it('reads AI suggestion rows through the app-admin session with job binding', async () => {
+    const rowId = '33333333-3333-3333-3333-333333333333';
+    const query = stubQuery({
+      data: [{
+        id: rowId,
+        raw_data: {},
+        transformed_data: {},
+        validation_errors: [{ field: 'email', message: 'Invalid', severity: 'error', rule: 'email' }],
+      }],
+      error: null,
+    });
+    mockFrom.mockReturnValue(query);
+
+    const response = await suggestFixes(
+      request('/api/admin/import/ai/suggest', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          import_job_id: JOB_ID,
+          staging_table: 'staging_import_donors',
+          staging_row_ids: [rowId],
+        }),
+      })
+    );
+
+    expect(response.status).toBe(200);
+    expect(query.calls).toContainEqual({ method: 'eq', args: ['import_job_id', JOB_ID] });
+    expect(mockSuggestRowFixes).toHaveBeenCalledOnce();
+  });
+
+  it('uses the shared app-admin guard for mapping assistance', async () => {
+    const response = await mappingAssist(
+      request('/api/admin/imports/mapping-assist', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          source_type: 'blackbaud',
+          entity_type: 'donors',
+          source_fields: ['First Name'],
+          sample_records: [{ 'First Name': 'Ada' }],
+        }),
+      })
+    );
+
+    expect(response.status).toBe(200);
+    expect(mockRequireAppAdmin).toHaveBeenCalledOnce();
+    expect(mockSuggestMappings).toHaveBeenCalledWith(expect.objectContaining({
+      sourceSystem: 'blackbaud',
+      entityType: 'donors',
+    }));
   });
 });

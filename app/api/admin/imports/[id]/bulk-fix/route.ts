@@ -2,9 +2,10 @@
 // POST /api/admin/imports/:id/bulk-fix
 // Applies a named fix to all staging rows with that field error
 
-import { createAdminClient, createServerClient } from '@/lib/supabase';
+import { z } from 'zod';
+import { requireAppAdmin } from '@/lib/api/access';
+import { jsonError, jsonOk } from '@/lib/api/responses';
 import { parseFlexibleDate } from '@/lib/import/utils/date-parser';
-import { requireAdmin } from '@/lib/admin-auth';
 
 type FixType = 'normalize_ein' | 'parse_date' | 'strip_currency' | 'map_gift_type';
 
@@ -35,6 +36,12 @@ const STAGING_TABLE_MAP: Record<string, string> = {
   contributions: 'staging_import_contributions',
   metrics: 'staging_import_metrics',
 };
+
+const bulkFixSchema = z.object({
+  entity: z.enum(['donors', 'holdings', 'investees', 'contributions', 'metrics']),
+  field: z.string().trim().min(1).max(200),
+  fix: z.enum(['normalize_ein', 'parse_date', 'strip_currency', 'map_gift_type']),
+}).strict();
 
 function normalizeEIN(raw: string): string | null {
   const digits = raw.replace(/\D/g, '');
@@ -73,40 +80,26 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const userId = await requireAdmin();
-  if (!userId) {
-    return Response.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  const access = await requireAppAdmin();
+  if (!access.ok) return access.response;
 
   const { id: importJobId } = await params;
-  const body = await req.json() as { entity?: string; field?: string; fix?: FixType };
-  const { entity, field, fix } = body;
-
-  if (!entity || !field || !fix) {
-    return Response.json({ error: 'entity, field, and fix are required' }, { status: 400 });
-  }
+  const parsed = bulkFixSchema.safeParse(await req.json().catch(() => ({})));
+  if (!parsed.success) return jsonError('Validation failed', 400, { details: parsed.error.format() });
+  const { entity, field, fix } = parsed.data;
 
   const stagingTable = STAGING_TABLE_MAP[entity];
-  if (!stagingTable) {
-    return Response.json({ error: `Unknown entity: ${entity}` }, { status: 400 });
-  }
-
-  const validFixes: FixType[] = ['normalize_ein', 'parse_date', 'strip_currency', 'map_gift_type'];
-  if (!validFixes.includes(fix)) {
-    return Response.json({ error: `Unknown fix: ${fix}` }, { status: 400 });
-  }
-
-  const supabase = createAdminClient();
+  const { db } = access.context;
 
   // Fetch all invalid rows for this job+entity (no hard cap)
-  const { data: rows, error: fetchError } = await supabase
+  const { data: rows, error: fetchError } = await db
     .from(stagingTable)
     .select('id, transformed_data, validation_errors, validation_status')
     .eq('import_job_id', importJobId)
     .in('validation_status', ['invalid', 'warning']);
 
   if (fetchError) {
-    return Response.json({ error: fetchError.message }, { status: 500 });
+    return jsonError(fetchError.message, 500);
   }
 
   const total = (rows ?? []).length;
@@ -152,13 +145,13 @@ export async function POST(
   const chunkSize = 500;
   for (let i = 0; i < updates.length; i += chunkSize) {
     const chunk = updates.slice(i, i + chunkSize);
-    const { error: upsertError } = await supabase
+    const { error: upsertError } = await db
       .from(stagingTable)
       .upsert(chunk, { onConflict: 'id' });
     if (upsertError) {
-      return Response.json({ error: upsertError.message }, { status: 500 });
+      return jsonError(upsertError.message, 500);
     }
   }
 
-  return Response.json({ total, fixed, still_failing });
+  return jsonOk({ total, fixed, still_failing });
 }

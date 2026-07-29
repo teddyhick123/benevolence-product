@@ -2,8 +2,8 @@
 // POST /api/admin/imports/:id/skip-warnings
 // Marks all rows with only warnings (no errors) as valid
 
-import { createAdminClient, createServerClient } from '@/lib/supabase';
-import { requireAdmin } from '@/lib/admin-auth';
+import { requireAppAdmin } from '@/lib/api/access';
+import { jsonOk } from '@/lib/api/responses';
 
 const STAGING_TABLES = [
   'staging_import_donors',
@@ -17,19 +17,17 @@ export async function POST(
   _req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const userId = await requireAdmin();
-  if (!userId) {
-    return Response.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  const access = await requireAppAdmin();
+  if (!access.ok) return access.response;
 
   const { id: importJobId } = await params;
-  const supabase = createAdminClient();
+  const { db } = access.context;
 
   let totalUpdated = 0;
 
   for (const table of STAGING_TABLES) {
     // Find rows that are 'warning' status — these have only warnings, no hard errors
-    const { data: warningRows } = await supabase
+    const { data: warningRows } = await db
       .from(table)
       .select('id, validation_errors')
       .eq('import_job_id', importJobId)
@@ -46,7 +44,7 @@ export async function POST(
     if (rowsToPromote.length === 0) continue;
 
     const ids = rowsToPromote.map((r) => r.id as string);
-    const { error } = await supabase
+    const { error } = await db
       .from(table)
       .update({
         validation_status: 'valid',
@@ -59,5 +57,5 @@ export async function POST(
     }
   }
 
-  return Response.json({ updated: totalUpdated });
+  return jsonOk({ updated: totalUpdated });
 }

@@ -3,19 +3,13 @@
 // Body: { import_job_id, staging_table, staging_row_ids: string[] }
 // For each row: fetch raw_data + validation_errors, call AI, store in import_ai_suggestions, return suggestions
 
-import { NextResponse } from 'next/server';
-import { createServerClient } from '@/lib/supabase';
+import { z } from 'zod';
+import { requireAppAdmin } from '@/lib/api/access';
+import { jsonError, jsonOk } from '@/lib/api/responses';
 import { suggestRowFixes } from '@/lib/import/ai/validate-row';
 import type { AISuggestion } from '@/lib/import/ai/validate-row';
-import { requireAdmin } from '@/lib/admin-auth';
 import { aiLimiter } from '@/lib/rate-limit';
 import { rateLimitExceeded } from '@/lib/rate-limit-response';
-
-interface SuggestRequestBody {
-  import_job_id?: string;
-  staging_table?: string;
-  staging_row_ids?: string[];
-}
 
 interface StagingRow {
   id: string;
@@ -29,56 +23,46 @@ interface StagingRow {
   }> | null;
 }
 
-const ALLOWED_STAGING_TABLES = new Set([
+const ALLOWED_STAGING_TABLES = [
   'staging_import_donors',
   'staging_import_holdings',
   'staging_import_investees',
   'staging_import_contributions',
   'staging_import_metrics',
-]);
+] as const;
 
-const NO_STORE = { 'Cache-Control': 'no-store' } as const;
+const suggestSchema = z.object({
+  import_job_id: z.string().uuid(),
+  staging_table: z.enum(ALLOWED_STAGING_TABLES),
+  staging_row_ids: z.array(z.string().uuid()).min(1).max(100),
+}).strict();
 
 export async function POST(req: Request) {
   try {
-    const userId = await requireAdmin();
-    if (!userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401, headers: NO_STORE });
-    }
+    const access = await requireAppAdmin();
+    if (!access.ok) return access.response;
 
-    const { success, reset, remaining, limit } = await aiLimiter.limit(userId);
+    const { success, reset, remaining, limit } = await aiLimiter.limit(access.context.user.id);
     if (!success) return rateLimitExceeded(reset, remaining, limit);
 
-    const body = await req.json() as SuggestRequestBody;
-    const { import_job_id, staging_table, staging_row_ids } = body;
-
-    if (!import_job_id || !staging_table || !staging_row_ids?.length) {
-      return NextResponse.json({ error: 'Missing required fields' }, { status: 400, headers: NO_STORE });
-    }
-
-    if (!ALLOWED_STAGING_TABLES.has(staging_table)) {
-      return NextResponse.json({ error: 'Invalid staging table' }, { status: 400, headers: NO_STORE });
-    }
-
-    if (staging_row_ids.length > 100) {
-      return NextResponse.json({ error: 'At most 100 rows can be suggested at once' }, { status: 400, headers: NO_STORE });
-    }
-
-    const supabase = await createServerClient();
+    const parsed = suggestSchema.safeParse(await req.json().catch(() => ({})));
+    if (!parsed.success) return jsonError('Validation failed', 400, { details: parsed.error.format() });
+    const { import_job_id, staging_table, staging_row_ids } = parsed.data;
+    const { db } = access.context;
 
     // Fetch the requested rows
-    const { data: rows, error: fetchError } = await supabase
+    const { data: rows, error: fetchError } = await db
       .from(staging_table)
       .select('id, raw_data, transformed_data, validation_errors')
       .in('id', staging_row_ids)
       .eq('import_job_id', import_job_id);
 
     if (fetchError) {
-      return NextResponse.json({ error: fetchError.message }, { status: 500, headers: NO_STORE });
+      return jsonError(fetchError.message, 500);
     }
 
     if (!rows || rows.length === 0) {
-      return NextResponse.json({ suggestions: [] }, { headers: NO_STORE });
+      return jsonOk({ suggestions: [] });
     }
 
     // Derive entity type from staging table name
@@ -107,7 +91,7 @@ export async function POST(req: Request) {
 
       // Store in import_ai_suggestions
       for (const s of suggestions) {
-        const { error: upsertError } = await supabase.from('import_ai_suggestions').upsert({
+        const { error: upsertError } = await db.from('import_ai_suggestions').upsert({
           import_job_id,
           staging_table,
           staging_row_id: row.id,
@@ -131,10 +115,10 @@ export async function POST(req: Request) {
       results.push({ row_id: row.id, suggestions });
     }
 
-    return NextResponse.json({ suggestions: results }, { headers: NO_STORE });
+    return jsonOk({ suggestions: results });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';
     console.error('[ai/suggest] Error:', message);
-    return NextResponse.json({ error: message }, { status: 500, headers: NO_STORE });
+    return jsonError(message, 500);
   }
 }

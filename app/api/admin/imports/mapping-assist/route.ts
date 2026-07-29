@@ -4,37 +4,34 @@
 // Returns: MappingAssistResult
 // Admin-only endpoint
 
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
+import { z } from 'zod';
+import { requireAppAdmin } from '@/lib/api/access';
+import { jsonError, jsonOk } from '@/lib/api/responses';
 import { suggestMappings } from '@/lib/import/ai/mapping-assist';
-import { createServerClient } from '@/lib/supabase';
 import { aiLimiter } from '@/lib/rate-limit';
-import { aiAuthRequired, rateLimitExceeded } from '@/lib/rate-limit-response';
+import { rateLimitExceeded } from '@/lib/rate-limit-response';
+
+const mappingAssistSchema = z.object({
+  source_type: z.string().trim().min(1).max(100),
+  entity_type: z.string().trim().min(1).max(100),
+  source_fields: z.array(z.string().max(200)).min(1).max(500),
+  sample_records: z.array(z.record(z.string(), z.string())).min(1).max(100),
+  existing_mapping: z.record(z.string(), z.unknown()).optional(),
+}).strict();
 
 export async function POST(req: NextRequest) {
-  // Auth check — admin-only AI endpoint
-  const supabase = await createServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return aiAuthRequired();
-  const { data: isAdmin } = await supabase.rpc('is_app_admin');
-  if (!isAdmin) return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
+  const access = await requireAppAdmin();
+  if (!access.ok) return access.response;
 
   // Per-user rate limit
-  const { success, reset, remaining, limit } = await aiLimiter.limit(user.id);
+  const { success, reset, remaining, limit } = await aiLimiter.limit(access.context.user.id);
   if (!success) return rateLimitExceeded(reset, remaining, limit);
 
   try {
-    const body = await req.json() as {
-      source_type?: string;
-      entity_type?: string;
-      source_fields?: string[];
-      sample_records?: Record<string, string>[];
-      existing_mapping?: Record<string, unknown>;
-    };
-    const { source_type, entity_type, source_fields, sample_records, existing_mapping } = body;
-
-    if (!source_type || !entity_type || !source_fields || !sample_records) {
-      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
-    }
+    const parsed = mappingAssistSchema.safeParse(await req.json().catch(() => ({})));
+    if (!parsed.success) return jsonError('Validation failed', 400, { details: parsed.error.format() });
+    const { source_type, entity_type, source_fields, sample_records, existing_mapping } = parsed.data;
 
     const result = await suggestMappings({
       sourceSystem: source_type,
@@ -44,10 +41,10 @@ export async function POST(req: NextRequest) {
       existingMapping: existing_mapping,
     });
 
-    return NextResponse.json({ data: result });
+    return jsonOk({ data: result });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';
     console.error('[mapping-assist] Error:', message);
-    return NextResponse.json({ error: message }, { status: 500 });
+    return jsonError(message, 500);
   }
 }

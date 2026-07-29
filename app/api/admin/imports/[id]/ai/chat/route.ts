@@ -2,13 +2,18 @@
 // POST /api/admin/imports/:id/ai/chat
 // Streaming AI Migration Copilot chat
 
-import { createAdminClient } from '@/lib/supabase';
-import { createServerClient } from '@/lib/supabase';
+import { z } from 'zod';
+import { requireAppAdmin } from '@/lib/api/access';
+import { jsonError } from '@/lib/api/responses';
 import { streamMigrationChat } from '@/lib/import/ai/chat';
 import type { ChatMessage } from '@/lib/import/ai/chat';
 import { aiLimiter } from '@/lib/rate-limit';
 import { rateLimitExceeded } from '@/lib/rate-limit-response';
-import { requireAdmin } from '@/lib/admin-auth';
+
+const chatSchema = z.object({
+  message: z.string().trim().min(1).max(10_000),
+  history: z.array(z.custom<ChatMessage>()).max(100).default([]),
+}).strict();
 
 interface ErrorRow {
   validation_errors: Array<{ field: string; message: string; severity: string }> | null;
@@ -40,30 +45,24 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const userId = await requireAdmin();
-  if (!userId) {
-    return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
-  }
+  const access = await requireAppAdmin();
+  if (!access.ok) return access.response;
 
   // Per-user rate limit on streaming AI
-  const { success, reset, remaining, limit } = await aiLimiter.limit(userId);
+  const { success, reset, remaining, limit } = await aiLimiter.limit(access.context.user.id);
   if (!success) {
     const rl = rateLimitExceeded(reset, remaining, limit);
     return new Response(await rl.text(), { status: 429, headers: { 'Content-Type': 'application/json' } });
   }
 
   const { id: importJobId } = await params;
-  const body = await req.json() as { message?: string; history?: ChatMessage[] };
-  const { message, history = [] } = body;
-
-  if (!message || typeof message !== 'string') {
-    return new Response(JSON.stringify({ error: 'message is required' }), { status: 400 });
-  }
-
-  const supabase = createAdminClient();
+  const parsed = chatSchema.safeParse(await req.json().catch(() => ({})));
+  if (!parsed.success) return jsonError('Validation failed', 400, { details: parsed.error.format() });
+  const { message, history } = parsed.data;
+  const { db } = access.context;
 
   // Fetch job context
-  const { data: job } = await supabase
+  const { data: job } = await db
     .from('import_jobs')
     .select('*')
     .eq('id', importJobId)
@@ -74,7 +73,7 @@ export async function POST(
   }
 
   // Fetch recent error sample (up to 100 invalid rows)
-  const { data: recentErrors } = await supabase
+  const { data: recentErrors } = await db
     .from('staging_import_contributions')
     .select('validation_errors')
     .eq('import_job_id', importJobId)

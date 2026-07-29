@@ -59,11 +59,7 @@ app/api/org/[orgId]/custom-fields/batch/route.ts
 app/api/org/[orgId]/custom-fields/route.ts
 app/api/org/[orgId]/custom-fields/values/route.ts
 app/api/org/[orgId]/dashboard/route.ts
-app/api/org/[orgId]/imports/[jobId]/audit/route.ts
-app/api/org/[orgId]/imports/[jobId]/errors/route.ts
-app/api/org/[orgId]/imports/[jobId]/resume/route.ts
 app/api/org/[orgId]/imports/[jobId]/rollback/route.ts
-app/api/org/[orgId]/imports/[jobId]/route.ts
 app/api/org/[orgId]/imports/route.ts
 app/api/org/[orgId]/invitations/[inviteId]/resend/route.ts
 app/api/org/[orgId]/invitations/[inviteId]/route.ts

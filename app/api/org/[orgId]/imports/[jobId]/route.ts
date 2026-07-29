@@ -1,6 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { createAdminClient, createServerClient } from '@/lib/supabase';
-import { getOrgAccess, hasOrgAccess } from '@/lib/org-access';
+import { NextRequest } from 'next/server';
+import { requireOrgAccess } from '@/lib/api/access';
+import { jsonError, jsonOk } from '@/lib/api/responses';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,31 +23,20 @@ interface StagingCounts {
   warning: number;
 }
 
-async function requireOrgAdmin(orgId: string) {
-  const supabase = await createServerClient();
-  const access = await getOrgAccess(supabase, orgId);
-  if (!access.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  if (!hasOrgAccess(access, 'admin')) {
-    return NextResponse.json({ error: 'Org admin access required' }, { status: 403 });
-  }
-
-  return null;
-}
-
 export async function GET(_req: NextRequest, { params }: RouteParams) {
   const { orgId, jobId } = await params;
-  const accessError = await requireOrgAdmin(orgId);
-  if (accessError) return accessError;
+  const access = await requireOrgAccess(orgId, 'admin');
+  if (!access.ok) return access.response;
 
-  const admin = createAdminClient();
-  const { data: job, error: jobError } = await admin
+  const { db } = access.context;
+  const { data: job, error: jobError } = await db
     .from('import_jobs')
     .select('*')
     .eq('id', jobId)
     .eq('org_id', orgId)
     .single();
 
-  if (jobError || !job) return NextResponse.json({ error: 'Import job not found' }, { status: 404 });
+  if (jobError || !job) return jsonError('Import job not found', 404);
 
   const stagingTables: Record<string, StagingTable> = {
     donors: 'staging_import_donors',
@@ -60,7 +49,7 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
   const stagingCounts: Record<string, StagingCounts> = {};
   await Promise.all(
     Object.entries(stagingTables).map(async ([entityType, table]) => {
-      const { data: rows } = await admin
+      const { data: rows } = await db
         .from(table)
         .select('validation_status')
         .eq('import_job_id', jobId)
@@ -78,8 +67,5 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
     })
   );
 
-  return NextResponse.json(
-    { job, staging_counts: stagingCounts },
-    { headers: { 'Cache-Control': 'no-store' } }
-  );
+  return jsonOk({ job, staging_counts: stagingCounts });
 }

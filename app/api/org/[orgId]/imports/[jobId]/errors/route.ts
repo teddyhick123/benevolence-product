@@ -1,8 +1,10 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { createAdminClient, createServerClient } from '@/lib/supabase';
+import { NextRequest } from 'next/server';
+import { z } from 'zod';
+import { requireOrgAccess } from '@/lib/api/access';
+import { jsonError, jsonOk } from '@/lib/api/responses';
+import type { SessionClient } from '@/lib/api/server-client';
 import type { EntityType } from '@/lib/import/types';
 import { STAGING_TABLE_MAP } from '@/lib/import/types';
-import { getOrgAccess, hasOrgAccess } from '@/lib/org-access';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,19 +12,22 @@ interface RouteParams {
   params: Promise<{ orgId: string; jobId: string }>;
 }
 
-async function requireOrgAdmin(orgId: string) {
-  const supabase = await createServerClient();
-  const access = await getOrgAccess(supabase, orgId);
-  if (!access.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  if (!hasOrgAccess(access, 'admin')) {
-    return NextResponse.json({ error: 'Org admin access required' }, { status: 403 });
-  }
+const stagingTables = Object.values(STAGING_TABLE_MAP) as [string, ...string[]];
+const correctionSchema = z.object({
+  staging_table: z.enum(stagingTables),
+  row_id: z.string().uuid(),
+  field: z.string().trim().min(1).max(200),
+  proposed_value: z.unknown(),
+}).strict();
 
-  return null;
+function positiveInteger(value: string | null, fallback: number, maximum?: number) {
+  const parsed = Number.parseInt(value ?? '', 10);
+  if (!Number.isFinite(parsed) || parsed < 0) return fallback;
+  return maximum === undefined ? parsed : Math.min(parsed, maximum);
 }
 
-async function verifyJob(admin: ReturnType<typeof createAdminClient>, orgId: string, jobId: string) {
-  const { data: job } = await admin
+async function verifyJob(db: SessionClient, orgId: string, jobId: string) {
+  const { data: job } = await db
     .from('import_jobs')
     .select('id')
     .eq('id', jobId)
@@ -33,23 +38,23 @@ async function verifyJob(admin: ReturnType<typeof createAdminClient>, orgId: str
 
 export async function GET(req: NextRequest, { params }: RouteParams) {
   const { orgId, jobId } = await params;
-  const accessError = await requireOrgAdmin(orgId);
-  if (accessError) return accessError;
+  const access = await requireOrgAccess(orgId, 'admin');
+  if (!access.ok) return access.response;
 
-  const { searchParams } = new URL(req.url);
+  const { searchParams } = req.nextUrl;
   const entity = (searchParams.get('entity') ?? 'holdings') as EntityType;
   const severity = searchParams.get('severity');
-  const limit = Math.min(parseInt(searchParams.get('limit') ?? '25', 10), 100);
-  const offset = parseInt(searchParams.get('offset') ?? '0', 10);
+  const limit = Math.max(1, positiveInteger(searchParams.get('limit'), 25, 100));
+  const offset = positiveInteger(searchParams.get('offset'), 0);
   const stagingTable = STAGING_TABLE_MAP[entity];
-  if (!stagingTable) return NextResponse.json({ error: `Unknown entity type: ${entity}` }, { status: 400 });
+  if (!stagingTable) return jsonError(`Unknown entity type: ${entity}`, 400);
 
-  const admin = createAdminClient();
-  if (!(await verifyJob(admin, orgId, jobId))) {
-    return NextResponse.json({ error: 'Import job not found' }, { status: 404 });
+  const { db } = access.context;
+  if (!(await verifyJob(db, orgId, jobId))) {
+    return jsonError('Import job not found', 404);
   }
 
-  let query = admin
+  let query = db
     .from(stagingTable)
     .select('id, row_number, raw_data, transformed_data, validation_errors, validation_status, action_taken', { count: 'exact' })
     .eq('import_job_id', jobId)
@@ -63,39 +68,26 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
   else query = query.in('validation_status', ['invalid', 'warning']);
 
   const { data, error, count } = await query;
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return jsonError(error.message, 500);
 
-  return NextResponse.json(
-    { rows: data || [], total: count ?? 0, limit, offset },
-    { headers: { 'Cache-Control': 'no-store' } }
-  );
+  return jsonOk({ rows: data || [], total: count ?? 0, limit, offset });
 }
 
 export async function PATCH(req: NextRequest, { params }: RouteParams) {
   const { orgId, jobId } = await params;
-  const accessError = await requireOrgAdmin(orgId);
-  if (accessError) return accessError;
+  const access = await requireOrgAccess(orgId, 'admin');
+  if (!access.ok) return access.response;
 
-  const body = await req.json();
-  const { staging_table, row_id, field, proposed_value } = body;
-  if (!staging_table || !row_id || !field || proposed_value === undefined) {
-    return NextResponse.json(
-      { error: 'staging_table, row_id, field, and proposed_value are required' },
-      { status: 400 }
-    );
+  const parsed = correctionSchema.safeParse(await req.json().catch(() => ({})));
+  if (!parsed.success) return jsonError('Validation failed', 400, { details: parsed.error.format() });
+  const { staging_table, row_id, field, proposed_value } = parsed.data;
+
+  const { db } = access.context;
+  if (!(await verifyJob(db, orgId, jobId))) {
+    return jsonError('Import job not found', 404);
   }
 
-  const validTables = Object.values(STAGING_TABLE_MAP);
-  if (!validTables.includes(staging_table)) {
-    return NextResponse.json({ error: 'Invalid staging_table' }, { status: 400 });
-  }
-
-  const admin = createAdminClient();
-  if (!(await verifyJob(admin, orgId, jobId))) {
-    return NextResponse.json({ error: 'Import job not found' }, { status: 404 });
-  }
-
-  const { data: row, error: fetchError } = await admin
+  const { data: row, error: fetchError } = await db
     .from(staging_table)
     .select('transformed_data, validation_errors')
     .eq('id', row_id)
@@ -103,7 +95,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     .eq('org_id', orgId)
     .single();
 
-  if (fetchError || !row) return NextResponse.json({ error: 'Row not found' }, { status: 404 });
+  if (fetchError || !row) return jsonError('Row not found', 404);
 
   const updatedData = { ...(row.transformed_data ?? {}), [field]: proposed_value };
   const remainingErrors = (row.validation_errors ?? []).filter(
@@ -115,7 +107,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
       ? 'invalid'
       : 'warning';
 
-  const { error: updateError } = await admin
+  const { error: updateError } = await db
     .from(staging_table)
     .update({
       transformed_data: updatedData,
@@ -126,10 +118,11 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     .eq('import_job_id', jobId)
     .eq('org_id', orgId);
 
-  if (updateError) return NextResponse.json({ error: updateError.message }, { status: 500 });
+  if (updateError) return jsonError(updateError.message, 500);
 
-  return NextResponse.json(
-    { success: true, validation_status: newStatus, remaining_errors: remainingErrors.length },
-    { headers: { 'Cache-Control': 'no-store' } }
-  );
+  return jsonOk({
+    success: true,
+    validation_status: newStatus,
+    remaining_errors: remainingErrors.length,
+  });
 }

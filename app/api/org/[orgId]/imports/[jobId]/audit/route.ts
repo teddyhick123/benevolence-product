@@ -1,6 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { createAdminClient, createServerClient } from '@/lib/supabase';
-import { getOrgAccess, hasOrgAccess } from '@/lib/org-access';
+import { NextRequest } from 'next/server';
+import { requireOrgAccess } from '@/lib/api/access';
+import { jsonError, jsonOk } from '@/lib/api/responses';
 
 export const dynamic = 'force-dynamic';
 
@@ -8,38 +8,34 @@ interface RouteParams {
   params: Promise<{ orgId: string; jobId: string }>;
 }
 
-async function requireOrgAdmin(orgId: string) {
-  const supabase = await createServerClient();
-  const access = await getOrgAccess(supabase, orgId);
-  if (!access.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  if (!hasOrgAccess(access, 'admin')) {
-    return NextResponse.json({ error: 'Org admin access required' }, { status: 403 });
-  }
-
-  return null;
+function positiveInteger(value: string | null, fallback: number, maximum?: number) {
+  const parsed = Number.parseInt(value ?? '', 10);
+  if (!Number.isFinite(parsed) || parsed < 0) return fallback;
+  return maximum === undefined ? parsed : Math.min(parsed, maximum);
 }
 
 export async function GET(req: NextRequest, { params }: RouteParams) {
   const { orgId, jobId } = await params;
-  const accessError = await requireOrgAdmin(orgId);
-  if (accessError) return accessError;
+  const access = await requireOrgAccess(orgId, 'admin');
+  if (!access.ok) return access.response;
 
   const { searchParams } = req.nextUrl;
   const tableName = searchParams.get('table_name');
   const operation = searchParams.get('operation');
-  const limit = Math.min(parseInt(searchParams.get('limit') ?? '50', 10), 200);
-  const offset = parseInt(searchParams.get('offset') ?? '0', 10);
-  const admin = createAdminClient();
+  const limit = Math.max(1, positiveInteger(searchParams.get('limit'), 50, 200));
+  const offset = positiveInteger(searchParams.get('offset'), 0);
+  const { db } = access.context;
 
-  const { data: job } = await admin
+  const { data: job } = await db
     .from('import_jobs')
     .select('id')
     .eq('id', jobId)
     .eq('org_id', orgId)
     .single();
-  if (!job) return NextResponse.json({ error: 'Import job not found' }, { status: 404 });
+  if (!job) return jsonError('Import job not found', 404);
 
-  let query = admin
+  // The audit table is protected through its parent import job, verified above.
+  let query = db
     .from('import_audit_log')
     .select('*', { count: 'exact' })
     .eq('import_job_id', jobId)
@@ -50,10 +46,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
   if (operation) query = query.eq('operation', operation);
 
   const { data: entries, count, error } = await query;
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return jsonError(error.message, 500);
 
-  return NextResponse.json(
-    { entries: entries ?? [], total: count ?? 0 },
-    { headers: { 'Cache-Control': 'no-store' } }
-  );
+  return jsonOk({ entries: entries ?? [], total: count ?? 0 });
 }

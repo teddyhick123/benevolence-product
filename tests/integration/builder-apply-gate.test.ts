@@ -29,6 +29,7 @@ import {
 import { REVIEW_POLICY_VERSION } from '@/lib/builder/proposal-state';
 
 const ORG_ID = '11111111-1111-1111-1111-111111111111';
+const OTHER_ORG_ID = '99999999-9999-9999-9999-999999999999';
 const PROPOSAL_ID = '22222222-2222-2222-2222-222222222222';
 const REVISION_ID = '33333333-3333-3333-3333-333333333333';
 const ATTEMPT_ID = '44444444-4444-4444-4444-444444444444';
@@ -72,6 +73,7 @@ const applyMock = vi.fn(async (..._args: unknown[]) => ({
   headSha: HEAD_SHA,
 }));
 const getDefaultBranchShaMock = vi.fn(async () => _defaultBranchSha);
+const readJsonArtifactMock = vi.fn(async (..._args: unknown[]) => _filesArtifact);
 
 function computeResult(state: {
   table: string;
@@ -87,10 +89,24 @@ function computeResult(state: {
         const matched = filters.code_state === _proposalRow?.code_state;
         return { data: matched ? { code_state: payload?.code_state } : null, error: null };
       }
-      return { data: _proposalRow, error: null };
+      return {
+        data: _proposalRow
+          && filters.id === _proposalRow.id
+          && filters.org_id === _proposalRow.org_id
+          ? _proposalRow
+          : null,
+        error: null,
+      };
     case 'builder_proposal_revisions':
       if (op === 'update') return { data: null, error: null };
-      return { data: _revisionRow, error: null };
+      return {
+        data: _revisionRow
+          && filters.id === _revisionRow.id
+          && filters.proposal_id === _revisionRow.proposal_id
+          ? _revisionRow
+          : null,
+        error: null,
+      };
     case 'builder_review_attempts':
       return { data: _attemptRow, error: null };
     case 'builder_review_findings':
@@ -172,7 +188,10 @@ vi.mock('@/lib/org-capabilities', () => ({
 // Keep the real hashing functions; only stub the storage read.
 vi.mock('@/lib/builder/artifacts', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/builder/artifacts')>();
-  return { ...actual, readJsonArtifact: vi.fn(async () => _filesArtifact) };
+  return {
+    ...actual,
+    readJsonArtifact: (...args: unknown[]) => readJsonArtifactMock(...args),
+  };
 });
 
 import { POST } from '@/app/api/org/[orgId]/builder/proposals/[proposalId]/apply/route';
@@ -236,6 +255,7 @@ beforeEach(() => {
   _eventInserts = [];
   applyMock.mockClear();
   getDefaultBranchShaMock.mockClear();
+  readJsonArtifactMock.mockClear();
 });
 
 describe('POST apply — auth and preconditions', () => {
@@ -259,6 +279,12 @@ describe('POST apply — auth and preconditions', () => {
 
   it('404 when the proposal does not exist in this org', async () => {
     _proposalRow = null;
+    expect((await call()).status).toBe(404);
+    expect(applyMock).not.toHaveBeenCalled();
+  });
+
+  it('404 when the proposal belongs to another organization', async () => {
+    _proposalRow = { ...healthyProposal(), org_id: OTHER_ORG_ID };
     expect((await call()).status).toBe(404);
     expect(applyMock).not.toHaveBeenCalled();
   });
@@ -319,6 +345,20 @@ describe('POST apply — review gate (evaluateAttemptGate)', () => {
 });
 
 describe('POST apply — artifact tamper guard', () => {
+  it('409 without reading storage when the artifact prefix is outside the scoped revision', async () => {
+    _revisionRow = {
+      ...healthyRevision(),
+      artifact_prefix: `${OTHER_ORG_ID}/${PROPOSAL_ID}/${REVISION_ID}`,
+    };
+
+    const res = await call();
+
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({ error: 'Revision artifacts do not match recorded hashes' });
+    expect(readJsonArtifactMock).not.toHaveBeenCalled();
+    expect(applyMock).not.toHaveBeenCalled();
+  });
+
   it('409 when the recomputed manifest hash does not match the recorded hash', async () => {
     _revisionRow = { ...healthyRevision(), manifest_hash: 'deadbeefdeadbeefdeadbeefdeadbeefdeadbeef' };
     const res = await call();

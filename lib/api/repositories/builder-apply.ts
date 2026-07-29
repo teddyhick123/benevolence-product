@@ -52,6 +52,14 @@ export class BuilderApplyError extends Error {
 export function createOrgBuilderApplyRepository(scope: OrgBuilderApplyScope) {
   const db = createElevatedClient();
 
+  function requireArtifactPrefix(proposalId: string, revision: RevisionRow): string {
+    const expected = `${scope.orgId}/${proposalId}/${revision.id}`;
+    if (revision.artifact_prefix !== expected) {
+      throw new BuilderApplyError('Revision artifacts do not match recorded hashes', 409);
+    }
+    return expected;
+  }
+
   return {
     async applyProposal(proposalId: string) {
       const { data: proposal, error: proposalError } = await db
@@ -133,10 +141,11 @@ export function createOrgBuilderApplyRepository(scope: OrgBuilderApplyScope) {
         );
       }
       const frozenRevision = revision as RevisionRow;
+      const artifactPrefix = requireArtifactPrefix(proposalId, frozenRevision);
 
       const stored = await readJsonArtifact<{ files: StoredFile[] }>(
         db,
-        `${frozenRevision.artifact_prefix}/${ARTIFACT_KEYS.files}`
+        `${artifactPrefix}/${ARTIFACT_KEYS.files}`
       );
       const files = stored?.files ?? [];
       if (files.length === 0) {

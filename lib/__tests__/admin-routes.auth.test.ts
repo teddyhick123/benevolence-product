@@ -17,10 +17,11 @@ describe('admin route auth contracts', () => {
 
   it('admin import migration reports use signed URLs and no-store responses', () => {
     const src = readFileSync('app/api/admin/imports/[id]/report/route.ts', 'utf8');
-    expect(src).toContain('requireAdmin');
+    expect(src).toContain('requireAppAdmin');
     expect(src).toContain('createSignedUrl');
     expect(src).not.toContain('getPublicUrl');
-    expect(src).toContain("'Cache-Control': 'no-store'");
+    expect(src).toContain('jsonOk');
+    expect(src).not.toContain('createAdminClient');
   });
 
   it('admin import AI row suggestions are admin-only, rate-limited, and table-allowlisted', () => {

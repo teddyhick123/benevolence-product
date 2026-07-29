@@ -2,34 +2,35 @@
 // GET /api/admin/imports/:id/report?format=markdown
 // Generates the AI migration report and stores it in Supabase Storage
 
-import { createAdminClient, createServerClient } from '@/lib/supabase';
+import { requireAppAdmin } from '@/lib/api/access';
+import { jsonError, jsonOk } from '@/lib/api/responses';
+import type { SessionClient } from '@/lib/api/server-client';
 import { generateMigrationReport } from '@/lib/import/ai/generate-report';
 import type { ReportParams, EntityStats } from '@/lib/import/ai/generate-report';
 import { calculateHealthScore } from '@/lib/pdf/migration-report-generator';
-import { requireAdmin } from '@/lib/admin-auth';
 
 type StagingRow = Record<string, unknown>;
 
 const NO_STORE = { 'Cache-Control': 'no-store' } as const;
 
 async function countStagingRows(
-  supabase: ReturnType<typeof createAdminClient>,
+  db: SessionClient,
   importJobId: string,
   table: string
 ): Promise<EntityStats> {
   const [total, loaded, failed] = await Promise.all([
-    supabase
+    db
       .from(table)
       .select('*', { count: 'exact', head: true })
       .eq('import_job_id', importJobId)
       .then(({ count }) => count ?? 0),
-    supabase
+    db
       .from(table)
       .select('*', { count: 'exact', head: true })
       .eq('import_job_id', importJobId)
       .in('action_taken', ['create', 'update'])
       .then(({ count }) => count ?? 0),
-    supabase
+    db
       .from(table)
       .select('*', { count: 'exact', head: true })
       .eq('import_job_id', importJobId)
@@ -43,26 +44,24 @@ export async function GET(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const userId = await requireAdmin();
-  if (!userId) {
-    return Response.json({ error: 'Unauthorized' }, { status: 401, headers: NO_STORE });
-  }
+  const access = await requireAppAdmin();
+  if (!access.ok) return access.response;
 
   const { id: importJobId } = await params;
   const url = new URL(req.url);
   const format = url.searchParams.get('format') ?? 'markdown';
 
-  const supabase = createAdminClient();
+  const { db } = access.context;
 
   // Fetch job
-  const { data: job, error: jobError } = await supabase
+  const { data: job, error: jobError } = await db
     .from('import_jobs')
     .select('*')
     .eq('id', importJobId)
     .single();
 
   if (jobError || !job) {
-    return Response.json({ error: 'Import job not found' }, { status: 404, headers: NO_STORE });
+    return jsonError('Import job not found', 404);
   }
 
   const jobData = job as StagingRow;
@@ -78,7 +77,7 @@ export async function GET(
 
   const entityCountEntries = await Promise.all(
     Object.entries(stagingTables).map(async ([entity, table]) => {
-      const counts = await countStagingRows(supabase, importJobId, table);
+      const counts = await countStagingRows(db, importJobId, table);
       return [entity, counts] as const;
     })
   );
@@ -114,7 +113,7 @@ export async function GET(
   }
 
   // Estimate enrichment stats from staged investees
-  const { count: charitiesMatched } = await supabase
+  const { count: charitiesMatched } = await db
     .from('staging_import_investees')
     .select('*', { count: 'exact', head: true })
     .eq('import_job_id', importJobId)
@@ -146,19 +145,20 @@ export async function GET(
 
   // Store in Supabase Storage
   let storageUrl: string | null = null;
+  const reportPath = `${String(jobData.org_id)}/reports/${importJobId}/migration-report.md`;
   try {
-    const { error: uploadError } = await supabase.storage
+    const { error: uploadError } = await db.storage
       .from('imports')
       .upload(
-        `reports/${importJobId}/migration-report.md`,
+        reportPath,
         new Blob([markdown], { type: 'text/markdown' }),
         { upsert: true }
       );
 
     if (!uploadError) {
-      const { data: urlData } = await supabase.storage
+      const { data: urlData } = await db.storage
         .from('imports')
-        .createSignedUrl(`reports/${importJobId}/migration-report.md`, 3600);
+        .createSignedUrl(reportPath, 3600);
       storageUrl = urlData?.signedUrl ?? null;
     }
   } catch {
@@ -169,11 +169,15 @@ export async function GET(
     const { generateMigrationReportPDF } = await import('@/lib/pdf/migration-report-generator');
 
     // Fetch portfolio name
-    const { data: portfolio } = await supabase
-      .from('portfolios')
-      .select('name')
-      .eq('id', jobData.portfolio_id as string)
-      .single();
+    const portfolioId = jobData.portfolio_id as string | null;
+    const { data: portfolio } = portfolioId
+      ? await db
+          .from('portfolios')
+          .select('name')
+          .eq('id', portfolioId)
+          .eq('org_id', String(jobData.org_id))
+          .maybeSingle()
+      : { data: null };
 
     const healthScore = calculateHealthScore(entityCounts, deltaPercent);
 
@@ -204,5 +208,5 @@ export async function GET(
     });
   }
 
-  return Response.json({ markdown, url: storageUrl }, { headers: NO_STORE });
+  return jsonOk({ markdown, url: storageUrl });
 }

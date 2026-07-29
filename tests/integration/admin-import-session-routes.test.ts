@@ -97,6 +97,7 @@ import { POST as mappingAssist } from '@/app/api/admin/imports/mapping-assist/ro
 import { GET as listJobs, POST as createJob } from '@/app/api/admin/imports/route';
 import { POST as rollbackJob } from '@/app/api/admin/imports/[id]/rollback/route';
 import { POST as runWatchdog } from '@/app/api/admin/imports/watchdog/route';
+import { GET as getReport } from '@/app/api/admin/imports/[id]/report/route';
 
 function context() {
   return { params: Promise.resolve({ id: JOB_ID }) };
@@ -459,5 +460,22 @@ describe('app-admin import session routes', () => {
     });
     expect(mockReapStaleJobs).toHaveBeenCalledWith(30);
     expect(await response.json()).toEqual({ reaped: 2 });
+  });
+
+  it('checks report job visibility through the app-admin session', async () => {
+    const jobQuery = stubQuery(
+      { data: null, error: null },
+      { single: { data: null, error: null } }
+    );
+    mockFrom.mockReturnValue(jobQuery);
+
+    const response = await getReport(
+      request(`/api/admin/imports/${JOB_ID}/report`),
+      context()
+    );
+
+    expect(response.status).toBe(404);
+    expect(mockRequireAppAdmin).toHaveBeenCalledOnce();
+    expect(jobQuery.calls).toContainEqual({ method: 'eq', args: ['id', JOB_ID] });
   });
 });

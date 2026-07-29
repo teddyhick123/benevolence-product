@@ -1,41 +1,39 @@
 // POST /api/admin/imports/[id]/resume
 // Resets a review-blocked import job back to processing so the queue picks it up.
 
-import { NextRequest, NextResponse } from 'next/server';
-import { createAdminClient, createServerClient } from '@/lib/supabase';
+import { NextRequest } from 'next/server';
+import { requireAppAdmin } from '@/lib/api/access';
+import { jsonError, jsonOk } from '@/lib/api/responses';
 import type { ImportJob } from '@/lib/import/types';
-import { requireAdmin } from '@/lib/admin-auth';
 
 export async function POST(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const userId = await requireAdmin();
-  if (!userId) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  const access = await requireAppAdmin();
+  if (!access.ok) return access.response;
 
   const { id } = await params;
-  const supabase = createAdminClient();
+  const { db } = access.context;
 
-  const { data: job } = await supabase
+  const { data: job } = await db
     .from('import_jobs')
     .select('status')
     .eq('id', id)
     .single();
 
   if (!job) {
-    return NextResponse.json({ error: 'Import job not found' }, { status: 404 });
+    return jsonError('Import job not found', 404);
   }
 
   if (job.status !== 'needs_review') {
-    return NextResponse.json(
-      { error: `Cannot resume a job with status '${job.status}'. Job must be in needs_review.` },
-      { status: 422 }
+    return jsonError(
+      `Cannot resume a job with status '${job.status}'. Job must be in needs_review.`,
+      422
     );
   }
 
-  const { data: updated, error } = await supabase
+  const { data: updated, error } = await db
     .from('import_jobs')
     .update({ status: 'processing', error_message: null })
     .eq('id', id)
@@ -43,8 +41,8 @@ export async function POST(
     .single();
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return jsonError(error.message, 500);
   }
 
-  return NextResponse.json({ job: updated as ImportJob });
+  return jsonOk({ job: updated as ImportJob });
 }

@@ -2,38 +2,49 @@
 // GET: paginated list of staging rows with validation errors
 // PATCH: accept an AI suggestion — writes proposed_value into transformed_data for one field
 
-import { NextRequest, NextResponse } from 'next/server';
-import { createAdminClient, createServerClient } from '@/lib/supabase';
+import { NextRequest } from 'next/server';
+import { z } from 'zod';
+import { requireAppAdmin } from '@/lib/api/access';
+import { jsonError, jsonOk } from '@/lib/api/responses';
 import type { EntityType } from '@/lib/import/types';
 import { STAGING_TABLE_MAP } from '@/lib/import/types';
-import { requireAdmin } from '@/lib/admin-auth';
+
+const stagingTables = Object.values(STAGING_TABLE_MAP) as [string, ...string[]];
+const correctionSchema = z.object({
+  staging_table: z.enum(stagingTables),
+  row_id: z.string().uuid(),
+  field: z.string().trim().min(1).max(200),
+  proposed_value: z.unknown(),
+}).strict();
+
+function positiveInteger(value: string | null, fallback: number, maximum?: number) {
+  const parsed = Number.parseInt(value ?? '', 10);
+  if (!Number.isFinite(parsed) || parsed < 0) return fallback;
+  return maximum === undefined ? parsed : Math.min(parsed, maximum);
+}
 
 // GET /api/admin/imports/:id/errors
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const userId = await requireAdmin();
-  if (!userId) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  const access = await requireAppAdmin();
+  if (!access.ok) return access.response;
 
   const { id } = await params;
-  const { searchParams } = new URL(req.url);
+  const { searchParams } = req.nextUrl;
 
   const entity = (searchParams.get('entity') ?? 'holdings') as EntityType;
   const severity = searchParams.get('severity');
-  const limit = Math.min(parseInt(searchParams.get('limit') ?? '100', 10), 500);
-  const offset = parseInt(searchParams.get('offset') ?? '0', 10);
+  const limit = Math.max(1, positiveInteger(searchParams.get('limit'), 100, 500));
+  const offset = positiveInteger(searchParams.get('offset'), 0);
 
   const stagingTable = STAGING_TABLE_MAP[entity];
   if (!stagingTable) {
-    return NextResponse.json({ error: `Unknown entity type: ${entity}` }, { status: 400 });
+    return jsonError(`Unknown entity type: ${entity}`, 400);
   }
 
-  const supabase = createAdminClient();
-
-  let query = supabase
+  let query = access.context.db
     .from(stagingTable)
     .select('id, row_number, raw_data, transformed_data, validation_errors, validation_status, action_taken', { count: 'exact' })
     .eq('import_job_id', id)
@@ -53,18 +64,10 @@ export async function GET(
   const { data, error, count } = await query;
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return jsonError(error.message, 500);
   }
 
-  return NextResponse.json(
-    {
-      rows: data,
-      total: count ?? 0,
-      limit,
-      offset,
-    },
-    { headers: { 'Cache-Control': 'no-store' } }
-  );
+  return jsonOk({ rows: data, total: count ?? 0, limit, offset });
 }
 
 // PATCH /api/admin/imports/:id/errors
@@ -74,32 +77,17 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const userId = await requireAdmin();
-  if (!userId) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  const access = await requireAppAdmin();
+  if (!access.ok) return access.response;
 
   const { id: importJobId } = await params;
-  const body = await req.json();
-  const { staging_table, row_id, field, proposed_value } = body;
-
-  if (!staging_table || !row_id || !field || proposed_value === undefined) {
-    return NextResponse.json(
-      { error: 'staging_table, row_id, field, and proposed_value are required' },
-      { status: 400 }
-    );
-  }
-
-  // Verify the valid staging table names to prevent SQL injection
-  const validTables = Object.values(STAGING_TABLE_MAP);
-  if (!validTables.includes(staging_table)) {
-    return NextResponse.json({ error: 'Invalid staging_table' }, { status: 400 });
-  }
-
-  const supabase = createAdminClient();
+  const parsed = correctionSchema.safeParse(await req.json().catch(() => ({})));
+  if (!parsed.success) return jsonError('Validation failed', 400, { details: parsed.error.format() });
+  const { staging_table, row_id, field, proposed_value } = parsed.data;
+  const { db } = access.context;
 
   // Fetch current transformed_data for this row
-  const { data: row, error: fetchErr } = await supabase
+  const { data: row, error: fetchErr } = await db
     .from(staging_table)
     .select('transformed_data, validation_errors')
     .eq('id', row_id)
@@ -107,7 +95,7 @@ export async function PATCH(
     .single();
 
   if (fetchErr || !row) {
-    return NextResponse.json({ error: 'Row not found' }, { status: 404 });
+    return jsonError('Row not found', 404);
   }
 
   const updatedData = { ...(row.transformed_data ?? {}), [field]: proposed_value };
@@ -119,7 +107,7 @@ export async function PATCH(
   const newStatus = remainingErrors.length === 0 ? 'valid' :
     remainingErrors.some((e: { severity: string }) => e.severity === 'error') ? 'invalid' : 'warning';
 
-  const { error: updateErr } = await supabase
+  const { error: updateErr } = await db
     .from(staging_table)
     .update({
       transformed_data: updatedData,
@@ -130,11 +118,12 @@ export async function PATCH(
     .eq('import_job_id', importJobId);
 
   if (updateErr) {
-    return NextResponse.json({ error: updateErr.message }, { status: 500 });
+    return jsonError(updateErr.message, 500);
   }
 
-  return NextResponse.json(
-    { success: true, validation_status: newStatus, remaining_errors: remainingErrors.length },
-    { headers: { 'Cache-Control': 'no-store' } }
-  );
+  return jsonOk({
+    success: true,
+    validation_status: newStatus,
+    remaining_errors: remainingErrors.length,
+  });
 }

@@ -1,9 +1,9 @@
 // app/api/admin/imports/[id]/route.ts
 // GET: return import job + progress summary
 
-import { NextRequest, NextResponse } from 'next/server';
-import { createAdminClient, createServerClient } from '@/lib/supabase';
-import { requireAdmin } from '@/lib/admin-auth';
+import { NextRequest } from 'next/server';
+import { requireAppAdmin } from '@/lib/api/access';
+import { jsonError, jsonOk } from '@/lib/api/responses';
 
 type StagingTable =
   | 'staging_import_donors'
@@ -25,22 +25,20 @@ export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const userId = await requireAdmin();
-  if (!userId) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  const access = await requireAppAdmin();
+  if (!access.ok) return access.response;
 
   const { id } = await params;
-  const supabase = createAdminClient();
+  const { db } = access.context;
 
-  const { data: job, error: jobError } = await supabase
+  const { data: job, error: jobError } = await db
     .from('import_jobs')
     .select('*')
     .eq('id', id)
     .single();
 
   if (jobError || !job) {
-    return NextResponse.json({ error: 'Import job not found' }, { status: 404 });
+    return jsonError('Import job not found', 404);
   }
 
   // Fetch staging counts for each entity type
@@ -56,7 +54,7 @@ export async function GET(
 
   await Promise.all(
     Object.entries(stagingTables).map(async ([entityType, table]) => {
-      const { data: rows } = await supabase
+      const { data: rows } = await db
         .from(table)
         .select('validation_status')
         .eq('import_job_id', id);
@@ -75,8 +73,5 @@ export async function GET(
     })
   );
 
-  return NextResponse.json(
-    { job, staging_counts: stagingCounts },
-    { headers: { 'Cache-Control': 'no-store' } }
-  );
+  return jsonOk({ job, staging_counts: stagingCounts });
 }

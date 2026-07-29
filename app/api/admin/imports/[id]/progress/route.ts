@@ -3,8 +3,7 @@
 // Returns an SSE stream of ProgressEvent objects for a live import job
 
 import { ImportProgressEmitter } from '@/lib/import/progress-emitter';
-import { createServerClient } from '@/lib/supabase';
-import { requireAdmin } from '@/lib/admin-auth';
+import { requireAppAdmin } from '@/lib/api/access';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,10 +11,8 @@ export async function GET(
   _req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const userId = await requireAdmin();
-  if (!userId) {
-    return Response.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  const access = await requireAppAdmin();
+  if (!access.ok) return access.response;
 
   const { id } = await params;
   const stream = ImportProgressEmitter.subscribe(id);

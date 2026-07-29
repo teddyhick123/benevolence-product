@@ -1,8 +1,12 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { createAdminClient, createServerClient } from '@/lib/supabase';
-import { rollbackImport, type RollbackScope } from '@/lib/import/rollback';
-import type { ImportJob } from '@/lib/import/types';
-import { getOrgAccess, hasOrgAccess } from '@/lib/org-access';
+import { NextRequest } from 'next/server';
+import { z } from 'zod';
+import { requireOrgAccess } from '@/lib/api/access';
+import {
+  createImportRollbackRepository,
+  ImportRollbackJobNotFoundError,
+  ImportRollbackStatusError,
+} from '@/lib/api/repositories/imports';
+import { jsonError, jsonOk } from '@/lib/api/responses';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,59 +14,29 @@ interface RouteParams {
   params: Promise<{ orgId: string; jobId: string }>;
 }
 
-const VALID_STATUSES = ['completed', 'needs_review', 'failed'];
-const VALID_SCOPES: RollbackScope[] = ['full', 'donors', 'investees', 'holdings', 'contributions', 'metrics'];
-
-async function requireOrgAdmin(orgId: string) {
-  const supabase = await createServerClient();
-  const access = await getOrgAccess(supabase, orgId);
-  if (!access.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  if (!hasOrgAccess(access, 'admin')) {
-    return NextResponse.json({ error: 'Org admin access required' }, { status: 403 });
-  }
-
-  return null;
-}
+const rollbackSchema = z.object({
+  scope: z.enum(['full', 'donors', 'investees', 'holdings', 'contributions', 'metrics'])
+    .default('full'),
+}).strict();
 
 export async function POST(req: NextRequest, { params }: RouteParams) {
   const { orgId, jobId } = await params;
-  const accessError = await requireOrgAdmin(orgId);
-  if (accessError) return accessError;
+  const access = await requireOrgAccess(orgId, 'admin');
+  if (!access.ok) return access.response;
 
-  const body = await req.json().catch(() => ({}));
-  const scope: RollbackScope = VALID_SCOPES.includes(body.scope) ? body.scope : 'full';
-  const admin = createAdminClient();
-
-  const { data: job, error: jobError } = await admin
-    .from('import_jobs')
-    .select('*')
-    .eq('id', jobId)
-    .eq('org_id', orgId)
-    .single();
-
-  if (jobError || !job) return NextResponse.json({ error: 'Import job not found' }, { status: 404 });
-  if (!VALID_STATUSES.includes(job.status)) {
-    return NextResponse.json(
-      { error: `Job must be completed, needs_review, or failed to rollback. Current: ${job.status}` },
-      { status: 400 }
-    );
-  }
+  const parsed = rollbackSchema.safeParse(await req.json().catch(() => ({})));
+  if (!parsed.success) return jsonError('Validation failed', 400, { details: parsed.error.format() });
 
   try {
-    const result = await rollbackImport(admin, jobId, scope);
-    const { data: updatedJob } = await admin
-      .from('import_jobs')
-      .select('*')
-      .eq('id', jobId)
-      .eq('org_id', orgId)
-      .single();
-
-    return NextResponse.json(
-      { result, job: updatedJob as ImportJob },
-      { headers: { 'Cache-Control': 'no-store' } }
-    );
-  } catch (err) {
+    const repository = createImportRollbackRepository({
+      orgId,
+      actorId: access.context.user.id,
+    });
+    return jsonOk(await repository.rollback(jobId, parsed.data.scope));
+  } catch (err: unknown) {
+    if (err instanceof ImportRollbackJobNotFoundError) return jsonError(err.message, 404);
+    if (err instanceof ImportRollbackStatusError) return jsonError(err.message, 400);
     const message = err instanceof Error ? err.message : String(err);
-    return NextResponse.json({ error: message }, { status: 500 });
+    return jsonError(message, 500);
   }
 }

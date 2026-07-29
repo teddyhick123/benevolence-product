@@ -65,4 +65,20 @@ describe('admin route auth contracts', () => {
       expect(src, route).not.toContain('SUPABASE_SERVICE_ROLE');
     }
   });
+
+  it('admin upload ingestion routes use the shared app-admin guard and scoped ingestion repository', () => {
+    for (const route of [
+      'app/api/admin/upload/route.ts',
+      'app/api/admin/upload/ingest/route.ts',
+    ]) {
+      const src = readFileSync(route, 'utf8');
+      expect(src, route).toContain('requireAppAdmin');
+      expect(src, route).toContain('createAppAdminUploadIngestionRepository');
+      expect(src, route).toContain('jsonOk');
+      expect(src, route).not.toContain('createClient');
+      expect(src, route).not.toContain('createAdminClient');
+      expect(src, route).not.toContain('requireAdmin');
+      expect(src, route).not.toContain('SUPABASE_SERVICE_ROLE');
+    }
+  });
 });

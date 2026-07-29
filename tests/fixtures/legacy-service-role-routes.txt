@@ -1,7 +1,5 @@
 app/api/admin/bootstrap/route.ts
 app/api/admin/portfolios/[id]/members/route.ts
-app/api/admin/upload/ingest/route.ts
-app/api/admin/upload/route.ts
 app/api/admin/users/lookup/route.ts
 app/api/ai/chat/route.ts
 app/api/ai/chat/stream/route.ts

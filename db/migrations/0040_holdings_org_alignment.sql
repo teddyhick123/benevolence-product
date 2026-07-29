@@ -46,7 +46,8 @@ ALTER TABLE uploads
   ADD COLUMN IF NOT EXISTS file_name text,
   ADD COLUMN IF NOT EXISTS file_ext text,
   ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'pending',
-  ADD COLUMN IF NOT EXISTS ai_mode boolean NOT NULL DEFAULT false;
+  ADD COLUMN IF NOT EXISTS ai_mode boolean NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS selected_metrics text[];
 
 UPDATE uploads
 SET file_name = COALESCE(file_name, filename),

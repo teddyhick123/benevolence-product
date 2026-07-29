@@ -2,7 +2,7 @@
 // Periodically calls mark_stale_import_jobs() to reap dead workers.
 // Should be started once when the server initializes.
 
-import { createAdminClient } from '@/lib/supabase';
+import { createImportWatchdogRepository } from '@/lib/api/repositories/import-worker';
 
 let watchdogInterval: ReturnType<typeof setInterval> | null = null;
 const STALE_THRESHOLD_MINUTES = 30;
@@ -16,15 +16,16 @@ export function startStaleJobWatchdog(intervalMs = 60_000): void {
 
   watchdogInterval = setInterval(async () => {
     try {
-      const supabase = createAdminClient();
-      const { data, error } = await supabase.rpc('mark_stale_import_jobs', {
-        p_stale_threshold_minutes: STALE_THRESHOLD_MINUTES,
+      const repository = createImportWatchdogRepository({
+        kind: 'job',
+        job: 'import-watchdog',
       });
+      const { data, error } = await repository.reapStaleJobs(STALE_THRESHOLD_MINUTES);
       if (error) {
         if (isMissingStaleJobRpc(error.message)) {
           console.warn(
             '[watchdog] Stale import job watchdog disabled: missing public.mark_stale_import_jobs RPC. ' +
-              'Apply db/migrations/0050_import_tables.sql or run scripts/run-migrations.sh.'
+              'Apply db/migrations/0018_import_system.sql or run scripts/run-migrations.sh.'
           );
           stopStaleJobWatchdog();
           return;

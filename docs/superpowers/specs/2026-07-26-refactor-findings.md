@@ -42,3 +42,40 @@ both the push and pull_request triggers.
 should either raise `walkthrough-smoke`'s `timeout-minutes`, split the journeys
 job to parallelize, or investigate why suite duration has crept toward the
 30-minute ceiling.
+
+### 2026-07-29 — Phase 2, Admin Upload family — ignored `autoApprove` input
+
+**What happened:** Both upload UIs send `autoApprove=true`, and
+`lib/schemas/admin.ts:7-10` accepts the same option for the reprocessing route,
+but neither ingestion path reads it. Extracted facts always remain in
+`staging_metric_facts` for manual review.
+
+**Expected vs. actual:** The field name implies that a successful ingestion can
+promote facts automatically. Actual behavior is manual approval regardless of
+the supplied value.
+
+**Why left alone:** Automatically promoting AI-extracted facts changes a
+high-impact review control and requires an explicit product decision. The API
+and authorization refactor preserves the manual-review behavior.
+
+**Suggested follow-up (not scheduled):** Remove the unused option from the UI
+and schema, or define a role-gated bulk approval workflow with audit history.
+
+### 2026-07-29 — Phase 2, Admin Upload family — holding uploader AI-off mode is unrestricted
+
+**What happened:** `components/holdings/ReportUploader.tsx:104-110` submits
+`ai_mode=false` without any `selected_metrics`. The extractor treats an empty
+restriction list as unrestricted (`lib/ai/document-extractor.ts:50-52`), so the
+toggle can still discover any KPI.
+
+**Expected vs. actual:** The admin upload page describes AI-off mode as limiting
+extraction to selected KPIs. The holding-level uploader exposes the same toggle
+without a KPI selector, so its off state does not enforce that restriction.
+
+**Why left alone:** Choosing whether AI-off means "do not extract" or "extract
+only configured KPIs" is a product behavior decision outside the boundary
+refactor. Existing extraction behavior was retained.
+
+**Suggested follow-up (not scheduled):** Add the configured-KPI selector to the
+holding uploader or remove the toggle there and route non-AI uploads through a
+document-only storage flow.

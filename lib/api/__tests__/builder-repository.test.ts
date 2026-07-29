@@ -1,13 +1,22 @@
 // @vitest-environment node
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { createAppAdminBuilderRepository } from '@/lib/api/repositories/builder';
+import {
+  createAppAdminBuilderRepository,
+  createOrgBuilderRepository,
+} from '@/lib/api/repositories/builder';
 import { stubQuery } from '@/tests/helpers/supabase-mock';
 
-const { mockCreateElevatedClient, mockFrom, mockTransitionProposal } = vi.hoisted(() => ({
+const {
+  mockCreateElevatedClient,
+  mockFrom,
+  mockTransitionProposal,
+  mockEnqueueScaffoldBuildJob,
+} = vi.hoisted(() => ({
   mockCreateElevatedClient: vi.fn(),
   mockFrom: vi.fn(),
   mockTransitionProposal: vi.fn(),
+  mockEnqueueScaffoldBuildJob: vi.fn(),
 }));
 
 vi.mock('@/lib/api/admin-client', () => ({
@@ -16,6 +25,18 @@ vi.mock('@/lib/api/admin-client', () => ({
 
 vi.mock('@/lib/builder/proposal-state', () => ({
   transitionProposal: mockTransitionProposal,
+  claimCodeRun: vi.fn(),
+  failInFlightRun: vi.fn(),
+  IN_FLIGHT_STATES: ['queued', 'generating', 'verifying'],
+}));
+
+vi.mock('@/lib/builder/scaffold-worker', () => ({
+  enqueueScaffoldBuildJob: mockEnqueueScaffoldBuildJob,
+}));
+
+vi.mock('@/lib/builder/github-apply', () => ({
+  isGitHubConfigured: vi.fn(() => false),
+  getDefaultBranchSha: vi.fn(),
 }));
 
 beforeEach(() => {
@@ -96,5 +117,24 @@ describe('createAppAdminBuilderRepository', () => {
 
     expect(repository).not.toHaveProperty('db');
     expect(repository).not.toHaveProperty('from');
+  });
+});
+
+describe('createOrgBuilderRepository', () => {
+  it('requires both proposal ID and authorized org before acting on a build', async () => {
+    const query = stubQuery(
+      { data: null, error: null },
+      { maybeSingle: { data: { code_state: 'generating' }, error: null } }
+    );
+    mockFrom.mockReturnValue(query);
+
+    const result = await createOrgBuilderRepository({
+      orgId: 'org-1',
+      actorId: 'reviewer-1',
+    }).startBuild('proposal-1');
+
+    expect(query.calls).toContainEqual({ method: 'eq', args: ['id', 'proposal-1'] });
+    expect(query.calls).toContainEqual({ method: 'eq', args: ['org_id', 'org-1'] });
+    expect(result).toEqual({ ok: true, proposalId: 'proposal-1', alreadyRunning: true });
   });
 });

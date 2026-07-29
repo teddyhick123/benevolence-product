@@ -7,6 +7,7 @@ describe('build trigger endpoint', () => {
     'app/api/org/[orgId]/builder/proposals/[proposalId]/build/route.ts',
     'utf8'
   );
+  const repositorySrc = readFileSync('lib/api/repositories/builder.ts', 'utf8');
 
   it('exports a POST handler', () => {
     expect(src).toMatch(/export async function POST/);
@@ -17,13 +18,13 @@ describe('build trigger endpoint', () => {
   });
 
   it('dispatches enqueueScaffoldBuildJob', () => {
-    expect(src).toMatch(/enqueueScaffoldBuildJob/);
+    expect(repositorySrc).toMatch(/enqueueScaffoldBuildJob/);
   });
 
   it('atomically claims the proposal via the builder_claim_code_run RPC before enqueueing', () => {
-    expect(src).toMatch(/claimCodeRun\(/);
-    expect(src).toMatch(/IN_FLIGHT_STATES/);
-    expect(src).toMatch(/alreadyRunning/);
+    expect(repositorySrc).toMatch(/claimCodeRun\(/);
+    expect(repositorySrc).toMatch(/IN_FLIGHT_STATES/);
+    expect(repositorySrc).toMatch(/alreadyRunning/);
   });
 });
 

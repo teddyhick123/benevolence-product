@@ -31,7 +31,6 @@ app/api/org/[orgId]/ai-context/route.ts
 app/api/org/[orgId]/audit/route.ts
 app/api/org/[orgId]/builder/chat/route.ts
 app/api/org/[orgId]/builder/proposals/[proposalId]/apply/route.ts
-app/api/org/[orgId]/builder/proposals/[proposalId]/build/route.ts
 app/api/org/[orgId]/builder/proposals/[proposalId]/route.ts
 app/api/org/[orgId]/builder/proposals/route.ts
 app/api/org/[orgId]/capabilities/implementation-reviewers/route.ts

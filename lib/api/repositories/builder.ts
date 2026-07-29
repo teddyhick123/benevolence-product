@@ -1,9 +1,22 @@
 import { createElevatedClient } from '@/lib/api/admin-client';
-import type { AppAdminAccessContext } from '@/lib/api/principals';
-import { transitionProposal, type CodeState } from '@/lib/builder/proposal-state';
+import type { AppAdminAccessContext, UserAccessContext } from '@/lib/api/principals';
+import { getDefaultBranchSha, isGitHubConfigured } from '@/lib/builder/github-apply';
+import {
+  claimCodeRun,
+  failInFlightRun,
+  IN_FLIGHT_STATES,
+  transitionProposal,
+  type CodeState,
+} from '@/lib/builder/proposal-state';
+import { enqueueScaffoldBuildJob } from '@/lib/builder/scaffold-worker';
 
 type AppAdminBuilderScope = Pick<AppAdminAccessContext, 'isAppAdmin'> & {
   actorId: string;
+};
+
+type OrgBuilderScope = {
+  orgId: string;
+  actorId: UserAccessContext['user']['id'];
 };
 
 export type BuilderProposalReviewResult =
@@ -16,6 +29,13 @@ export type BuilderProposalReviewResult =
   | { ok: false; reason: 'invalid_config_status' }
   | { ok: false; reason: 'missing_code_state' }
   | { ok: false; reason: 'transition_conflict'; currentState: CodeState | null };
+
+export type BuilderBuildResult =
+  | { ok: true; jobId: string; proposalId: string; revisionId: string }
+  | { ok: true; proposalId: string; alreadyRunning: true }
+  | { ok: false; reason: 'not_found' }
+  | { ok: false; reason: 'no_revision' }
+  | { ok: false; reason: 'conflict'; currentState: CodeState | null };
 
 /** Global Builder review operations available only after the app-admin guard succeeds. */
 export function createAppAdminBuilderRepository(scope: AppAdminBuilderScope) {
@@ -103,6 +123,73 @@ export function createAppAdminBuilderRepository(scope: AppAdminBuilderScope) {
       if (error) throw error;
       if (!data) return { ok: false, reason: 'not_found' };
       return { ok: true, proposal: data };
+    },
+  };
+}
+
+/** Elevated Builder operations constrained to one authorized organization. */
+export function createOrgBuilderRepository(scope: OrgBuilderScope) {
+  const db = createElevatedClient();
+
+  return {
+    async startBuild(proposalId: string): Promise<BuilderBuildResult> {
+      const { data: proposal, error: fetchError } = await db
+        .from('builder_proposals')
+        .select('code_state')
+        .eq('id', proposalId)
+        .eq('org_id', scope.orgId)
+        .maybeSingle();
+      if (fetchError) throw fetchError;
+      if (!proposal) return { ok: false, reason: 'not_found' };
+
+      if (IN_FLIGHT_STATES.includes((proposal.code_state ?? '') as CodeState)) {
+        return { ok: true, proposalId, alreadyRunning: true };
+      }
+
+      const claim = await claimCodeRun(db, {
+        proposalId,
+        orgId: scope.orgId,
+        actorId: scope.actorId,
+      });
+      if (!claim.ok) {
+        if (claim.code === 'not_found') return { ok: false, reason: 'not_found' };
+        if (claim.code === 'no_revision') return { ok: false, reason: 'no_revision' };
+        return {
+          ok: false,
+          reason: 'conflict',
+          currentState: (claim.currentState as CodeState | undefined) ?? null,
+        };
+      }
+
+      const { revisionId } = claim;
+      if (isGitHubConfigured()) {
+        try {
+          const baseSha = await getDefaultBranchSha();
+          const { error: shaError } = await db
+            .from('builder_proposal_revisions')
+            .update({ base_commit_sha: baseSha })
+            .eq('id', revisionId)
+            .eq('proposal_id', proposalId);
+          if (shaError) throw shaError;
+        } catch (shaCaptureError) {
+          console.error(
+            `[builder/build] Could not capture base SHA for revision ${revisionId}:`,
+            shaCaptureError
+          );
+        }
+      }
+
+      try {
+        const jobId = await enqueueScaffoldBuildJob({
+          proposalId,
+          orgId: scope.orgId,
+          revisionId,
+        });
+        return { ok: true, jobId, proposalId, revisionId };
+      } catch (queueError) {
+        await failInFlightRun(db, proposalId);
+        throw queueError;
+      }
     },
   };
 }

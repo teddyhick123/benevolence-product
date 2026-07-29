@@ -10,7 +10,7 @@
 // GitHub, and enqueues the build job keyed by revisionId.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import type { ClaimResult } from '@/lib/builder/proposal-state';
 
 const ORG_ID = '11111111-1111-1111-1111-111111111111';
@@ -32,11 +32,18 @@ const failInFlightRunMock = vi.fn(async (..._args: unknown[]) => {});
 const getDefaultBranchShaMock = vi.fn(async (..._args: unknown[]) => 'sha-abc123');
 let _githubConfigured = false;
 
-vi.mock('@/lib/supabase', () => ({
-  createServerClient: vi.fn(async () => ({
-    auth: { getUser: vi.fn(async () => ({ data: { user: _authUser } })) },
-  })),
-  createAdminClient: vi.fn(() => ({
+vi.mock('@/lib/api/access', () => ({
+  requireUserAccess: vi.fn(async () => _authUser
+    ? { ok: true, context: { user: _authUser, db: {} } }
+    : {
+        ok: false,
+        response: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }),
+      }),
+  isAccessDenied: (result: { ok: boolean }) => !result.ok,
+}));
+
+vi.mock('@/lib/api/admin-client', () => ({
+  createElevatedClient: vi.fn(() => ({
     from: (table: string) => {
       if (table === 'builder_proposals') {
         const chain: any = {

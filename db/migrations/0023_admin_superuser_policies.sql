@@ -60,6 +60,59 @@ CREATE POLICY "audit_log: app admin can read"
   ON audit_log FOR SELECT
   USING (is_app_admin());
 
+-- Import workbench: app admins operate across organizations from /admin/imports.
+-- Give their authenticated session the same explicit access the panel requires
+-- instead of forcing ordinary reads and corrections through the service role.
+CREATE POLICY "import_mapping_profiles: app admin full access"
+  ON import_mapping_profiles FOR ALL TO authenticated
+  USING (is_app_admin())
+  WITH CHECK (is_app_admin());
+
+CREATE POLICY "import_jobs: app admin full access"
+  ON import_jobs FOR ALL TO authenticated
+  USING (is_app_admin())
+  WITH CHECK (is_app_admin());
+
+CREATE POLICY "import_ai_suggestions: app admin full access"
+  ON import_ai_suggestions FOR ALL TO authenticated
+  USING (is_app_admin())
+  WITH CHECK (is_app_admin());
+
+CREATE POLICY "staging_import_donors: app admin full access"
+  ON staging_import_donors FOR ALL TO authenticated
+  USING (is_app_admin())
+  WITH CHECK (is_app_admin());
+
+CREATE POLICY "staging_import_investees: app admin full access"
+  ON staging_import_investees FOR ALL TO authenticated
+  USING (is_app_admin())
+  WITH CHECK (is_app_admin());
+
+CREATE POLICY "staging_import_holdings: app admin full access"
+  ON staging_import_holdings FOR ALL TO authenticated
+  USING (is_app_admin())
+  WITH CHECK (is_app_admin());
+
+CREATE POLICY "staging_import_contributions: app admin full access"
+  ON staging_import_contributions FOR ALL TO authenticated
+  USING (is_app_admin())
+  WITH CHECK (is_app_admin());
+
+CREATE POLICY "staging_import_metrics: app admin full access"
+  ON staging_import_metrics FOR ALL TO authenticated
+  USING (is_app_admin())
+  WITH CHECK (is_app_admin());
+
+CREATE POLICY "import_audit_log: app admin full access"
+  ON import_audit_log FOR ALL TO authenticated
+  USING (is_app_admin())
+  WITH CHECK (is_app_admin());
+
+CREATE POLICY "imports bucket: app admin full access"
+  ON storage.objects FOR ALL TO authenticated
+  USING (bucket_id = 'imports' AND public.is_app_admin())
+  WITH CHECK (bucket_id = 'imports' AND public.is_app_admin());
+
 -- ---------------------------------------------------------------------------
 -- org_type_config helpers — per-org type default modules
 -- ---------------------------------------------------------------------------

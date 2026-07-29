@@ -25,10 +25,11 @@ describe('admin route auth contracts', () => {
 
   it('admin import AI row suggestions are admin-only, rate-limited, and table-allowlisted', () => {
     const src = readFileSync('app/api/admin/import/ai/suggest/route.ts', 'utf8');
-    expect(src).toContain('requireAdmin');
+    expect(src).toContain('requireAppAdmin');
     expect(src).toContain('aiLimiter.limit');
     expect(src).toContain('ALLOWED_STAGING_TABLES');
-    expect(src).toContain('ALLOWED_STAGING_TABLES.has(staging_table)');
-    expect(src).toContain("'Cache-Control': 'no-store'");
+    expect(src).toContain('z.enum(ALLOWED_STAGING_TABLES)');
+    expect(src).toContain('jsonOk');
+    expect(src).not.toContain('createAdminClient');
   });
 });

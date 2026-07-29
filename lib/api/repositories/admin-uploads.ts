@@ -12,6 +12,11 @@ type AppAdminUploadScope = Pick<AppAdminAccessContext, 'isAppAdmin'> & {
   actorId: string;
 };
 
+type OrgUploadScope = {
+  orgId: string;
+  actorId: string;
+};
+
 export class StagedMetricFactNotFoundError extends Error {
   constructor() {
     super('Staged fact not found');
@@ -167,12 +172,20 @@ export function createAppAdminUploadReviewRepository(scope: AppAdminUploadScope)
   };
 }
 
-/** Elevated upload ingestion constrained to app-admin callers and verified upload ownership. */
-export function createAppAdminUploadIngestionRepository(scope: AppAdminUploadScope) {
-  if (!scope.isAppAdmin) throw new Error('App admin access required');
+function createScopedUploadIngestionRepository(scope: {
+  actorId: string;
+  orgId?: string;
+  successStatus?: 'done' | 'completed';
+  failureStatus?: 'error' | 'failed';
+}) {
   const db = createElevatedClient();
+  const successStatus = scope.successStatus ?? 'done';
+  const failureStatus = scope.failureStatus ?? 'error';
 
-  async function markStatus(uploadId: string, status: 'processing' | 'done' | 'error') {
+  async function markStatus(
+    uploadId: string,
+    status: 'processing' | 'done' | 'error' | 'completed' | 'failed'
+  ) {
     const { error } = await db
       .from('uploads')
       .update({ status, updated_at: new Date().toISOString() })
@@ -181,11 +194,26 @@ export function createAppAdminUploadIngestionRepository(scope: AppAdminUploadSco
   }
 
   async function requireHolding(portfolioId: string, holdingId: string) {
-    const { data, error } = await db
+    let query = db
       .from('holdings')
       .select('id, org_id, portfolio_id')
       .eq('id', holdingId)
       .eq('portfolio_id', portfolioId)
+      .is('deleted_at', null);
+    if (scope.orgId) query = query.eq('org_id', scope.orgId);
+    const { data, error } = await query.maybeSingle();
+    if (error) throw error;
+    if (!data) throw new AdminUploadHoldingMismatchError();
+    return data as { id: string; org_id: string; portfolio_id: string };
+  }
+
+  async function requireOrgHolding(holdingId: string) {
+    if (!scope.orgId) throw new Error('Organization scope required');
+    const { data, error } = await db
+      .from('holdings')
+      .select('id, org_id, portfolio_id')
+      .eq('id', holdingId)
+      .eq('org_id', scope.orgId)
       .is('deleted_at', null)
       .maybeSingle();
     if (error) throw error;
@@ -284,7 +312,7 @@ export function createAppAdminUploadIngestionRepository(scope: AppAdminUploadSco
       locationsUpserted += 1;
     }
 
-    await markStatus(upload.id, 'done');
+    await markStatus(upload.id, successStatus);
     return {
       uploadId: upload.id,
       portfolioId: upload.portfolio_id,
@@ -317,7 +345,7 @@ export function createAppAdminUploadIngestionRepository(scope: AppAdminUploadSco
 
     const chunks = await parseDocumentChunked(buffer, fileName);
     if (chunks.length === 0 || chunks.every((chunk) => !chunk.text.trim())) {
-      await markStatus(upload.id, 'done');
+      await markStatus(upload.id, successStatus);
       return {
         uploadId: upload.id,
         portfolioId: upload.portfolio_id,
@@ -402,7 +430,7 @@ export function createAppAdminUploadIngestionRepository(scope: AppAdminUploadSco
       try {
         return await processBuffer(upload, params.buffer, 'chunked');
       } catch (error) {
-        await markStatus(uploadId, 'error');
+        await markStatus(uploadId, failureStatus);
         throw error;
       }
     },
@@ -420,9 +448,102 @@ export function createAppAdminUploadIngestionRepository(scope: AppAdminUploadSco
         const buffer = Buffer.from(await data.arrayBuffer());
         return await processBuffer(upload, buffer, 'single');
       } catch (error) {
-        await markStatus(upload.id, 'error');
+        await markStatus(upload.id, failureStatus);
         throw error;
       }
     },
+
+    async createAndIngestForOrg(params: {
+      fileName: string;
+      mimeType: string | null;
+      buffer: Buffer;
+      holdingId: string;
+      aiMode: boolean;
+    }) {
+      const holding = await requireOrgHolding(params.holdingId);
+      const uploadId = crypto.randomUUID();
+      const fileName = safeFileName(params.fileName);
+      const storagePath = `org/${holding.org_id}/uploads/${uploadId}-${fileName}`;
+      const extension = fileName.includes('.') ? fileName.split('.').pop() || '' : '';
+
+      const { error: storageError } = await db.storage
+        .from('uploads')
+        .upload(storagePath, params.buffer, {
+          contentType: params.mimeType || undefined,
+          upsert: false,
+        });
+      if (storageError) throw storageError;
+
+      const upload: UploadRecord = {
+        id: uploadId,
+        org_id: holding.org_id,
+        portfolio_id: holding.portfolio_id,
+        holding_id: holding.id,
+        bucket: 'uploads',
+        storage_path: storagePath,
+        file_name: fileName,
+        filename: fileName,
+        ai_mode: params.aiMode,
+        selected_metrics: null,
+      };
+      const { error: insertError } = await db.from('uploads').insert({
+        ...upload,
+        uploaded_by: scope.actorId,
+        original_name: params.fileName,
+        mime_type: params.mimeType,
+        size_bytes: params.buffer.byteLength,
+        file_ext: extension,
+        status: 'processing',
+      });
+      if (insertError) {
+        await db.storage.from('uploads').remove([storagePath]);
+        throw insertError;
+      }
+
+      if (!params.aiMode) {
+        await markStatus(upload.id, successStatus);
+        return {
+          uploadId: upload.id,
+          portfolioId: upload.portfolio_id,
+          holdingId: upload.holding_id,
+          factsExtracted: 0,
+          locationsExtracted: 0,
+          locationsUpserted: 0,
+          chunksProcessed: 0,
+          metrics: [],
+          message: 'File uploaded. AI extraction was disabled.',
+        } satisfies ProcessedUpload;
+      }
+
+      try {
+        return await processBuffer(upload, params.buffer, 'chunked');
+      } catch (error) {
+        await markStatus(upload.id, failureStatus);
+        throw error;
+      }
+    },
+  };
+}
+
+/** Elevated upload ingestion constrained to app-admin callers and verified upload ownership. */
+export function createAppAdminUploadIngestionRepository(scope: AppAdminUploadScope) {
+  if (!scope.isAppAdmin) throw new Error('App admin access required');
+  const repository = createScopedUploadIngestionRepository({ actorId: scope.actorId });
+  return {
+    createAndIngest: repository.createAndIngest,
+    ingestExisting: repository.ingestExisting,
+  };
+}
+
+/** Elevated upload ingestion constrained to one already-authorized organization. */
+export function createOrgUploadIngestionRepository(scope: OrgUploadScope) {
+  if (!scope.orgId) throw new Error('Organization scope required');
+  const repository = createScopedUploadIngestionRepository({
+    ...scope,
+    successStatus: 'completed',
+    failureStatus: 'failed',
+  });
+  return {
+    createAndIngest: repository.createAndIngestForOrg,
   };
 }

@@ -363,14 +363,14 @@ describe('org-scoped route auth contracts', () => {
     expect(membersRoute).toContain('role: existing.role');
   });
 
-  it('org upload route no-stores responses and checks upload status transitions', () => {
+  it('org upload route uses the shared member guard and org-scoped storage repository', () => {
     const uploadRoute = readFileSync('app/api/org/[orgId]/upload/route.ts', 'utf8');
-    expect(uploadRoute).toContain('"Cache-Control": "no-store"');
-    expect(uploadRoute).toContain('markUploadStatus');
-    expect(uploadRoute).toContain('extractionFailures === chunks.length');
-    expect(uploadRoute).toContain('file.name.replace');
-    expect(uploadRoute).toContain('Failed to mark upload failed');
+    expect(uploadRoute).toContain("requireOrgAccess(orgId, 'member')");
+    expect(uploadRoute).toContain('createOrgUploadIngestionRepository');
+    expect(uploadRoute).toContain('jsonOk');
     expect(uploadRoute).toContain('Holding does not belong to this organization');
+    expect(uploadRoute).not.toContain('createAdminClient');
+    expect(uploadRoute).not.toContain('createServerClient');
   });
 
   it('legacy org holding routes no-store retired endpoint responses', () => {

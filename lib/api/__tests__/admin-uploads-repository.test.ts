@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   createAppAdminUploadIngestionRepository,
   createAppAdminUploadReviewRepository,
+  createOrgUploadIngestionRepository,
 } from '@/lib/api/repositories/admin-uploads';
 import { stubQuery } from '@/tests/helpers/supabase-mock';
 
@@ -363,5 +364,64 @@ describe('createAppAdminUploadIngestionRepository', () => {
     }).ingestExisting('upload-1')).rejects.toThrow('Invalid storage path for upload');
 
     expect(mockStorageDownload).not.toHaveBeenCalled();
+  });
+});
+
+describe('createOrgUploadIngestionRepository', () => {
+  it('stores non-AI uploads within the authorized organization and marks them completed', async () => {
+    const holdingQuery = stubQuery(
+      { data: null, error: null },
+      {
+        maybeSingle: {
+          data: { id: 'holding-1', org_id: 'org-1', portfolio_id: 'portfolio-1' },
+          error: null,
+        },
+      }
+    );
+    const uploadInsert = stubQuery({ data: null, error: null });
+    const statusUpdate = stubQuery({ data: null, error: null });
+    mockFrom
+      .mockReturnValueOnce(holdingQuery)
+      .mockReturnValueOnce(uploadInsert)
+      .mockReturnValueOnce(statusUpdate);
+
+    const result = await createOrgUploadIngestionRepository({
+      orgId: 'org-1',
+      actorId: 'member-1',
+    }).createAndIngest({
+      fileName: 'report.pdf',
+      mimeType: 'application/pdf',
+      buffer: Buffer.from('report'),
+      holdingId: 'holding-1',
+      aiMode: false,
+    });
+
+    expect(holdingQuery.calls).toContainEqual({ method: 'eq', args: ['id', 'holding-1'] });
+    expect(holdingQuery.calls).toContainEqual({ method: 'eq', args: ['org_id', 'org-1'] });
+    expect(mockStorageUpload).toHaveBeenCalledWith(
+      expect.stringMatching(/^org\/org-1\/uploads\/[0-9a-f-]+-report\.pdf$/),
+      expect.any(Buffer),
+      { contentType: 'application/pdf', upsert: false }
+    );
+    expect(uploadInsert.calls).toContainEqual({
+      method: 'insert',
+      args: [expect.objectContaining({
+        org_id: 'org-1',
+        portfolio_id: 'portfolio-1',
+        holding_id: 'holding-1',
+        uploaded_by: 'member-1',
+        bucket: 'uploads',
+        status: 'processing',
+      })],
+    });
+    expect(statusUpdate.calls).toContainEqual({
+      method: 'update',
+      args: [expect.objectContaining({ status: 'completed' })],
+    });
+    expect(mockExtractFactsFromText).not.toHaveBeenCalled();
+    expect(result).toEqual(expect.objectContaining({
+      factsExtracted: 0,
+      message: 'File uploaded. AI extraction was disabled.',
+    }));
   });
 });

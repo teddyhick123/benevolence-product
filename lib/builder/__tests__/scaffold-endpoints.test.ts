@@ -55,6 +55,7 @@ describe('org-scoped apply endpoint', () => {
     'app/api/org/[orgId]/builder/proposals/[proposalId]/apply/route.ts',
     'utf8'
   );
+  const repositorySrc = readFileSync('lib/api/repositories/builder-apply.ts', 'utf8');
 
   it('exports a POST handler', () => {
     expect(src).toMatch(/export async function POST/);
@@ -65,31 +66,31 @@ describe('org-scoped apply endpoint', () => {
   });
 
   it('requires ready_to_apply phase — returns 409 otherwise', () => {
-    expect(src).toMatch(/ready_to_apply/);
-    expect(src).toMatch(/409/);
+    expect(repositorySrc).toMatch(/ready_to_apply/);
+    expect(repositorySrc).toMatch(/409/);
   });
 
   it('calls applyProposalToGitHub', () => {
-    expect(src).toMatch(/applyProposalToGitHub/);
+    expect(repositorySrc).toMatch(/applyProposalToGitHub/);
   });
 
   it('records provider facts in a builder_delivery_records row', () => {
-    expect(src).toMatch(/builder_delivery_records/);
-    expect(src).toMatch(/pr_url/);
-    expect(src).toMatch(/status:\s*['"]pr_open['"]/);
+    expect(repositorySrc).toMatch(/builder_delivery_records/);
+    expect(repositorySrc).toMatch(/pr_url/);
+    expect(repositorySrc).toMatch(/status:\s*['"]pr_open['"]/);
   });
 
   it('transitions to pr_opened via the state service and never writes a status/pr_url column on the proposal', () => {
-    expect(src).toMatch(/transitionProposal/);
-    expect(src).toMatch(/to:\s*['"]pr_opened['"]/);
+    expect(repositorySrc).toMatch(/transitionProposal/);
+    expect(repositorySrc).toMatch(/to:\s*['"]pr_opened['"]/);
     // The deleted phase/status columns must not be written on builder_proposals.
-    expect(src).not.toMatch(/phase:\s*['"]pr_opened['"]/);
-    expect(src).not.toMatch(/status:\s*['"]approved['"]/);
+    expect(repositorySrc).not.toMatch(/phase:\s*['"]pr_opened['"]/);
+    expect(repositorySrc).not.toMatch(/status:\s*['"]approved['"]/);
   });
 
   it('emits proposal_applied builder_event', () => {
-    expect(src).toMatch(/proposal_applied/);
-    expect(src).toMatch(/builder_events/);
+    expect(repositorySrc).toMatch(/proposal_applied/);
+    expect(repositorySrc).toMatch(/builder_events/);
   });
 
   it('returns 503 when GitHub is not configured', () => {
@@ -97,14 +98,14 @@ describe('org-scoped apply endpoint', () => {
   });
 
   it('enforces the path policy and review gate before GitHub', () => {
-    expect(src).toMatch(/evaluatePathPolicy/);
-    expect(src).toMatch(/evaluateAttemptGate/);
-    expect(src).toMatch(/422/);
+    expect(repositorySrc).toMatch(/evaluatePathPolicy/);
+    expect(repositorySrc).toMatch(/evaluateAttemptGate/);
+    expect(repositorySrc).toMatch(/422/);
   });
 
   it('fails when proposal_applied audit event is not recorded', () => {
-    expect(src).toMatch(/if \(eventErr\)/);
-    expect(src).toMatch(/error: eventErr\.message/);
-    expect(src).not.toMatch(/Failed to emit builder proposal_applied event/);
+    expect(repositorySrc).toMatch(/if \(eventError\)/);
+    expect(repositorySrc).toMatch(/BuilderApplyError\(eventError\.message/);
+    expect(repositorySrc).not.toMatch(/Failed to emit builder proposal_applied event/);
   });
 });

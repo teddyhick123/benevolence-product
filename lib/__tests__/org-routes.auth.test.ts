@@ -434,8 +434,11 @@ describe('org-scoped route auth contracts', () => {
     expect(chatRoute).toContain('if (sessionError) throw sessionError');
 
     const applyRoute = readFileSync('app/api/org/[orgId]/builder/proposals/[proposalId]/apply/route.ts', 'utf8');
-    expect(applyRoute).toContain('eventErr');
-    expect(applyRoute).toContain('error: eventErr.message');
-    expect(applyRoute).not.toContain('Failed to emit builder proposal_applied event');
+    const applyRepository = readFileSync('lib/api/repositories/builder-apply.ts', 'utf8');
+    expect(applyRoute).toContain('createOrgBuilderApplyRepository');
+    expect(applyRoute).not.toContain('createAdminClient');
+    expect(applyRepository).toContain('eventError');
+    expect(applyRepository).toContain('BuilderApplyError(eventError.message');
+    expect(applyRepository).not.toContain('Failed to emit builder proposal_applied event');
   });
 });

@@ -47,4 +47,22 @@ describe('admin route auth contracts', () => {
       expect(src, route).not.toContain('requireAdmin');
     }
   });
+
+  it('admin upload review routes use the shared app-admin guard and scoped repository', () => {
+    for (const route of [
+      'app/api/admin/staged-facts/[factId]/approve/route.ts',
+      'app/api/admin/staged-facts/[factId]/route.ts',
+      'app/api/admin/upload/[uploadId]/staged-facts/route.ts',
+      'app/api/admin/upload/[uploadId]/status/route.ts',
+    ]) {
+      const src = readFileSync(route, 'utf8');
+      expect(src, route).toContain('requireAppAdmin');
+      expect(src, route).toContain('createAppAdminUploadReviewRepository');
+      expect(src, route).toContain('jsonOk');
+      expect(src, route).not.toContain('createClient');
+      expect(src, route).not.toContain('createAdminClient');
+      expect(src, route).not.toContain('requireAdmin');
+      expect(src, route).not.toContain('SUPABASE_SERVICE_ROLE');
+    }
+  });
 });

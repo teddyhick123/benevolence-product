@@ -1,54 +1,28 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-import { createServerClient } from '@/lib/supabase';
-import { requireAdmin } from '@/lib/admin-auth';
+import { NextRequest } from 'next/server';
+import { isAccessDenied, requireAppAdmin } from '@/lib/api/access';
+import { createAppAdminUploadReviewRepository } from '@/lib/api/repositories/admin-uploads';
+import { jsonError, jsonOk } from '@/lib/api/responses';
 
 export const runtime = 'nodejs';
 
-function supabaseService() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE!,
-    { auth: { persistSession: false } }
-  );
-}
-
-/**
- * Get staged facts for an upload
- */
 export async function GET(
-  req: NextRequest,
+  _req: NextRequest,
   { params }: { params: Promise<{ uploadId: string }> }
 ) {
-  const userId = await requireAdmin();
-  if (!userId) {
-    return Response.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  const access = await requireAppAdmin();
+  if (isAccessDenied(access)) return access.response;
 
   try {
     const { uploadId } = await params;
+    if (!uploadId) return jsonError('uploadId required', 400);
 
-    if (!uploadId) {
-      return NextResponse.json({ error: 'uploadId required' }, { status: 400 });
-    }
-
-    const sb = supabaseService();
-
-    const { data: facts, error } = await sb
-      .from('staging_metric_facts')
-      .select('*')
-      .eq('upload_id', uploadId)
-      .eq('approved', false)
-      .order('created_at', { ascending: true });
-
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
-
-    return NextResponse.json({ facts: facts || [] });
-  } catch (error: any) {
-    return NextResponse.json({
-      error: error.message || 'Failed to fetch staged facts',
-    }, { status: 500 });
+    const facts = await createAppAdminUploadReviewRepository({
+      isAppAdmin: access.context.isAppAdmin,
+      actorId: access.context.user.id,
+    }).listStagedFacts(uploadId);
+    return jsonOk({ facts });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to fetch staged facts';
+    return jsonError(message, 500);
   }
 }

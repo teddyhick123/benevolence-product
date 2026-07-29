@@ -1,9 +1,5 @@
 app/api/admin/bootstrap/route.ts
 app/api/admin/portfolios/[id]/members/route.ts
-app/api/admin/staged-facts/[factId]/approve/route.ts
-app/api/admin/staged-facts/[factId]/route.ts
-app/api/admin/upload/[uploadId]/staged-facts/route.ts
-app/api/admin/upload/[uploadId]/status/route.ts
 app/api/admin/upload/ingest/route.ts
 app/api/admin/upload/route.ts
 app/api/admin/users/lookup/route.ts

@@ -17,9 +17,24 @@ export class BuilderProposalNotFoundError extends Error {
   }
 }
 
+export class InvalidBuilderArtifactPathError extends Error {
+  constructor() {
+    super('Builder revision has an invalid artifact path');
+    this.name = 'InvalidBuilderArtifactPathError';
+  }
+}
+
 /** Elevated Builder reads constrained to one already-authorized organization. */
 export function createOrgBuilderReadRepository(scope: OrgBuilderReadScope) {
   const db = createElevatedClient();
+
+  function requireScopedArtifactKey(proposalId: string, key: unknown): string {
+    const expectedPrefix = `${scope.orgId}/${proposalId}/`;
+    if (typeof key !== 'string' || !key.startsWith(expectedPrefix)) {
+      throw new InvalidBuilderArtifactPathError();
+    }
+    return key;
+  }
 
   return {
     async listProposals() {
@@ -259,7 +274,7 @@ export function createOrgBuilderReadRepository(scope: OrgBuilderReadScope) {
         context_url: null as string | null,
       };
       if (revisionRow) {
-        const prefix = revisionRow.artifact_prefix as string;
+        const prefix = requireScopedArtifactKey(proposalId, revisionRow.artifact_prefix);
         const [manifestArtifact, diffUrl, filesUrl, contextUrl] = await Promise.all([
           readJsonArtifact<FileManifest>(db, `${prefix}/${ARTIFACT_KEYS.manifest}`),
           signArtifactUrl(db, `${prefix}/${ARTIFACT_KEYS.diff}`, 3600),
@@ -316,7 +331,11 @@ export function createOrgBuilderReadRepository(scope: OrgBuilderReadScope) {
             exit_code: run.exit_code,
             duration_ms: run.duration_ms,
             log_url: run.log_artifact_key
-              ? await signArtifactUrl(db, run.log_artifact_key as string, 3600)
+              ? await signArtifactUrl(
+                  db,
+                  requireScopedArtifactKey(proposalId, run.log_artifact_key),
+                  3600
+                )
               : null,
           }))
         );

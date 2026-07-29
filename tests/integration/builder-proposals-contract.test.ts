@@ -522,6 +522,31 @@ describe('GET /builder/proposals/[proposalId] — shape', () => {
     expect(body.revision.manifest).toBeNull();
   });
 
+  it('rejects a revision artifact prefix outside the authorized organization and proposal', async () => {
+    _revisions = [{
+      ...revisionRow(),
+      artifact_prefix: `${OTHER_ORG_ID}/${CODE_PROPOSAL_ID}/${REVISION_ID}`,
+    }];
+
+    const res = await callDetail(CODE_PROPOSAL_ID);
+
+    expect(res.status).toBe(500);
+    expect(await res.json()).toEqual({ error: 'Builder revision has an invalid artifact path' });
+    expect(readJsonArtifactMock).not.toHaveBeenCalled();
+    expect(signArtifactUrlMock).not.toHaveBeenCalled();
+  });
+
+  it('never signs a verification log outside the authorized organization and proposal', async () => {
+    const invalidLogKey = `${OTHER_ORG_ID}/${CODE_PROPOSAL_ID}/${REVISION_ID}/checks/types.log`;
+    _runs = [{ ..._runs[0], log_artifact_key: invalidLogKey }];
+
+    const res = await callDetail(CODE_PROPOSAL_ID);
+
+    expect(res.status).toBe(500);
+    expect(await res.json()).toEqual({ error: 'Builder revision has an invalid artifact path' });
+    expect(signArtifactUrlMock.mock.calls.some(call => call[1] === invalidLogKey)).toBe(false);
+  });
+
   it('a config proposal has null revision, empty attempts/delivery, and null artifacts', async () => {
     const res = await callDetail(CONFIG_PROPOSAL_ID);
     expect(res.status).toBe(200);

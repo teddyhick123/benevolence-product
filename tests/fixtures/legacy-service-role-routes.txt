@@ -5,8 +5,6 @@ app/api/admin/imports/[id]/ai/reconcile/route.ts
 app/api/admin/imports/[id]/commit/route.ts
 app/api/admin/imports/[id]/reconciliation/route.ts
 app/api/admin/imports/[id]/report/route.ts
-app/api/admin/imports/[id]/rollback/route.ts
-app/api/admin/imports/watchdog/route.ts
 app/api/admin/portfolios/[id]/members/route.ts
 app/api/admin/staged-facts/[factId]/approve/route.ts
 app/api/admin/staged-facts/[factId]/route.ts

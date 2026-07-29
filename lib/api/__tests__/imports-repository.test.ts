@@ -6,9 +6,10 @@ import { stubQuery } from '@/tests/helpers/supabase-mock';
 const ORG_ID = '11111111-1111-1111-1111-111111111111';
 const JOB_ID = '22222222-2222-2222-2222-222222222222';
 
-const { mockCreateElevatedClient, mockFrom, mockRollbackImport } = vi.hoisted(() => ({
+const { mockCreateElevatedClient, mockFrom, mockRpc, mockRollbackImport } = vi.hoisted(() => ({
   mockCreateElevatedClient: vi.fn(),
   mockFrom: vi.fn(),
+  mockRpc: vi.fn(),
   mockRollbackImport: vi.fn(),
 }));
 
@@ -22,19 +23,37 @@ vi.mock('@/lib/import/rollback', () => ({
 
 import {
   createImportRollbackRepository,
+  createAppAdminImportMaintenanceRepository,
   ImportRollbackJobNotFoundError,
   ImportRollbackStatusError,
 } from '@/lib/api/repositories/imports';
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mockCreateElevatedClient.mockReturnValue({ from: mockFrom });
+  mockCreateElevatedClient.mockReturnValue({ from: mockFrom, rpc: mockRpc });
   mockRollbackImport.mockResolvedValue({
     scope: 'full',
     recordsReverted: 1,
     recordsSkipped: 0,
     errors: [],
     durationMs: 1,
+  });
+  mockRpc.mockResolvedValue({ data: 2, error: null });
+});
+
+describe('app-admin import maintenance repository', () => {
+  it('exposes only the stale-job operation and calls the service-only RPC', async () => {
+    const repository = createAppAdminImportMaintenanceRepository({
+      isAppAdmin: true,
+      actorId: 'app-admin-1',
+    });
+
+    await expect(repository.reapStaleJobs(30)).resolves.toEqual({ data: 2, error: null });
+    expect(mockRpc).toHaveBeenCalledWith('mark_stale_import_jobs', {
+      p_stale_threshold_minutes: 30,
+    });
+    expect(repository).not.toHaveProperty('db');
+    expect(repository).not.toHaveProperty('rpc');
   });
 });
 

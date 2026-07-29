@@ -1,9 +1,9 @@
 // POST /api/admin/imports/watchdog
 // Manually trigger stale job check (admin only)
 // Returns: { reaped: number }
-import { NextResponse } from 'next/server';
-import { createAdminClient } from '@/lib/supabase';
-import { requireAdmin } from '@/lib/admin-auth';
+import { requireAppAdmin } from '@/lib/api/access';
+import { createAppAdminImportMaintenanceRepository } from '@/lib/api/repositories/imports';
+import { jsonError, jsonOk } from '@/lib/api/responses';
 
 const STALE_THRESHOLD_MINUTES = 30;
 
@@ -12,25 +12,24 @@ function isMissingStaleJobRpc(message: string): boolean {
 }
 
 export async function POST() {
-  const userId = await requireAdmin();
-  if (!userId) {
-    return Response.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  const access = await requireAppAdmin();
+  if (!access.ok) return access.response;
 
-  const supabase = createAdminClient();
-  const { data, error } = await supabase.rpc('mark_stale_import_jobs', {
-    p_stale_threshold_minutes: STALE_THRESHOLD_MINUTES,
+  const repository = createAppAdminImportMaintenanceRepository({
+    isAppAdmin: access.context.isAppAdmin,
+    actorId: access.context.user.id,
   });
+  const { data, error } = await repository.reapStaleJobs(STALE_THRESHOLD_MINUTES);
   if (error) {
-    return NextResponse.json(
+    return jsonError(
+      error.message,
+      isMissingStaleJobRpc(error.message) ? 501 : 500,
       {
-        error: error.message,
         hint: isMissingStaleJobRpc(error.message)
-          ? 'Apply db/migrations/0050_import_tables.sql or run scripts/run-migrations.sh.'
+          ? 'Apply db/migrations/0018_import_system.sql or run scripts/run-migrations.sh.'
           : undefined,
-      },
-      { status: isMissingStaleJobRpc(error.message) ? 501 : 500 }
+      }
     );
   }
-  return NextResponse.json({ reaped: data ?? 0 });
+  return jsonOk({ reaped: data ?? 0 });
 }

@@ -1,64 +1,52 @@
 // app/api/admin/imports/[id]/rollback/route.ts
 // POST: rollback an import job (full or partial scope)
 
-import { NextRequest, NextResponse } from 'next/server';
-import { createAdminClient, createServerClient } from '@/lib/supabase';
-import { rollbackImport } from '@/lib/import/rollback';
-import type { RollbackScope } from '@/lib/import/rollback';
-import type { ImportJob } from '@/lib/import/types';
-import { requireAdmin } from '@/lib/admin-auth';
+import { NextRequest } from 'next/server';
+import { z } from 'zod';
+import { requireAppAdmin } from '@/lib/api/access';
+import {
+  createImportRollbackRepository,
+  ImportRollbackJobNotFoundError,
+  ImportRollbackStatusError,
+} from '@/lib/api/repositories/imports';
+import { jsonError, jsonOk } from '@/lib/api/responses';
 
-const VALID_STATUSES = ['completed', 'needs_review', 'failed'];
-const VALID_SCOPES: RollbackScope[] = ['full', 'donors', 'investees', 'holdings', 'contributions', 'metrics'];
+const rollbackSchema = z.object({
+  scope: z.enum(['full', 'donors', 'investees', 'holdings', 'contributions', 'metrics'])
+    .default('full'),
+}).strict();
 
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const userId = await requireAdmin();
-  if (!userId) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  const access = await requireAppAdmin();
+  if (!access.ok) return access.response;
 
   const { id } = await params;
-  const body = await req.json().catch(() => ({}));
-  const scope: RollbackScope = VALID_SCOPES.includes(body.scope) ? body.scope : 'full';
+  const parsed = rollbackSchema.safeParse(await req.json().catch(() => ({})));
+  if (!parsed.success) return jsonError('Validation failed', 400, { details: parsed.error.format() });
 
-  const supabase = createAdminClient();
-
-  const { data: job, error: jobError } = await supabase
+  const { data: job, error: jobError } = await access.context.db
     .from('import_jobs')
-    .select('*')
+    .select('id, org_id')
     .eq('id', id)
-    .single();
+    .maybeSingle();
 
   if (jobError || !job) {
-    return NextResponse.json({ error: 'Import job not found' }, { status: 404 });
-  }
-
-  if (!VALID_STATUSES.includes(job.status)) {
-    return NextResponse.json(
-      { error: `Job must be in completed, needs_review, or failed status to rollback. Current: ${job.status}` },
-      { status: 400 }
-    );
+    return jsonError('Import job not found', 404);
   }
 
   try {
-    const result = await rollbackImport(supabase, id, scope);
-
-    // Fetch updated job
-    const { data: updatedJob } = await supabase
-      .from('import_jobs')
-      .select('*')
-      .eq('id', id)
-      .single();
-
-    return NextResponse.json(
-      { result, job: updatedJob as ImportJob },
-      { headers: { 'Cache-Control': 'no-store' } }
-    );
-  } catch (err) {
+    const repository = createImportRollbackRepository({
+      orgId: job.org_id,
+      actorId: access.context.user.id,
+    });
+    return jsonOk(await repository.rollback(id, parsed.data.scope));
+  } catch (err: unknown) {
+    if (err instanceof ImportRollbackJobNotFoundError) return jsonError(err.message, 404);
+    if (err instanceof ImportRollbackStatusError) return jsonError(err.message, 400);
     const message = err instanceof Error ? err.message : String(err);
-    return NextResponse.json({ error: message }, { status: 500 });
+    return jsonError(message, 500);
   }
 }

@@ -19,6 +19,10 @@ const {
   mockStorageFrom,
   mockStorageUpload,
   mockEnqueueImportJob,
+  mockCreateImportRollbackRepository,
+  mockCreateImportMaintenanceRepository,
+  mockRollback,
+  mockReapStaleJobs,
 } = vi.hoisted(() => ({
   mockRequireAppAdmin: vi.fn(),
   mockFrom: vi.fn(),
@@ -31,6 +35,10 @@ const {
   mockStorageFrom: vi.fn(),
   mockStorageUpload: vi.fn(),
   mockEnqueueImportJob: vi.fn(),
+  mockCreateImportRollbackRepository: vi.fn(),
+  mockCreateImportMaintenanceRepository: vi.fn(),
+  mockRollback: vi.fn(),
+  mockReapStaleJobs: vi.fn(),
 }));
 
 vi.mock('@/lib/api/access', () => ({
@@ -65,6 +73,13 @@ vi.mock('@/lib/import/job-queue', () => ({
   enqueueImportJob: mockEnqueueImportJob,
 }));
 
+vi.mock('@/lib/api/repositories/imports', () => ({
+  createImportRollbackRepository: mockCreateImportRollbackRepository,
+  createAppAdminImportMaintenanceRepository: mockCreateImportMaintenanceRepository,
+  ImportRollbackJobNotFoundError: class ImportRollbackJobNotFoundError extends Error {},
+  ImportRollbackStatusError: class ImportRollbackStatusError extends Error {},
+}));
+
 import {
   GET as listMappingProfiles,
   POST as saveMappingProfile,
@@ -80,6 +95,8 @@ import { POST as importChat } from '@/app/api/admin/imports/[id]/ai/chat/route';
 import { POST as suggestFixes } from '@/app/api/admin/import/ai/suggest/route';
 import { POST as mappingAssist } from '@/app/api/admin/imports/mapping-assist/route';
 import { GET as listJobs, POST as createJob } from '@/app/api/admin/imports/route';
+import { POST as rollbackJob } from '@/app/api/admin/imports/[id]/rollback/route';
+import { POST as runWatchdog } from '@/app/api/admin/imports/watchdog/route';
 
 function context() {
   return { params: Promise.resolve({ id: JOB_ID }) };
@@ -108,6 +125,13 @@ beforeEach(() => {
   mockStorageFrom.mockReturnValue({ upload: mockStorageUpload });
   mockStorageUpload.mockResolvedValue({ data: {}, error: null });
   mockEnqueueImportJob.mockResolvedValue('queue-job-1');
+  mockCreateImportRollbackRepository.mockReturnValue({ rollback: mockRollback });
+  mockRollback.mockResolvedValue({
+    result: { scope: 'full', recordsReverted: 1, recordsSkipped: 0, errors: [], durationMs: 1 },
+    job: { id: JOB_ID, org_id: ORG_ID, status: 'rolled_back' },
+  });
+  mockCreateImportMaintenanceRepository.mockReturnValue({ reapStaleJobs: mockReapStaleJobs });
+  mockReapStaleJobs.mockResolvedValue({ data: 2, error: null });
 });
 
 describe('app-admin import session routes', () => {
@@ -399,5 +423,41 @@ describe('app-admin import session routes', () => {
     expect(response.status).toBe(400);
     expect(portfolioQuery.calls).toContainEqual({ method: 'eq', args: ['org_id', ORG_ID] });
     expect(mockEnqueueImportJob).not.toHaveBeenCalled();
+  });
+
+  it('resolves the rollback organization through RLS before constructing its repository', async () => {
+    const jobQuery = stubQuery(
+      { data: null, error: null },
+      { maybeSingle: { data: { id: JOB_ID, org_id: ORG_ID }, error: null } }
+    );
+    mockFrom.mockReturnValue(jobQuery);
+
+    const response = await rollbackJob(
+      request(`/api/admin/imports/${JOB_ID}/rollback`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ scope: 'full' }),
+      }),
+      context()
+    );
+
+    expect(response.status).toBe(200);
+    expect(mockCreateImportRollbackRepository).toHaveBeenCalledWith({
+      orgId: ORG_ID,
+      actorId: 'app-admin-1',
+    });
+    expect(mockRollback).toHaveBeenCalledWith(JOB_ID, 'full');
+  });
+
+  it('runs stale-job maintenance only through the app-admin repository', async () => {
+    const response = await runWatchdog();
+
+    expect(response.status).toBe(200);
+    expect(mockCreateImportMaintenanceRepository).toHaveBeenCalledWith({
+      isAppAdmin: true,
+      actorId: 'app-admin-1',
+    });
+    expect(mockReapStaleJobs).toHaveBeenCalledWith(30);
+    expect(await response.json()).toEqual({ reaped: 2 });
   });
 });

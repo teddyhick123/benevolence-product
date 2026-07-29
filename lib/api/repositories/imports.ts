@@ -1,9 +1,13 @@
 import { createElevatedClient } from '@/lib/api/admin-client';
-import type { OrgAccessContext } from '@/lib/api/principals';
+import type { AppAdminAccessContext, OrgAccessContext } from '@/lib/api/principals';
 import { rollbackImport, type RollbackScope } from '@/lib/import/rollback';
 import type { ImportJob } from '@/lib/import/types';
 
 type ImportRollbackScope = Pick<OrgAccessContext, 'orgId'> & {
+  actorId: string;
+};
+
+type ImportMaintenanceScope = Pick<AppAdminAccessContext, 'isAppAdmin'> & {
   actorId: string;
 };
 
@@ -54,6 +58,20 @@ export function createImportRollbackRepository(scope: ImportRollbackScope) {
       if (!updatedJob) throw new ImportRollbackJobNotFoundError();
 
       return { result, job: updatedJob as ImportJob };
+    },
+  };
+}
+
+/** Global import maintenance available only after the app-admin guard succeeds. */
+export function createAppAdminImportMaintenanceRepository(scope: ImportMaintenanceScope) {
+  const db = createElevatedClient();
+
+  return {
+    async reapStaleJobs(staleThresholdMinutes: number) {
+      if (!scope.isAppAdmin) throw new Error('App admin access required');
+      return db.rpc('mark_stale_import_jobs', {
+        p_stale_threshold_minutes: staleThresholdMinutes,
+      });
     },
   };
 }

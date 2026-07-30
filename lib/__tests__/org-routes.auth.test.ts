@@ -6,20 +6,22 @@ describe('org-scoped route auth contracts', () => {
   it('organization dashboard requires org membership before admin reads and disables caching', () => {
     const src = readFileSync('app/api/org/[orgId]/dashboard/route.ts', 'utf8');
 
-    expect(src).toContain('user_org_role');
-    expect(src.indexOf('user_org_role')).toBeLessThan(src.indexOf('.from("organizations")'));
-    expect(src).toContain('createAdminClient');
-    expect(src).toContain('"Cache-Control": "no-store"');
+    expect(src).toContain('requireOrgAccess');
+    expect(src).toContain('jsonOk');
+    expect(src).not.toContain('createAdminClient');
+    expect(src).not.toContain('createServerClient');
   });
 
   it('organization metrics require view/edit access, scope writes to org holdings, and disable caching', () => {
     const src = readFileSync('app/api/org/[orgId]/metrics/route.ts', 'utf8');
 
-    expect(src).toContain('user_org_role');
-    expect(src).toContain('can_edit_org');
+    expect(src).toContain('requireOrgAccess');
+    expect(src).toContain("requireOrgAccess(orgId, \"member\")");
     expect(src).toContain('.eq("org_id", orgId)');
     expect(src).toContain('submitted_by_org_id: orgId');
-    expect(src).toContain('"Cache-Control": "no-store"');
+    expect(src).toContain('jsonOk');
+    expect(src).not.toContain('createAdminClient');
+    expect(src).not.toContain('createServerClient');
   });
 
   it('notification routes are user scoped and disable caching', () => {

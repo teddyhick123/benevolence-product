@@ -1,21 +1,10 @@
-import { NextRequest, NextResponse } from "next/server";
-import { createServerClient, createAdminClient } from "@/lib/supabase";
+import { NextRequest } from "next/server";
+import { isAccessDenied, requireOrgAccess } from "@/lib/api/access";
+import { jsonError, jsonOk } from "@/lib/api/responses";
 import { getOrgEnabledModules } from "@/lib/modules";
 import type { ModuleId } from "@/lib/modules/types";
 
 export const dynamic = "force-dynamic";
-
-const NO_STORE = { "Cache-Control": "no-store" } as const;
-
-function json(body: unknown, init: ResponseInit = {}) {
-  return NextResponse.json(body, {
-    ...init,
-    headers: {
-      ...NO_STORE,
-      ...(init.headers || {}),
-    },
-  });
-}
 
 interface RouteParams {
   params: Promise<{ orgId: string }>;
@@ -100,17 +89,13 @@ function countDuplicateLabels(labels: Array<string | null | undefined>) {
 }
 
 // GET /api/org/[orgId]/dashboard - Get dashboard data
-export async function GET(req: NextRequest, { params }: RouteParams) {
-  try {
-    const { orgId } = await params;
-    const supabase = await createServerClient();
-    const adminClient = createAdminClient();
+export async function GET(_req: NextRequest, { params }: RouteParams) {
+  const { orgId } = await params;
+  const access = await requireOrgAccess(orgId);
+  if (isAccessDenied(access)) return access.response;
 
-    // Check access
-    const { data: role } = await supabase.rpc("user_org_role", { p_org_id: orgId });
-    if (!role) {
-      return json({ error: "Not authorized" }, { status: 403 });
-    }
+  try {
+    const adminClient = access.context.db;
 
     // Get organization details
     const { data: org, error: orgError } = await adminClient
@@ -120,7 +105,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       .single();
 
     if (orgError || !org) {
-      return json({ error: "Organization not found" }, { status: 404 });
+      return jsonError("Organization not found", 404);
     }
 
     // Get enabled modules
@@ -508,7 +493,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       });
     }
 
-    return json({
+    return jsonOk({
       org: {
         id: org.id,
         name: org.name,
@@ -565,10 +550,11 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
           ai_calls_limit: null,
         },
       },
-      user_role: role,
+      user_role: access.context.role,
     });
-  } catch (err: any) {
+  } catch (err) {
     console.error("Dashboard API error:", err);
-    return json({ error: err.message }, { status: 500 });
+    const message = err instanceof Error ? err.message : "Failed to load dashboard";
+    return jsonError(message, 500);
   }
 }

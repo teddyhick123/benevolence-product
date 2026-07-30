@@ -1,35 +1,11 @@
-import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
-import { createServerClient } from '@supabase/ssr';
-import { createClient as createServiceClient } from '@supabase/supabase-js';
+import { isAccessDenied, requirePortfolioAccess } from '@/lib/api/access';
+import { jsonError, jsonOk } from '@/lib/api/responses';
 
 export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> }) {
-  const { id: portfolio_id } = await ctx.params; // <- await the params
-  const url = new URL(_req.url);
-  const debug = url.searchParams.get('debug') === '1';
-
-  // Bind Supabase to the user's auth cookies so RLS can verify portfolio membership
-  const cookieStore = await cookies();
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        get(name: string) {
-          return cookieStore.get(name)?.value;
-        },
-        set(name: string, value: string, options: any) {
-          cookieStore.set({ name, value, ...options });
-        },
-        remove(name: string, options: any) {
-          cookieStore.set({ name, value: '', ...options });
-        },
-      },
-    }
-  );
-
-  const { data: userData } = await supabase.auth.getUser();
-  const authUserId = userData?.user?.id ?? null;
+  const { id: portfolio_id } = await ctx.params;
+  const access = await requirePortfolioAccess(portfolio_id);
+  if (isAccessDenied(access)) return access.response;
+  const supabase = access.context.db;
 
   // Fetch holdings with geocoding data from holdings table
   const { data: holdingsData, error: holdingsError } = await supabase
@@ -41,7 +17,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
     .order('name');
 
   if (holdingsError) {
-    return NextResponse.json({ error: holdingsError.message }, { status: 500 });
+    return jsonError(holdingsError.message, 500);
   }
 
   const holdingsWithCoords = holdingsData ?? [];
@@ -191,32 +167,9 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
   // Combine both point arrays
   const points = [...holdingPoints, ...locationPoints];
 
-  const base = {
+  return jsonOk({
     points,
     count: points.length,
     portfolio_id_echo: portfolio_id,
-  } as any;
-
-  if (debug) {
-    try {
-      const sr = createServiceClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!,
-        { auth: { persistSession: false } }
-      );
-      const { data: srData } = await sr
-        .from('holdings')
-        .select('id')
-        .eq('portfolio_id', portfolio_id)
-        .not('latitude', 'is', null)
-        .not('longitude', 'is', null);
-      base.service_role_count = srData?.length ?? 0;
-    } catch (e) {
-      base.service_role_error = (e as Error)?.message ?? 'service role check failed';
-    }
-  }
-
-  return NextResponse.json(base, {
-    headers: { 'Cache-Control': 'no-store' }
   });
 }

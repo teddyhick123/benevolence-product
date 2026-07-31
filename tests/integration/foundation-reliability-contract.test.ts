@@ -157,10 +157,13 @@ describe('foundation reliability contracts', () => {
 
   it('widget preview saves require portfolio edit access and scope holding widgets', () => {
     const route = src('app/api/portfolio/[id]/widgets/save-preview/route.ts');
-    expect(route).toContain('can_edit_portfolio');
-    expect(route).toContain(".eq('portfolio_id', portfolioId)");
-    expect(route).toContain('widgetsError');
-    expect(route).toContain("'Cache-Control': 'no-store'");
+    const repository = src('lib/api/repositories/visualizations.ts');
+    expect(route).toContain("requirePortfolioAccess(portfolioId, 'member')");
+    expect(route).toContain('createPortfolioVisualizationRepository');
+    expect(route).toContain('jsonOk');
+    expect(route).not.toContain('createClient');
+    expect(repository).toContain(".eq('portfolio_id', scope.portfolioId)");
+    expect(repository).toContain('PortfolioWidgetHoldingNotFoundError');
   });
 
   it('generated task automation checks task and event writes', () => {

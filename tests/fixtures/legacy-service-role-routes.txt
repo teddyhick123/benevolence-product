@@ -32,8 +32,6 @@ app/api/org/[orgId]/invitations/route.ts
 app/api/org/[orgId]/members/[userId]/route.ts
 app/api/org/[orgId]/members/route.ts
 app/api/org/[orgId]/modules/route.ts
-app/api/org/[orgId]/pledges/[pledgeId]/cancel/route.ts
-app/api/org/[orgId]/pledges/[pledgeId]/installments/[installmentId]/route.ts
 app/api/org/[orgId]/tasks/[taskId]/comments/route.ts
 app/api/org/[orgId]/tasks/[taskId]/complete/route.ts
 app/api/org/[orgId]/tasks/[taskId]/reopen/route.ts

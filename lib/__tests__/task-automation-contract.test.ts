@@ -31,6 +31,7 @@ const filingCalendarRouteSrc = read('app/api/org/[orgId]/compliance/filing-calen
 const complianceRepositorySrc = read('lib/api/repositories/compliance.ts');
 const installmentRouteSrc = read('app/api/org/[orgId]/pledges/[pledgeId]/installments/[installmentId]/route.ts');
 const pledgeCancelRouteSrc = read('app/api/org/[orgId]/pledges/[pledgeId]/cancel/route.ts');
+const pledgeRepositorySrc = read('lib/api/repositories/pledges.ts');
 const milestoneRouteSrc = read('app/api/portfolio/[id]/holdings/[holdingId]/milestones/[milestoneId]/route.ts');
 const grantRepositorySrc = read('lib/api/repositories/grants.ts');
 const importRepositorySrc = read('lib/api/repositories/imports.ts');
@@ -254,17 +255,20 @@ describe('Source hook cancel prefix safety', () => {
   });
 
   it('installment route uses prefix form for completeGeneratedTasks on pay', () => {
-    expect(installmentRouteSrc).toMatch(/completeGeneratedTasks[^`]*`pledge_installment:\${[^}]+}:`/);
+    expect(installmentRouteSrc).toContain('syncInstallmentTasks');
+    expect(pledgeRepositorySrc).toMatch(/completeGeneratedTasks[\s\S]*sourcePrefix/);
+    expect(pledgeRepositorySrc).toMatch(/sourcePrefix\s*=\s*`pledge_installment:\${[^}]+}:`/);
   });
 
   it('installment route uses prefix form for cancelGeneratedTasks on waive/write_off', () => {
-    expect(installmentRouteSrc).toMatch(/cancelGeneratedTasks[^`]*`pledge_installment:\${[^}]+}:`/);
+    expect(pledgeRepositorySrc).toMatch(/cancelGeneratedTasks[\s\S]*sourcePrefix/);
   });
 
   it('pledge cancel route uses prefix form for cancelGeneratedTasks', () => {
     const migration = read('db/migrations/0041_task_workflow_foundation.sql');
 
-    expect(pledgeCancelRouteSrc).toContain("rpc('cancel_pledge_with_obligations'");
+    expect(pledgeCancelRouteSrc).toContain('cancelPledge');
+    expect(pledgeRepositorySrc).toContain("rpc('cancel_pledge_with_obligations'");
     expect(migration).toContain("t.source_key LIKE ('pledge_installment:' || pi.id || ':%')");
   });
 });

@@ -168,3 +168,19 @@ keeps the existing semantics.
 **Suggested follow-up (not scheduled):** Fail the run when either queue read
 errors, and add job monitoring that distinguishes an empty queue from a failed
 scan.
+
+### 2026-08-01 — Phase 2, pledge family — installment task sync is post-commit
+
+**What happened:** The installment status RPC commits the pledge/installment
+change before `lib/api/repositories/pledges.ts` synchronizes generated tasks.
+
+**Expected vs. actual:** Under normal operation both states agree. If generated
+task synchronization fails, the endpoint returns 500 even though the installment
+status and pledge event have already committed.
+
+**Why left alone:** Making the pledge mutation and task updates atomic requires
+expanding the database RPC or introducing an outbox/retry boundary. The scoped
+repository preserves the existing ordering.
+
+**Suggested follow-up (not scheduled):** Fold task synchronization into the
+installment RPC or persist a retryable domain event in the same transaction.

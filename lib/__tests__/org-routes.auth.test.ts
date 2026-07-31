@@ -293,14 +293,19 @@ describe('org-scoped route auth contracts', () => {
       'app/api/org/[orgId]/pledges/[pledgeId]/installments/[installmentId]/route.ts',
       'utf8'
     );
-    expect(installmentRoute).toContain("'Cache-Control': 'no-store'");
-    expect(installmentRoute).toContain('await completeGeneratedTasks');
-    expect(installmentRoute).toContain('await cancelGeneratedTasks');
+    expect(installmentRoute).toContain('requireOrgAccess');
+    expect(installmentRoute).toContain('jsonOk');
+    expect(installmentRoute).toContain('await repository.syncInstallmentTasks');
+    expect(installmentRoute).not.toContain('createAdminClient');
+    expect(installmentRoute).not.toContain('createServerClient');
     expect(installmentRoute).not.toContain('Fire-and-forget');
 
     const cancelRoute = readFileSync('app/api/org/[orgId]/pledges/[pledgeId]/cancel/route.ts', 'utf8');
-    expect(cancelRoute).toContain("'Cache-Control': 'no-store'");
-    expect(cancelRoute).toContain("rpc('cancel_pledge_with_obligations'");
+    expect(cancelRoute).toContain("requireOrgAccess(orgId, 'admin')");
+    expect(cancelRoute).toContain('createPledgeRepository');
+    expect(cancelRoute).toContain('jsonOk');
+    expect(cancelRoute).not.toContain('createAdminClient');
+    expect(cancelRoute).not.toContain('createServerClient');
     expect(cancelRoute).not.toContain('waiverError');
     expect(cancelRoute).not.toContain('eventError');
     expect(cancelRoute).not.toContain('instError');

@@ -1,21 +1,10 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { createServerClient, createAdminClient } from '@/lib/supabase';
+import { NextRequest } from 'next/server';
+import { isAccessDenied, requireOrgAccess } from '@/lib/api/access';
+import { createPledgeRepository } from '@/lib/api/repositories/pledges';
+import { jsonError, jsonOk } from '@/lib/api/responses';
 import { PatchInstallmentSchema } from '@/lib/schemas/pledge';
-import { completeGeneratedTasks, cancelGeneratedTasks } from '@/lib/tasks/automation/task-writer';
 
 export const dynamic = 'force-dynamic';
-
-const NO_STORE = { 'Cache-Control': 'no-store' } as const;
-
-function json(body: unknown, init: ResponseInit = {}) {
-  return NextResponse.json(body, {
-    ...init,
-    headers: {
-      ...NO_STORE,
-      ...(init.headers || {}),
-    },
-  });
-}
 
 export async function PATCH(
   req: NextRequest,
@@ -23,18 +12,19 @@ export async function PATCH(
 ) {
   try {
     const { orgId, pledgeId, installmentId } = await params;
-    const supabase = await createServerClient();
-    const { data: role } = await supabase.rpc('user_org_role', { p_org_id: orgId });
-    if (!['owner','admin','member'].includes(role)) return json({ error: 'Not authorized' }, { status: 403 });
+    const access = await requireOrgAccess(orgId, 'member');
+    if (isAccessDenied(access)) return access.response;
 
     let body: any;
-    try { body = await req.json(); } catch { return json({ error: 'Invalid JSON' }, { status: 400 }); }
+    try { body = await req.json(); } catch { return jsonError('Invalid JSON', 400); }
 
     const parsed = PatchInstallmentSchema.safeParse(body);
-    if (!parsed.success) return json({ error: parsed.error.issues }, { status: 400 });
+    if (!parsed.success) {
+      return jsonOk({ error: parsed.error.issues }, { status: 400 });
+    }
 
     const d = parsed.data;
-    const { data: result, error } = await supabase.rpc('update_pledge_installment_status', {
+    const { data: result, error } = await access.context.db.rpc('update_pledge_installment_status', {
       p_org_id:              orgId,
       p_pledge_id:           pledgeId,
       p_installment_id:      installmentId,
@@ -45,25 +35,30 @@ export async function PATCH(
       p_create_contribution: d.create_contribution ?? false,
       p_notes:               d.notes ?? null,
     });
-    if (error) return json({ error: error.message }, { status: 500 });
+    if (error) return jsonError(error.message, 500);
 
-    const action = d.action;
-    const adminDb = createAdminClient();
-    const prefix = `pledge_installment:${installmentId}:`;
-    if (action === 'mark_paid') {
-      await completeGeneratedTasks(adminDb, orgId, prefix, 'Installment paid');
-    } else if (action === 'waive') {
-      await cancelGeneratedTasks(adminDb, orgId, prefix, 'Installment waived');
-    } else if (action === 'write_off') {
-      await cancelGeneratedTasks(adminDb, orgId, prefix, 'Installment written off');
-    }
+    const repository = createPledgeRepository({
+      orgId,
+      actorId: access.context.principal.userId,
+    });
+    await repository.syncInstallmentTasks(installmentId, d.action);
     // 'reopen' intentionally does not close tasks — the producer will regenerate if due
 
-    const { data: pledge }       = await supabase.from('v_pledge_pipeline').select('*').eq('id', pledgeId).single();
-    const { data: installments } = await supabase.from('pledge_installments').select('*').eq('pledge_id', pledgeId).order('due_date');
+    const { data: pledge } = await access.context.db
+      .from('v_pledge_pipeline')
+      .select('*')
+      .eq('id', pledgeId)
+      .eq('org_id', orgId)
+      .single();
+    const { data: installments } = await access.context.db
+      .from('pledge_installments')
+      .select('*')
+      .eq('pledge_id', pledgeId)
+      .eq('org_id', orgId)
+      .order('due_date');
 
-    return json({ result, pledge, installments });
+    return jsonOk({ result, pledge, installments });
   } catch (err: any) {
-    return json({ error: err.message }, { status: 500 });
+    return jsonError(err.message, 500);
   }
 }

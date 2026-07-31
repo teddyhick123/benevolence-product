@@ -317,9 +317,11 @@ describe('foundation reliability contracts', () => {
 
   it('pledge cancellation uses a transactional obligations RPC', () => {
     const route = src('app/api/org/[orgId]/pledges/[pledgeId]/cancel/route.ts');
+    const repository = src('lib/api/repositories/pledges.ts');
     const migration = src('db/migrations/0041_task_workflow_foundation.sql');
 
-    expect(route).toContain("rpc('cancel_pledge_with_obligations'");
+    expect(route).toContain('cancelPledge');
+    expect(repository).toContain("rpc('cancel_pledge_with_obligations'");
     expect(route).not.toContain("from('pledges')");
     expect(route).not.toContain("from('pledge_installments')");
     expect(route).not.toContain("from('pledge_events')");

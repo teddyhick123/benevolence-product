@@ -79,3 +79,55 @@ refactor. Existing extraction behavior was retained.
 **Suggested follow-up (not scheduled):** Add the configured-KPI selector to the
 holding uploader or remove the toggle there and route non-AI uploads through a
 document-only storage flow.
+
+### 2026-08-01 — Phase 2, dashboard family — failed counts render as zero
+
+**What happened:** `app/api/org/[orgId]/dashboard/route.ts:73-78` deliberately
+turns any count-query error into `0`. Several other dashboard reads also use
+empty fallbacks when their query fails.
+
+**Expected vs. actual:** A zero normally means the organization has no matching
+records. During a database or policy failure, the dashboard can show the same
+zero instead of indicating that the statistic is unavailable.
+
+**Why left alone:** Changing partial dashboard degradation into a request-level
+failure or per-card error state is a product reliability decision, not an API
+boundary change. The refactor retained the current response contract.
+
+**Suggested follow-up (not scheduled):** Return availability metadata per
+statistic and render an unavailable state separately from a real zero.
+
+### 2026-08-01 — Phase 2, visualization family — widget positions use max-plus-one
+
+**What happened:** `lib/api/repositories/visualizations.ts:45-61` and `:69-85`
+read the current maximum widget position and then insert `max + 1` in a separate
+operation.
+
+**Expected vs. actual:** Sequential saves produce stable ordering. Concurrent
+saves can read the same maximum and receive the same position because the
+schema has no uniqueness constraint or atomic allocator for that ordering.
+
+**Why left alone:** The scoped repository preserves existing ordering behavior;
+introducing an RPC, lock, or uniqueness/retry policy would be a separate data
+model decision.
+
+**Suggested follow-up (not scheduled):** Allocate positions in a transaction or
+use a uniqueness constraint with retry/rebalancing.
+
+### 2026-08-01 — Phase 2, milestone family — task sync follows the status write
+
+**What happened:** The milestone route updates `grant_milestones` and then calls
+the org-scoped generated-task synchronizer
+(`app/api/portfolio/[id]/holdings/[holdingId]/milestones/[milestoneId]/route.ts:65-79`).
+
+**Expected vs. actual:** Under normal operation both changes succeed. If task
+synchronization fails, the API returns 500 after the milestone status has
+already been saved, so the response does not describe the committed state.
+
+**Why left alone:** The ordering predates this refactor and the task writer is
+designed for repeatable source-prefix operations. Making both systems atomic
+requires a database orchestration boundary beyond this route migration.
+
+**Suggested follow-up (not scheduled):** Move milestone status change and task
+state transition into one database function or persist an outbox event for
+retryable synchronization.

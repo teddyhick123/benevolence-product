@@ -9,11 +9,15 @@ const {
   mockFrom,
   mockCreateWorkflowRepository,
   mockStartWorkflow,
+  mockCreateWorkflowTaskRepository,
+  mockUpdateWorkflowTask,
 } = vi.hoisted(() => ({
   mockRequireOrgAccess: vi.fn(),
   mockFrom: vi.fn(),
   mockCreateWorkflowRepository: vi.fn(),
   mockStartWorkflow: vi.fn(),
+  mockCreateWorkflowTaskRepository: vi.fn(),
+  mockUpdateWorkflowTask: vi.fn(),
 }));
 
 vi.mock('@/lib/api/access', () => ({
@@ -23,10 +27,15 @@ vi.mock('@/lib/api/access', () => ({
 
 vi.mock('@/lib/api/repositories/workflows', async importOriginal => {
   const actual = await importOriginal<typeof import('@/lib/api/repositories/workflows')>();
-  return { ...actual, createWorkflowRepository: mockCreateWorkflowRepository };
+  return {
+    ...actual,
+    createWorkflowRepository: mockCreateWorkflowRepository,
+    createWorkflowTaskRepository: mockCreateWorkflowTaskRepository,
+  };
 });
 
 import { GET, POST } from '@/app/api/org/[orgId]/workflows/route';
+import { PATCH as updateWorkflowTask } from '@/app/api/org/[orgId]/workflows/[workflowId]/tasks/[workflowTaskId]/route';
 
 const context = {
   orgId: 'org-1',
@@ -42,6 +51,10 @@ beforeEach(() => {
   mockRequireOrgAccess.mockResolvedValue({ ok: true, context });
   mockCreateWorkflowRepository.mockReturnValue({ startWorkflow: mockStartWorkflow });
   mockStartWorkflow.mockResolvedValue({ id: 'workflow-1' });
+  mockCreateWorkflowTaskRepository.mockReturnValue({
+    updateWorkflowTask: mockUpdateWorkflowTask,
+  });
+  mockUpdateWorkflowTask.mockResolvedValue({ id: 'workflow-task-1', status: 'completed' });
 });
 
 describe('workflow instance route', () => {
@@ -105,5 +118,31 @@ describe('workflow instance route', () => {
     }));
     expect(response.status).toBe(201);
     expect(await response.json()).toEqual({ workflow: { id: 'workflow-1' } });
+  });
+
+  it('passes a workflow task update through the member role and actor scope', async () => {
+    const response = await updateWorkflowTask(new NextRequest(
+      'http://localhost/api/org/org-1/workflows/workflow-1/tasks/workflow-task-1',
+      { method: 'PATCH', body: JSON.stringify({ status: 'completed' }) }
+    ), {
+      params: Promise.resolve({
+        orgId: 'org-1',
+        workflowId: 'workflow-1',
+        workflowTaskId: 'workflow-task-1',
+      }),
+    });
+
+    expect(mockCreateWorkflowTaskRepository).toHaveBeenCalledWith({
+      orgId: 'org-1',
+      role: 'admin',
+      actorId: 'admin-1',
+    });
+    expect(mockUpdateWorkflowTask).toHaveBeenCalledWith({
+      workflowId: 'workflow-1',
+      workflowTaskId: 'workflow-task-1',
+      updates: { status: 'completed' },
+    });
+    expect(response.status).toBe(200);
+    expect(response.headers.get('cache-control')).toBe('no-store');
   });
 });

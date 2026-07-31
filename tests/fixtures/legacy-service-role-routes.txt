@@ -39,5 +39,4 @@ app/api/org/[orgId]/tasks/[taskId]/route.ts
 app/api/org/[orgId]/tasks/route.ts
 app/api/org/[orgId]/tasks/summary/route.ts
 app/api/org/[orgId]/view-config/route.ts
-app/api/org/[orgId]/workflows/[workflowId]/tasks/[workflowTaskId]/route.ts
 app/api/org/route.ts

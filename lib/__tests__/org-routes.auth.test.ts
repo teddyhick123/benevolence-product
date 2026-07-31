@@ -353,11 +353,15 @@ describe('org-scoped route auth contracts', () => {
       'app/api/org/[orgId]/workflows/[workflowId]/tasks/[workflowTaskId]/route.ts',
       'utf8'
     );
-    expect(workflowTaskRoute).toContain("'Cache-Control': 'no-store'");
-    expect(workflowTaskRoute).toContain('taskUpdateError');
-    expect(workflowTaskRoute).toContain('eventError');
-    expect(workflowTaskRoute).toContain('syncError');
-    expect(workflowTaskRoute).toContain('maybeCompleteWorkflow(adminClient, orgId, workflowId)');
+    expect(workflowTaskRoute).toContain('requireOrgAccess');
+    expect(workflowTaskRoute).toContain('createWorkflowTaskRepository');
+    expect(workflowTaskRoute).toContain('jsonOk');
+    expect(workflowTaskRoute).not.toContain('createAdminClient');
+    expect(workflowTaskRoute).not.toContain('createServerClient');
+    expect(workflowRepository).toContain('taskUpdateError');
+    expect(workflowRepository).toContain('eventError');
+    expect(workflowRepository).toContain('syncError');
+    expect(workflowRepository).toContain('maybeCompleteWorkflow(input.workflowId)');
   });
 
   it('invitation routes no-store admin data and roll back failed sends/audits', () => {

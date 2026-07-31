@@ -184,3 +184,22 @@ repository preserves the existing ordering.
 
 **Suggested follow-up (not scheduled):** Fold task synchronization into the
 installment RPC or persist a retryable domain event in the same transaction.
+
+### 2026-08-01 — Phase 2, workflow family — task synchronization compensates best-effort
+
+**What happened:** `lib/api/repositories/workflows.ts` updates a workflow task,
+its linked task, a task event, and potentially the workflow instance in separate
+operations. On a later failure it attempts to restore the three mutable rows,
+but does not verify those compensation writes or remove an event that may
+already have been inserted.
+
+**Expected vs. actual:** The endpoint tries to present one logical update, but a
+database failure between operations can leave state or audit history partially
+advanced even when the response is 500.
+
+**Why left alone:** The scoped repository preserves the existing compensation
+sequence. True atomicity requires a database function or transactional outbox,
+which is beyond an API authorization boundary change.
+
+**Suggested follow-up (not scheduled):** Move the workflow-task, linked-task,
+workflow-instance, and task-event changes into one transactional database RPC.

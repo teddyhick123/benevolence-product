@@ -1,33 +1,16 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { createServerClient } from '@/lib/supabase';
+import { NextRequest } from 'next/server';
+import { isAccessDenied, requireOrgAccess } from '@/lib/api/access';
+import { jsonError, jsonOk } from '@/lib/api/responses';
 import { CreatePledgeSchema } from '@/lib/schemas/pledge';
-import { isOrgOperator, type OrgRole } from '@/lib/roles';
 
 export const dynamic = 'force-dynamic';
-
-const NO_STORE = { 'Cache-Control': 'no-store' } as const;
-function json(body: unknown, init: ResponseInit = {}) {
-  return NextResponse.json(body, {
-    ...init,
-    headers: {
-      ...NO_STORE,
-      ...(init.headers || {}),
-    },
-  });
-}
-
-async function authorize(supabase: any, orgId: string) {
-  const { data: role } = await supabase.rpc('user_org_role', { p_org_id: orgId });
-  if (!isOrgOperator(role)) return null;
-  return role as OrgRole;
-}
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ orgId: string }> }) {
   try {
     const { orgId } = await params;
-    const supabase = await createServerClient();
-    const role = await authorize(supabase, orgId);
-    if (!role) return json({ error: 'Not authorized' }, { status: 403 });
+    const access = await requireOrgAccess(orgId, 'member');
+    if (isAccessDenied(access)) return access.response;
+    const db = access.context.db;
 
     const sp = new URL(req.url).searchParams;
     const statusFilter    = sp.get('status') || 'active';
@@ -42,22 +25,22 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ orgI
     const offset          = Number.isFinite(requestedOffset) && requestedOffset >= 0 ? requestedOffset : 0;
 
     // --- Pledge rows from view ---
-    let q = supabase.from('v_pledge_pipeline').select('*', { count: 'exact' }).eq('org_id', orgId);
+    let q = db.from('v_pledge_pipeline').select('*', { count: 'exact' }).eq('org_id', orgId);
     if (statusFilter !== 'all') q = q.eq('status', statusFilter);
     if (pipelineFilter) q = q.eq('pipeline_status', pipelineFilter);
     if (donorId)   q = q.eq('donor_id', donorId);
     if (campaign)  q = q.eq('campaign', campaign);
     q = q.order('created_at', { ascending: false }).range(offset, offset + limit - 1);
     const { data: pledges, count, error } = await q;
-    if (error) return json({ error: error.message }, { status: 500 });
+    if (error) return jsonError(error.message, 500);
 
-    const { data: metrics, error: metricsError } = await supabase.rpc('get_pledge_dashboard_metrics', {
+    const { data: metrics, error: metricsError } = await db.rpc('get_pledge_dashboard_metrics', {
       p_org_id: orgId,
     });
-    if (metricsError) return json({ error: metricsError.message }, { status: 500 });
+    if (metricsError) return jsonError(metricsError.message, 500);
 
     // --- Attention lists (from the view rows) ---
-    const { data: attRows } = await supabase
+    const { data: attRows } = await db
       .from('v_pledge_pipeline')
       .select('*')
       .eq('org_id', orgId)
@@ -70,7 +53,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ orgI
       dueSoon:  (attRows ?? []).filter((r: any) => r.pipeline_status === 'due_soon').slice(0, 5),
     };
 
-    return json({
+    return jsonOk({
       kpis: metrics?.kpis ?? { committed: 0, received: 0, outstanding: 0, overdue: 0, dueSoon: 0, fulfillmentRate: 0 },
       aging: metrics?.aging ?? { current: 0, days1To30: 0, days31To60: 0, days61To90: 0, days90Plus: 0 },
       forecast: metrics?.forecast ?? [],
@@ -79,25 +62,25 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ orgI
       total: count ?? 0,
     });
   } catch (err: any) {
-    return json({ error: err.message }, { status: 500 });
+    return jsonError(err.message, 500);
   }
 }
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ orgId: string }> }) {
   try {
     const { orgId } = await params;
-    const supabase = await createServerClient();
-    const role = await authorize(supabase, orgId);
-    if (!role) return json({ error: 'Not authorized' }, { status: 403 });
+    const access = await requireOrgAccess(orgId, 'member');
+    if (isAccessDenied(access)) return access.response;
+    const db = access.context.db;
 
     let body: any;
-    try { body = await req.json(); } catch { return json({ error: 'Invalid JSON' }, { status: 400 }); }
+    try { body = await req.json(); } catch { return jsonError('Invalid JSON', 400); }
 
     const parsed = CreatePledgeSchema.safeParse(body);
-    if (!parsed.success) return json({ error: parsed.error.issues }, { status: 400 });
+    if (!parsed.success) return jsonOk({ error: parsed.error.issues }, { status: 400 });
 
     const d = parsed.data;
-    const { data: result, error } = await supabase.rpc('create_pledge_with_installments', {
+    const { data: result, error } = await db.rpc('create_pledge_with_installments', {
       p_org_id:               orgId,
       p_donor_id:             d.donor_id,
       p_total_amount:         d.total_amount,
@@ -114,14 +97,24 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ org
       p_notes:                d.notes ?? null,
       p_installments:         d.installments,
     });
-    if (error) return json({ error: error.message }, { status: 500 });
+    if (error) return jsonError(error.message, 500);
 
     const pledgeId = (result as any).pledge_id;
-    const { data: pledge } = await supabase.from('v_pledge_pipeline').select('*').eq('id', pledgeId).single();
-    const { data: installments } = await supabase.from('pledge_installments').select('*').eq('pledge_id', pledgeId).order('due_date');
+    const { data: pledge } = await db
+      .from('v_pledge_pipeline')
+      .select('*')
+      .eq('id', pledgeId)
+      .eq('org_id', orgId)
+      .single();
+    const { data: installments } = await db
+      .from('pledge_installments')
+      .select('*')
+      .eq('pledge_id', pledgeId)
+      .eq('org_id', orgId)
+      .order('due_date');
 
-    return json({ pledge, installments }, { status: 201 });
+    return jsonOk({ pledge, installments }, { status: 201 });
   } catch (err: any) {
-    return json({ error: err.message }, { status: 500 });
+    return jsonError(err.message, 500);
   }
 }

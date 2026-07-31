@@ -281,13 +281,17 @@ describe('org-scoped route auth contracts', () => {
 
   it('pledge routes no-store sensitive money views and await generated-task sync', () => {
     const pledgesRoute = readFileSync('app/api/org/[orgId]/pledges/route.ts', 'utf8');
-    expect(pledgesRoute).toContain("'Cache-Control': 'no-store'");
+    expect(pledgesRoute).toContain("requireOrgAccess(orgId, 'member')");
+    expect(pledgesRoute).toContain('jsonOk');
     expect(pledgesRoute).toContain('Number.isFinite(requestedLimit)');
+    expect(pledgesRoute).not.toContain('createServerClient');
 
     const pledgeDetailRoute = readFileSync('app/api/org/[orgId]/pledges/[pledgeId]/route.ts', 'utf8');
-    expect(pledgeDetailRoute).toContain("'Cache-Control': 'no-store'");
+    expect(pledgeDetailRoute).toContain('requireOrgAccess');
+    expect(pledgeDetailRoute).toContain('jsonOk');
     expect(pledgeDetailRoute).toContain(".eq('org_id', orgId).order('created_at'");
-    expect(pledgeDetailRoute).toContain('deleted_by: user.id');
+    expect(pledgeDetailRoute).toContain('deleted_by: access.context.principal.userId');
+    expect(pledgeDetailRoute).not.toContain('createServerClient');
 
     const installmentRoute = readFileSync(
       'app/api/org/[orgId]/pledges/[pledgeId]/installments/[installmentId]/route.ts',

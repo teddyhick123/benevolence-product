@@ -1,151 +1,193 @@
-// app/api/__tests__/workflow-config.test.ts
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { NextRequest } from 'next/server';
+// @vitest-environment node
 
-const ORG_ID = '11111111-1111-1111-1111-111111111111';
-const USER_ID = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { NextRequest, NextResponse } from 'next/server';
+import { stubQuery } from '@/tests/helpers/supabase-mock';
 
-let _authUser: { id: string } | null = { id: USER_ID };
-let _orgRole: string | null = 'admin';
-let _configRows: any[] = [];
-let _configError: any = null;
-
-const mockServerRpc = vi.fn();
-const mockAdminFrom = vi.fn();
-const mockAdminRpc = vi.fn();
-
-vi.mock('@/lib/supabase', () => ({
-  createServerClient: vi.fn(async () => ({
-    auth: { getUser: vi.fn(async () => ({ data: { user: _authUser } })) },
-    rpc: mockServerRpc,
-  })),
-  createAdminClient: vi.fn(() => ({ from: mockAdminFrom, rpc: mockAdminRpc })),
+const { mockRequireOrgAccess, mockRpc, mockFrom } = vi.hoisted(() => ({
+  mockRequireOrgAccess: vi.fn(),
+  mockRpc: vi.fn(),
+  mockFrom: vi.fn(),
 }));
 
-function setupMocks() {
-  mockServerRpc.mockClear();
-  mockAdminFrom.mockClear();
-  mockAdminRpc.mockClear();
+vi.mock('@/lib/api/access', () => ({
+  requireOrgAccess: mockRequireOrgAccess,
+  isAccessDenied: (result: { ok: boolean }) => !result.ok,
+}));
 
-  mockServerRpc.mockImplementation(async (fn: string) => {
-    if (fn === 'user_org_role') return { data: _orgRole, error: null };
-    return { data: null, error: null };
-  });
+import { GET as getConfig, POST as setConfig } from '@/app/api/org/[orgId]/workflow-config/route';
+import { GET as getLabels } from '@/app/api/org/[orgId]/workflow-config/labels/route';
+import { GET as getTemplates } from '@/app/api/org/[orgId]/workflow-templates/route';
 
-  mockAdminRpc.mockImplementation(async (fn: string) => {
-    if (fn === 'org_has_module') return { data: true, error: null };
-    return { data: null, error: null };
-  });
-
-  mockAdminFrom.mockImplementation((table: string) => {
-    if (table === 'org_workflow_config') {
-      const b: any = {
-        select: vi.fn(() => b),
-        eq: vi.fn(() => b),
-        // order() returns the builder so multiple .order() calls can chain;
-        // awaiting the builder itself resolves via .then()
-        order: vi.fn(() => b),
-        then: (resolve: any, reject: any) =>
-          Promise.resolve({ data: _configRows, error: _configError }).then(resolve, reject),
-      };
-      return b;
-    }
-    return { select: vi.fn(), eq: vi.fn() };
-  });
-}
+const orgId = '11111111-1111-1111-1111-111111111111';
+const context = {
+  orgId,
+  role: 'admin',
+  user: { id: 'admin-1' },
+  principal: { kind: 'user', userId: 'admin-1' },
+  db: { rpc: mockRpc, from: mockFrom },
+};
+const params = { params: Promise.resolve({ orgId }) };
 
 beforeEach(() => {
-  _authUser = { id: USER_ID };
-  _orgRole = 'admin';
-  _configRows = [];
-  _configError = null;
-  setupMocks();
+  vi.clearAllMocks();
+  mockRequireOrgAccess.mockResolvedValue({ ok: true, context });
+  mockRpc.mockResolvedValue({ data: true, error: null });
 });
 
-import { GET as getAll } from '@/app/api/org/[orgId]/workflow-config/route';
-import { GET as getLabels } from '@/app/api/org/[orgId]/workflow-config/labels/route';
+describe('workflow configuration routes', () => {
+  it('returns the shared denial before configuration reads', async () => {
+    mockRequireOrgAccess.mockResolvedValueOnce({
+      ok: false,
+      response: NextResponse.json({ error: 'Forbidden' }, { status: 403 }),
+    });
 
-function makeParams(orgId: string) {
-  return { params: Promise.resolve({ orgId }) } as any;
-}
+    const response = await getConfig(
+      new NextRequest(`http://localhost/api/org/${orgId}/workflow-config`),
+      params
+    );
 
-// ─── GET /workflow-config ──────────────────────────────────────────────────────
-
-describe('GET /api/org/[orgId]/workflow-config', () => {
-  it('returns 401 when not authenticated', async () => {
-    _authUser = null;
-    const req = new NextRequest(`http://localhost/api/org/${ORG_ID}/workflow-config`);
-    const res = await getAll(req, makeParams(ORG_ID));
-    expect(res.status).toBe(401);
+    expect(response.status).toBe(403);
+    expect(mockFrom).not.toHaveBeenCalled();
   });
 
-  it('returns 403 when user is not an admin', async () => {
-    _orgRole = 'member';
-    const req = new NextRequest(`http://localhost/api/org/${ORG_ID}/workflow-config`);
-    const res = await getAll(req, makeParams(ORG_ID));
-    expect(res.status).toBe(403);
+  it('requires admin access and scopes configuration reads to the org and module', async () => {
+    const query = stubQuery({ data: [{ id: 'config-1' }], error: null });
+    mockFrom.mockReturnValue(query);
+
+    const response = await getConfig(
+      new NextRequest(`http://localhost/api/org/${orgId}/workflow-config`),
+      params
+    );
+
+    expect(mockRequireOrgAccess).toHaveBeenCalledWith(orgId, 'admin');
+    expect(mockRpc).toHaveBeenCalledWith('org_has_module', {
+      p_org_id: orgId,
+      p_module: 'grant_management',
+    });
+    expect(query.calls).toContainEqual({ method: 'eq', args: ['org_id', orgId] });
+    expect(query.calls).toContainEqual({
+      method: 'eq',
+      args: ['module', 'grant_management'],
+    });
+    expect(await response.json()).toEqual({ data: [{ id: 'config-1' }] });
+    expect(response.headers.get('cache-control')).toBe('no-store');
   });
 
-  it('returns 200 with data array for admin', async () => {
-    _configRows = [
-      { id: 'r1', config_type: 'stage_checklist', stage_key: 'due_diligence', config_key: 'site_visit', config_value: { label: 'Site visit', required: true }, sort_order: 0 },
-    ];
-    const req = new NextRequest(`http://localhost/api/org/${ORG_ID}/workflow-config`);
-    const res = await getAll(req, makeParams(ORG_ID));
-    expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(Array.isArray(body.data)).toBe(true);
-    expect(body.data).toHaveLength(1);
+  it('writes a validated stage label inside the authorized org', async () => {
+    const query = stubQuery(
+      { data: null, error: null },
+      { single: { data: { id: 'config-1', stage_key: 'active' }, error: null } }
+    );
+    mockFrom.mockReturnValue(query);
+
+    const response = await setConfig(new NextRequest(
+      `http://localhost/api/org/${orgId}/workflow-config`,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          action: 'set_stage_label',
+          stage_key: 'active',
+          label: 'In progress',
+        }),
+      }
+    ), params);
+
+    expect(query.upsert).toHaveBeenCalledWith({
+      org_id: orgId,
+      module: 'grant_management',
+      config_type: 'stage_label',
+      stage_key: 'active',
+      config_key: 'label',
+      config_value: { value: 'In progress' },
+      sort_order: 0,
+    }, { onConflict: 'org_id,module,config_type,stage_key,config_key' });
+    expect(response.status).toBe(200);
   });
 
-  it('returns empty array when no config exists', async () => {
-    _configRows = [];
-    const req = new NextRequest(`http://localhost/api/org/${ORG_ID}/workflow-config`);
-    const res = await getAll(req, makeParams(ORG_ID));
-    expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(body.data).toEqual([]);
+  it('returns member-visible labels from only the scoped grant configuration', async () => {
+    const query = stubQuery({
+      data: [{ stage_key: 'due_diligence', config_value: { value: 'Site Review' } }],
+      error: null,
+    });
+    mockFrom.mockReturnValue(query);
+
+    const response = await getLabels(
+      new NextRequest(`http://localhost/api/org/${orgId}/workflow-config/labels`),
+      params
+    );
+
+    expect(mockRequireOrgAccess).toHaveBeenCalledWith(orgId);
+    expect(query.calls).toContainEqual({ method: 'eq', args: ['org_id', orgId] });
+    expect(query.calls).toContainEqual({
+      method: 'eq',
+      args: ['module', 'grant_management'],
+    });
+    expect(await response.json()).toEqual({ labels: { due_diligence: 'Site Review' } });
+    expect(response.headers.get('cache-control')).toContain('s-maxage=60');
+  });
+
+  it('returns the shared denial before reading stage labels', async () => {
+    mockRequireOrgAccess.mockResolvedValueOnce({
+      ok: false,
+      response: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }),
+    });
+
+    const response = await getLabels(
+      new NextRequest(`http://localhost/api/org/${orgId}/workflow-config/labels`),
+      params
+    );
+
+    expect(response.status).toBe(401);
+    expect(mockFrom).not.toHaveBeenCalled();
+  });
+
+  it('returns an empty labels object when no overrides exist', async () => {
+    mockFrom.mockReturnValue(stubQuery({ data: [], error: null }));
+
+    const response = await getLabels(
+      new NextRequest(`http://localhost/api/org/${orgId}/workflow-config/labels`),
+      params
+    );
+
+    expect(await response.json()).toEqual({ labels: {} });
+  });
+
+  it('lists only system templates and templates for the authorized org', async () => {
+    const query = stubQuery({ data: [{ id: 'template-1' }], error: null });
+    mockFrom.mockReturnValue(query);
+
+    const response = await getTemplates(
+      new NextRequest(
+        `http://localhost/api/org/${orgId}/workflow-templates?workflow_type=due_diligence`
+      ),
+      params
+    );
+
+    expect(mockRequireOrgAccess).toHaveBeenCalledWith(orgId);
+    expect(query.calls).toContainEqual({
+      method: 'or',
+      args: [`org_id.is.null,org_id.eq.${orgId}`],
+    });
+    expect(query.calls).toContainEqual({
+      method: 'eq',
+      args: ['workflow_type', 'due_diligence'],
+    });
+    expect(await response.json()).toEqual({ templates: [{ id: 'template-1' }] });
+  });
+
+  it('returns the shared denial before listing workflow templates', async () => {
+    mockRequireOrgAccess.mockResolvedValueOnce({
+      ok: false,
+      response: NextResponse.json({ error: 'Forbidden' }, { status: 403 }),
+    });
+
+    const response = await getTemplates(
+      new NextRequest(`http://localhost/api/org/${orgId}/workflow-templates`),
+      params
+    );
+
+    expect(response.status).toBe(403);
+    expect(mockFrom).not.toHaveBeenCalled();
   });
 });
-
-// ─── GET /workflow-config/labels ──────────────────────────────────────────────
-
-describe('GET /api/org/[orgId]/workflow-config/labels', () => {
-  it('returns 401 when not authenticated', async () => {
-    _authUser = null;
-    const req = new NextRequest(`http://localhost/api/org/${ORG_ID}/workflow-config/labels`);
-    const res = await getLabels(req, makeParams(ORG_ID));
-    expect(res.status).toBe(401);
-  });
-
-  it('returns 200 with labels map for member', async () => {
-    _orgRole = 'member';
-    _configRows = [
-      { config_type: 'stage_label', stage_key: 'due_diligence', config_key: 'label', config_value: { value: 'Site Review' }, sort_order: 0 },
-    ];
-    const req = new NextRequest(`http://localhost/api/org/${ORG_ID}/workflow-config/labels`);
-    const res = await getLabels(req, makeParams(ORG_ID));
-    expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(body.labels).toEqual({ due_diligence: 'Site Review' });
-  });
-
-  it('returns empty labels object when no stage_label rows exist', async () => {
-    _configRows = [
-      { config_type: 'stage_checklist', stage_key: 'due_diligence', config_key: 'site_visit', config_value: { label: 'X', required: true }, sort_order: 0 },
-    ];
-    const req = new NextRequest(`http://localhost/api/org/${ORG_ID}/workflow-config/labels`);
-    const res = await getLabels(req, makeParams(ORG_ID));
-    expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(body.labels).toEqual({});
-  });
-
-  it('response includes Cache-Control header', async () => {
-    _configRows = [];
-    const req = new NextRequest(`http://localhost/api/org/${ORG_ID}/workflow-config/labels`);
-    const res = await getLabels(req, makeParams(ORG_ID));
-    expect(res.headers.get('Cache-Control')).toMatch(/s-maxage/);
-  });
-});
-// Integration test.

@@ -1,40 +1,24 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { createAdminClient, createServerClient } from '@/lib/supabase';
+import { NextRequest } from 'next/server';
+import { isAccessDenied, requireOrgAccess } from '@/lib/api/access';
+import { jsonError, jsonOk } from '@/lib/api/responses';
 
 export const dynamic = 'force-dynamic';
-
-const NO_STORE = { 'Cache-Control': 'no-store' } as const;
 
 interface RouteParams {
   params: Promise<{ orgId: string }>;
 }
 
-function json(body: unknown, init: ResponseInit = {}) {
-  return NextResponse.json(body, {
-    ...init,
-    headers: {
-      ...NO_STORE,
-      ...(init.headers || {}),
-    },
-  });
-}
-
 export async function GET(req: NextRequest, { params }: RouteParams) {
   try {
     const { orgId } = await params;
-    const supabase = await createServerClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return json({ error: 'Unauthorized' }, { status: 401 });
-
-    const { data: role } = await supabase.rpc('user_org_role', { p_org_id: orgId });
-    if (!role) return json({ error: 'Not authorized' }, { status: 403 });
+    const access = await requireOrgAccess(orgId);
+    if (isAccessDenied(access)) return access.response;
 
     const { searchParams } = new URL(req.url);
     const workflowType = searchParams.get('workflow_type');
     const activeOnly = searchParams.get('active') !== 'false';
 
-    const adminClient = createAdminClient();
-    let query = adminClient
+    let query = access.context.db
       .from('workflow_templates')
       .select('*')
       .or(`org_id.is.null,org_id.eq.${orgId}`)
@@ -45,10 +29,10 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     if (workflowType) query = query.eq('workflow_type', workflowType);
 
     const { data, error } = await query;
-    if (error) return json({ error: error.message }, { status: 500 });
+    if (error) return jsonError(error.message, 500);
 
-    return json({ templates: data || [] });
+    return jsonOk({ templates: data || [] });
   } catch (err: any) {
-    return json({ error: err.message }, { status: 500 });
+    return jsonError(err.message, 500);
   }
 }

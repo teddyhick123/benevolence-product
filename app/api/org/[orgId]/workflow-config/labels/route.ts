@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { createServerClient, createAdminClient } from '@/lib/supabase';
+import { NextRequest } from 'next/server';
+import { isAccessDenied, requireOrgAccess } from '@/lib/api/access';
+import { jsonError, jsonOk } from '@/lib/api/responses';
 
 export const dynamic = 'force-dynamic';
 
@@ -7,25 +8,13 @@ interface RouteParams {
   params: Promise<{ orgId: string }>;
 }
 
-export async function GET(req: NextRequest, { params }: RouteParams) {
+export async function GET(_req: NextRequest, { params }: RouteParams) {
   try {
     const { orgId } = await params;
 
-    const supabase = await createServerClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    // Any org member can read labels, but service-role reads still need an
-    // explicit org boundary check before bypassing RLS.
-    const { data: role } = await supabase.rpc('user_org_role', { p_org_id: orgId });
-    if (!role) {
-      return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
-    }
-
-    const db = createAdminClient();
-    const { data, error } = await db
+    const access = await requireOrgAccess(orgId);
+    if (isAccessDenied(access)) return access.response;
+    const { data, error } = await access.context.db
       .from('org_workflow_config')
       .select('stage_key, config_value')
       .eq('org_id', orgId)
@@ -41,10 +30,10 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       if (value) labels[row.stage_key] = value;
     }
 
-    return NextResponse.json({ labels }, {
+    return jsonOk({ labels }, {
       headers: { 'Cache-Control': 's-maxage=60, stale-while-revalidate=30' },
     });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return jsonError(err.message, 500);
   }
 }

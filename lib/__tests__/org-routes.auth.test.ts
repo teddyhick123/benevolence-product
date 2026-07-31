@@ -319,7 +319,21 @@ describe('org-scoped route auth contracts', () => {
 
   it('workflow routes no-store obligation data and check generated task side effects', () => {
     const templatesRoute = readFileSync('app/api/org/[orgId]/workflow-templates/route.ts', 'utf8');
-    expect(templatesRoute).toContain("'Cache-Control': 'no-store'");
+    expect(templatesRoute).toContain('requireOrgAccess');
+    expect(templatesRoute).toContain('jsonOk');
+    expect(templatesRoute).not.toContain('createAdminClient');
+    expect(templatesRoute).not.toContain('createServerClient');
+
+    const configRoute = readFileSync('app/api/org/[orgId]/workflow-config/route.ts', 'utf8');
+    expect(configRoute).toContain("requireOrgAccess(orgId, 'admin')");
+    expect(configRoute).toContain('jsonOk');
+    expect(configRoute).not.toContain('createAdminClient');
+    expect(configRoute).not.toContain('createServerClient');
+
+    const labelsRoute = readFileSync('app/api/org/[orgId]/workflow-config/labels/route.ts', 'utf8');
+    expect(labelsRoute).toContain('requireOrgAccess');
+    expect(labelsRoute).not.toContain('createAdminClient');
+    expect(labelsRoute).not.toContain('createServerClient');
 
     const workflowsRoute = readFileSync('app/api/org/[orgId]/workflows/route.ts', 'utf8');
     expect(workflowsRoute).toContain("'Cache-Control': 'no-store'");

@@ -1,12 +1,10 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { z } from 'zod';
-import { createServerClient, createAdminClient } from '@/lib/supabase';
+import { isAccessDenied, requireOrgAccess } from '@/lib/api/access';
+import { jsonError, jsonOk } from '@/lib/api/responses';
 import { LIFECYCLE_STAGES } from '@/lib/grants/lifecycle-shared';
-import { isWorkspaceManager } from '@/lib/roles';
 
 export const dynamic = 'force-dynamic';
-
-const NO_STORE = { 'Cache-Control': 'no-store' } as const;
 
 interface RouteParams {
   params: Promise<{ orgId: string }>;
@@ -18,31 +16,21 @@ const stageLabelSchema = z.object({
   label: z.string().trim().max(60),
 }).strict();
 
-function json(body: unknown, init: ResponseInit = {}) {
-  return NextResponse.json(body, { ...init, headers: { ...NO_STORE, ...(init.headers || {}) } });
-}
-
-export async function GET(req: NextRequest, { params }: RouteParams) {
+export async function GET(_req: NextRequest, { params }: RouteParams) {
   try {
     const { orgId } = await params;
 
-    const supabase = await createServerClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return json({ error: 'Unauthorized' }, { status: 401 });
+    const access = await requireOrgAccess(orgId, 'admin');
+    if (isAccessDenied(access)) return access.response;
 
-    const { data: role } = await supabase.rpc('user_org_role', { p_org_id: orgId });
-    if (!isWorkspaceManager(role)) {
-      return json({ error: 'Admin access required' }, { status: 403 });
-    }
-
-    const db = createAdminClient();
+    const db = access.context.db;
     const { data: hasModule, error: moduleErr } = await db.rpc('org_has_module', {
       p_org_id: orgId,
       p_module: 'grant_management',
     });
     if (moduleErr) throw moduleErr;
     if (!hasModule) {
-      return json({ error: 'Grant management module is not enabled' }, { status: 403 });
+      return jsonError('Grant management module is not enabled', 403);
     }
 
     const { data, error } = await db
@@ -55,33 +43,33 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
 
     if (error) throw error;
 
-    return json({ data: data ?? [] });
+    return jsonOk({ data: data ?? [] });
   } catch (err: any) {
-    return json({ error: err.message }, { status: 500 });
+    return jsonError(err.message, 500);
   }
 }
 
 export async function POST(req: NextRequest, { params }: RouteParams) {
   try {
     const { orgId } = await params;
-    const supabase = await createServerClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return json({ error: 'Unauthorized' }, { status: 401 });
-
-    const { data: role } = await supabase.rpc('user_org_role', { p_org_id: orgId });
-    if (!isWorkspaceManager(role)) return json({ error: 'Admin access required' }, { status: 403 });
+    const access = await requireOrgAccess(orgId, 'admin');
+    if (isAccessDenied(access)) return access.response;
 
     const body = await req.json().catch(() => ({}));
     const parsed = stageLabelSchema.safeParse(body);
-    if (!parsed.success) return json({ error: 'Validation failed', details: parsed.error.format() }, { status: 400 });
+    if (!parsed.success) {
+      return jsonError('Validation failed', 400, {
+        details: parsed.error.format(),
+      });
+    }
 
-    const db = createAdminClient();
+    const db = access.context.db;
     const { data: hasModule, error: moduleErr } = await db.rpc('org_has_module', {
       p_org_id: orgId,
       p_module: 'grant_management',
     });
     if (moduleErr) throw moduleErr;
-    if (!hasModule) return json({ error: 'Grant management module is not enabled' }, { status: 403 });
+    if (!hasModule) return jsonError('Grant management module is not enabled', 403);
 
     const { stage_key, label } = parsed.data;
     if (!label) {
@@ -94,7 +82,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
         .eq('stage_key', stage_key)
         .eq('config_key', 'label');
       if (error) throw error;
-      return json({ data: { stage_key, label: null } });
+      return jsonOk({ data: { stage_key, label: null } });
     }
 
     const { data, error } = await db
@@ -111,8 +99,8 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       .select('id, config_type, stage_key, config_key, config_value, sort_order, created_at, updated_at')
       .single();
     if (error) throw error;
-    return json({ data });
+    return jsonOk({ data });
   } catch (err: any) {
-    return json({ error: err?.message ?? 'Internal error' }, { status: 500 });
+    return jsonError(err?.message ?? 'Internal error', 500);
   }
 }

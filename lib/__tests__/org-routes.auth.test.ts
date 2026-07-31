@@ -336,12 +336,18 @@ describe('org-scoped route auth contracts', () => {
     expect(labelsRoute).not.toContain('createServerClient');
 
     const workflowsRoute = readFileSync('app/api/org/[orgId]/workflows/route.ts', 'utf8');
-    expect(workflowsRoute).toContain("'Cache-Control': 'no-store'");
+    expect(workflowsRoute).toContain('requireOrgAccess');
+    expect(workflowsRoute).toContain('createWorkflowRepository');
+    expect(workflowsRoute).toContain('jsonOk');
     expect(workflowsRoute).toContain('Portfolio does not belong to this organization');
-    expect(workflowsRoute).toContain(".eq('org_id', input.orgId)");
-    expect(workflowsRoute).toContain('task_events');
-    expect(workflowsRoute).toContain('eventError');
-    expect(workflowsRoute).toContain("event_type: 'created'");
+    expect(workflowsRoute).not.toContain('createAdminClient');
+    expect(workflowsRoute).not.toContain('createServerClient');
+
+    const workflowRepository = readFileSync('lib/api/repositories/workflows.ts', 'utf8');
+    expect(workflowRepository).toContain(".eq('org_id', scope.orgId)");
+    expect(workflowRepository).toContain('task_events');
+    expect(workflowRepository).toContain('eventError');
+    expect(workflowRepository).toContain("event_type: 'created'");
 
     const workflowTaskRoute = readFileSync(
       'app/api/org/[orgId]/workflows/[workflowId]/tasks/[workflowTaskId]/route.ts',

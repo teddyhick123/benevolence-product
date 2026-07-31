@@ -54,4 +54,3 @@ app/api/org/[orgId]/workflow-templates/route.ts
 app/api/org/[orgId]/workflows/[workflowId]/tasks/[workflowTaskId]/route.ts
 app/api/org/[orgId]/workflows/route.ts
 app/api/org/route.ts
-app/api/portfolio/[id]/holdings/[holdingId]/milestones/[milestoneId]/route.ts

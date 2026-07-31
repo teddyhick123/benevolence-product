@@ -32,6 +32,7 @@ const complianceRepositorySrc = read('lib/api/repositories/compliance.ts');
 const installmentRouteSrc = read('app/api/org/[orgId]/pledges/[pledgeId]/installments/[installmentId]/route.ts');
 const pledgeCancelRouteSrc = read('app/api/org/[orgId]/pledges/[pledgeId]/cancel/route.ts');
 const milestoneRouteSrc = read('app/api/portfolio/[id]/holdings/[holdingId]/milestones/[milestoneId]/route.ts');
+const grantRepositorySrc = read('lib/api/repositories/grants.ts');
 const importRepositorySrc = read('lib/api/repositories/imports.ts');
 
 // ---------------------------------------------------------------------------
@@ -194,11 +195,13 @@ describe('Task writer prefix safety in producers', () => {
   });
 
   it('milestone route uses prefix form for completeGeneratedTasks on milestone complete', () => {
-    expect(milestoneRouteSrc).toMatch(/completeGeneratedTasks[^`]*`grant_milestone:\${[^}]+}:`/);
+    expect(milestoneRouteSrc).toContain('syncMilestoneTasks');
+    expect(grantRepositorySrc).toMatch(/completeGeneratedTasks[\s\S]{0,180}sourcePrefix/);
+    expect(grantRepositorySrc).toMatch(/`grant_milestone:\${input\.milestoneId}:`/);
   });
 
   it('milestone route uses prefix form for cancelGeneratedTasks on milestone cancel', () => {
-    expect(milestoneRouteSrc).toMatch(/cancelGeneratedTasks[^`]*`grant_milestone:\${[^}]+}:`/);
+    expect(grantRepositorySrc).toMatch(/cancelGeneratedTasks[\s\S]{0,180}sourcePrefix/);
   });
 
   it('import commit orchestration completes import_job approval task on commit', () => {

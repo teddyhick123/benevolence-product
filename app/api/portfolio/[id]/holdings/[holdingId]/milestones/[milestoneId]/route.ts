@@ -1,20 +1,9 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { createSupabaseServerClient, createAdminClient } from '@/lib/supabase';
+import { NextRequest } from 'next/server';
+import { isAccessDenied, requirePortfolioAccess } from '@/lib/api/access';
+import { createGrantRepository } from '@/lib/api/repositories/grants';
+import { jsonError, jsonOk } from '@/lib/api/responses';
 import { updateMilestoneSchema } from '@/lib/schemas/grant';
 import { withMilestoneDisplayStatus } from '@/lib/grants/milestones';
-import { completeGeneratedTasks, cancelGeneratedTasks } from '@/lib/tasks/automation/task-writer';
-
-const getSupabase = createSupabaseServerClient;
-
-function json(body: Record<string, unknown>, init?: ResponseInit) {
-  return NextResponse.json(body, {
-    ...init,
-    headers: {
-      ...init?.headers,
-      'Cache-Control': 'no-store',
-    },
-  });
-}
 
 /**
  * PATCH /api/portfolio/[id]/holdings/[holdingId]/milestones/[milestoneId]
@@ -24,25 +13,16 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string; holdingId: string; milestoneId: string }> }
 ) {
+  const { id: portfolioId, holdingId, milestoneId } = await params;
+  const access = await requirePortfolioAccess(portfolioId, 'member');
+  if (isAccessDenied(access)) return access.response;
+
   try {
-    const { id: portfolioId, holdingId, milestoneId } = await params;
     const body = await req.json();
-    const supabase = await getSupabase();
+    const supabase = access.context.db;
 
     // Validate request body
     const validated = updateMilestoneSchema.parse(body);
-
-    // Verify holding belongs to portfolio and user can edit
-    const { data: canEdit, error: canEditErr } = await supabase.rpc('can_edit_portfolio', {
-      p_portfolio_id: portfolioId,
-    });
-
-    if (canEditErr || !canEdit) {
-      return json(
-        { error: 'Permission denied: cannot edit this portfolio' },
-        { status: 403 }
-      );
-    }
 
     // Verify milestone exists and belongs to this holding's grant
     const { data: existingMilestone, error: fetchError } = await supabase
@@ -56,19 +36,13 @@ export async function PATCH(
       .single();
 
     if (fetchError || !existingMilestone) {
-      return json(
-        { error: 'Milestone not found' },
-        { status: 404 }
-      );
+      return jsonError('Milestone not found', 404);
     }
 
     // Verify the milestone belongs to the specified holding
     const grantDetails = existingMilestone.grants as any;
     if (grantDetails.holding_id !== holdingId || grantDetails.portfolio_id !== portfolioId) {
-      return json(
-        { error: 'Milestone does not belong to this holding' },
-        { status: 403 }
-      );
+      return jsonError('Milestone does not belong to this holding', 403);
     }
 
     // Update milestone
@@ -93,47 +67,25 @@ export async function PATCH(
 
     if (error) {
       console.error('Error updating milestone:', error);
-      return json({ error: 'Failed to update milestone' }, { status: 500 });
+      return jsonError('Failed to update milestone', 500);
     }
 
     const newStatus = validated.status;
     if (newStatus === 'completed' || newStatus === 'cancelled') {
-      const adminDb = createAdminClient();
-      const { data: portfolio, error: portfolioError } = await adminDb
-        .from('portfolios')
-        .select('org_id')
-        .eq('id', portfolioId)
-        .single();
-      if (portfolioError) throw portfolioError;
-      if (portfolio?.org_id) {
-        if (newStatus === 'completed') {
-          await completeGeneratedTasks(
-            adminDb,
-            portfolio.org_id,
-            `grant_milestone:${milestoneId}:`,
-            'Milestone marked completed'
-          );
-        } else {
-          await cancelGeneratedTasks(
-            adminDb,
-            portfolio.org_id,
-            `grant_milestone:${milestoneId}:`,
-            'Milestone cancelled'
-          );
-        }
-      }
+      await createGrantRepository({
+        orgId: access.context.orgId,
+        actorId: access.context.user.id,
+      }).syncMilestoneTasks({ milestoneId, status: newStatus });
     }
 
-    return json({ data: withMilestoneDisplayStatus(milestone) });
-  } catch (error: any) {
-    if (error?.name === 'ZodError') {
-      return json(
-        { error: 'Validation error', details: error.errors },
-        { status: 400 }
-      );
+    return jsonOk({ data: withMilestoneDisplayStatus(milestone) });
+  } catch (error: unknown) {
+    if (error && typeof error === 'object' && 'name' in error && error.name === 'ZodError') {
+      const details = 'errors' in error ? error.errors : undefined;
+      return jsonError('Validation error', 400, { details });
     }
     console.error('Unexpected error in PATCH milestone:', error);
-    return json({ error: 'Internal server error' }, { status: 500 });
+    return jsonError('Internal server error', 500);
   }
 }
 
@@ -142,24 +94,15 @@ export async function PATCH(
  * Delete a milestone
  */
 export async function DELETE(
-  req: NextRequest,
+  _req: NextRequest,
   { params }: { params: Promise<{ id: string; holdingId: string; milestoneId: string }> }
 ) {
+  const { id: portfolioId, holdingId, milestoneId } = await params;
+  const access = await requirePortfolioAccess(portfolioId, 'member');
+  if (isAccessDenied(access)) return access.response;
+
   try {
-    const { id: portfolioId, holdingId, milestoneId } = await params;
-    const supabase = await getSupabase();
-
-    // Verify holding belongs to portfolio and user can edit
-    const { data: canEdit, error: canEditErr } = await supabase.rpc('can_edit_portfolio', {
-      p_portfolio_id: portfolioId,
-    });
-
-    if (canEditErr || !canEdit) {
-      return json(
-        { error: 'Permission denied: cannot edit this portfolio' },
-        { status: 403 }
-      );
-    }
+    const supabase = access.context.db;
 
     // Verify milestone exists and belongs to this holding's grant
     const { data: existingMilestone, error: fetchError } = await supabase
@@ -173,19 +116,13 @@ export async function DELETE(
       .single();
 
     if (fetchError || !existingMilestone) {
-      return json(
-        { error: 'Milestone not found' },
-        { status: 404 }
-      );
+      return jsonError('Milestone not found', 404);
     }
 
     // Verify the milestone belongs to the specified holding
     const grantDetails = existingMilestone.grants as any;
     if (grantDetails.holding_id !== holdingId || grantDetails.portfolio_id !== portfolioId) {
-      return json(
-        { error: 'Milestone does not belong to this holding' },
-        { status: 403 }
-      );
+      return jsonError('Milestone does not belong to this holding', 403);
     }
 
     // Delete milestone
@@ -196,12 +133,12 @@ export async function DELETE(
 
     if (error) {
       console.error('Error deleting milestone:', error);
-      return json({ error: 'Failed to delete milestone' }, { status: 500 });
+      return jsonError('Failed to delete milestone', 500);
     }
 
-    return json({ success: true, message: 'Milestone deleted' });
+    return jsonOk({ success: true, message: 'Milestone deleted' });
   } catch (error) {
     console.error('Unexpected error in DELETE milestone:', error);
-    return json({ error: 'Internal server error' }, { status: 500 });
+    return jsonError('Internal server error', 500);
   }
 }

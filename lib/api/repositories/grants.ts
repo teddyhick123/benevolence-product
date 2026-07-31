@@ -4,6 +4,10 @@ import type { DecisionPayload, LifecycleStage } from '@/lib/grants/lifecycle-sha
 import { ORG_AUDIT_ACTIONS, writeOrgAuditEvent } from '@/lib/audit/org-audit';
 import { checkWorkflowGate } from '@/lib/grants/workflow-config';
 import { runAutomationRulesForEvent } from '@/lib/tasks/automation/dynamic-rules';
+import {
+  cancelGeneratedTasks,
+  completeGeneratedTasks,
+} from '@/lib/tasks/automation/task-writer';
 
 type GrantRepositoryScope = Pick<OrgAccessContext, 'orgId'> & {
   actorId: string;
@@ -33,6 +37,13 @@ export class InvalidGrantDocumentPathError extends Error {
   constructor() {
     super('Grant document has an invalid storage path');
     this.name = 'InvalidGrantDocumentPathError';
+  }
+}
+
+export class GrantMilestoneNotFoundError extends Error {
+  constructor() {
+    super('Milestone not found');
+    this.name = 'GrantMilestoneNotFoundError';
   }
 }
 
@@ -282,6 +293,36 @@ export function createGrantRepository(scope: GrantRepositoryScope) {
           actor_id: scope.actorId,
         },
       });
+    },
+
+    async syncMilestoneTasks(input: {
+      milestoneId: string;
+      status: 'completed' | 'cancelled';
+    }) {
+      const { data: milestone, error } = await db
+        .from('grant_milestones')
+        .select('id, grants!inner(org_id)')
+        .eq('id', input.milestoneId)
+        .eq('grants.org_id', scope.orgId)
+        .maybeSingle();
+      if (error) throw error;
+      if (!milestone) throw new GrantMilestoneNotFoundError();
+
+      const sourcePrefix = `grant_milestone:${input.milestoneId}:`;
+      if (input.status === 'completed') {
+        return completeGeneratedTasks(
+          db,
+          scope.orgId,
+          sourcePrefix,
+          'Milestone marked completed'
+        );
+      }
+      return cancelGeneratedTasks(
+        db,
+        scope.orgId,
+        sourcePrefix,
+        'Milestone cancelled'
+      );
     },
   };
 }

@@ -225,12 +225,17 @@ describe('foundation reliability contracts', () => {
 
   it('portfolio milestone mutations scope joined grants and await task sync', () => {
     const route = src('app/api/portfolio/[id]/holdings/[holdingId]/milestones/[milestoneId]/route.ts');
+    const repository = src('lib/api/repositories/grants.ts');
     expect(route).toContain('grants!inner(holding_id, portfolio_id)');
     expect(route).toContain('grantDetails.portfolio_id !== portfolioId');
-    expect(route).toContain('await completeGeneratedTasks');
-    expect(route).toContain('await cancelGeneratedTasks');
+    expect(route).toContain("requirePortfolioAccess(portfolioId, 'member')");
+    expect(route).toContain('syncMilestoneTasks');
+    expect(route).not.toContain('createAdminClient');
+    expect(repository).toContain(".eq('grants.org_id', scope.orgId)");
+    expect(repository).toContain('return completeGeneratedTasks');
+    expect(repository).toContain('return cancelGeneratedTasks');
     expect(route).not.toContain('fire-and-forget');
-    expect(route).toContain("'Cache-Control': 'no-store'");
+    expect(route).toContain('jsonOk');
   });
 
   it('grant milestone overdue state is computed from dates instead of stored as workflow status', () => {

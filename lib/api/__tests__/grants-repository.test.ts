@@ -18,6 +18,8 @@ const {
   mockCreateSignedUrl,
   mockUpload,
   mockRemove,
+  mockCompleteGeneratedTasks,
+  mockCancelGeneratedTasks,
 } = vi.hoisted(() => ({
   mockCreateElevatedClient: vi.fn(),
   mockFrom: vi.fn(),
@@ -27,6 +29,8 @@ const {
   mockCreateSignedUrl: vi.fn(),
   mockUpload: vi.fn(),
   mockRemove: vi.fn(),
+  mockCompleteGeneratedTasks: vi.fn(),
+  mockCancelGeneratedTasks: vi.fn(),
 }));
 
 vi.mock('@/lib/api/admin-client', () => ({
@@ -38,6 +42,11 @@ vi.mock('@/lib/audit/org-audit', () => ({
   writeOrgAuditEvent: mockWriteOrgAuditEvent,
 }));
 
+vi.mock('@/lib/tasks/automation/task-writer', () => ({
+  completeGeneratedTasks: mockCompleteGeneratedTasks,
+  cancelGeneratedTasks: mockCancelGeneratedTasks,
+}));
+
 beforeEach(() => {
   vi.clearAllMocks();
   mockFrom.mockReset();
@@ -46,6 +55,8 @@ beforeEach(() => {
   mockCreateSignedUrl.mockReset();
   mockUpload.mockReset();
   mockRemove.mockReset();
+  mockCompleteGeneratedTasks.mockReset();
+  mockCancelGeneratedTasks.mockReset();
   mockStorageFrom.mockReturnValue({
     createSignedUrl: mockCreateSignedUrl,
     upload: mockUpload,
@@ -56,9 +67,32 @@ beforeEach(() => {
     rpc: mockRpc,
     storage: { from: mockStorageFrom },
   });
+  mockCompleteGeneratedTasks.mockResolvedValue(undefined);
+  mockCancelGeneratedTasks.mockResolvedValue(undefined);
 });
 
 describe('createGrantRepository', () => {
+  it('scopes milestone task synchronization through the parent grant organization', async () => {
+    const query = stubQuery(
+      { data: null, error: null },
+      { maybeSingle: { data: { id: 'milestone-1', grants: { org_id: 'org-1' } }, error: null } }
+    );
+    mockFrom.mockReturnValue(query);
+
+    await createGrantRepository({ orgId: 'org-1', actorId: 'user-1' })
+      .syncMilestoneTasks({ milestoneId: 'milestone-1', status: 'completed' });
+
+    expect(query.calls).toContainEqual({ method: 'eq', args: ['id', 'milestone-1'] });
+    expect(query.calls).toContainEqual({ method: 'eq', args: ['grants.org_id', 'org-1'] });
+    expect(mockCompleteGeneratedTasks).toHaveBeenCalledWith(
+      expect.objectContaining({ from: mockFrom }),
+      'org-1',
+      'grant_milestone:milestone-1:',
+      'Milestone marked completed'
+    );
+    expect(mockCancelGeneratedTasks).not.toHaveBeenCalled();
+  });
+
   it('forces portfolio lookups into the repository org scope', async () => {
     const query = stubQuery(
       { data: null, error: null },

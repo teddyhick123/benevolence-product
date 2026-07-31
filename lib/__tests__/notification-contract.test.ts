@@ -22,7 +22,6 @@ function readMigrations(): string {
 }
 
 const migrations = readMigrations();
-const typesSrc = read('lib/notifications/types.ts');
 const fanoutSrc = read('lib/notifications/fanout.ts');
 const deliverySrc = read('lib/notifications/delivery.ts');
 const notifEmailTemplate = read('lib/email/templates/task-notification.tsx');
@@ -103,24 +102,24 @@ describe('Email template brand-agnosticism', () => {
 });
 
 // ---------------------------------------------------------------------------
-// 5. Job routes check CRON_SECRET
+// 5. Job routes use the shared notifications job boundary
 // ---------------------------------------------------------------------------
 describe('Job route security', () => {
   const fanoutRoute = read('app/api/jobs/notifications/fanout/route.ts');
   const sendRoute = read('app/api/jobs/notifications/send/route.ts');
   const digestRoute = read('app/api/jobs/notifications/digest/route.ts');
 
-  it('fanout route checks CRON_SECRET', () => {
-    expect(fanoutRoute).toContain('CRON_SECRET');
-  });
-
-  it('send route checks CRON_SECRET', () => {
-    expect(sendRoute).toContain('CRON_SECRET');
-  });
-
-  it('digest route checks CRON_SECRET', () => {
-    expect(digestRoute).toContain('CRON_SECRET');
-  });
+  for (const [name, route] of [
+    ['fanout', fanoutRoute],
+    ['send', sendRoute],
+    ['digest', digestRoute],
+  ]) {
+    it(`${name} route requires the notifications job principal`, () => {
+      expect(route).toContain("requireJobAccess(req, 'notifications')");
+      expect(route).toContain('createNotificationJobRepository');
+      expect(route).not.toContain('createAdminClient');
+    });
+  }
 });
 
 // ---------------------------------------------------------------------------

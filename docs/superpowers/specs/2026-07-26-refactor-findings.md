@@ -150,3 +150,21 @@ refactor preserves the shallow merge.
 **Suggested follow-up (not scheduled):** Define whether nested preference
 objects are patches or replacements, then align the schema, implementation, and
 client payloads with that contract.
+
+### 2026-08-01 — Phase 2, notification jobs — delivery scan errors look empty
+
+**What happened:** `lib/api/repositories/notification-jobs.ts` reads pending and
+retryable email notifications concurrently but, matching the prior route, uses
+only each result's `data` and does not inspect its `error`.
+
+**Expected vs. actual:** A failed queue read may be expected to fail the worker
+run so it can be retried or alerted. Actual behavior treats the failed result as
+an empty list and can return `ok: true` with zero work.
+
+**Why left alone:** Changing the worker's success/failure contract affects
+monitoring and retry behavior outside the API-boundary extraction. The refactor
+keeps the existing semantics.
+
+**Suggested follow-up (not scheduled):** Fail the run when either queue read
+errors, and add job monitoring that distinguishes an empty queue from a failed
+scan.

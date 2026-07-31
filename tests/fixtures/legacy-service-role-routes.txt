@@ -9,9 +9,6 @@ app/api/charities/enrich/route.ts
 app/api/charities/import/propublica/route.ts
 app/api/invitations/[token]/accept/route.ts
 app/api/invitations/[token]/route.ts
-app/api/jobs/notifications/digest/route.ts
-app/api/jobs/notifications/fanout/route.ts
-app/api/jobs/notifications/send/route.ts
 app/api/jobs/tasks/generate/route.ts
 app/api/jobs/tasks/runs/route.ts
 app/api/onboarding/chat/route.ts

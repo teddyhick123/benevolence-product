@@ -5,6 +5,7 @@ import { jsonError } from '@/lib/api/responses';
 import type {
   AppAdminAccessContext,
   CpaShareAccessContext,
+  JobAccessContext,
   OrgAccessContext,
   PortfolioAccessContext,
   UserAccessContext,
@@ -58,6 +59,27 @@ async function authenticatedSession() {
 
 export async function requireUserAccess(): Promise<AccessResult<UserAccessContext>> {
   return authenticatedSession();
+}
+
+export function requireJobAccess(
+  request: Pick<Request, 'headers'>,
+  job: string
+): AccessResult<JobAccessContext> {
+  const authorization = request.headers.get('authorization') ?? '';
+  const bearerToken = authorization.startsWith('Bearer ')
+    ? authorization.slice(7)
+    : null;
+  const suppliedSecret = request.headers.get('x-job-secret') ?? bearerToken;
+  const configuredSecret = process.env.CRON_SECRET;
+
+  if (!configuredSecret || !suppliedSecret || suppliedSecret !== configuredSecret) {
+    return denied('unauthenticated', 'Unauthorized', 401);
+  }
+
+  return {
+    ok: true,
+    context: { principal: { kind: 'job', job } },
+  };
 }
 
 export async function requireAppAdmin(): Promise<AccessResult<AppAdminAccessContext>> {

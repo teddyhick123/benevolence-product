@@ -36,3 +36,7 @@ export type CpaShareAccessContext = {
   taxYears: number[];
   permissions: Record<string, boolean>;
 };
+
+export type JobAccessContext = {
+  principal: Extract<AccessPrincipal, { kind: 'job' }>;
+};

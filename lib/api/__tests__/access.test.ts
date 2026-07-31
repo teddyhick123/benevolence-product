@@ -1,9 +1,10 @@
 // @vitest-environment node
 
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   requireAppAdmin,
   requireCpaToken,
+  requireJobAccess,
   requireOrgAccess,
   requirePortfolioAccess,
   requireUserAccess,
@@ -66,6 +67,44 @@ function client(options: ClientOptions = {}) {
 beforeEach(() => {
   mockCreateServerClient.mockReset();
   mockResolveCpaToken.mockReset();
+});
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
+
+describe('requireJobAccess', () => {
+  it('returns a typed job principal for either supported secret header', () => {
+    vi.stubEnv('CRON_SECRET', 'cron-secret');
+    const supportedHeaders: Array<Record<string, string>> = [
+      { 'x-job-secret': 'cron-secret' },
+      { authorization: 'Bearer cron-secret' },
+    ];
+
+    for (const headers of supportedHeaders) {
+      expect(requireJobAccess(new Request('http://localhost/jobs', { headers }), 'notifications'))
+        .toMatchObject({
+          ok: true,
+          context: { principal: { kind: 'job', job: 'notifications' } },
+        });
+    }
+  });
+
+  it('returns 401 when the secret is missing, wrong, or not configured', () => {
+    vi.stubEnv('CRON_SECRET', 'cron-secret');
+    const wrong = requireJobAccess(new Request('http://localhost/jobs', {
+      headers: { 'x-job-secret': 'wrong' },
+    }), 'notifications');
+    expect(wrong.ok).toBe(false);
+    if (wrong.ok) throw new Error('expected access denial');
+    expect(wrong.response.status).toBe(401);
+
+    vi.stubEnv('CRON_SECRET', '');
+    const unconfigured = requireJobAccess(new Request('http://localhost/jobs', {
+      headers: { 'x-job-secret': 'cron-secret' },
+    }), 'notifications');
+    expect(unconfigured.ok).toBe(false);
+  });
 });
 
 describe('requireUserAccess', () => {

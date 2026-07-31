@@ -203,3 +203,23 @@ which is beyond an API authorization boundary change.
 
 **Suggested follow-up (not scheduled):** Move the workflow-task, linked-task,
 workflow-instance, and task-event changes into one transactional database RPC.
+
+### 2026-08-01 — Phase 2, task jobs — run-log write failures are ignored
+
+**What happened:** `lib/api/repositories/task-jobs.ts` preserves the worker's
+existing behavior of awaiting the advisory-lock, run insert, and terminal run
+update without checking their returned database errors.
+
+**Expected vs. actual:** The automation producers may complete successfully
+while the run-history row is missing or remains marked `running`. Conversely, a
+producer failure may be returned to the caller without a corresponding failed
+run record for monitoring.
+
+**Why left alone:** Making run-history persistence part of the worker's success
+contract changes retry and alerting behavior. The API-boundary extraction keeps
+the established execution semantics while restricting elevated access to the
+task-job principal.
+
+**Suggested follow-up (not scheduled):** Check every lock/run-log result and
+define whether log persistence failure should abort generation, retry the log,
+or emit a separate monitoring alert.

@@ -27,6 +27,7 @@ const pledgesSrc = read('lib/tasks/automation/producers/pledges.ts');
 const grantsSrc = read('lib/tasks/automation/producers/grants.ts');
 const importsSrc = read('lib/tasks/automation/producers/imports.ts');
 const generateSrc = read('app/api/jobs/tasks/generate/route.ts');
+const taskJobsRepositorySrc = read('lib/api/repositories/task-jobs.ts');
 const filingCalendarRouteSrc = read('app/api/org/[orgId]/compliance/filing-calendar/route.ts');
 const complianceRepositorySrc = read('lib/api/repositories/compliance.ts');
 const installmentRouteSrc = read('app/api/org/[orgId]/pledges/[pledgeId]/installments/[installmentId]/route.ts');
@@ -231,8 +232,7 @@ describe('Task writer prefix-safety guard', () => {
 // ---------------------------------------------------------------------------
 describe('Job route security', () => {
   it('generate route checks x-job-secret header', () => {
-    expect(generateSrc).toContain('x-job-secret');
-    expect(generateSrc).toContain('CRON_SECRET');
+    expect(generateSrc).toContain("requireJobAccess(req, 'tasks')");
   });
 
   it('generate route validates producer against PRODUCER_IDS', () => {
@@ -240,7 +240,7 @@ describe('Job route security', () => {
   });
 
   it('generate route logs run to task_automation_runs', () => {
-    expect(generateSrc).toContain('task_automation_runs');
+    expect(taskJobsRepositorySrc).toContain('task_automation_runs');
   });
 });
 

@@ -1,20 +1,9 @@
 // app/api/org/[orgId]/notifications/route.ts
-import { NextRequest, NextResponse } from 'next/server';
-import { createServerClient, createAdminClient } from '@/lib/supabase';
+import { NextRequest } from 'next/server';
+import { isAccessDenied, requireOrgAccess } from '@/lib/api/access';
+import { jsonError, jsonOk } from '@/lib/api/responses';
 
 export const dynamic = 'force-dynamic';
-
-const NO_STORE = { 'Cache-Control': 'no-store' } as const;
-
-function json(body: unknown, init: ResponseInit = {}) {
-  return NextResponse.json(body, {
-    ...init,
-    headers: {
-      ...NO_STORE,
-      ...(init.headers || {}),
-    },
-  });
-}
 
 export async function GET(
   req: NextRequest,
@@ -31,17 +20,12 @@ export async function GET(
     const cursor = searchParams.get('cursor');
 
     if (!['unread', 'read', 'all'].includes(status)) {
-      return json({ error: 'Invalid notification status' }, { status: 400 });
+      return jsonError('Invalid notification status', 400);
     }
 
-    const supabase = await createServerClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return json({ error: 'Unauthorized' }, { status: 401 });
-
-    const { data: role } = await supabase.rpc('user_org_role', { p_org_id: orgId });
-    if (!role) return json({ error: 'Not a member of this organization' }, { status: 403 });
-
-    const db = createAdminClient();
+    const access = await requireOrgAccess(orgId);
+    if (isAccessDenied(access)) return access.response;
+    const { db, user } = access.context;
 
     let query = db
       .from('notification_events')
@@ -78,7 +62,7 @@ export async function GET(
       .is('read_at', null)
       .not('status', 'in', '(suppressed,cancelled)');
 
-    return json({
+    return jsonOk({
       data: rows.map((n: any) => ({
         id: n.id,
         event_type: n.event_type,
@@ -94,6 +78,6 @@ export async function GET(
       next_cursor: nextCursor,
     });
   } catch (err: any) {
-    return json({ error: err.message }, { status: 500 });
+    return jsonError(err.message, 500);
   }
 }

@@ -32,18 +32,23 @@ describe('org-scoped route auth contracts', () => {
     ]) {
       const src = readFileSync(route, 'utf8');
 
-      expect(src, route).toContain('user_org_role');
+      expect(src, route).toContain('requireOrgAccess');
       expect(src, route).toContain("recipient_user_id', user.id");
-      expect(src, route).toContain("'Cache-Control': 'no-store'");
+      expect(src, route).toContain('jsonOk');
+      expect(src, route).not.toContain('createAdminClient');
+      expect(src, route).not.toContain('createServerClient');
     }
   });
 
   it('member notification preferences can only be changed by the authenticated member', () => {
     const src = readFileSync('app/api/org/[orgId]/members/[userId]/notifications/route.ts', 'utf8');
 
-    expect(src).toContain('user.id !== userId');
-    expect(src).toContain('user_org_role');
-    expect(src).toContain("'Cache-Control': 'no-store'");
+    expect(src).toContain('requireOrgAccess');
+    expect(src).toContain('principal.userId !== userId');
+    expect(src).toContain('createNotificationPreferenceRepository');
+    expect(src).toContain('jsonOk');
+    expect(src).not.toContain('createAdminClient');
+    expect(src).not.toContain('createServerClient');
   });
 
   it('notification listing validates paging and status inputs', () => {

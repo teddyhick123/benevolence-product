@@ -131,3 +131,22 @@ requires a database orchestration boundary beyond this route migration.
 **Suggested follow-up (not scheduled):** Move milestone status change and task
 state transition into one database function or persist an outbox event for
 retryable synchronization.
+
+### 2026-08-01 — Phase 2, notification family — nested preferences merge shallowly
+
+**What happened:** The notification preference endpoint accepts partial
+`channels` and `alerts` objects, but `lib/api/repositories/notifications.ts`
+merges only the top-level preference keys. Sending one nested channel therefore
+replaces the stored `channels` object instead of preserving its sibling value.
+
+**Expected vs. actual:** A partial update such as `{ channels: { email: false }
+}` may be expected to retain the existing `in_app` choice. Existing behavior
+stores only the supplied nested object.
+
+**Why left alone:** Deep-merging changes the endpoint's established update
+semantics and could retain values callers intended to replace. The API boundary
+refactor preserves the shallow merge.
+
+**Suggested follow-up (not scheduled):** Define whether nested preference
+objects are patches or replacements, then align the schema, implementation, and
+client payloads with that contract.

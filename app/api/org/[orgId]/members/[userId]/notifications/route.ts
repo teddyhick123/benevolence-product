@@ -1,21 +1,11 @@
 // app/api/org/[orgId]/members/[userId]/notifications/route.ts
-import { NextRequest, NextResponse } from 'next/server';
-import { createServerClient, createAdminClient } from '@/lib/supabase';
+import { NextRequest } from 'next/server';
 import { z } from 'zod';
+import { isAccessDenied, requireOrgAccess } from '@/lib/api/access';
+import { createNotificationPreferenceRepository } from '@/lib/api/repositories/notifications';
+import { jsonError, jsonOk } from '@/lib/api/responses';
 
 export const dynamic = 'force-dynamic';
-
-const NO_STORE = { 'Cache-Control': 'no-store' } as const;
-
-function json(body: unknown, init: ResponseInit = {}) {
-  return NextResponse.json(body, {
-    ...init,
-    headers: {
-      ...NO_STORE,
-      ...(init.headers || {}),
-    },
-  });
-}
 
 interface RouteParams {
   params: Promise<{ orgId: string; userId: string }>;
@@ -33,42 +23,24 @@ const notificationPrefsSchema = z.object({
 export async function PATCH(req: NextRequest, { params }: RouteParams) {
   try {
     const { orgId, userId } = await params;
-    const supabase = await createServerClient();
-
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user || user.id !== userId) {
-      return json({ error: 'Unauthorized' }, { status: 403 });
+    const access = await requireOrgAccess(orgId);
+    if (isAccessDenied(access)) return access.response;
+    if (access.context.principal.userId !== userId) {
+      return jsonError('Unauthorized', 403);
     }
-
-    const { data: role } = await supabase.rpc('user_org_role', { p_org_id: orgId });
-    if (!role) return json({ error: 'Not a member of this organization' }, { status: 403 });
 
     const body = await req.json().catch(() => ({}));
     const validation = notificationPrefsSchema.safeParse(body);
     if (!validation.success) {
-      return json({ error: 'Validation failed', details: validation.error.format() }, { status: 400 });
+      return jsonError('Validation failed', 400, {
+        details: validation.error.format(),
+      });
     }
 
-    const adminClient = createAdminClient();
-    const { data: current } = await adminClient
-      .from('organization_members')
-      .select('notification_prefs')
-      .eq('org_id', orgId)
-      .eq('user_id', userId)
-      .single();
-
-    const merged = { ...(current?.notification_prefs || {}), ...validation.data };
-
-    const { error } = await adminClient
-      .from('organization_members')
-      .update({ notification_prefs: merged })
-      .eq('org_id', orgId)
-      .eq('user_id', userId);
-
-    if (error) return json({ error: error.message }, { status: 500 });
-
-    return json({ notification_prefs: merged });
+    const repository = createNotificationPreferenceRepository(access.context);
+    const notificationPrefs = await repository.updateOwnPreferences(validation.data);
+    return jsonOk({ notification_prefs: notificationPrefs });
   } catch (err: any) {
-    return json({ error: err.message }, { status: 500 });
+    return jsonError(err.message, 500);
   }
 }

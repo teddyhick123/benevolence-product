@@ -1,20 +1,9 @@
 // app/api/org/[orgId]/notifications/mark-all-read/route.ts
-import { NextRequest, NextResponse } from 'next/server';
-import { createServerClient, createAdminClient } from '@/lib/supabase';
+import { NextRequest } from 'next/server';
+import { isAccessDenied, requireOrgAccess } from '@/lib/api/access';
+import { jsonError, jsonOk } from '@/lib/api/responses';
 
 export const dynamic = 'force-dynamic';
-
-const NO_STORE = { 'Cache-Control': 'no-store' } as const;
-
-function json(body: unknown, init: ResponseInit = {}) {
-  return NextResponse.json(body, {
-    ...init,
-    headers: {
-      ...NO_STORE,
-      ...(init.headers || {}),
-    },
-  });
-}
 
 export async function POST(
   _req: NextRequest,
@@ -23,14 +12,9 @@ export async function POST(
   try {
     const { orgId } = await params;
 
-    const supabase = await createServerClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return json({ error: 'Unauthorized' }, { status: 401 });
-
-    const { data: role } = await supabase.rpc('user_org_role', { p_org_id: orgId });
-    if (!role) return json({ error: 'Not a member' }, { status: 403 });
-
-    const db = createAdminClient();
+    const access = await requireOrgAccess(orgId);
+    if (isAccessDenied(access)) return access.response;
+    const { db, user } = access.context;
     const { error } = await db
       .from('notification_events')
       .update({ read_at: new Date().toISOString() })
@@ -40,8 +24,8 @@ export async function POST(
       .is('read_at', null);
 
     if (error) throw error;
-    return json({ ok: true });
+    return jsonOk({ ok: true });
   } catch (err: any) {
-    return json({ error: err.message }, { status: 500 });
+    return jsonError(err.message, 500);
   }
 }

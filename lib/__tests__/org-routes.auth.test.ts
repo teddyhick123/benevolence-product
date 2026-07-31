@@ -181,9 +181,14 @@ describe('org-scoped route auth contracts', () => {
     expect(detailRoute).not.toContain('acknowledgment_status');
 
     const pdfRoute = readFileSync('app/api/org/[orgId]/acknowledgments/[id]/generate-pdf/route.ts', 'utf8');
+    const pdfRepository = readFileSync('lib/api/repositories/acknowledgment-pdfs.ts', 'utf8');
+    expect(pdfRoute).toContain("requireOrgAccess(orgId, 'member')");
+    expect(pdfRoute).toContain('createAcknowledgmentPdfRepository');
+    expect(pdfRoute).not.toContain('createAdminClient');
+    expect(pdfRoute).not.toContain('createServerClient');
     expect(pdfRoute).toContain('updateError');
-    expect(pdfRoute).toContain(".remove([storagePath])");
-    expect(pdfRoute).toContain('createSignedUrl');
+    expect(pdfRepository).toContain('.remove([pathFor(letterId)])');
+    expect(pdfRepository).toContain('createSignedUrl');
   });
 
   it('org admin routes use no-store, soft delete, and durable audit for membership changes', () => {

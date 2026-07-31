@@ -1,39 +1,25 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { createServerClient, createAdminClient } from '@/lib/supabase';
+import { NextRequest } from 'next/server';
+import { isAccessDenied, requireOrgAccess } from '@/lib/api/access';
+import { createAcknowledgmentPdfRepository } from '@/lib/api/repositories/acknowledgment-pdfs';
+import { jsonError, jsonOk } from '@/lib/api/responses';
 import { branding } from '@/lib/config';
 import jsPDF from 'jspdf';
 
 export const dynamic = 'force-dynamic';
 
-const NO_STORE = { 'Cache-Control': 'no-store' } as const;
-
 interface RouteParams {
   params: Promise<{ orgId: string; id: string }>;
 }
 
-function json(body: unknown, init: ResponseInit = {}) {
-  return NextResponse.json(body, {
-    ...init,
-    headers: {
-      ...NO_STORE,
-      ...(init.headers || {}),
-    },
-  });
-}
-
 // POST /api/org/[orgId]/acknowledgments/[id]/generate-pdf
-export async function POST(req: NextRequest, { params }: RouteParams) {
+export async function POST(_req: NextRequest, { params }: RouteParams) {
+  const { orgId, id } = await params;
+  const access = await requireOrgAccess(orgId, 'member');
+  if (isAccessDenied(access)) return access.response;
+
   try {
-    const { orgId, id } = await params;
-    const supabase = await createServerClient();
-
-    const { data: canEdit } = await supabase.rpc('can_edit_org', { p_org_id: orgId });
-    if (!canEdit) {
-      return json({ error: 'Not authorized' }, { status: 403 });
-    }
-
     // Fetch letter with donor
-    const { data: letter, error: letterErr } = await supabase
+    const { data: letter, error: letterErr } = await access.context.db
       .from('acknowledgment_letters')
       .select(`
         *,
@@ -44,49 +30,29 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       .single();
 
     if (letterErr || !letter) {
-      return json({ error: 'Letter not found' }, { status: 404 });
+      return jsonError('Letter not found', 404);
     }
 
     const pdfBuffer = generateAcknowledgmentPDF(letter);
-
-    // Upload to Supabase Storage using admin client (bypasses RLS on storage)
-    const admin = createAdminClient();
-    const storagePath = `acknowledgments/${orgId}/${id}.pdf`;
-
-    const { error: uploadErr } = await admin.storage
-      .from('documents')
-      .upload(storagePath, pdfBuffer, {
-        contentType: 'application/pdf',
-        upsert: true,
-      });
-
-    if (uploadErr) {
-      return json({ error: `Storage upload failed: ${uploadErr.message}` }, { status: 500 });
-    }
+    const pdfRepository = createAcknowledgmentPdfRepository(access.context);
+    const storagePath = await pdfRepository.upload(id, pdfBuffer);
 
     // Store the path; generate a short-lived signed URL (never store public URLs for donor PII)
-    const { error: updateError } = await supabase
+    const { error: updateError } = await access.context.db
       .from('acknowledgment_letters')
       .update({ storage_path: storagePath, storage_bucket: 'documents' })
       .eq('id', id)
       .eq('org_id', orgId);
 
     if (updateError) {
-      await admin.storage.from('documents').remove([storagePath]);
-      return json({ error: updateError.message }, { status: 500 });
+      await pdfRepository.remove(id);
+      return jsonError(updateError.message, 500);
     }
 
-    const { data: signedData, error: signErr } = await admin.storage
-      .from('documents')
-      .createSignedUrl(storagePath, 3600);
-
-    if (signErr || !signedData) {
-      return json({ error: 'Failed to create download URL' }, { status: 500 });
-    }
-
-    return json({ pdf_url: signedData.signedUrl });
-  } catch (err: any) {
-    return json({ error: err.message }, { status: 500 });
+    const signedUrl = await pdfRepository.createSignedUrl(id);
+    return jsonOk({ pdf_url: signedUrl });
+  } catch (error) {
+    return jsonError(error instanceof Error ? error.message : 'PDF generation failed', 500);
   }
 }
 

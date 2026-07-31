@@ -244,3 +244,23 @@ function or transactional outbox, beyond the API authorization refactor.
 **Suggested follow-up (not scheduled):** Move task mutation plus audit and
 milestone synchronization into transactional database functions, and dispatch
 automation from a durable outbox after commit.
+
+### 2026-08-01 — Phase 2, acknowledgments — PDF replacement is not atomic
+
+**What happened:** The acknowledgment PDF flow uploads with `upsert: true`, then
+updates the letter row, then creates a signed URL. On a row-update failure it
+removes the uploaded path; on a signing failure it leaves the new path stored.
+
+**Expected vs. actual:** A regeneration may replace an existing PDF before the
+database update succeeds, and the cleanup can then remove that replacement
+without restoring the prior object. A signing failure returns 500 even though
+the document and database path have already been saved.
+
+**Why left alone:** The scoped storage repository preserves the existing
+failure and retry behavior while constraining every object path to the
+authorized organization. Atomic object replacement needs a versioned-path or
+staging design.
+
+**Suggested follow-up (not scheduled):** Upload to a versioned temporary path,
+commit that path to the letter row, then retire the previous object after a
+successful signed-URL response or through cleanup automation.

@@ -45,7 +45,6 @@ app/api/onboarding/profile/route.ts
 app/api/onboarding/provision/route.ts
 app/api/onboarding/recommendations/route.ts
 app/api/onboarding/session/route.ts
-app/api/org/[orgId]/acknowledgments/[id]/generate-pdf/route.ts
 app/api/org/[orgId]/ai-context/route.ts
 app/api/org/[orgId]/audit/route.ts
 app/api/org/[orgId]/builder/chat/route.ts

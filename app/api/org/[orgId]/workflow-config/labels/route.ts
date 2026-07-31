@@ -30,9 +30,7 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
       if (value) labels[row.stage_key] = value;
     }
 
-    return jsonOk({ labels }, {
-      headers: { 'Cache-Control': 's-maxage=60, stale-while-revalidate=30' },
-    });
+    return jsonOk({ labels });
   } catch (err: any) {
     return jsonError(err.message, 500);
   }

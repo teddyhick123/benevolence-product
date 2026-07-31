@@ -124,7 +124,7 @@ describe('workflow configuration routes', () => {
       args: ['module', 'grant_management'],
     });
     expect(await response.json()).toEqual({ labels: { due_diligence: 'Site Review' } });
-    expect(response.headers.get('cache-control')).toContain('s-maxage=60');
+    expect(response.headers.get('cache-control')).toBe('no-store');
   });
 
   it('returns the shared denial before reading stage labels', async () => {

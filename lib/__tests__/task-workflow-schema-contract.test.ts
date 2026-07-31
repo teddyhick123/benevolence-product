@@ -19,6 +19,7 @@ const grantWorkflowSrc = [
   .join('\n');
 
 const taskApiSrc = [
+  'lib/api/repositories/tasks.ts',
   'app/api/org/[orgId]/tasks/route.ts',
   'app/api/org/[orgId]/tasks/[taskId]/route.ts',
   'app/api/org/[orgId]/tasks/[taskId]/comments/route.ts',

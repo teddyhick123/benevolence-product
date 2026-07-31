@@ -69,8 +69,10 @@ describe('org-scoped route auth contracts', () => {
     ]) {
       const src = readFileSync(route, 'utf8');
 
-      expect(src, route).toContain(route.includes('tasks/summary') ? 'user_org_role' : 'getOrgAccess');
-      expect(src, route).toContain("'Cache-Control': 'no-store'");
+      expect(src, route).toContain('requireOrgAccess');
+      expect(src, route).toMatch(/jsonOk|jsonError/);
+      expect(src, route).not.toContain('createAdminClient');
+      expect(src, route).not.toContain('createServerClient');
     }
 
     const tasksRoute = readFileSync('app/api/org/[orgId]/tasks/route.ts', 'utf8');
@@ -78,35 +80,26 @@ describe('org-scoped route auth contracts', () => {
   });
 
   it('manual task creation validates entity links and rolls back partial writes', () => {
-    const src = readFileSync('app/api/org/[orgId]/tasks/route.ts', 'utf8');
+    const src = readFileSync('lib/api/repositories/tasks.ts', 'utf8');
 
     expect(src).toContain('TASK_ENTITY_TYPES');
-    expect(src).toContain('assertEntityLinkInOrg');
+    expect(src).toContain('assertEntityLink');
     expect(src).toContain('DIRECT_ORG_ENTITY_TABLES');
     expect(src).toContain('GRANT_CHILD_ENTITY_TABLES');
-    expect(src).toContain('await adminClient.from(\'tasks\').delete()');
+    expect(src).toContain("await db.from('tasks').delete()");
     expect(src).toContain('linkError');
     expect(src).toContain('eventError');
   });
 
   it('task status/comment mutations check audit writes and scope grant milestone sync', () => {
-    const commentsRoute = readFileSync('app/api/org/[orgId]/tasks/[taskId]/comments/route.ts', 'utf8');
-    expect(commentsRoute).toContain('eventError');
-    expect(commentsRoute).toContain("from('task_comments').delete()");
-
-    const detailRoute = readFileSync('app/api/org/[orgId]/tasks/[taskId]/route.ts', 'utf8');
-    expect(detailRoute).toContain('eventError');
-    expect(detailRoute).toContain('before_values: existing');
-
-    const completeRoute = readFileSync('app/api/org/[orgId]/tasks/[taskId]/complete/route.ts', 'utf8');
-    expect(completeRoute).toContain('syncGrantMilestoneCompletion');
-    expect(completeRoute).toContain(".eq('org_id', orgId)");
-    expect(completeRoute).toContain(".eq('grants.org_id', orgId)");
-    expect(completeRoute).toContain('eventError');
-
-    const reopenRoute = readFileSync('app/api/org/[orgId]/tasks/[taskId]/reopen/route.ts', 'utf8');
-    expect(reopenRoute).toContain('eventError');
-    expect(reopenRoute).toContain('status: existing.status');
+    const repository = readFileSync('lib/api/repositories/tasks.ts', 'utf8');
+    expect(repository).toContain('eventError');
+    expect(repository).toContain("from('task_comments').delete()");
+    expect(repository).toContain('before_values: existing');
+    expect(repository).toContain('syncGrantMilestoneCompletion');
+    expect(repository).toContain(".eq('org_id', scope.orgId)");
+    expect(repository).toContain(".eq('grants.org_id', scope.orgId)");
+    expect(repository).toContain('status: existing.status');
   });
 
   it('donor routes protect PII, disable caching, and preserve contribution history on delete', () => {

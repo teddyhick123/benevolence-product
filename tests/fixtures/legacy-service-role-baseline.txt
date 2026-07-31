@@ -89,12 +89,6 @@ app/api/org/[orgId]/notifications/mark-all-read/route.ts
 app/api/org/[orgId]/notifications/route.ts
 app/api/org/[orgId]/pledges/[pledgeId]/cancel/route.ts
 app/api/org/[orgId]/pledges/[pledgeId]/installments/[installmentId]/route.ts
-app/api/org/[orgId]/tasks/[taskId]/comments/route.ts
-app/api/org/[orgId]/tasks/[taskId]/complete/route.ts
-app/api/org/[orgId]/tasks/[taskId]/reopen/route.ts
-app/api/org/[orgId]/tasks/[taskId]/route.ts
-app/api/org/[orgId]/tasks/route.ts
-app/api/org/[orgId]/tasks/summary/route.ts
 app/api/org/[orgId]/upload/route.ts
 app/api/org/[orgId]/view-config/route.ts
 app/api/org/[orgId]/workflow-config/labels/route.ts

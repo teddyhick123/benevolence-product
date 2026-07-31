@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 
 const ORG_ID  = '11111111-1111-1111-1111-111111111111';
 const USER_ID = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
@@ -9,23 +9,17 @@ let _orgRole: string | null = 'admin';
 let _counts: Record<string, number> = { overdue: 3, due_soon: 5, blocked: 1, mine: 7, total_open: 12 };
 let _countError: { message: string } | null = null;
 
-const mockServerRpc = vi.fn();
-const mockAdminFrom = vi.fn();
+const { mockAdminFrom, mockRequireOrgAccess } = vi.hoisted(() => ({
+  mockAdminFrom: vi.fn(),
+  mockRequireOrgAccess: vi.fn(),
+}));
 
-vi.mock('@/lib/supabase', () => ({
-  createServerClient: vi.fn(async () => ({
-    auth: { getUser: vi.fn(async () => ({ data: { user: _authUser } })) },
-    rpc: mockServerRpc,
-  })),
-  createAdminClient: vi.fn(() => ({ from: mockAdminFrom })),
+vi.mock('@/lib/api/access', () => ({
+  requireOrgAccess: mockRequireOrgAccess,
+  isAccessDenied: (result: { ok: boolean }) => !result.ok,
 }));
 
 function setupMocks() {
-  mockServerRpc.mockImplementation(async (fn: string) => {
-    if (fn === 'user_org_role') return { data: _orgRole, error: null };
-    return { data: null, error: null };
-  });
-
   mockAdminFrom.mockImplementation((table: string) => {
     if (table === 'tasks') {
       let queryType: keyof typeof _counts = 'total_open';
@@ -49,9 +43,35 @@ function setupMocks() {
     }
     return { select: vi.fn().mockReturnThis() };
   });
+
+  mockRequireOrgAccess.mockImplementation(async (orgId: string) => {
+    if (!_authUser) {
+      return {
+        ok: false,
+        response: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }),
+      };
+    }
+    if (!_orgRole) {
+      return {
+        ok: false,
+        response: NextResponse.json({ error: 'Not authorized' }, { status: 403 }),
+      };
+    }
+    return {
+      ok: true,
+      context: {
+        orgId,
+        role: _orgRole,
+        principal: { kind: 'user', userId: _authUser.id },
+        user: _authUser,
+        db: { from: mockAdminFrom },
+      },
+    };
+  });
 }
 
 beforeEach(() => {
+  vi.clearAllMocks();
   _authUser   = { id: USER_ID };
   _orgRole    = 'admin';
   _counts     = { overdue: 3, due_soon: 5, blocked: 1, mine: 7, total_open: 12 };

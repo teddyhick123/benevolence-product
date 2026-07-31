@@ -1,36 +1,20 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { createAdminClient, createServerClient } from '@/lib/supabase';
+import { NextRequest } from 'next/server';
+import { isAccessDenied, requireOrgAccess } from '@/lib/api/access';
+import { jsonError, jsonOk } from '@/lib/api/responses';
 
 export const dynamic = 'force-dynamic';
-
-const NO_STORE = { 'Cache-Control': 'no-store' } as const;
-
-function json(body: unknown, init: ResponseInit = {}) {
-  return NextResponse.json(body, {
-    ...init,
-    headers: {
-      ...NO_STORE,
-      ...(init.headers || {}),
-    },
-  });
-}
 
 interface RouteParams {
   params: Promise<{ orgId: string }>;
 }
 
-export async function GET(req: NextRequest, { params }: RouteParams) {
+export async function GET(_req: NextRequest, { params }: RouteParams) {
+  const { orgId } = await params;
+  const access = await requireOrgAccess(orgId, 'viewer');
+  if (isAccessDenied(access)) return access.response;
+
   try {
-    const { orgId } = await params;
-
-    const supabase = await createServerClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return json({ error: 'Unauthorized' }, { status: 401 });
-
-    const { data: role } = await supabase.rpc('user_org_role', { p_org_id: orgId });
-    if (!role) return json({ error: 'Not authorized' }, { status: 403 });
-
-    const db = createAdminClient();
+    const db = access.context.db;
     const now = new Date();
     const nowIso = now.toISOString();
     const sevenDaysIso = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString();
@@ -44,24 +28,23 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       db.from('tasks').select('*', { count: 'exact', head: true })
         .eq('org_id', orgId).eq('status', 'blocked').is('deleted_at', null),
       db.from('tasks').select('*', { count: 'exact', head: true })
-        .eq('org_id', orgId).eq('assigned_to', user.id).not('status', 'in', notDone).is('deleted_at', null),
+        .eq('org_id', orgId).eq('assigned_to', access.context.principal.userId).not('status', 'in', notDone).is('deleted_at', null),
       db.from('tasks').select('*', { count: 'exact', head: true })
         .eq('org_id', orgId).not('status', 'in', notDone).is('deleted_at', null),
     ]);
 
-    const firstError = [overdueRes, dueSoonRes, blockedRes, mineRes, openRes].find(r => r.error);
-    if (firstError?.error) {
-      return json({ error: firstError.error.message }, { status: 500 });
-    }
+    const firstError = [overdueRes, dueSoonRes, blockedRes, mineRes, openRes]
+      .find(result => result.error);
+    if (firstError?.error) return jsonError(firstError.error.message, 500);
 
-    return json({
-      overdue:    overdueRes.count  ?? 0,
-      due_soon:   dueSoonRes.count  ?? 0,
-      blocked:    blockedRes.count  ?? 0,
-      mine:       mineRes.count     ?? 0,
-      total_open: openRes.count     ?? 0,
+    return jsonOk({
+      overdue: overdueRes.count ?? 0,
+      due_soon: dueSoonRes.count ?? 0,
+      blocked: blockedRes.count ?? 0,
+      mine: mineRes.count ?? 0,
+      total_open: openRes.count ?? 0,
     });
-  } catch (err: any) {
-    return json({ error: err.message }, { status: 500 });
+  } catch (error) {
+    return jsonError(error instanceof Error ? error.message : 'Task summary failed', 500);
   }
 }

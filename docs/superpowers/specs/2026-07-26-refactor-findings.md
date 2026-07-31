@@ -223,3 +223,24 @@ task-job principal.
 **Suggested follow-up (not scheduled):** Check every lock/run-log result and
 define whether log persistence failure should abort generation, retry the log,
 or emit a separate monitoring alert.
+
+### 2026-08-01 — Phase 2, task family — mutation compensation is partial
+
+**What happened:** `lib/api/repositories/tasks.ts` preserves the existing
+multi-step task mutations: task/link/comment writes, audit-event inserts, grant
+milestone reverse synchronization, and automation triggers occur as separate
+database operations. Failure handlers attempt selected rollbacks but do not
+verify those writes. A completed grant milestone is not restored if the later
+task-event insert fails.
+
+**Expected vs. actual:** The endpoints present each action as one logical
+mutation, but an intermediate database failure can leave task, audit, comment,
+link, or milestone state partially advanced even when the response is 500.
+
+**Why left alone:** The scoped repository keeps the established ordering and
+response behavior. Making these cross-table effects atomic requires a database
+function or transactional outbox, beyond the API authorization refactor.
+
+**Suggested follow-up (not scheduled):** Move task mutation plus audit and
+milestone synchronization into transactional database functions, and dispatch
+automation from a durable outbox after commit.

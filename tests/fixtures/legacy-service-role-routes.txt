@@ -30,11 +30,5 @@ app/api/org/[orgId]/invitations/route.ts
 app/api/org/[orgId]/members/[userId]/route.ts
 app/api/org/[orgId]/members/route.ts
 app/api/org/[orgId]/modules/route.ts
-app/api/org/[orgId]/tasks/[taskId]/comments/route.ts
-app/api/org/[orgId]/tasks/[taskId]/complete/route.ts
-app/api/org/[orgId]/tasks/[taskId]/reopen/route.ts
-app/api/org/[orgId]/tasks/[taskId]/route.ts
-app/api/org/[orgId]/tasks/route.ts
-app/api/org/[orgId]/tasks/summary/route.ts
 app/api/org/[orgId]/view-config/route.ts
 app/api/org/route.ts

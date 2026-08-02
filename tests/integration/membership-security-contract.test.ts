@@ -16,6 +16,10 @@ const invitationAcceptRoute = fs.readFileSync(
   path.join(process.cwd(), 'app', 'api', 'invitations', '[token]', 'accept', 'route.ts'),
   'utf8'
 );
+const publicInvitationsRepository = fs.readFileSync(
+  path.join(process.cwd(), 'lib', 'api', 'repositories', 'public-invitations.ts'),
+  'utf8'
+);
 
 function functionDefinition(sql: string, name: string): string {
   const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -79,12 +83,13 @@ describe('accepted organization membership security boundary', () => {
   });
 
   it('marks new and pre-existing pending invitation memberships as accepted', () => {
-    expect(invitationAcceptRoute).toContain(".select('id, accepted_at')");
-    expect(invitationAcceptRoute).toMatch(
-      /from\('organization_members'\)[\s\S]*?update\(\{ accepted_at: new Date\(\)\.toISOString\(\) \}\)/
+    expect(invitationAcceptRoute).toContain('requireInvitationToken');
+    expect(publicInvitationsRepository).toContain(".select('id, accepted_at')");
+    expect(publicInvitationsRepository).toMatch(
+      /from\('organization_members'\)[\s\S]*?update\(\{ accepted_at: acceptedAt \}\)/
     );
-    expect(invitationAcceptRoute).toMatch(
-      /from\('organization_members'\)[\s\S]*?insert\(\{[\s\S]*?accepted_at:\s*new Date\(\)\.toISOString\(\)/
+    expect(publicInvitationsRepository).toMatch(
+      /from\('organization_members'\)[\s\S]*?insert\(\{[\s\S]*?accepted_at:\s*acceptedAt/
     );
   });
 });

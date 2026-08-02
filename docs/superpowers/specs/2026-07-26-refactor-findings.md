@@ -322,3 +322,23 @@ require a transaction and outbox boundary.
 **Suggested follow-up (not scheduled):** Validate and normalize the entire
 request before writing, commit all value changes in one database function, and
 enqueue automation events through a transactional outbox.
+
+### 2026-08-02 — Phase 2, public invitations — acceptance finalization is best-effort
+
+**What happened:** Invitation acceptance creates or activates the membership,
+then marks the invitation accepted and writes an audit event as separate
+operations. The established flow does not inspect failures from the final
+invitation or audit writes.
+
+**Expected vs. actual:** The endpoint can return success with an active member
+while the invitation remains pending or its acceptance audit is absent. A retry
+usually repairs the invitation status through the existing-member path, but the
+original audit gap remains.
+
+**Why left alone:** The token-scoped repository preserves existing acceptance
+and retry semantics while constraining every membership, invitation, org, and
+audit operation to the resolved invitation tenant.
+
+**Suggested follow-up (not scheduled):** Accept the invitation, activate or
+create membership, and insert the audit row in one transactional database
+function with an idempotent invitation-state check.

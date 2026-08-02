@@ -5,15 +5,17 @@ import {
   requireAppAdmin,
   requireCpaToken,
   requireJobAccess,
+  requireInvitationToken,
   requireOrgAccess,
   requirePortfolioAccess,
   requireUserAccess,
 } from '@/lib/api/access';
 import { stubQuery } from '@/tests/helpers/supabase-mock';
 
-const { mockCreateServerClient, mockResolveCpaToken } = vi.hoisted(() => ({
+const { mockCreateServerClient, mockResolveCpaToken, mockResolveInvitationToken } = vi.hoisted(() => ({
   mockCreateServerClient: vi.fn(),
   mockResolveCpaToken: vi.fn(),
+  mockResolveInvitationToken: vi.fn(),
 }));
 
 vi.mock('@/lib/api/server-client', () => ({
@@ -22,6 +24,10 @@ vi.mock('@/lib/api/server-client', () => ({
 
 vi.mock('@/lib/api/repositories/cpa-share', () => ({
   resolveCpaToken: mockResolveCpaToken,
+}));
+
+vi.mock('@/lib/api/repositories/public-invitations', () => ({
+  resolveInvitationToken: mockResolveInvitationToken,
 }));
 
 const USER = { id: 'user-1', email: 'member@example.test' };
@@ -67,6 +73,7 @@ function client(options: ClientOptions = {}) {
 beforeEach(() => {
   mockCreateServerClient.mockReset();
   mockResolveCpaToken.mockReset();
+  mockResolveInvitationToken.mockReset();
 });
 
 afterEach(() => {
@@ -288,5 +295,50 @@ describe('requireCpaToken', () => {
     expect(result.reason).toBe(reason);
     expect(result.response.status).toBe(status);
     await expect(result.response.json()).resolves.toEqual({ error: 'Token failure' });
+  });
+});
+
+describe('requireInvitationToken', () => {
+  it('returns an invitation principal and token-scoped repository', async () => {
+    const repository = { organizationName: vi.fn(), markExpired: vi.fn(), accept: vi.fn() };
+    mockResolveInvitationToken.mockResolvedValue({
+      ok: true,
+      context: {
+        principal: { kind: 'invitation', invitationId: 'invite-1' },
+        orgId: 'org-1',
+        email: 'invitee@example.test',
+        role: 'member',
+        status: 'pending',
+        expiresAt: '2999-01-01T00:00:00.000Z',
+      },
+      repository,
+    });
+
+    await expect(requireInvitationToken('raw-token')).resolves.toMatchObject({
+      ok: true,
+      context: {
+        principal: { kind: 'invitation', invitationId: 'invite-1' },
+        orgId: 'org-1',
+        repository,
+      },
+    });
+  });
+
+  it.each([
+    [404, 'not_found'],
+    [500, 'infrastructure'],
+  ])('maps a %i invitation failure to a typed denial', async (status, reason) => {
+    mockResolveInvitationToken.mockResolvedValue({
+      ok: false,
+      status,
+      error: 'Invitation failure',
+    });
+
+    const result = await requireInvitationToken('raw-token');
+
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error('expected access denial');
+    expect(result.reason).toBe(reason);
+    expect(result.response.status).toBe(status);
   });
 });

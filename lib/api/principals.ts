@@ -37,6 +37,15 @@ export type CpaShareAccessContext = {
   permissions: Record<string, boolean>;
 };
 
+export type InvitationAccessContext = {
+  principal: Extract<AccessPrincipal, { kind: 'invitation' }>;
+  orgId: string;
+  email: string;
+  role: OrgRole;
+  status: string;
+  expiresAt: string;
+};
+
 export type JobAccessContext = {
   principal: Extract<AccessPrincipal, { kind: 'job' }>;
 };

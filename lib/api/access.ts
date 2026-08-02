@@ -5,6 +5,7 @@ import { jsonError } from '@/lib/api/responses';
 import type {
   AppAdminAccessContext,
   CpaShareAccessContext,
+  InvitationAccessContext,
   JobAccessContext,
   OrgAccessContext,
   PortfolioAccessContext,
@@ -14,6 +15,10 @@ import {
   resolveCpaToken,
   type CpaShareRepository,
 } from '@/lib/api/repositories/cpa-share';
+import {
+  resolveInvitationToken,
+  type PublicInvitationRepository,
+} from '@/lib/api/repositories/public-invitations';
 
 export type AccessDenialReason =
   | 'unauthenticated'
@@ -33,6 +38,10 @@ export type AccessResult<T> = AccessGranted<T> | AccessDenied;
 
 export type CpaTokenAccessContext = CpaShareAccessContext & {
   repository: CpaShareRepository;
+};
+
+export type InvitationTokenAccessContext = InvitationAccessContext & {
+  repository: PublicInvitationRepository;
 };
 
 export function isAccessDenied<T>(result: AccessResult<T>): result is AccessDenied {
@@ -177,6 +186,27 @@ export async function requireCpaToken(
         ? 'gone'
         : 'infrastructure';
     return denied(reason, resolved.error, resolved.status);
+  }
+
+  return {
+    ok: true,
+    context: {
+      ...resolved.context,
+      repository: resolved.repository,
+    },
+  };
+}
+
+export async function requireInvitationToken(
+  token: string
+): Promise<AccessResult<InvitationTokenAccessContext>> {
+  const resolved = await resolveInvitationToken(token);
+  if (!resolved.ok) {
+    return denied(
+      resolved.status === 404 ? 'not_found' : 'infrastructure',
+      resolved.error,
+      resolved.status
+    );
   }
 
   return {

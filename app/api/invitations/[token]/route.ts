@@ -1,6 +1,6 @@
-// app/api/invitations/[token]/route.ts
-import { NextRequest, NextResponse } from 'next/server';
-import { createAdminClient } from '@/lib/supabase';
+import { NextRequest } from 'next/server';
+import { isAccessDenied, requireInvitationToken } from '@/lib/api/access';
+import { jsonError, jsonOk } from '@/lib/api/responses';
 
 export const dynamic = 'force-dynamic';
 
@@ -8,59 +8,46 @@ interface RouteParams {
   params: Promise<{ token: string }>;
 }
 
-// GET /api/invitations/[token] — validate token (public, no auth required)
+// GET /api/invitations/[token] — validate token (public, no user auth required)
 export async function GET(_req: NextRequest, { params }: RouteParams) {
+  const { token } = await params;
+  const access = await requireInvitationToken(token);
+  if (isAccessDenied(access)) {
+    if (access.reason === 'not_found') {
+      return jsonOk({ valid: false, reason: 'not_found' }, { status: 404 });
+    }
+    return access.response;
+  }
+
+  const invitation = access.context;
+  if (invitation.status === 'accepted') {
+    return jsonOk({ valid: false, reason: 'already_accepted' });
+  }
+  if (invitation.status === 'cancelled') {
+    return jsonOk({ valid: false, reason: 'cancelled' });
+  }
+
   try {
-    const { token } = await params;
-    const adminClient = createAdminClient();
-
-    const { data: invite } = await adminClient
-      .from('org_invitations')
-      .select('id, org_id, email, role, status, expires_at')
-      .eq('token', token)
-      .single();
-
-    if (!invite) {
-      return NextResponse.json({ valid: false, reason: 'not_found' }, { status: 404 });
+    if (new Date(invitation.expiresAt) < new Date()) {
+      await invitation.repository.markExpired();
+      return jsonOk({ valid: false, reason: 'expired' });
+    }
+    if (invitation.status === 'expired') {
+      return jsonOk({ valid: false, reason: 'expired' });
     }
 
-    if (invite.status === 'accepted') {
-      return NextResponse.json({ valid: false, reason: 'already_accepted' });
-    }
-
-    if (invite.status === 'cancelled') {
-      return NextResponse.json({ valid: false, reason: 'cancelled' });
-    }
-
-    if (new Date(invite.expires_at) < new Date()) {
-      await adminClient
-        .from('org_invitations')
-        .update({ status: 'expired' })
-        .eq('id', invite.id);
-      return NextResponse.json({ valid: false, reason: 'expired' });
-    }
-
-    if (invite.status === 'expired') {
-      return NextResponse.json({ valid: false, reason: 'expired' });
-    }
-
-    const { data: org } = await adminClient
-      .from('organizations')
-      .select('name')
-      .eq('id', invite.org_id)
-      .single();
-
-    return NextResponse.json({
+    const orgName = await invitation.repository.organizationName();
+    return jsonOk({
       valid: true,
       invitation: {
-        id: invite.id,
-        email: invite.email,
-        role: invite.role,
-        orgName: org?.name || 'Unknown Organization',
+        id: invitation.principal.invitationId,
+        email: invitation.email,
+        role: invitation.role,
+        orgName,
       },
     });
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Internal server error';
-    return NextResponse.json({ error: message }, { status: 500 });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Internal server error';
+    return jsonError(message, 500);
   }
 }

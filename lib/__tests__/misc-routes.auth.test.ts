@@ -48,4 +48,20 @@ describe('misc portfolio routes auth contract', () => {
     expect(src).not.toContain('service_role_count');
     expect(src).not.toContain('createServiceClient');
   });
+
+  it('public invitation routes use invitation/user principals and scoped elevated access', () => {
+    const validationRoute = readFileSync('app/api/invitations/[token]/route.ts', 'utf8');
+    const acceptRoute = readFileSync('app/api/invitations/[token]/accept/route.ts', 'utf8');
+    const repository = readFileSync('lib/api/repositories/public-invitations.ts', 'utf8');
+
+    expect(validationRoute).toContain('requireInvitationToken');
+    expect(validationRoute).toContain('jsonOk');
+    expect(acceptRoute).toContain('requireUserAccess');
+    expect(acceptRoute).toContain('requireInvitationToken');
+    expect(validationRoute).not.toContain('createAdminClient');
+    expect(acceptRoute).not.toContain('createAdminClient');
+    expect(acceptRoute).not.toContain('createServerClient');
+    expect(repository).toContain(".eq('org_id', scope.orgId)");
+    expect(repository).toContain("kind: 'invitation'");
+  });
 });

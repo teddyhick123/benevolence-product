@@ -269,9 +269,10 @@ describe('Schema contract: DB cleanup fixes (2026-05-15)', () => {
     );
   });
 
-  it('invitation acceptance enforces invitee email even though it uses the admin client', () => {
-    expect(appSrc).toMatch(/user\.email\?\.trim\(\)\.toLowerCase\(\)/);
-    expect(appSrc).toMatch(/invite\.email\.trim\(\)\.toLowerCase\(\)/);
+  it('invitation acceptance enforces invitee email after resolving typed principals', () => {
+    expect(appSrc).toMatch(/userAccess\.context\.user\.email\?\.trim\(\)\.toLowerCase\(\)/);
+    expect(appSrc).toMatch(/invitation\.email\.trim\(\)\.toLowerCase\(\)/);
+    expect(appSrc).toContain('requireInvitationToken');
   });
 
   it('org_invitations read policy requires caller email match for non-admin access', () => {

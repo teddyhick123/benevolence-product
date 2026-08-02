@@ -342,3 +342,22 @@ audit operation to the resolved invitation tenant.
 **Suggested follow-up (not scheduled):** Accept the invitation, activate or
 create membership, and insert the audit row in one transactional database
 function with an idempotent invitation-state check.
+
+### 2026-08-02 — Phase 2, onboarding session core — lookup and telemetry failures remain opaque
+
+**What happened:** The established intake and profile flows treat a failed
+session-ownership lookup as “Session not found,” and do not inspect failures
+from the intake-duration analytics update.
+
+**Expected vs. actual:** A database failure during ownership resolution can
+surface as a 404 instead of a 500, while a successful intake response can omit
+its timing telemetry. The owned session data itself is still written before the
+best-effort analytics update.
+
+**Why left alone:** The user-scoped onboarding repository preserves the current
+status and retry behavior while ensuring every child read or write occurs only
+after resolving the session ID together with the authenticated user ID.
+
+**Suggested follow-up (not scheduled):** Return a typed not-found versus
+infrastructure result from session resolution, and move session state plus
+analytics updates into one transactional function or durable event boundary.

@@ -64,4 +64,25 @@ describe('misc portfolio routes auth contract', () => {
     expect(repository).toContain(".eq('org_id', scope.orgId)");
     expect(repository).toContain("kind: 'invitation'");
   });
+
+  it('onboarding session-core routes use a user principal and user-scoped repository', () => {
+    const routeFiles = [
+      'app/api/onboarding/session/route.ts',
+      'app/api/onboarding/profile/route.ts',
+      'app/api/onboarding/intake/route.ts',
+    ];
+    const repository = readFileSync('lib/api/repositories/onboarding.ts', 'utf8');
+
+    for (const route of routeFiles) {
+      const source = readFileSync(route, 'utf8');
+      expect(source).toContain('requireUserAccess');
+      expect(source).toContain('createOnboardingRepository');
+      expect(source).not.toContain('createAdminClient');
+      expect(source).not.toContain('createServerClient');
+      expect(source).not.toContain('SUPABASE_SERVICE_ROLE');
+    }
+    expect(repository).toContain(".eq('user_id', userId)");
+    expect(repository).toContain(".eq('id', scope.sessionId)");
+    expect(repository).toContain(".eq('user_id', scope.userId)");
+  });
 });

@@ -264,3 +264,22 @@ staging design.
 **Suggested follow-up (not scheduled):** Upload to a versioned temporary path,
 commit that path to the letter row, then retire the previous object after a
 successful signed-URL response or through cleanup automation.
+
+### 2026-08-02 — Phase 2, memberships — audit compensation is best-effort
+
+**What happened:** `lib/api/repositories/memberships.ts` preserves the existing
+sequence of changing a membership and then inserting an audit row. If auditing
+fails, it attempts to restore the prior role or soft-deletion state but does not
+check whether that restoration succeeds.
+
+**Expected vs. actual:** Membership mutations are presented as durable audited
+actions, but a second database failure can leave the membership changed without
+the corresponding audit event even though the endpoint returns 500.
+
+**Why left alone:** The scoped repository retains the established fail-closed
+response and compensation behavior. True atomicity requires a database
+transaction boundary rather than route-level orchestration.
+
+**Suggested follow-up (not scheduled):** Move member addition, role changes,
+removal, last-owner checks, and audit insertion into transactional database
+functions.

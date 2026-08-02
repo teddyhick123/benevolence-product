@@ -204,13 +204,16 @@ describe('org-scoped route auth contracts', () => {
     expect(orgRoute).not.toContain("from('organizations').delete()");
 
     const memberRoute = readFileSync('app/api/org/[orgId]/members/[userId]/route.ts', 'utf8');
-    expect(memberRoute).toContain("'Cache-Control': 'no-store'");
-    expect(memberRoute).toContain('countActiveOwners');
-    expect(memberRoute).toContain('Cannot change the last owner role');
-    expect(memberRoute).toContain('Cannot remove the last owner');
-    expect(memberRoute).toContain('auditError');
-    expect(memberRoute).toContain('deleted_at: removedAt');
-    expect(memberRoute).toContain('deleted_at: null');
+    const membershipRepository = readFileSync('lib/api/repositories/memberships.ts', 'utf8');
+    expect(memberRoute).toContain('requireOrgAccess');
+    expect(memberRoute).toContain('jsonOk');
+    expect(memberRoute).not.toContain('createAdminClient');
+    expect(membershipRepository).toContain('countActiveOwners');
+    expect(membershipRepository).toContain('Cannot change the last owner role');
+    expect(membershipRepository).toContain('Cannot remove the last owner');
+    expect(membershipRepository).toContain('auditError');
+    expect(membershipRepository).toContain('deleted_at: removedAt');
+    expect(membershipRepository).toContain('deleted_at: null');
     expect(memberRoute).not.toContain(".delete()");
   });
 
@@ -392,13 +395,16 @@ describe('org-scoped route auth contracts', () => {
     expect(modulesRoute).toContain('enableModule');
 
     const membersRoute = readFileSync('app/api/org/[orgId]/members/route.ts', 'utf8');
-    expect(membersRoute).toContain("'Cache-Control': 'no-store'");
-    expect(membersRoute).toContain('Only owners can add another owner');
-    expect(membersRoute).toContain('Only owners can assign owner role');
-    expect(membersRoute).toContain('Cannot change the last owner role');
-    expect(membersRoute).toContain('User is already a member of this organization');
-    expect(membersRoute).toContain('auditError');
-    expect(membersRoute).toContain('role: existing.role');
+    const membershipRepository = readFileSync('lib/api/repositories/memberships.ts', 'utf8');
+    expect(membersRoute).toContain('requireOrgAccess');
+    expect(membersRoute).toContain('jsonOk');
+    expect(membersRoute).not.toContain('createAdminClient');
+    expect(membershipRepository).toContain('Only owners can add another owner');
+    expect(membershipRepository).toContain('Only owners can assign owner role');
+    expect(membershipRepository).toContain('Cannot change the last owner role');
+    expect(membershipRepository).toContain('User is already a member of this organization');
+    expect(membershipRepository).toContain('auditError');
+    expect(membershipRepository).toContain('role: existing.role');
   });
 
   it('org upload route uses the shared member guard and org-scoped storage repository', () => {

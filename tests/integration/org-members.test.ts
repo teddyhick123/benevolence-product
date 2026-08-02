@@ -3,14 +3,14 @@
 // Tests for PATCH and DELETE /api/org/[orgId]/members/[userId]
 //
 // Route facts confirmed by reading the source:
-//   - Both handlers use `createServerClient` for the canonical `user_org_role` check.
-//   - Both handlers use `createAdminClient` for the write operation (bypasses RLS).
+//   - Both handlers use the shared organization guard.
+//   - Elevated writes live in the org-scoped membership repository.
 //   - The route exports PATCH (not PUT) for role changes.
 //   - Owner membership changes require an owner, while admin can manage non-owner members.
 //   - Audit writes are durable; failures roll back the member mutation.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { PATCH, DELETE } from '@/app/api/org/[orgId]/members/[userId]/route';
 
 // ── Constants ──────────────────────────────────────────────────────────────────
@@ -22,8 +22,6 @@ const ACTOR_ID = '55555555-5555-5555-5555-555555555555';
 // ── Mock state ─────────────────────────────────────────────────────────────────
 
 let _actorRole: string | null = 'admin';
-let _roleError: { message: string } | null = null;
-
 let _updateResult: any = { id: USER_ID, org_id: ORG_ID, user_id: USER_ID, role: 'member' };
 let _updateError:  { message: string } | null = null;
 
@@ -39,34 +37,41 @@ let _capturedAuditArgs: any = null;
 
 // ── Mock wiring ────────────────────────────────────────────────────────────────
 
-const mockServerRpc = vi.fn();
-const mockServerAuth = { getUser: vi.fn() };
+const { mockAdminFrom, mockRequireOrgAccess } = vi.hoisted(() => ({
+  mockAdminFrom: vi.fn(),
+  mockRequireOrgAccess: vi.fn(),
+}));
 
-const mockAdminFrom = vi.fn();
+vi.mock('@/lib/api/access', () => ({
+  requireOrgAccess: mockRequireOrgAccess,
+  isAccessDenied: (result: { ok: boolean }) => !result.ok,
+}));
 
-vi.mock('@/lib/supabase', () => ({
-  createServerClient: vi.fn(async () => ({
-    rpc: mockServerRpc,
-    auth: mockServerAuth,
-  })),
-  createAdminClient: vi.fn(() => ({
-    from: mockAdminFrom,
-  })),
+vi.mock('@/lib/api/admin-client', () => ({
+  createElevatedClient: vi.fn(() => ({ from: mockAdminFrom })),
 }));
 
 // ── Setup helpers ──────────────────────────────────────────────────────────────
 
 function setupMocks() {
-  // Server client: canonical org role lookup
-  mockServerRpc.mockImplementation(async (fn: string) => {
-    if (fn === 'user_org_role') {
-      return { data: _actorRole, error: _roleError };
+  mockRequireOrgAccess.mockImplementation(async (orgId: string) => {
+    if (!['admin', 'owner'].includes(_actorRole || '')) {
+      return {
+        ok: false,
+        response: NextResponse.json({ error: 'Not authorized' }, { status: 403 }),
+      };
     }
-    return { data: null, error: null };
+    return {
+      ok: true,
+      context: {
+        orgId,
+        role: _actorRole,
+        principal: { kind: 'user', userId: ACTOR_ID },
+        user: { id: ACTOR_ID },
+        db: {},
+      },
+    };
   });
-
-  // Server client: auth.getUser (used for audit log)
-  mockServerAuth.getUser.mockResolvedValue({ data: { user: { id: ACTOR_ID } } });
 
   // Admin client: from('organization_members') and from('org_audit_log')
   mockAdminFrom.mockImplementation((table: string) => {
@@ -120,7 +125,6 @@ function setupMocks() {
 
 beforeEach(() => {
   _actorRole = 'admin';
-  _roleError = null;
   _updateResult = { id: USER_ID, org_id: ORG_ID, user_id: USER_ID, role: 'member' };
   _updateError = null;
   _deleteError = null;
@@ -130,9 +134,8 @@ beforeEach(() => {
   _capturedUpdateArgs = null;
   _capturedAuditArgs = null;
   // Clear accumulated call history so per-test assertions on call counts are accurate
-  mockServerRpc.mockClear();
+  mockRequireOrgAccess.mockClear();
   mockAdminFrom.mockClear();
-  vi.mocked(mockServerAuth.getUser).mockClear();
   setupMocks();
 });
 

@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
-import { createServerClient } from '@supabase/ssr';
+import { isAccessDenied, requireUserAccess } from '@/lib/api/access';
 import { aiAuthRequired } from '@/lib/rate-limit-response';
 import { transcribeAudio } from '@/lib/ai/transcription';
 
@@ -13,34 +12,12 @@ export const maxDuration = 30;
  * REQUIRES AUTHENTICATION - No anonymous AI access allowed
  */
 export async function POST(req: NextRequest) {
+  const access = await requireUserAccess();
+  if (isAccessDenied(access)) {
+    return access.reason === 'unauthenticated' ? aiAuthRequired() : access.response;
+  }
+
   try {
-    // Get authenticated user
-    const cookieStore = await cookies();
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          get(name: string) {
-            return cookieStore.get(name)?.value;
-          },
-          set(name: string, value: string, options: any) {
-            cookieStore.set({ name, value, ...options });
-          },
-          remove(name: string, options: any) {
-            cookieStore.set({ name, value: '', ...options });
-          },
-        },
-      }
-    );
-
-    const { data: { user } } = await supabase.auth.getUser();
-
-    // Block anonymous access to AI features
-    if (!user) {
-      return aiAuthRequired();
-    }
-
     // Parse multipart form data
     const formData = await req.formData();
     const audioFile = formData.get('audio') as File;

@@ -395,9 +395,11 @@ describe('org-scoped route auth contracts', () => {
 
   it('module and member collection routes no-store authority data and protect owner changes', () => {
     const modulesRoute = readFileSync('app/api/org/[orgId]/modules/route.ts', 'utf8');
-    expect(modulesRoute).toContain("'Cache-Control': 'no-store'");
-    expect(modulesRoute).toContain('isWorkspaceManager');
+    expect(modulesRoute).toContain('requireOrgAccess');
+    expect(modulesRoute).toContain('jsonOk');
     expect(modulesRoute).toContain('enableModule');
+    expect(modulesRoute).not.toContain('createAdminClient');
+    expect(modulesRoute).not.toContain('createServerClient');
 
     const membersRoute = readFileSync('app/api/org/[orgId]/members/route.ts', 'utf8');
     const membershipRepository = readFileSync('lib/api/repositories/memberships.ts', 'utf8');
@@ -410,6 +412,25 @@ describe('org-scoped route auth contracts', () => {
     expect(membershipRepository).toContain('User is already a member of this organization');
     expect(membershipRepository).toContain('auditError');
     expect(membershipRepository).toContain('role: existing.role');
+  });
+
+  it('implementation reviewer routes scope elevated capability operations to one org', () => {
+    const route = readFileSync(
+      'app/api/org/[orgId]/capabilities/implementation-reviewers/route.ts',
+      'utf8'
+    );
+    const repository = readFileSync(
+      'lib/api/repositories/implementation-reviewers.ts',
+      'utf8'
+    );
+    expect(route).toContain('requireUserAccess');
+    expect(route).toContain('createImplementationReviewerRepository');
+    expect(route).toContain('jsonOk');
+    expect(route).not.toContain('createAdminClient');
+    expect(route).not.toContain('createServerClient');
+    expect(repository).toContain(".eq('org_id', scope.orgId)");
+    expect(repository).toContain(".not('accepted_at', 'is', null)");
+    expect(repository).toContain("capability: 'implementation_reviewer'");
   });
 
   it('org upload route uses the shared member guard and org-scoped storage repository', () => {

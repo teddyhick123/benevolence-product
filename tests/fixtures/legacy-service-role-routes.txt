@@ -17,12 +17,10 @@ app/api/onboarding/recommendations/route.ts
 app/api/onboarding/session/route.ts
 app/api/org/[orgId]/ai-context/route.ts
 app/api/org/[orgId]/audit/route.ts
-app/api/org/[orgId]/capabilities/implementation-reviewers/route.ts
 app/api/org/[orgId]/contributions/[id]/receipt/route.ts
 app/api/org/[orgId]/custom-fields/[fieldId]/route.ts
 app/api/org/[orgId]/custom-fields/batch/route.ts
 app/api/org/[orgId]/custom-fields/route.ts
 app/api/org/[orgId]/custom-fields/values/route.ts
-app/api/org/[orgId]/modules/route.ts
 app/api/org/[orgId]/view-config/route.ts
 app/api/org/route.ts

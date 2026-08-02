@@ -433,6 +433,28 @@ describe('org-scoped route auth contracts', () => {
     expect(repository).toContain("capability: 'implementation_reviewer'");
   });
 
+  it('custom-field routes use shared guards and one org-scoped repository', () => {
+    for (const routePath of [
+      'app/api/org/[orgId]/custom-fields/route.ts',
+      'app/api/org/[orgId]/custom-fields/[fieldId]/route.ts',
+      'app/api/org/[orgId]/custom-fields/values/route.ts',
+      'app/api/org/[orgId]/custom-fields/batch/route.ts',
+    ]) {
+      const route = readFileSync(routePath, 'utf8');
+      expect(route, routePath).toContain('requireOrgAccess');
+      expect(route, routePath).toContain('createCustomFieldRepository');
+      expect(route, routePath).toContain('jsonOk');
+      expect(route, routePath).not.toContain('createAdminClient');
+      expect(route, routePath).not.toContain('createServerClient');
+    }
+
+    const repository = readFileSync('lib/api/repositories/custom-fields.ts', 'utf8');
+    expect(repository).toContain(".eq('org_id', scope.orgId)");
+    expect(repository).toContain('assertEntityScope');
+    expect(repository).toContain('loadScopedEntityIds');
+    expect(repository).toContain('runAutomationRulesForEvent');
+  });
+
   it('org upload route uses the shared member guard and org-scoped storage repository', () => {
     const uploadRoute = readFileSync('app/api/org/[orgId]/upload/route.ts', 'utf8');
     expect(uploadRoute).toContain("requireOrgAccess(orgId, 'member')");

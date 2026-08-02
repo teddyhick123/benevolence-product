@@ -37,18 +37,20 @@ describe('Phase 2 custom fields migration contract', () => {
     );
 
     const route = readFileSync('app/api/org/[orgId]/custom-fields/values/route.ts', 'utf8');
-    expect(route).toContain('canOperateOrg');
-    expect(route).toContain('requireOrgMember(orgId, true)');
+    expect(route).toContain("requireOrgAccess(orgId, 'viewer')");
+    expect(route).toContain("requireOrgAccess(orgId, 'member')");
   });
 });
 
 describe('Phase 2 runtime surface contract', () => {
   it('adds a batch API for table/list custom-field values', () => {
     const route = readFileSync('app/api/org/[orgId]/custom-fields/batch/route.ts', 'utf8');
+    const repository = readFileSync('lib/api/repositories/custom-fields.ts', 'utf8');
     expect(route).toMatch(/MAX_ENTITY_IDS = 200/);
-    expect(route).toMatch(/user_org_role/);
-    expect(route).toMatch(/values_by_entity/);
-    expect(route).toMatch(/loadScopedEntityIds/);
+    expect(route).toMatch(/requireOrgAccess/);
+    expect(route).toMatch(/createCustomFieldRepository/);
+    expect(repository).toMatch(/values_by_entity/);
+    expect(repository).toMatch(/loadScopedEntityIds/);
   });
 
   it('renders custom fields on grant, holding, and donor detail pages', () => {

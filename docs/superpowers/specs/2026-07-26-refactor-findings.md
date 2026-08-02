@@ -301,3 +301,24 @@ authorized organization.
 **Suggested follow-up (not scheduled):** Commit invitation state and an email
 outbox record transactionally, then deliver asynchronously with idempotent
 retry and explicit delivery status.
+
+### 2026-08-02 — Phase 2, custom fields — multi-value updates are not atomic
+
+**What happened:** The custom-field values endpoint validates field names up
+front but converts, writes, and triggers automation one field at a time. A
+later invalid value or database failure can therefore follow earlier successful
+writes. Automation failures are logged and the endpoint still returns the
+saved values.
+
+**Expected vs. actual:** A request containing several field changes appears to
+be one logical save, but it can partially apply. Automation side effects can
+also fail after the value is durable without changing the successful response.
+
+**Why left alone:** The scoped repository preserves existing UI retry behavior
+while constraining entity checks, definitions, values, and automation events to
+the authorized organization. Atomic multi-field writes and durable side effects
+require a transaction and outbox boundary.
+
+**Suggested follow-up (not scheduled):** Validate and normalize the entire
+request before writing, commit all value changes in one database function, and
+enqueue automation events through a transactional outbox.

@@ -51,7 +51,7 @@ describe('Phase 3 configurable automations contract', () => {
   it('wires dynamic automation triggers, actions, and producer registration', () => {
     const dynamicRules = readFileSync('lib/tasks/automation/dynamic-rules.ts', 'utf8');
     const automationRun = readFileSync('lib/tasks/automation/run.ts', 'utf8');
-    const customFieldValuesRoute = readFileSync('app/api/org/[orgId]/custom-fields/values/route.ts', 'utf8');
+    const customFieldRepository = readFileSync('lib/api/repositories/custom-fields.ts', 'utf8');
     const taskRepository = readFileSync('lib/api/repositories/tasks.ts', 'utf8');
 
     expect(dynamicRules).toMatch(/dateRelativeAutomationProducer/);
@@ -60,8 +60,8 @@ describe('Phase 3 configurable automations contract', () => {
     expect(dynamicRules).toMatch(/options\.dryRun/);
     expect(automationRun).toMatch(/dynamic_automation_rules/);
     expect(automationRun).toMatch(/dateRelativeAutomationProducer/);
-    expect(customFieldValuesRoute).toMatch(/custom_field_set/);
-    expect(customFieldValuesRoute).toMatch(/runAutomationRulesForEvent/);
+    expect(customFieldRepository).toMatch(/custom_field_set/);
+    expect(customFieldRepository).toMatch(/runAutomationRulesForEvent/);
     expect(taskRepository).toMatch(/task_completed/);
   });
 

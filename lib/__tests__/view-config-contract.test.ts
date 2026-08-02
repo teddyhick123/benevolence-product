@@ -44,7 +44,7 @@ describe('Phase 5 view config contract', () => {
     const context = readFileSync('lib/ai/assistant/context.ts', 'utf8');
     const prompts = readFileSync('lib/ai/assistant/prompts.ts', 'utf8');
     const onboarding = readFileSync('lib/onboarding-assistant.ts', 'utf8');
-    const provision = readFileSync('app/api/onboarding/provision/route.ts', 'utf8');
+    const provision = readFileSync('lib/api/repositories/onboarding-provisioning.ts', 'utf8');
 
     expect(context).toMatch(/loadEntityVocabulary/);
     expect(prompts).toMatch(/=== ENTITY VOCABULARY ===/);

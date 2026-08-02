@@ -31,7 +31,7 @@ describe('Phase 6 integration and polish contract', () => {
   });
 
   it('provisions all runtime configuration layers from onboarding', () => {
-    const provision = readFileSync('app/api/onboarding/provision/route.ts', 'utf8');
+    const provision = readFileSync('lib/api/repositories/onboarding-provisioning.ts', 'utf8');
     const builders = readFileSync('lib/onboarding-provision-config.ts', 'utf8');
 
     expect(provision).toMatch(/workflowRowsFromOnboardingProfile/);

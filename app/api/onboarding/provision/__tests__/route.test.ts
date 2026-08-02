@@ -1,40 +1,72 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { NextResponse } from 'next/server';
 
-const mockRpc = vi.fn();
-const mockEq = vi.fn();
-
-vi.mock('@/lib/supabase', () => ({
-  createServerClient: vi.fn(() => ({
-    auth: {
-      getUser: vi.fn().mockResolvedValue({
-        data: { user: { id: 'user-123' } },
-      }),
-    },
-    from: vi.fn(() => ({
-      select: vi.fn(() => ({
-        eq: mockEq.mockResolvedValue({ data: [], error: null }),
-      })),
-    })),
-  })),
-  createAdminClient: vi.fn(() => ({
-    rpc: mockRpc,
-    from: vi.fn(() => ({
-      insert: vi.fn(() => ({
-        select: vi.fn(() => ({
-          single: vi.fn().mockResolvedValue({ data: { id: 'portfolio-123' }, error: null }),
-        })),
-      })),
-    })),
-  })),
+const {
+  mockRequireUserAccess,
+  mockCreateOnboardingProvisioner,
+  mockProvision,
+} = vi.hoisted(() => ({
+  mockRequireUserAccess: vi.fn(),
+  mockCreateOnboardingProvisioner: vi.fn(),
+  mockProvision: vi.fn(),
 }));
+
+vi.mock('@/lib/api/access', () => ({
+  requireUserAccess: mockRequireUserAccess,
+  isAccessDenied: (result: { ok: boolean }) => !result.ok,
+}));
+
+vi.mock('@/lib/api/repositories/onboarding-provisioning', async (importOriginal) => {
+  const original = await importOriginal<
+    typeof import('@/lib/api/repositories/onboarding-provisioning')
+  >();
+  return {
+    ...original,
+    createOnboardingProvisioner: mockCreateOnboardingProvisioner,
+  };
+});
+
+import { POST } from '@/app/api/onboarding/provision/route';
+import { OnboardingProvisioningError } from '@/lib/api/repositories/onboarding-provisioning';
 
 describe('POST /api/onboarding/provision — validation', () => {
   beforeEach(() => {
-    mockRpc.mockResolvedValue({ data: 'org-123', error: null });
+    vi.clearAllMocks();
+    mockRequireUserAccess.mockResolvedValue({
+      ok: true,
+      context: {
+        principal: { kind: 'user', userId: 'user-123' },
+        user: { id: 'user-123' },
+        db: {},
+      },
+    });
+    mockCreateOnboardingProvisioner.mockReturnValue({ provision: mockProvision });
+    mockProvision.mockResolvedValue({
+      orgId: 'org-123',
+      portfolioId: 'portfolio-123',
+      enabledModules: [],
+      moduleErrors: [],
+      setupErrors: [],
+    });
+  });
+
+  it('requires authentication before creating a provisioner', async () => {
+    mockRequireUserAccess.mockResolvedValueOnce({
+      ok: false,
+      reason: 'unauthenticated',
+      response: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }),
+    });
+
+    const res = await POST(new Request('http://localhost/api/onboarding/provision', {
+      method: 'POST',
+      body: JSON.stringify({ name: 'Test Org', org_type: 'private_foundation' }),
+    }) as never);
+
+    expect(res.status).toBe(401);
+    expect(mockCreateOnboardingProvisioner).not.toHaveBeenCalled();
   });
 
   it('returns 400 if name is missing', async () => {
-    const { POST } = await import('../route');
     const req = new Request('http://localhost/api/onboarding/provision', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -47,7 +79,6 @@ describe('POST /api/onboarding/provision — validation', () => {
   });
 
   it('returns 400 if org_type is invalid', async () => {
-    const { POST } = await import('../route');
     const req = new Request('http://localhost/api/onboarding/provision', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -60,7 +91,6 @@ describe('POST /api/onboarding/provision — validation', () => {
   });
 
   it('returns 201 with org_id and portfolio_id on success', async () => {
-    const { POST } = await import('../route');
     const req = new Request('http://localhost/api/onboarding/provision', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -71,6 +101,52 @@ describe('POST /api/onboarding/provision — validation', () => {
     const json = await res.json();
     expect(json.org_id).toBe('org-123');
     expect(json.portfolio_id).toBe('portfolio-123');
+    expect(mockCreateOnboardingProvisioner).toHaveBeenCalledWith('user-123');
+  });
+
+  it('returns 207 while preserving module and setup errors', async () => {
+    mockProvision.mockResolvedValueOnce({
+      orgId: 'org-123',
+      portfolioId: 'portfolio-123',
+      enabledModules: ['impact_tracking'],
+      moduleErrors: ['analytics: unavailable'],
+      setupErrors: ['Automations: invalid rule'],
+    });
+
+    const res = await POST(new Request('http://localhost/api/onboarding/provision', {
+      method: 'POST',
+      body: JSON.stringify({
+        name: 'Test Org',
+        org_type: 'private_foundation',
+        module_ids: ['impact_tracking', 'analytics'],
+      }),
+    }) as never);
+
+    expect(res.status).toBe(207);
+    expect(mockProvision).toHaveBeenCalledWith(expect.objectContaining({
+      selectedModuleIds: ['impact_tracking', 'analytics'],
+      requestedModules: { portfolio: true },
+    }));
+    await expect(res.json()).resolves.toMatchObject({
+      module_errors: ['analytics: unavailable'],
+      setup_errors: ['Automations: invalid rule'],
+    });
+  });
+
+  it('maps typed provisioning conflicts without leaking elevated access', async () => {
+    mockProvision.mockRejectedValueOnce(
+      new OnboardingProvisioningError('User already belongs to an organization', 409)
+    );
+
+    const res = await POST(new Request('http://localhost/api/onboarding/provision', {
+      method: 'POST',
+      body: JSON.stringify({ name: 'Test Org', org_type: 'private_foundation' }),
+    }) as never);
+
+    expect(res.status).toBe(409);
+    await expect(res.json()).resolves.toEqual({
+      error: 'User already belongs to an organization',
+    });
   });
 });
 

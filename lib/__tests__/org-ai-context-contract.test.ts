@@ -54,7 +54,7 @@ describe('Phase 4 org-specific AI context contract', () => {
 
   it('captures and provisions onboarding context', () => {
     const onboarding = readFileSync('lib/onboarding-assistant.ts', 'utf8');
-    const provision = readFileSync('app/api/onboarding/provision/route.ts', 'utf8');
+    const provision = readFileSync('lib/api/repositories/onboarding-provisioning.ts', 'utf8');
     const provisionConfig = readFileSync('lib/onboarding-provision-config.ts', 'utf8');
 
     expect(onboarding).toMatch(/org_context/);

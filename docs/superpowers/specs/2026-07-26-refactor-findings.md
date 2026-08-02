@@ -382,3 +382,27 @@ onboarding session routes instead of revealing their existence with a 403.
 **Suggested follow-up (not scheduled):** Persist each user turn before invoking
 the model, then commit the assistant turn, extracted state, recommendation
 transition, and an analytics/outbox event in an idempotent transaction.
+
+### 2026-08-03 — Phase 2, onboarding provisioning — final linkage can strand a partial setup
+
+**What happened:** Organization creation is transactional, but portfolio,
+portfolio membership, modules, blueprint configuration, and onboarding-session
+completion occur afterward. Most setup failures return a retryable 207, while a
+failure updating the session's `organization_id` occurs after the organization
+membership already exists.
+
+**Expected vs. actual:** If that final session update fails, a retry can receive
+“User already belongs to an organization” because the membership is durable but
+the onboarding session was never linked to the organization that would make the
+retry recognizable.
+
+**Why left alone:** The user-scoped provisioner preserves the established
+partial-result and cleanup behavior while ensuring the organization comes only
+from the owner-safe provisioning function or the authenticated user's matching
+session/membership pair. Fixing the recovery gap requires a durable idempotency
+key or a broader transaction, not a route-boundary change.
+
+**Suggested follow-up (not scheduled):** Make `session_id` the idempotency key
+for a transactional provisioning function that creates or resumes the
+organization, portfolio, owner memberships, configuration, and final session
+linkage atomically.

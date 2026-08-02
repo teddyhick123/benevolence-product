@@ -23,13 +23,14 @@ describe('Foundation Setup first experience', () => {
   it('uses canonical organization types and an owner-safe provisioner', () => {
     const assistant = source('lib/onboarding-assistant.ts');
     const flow = source('components/onboarding/OnboardingFlow.tsx');
-    const provision = source('app/api/onboarding/provision/route.ts');
+    const provisionRoute = source('app/api/onboarding/provision/route.ts');
+    const provisioner = source('lib/api/repositories/onboarding-provisioning.ts');
 
     expect(assistant).toContain("private_foundation: 'private foundation managing grants'");
     expect(flow).toContain("fetch('/api/onboarding/provision'");
     expect(flow).toContain('module_ids: selectedModules');
-    expect(provision).toContain('p_owner_user_id: user.id');
-    expect(provision).toContain('module_ids?: string[]');
+    expect(provisioner).toContain('p_owner_user_id: userId');
+    expect(provisionRoute).toContain('module_ids?: string[]');
   });
 
   it('shows a live Foundation Blueprint instead of an opaque chat-progress sidebar', () => {
@@ -55,7 +56,8 @@ describe('Foundation Setup first experience', () => {
   it('keeps partial provisioning visible and retryable', () => {
     const flow = source('components/onboarding/OnboardingFlow.tsx');
     const recommendations = source('components/onboarding/ModuleRecommendations.tsx');
-    const provision = source('app/api/onboarding/provision/route.ts');
+    const provisionRoute = source('app/api/onboarding/provision/route.ts');
+    const provisioner = source('lib/api/repositories/onboarding-provisioning.ts');
 
     expect(flow).toContain('result.module_errors');
     expect(flow).toContain('result.setup_errors');
@@ -63,11 +65,11 @@ describe('Foundation Setup first experience', () => {
     expect(recommendations).toContain('Retry setup');
     expect(recommendations).toContain('FoundationSetupPreview');
     expect(recommendations).toContain('role="alert"');
-    expect(provision).toContain("status: 'recommendations'");
-    expect(provision).toContain('moduleErrors.length > 0 || setupErrors.length > 0');
-    expect(provision).toContain('upsert(automationRows');
-    expect(provision).toContain('completed_successfully: !provisioningHasErrors');
-    expect(provision).toContain("setup_errors: setupErrors.length > 0 ? setupErrors : undefined");
+    expect(provisioner).toContain("status: 'recommendations'");
+    expect(provisioner).toContain('moduleErrors.length > 0 || setupErrors.length > 0');
+    expect(provisioner).toContain('upsert(automationRows');
+    expect(provisioner).toContain('completed_successfully: !provisioningHasErrors');
+    expect(provisionRoute).toContain("setup_errors: result.setupErrors.length > 0");
   });
 
   it('keeps one canonical onboarding route', () => {

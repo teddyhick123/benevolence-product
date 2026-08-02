@@ -106,4 +106,21 @@ describe('misc portfolio routes auth contract', () => {
     expect(repository).toContain(".eq('id', scope.sessionId)");
     expect(repository).toContain(".eq('user_id', scope.userId)");
   });
+
+  it('onboarding provisioning uses a user principal and an operation-scoped provisioner', () => {
+    const route = readFileSync('app/api/onboarding/provision/route.ts', 'utf8');
+    const provisioner = readFileSync(
+      'lib/api/repositories/onboarding-provisioning.ts',
+      'utf8'
+    );
+
+    expect(route).toContain('requireUserAccess');
+    expect(route).toContain('createOnboardingProvisioner');
+    expect(route).not.toContain('createAdminClient');
+    expect(route).not.toContain('createServerClient');
+    expect(route).not.toContain('SUPABASE_SERVICE_ROLE');
+    expect(provisioner).toContain(".eq('user_id', userId)");
+    expect(provisioner).toContain('p_owner_user_id: userId');
+    expect(provisioner).not.toContain('input.orgId');
+  });
 });

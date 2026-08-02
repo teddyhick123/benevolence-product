@@ -10,6 +10,7 @@ const migration = (name: string) =>
 const organizationsSql = migration('0002_organizations.sql');
 const portfoliosSql = migration('0004_portfolios.sql');
 const provisioningSql = migration('0023_admin_superuser_policies.sql');
+const capabilitiesSql = migration('0054_org_member_capabilities.sql');
 const orgRoute = fs.readFileSync(path.join(process.cwd(), 'app', 'api', 'org', 'route.ts'), 'utf8');
 const invitationAcceptRoute = fs.readFileSync(
   path.join(process.cwd(), 'app', 'api', 'invitations', '[token]', 'accept', 'route.ts'),
@@ -53,6 +54,19 @@ describe('accepted organization membership security boundary', () => {
     const definition = functionDefinition(portfoliosSql, 'enforce_portfolio_member_in_org');
     expect(definition).toMatch(/accepted_at\s+IS\s+NOT\s+NULL/i);
     expect(definition).toMatch(/deleted_at\s+IS\s+NULL/i);
+  });
+
+  it('rejects pending organization memberships from implementation review capability checks and grants', () => {
+    const definition = functionDefinition(capabilitiesSql, 'public.user_has_org_capability');
+    expect(definition).toMatch(/m\.accepted_at\s+IS\s+NOT\s+NULL/i);
+    expect(definition).toMatch(/m\.deleted_at\s+IS\s+NULL/i);
+
+    const grantPolicy = capabilitiesSql.match(
+      /CREATE POLICY "org_member_capabilities: owners grant to admins or owners"[\s\S]*?\);/i
+    )?.[0];
+    expect(grantPolicy).toBeDefined();
+    expect(grantPolicy).toMatch(/m\.accepted_at\s+IS\s+NOT\s+NULL/i);
+    expect(grantPolicy).toMatch(/m\.deleted_at\s+IS\s+NULL/i);
   });
 
   it('marks every directly provisioned owner membership as accepted', () => {

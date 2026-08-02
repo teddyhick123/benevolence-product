@@ -32,6 +32,7 @@ AS $$
       ON m.org_id = c.org_id
      AND m.user_id = c.user_id
      AND m.deleted_at IS NULL
+     AND m.accepted_at IS NOT NULL
     WHERE c.org_id = p_org_id
       AND c.user_id = auth.uid()
       AND c.capability = p_capability
@@ -56,6 +57,7 @@ CREATE POLICY "org_member_capabilities: owners grant to admins or owners"
       WHERE m.org_id = organization_member_capabilities.org_id
         AND m.user_id = organization_member_capabilities.user_id
         AND m.deleted_at IS NULL
+        AND m.accepted_at IS NOT NULL
         AND m.role IN ('admin', 'owner')
     )
   );

@@ -63,7 +63,7 @@ describe('API elevated-access boundary', () => {
     const baseline = fixture(BASELINE_FIXTURE_PATH);
     const active = fixture(ACTIVE_FIXTURE_PATH);
     expect(baseline).toEqual([...new Set(baseline)].sort());
-    expect(baseline).toHaveLength(108);
+    expect(baseline).toHaveLength(105);
     expect(active.length).toBeLessThanOrEqual(baseline.length);
     for (const file of active) expect(baseline, file).toContain(file);
   });

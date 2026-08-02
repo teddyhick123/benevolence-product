@@ -283,3 +283,21 @@ transaction boundary rather than route-level orchestration.
 **Suggested follow-up (not scheduled):** Move member addition, role changes,
 removal, last-owner checks, and audit insertion into transactional database
 functions.
+
+### 2026-08-02 — Phase 2, invitations — delivery compensation is best-effort
+
+**What happened:** `lib/api/repositories/invitations.ts` preserves the existing
+multi-step invitation flow: persist or rotate the invitation, write an audit
+row, send email, then compensate selected failures with another update.
+
+**Expected vs. actual:** An audit or email failure returns 500, but a failed
+compensation write can leave a cancelled invitation, a rotated token, or an
+audit entry inconsistent with what was delivered.
+
+**Why left alone:** The scoped repository keeps current response and retry
+semantics while constraining every invitation lookup and mutation to one
+authorized organization.
+
+**Suggested follow-up (not scheduled):** Commit invitation state and an email
+outbox record transactionally, then deliver asynchronously with idempotent
+retry and explicit delivery status.

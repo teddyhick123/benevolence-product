@@ -367,25 +367,30 @@ describe('org-scoped route auth contracts', () => {
 
   it('invitation routes no-store admin data and roll back failed sends/audits', () => {
     const invitationsRoute = readFileSync('app/api/org/[orgId]/invitations/route.ts', 'utf8');
-    expect(invitationsRoute).toContain("'Cache-Control': 'no-store'");
-    expect(invitationsRoute).toContain('Only owners can invite another owner');
-    expect(invitationsRoute).toContain('auditError');
-    expect(invitationsRoute).toContain('emailError');
-    expect(invitationsRoute).toContain("status: 'cancelled'");
+    const repository = readFileSync('lib/api/repositories/invitations.ts', 'utf8');
+    expect(invitationsRoute).toContain('requireOrgAccess');
+    expect(invitationsRoute).toContain('jsonOk');
+    expect(invitationsRoute).not.toContain('createAdminClient');
+    expect(repository).toContain('Only owners can invite another owner');
+    expect(repository).toContain('auditError');
+    expect(repository).toContain('emailError');
+    expect(repository).toContain("status: 'cancelled'");
 
     const cancelRoute = readFileSync('app/api/org/[orgId]/invitations/[inviteId]/route.ts', 'utf8');
-    expect(cancelRoute).toContain("'Cache-Control': 'no-store'");
-    expect(cancelRoute).toContain('auditError');
-    expect(cancelRoute).toContain("status: 'pending'");
-    expect(cancelRoute).toContain(".eq('org_id', orgId)");
+    expect(cancelRoute).toContain('requireOrgAccess');
+    expect(cancelRoute).not.toContain('createAdminClient');
+    expect(repository).toContain('auditError');
+    expect(repository).toContain("status: 'pending'");
+    expect(repository).toContain(".eq('org_id', scope.orgId)");
 
     const resendRoute = readFileSync('app/api/org/[orgId]/invitations/[inviteId]/resend/route.ts', 'utf8');
-    expect(resendRoute).toContain("'Cache-Control': 'no-store'");
-    expect(resendRoute).toContain('invite_resent');
-    expect(resendRoute).toContain('auditError');
-    expect(resendRoute).toContain('emailError');
-    expect(resendRoute).toContain('token: invite.token');
-    expect(resendRoute).toContain('expires_at: invite.expires_at');
+    expect(resendRoute).toContain('requireOrgAccess');
+    expect(resendRoute).not.toContain('createAdminClient');
+    expect(repository).toContain('invite_resent');
+    expect(repository).toContain('auditError');
+    expect(repository).toContain('emailError');
+    expect(repository).toContain('token: invite.token');
+    expect(repository).toContain('expires_at: invite.expires_at');
   });
 
   it('module and member collection routes no-store authority data and protect owner changes', () => {

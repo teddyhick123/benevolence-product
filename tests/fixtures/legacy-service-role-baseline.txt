@@ -75,9 +75,6 @@ app/api/org/[orgId]/imports/[jobId]/resume/route.ts
 app/api/org/[orgId]/imports/[jobId]/rollback/route.ts
 app/api/org/[orgId]/imports/[jobId]/route.ts
 app/api/org/[orgId]/imports/route.ts
-app/api/org/[orgId]/invitations/[inviteId]/resend/route.ts
-app/api/org/[orgId]/invitations/[inviteId]/route.ts
-app/api/org/[orgId]/invitations/route.ts
 app/api/org/[orgId]/members/[userId]/notifications/route.ts
 app/api/org/[orgId]/metrics/route.ts
 app/api/org/[orgId]/modules/route.ts

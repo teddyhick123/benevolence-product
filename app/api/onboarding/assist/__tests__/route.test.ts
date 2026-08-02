@@ -1,4 +1,9 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { NextResponse } from 'next/server';
+
+const { mockRequireUserAccess } = vi.hoisted(() => ({
+  mockRequireUserAccess: vi.fn(),
+}));
 
 vi.mock('@/lib/ai/factory', () => ({
   createAIProvider: vi.fn(() => ({
@@ -10,21 +15,42 @@ vi.mock('@/lib/ai/factory', () => ({
   })),
 }));
 
-vi.mock('@/lib/supabase', () => ({
-  createServerClient: vi.fn(() => ({
-    auth: {
-      getUser: vi.fn().mockResolvedValue({
-        data: { user: { id: 'user-123' } },
-      }),
-    },
-  })),
+vi.mock('@/lib/api/access', () => ({
+  requireUserAccess: mockRequireUserAccess,
+  isAccessDenied: (result: { ok: boolean }) => !result.ok,
 }));
 
 beforeEach(() => {
+  vi.clearAllMocks();
   process.env.AI_PROVIDER = 'test';
+  mockRequireUserAccess.mockResolvedValue({
+    ok: true,
+    context: {
+      principal: { kind: 'user', userId: 'user-123' },
+      user: { id: 'user-123' },
+      db: {},
+    },
+  });
 });
 
 describe('POST /api/onboarding/assist', () => {
+  it('requires authentication before parsing or generating', async () => {
+    mockRequireUserAccess.mockResolvedValueOnce({
+      ok: false,
+      reason: 'unauthenticated',
+      response: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }),
+    });
+    const { POST } = await import('../route');
+    const req = new Request('http://localhost/api/onboarding/assist', {
+      method: 'POST',
+      body: JSON.stringify({ question: 'org_type_help', context: {} }),
+    });
+
+    const res = await POST(req as never);
+
+    expect(res.status).toBe(401);
+  });
+
   it('returns 400 if question type is unknown', async () => {
     const { POST } = await import('../route');
     const req = new Request('http://localhost/api/onboarding/assist', {

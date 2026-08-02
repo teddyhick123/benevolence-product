@@ -123,4 +123,17 @@ describe('misc portfolio routes auth contract', () => {
     expect(provisioner).toContain('p_owner_user_id: userId');
     expect(provisioner).not.toContain('input.orgId');
   });
+
+  it('classifies onboarding help as user-authenticated and completion as a public tombstone', () => {
+    const assist = readFileSync('app/api/onboarding/assist/route.ts', 'utf8');
+    const complete = readFileSync('app/api/onboarding/complete/route.ts', 'utf8');
+
+    expect(assist).toContain('requireUserAccess');
+    expect(assist).toContain('isAccessDenied');
+    expect(assist).not.toContain('createServerClient');
+    expect(complete).toContain('public');
+    expect(complete).toContain('status: 410');
+    expect(complete).not.toContain('createServerClient');
+    expect(complete).not.toContain('createAdminClient');
+  });
 });

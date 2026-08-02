@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { createServerClient } from '@/lib/supabase';
+import { NextRequest } from 'next/server';
+import { isAccessDenied, requireUserAccess } from '@/lib/api/access';
+import { jsonError, jsonOk } from '@/lib/api/responses';
 import { AI_MODELS } from '@/lib/ai/models';
 import { generateText } from '@/lib/ai/text';
 import { branding } from '@/lib/config';
@@ -35,13 +36,10 @@ function buildPrompt(question: QuestionType, context: Record<string, string>): s
 }
 
 export async function POST(req: NextRequest) {
-  try {
-    const supabase = await createServerClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
-    }
+  const access = await requireUserAccess();
+  if (isAccessDenied(access)) return access.response;
 
+  try {
     const body = await req.json();
     const { question, context } = body as {
       question: string;
@@ -50,10 +48,7 @@ export async function POST(req: NextRequest) {
 
     const validQuestions: QuestionType[] = ['org_type_help', 'module_help'];
     if (!validQuestions.includes(question as QuestionType)) {
-      return NextResponse.json(
-        { error: `question must be one of: ${validQuestions.join(', ')}` },
-        { status: 400 }
-      );
+      return jsonError(`question must be one of: ${validQuestions.join(', ')}`, 400);
     }
 
     const prompt = buildPrompt(question as QuestionType, context ?? {});
@@ -63,9 +58,9 @@ export async function POST(req: NextRequest) {
       prompt,
     });
 
-    return NextResponse.json({ answer });
-  } catch (err: any) {
-    console.error('Assist error:', err);
-    return NextResponse.json({ error: err.message ?? 'Unknown error' }, { status: 500 });
+    return jsonOk({ answer });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    return jsonError(message, 500);
   }
 }

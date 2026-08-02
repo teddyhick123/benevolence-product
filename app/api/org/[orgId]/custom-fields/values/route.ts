@@ -9,6 +9,7 @@ import {
   type CustomFieldEntityType,
 } from '@/lib/custom-fields';
 import { runAutomationRulesForEvent } from '@/lib/tasks/automation/dynamic-rules';
+import { canOperateOrg } from '@/lib/roles';
 
 export const dynamic = 'force-dynamic';
 
@@ -28,13 +29,16 @@ function json(body: unknown, init: ResponseInit = {}) {
   return NextResponse.json(body, { ...init, headers: { ...NO_STORE, ...(init.headers || {}) } });
 }
 
-async function requireOrgMember(orgId: string) {
+async function requireOrgMember(orgId: string, write = false) {
   const supabase = await createServerClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: json({ error: 'Unauthorized' }, { status: 401 }) };
 
   const { data: role } = await supabase.rpc('user_org_role', { p_org_id: orgId });
   if (!role) return { error: json({ error: 'Not authorized' }, { status: 403 }) };
+  if (write && !canOperateOrg(role)) {
+    return { error: json({ error: 'Member access required' }, { status: 403 }) };
+  }
 
   return { supabase, user, role };
 }
@@ -80,7 +84,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
 export async function PUT(req: NextRequest, { params }: RouteParams) {
   try {
     const { orgId } = await params;
-    const auth = await requireOrgMember(orgId);
+    const auth = await requireOrgMember(orgId, true);
     if ('error' in auth) return auth.error;
 
     const body = await req.json().catch(() => ({}));

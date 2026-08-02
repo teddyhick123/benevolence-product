@@ -94,8 +94,8 @@ CREATE POLICY "org_custom_field_values_read" ON public.org_custom_field_values
 
 CREATE POLICY "org_custom_field_values_write" ON public.org_custom_field_values
   FOR ALL TO authenticated
-  USING (public.can_view_org(org_id))
-  WITH CHECK (public.can_view_org(org_id));
+  USING (public.org_role_gte(org_id, 'member'))
+  WITH CHECK (public.org_role_gte(org_id, 'member'));
 
 CREATE POLICY "org_custom_field_values_service" ON public.org_custom_field_values
   FOR ALL TO service_role USING (true) WITH CHECK (true);

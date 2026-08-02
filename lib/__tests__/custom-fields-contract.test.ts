@@ -27,6 +27,19 @@ describe('Phase 2 custom fields migration contract', () => {
     expect(sql).toMatch(/FUNCTION public\.custom_field_entity_org[\s\S]*SECURITY DEFINER/);
     expect(sql).toMatch(/FUNCTION public\.validate_custom_field_value[\s\S]*SECURITY DEFINER/);
   });
+
+  it('allows viewers to read values but requires member access to write them', () => {
+    expect(sql).toMatch(
+      /CREATE POLICY "org_custom_field_values_read"[\s\S]*can_view_org\(org_id\)/
+    );
+    expect(sql).toMatch(
+      /CREATE POLICY "org_custom_field_values_write"[\s\S]*USING \(public\.org_role_gte\(org_id, 'member'\)\)[\s\S]*WITH CHECK \(public\.org_role_gte\(org_id, 'member'\)\)/
+    );
+
+    const route = readFileSync('app/api/org/[orgId]/custom-fields/values/route.ts', 'utf8');
+    expect(route).toContain('canOperateOrg');
+    expect(route).toContain('requireOrgMember(orgId, true)');
+  });
 });
 
 describe('Phase 2 runtime surface contract', () => {

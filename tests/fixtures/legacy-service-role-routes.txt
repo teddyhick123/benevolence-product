@@ -7,9 +7,7 @@ app/api/ai/redo/route.ts
 app/api/ai/undo/route.ts
 app/api/charities/enrich/route.ts
 app/api/charities/import/propublica/route.ts
-app/api/onboarding/chat/route.ts
 app/api/onboarding/provision/route.ts
-app/api/onboarding/recommendations/route.ts
 app/api/org/[orgId]/ai-context/route.ts
 app/api/org/[orgId]/audit/route.ts
 app/api/org/[orgId]/contributions/[id]/receipt/route.ts

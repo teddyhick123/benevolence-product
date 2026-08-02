@@ -2,13 +2,27 @@ import {
   createElevatedClient,
   type ElevatedClient,
 } from '@/lib/api/admin-client';
+import {
+  OnboardingAssistant,
+  type ConversationState,
+  type QuickIntake,
+} from '@/lib/onboarding-assistant';
+
+type StoredMessage = {
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: string;
+};
 
 type OnboardingSessionScope = {
   sessionId: string;
   userId: string;
-  quickIntake: unknown;
-  conversationState: unknown;
+  status: string;
+  quickIntake: QuickIntake;
+  conversationState: ConversationState | undefined;
+  messages: StoredMessage[];
   startedAt: string | null;
+  intakeCompletedAt: string | null;
 };
 
 type IntakeMessage = {
@@ -23,6 +37,7 @@ function createSessionRepository(db: ElevatedClient, scope: OnboardingSessionSco
   return {
     scope: {
       sessionId: scope.sessionId,
+      status: scope.status,
       quickIntake: scope.quickIntake,
       conversationState: scope.conversationState,
     },
@@ -59,6 +74,140 @@ function createSessionRepository(db: ElevatedClient, scope: OnboardingSessionSco
           .update({ intake_duration_seconds: intakeDuration })
           .eq('session_id', scope.sessionId);
       }
+    },
+
+    async chat(message: string) {
+      const messages = [...scope.messages, {
+        role: 'user' as const,
+        content: message,
+        timestamp: new Date().toISOString(),
+      }];
+
+      await db
+        .from('onboarding_sessions')
+        .update({ messages })
+        .eq('id', scope.sessionId)
+        .eq('user_id', scope.userId);
+
+      const assistant = new OnboardingAssistant(db);
+      // The assistant receives prior turns only. Including the just-persisted
+      // message here would append it a second time inside OnboardingAssistant.
+      const conversationHistory = messages.slice(0, -1).map((entry) => ({
+        role: entry.role,
+        content: entry.content,
+      }));
+      const result = await assistant.chat({
+        sessionId: scope.sessionId,
+        userId: scope.userId,
+        message,
+        quickIntake: scope.quickIntake,
+        conversationHistory,
+        conversationState: scope.conversationState,
+      });
+
+      messages.push({
+        role: 'assistant',
+        content: result.message,
+        timestamp: new Date().toISOString(),
+      });
+      const readyForRecommendations = Boolean(
+        result.trigger_recommendations || result.updated_state?.ready_for_recommendations
+      );
+      const updateData: Record<string, unknown> = {
+        messages,
+        conversation_state: result.updated_state,
+      };
+
+      if (readyForRecommendations) {
+        updateData.status = 'recommendations';
+        updateData.conversation_completed_at = new Date().toISOString();
+        if (scope.intakeCompletedAt) {
+          const conversationDuration = Math.floor(
+            (Date.now() - new Date(scope.intakeCompletedAt).getTime()) / 1000
+          );
+          await db
+            .from('onboarding_analytics')
+            .update({ conversation_duration_seconds: conversationDuration })
+            .eq('session_id', scope.sessionId);
+        }
+      }
+
+      await db
+        .from('onboarding_sessions')
+        .update(updateData)
+        .eq('id', scope.sessionId)
+        .eq('user_id', scope.userId);
+
+      return { ...result, readyForRecommendations };
+    },
+
+    async existingRecommendations() {
+      const { data } = await db
+        .from('onboarding_recommendations')
+        .select('*')
+        .eq('session_id', scope.sessionId)
+        .maybeSingle();
+      return data;
+    },
+
+    async generateRecommendations() {
+      const assistant = new OnboardingAssistant(db);
+      const result = await assistant.generateRecommendations(scope.sessionId);
+
+      await db
+        .from('onboarding_sessions')
+        .update({
+          status: 'recommendations',
+          conversation_completed_at: new Date().toISOString(),
+        })
+        .eq('id', scope.sessionId)
+        .eq('user_id', scope.userId);
+      await db
+        .from('onboarding_analytics')
+        .update({ modules_recommended: result.recommendations.length })
+        .eq('session_id', scope.sessionId);
+
+      return result;
+    },
+
+    async finalizeRecommendations(acceptedModules: string[]) {
+      const { data: recommendations } = await db
+        .from('onboarding_recommendations')
+        .select('recommended_modules')
+        .eq('session_id', scope.sessionId)
+        .single();
+      const originalModules = (recommendations?.recommended_modules || [])
+        .map((recommendation: { module_id: string }) => recommendation.module_id);
+      const userAdded = acceptedModules.filter((moduleId) => !originalModules.includes(moduleId));
+      const userRemoved = originalModules.filter(
+        (moduleId: string) => !acceptedModules.includes(moduleId)
+      );
+
+      const { error } = await db
+        .from('onboarding_recommendations')
+        .update({
+          final_modules: acceptedModules,
+          user_added: userAdded,
+          user_removed: userRemoved,
+          finalized_at: new Date().toISOString(),
+        })
+        .eq('session_id', scope.sessionId);
+      if (error) throw error;
+
+      await db
+        .from('onboarding_analytics')
+        .update({
+          modules_accepted: acceptedModules.length,
+          modules_added: userAdded.length,
+          modules_removed: userRemoved.length,
+        })
+        .eq('session_id', scope.sessionId);
+
+      return {
+        finalModules: acceptedModules,
+        userAdded,
+        userRemoved,
+      };
     },
   };
 }
@@ -107,7 +256,7 @@ export function createOnboardingRepository(userId: string) {
     async resolveSession(sessionId: string): Promise<OnboardingSessionRepository | null> {
       const { data } = await db
         .from('onboarding_sessions')
-        .select('id, user_id, quick_intake, conversation_state, started_at')
+        .select('id, user_id, status, quick_intake, conversation_state, messages, started_at, intake_completed_at')
         .eq('id', sessionId)
         .eq('user_id', userId)
         .maybeSingle();
@@ -116,9 +265,12 @@ export function createOnboardingRepository(userId: string) {
       return createSessionRepository(db, {
         sessionId: data.id,
         userId: data.user_id,
-        quickIntake: data.quick_intake,
-        conversationState: data.conversation_state,
+        status: data.status,
+        quickIntake: data.quick_intake || {},
+        conversationState: data.conversation_state || undefined,
+        messages: data.messages || [],
         startedAt: data.started_at,
+        intakeCompletedAt: data.intake_completed_at,
       });
     },
   };

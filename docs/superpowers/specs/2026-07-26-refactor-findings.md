@@ -361,3 +361,24 @@ after resolving the session ID together with the authenticated user ID.
 **Suggested follow-up (not scheduled):** Return a typed not-found versus
 infrastructure result from session resolution, and move session state plus
 analytics updates into one transactional function or durable event boundary.
+
+### 2026-08-03 — Phase 2, onboarding assistant — AI persistence remains best-effort
+
+**What happened:** Chat and recommendation generation persist user messages,
+AI-extracted profile data, session state, recommendation rows, and analytics as
+separate operations. Several of those established writes do not inspect their
+database result.
+
+**Expected vs. actual:** An AI response can succeed while a message, state
+transition, recommendation, or telemetry update is missing. Retrying may
+recompute an answer or recommendation from partially persisted context.
+
+**Why left alone:** The owned-session repository preserves current model and
+retry behavior while ensuring the supplied session ID is resolved together
+with the authenticated user before the assistant or any elevated child write
+can run. Unowned chat sessions now return the same opaque 404 as other
+onboarding session routes instead of revealing their existence with a 403.
+
+**Suggested follow-up (not scheduled):** Persist each user turn before invoking
+the model, then commit the assistant turn, extracted state, recommendation
+transition, and an analytics/outbox event in an idempotent transaction.

@@ -9,7 +9,7 @@
  * Personality: warm, curious, conversational
  */
 
-import { createClient } from '@supabase/supabase-js';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import type { ModuleId } from './modules/registry';
 import { MODULE_REGISTRY } from './modules/registry';
 import { branding } from './config';
@@ -349,15 +349,11 @@ When you detect pain points, map them to relevant modules:
  */
 export class OnboardingAssistant {
   private provider: AIProvider;
-  private supabase: ReturnType<typeof createClient>;
+  private supabase: SupabaseClient;
 
-  constructor(supabaseServiceRole: string, _apiKey?: string) {
+  constructor(supabase: SupabaseClient) {
     this.provider = createAIProvider();
-    this.supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      supabaseServiceRole,
-      { auth: { persistSession: false } }
-    );
+    this.supabase = supabase;
   }
 
   /**

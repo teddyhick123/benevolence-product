@@ -85,4 +85,25 @@ describe('misc portfolio routes auth contract', () => {
     expect(repository).toContain(".eq('id', scope.sessionId)");
     expect(repository).toContain(".eq('user_id', scope.userId)");
   });
+
+  it('onboarding assistant routes keep credentials and elevated work behind owned sessions', () => {
+    const routeFiles = [
+      'app/api/onboarding/chat/route.ts',
+      'app/api/onboarding/recommendations/route.ts',
+    ];
+    const repository = readFileSync('lib/api/repositories/onboarding.ts', 'utf8');
+
+    for (const route of routeFiles) {
+      const source = readFileSync(route, 'utf8');
+      expect(source).toContain('requireUserAccess');
+      expect(source).toContain('createOnboardingRepository');
+      expect(source).not.toContain('createAdminClient');
+      expect(source).not.toContain('createServerClient');
+      expect(source).not.toContain('SUPABASE_SERVICE_ROLE');
+      expect(source).not.toContain('OnboardingAssistant');
+    }
+    expect(repository).toContain('new OnboardingAssistant(db)');
+    expect(repository).toContain(".eq('id', scope.sessionId)");
+    expect(repository).toContain(".eq('user_id', scope.userId)");
+  });
 });

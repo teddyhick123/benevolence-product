@@ -7,9 +7,9 @@ function source(path: string) {
 
 describe('Foundation Setup first experience', () => {
   it('keeps the newest user message out of prior model history', () => {
-    const chatRoute = source('app/api/onboarding/chat/route.ts');
-    expect(chatRoute).toContain('messages.slice(0, -1)');
-    expect(chatRoute).toContain('would append it a second time');
+    const repository = source('lib/api/repositories/onboarding.ts');
+    expect(repository).toContain('messages.slice(0, -1)');
+    expect(repository).toContain('would append it a second time');
   });
 
   it('uses a bounded multi-turn tool loop instead of the repeated generic fallback', () => {

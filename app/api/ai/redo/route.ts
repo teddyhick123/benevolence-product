@@ -1,92 +1,48 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-import { AIActionExecutor } from '@/lib/ai-action-executor';
-import { cookies } from 'next/headers';
-import { createServerClient } from '@supabase/ssr';
+import { NextRequest } from 'next/server';
+import { isAccessDenied, requireUserAccess } from '@/lib/api/access';
+import { resolveAiActionMutation } from '@/lib/api/repositories/ai-actions';
+import { jsonError, jsonOk } from '@/lib/api/responses';
 import { aiRedoSchema } from '@/lib/schemas/ai';
 import { aiLimiter } from '@/lib/rate-limit';
 import { rateLimitExceeded } from '@/lib/rate-limit-response';
 
 export const runtime = 'nodejs';
 
-function supabaseService() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE!,
-    { auth: { persistSession: false } }
-  );
-}
-
 /**
  * POST /api/ai/redo
- * Redo a previously undone AI action
+ * Redo a previously undone AI action.
  */
 export async function POST(req: NextRequest) {
+  const access = await requireUserAccess();
+  if (isAccessDenied(access)) return access.response;
+
+  const { success, reset, remaining, limit } = await aiLimiter.limit(access.context.user.id);
+  if (!success) return rateLimitExceeded(reset, remaining, limit);
+
+  let body: unknown;
   try {
-    // Get authenticated user
-    const cookieStore = await cookies();
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          get(name: string) {
-            return cookieStore.get(name)?.value;
-          },
-          set(name: string, value: string, options: any) {
-            cookieStore.set({ name, value, ...options });
-          },
-          remove(name: string, options: any) {
-            cookieStore.set({ name, value: '', ...options });
-          },
-        },
-      }
-    );
+    body = await req.json();
+  } catch {
+    return jsonError('Invalid JSON body', 400);
+  }
 
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const { success, reset, remaining, limit } = await aiLimiter.limit(user.id);
-    if (!success) return rateLimitExceeded(reset, remaining, limit);
-
-    // Parse and validate request
-    let body;
-    try {
-      body = await req.json();
-    } catch {
-      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
-    }
-
-    const validation = aiRedoSchema.safeParse(body);
-    if (!validation.success) {
-      return NextResponse.json(
-        {
-          error: 'Validation failed',
-          details: validation.error.format(),
-        },
-        { status: 400 }
-      );
-    }
-
-    const { actionId } = validation.data;
-
-    const sb = supabaseService();
-    const executor = new AIActionExecutor(sb as any);
-
-    // Redo action
-    const result = await executor.redoAction(actionId);
-
-    return NextResponse.json({
-      success: true,
-      result,
+  const validation = aiRedoSchema.safeParse(body);
+  if (!validation.success) {
+    return jsonError('Validation failed', 400, {
+      details: validation.error.format(),
     });
+  }
 
-  } catch (error: any) {
-    return NextResponse.json(
-      { error: error.message || 'Redo failed' },
-      { status: 500 }
-    );
+  const resolved = await resolveAiActionMutation(access.context.db, {
+    actionId: validation.data.actionId,
+  });
+  if (!resolved.ok) return jsonError(resolved.error, resolved.status);
+
+  try {
+    const result = await resolved.repository.redo();
+    return jsonOk({ success: true, result });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Redo failed';
+    return jsonError(message, 500);
   }
 }

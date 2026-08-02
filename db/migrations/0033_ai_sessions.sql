@@ -291,6 +291,10 @@ BEGIN
   IF NOT FOUND THEN
     RETURN jsonb_build_object('success', false, 'error', 'Action not found');
   END IF;
+  IF auth.role() IS DISTINCT FROM 'service_role'
+     AND public.can_edit_portfolio(v_action.portfolio_id) IS NOT TRUE THEN
+    RETURN jsonb_build_object('success', false, 'error', 'Action not found');
+  END IF;
   IF v_action.status = 'undone' THEN
     RETURN jsonb_build_object('success', false, 'error', 'Action already undone');
   END IF;
@@ -310,6 +314,10 @@ DECLARE
 BEGIN
   SELECT * INTO v_action FROM public.ai_actions WHERE id = p_action_id;
   IF NOT FOUND THEN
+    RETURN jsonb_build_object('success', false, 'error', 'Action not found');
+  END IF;
+  IF auth.role() IS DISTINCT FROM 'service_role'
+     AND public.can_edit_portfolio(v_action.portfolio_id) IS NOT TRUE THEN
     RETURN jsonb_build_object('success', false, 'error', 'Action not found');
   END IF;
   IF v_action.status != 'undone' THEN

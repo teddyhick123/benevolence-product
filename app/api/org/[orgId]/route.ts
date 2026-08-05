@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createServerClient } from '@/lib/supabase';
-import { canManageOwnership, isOrgRole } from '@/lib/roles';
+import { isAccessDenied, requireOrgAccess } from '@/lib/api/access';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,12 +23,10 @@ function json(body: unknown, init: ResponseInit = {}) {
 export async function GET(_req: NextRequest, { params }: RouteParams) {
   try {
     const { orgId } = await params;
-    const supabase = await createServerClient();
-
-    const { data: role } = await supabase.rpc('user_org_role', { p_org_id: orgId });
-    if (!role) {
-      return json({ error: 'Not authorized' }, { status: 403 });
-    }
+    const access = await requireOrgAccess(orgId);
+    if (isAccessDenied(access)) return access.response;
+    const supabase = access.context.db;
+    const { role } = access.context;
 
     const { data: org, error } = await supabase
       .from('organizations')
@@ -51,12 +48,9 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
 export async function PATCH(req: NextRequest, { params }: RouteParams) {
   try {
     const { orgId } = await params;
-    const supabase = await createServerClient();
-
-    const { data: isAdmin } = await supabase.rpc('is_org_admin', { p_org_id: orgId });
-    if (!isAdmin) {
-      return json({ error: 'Not authorized' }, { status: 403 });
-    }
+    const access = await requireOrgAccess(orgId, 'admin');
+    if (isAccessDenied(access)) return access.response;
+    const supabase = access.context.db;
 
     const body = await req.json();
     const allowed = ['name', 'ein', 'org_type', 'fiscal_year_end', 'state_of_incorporation', 'modules', 'branding'];
@@ -90,15 +84,10 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
 export async function DELETE(_req: NextRequest, { params }: RouteParams) {
   try {
     const { orgId } = await params;
-    const supabase = await createServerClient();
-
-    const { data: role } = await supabase.rpc('user_org_role', { p_org_id: orgId });
-    if (!isOrgRole(role) || !canManageOwnership(role)) {
-      return json({ error: 'Not authorized' }, { status: 403 });
-    }
-
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return json({ error: 'Unauthorized' }, { status: 401 });
+    const access = await requireOrgAccess(orgId, 'owner');
+    if (isAccessDenied(access)) return access.response;
+    const supabase = access.context.db;
+    const { user } = access.context;
 
     const { data: org, error } = await supabase
       .from('organizations')

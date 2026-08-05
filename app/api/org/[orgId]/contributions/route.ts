@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@/lib/supabase";
+import { isAccessDenied, requireOrgAccess } from "@/lib/api/access";
 
 export const dynamic = "force-dynamic";
 
@@ -44,14 +44,10 @@ function normalizeContribution(row: any) {
 export async function GET(req: NextRequest, { params }: RouteParams) {
   try {
     const { orgId } = await params;
-    const supabase = await createServerClient();
+    const access = await requireOrgAccess(orgId);
+    if (isAccessDenied(access)) return access.response;
+    const supabase = access.context.db;
     const { searchParams } = new URL(req.url);
-
-    // Check access
-    const { data: role } = await supabase.rpc("user_org_role", { p_org_id: orgId });
-    if (!role) {
-      return json({ error: "Not authorized" }, { status: 403 });
-    }
 
     let query = supabase
       .from("contributions_received")
@@ -115,13 +111,9 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
 export async function POST(req: NextRequest, { params }: RouteParams) {
   try {
     const { orgId } = await params;
-    const supabase = await createServerClient();
-
-    // Check edit access
-    const { data: canEdit } = await supabase.rpc("can_edit_org", { p_org_id: orgId });
-    if (!canEdit) {
-      return json({ error: "Not authorized" }, { status: 403 });
-    }
+    const access = await requireOrgAccess(orgId, "member");
+    if (isAccessDenied(access)) return access.response;
+    const supabase = access.context.db;
 
     const body = await req.json();
     const {

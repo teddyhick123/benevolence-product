@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createServerClient } from '@/lib/supabase';
+import { isAccessDenied, requireOrgAccess } from '@/lib/api/access';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,12 +23,9 @@ function json(body: unknown, init: ResponseInit = {}) {
 export async function GET(req: NextRequest, { params }: RouteParams) {
   try {
     const { orgId, id } = await params;
-    const supabase = await createServerClient();
-
-    const { data: role } = await supabase.rpc('user_org_role', { p_org_id: orgId });
-    if (!role) {
-      return json({ error: 'Not authorized' }, { status: 403 });
-    }
+    const access = await requireOrgAccess(orgId);
+    if (isAccessDenied(access)) return access.response;
+    const supabase = access.context.db;
 
     const { data: letter, error } = await supabase
       .from('acknowledgment_letters')
@@ -63,12 +60,9 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
 export async function PATCH(req: NextRequest, { params }: RouteParams) {
   try {
     const { orgId, id } = await params;
-    const supabase = await createServerClient();
-
-    const { data: canEdit } = await supabase.rpc('can_edit_org', { p_org_id: orgId });
-    if (!canEdit) {
-      return json({ error: 'Not authorized' }, { status: 403 });
-    }
+    const access = await requireOrgAccess(orgId, 'member');
+    if (isAccessDenied(access)) return access.response;
+    const supabase = access.context.db;
 
     const body = await req.json();
     const allowedFields = ['status', 'subject', 'body', 'notes', 'delivery_method', 'sent_at', 'storage_path', 'storage_bucket'];
@@ -137,12 +131,9 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
 export async function DELETE(req: NextRequest, { params }: RouteParams) {
   try {
     const { orgId, id } = await params;
-    const supabase = await createServerClient();
-
-    const { data: canEdit } = await supabase.rpc('can_edit_org', { p_org_id: orgId });
-    if (!canEdit) {
-      return json({ error: 'Not authorized' }, { status: 403 });
-    }
+    const access = await requireOrgAccess(orgId, 'member');
+    if (isAccessDenied(access)) return access.response;
+    const supabase = access.context.db;
 
     const { data: existing } = await supabase
       .from('acknowledgment_letters')

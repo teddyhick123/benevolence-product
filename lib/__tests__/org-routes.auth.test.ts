@@ -3,6 +3,21 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'fs';
 
 describe('org-scoped route auth contracts', () => {
+  it('organization, contribution, and acknowledgment CRUD routes share the org guard', () => {
+    for (const route of [
+      'app/api/org/[orgId]/route.ts',
+      'app/api/org/[orgId]/contributions/route.ts',
+      'app/api/org/[orgId]/contributions/[id]/route.ts',
+      'app/api/org/[orgId]/acknowledgments/route.ts',
+      'app/api/org/[orgId]/acknowledgments/[id]/route.ts',
+    ]) {
+      const source = readFileSync(route, 'utf8');
+      expect(source, route).toContain('requireOrgAccess');
+      expect(source, route).not.toContain('createServerClient');
+      expect(source, route).not.toContain('createSupabaseServerClient');
+    }
+  });
+
   it('organization collection routes use the user principal and scoped provisioner', () => {
     const src = readFileSync('app/api/org/route.ts', 'utf8');
 

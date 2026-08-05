@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@/lib/supabase";
+import { isAccessDenied, requireOrgAccess } from "@/lib/api/access";
 
 export const dynamic = "force-dynamic";
 
@@ -56,13 +56,9 @@ function normalizeContribution(row: any) {
 export async function GET(req: NextRequest, { params }: RouteParams) {
   try {
     const { orgId, id } = await params;
-    const supabase = await createServerClient();
-
-    // Check access
-    const { data: role } = await supabase.rpc("user_org_role", { p_org_id: orgId });
-    if (!role) {
-      return json({ error: "Not authorized" }, { status: 403 });
-    }
+    const access = await requireOrgAccess(orgId);
+    if (isAccessDenied(access)) return access.response;
+    const supabase = access.context.db;
 
     const { data: contribution, error } = await supabase
       .from("contributions_received")
@@ -91,13 +87,9 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
 export async function PATCH(req: NextRequest, { params }: RouteParams) {
   try {
     const { orgId, id } = await params;
-    const supabase = await createServerClient();
-
-    // Check edit access
-    const { data: canEdit } = await supabase.rpc("can_edit_org", { p_org_id: orgId });
-    if (!canEdit) {
-      return json({ error: "Not authorized" }, { status: 403 });
-    }
+    const access = await requireOrgAccess(orgId, "member");
+    if (isAccessDenied(access)) return access.response;
+    const supabase = access.context.db;
 
     const body = await req.json();
     const normalizedBody = {
@@ -163,13 +155,9 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
 export async function DELETE(req: NextRequest, { params }: RouteParams) {
   try {
     const { orgId, id } = await params;
-    const supabase = await createServerClient();
-
-    // Check admin access (deletion requires admin)
-    const { data: isAdmin } = await supabase.rpc("is_org_admin", { p_org_id: orgId });
-    if (!isAdmin) {
-      return json({ error: "Not authorized - admin required" }, { status: 403 });
-    }
+    const access = await requireOrgAccess(orgId, "admin");
+    if (isAccessDenied(access)) return access.response;
+    const supabase = access.context.db;
 
     const { data: contribution, error: contributionError } = await supabase
       .from("contributions_received")

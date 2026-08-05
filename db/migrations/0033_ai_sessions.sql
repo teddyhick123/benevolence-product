@@ -259,6 +259,14 @@ AS $$
 DECLARE
   v_session_id UUID;
 BEGIN
+  IF auth.role() IS DISTINCT FROM 'service_role'
+     AND (
+       auth.uid() IS DISTINCT FROM p_user_id
+       OR public.can_view_portfolio(p_portfolio_id) IS NOT TRUE
+     ) THEN
+    RAISE EXCEPTION 'Access denied' USING ERRCODE = '42501';
+  END IF;
+
   SELECT id INTO v_session_id
   FROM public.ai_sessions
   WHERE portfolio_id = p_portfolio_id
@@ -328,11 +336,18 @@ BEGIN
 END;
 $$;
 
+REVOKE ALL ON FUNCTION public.get_or_create_ai_session(UUID, UUID) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.undo_ai_action(UUID) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.redo_ai_action(UUID) FROM PUBLIC;
+
 GRANT EXECUTE ON FUNCTION public.update_recommendation_interaction_status(UUID, TEXT, TEXT) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.update_recommendation_interaction_status(UUID, TEXT, TEXT) TO service_role;
 GRANT EXECUTE ON FUNCTION public.get_or_create_ai_session(UUID, UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.get_or_create_ai_session(UUID, UUID) TO service_role;
 GRANT EXECUTE ON FUNCTION public.undo_ai_action(UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.undo_ai_action(UUID) TO service_role;
 GRANT EXECUTE ON FUNCTION public.redo_ai_action(UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.redo_ai_action(UUID) TO service_role;
 
 -- ---------------------------------------------------------------------------
 -- RLS

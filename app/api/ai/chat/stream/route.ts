@@ -1,13 +1,19 @@
-import { NextRequest } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-import { PortfolioAssistant } from '@/lib/ai/portfolio-assistant';
-import { cookies } from 'next/headers';
-import { createServerClient } from '@supabase/ssr';
-import { aiAuthRequired, rateLimitExceeded } from '@/lib/rate-limit-response';
-import { aiLimiter } from '@/lib/rate-limit';
-import { aiChatRequestSchema } from '@/lib/schemas/ai';
-import { containsInjection } from '@/lib/ai/prompt-guard';
 import { Redis } from '@upstash/redis';
+import { NextRequest } from 'next/server';
+import { PortfolioAssistant } from '@/lib/ai/portfolio-assistant';
+import {
+  isAccessDenied,
+  requirePortfolioAccessForUser,
+  requireUserAccess,
+} from '@/lib/api/access';
+import {
+  createAiChatRepository,
+  type PersistedChatMessage,
+} from '@/lib/api/repositories/ai-chat';
+import { containsInjection } from '@/lib/ai/prompt-guard';
+import { aiLimiter } from '@/lib/rate-limit';
+import { aiAuthRequired, rateLimitExceeded } from '@/lib/rate-limit-response';
+import { aiChatRequestSchema } from '@/lib/schemas/ai';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -17,274 +23,150 @@ const redis = new Redis({
   token: process.env.UPSTASH_REDIS_REST_TOKEN!,
 });
 
-function supabaseService() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE!,
-    { auth: { persistSession: false } }
-  );
+function streamError(error: string, status: number) {
+  return new Response(`${JSON.stringify({ type: 'error', error })}\n`, {
+    status,
+    headers: { 'Content-Type': 'text/event-stream' },
+  });
 }
 
-/**
- * POST /api/ai/chat/stream
- * Streaming AI chat endpoint — yields NDJSON events as they arrive.
- * REQUIRES AUTHENTICATION - No anonymous AI access allowed
- */
+/** POST /api/ai/chat/stream — stream NDJSON assistant events. */
 export async function POST(req: NextRequest) {
-  // Verify env vars
-  const { NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE } = process.env;
-  if (!NEXT_PUBLIC_SUPABASE_URL || !SUPABASE_SERVICE_ROLE) {
-    return new Response(
-      JSON.stringify({ type: 'error', error: 'Missing required env vars' }) + '\n',
-      { status: 500, headers: { 'Content-Type': 'text/event-stream' } }
+  const userAccess = await requireUserAccess();
+  if (isAccessDenied(userAccess)) {
+    return userAccess.reason === 'unauthenticated'
+      ? aiAuthRequired()
+      : userAccess.response;
+  }
+
+  const user = userAccess.context.user;
+  const rateLimit = await aiLimiter.limit(user.id);
+  if (!rateLimit.success) {
+    return rateLimitExceeded(
+      rateLimit.reset,
+      rateLimit.remaining,
+      rateLimit.limit
     );
   }
 
-  // Get authenticated user
-  const cookieStore = await cookies();
-  const supabase = createServerClient(
-    NEXT_PUBLIC_SUPABASE_URL,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        get(name: string) {
-          return cookieStore.get(name)?.value;
-        },
-        set(name: string, value: string, options: any) {
-          cookieStore.set({ name, value, ...options });
-        },
-        remove(name: string, options: any) {
-          cookieStore.set({ name, value: '', ...options });
-        },
-      },
-    }
-  );
-
-  const { data: { user } } = await supabase.auth.getUser();
-
-  // Block anonymous access to AI features
-  if (!user) {
-    return aiAuthRequired();
-  }
-
-  // Rate-limit per user: 30 requests/hour
-  const { success, reset, remaining, limit } = await aiLimiter.limit(user.id);
-  if (!success) {
-    return rateLimitExceeded(reset, remaining, limit);
-  }
-
-  // Parse and validate request body
-  let body: any;
+  let body: unknown;
   try {
     body = await req.json();
   } catch {
-    return new Response(
-      JSON.stringify({ type: 'error', error: 'Invalid JSON body' }) + '\n',
-      { status: 400, headers: { 'Content-Type': 'text/event-stream' } }
-    );
+    return streamError('Invalid JSON body', 400);
   }
 
   const validation = aiChatRequestSchema.safeParse(body);
-  if (!validation.success) {
-    return new Response(
-      JSON.stringify({ type: 'error', error: 'Validation failed' }) + '\n',
-      { status: 400, headers: { 'Content-Type': 'text/event-stream' } }
-    );
-  }
+  if (!validation.success) return streamError('Validation failed', 400);
 
   const { portfolioId, message, conversationHistory } = validation.data;
-
-  // Reject prompt injection attempts in user messages
   if (containsInjection(message)) {
-    return new Response(
-      JSON.stringify({ type: 'error', error: 'Message rejected: contains disallowed content.' }) + '\n',
-      { status: 400, headers: { 'Content-Type': 'text/event-stream' } }
-    );
+    return streamError('Message rejected: contains disallowed content.', 400);
   }
 
-  // Verify user has access to portfolio (check membership or admin status)
-  const { data: membership } = await supabase
-    .from('portfolio_members')
-    .select('role')
-    .eq('portfolio_id', portfolioId)
-    .eq('user_id', user.id)
-    .maybeSingle();
-
-  // Also check if user is admin (using canonical is_admin() RPC)
-  const { data: isAdminResult } = await supabase.rpc('is_app_admin');
-  const isAdmin = !!isAdminResult;
-
-  if (!membership && !isAdmin) {
-    return new Response(
-      JSON.stringify({ type: 'error', error: 'Access denied to this portfolio' }) + '\n',
-      { status: 403, headers: { 'Content-Type': 'text/event-stream' } }
-    );
+  const portfolioAccess = await requirePortfolioAccessForUser(
+    userAccess.context,
+    portfolioId,
+    'viewer'
+  );
+  if (isAccessDenied(portfolioAccess)) {
+    return portfolioAccess.reason === 'forbidden'
+      ? streamError('Access denied to this portfolio', 403)
+      : portfolioAccess.response;
   }
 
-  const sb = supabaseService();
-
-  // Get organization context for this portfolio (if any)
-  let orgId: string | undefined;
-  const { data: portfolio } = await sb
-    .from('portfolios')
-    .select('org_id')
-    .eq('id', portfolioId)
-    .maybeSingle();
-
-  if (portfolio?.org_id) {
-    orgId = portfolio.org_id;
-  } else {
-    const { data: userOrg } = await sb
-      .from('organization_members')
-      .select('org_id')
-      .eq('user_id', user.id)
-      .limit(1)
-      .maybeSingle();
-
-    if (userOrg?.org_id) {
-      orgId = userOrg.org_id;
-    }
+  const { orgId, role, db } = portfolioAccess.context;
+  const repository = createAiChatRepository(portfolioAccess.context);
+  let sessionId: string;
+  let sessionMessages: PersistedChatMessage[];
+  try {
+    const session = await repository.start(message);
+    sessionId = session.sessionId;
+    sessionMessages = session.messages;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to start AI session';
+    return streamError(message, 500);
   }
 
-  // Get or create AI session
-  const { data: sessionIdData } = await sb.rpc('get_or_create_ai_session', {
-    p_portfolio_id: portfolioId,
-    p_user_id: user.id,
-  });
-
-  const sessionId = sessionIdData as string;
-
-  // Update session with new user message
-  const { data: session } = await sb
-    .from('ai_sessions')
-    .select('messages')
-    .eq('id', sessionId)
-    .single();
-
-  const sessionMessages = session?.messages || [];
-  sessionMessages.push({
-    role: 'user',
-    content: message,
-    timestamp: new Date().toISOString(),
-  });
-
-  await sb
-    .from('ai_sessions')
-    .update({
-      messages: sessionMessages,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', sessionId);
-
-  // Initialize AI assistant
-  const assistant = new PortfolioAssistant(supabase as any);
-
-  // Filter conversation history to only include user/assistant messages
+  const assistant = new PortfolioAssistant(
+    db as unknown as ConstructorParameters<typeof PortfolioAssistant>[0]
+  );
   const filteredHistory = (conversationHistory || [])
-    .filter((msg: any) => msg.role === 'user' || msg.role === 'assistant')
-    .map((msg: any) => ({ role: msg.role as 'user' | 'assistant', content: msg.content }));
-
+    .filter((historyMessage) => (
+      historyMessage.role === 'user' || historyMessage.role === 'assistant'
+    ))
+    .map((historyMessage) => ({
+      role: historyMessage.role as 'user' | 'assistant',
+      content: historyMessage.content,
+    }));
   const encoder = new TextEncoder();
 
   const stream = new ReadableStream({
     async start(controller) {
       try {
-        const streamGen = assistant.chatStream({
+        const streamGenerator = assistant.chatStream({
           portfolioId,
           orgId,
           userId: user.id,
           sessionId,
           message,
           conversationHistory: filteredHistory,
-          memberRole: membership?.role ?? 'viewer',
+          memberRole: role,
         });
-
         let finalMessage = '';
         let finalActions: any[] = [];
 
-        for await (const chunk of streamGen) {
+        for await (const chunk of streamGenerator) {
           controller.enqueue(encoder.encode(chunk));
-
-          // Parse to capture done event data
           try {
             const parsed = JSON.parse(chunk.trim());
             if (parsed.type === 'done') {
               finalMessage = parsed.message;
               finalActions = parsed.actions ?? [];
             }
-          } catch {}
+          } catch {
+            // Partial provider chunks need not be independently parseable.
+          }
         }
 
-        // After streaming: fire-and-forget per-org AI usage counter
         if (orgId) {
-          const month = new Date().toISOString().slice(0, 7); // YYYY-MM
+          const month = new Date().toISOString().slice(0, 7);
           redis.incr(`usage:ai:${orgId}:${month}`).catch(() => {});
         }
 
-        // Check if any widgets were created/displayed and fetch their full data
         const widgetActions = finalActions.filter(
-          (a: any) => a.entity_type === 'widget' && (a.action_type === 'create' || a.action_type === 'preview')
+          (action: any) => action.entity_type === 'widget' && (
+            action.action_type === 'create' || action.action_type === 'preview'
+          )
         );
-
-        let widgets: any[] = [];
-        if (widgetActions.length > 0) {
-          const previewActions = widgetActions.filter((a: any) => a.action_type === 'preview');
-          const savedActions = widgetActions.filter((a: any) => a.action_type === 'create');
-
-          const previewWidgets = previewActions.map((a: any) => ({
-            ...a.operation_data?.after,
+        const previewWidgets = widgetActions
+          .filter((action: any) => action.action_type === 'preview')
+          .map((action: any) => ({
+            ...action.operation_data?.after,
             is_preview: true,
           }));
-
-          let savedWidgets: any[] = [];
-          if (savedActions.length > 0) {
-            const widgetIds = savedActions.map((a: any) => a.entity_id);
-            const [portfolioWidgets, holdingWidgets] = await Promise.all([
-              sb.from('widgets').select('*').in('id', widgetIds),
-              sb.from('holding_widgets').select('*').in('id', widgetIds),
-            ]);
-
-            savedWidgets = [
-              ...(portfolioWidgets.data || []),
-              ...(holdingWidgets.data || []),
-            ];
-          }
-
-          widgets = [...previewWidgets, ...savedWidgets];
-        }
-
-        // Save assistant response to session
-        const assistantMessage: any = {
+        const savedWidgetIds = widgetActions
+          .filter((action: any) => action.action_type === 'create')
+          .map((action: any) => action.entity_id as string);
+        const savedWidgets = await repository.loadSavedWidgets(savedWidgetIds);
+        const widgets = [...previewWidgets, ...savedWidgets];
+        const assistantMessage: PersistedChatMessage = {
           role: 'assistant',
           content: finalMessage,
           timestamp: new Date().toISOString(),
         };
+        if (widgets.length > 0) assistantMessage.widgets = widgets;
+        await repository.finish(sessionId, sessionMessages, assistantMessage);
 
-        if (widgets.length > 0) {
-          assistantMessage.widgets = widgets;
-        }
-
-        sessionMessages.push(assistantMessage);
-
-        await sb
-          .from('ai_sessions')
-          .update({
-            messages: sessionMessages,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', sessionId);
-
-        // Emit final metadata event with sessionId and widgets
-        const metaEvent = JSON.stringify({
+        controller.enqueue(encoder.encode(`${JSON.stringify({
           type: 'meta',
           sessionId,
           widgets: widgets.length > 0 ? widgets : undefined,
-        }) + '\n';
-        controller.enqueue(encoder.encode(metaEvent));
-
-      } catch (err: any) {
+        })}\n`));
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Stream failed';
         controller.enqueue(encoder.encode(
-          JSON.stringify({ type: 'error', error: err.message || 'Stream failed' }) + '\n'
+          `${JSON.stringify({ type: 'error', error: message })}\n`
         ));
       } finally {
         controller.close();

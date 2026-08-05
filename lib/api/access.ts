@@ -133,11 +133,20 @@ export async function requirePortfolioAccess(
   const session = await authenticatedSession();
   if (!session.ok) return session;
 
-  const { data: membership, error: membershipError } = await session.context.db
+  return requirePortfolioAccessForUser(session.context, portfolioId, minRole);
+}
+
+/** Reuse an authenticated user context when the portfolio ID comes from a parsed body. */
+export async function requirePortfolioAccessForUser(
+  session: UserAccessContext,
+  portfolioId: string,
+  minRole: OrgRole = 'viewer'
+): Promise<AccessResult<PortfolioAccessContext>> {
+  const { data: membership, error: membershipError } = await session.db
     .from('portfolio_members')
     .select('role, portfolios!inner(org_id)')
     .eq('portfolio_id', portfolioId)
-    .eq('user_id', session.context.user.id)
+    .eq('user_id', session.user.id)
     .is('deleted_at', null)
     .maybeSingle();
 
@@ -152,11 +161,11 @@ export async function requirePortfolioAccess(
   const orgId = portfolio?.org_id;
   if (!orgId) return denied('forbidden', 'Access denied', 403);
 
-  const { data: orgMembership, error: orgMembershipError } = await session.context.db
+  const { data: orgMembership, error: orgMembershipError } = await session.db
     .from('organization_members')
     .select('id')
     .eq('org_id', orgId)
-    .eq('user_id', session.context.user.id)
+    .eq('user_id', session.user.id)
     .is('deleted_at', null)
     .not('accepted_at', 'is', null)
     .maybeSingle();
@@ -167,7 +176,7 @@ export async function requirePortfolioAccess(
   return {
     ok: true,
     context: {
-      ...session.context,
+      ...session,
       orgId,
       portfolioId,
       role: membership.role,

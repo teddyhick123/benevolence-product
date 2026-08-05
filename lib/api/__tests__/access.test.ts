@@ -8,6 +8,7 @@ import {
   requireInvitationToken,
   requireOrgAccess,
   requirePortfolioAccess,
+  requirePortfolioAccessForUser,
   requireUserAccess,
 } from '@/lib/api/access';
 import { stubQuery } from '@/tests/helpers/supabase-mock';
@@ -225,6 +226,21 @@ describe('requirePortfolioAccess', () => {
     if (result.ok) throw new Error('expected access denial');
     expect(result.reason).toBe('forbidden');
     expect(result.response.status).toBe(403);
+  });
+
+  it('can reuse an authenticated user context without creating another session', async () => {
+    const db = client();
+    const result = await requirePortfolioAccessForUser({
+      db: db as never,
+      user: USER as never,
+      principal: { kind: 'user', userId: USER.id },
+    }, 'portfolio-1');
+
+    expect(result).toMatchObject({
+      ok: true,
+      context: { portfolioId: 'portfolio-1', orgId: 'org-1' },
+    });
+    expect(mockCreateServerClient).not.toHaveBeenCalled();
   });
 });
 

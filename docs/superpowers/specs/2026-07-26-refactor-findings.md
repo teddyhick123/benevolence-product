@@ -406,3 +406,22 @@ key or a broader transaction, not a route-boundary change.
 for a transactional provisioning function that creates or resumes the
 organization, portfolio, owner memberships, configuration, and final session
 linkage atomically.
+
+### 2026-08-05 — Phase 2, AI chat — session messages use read-modify-write
+
+**What happened:** `lib/api/repositories/ai-chat.ts:38-85` reads the session's
+JSON message array, appends a user turn, and later replaces the array with the
+assistant turn in separate writes.
+
+**Expected vs. actual:** Sequential turns persist correctly. Concurrent turns
+against the same active session can read the same starting array and overwrite
+one another, losing a user or assistant message.
+
+**Why left alone:** The scoped repository preserves the established session and
+streaming behavior while binding every read and write to the authenticated user
+and portfolio. Atomic append semantics require a database function or a
+normalized message table, which belongs with the full AI-system refactor.
+
+**Suggested follow-up (not scheduled):** Store turns in an `ai_messages` table
+with one row per message, or append them through an idempotent transactional
+database function keyed by session and turn ID.

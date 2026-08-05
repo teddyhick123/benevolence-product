@@ -1,8 +1,6 @@
 app/api/admin/bootstrap/route.ts
 app/api/admin/portfolios/[id]/members/route.ts
 app/api/admin/users/lookup/route.ts
-app/api/ai/chat/route.ts
-app/api/ai/chat/stream/route.ts
 app/api/charities/enrich/route.ts
 app/api/charities/import/propublica/route.ts
 app/api/org/[orgId]/ai-context/route.ts

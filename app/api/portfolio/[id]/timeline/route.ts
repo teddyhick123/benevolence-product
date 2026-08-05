@@ -1,19 +1,18 @@
 // app/api/portfolio/[id]/timeline/route.ts
 import { NextResponse } from 'next/server';
-import { createSupabaseServerClient } from '@/lib/supabase';
-import { requirePortfolioAccess, isAccessDenied } from '@/lib/portfolio-auth';
+import { requirePortfolioAccess, isAccessDenied } from '@/lib/api/access';
 
 export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id: portfolioId } = await ctx.params;
   const access = await requirePortfolioAccess(portfolioId);
-  if (isAccessDenied(access)) return access.error;
+  if (isAccessDenied(access)) return access.response;
   const url = new URL(_req.url);
   const holdingId = url.searchParams.get('holdingId');
   const eventTypesParam = url.searchParams.get('eventTypes');
   const startDate = url.searchParams.get('startDate');
   const endDate = url.searchParams.get('endDate');
 
-  const supabase = await createSupabaseServerClient();
+  const supabase = access.context.db;
 
   // Get all holdings for this portfolio to map holding IDs to names
   const { data: holdings, error: holdingsErr } = await supabase

@@ -1,18 +1,15 @@
 import { NextResponse } from 'next/server';
-import { createSupabaseServerClient } from '@/lib/supabase';
+import { isAccessDenied, requirePortfolioAccess } from '@/lib/api/access';
+import { canEdit } from '@/lib/roles';
 
 export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id: pid } = await ctx.params;
 
-  const supabase = await createSupabaseServerClient();
+  const access = await requirePortfolioAccess(pid);
+  if (isAccessDenied(access)) return access.response;
 
-  // role string
-  const { data: roleVal, error: roleErr } = await supabase.rpc('user_portfolio_role', { p_portfolio_id: pid });
-  if (roleErr) return NextResponse.json({ error: roleErr.message }, { status: 500 });
-
-  // can edit boolean
-  const { data: canEdit, error: editErr } = await supabase.rpc('can_edit_portfolio', { p_portfolio_id: pid });
-  if (editErr) return NextResponse.json({ error: editErr.message }, { status: 500 });
-
-  return NextResponse.json({ role: roleVal ?? 'viewer', can_edit: !!canEdit }, { headers: { 'Cache-Control': 'no-store' } });
+  return NextResponse.json(
+    { role: access.context.role, can_edit: canEdit(access.context.role) },
+    { headers: { 'Cache-Control': 'no-store' } }
+  );
 }

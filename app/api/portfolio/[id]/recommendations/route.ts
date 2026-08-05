@@ -1,6 +1,10 @@
 // app/api/portfolio/[id]/recommendations/route.ts
 import { NextResponse } from 'next/server';
-import { createSupabaseServerClient } from '@/lib/supabase';
+import {
+  isAccessDenied,
+  requirePortfolioAccess,
+  requirePortfolioManagerOrAppAdmin,
+} from '@/lib/api/access';
 
 function cacheHeaders() {
   return { 'Cache-Control': 'no-store' } as const;
@@ -9,13 +13,15 @@ function cacheHeaders() {
 // GET /api/portfolio/[id]/recommendations - Fetch all recommendations for a portfolio
 export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id: portfolio_id } = await ctx.params;
-  const supabase = await createSupabaseServerClient();
+  const access = await requirePortfolioAccess(portfolio_id);
+  if (isAccessDenied(access)) return access.response;
+  const supabase = access.context.db;
   const { searchParams } = new URL(req.url);
   const favoritesOnly = searchParams.get('favorites') === 'true';
 
   try {
     // Get current user
-    const { data: { user } } = await supabase.auth.getUser();
+    const { user } = access.context;
 
     // Base query for recommendations
     let query = supabase
@@ -70,36 +76,21 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
 // POST /api/portfolio/[id]/recommendations - Create a new recommendation
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id: portfolio_id } = await ctx.params;
-  const supabase = await createSupabaseServerClient();
+  const access = await requirePortfolioManagerOrAppAdmin(portfolio_id);
+  if (isAccessDenied(access)) return access.response;
+  if (!access.context.isAppAdmin && access.context.role !== 'owner') {
+    return NextResponse.json(
+      { error: 'Insufficient permissions. Only owners can add recommendations.' },
+      { status: 403, headers: cacheHeaders() }
+    );
+  }
+  const supabase = access.context.db;
 
   try {
     const body = await req.json();
 
     // Get current user for recommended_by field
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401, headers: cacheHeaders() }
-      );
-    }
-
-    // Verify user has owner role for this portfolio
-    const { data: member } = await supabase
-      .from('portfolio_members')
-      .select('role')
-      .eq('portfolio_id', portfolio_id)
-      .eq('user_id', user.id)
-      .single();
-
-    const { data: isAdmin } = await supabase.rpc('is_app_admin');
-
-    if (!isAdmin && (!member || member.role !== 'owner')) {
-      return NextResponse.json(
-        { error: 'Insufficient permissions. Only owners can add recommendations.' },
-        { status: 403, headers: cacheHeaders() }
-      );
-    }
+    const { user } = access.context;
 
     // Get current max order_index
     const { data: maxOrder } = await supabase

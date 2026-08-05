@@ -1,24 +1,21 @@
 // app/api/portfolio/[id]/analytics/risk/route.ts
 import { NextResponse } from 'next/server';
-import { createSupabaseServerClient } from '@/lib/supabase';
-import { requirePortfolioAccess, isAccessDenied } from '@/lib/portfolio-auth';
+import { requirePortfolioAccess, isAccessDenied } from '@/lib/api/access';
 
 function cacheHeaders() {
   return { 'Cache-Control': 'no-store' } as const;
 }
 
-const createSb = createSupabaseServerClient;
-
 export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id: portfolio_id } = await ctx.params;
   const access = await requirePortfolioAccess(portfolio_id);
-  if (isAccessDenied(access)) return access.error;
+  if (isAccessDenied(access)) return access.response;
   const url = new URL(req.url);
 
   const risk_type = url.searchParams.get('risk_type') || 'all';
   const include_history = url.searchParams.get('include_history') === 'true';
 
-  const sb = await createSb();
+  const sb = access.context.db;
 
   // Get latest risk snapshot
   const { data: latestSnapshot, error: snapshotError } = await sb
@@ -208,9 +205,9 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
 
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id: portfolio_id } = await ctx.params;
-  const access = await requirePortfolioAccess(portfolio_id);
-  if (isAccessDenied(access)) return access.error;
-  const sb = await createSb();
+  const access = await requirePortfolioAccess(portfolio_id, 'member');
+  if (isAccessDenied(access)) return access.response;
+  const sb = access.context.db;
 
   // Force regenerate snapshot
   const { data: snapshotId, error } = await sb.rpc('generate_risk_snapshot', {

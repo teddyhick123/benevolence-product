@@ -1,18 +1,15 @@
 // app/api/portfolio/[id]/analytics/insights/route.ts
 import { NextResponse } from 'next/server';
-import { createSupabaseServerClient } from '@/lib/supabase';
-import { requirePortfolioAccess, isAccessDenied } from '@/lib/portfolio-auth';
+import { requirePortfolioAccess, isAccessDenied } from '@/lib/api/access';
 
 function cacheHeaders() {
   return { 'Cache-Control': 'no-store' } as const;
 }
 
-const createSb = createSupabaseServerClient;
-
 export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id: portfolio_id } = await ctx.params;
   const access = await requirePortfolioAccess(portfolio_id);
-  if (isAccessDenied(access)) return access.error;
+  if (isAccessDenied(access)) return access.response;
   const url = new URL(req.url);
 
   const category = url.searchParams.get('category');
@@ -20,7 +17,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
   const active_only = url.searchParams.get('active_only') !== 'false';
   const limit = Math.min(parseInt(url.searchParams.get('limit') || '20'), 50);
 
-  const sb = await createSb();
+  const sb = access.context.db;
 
   let query = sb
     .from('analytics_insights')
@@ -89,9 +86,9 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
 
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id: portfolio_id } = await ctx.params;
-  const access = await requirePortfolioAccess(portfolio_id);
-  if (isAccessDenied(access)) return access.error;
-  const sb = await createSb();
+  const access = await requirePortfolioAccess(portfolio_id, 'member');
+  if (isAccessDenied(access)) return access.response;
+  const sb = access.context.db;
 
   const body = await req.json();
   const {
@@ -147,9 +144,9 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
 
 export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id: portfolio_id } = await ctx.params;
-  const access = await requirePortfolioAccess(portfolio_id);
-  if (isAccessDenied(access)) return access.error;
-  const sb = await createSb();
+  const access = await requirePortfolioAccess(portfolio_id, 'member');
+  if (isAccessDenied(access)) return access.response;
+  const sb = access.context.db;
 
   const body = await req.json();
   const { insight_id, action } = body;
@@ -161,8 +158,6 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
     );
   }
 
-  const { data: { user } } = await sb.auth.getUser();
-
   let updates: Record<string, any> = {};
 
   switch (action) {
@@ -170,7 +165,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
       updates = {
         is_active: false,
         dismissed_at: new Date().toISOString(),
-        dismissed_by: user?.id,
+        dismissed_by: access.context.user.id,
       };
       break;
     case 'action_taken':

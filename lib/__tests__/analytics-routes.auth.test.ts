@@ -14,6 +14,9 @@ describe('analytics routes auth contract', () => {
     it(`${route} imports requirePortfolioAccess`, () => {
       const src = readFileSync(route, 'utf8');
       expect(src).toContain('requirePortfolioAccess');
+      expect(src).toContain("from '@/lib/api/access'");
+      expect(src).not.toContain('createSupabaseServerClient');
+      expect(src).not.toContain("from '@/lib/portfolio-auth'");
     });
 
     it(`${route} calls isAccessDenied`, () => {

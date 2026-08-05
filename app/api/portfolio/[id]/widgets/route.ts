@@ -2,27 +2,24 @@
 
 // app/api/portfolio/[id]/widgets/route.ts
 import { NextResponse } from 'next/server';
-import { createSupabaseServerClient } from '@/lib/supabase';
 import { createWidgetSchema } from '@/lib/schemas/portfolio';
 import { validateRequest } from '@/lib/validation';
-import { requirePortfolioAccess, isAccessDenied } from '@/lib/portfolio-auth';
+import { requirePortfolioAccess, isAccessDenied } from '@/lib/api/access';
 
 function cacheHeaders() {
   return { 'Cache-Control': 'no-store' } as const;
 }
 
-const createSb = createSupabaseServerClient;
-
 export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id: portfolio_id } = await ctx.params;
   const access = await requirePortfolioAccess(portfolio_id);
-  if (isAccessDenied(access)) return access.error;
+  if (isAccessDenied(access)) return access.response;
 
   const url = new URL(req.url);
   const offset = Number(url.searchParams.get('offset') ?? '0') || 0;
   const limit = Math.min(Number(url.searchParams.get('limit') ?? '50') || 50, 200);
 
-  const sb = await createSb();
+  const sb = access.context.db;
 
   const { data, count, error } = await sb
     .from('widgets')
@@ -43,12 +40,9 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
 
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id: portfolio_id } = await ctx.params;
-  const sb = await createSb();
-
-  // Permission gate (friendlier than opaque RLS errors)
-  const { data: canEdit, error: canEditErr } = await sb.rpc('can_edit_portfolio', { p_portfolio_id: portfolio_id });
-  if (canEditErr) return NextResponse.json({ error: canEditErr.message }, { status: 500, headers: cacheHeaders() });
-  if (!canEdit) return NextResponse.json({ error: 'not authorized' }, { status: 403, headers: cacheHeaders() });
+  const access = await requirePortfolioAccess(portfolio_id, 'member');
+  if (isAccessDenied(access)) return access.response;
+  const sb = access.context.db;
 
   // Validate request body
   const validation = await validateRequest(req, createWidgetSchema);

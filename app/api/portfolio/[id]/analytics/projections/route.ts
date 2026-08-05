@@ -1,15 +1,13 @@
 // app/api/portfolio/[id]/analytics/projections/route.ts
 import { NextResponse } from 'next/server';
-import { createSupabaseServerClient } from '@/lib/supabase';
-import { requirePortfolioAccess, isAccessDenied } from '@/lib/portfolio-auth';
+import { requirePortfolioAccess, isAccessDenied } from '@/lib/api/access';
+import type { PortfolioAccessContext } from '@/lib/api/principals';
 
 function cacheHeaders() {
   return { 'Cache-Control': 'no-store' } as const;
 }
 
-const createSb = createSupabaseServerClient;
-
-async function portfolioHoldingIds(sb: Awaited<ReturnType<typeof createSb>>, portfolioId: string, holdingId?: string | null) {
+async function portfolioHoldingIds(sb: PortfolioAccessContext['db'], portfolioId: string, holdingId?: string | null) {
   let query = sb
     .from('holdings')
     .select('id')
@@ -26,7 +24,7 @@ async function portfolioHoldingIds(sb: Awaited<ReturnType<typeof createSb>>, por
 }
 
 async function cacheProjection(
-  sb: Awaited<ReturnType<typeof createSb>>,
+  sb: PortfolioAccessContext['db'],
   payload: {
     portfolio_id: string;
     holding_id: string | null;
@@ -151,7 +149,7 @@ function movingAverageProjection(values: number[], periodsAhead: number, windowS
 export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id: portfolio_id } = await ctx.params;
   const access = await requirePortfolioAccess(portfolio_id);
-  if (isAccessDenied(access)) return access.error;
+  if (isAccessDenied(access)) return access.response;
   const url = new URL(req.url);
 
   const metric_code = url.searchParams.get('metric_code');
@@ -164,7 +162,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
     return NextResponse.json({ error: 'metric_code is required' }, { status: 400, headers: cacheHeaders() });
   }
 
-  const sb = await createSb();
+  const sb = access.context.db;
 
   // Check cache first
   const { data: cached } = await sb
@@ -298,9 +296,9 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
 
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id: portfolio_id } = await ctx.params;
-  const access = await requirePortfolioAccess(portfolio_id);
-  if (isAccessDenied(access)) return access.error;
-  const sb = await createSb();
+  const access = await requirePortfolioAccess(portfolio_id, 'member');
+  if (isAccessDenied(access)) return access.response;
+  const sb = access.context.db;
 
   const body = await req.json();
   const { metric_codes, holding_id, method = 'linear', periods_ahead = 4 } = body;

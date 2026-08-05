@@ -1,10 +1,10 @@
 // app/api/portfolio/[id]/summary/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { createSupabaseServerClient } from '@/lib/supabase';
 import { aiLimiter } from '@/lib/rate-limit';
 import { aiAuthRequired, rateLimitExceeded } from '@/lib/rate-limit-response';
 import { AI_MODELS } from '@/lib/ai/models';
 import { generateText } from '@/lib/ai/text';
+import { isAccessDenied, requirePortfolioAccess } from '@/lib/api/access';
 
 function json(body: Record<string, unknown>, init?: ResponseInit) {
   return NextResponse.json(body, {
@@ -19,17 +19,12 @@ function json(body: Record<string, unknown>, init?: ResponseInit) {
 export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const { id: portfolio_id } = await ctx.params;
 
-  const supabase = await createSupabaseServerClient();
-
-  // Auth check — no anonymous access to AI features
-  const { data: { user: authUser } } = await supabase.auth.getUser();
-  if (!authUser) return aiAuthRequired();
-
-  const { data: canView, error: canViewErr } = await supabase.rpc('can_view_portfolio', {
-    p_portfolio_id: portfolio_id,
-  });
-  if (canViewErr) return json({ error: canViewErr.message }, { status: 500 });
-  if (!canView) return json({ error: 'Access denied' }, { status: 403 });
+  const access = await requirePortfolioAccess(portfolio_id);
+  if (isAccessDenied(access)) {
+    return access.reason === 'unauthenticated' ? aiAuthRequired() : access.response;
+  }
+  const supabase = access.context.db;
+  const authUser = access.context.user;
 
   // Per-user rate limit
   const { success, reset, remaining, limit } = await aiLimiter.limit(authUser.id);

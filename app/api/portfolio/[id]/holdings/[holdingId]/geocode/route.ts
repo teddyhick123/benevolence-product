@@ -11,9 +11,9 @@
  */
 
 import { NextResponse } from 'next/server';
-import { createSupabaseServerClient } from '@/lib/supabase';
 import { geocodeLocation } from '@/lib/services/google-maps';
 import { geocodeApiResponseSchema } from '@/lib/schemas/geocoding';
+import { isAccessDenied, requirePortfolioAccess } from '@/lib/api/access';
 
 function cacheHeaders() {
   return { 'Cache-Control': 'no-store' } as const;
@@ -24,26 +24,9 @@ export async function POST(
   ctx: { params: Promise<{ id: string; holdingId: string }> }
 ) {
   const { id: portfolio_id, holdingId } = await ctx.params;
-  const sb = await createSupabaseServerClient();
-
-  // Permission check - user must be able to edit the portfolio
-  const { data: canEdit, error: canEditErr } = await sb.rpc('can_edit_portfolio', {
-    p_portfolio_id: portfolio_id,
-  });
-
-  if (canEditErr) {
-    return NextResponse.json(
-      { error: canEditErr.message },
-      { status: 500, headers: cacheHeaders() }
-    );
-  }
-
-  if (!canEdit) {
-    return NextResponse.json(
-      { error: 'Not authorized to edit this portfolio' },
-      { status: 403, headers: cacheHeaders() }
-    );
-  }
+  const access = await requirePortfolioAccess(portfolio_id, 'member');
+  if (isAccessDenied(access)) return access.response;
+  const sb = access.context.db;
 
   // Fetch holding to get location data
   const { data: holding, error: fetchErr } = await sb

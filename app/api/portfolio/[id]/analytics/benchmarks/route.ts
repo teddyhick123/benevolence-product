@@ -1,13 +1,10 @@
 // app/api/portfolio/[id]/analytics/benchmarks/route.ts
 import { NextResponse } from 'next/server';
-import { createSupabaseServerClient } from '@/lib/supabase';
-import { requirePortfolioAccess, isAccessDenied } from '@/lib/portfolio-auth';
+import { requirePortfolioAccess, isAccessDenied } from '@/lib/api/access';
 
 function cacheHeaders() {
   return { 'Cache-Control': 'no-store' } as const;
 }
-
-const createSb = createSupabaseServerClient;
 
 type BenchmarkHolding = {
   id: string;
@@ -27,14 +24,14 @@ function allocationValue(holding: BenchmarkHolding): number | null {
 export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id: portfolio_id } = await ctx.params;
   const access = await requirePortfolioAccess(portfolio_id);
-  if (isAccessDenied(access)) return access.error;
+  if (isAccessDenied(access)) return access.response;
   const url = new URL(req.url);
 
   const holding_id = url.searchParams.get('holding_id');
   const benchmark_type = url.searchParams.get('benchmark_type') || 'sector';
   const metrics = url.searchParams.get('metrics')?.split(',') || ['PROGRAM_EXPENSE_RATIO', 'ADMIN_EXPENSE_RATIO'];
 
-  const sb = await createSb();
+  const sb = access.context.db;
 
   if (holding_id) {
     // Benchmark a specific holding

@@ -1,9 +1,9 @@
 // app/api/portfolio/[id]/letter/generate/route.ts
 import { NextResponse } from 'next/server';
-import { createSupabaseServerClient } from '@/lib/supabase';
 import { aiAuthRequired } from '@/lib/rate-limit-response';
 import { AI_MODELS } from '@/lib/ai/models';
 import { generateText } from '@/lib/ai/text';
+import { isAccessDenied, requirePortfolioAccess } from '@/lib/api/access';
 
 function json(body: Record<string, unknown>, init?: ResponseInit) {
   return NextResponse.json(body, {
@@ -21,21 +21,13 @@ function json(body: Record<string, unknown>, init?: ResponseInit) {
  */
 export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id: portfolio_id } = await ctx.params;
-  const sb = await createSupabaseServerClient();
+  const access = await requirePortfolioAccess(portfolio_id);
+  if (isAccessDenied(access)) {
+    return access.reason === 'unauthenticated' ? aiAuthRequired() : access.response;
+  }
+  const sb = access.context.db;
 
   try {
-    // Verify user is authenticated
-    const { data: { user } } = await sb.auth.getUser();
-    if (!user) {
-      return aiAuthRequired();
-    }
-
-    const { data: canView, error: canViewErr } = await sb.rpc('can_view_portfolio', {
-      p_portfolio_id: portfolio_id,
-    });
-    if (canViewErr) return json({ error: canViewErr.message }, { status: 500 });
-    if (!canView) return json({ error: 'Access denied' }, { status: 403 });
-
     // Fetch the latest cached letter for this portfolio
     const { data: cachedLetter, error } = await sb
       .from('generated_letters')
@@ -91,21 +83,13 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   const { searchParams } = new URL(req.url);
   const forceRegenerate = searchParams.get('force') === 'true';
 
-  const sb = await createSupabaseServerClient();
+  const access = await requirePortfolioAccess(portfolio_id);
+  if (isAccessDenied(access)) {
+    return access.reason === 'unauthenticated' ? aiAuthRequired() : access.response;
+  }
+  const sb = access.context.db;
 
   try {
-    // Verify user is authenticated
-    const { data: { user } } = await sb.auth.getUser();
-    if (!user) {
-      return aiAuthRequired();
-    }
-
-    const { data: canView, error: canViewErr } = await sb.rpc('can_view_portfolio', {
-      p_portfolio_id: portfolio_id,
-    });
-    if (canViewErr) return json({ error: canViewErr.message }, { status: 500 });
-    if (!canView) return json({ error: 'Access denied' }, { status: 403 });
-
     // Check for existing cached letter (unless force regenerate)
     if (!forceRegenerate) {
       const { data: cachedLetter } = await sb
@@ -273,7 +257,7 @@ INTEGRATION OF VISUALIZATIONS:
         letter_content: generatedLetter,
         summary_data: summaryData,
         generated_at: generatedAt,
-        generated_by: user.id,
+        generated_by: access.context.user.id,
         version: newVersion,
       });
 

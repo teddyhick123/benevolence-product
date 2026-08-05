@@ -2,9 +2,8 @@
 // Generates a board-level portfolio summary PDF
 
 import { NextResponse } from 'next/server';
-import { createServerClient } from '@/lib/supabase';
 import type { BoardReportData } from '@/lib/pdf/board-report-generator';
-import { requirePortfolioAccess, isAccessDenied } from '@/lib/portfolio-auth';
+import { requirePortfolioAccess, isAccessDenied } from '@/lib/api/access';
 
 function json(body: Record<string, unknown>, init?: ResponseInit) {
   return NextResponse.json(body, {
@@ -20,16 +19,9 @@ export async function GET(
   req: Request,
   ctx: { params: Promise<{ id: string }> }
 ) {
-  // Auth guard — require authenticated user
-  const authClient = await createServerClient();
-  const { data: { user } } = await authClient.auth.getUser();
-  if (!user) {
-    return json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
   const { id: portfolioId } = await ctx.params;
   const access = await requirePortfolioAccess(portfolioId);
-  if (isAccessDenied(access)) return access.error;
+  if (isAccessDenied(access)) return access.response;
   const url = new URL(req.url);
   const asOf = url.searchParams.get('as_of') ?? new Date().toISOString().slice(0, 10);
   const taxYear = Number(url.searchParams.get('year') ?? new Date().getFullYear());
@@ -39,7 +31,7 @@ export async function GET(
     url.searchParams.get('use_default_template') === 'true';
 
   // Use the authed client so RLS enforces portfolio ownership
-  const sb = authClient;
+  const sb = access.context.db;
 
   let templateConfig: Record<string, unknown> | null = null;
   let templateName: string | null = null;

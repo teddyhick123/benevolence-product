@@ -4,12 +4,25 @@ import { readFileSync } from 'fs';
 
 const routes = [
   'app/api/portfolio/[id]/board-report/route.ts',
+  'app/api/portfolio/[id]/bubble-chart/route.ts',
+  'app/api/portfolio/[id]/comparison-table/route.ts',
+  'app/api/portfolio/[id]/heat-map/route.ts',
+  'app/api/portfolio/[id]/holdings/[holdingId]/geocode/route.ts',
+  'app/api/portfolio/[id]/holdings/bulk-geocode/route.ts',
   'app/api/portfolio/[id]/widgets/route.ts',
   'app/api/portfolio/[id]/kpi-series/route.ts',
   'app/api/portfolio/[id]/letter/route.ts',
+  'app/api/portfolio/[id]/letter/generate/route.ts',
+  'app/api/portfolio/[id]/member-role/route.ts',
   'app/api/portfolio/[id]/meta/route.ts',
+  'app/api/portfolio/[id]/metric-comparison/route.ts',
+  'app/api/portfolio/[id]/recommendations/route.ts',
+  'app/api/portfolio/[id]/role/route.ts',
   'app/api/portfolio/[id]/settings/route.ts',
+  'app/api/portfolio/[id]/summary/route.ts',
   'app/api/portfolio/[id]/metrics/sector-aggregate/route.ts',
+  'app/api/portfolio/[id]/timeline/route.ts',
+  'app/api/portfolio/[id]/waterfall/route.ts',
 ];
 
 describe('misc portfolio routes auth contract', () => {
@@ -51,6 +64,9 @@ describe('misc portfolio routes auth contract', () => {
     it(`${route} imports requirePortfolioAccess`, () => {
       const src = readFileSync(route, 'utf8');
       expect(src).toContain('requirePortfolioAccess');
+      expect(src).not.toContain('createServerClient');
+      expect(src).not.toContain('createSupabaseServerClient');
+      expect(src).not.toContain("from '@/lib/portfolio-auth'");
     });
 
     it(`${route} calls isAccessDenied`, () => {

@@ -1,12 +1,11 @@
 // app/api/portfolio/[id]/kpi-series/route.ts
 import { NextResponse } from 'next/server';
-import { createSupabaseServerClient } from '@/lib/supabase';
-import { requirePortfolioAccess, isAccessDenied } from '@/lib/portfolio-auth';
+import { requirePortfolioAccess, isAccessDenied } from '@/lib/api/access';
 
 export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id: portfolio_id } = await ctx.params;
   const access = await requirePortfolioAccess(portfolio_id);
-  if (isAccessDenied(access)) return access.error;
+  if (isAccessDenied(access)) return access.response;
   const url = new URL(_req.url);
   const kpiId = (url.searchParams.get('kpiId') || '').trim();
   const metricParam = (url.searchParams.get('metric') || '').trim();
@@ -15,7 +14,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
     return NextResponse.json({ series: [] }, { headers: { 'Cache-Control': 'no-store' } });
   }
 
-  const supabase = await createSupabaseServerClient();
+  const supabase = access.context.db;
 
   // Fetch KPI series from view
   // Use .or() with both exact and uppercase matching for reliability

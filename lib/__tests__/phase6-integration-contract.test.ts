@@ -68,15 +68,18 @@ describe('Phase 6 integration and polish contract', () => {
   });
 
   it('enables main assistant report template save and list tools', () => {
-    const executor = readFileSync('lib/ai/assistant/executor.ts', 'utf8');
-    const saveIdx = executor.indexOf("case 'save_report_template'");
-    const listIdx = executor.indexOf("case 'list_report_templates'");
+    const save = readFileSync(
+      'lib/ai/assistant/executors/tools/save-report-template.ts',
+      'utf8'
+    );
+    const list = readFileSync(
+      'lib/ai/assistant/executors/tools/list-report-templates.ts',
+      'utf8'
+    );
 
-    expect(saveIdx).toBeGreaterThan(-1);
-    expect(listIdx).toBeGreaterThan(-1);
-    expect(executor.slice(saveIdx, saveIdx + 1400)).toMatch(/from\('report_templates'\)/);
-    expect(executor.slice(saveIdx, saveIdx + 1400)).not.toMatch(/feature_not_available/);
-    expect(executor.slice(listIdx, listIdx + 1000)).toMatch(/from\('report_templates'\)/);
-    expect(executor.slice(listIdx, listIdx + 1000)).not.toMatch(/feature_not_available/);
+    expect(save).toMatch(/from\('report_templates'\)/);
+    expect(save).not.toMatch(/feature_not_available/);
+    expect(list).toMatch(/from\('report_templates'\)/);
+    expect(list).not.toMatch(/feature_not_available/);
   });
 });

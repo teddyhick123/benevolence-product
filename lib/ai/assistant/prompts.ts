@@ -1,4 +1,3 @@
-// @ts-nocheck - extracted from legacy assistant while Supabase generated types are incomplete
 import { formatOrgAiContextForPrompt } from '@/lib/org-ai-context';
 
 

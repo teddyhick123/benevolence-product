@@ -1,4 +1,3 @@
-// @ts-nocheck - extracted from legacy assistant while Supabase generated types are incomplete
 // Input validation helpers
 export class ValidationError extends Error {
   constructor(message: string) {
@@ -8,6 +7,12 @@ export class ValidationError extends Error {
 }
 
 export const InputValidator = {
+  validateRequired(value: any, fieldName: string): void {
+    if (value === undefined || value === null || value === '') {
+      throw new ValidationError(`${fieldName} is required`);
+    }
+  },
+
   validateUUID(value: string, fieldName: string): void {
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     if (!uuidRegex.test(value)) {
@@ -136,4 +141,3 @@ export const CHART_COLORS = [
   '#14b8a6', // teal
   '#f97316', // orange
 ];
-

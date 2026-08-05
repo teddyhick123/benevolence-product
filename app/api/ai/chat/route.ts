@@ -9,9 +9,11 @@ import {
 } from '@/lib/api/access';
 import {
   createAiChatRepository,
+  type AiChatResponsePayload,
   type PersistedChatMessage,
 } from '@/lib/api/repositories/ai-chat';
 import { jsonError, jsonOk } from '@/lib/api/responses';
+import { createAssistantToolCapabilities } from '@/lib/api/repositories/ai-tools';
 import { containsInjection } from '@/lib/ai/prompt-guard';
 import { aiLimiter } from '@/lib/rate-limit';
 import { aiAuthRequired, rateLimitExceeded } from '@/lib/rate-limit-response';
@@ -30,6 +32,11 @@ const redis = new Redis({
  * Main AI chat endpoint.
  */
 export async function POST(req: NextRequest) {
+  let activeTurn: {
+    id: string;
+    repository: ReturnType<typeof createAiChatRepository>;
+  } | null = null;
+
   try {
     const userAccess = await requireUserAccess();
     if (isAccessDenied(userAccess)) {
@@ -44,7 +51,7 @@ export async function POST(req: NextRequest) {
       return rateLimitExceeded(
         rateLimit.reset,
         rateLimit.remaining,
-        rateLimit.limit
+        rateLimit.limit,
       );
     }
 
@@ -62,7 +69,8 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const { portfolioId, message, conversationHistory } = validation.data;
+    const { portfolioId, message } = validation.data;
+    const requestId = validation.data.requestId ?? crypto.randomUUID();
     if (containsInjection(message)) {
       return jsonError('Message rejected: contains disallowed content.', 400);
     }
@@ -70,7 +78,7 @@ export async function POST(req: NextRequest) {
     const portfolioAccess = await requirePortfolioAccessForUser(
       userAccess.context,
       portfolioId,
-      'viewer'
+      'viewer',
     );
     if (isAccessDenied(portfolioAccess)) {
       return portfolioAccess.reason === 'forbidden'
@@ -80,26 +88,35 @@ export async function POST(req: NextRequest) {
 
     const { orgId, role, db } = portfolioAccess.context;
     const repository = createAiChatRepository(portfolioAccess.context);
-    const { sessionId, messages } = await repository.start(message);
-    const assistant = new PortfolioAssistant(
-      db as unknown as ConstructorParameters<typeof PortfolioAssistant>[0]
-    );
-    const filteredHistory = (conversationHistory || [])
-      .filter((historyMessage) => (
-        historyMessage.role === 'user' || historyMessage.role === 'assistant'
-      ))
-      .map((historyMessage) => ({
-        role: historyMessage.role as 'user' | 'assistant',
-        content: historyMessage.content,
-      }));
+    const turn = await repository.beginTurn(requestId, message);
+    if (turn.state === 'completed') {
+      return jsonOk(turn.response);
+    }
+    if (turn.state !== 'started') {
+      return jsonError(
+        turn.failureMessage ?? `AI turn is ${turn.state.replace('_', ' ')}`,
+        409,
+        { requestId, turnId: turn.turnId, state: turn.state },
+      );
+    }
+
+    const { sessionId, turnId } = turn;
+    activeTurn = { id: turnId, repository };
+    const assistant = new PortfolioAssistant({
+      db: db as unknown as ConstructorParameters<
+        typeof PortfolioAssistant
+      >[0]['db'],
+      capabilities: createAssistantToolCapabilities(portfolioAccess.context),
+    });
 
     const result = await assistant.chat({
       portfolioId,
       orgId,
       userId: user.id,
       sessionId,
+      turnId,
       message,
-      conversationHistory: filteredHistory,
+      conversationHistory: turn.history,
       memberRole: role,
     });
 
@@ -108,18 +125,19 @@ export async function POST(req: NextRequest) {
       redis.incr(`usage:ai:${orgId}:${month}`).catch(() => {});
     }
 
-    if (result.usage && (
-      result.usage.inputTokens > 0 || result.usage.outputTokens > 0
-    )) {
+    if (
+      result.usage &&
+      (result.usage.inputTokens > 0 || result.usage.outputTokens > 0)
+    ) {
       repository.recordUsage(sessionId, result.usage).catch((error) => {
         console.error('[ai/chat] usage log insert failed:', error);
       });
     }
 
     const widgetActions = result.actions.filter(
-      (action: any) => action.entity_type === 'widget' && (
-        action.action_type === 'create' || action.action_type === 'preview'
-      )
+      (action: any) =>
+        action.entity_type === 'widget' &&
+        (action.action_type === 'create' || action.action_type === 'preview'),
     );
     const previewWidgets = widgetActions
       .filter((action: any) => action.action_type === 'preview')
@@ -137,9 +155,10 @@ export async function POST(req: NextRequest) {
     if (result.toolResults) {
       for (const toolResult of result.toolResults) {
         try {
-          const parsed = typeof toolResult.content === 'string'
-            ? JSON.parse(toolResult.content)
-            : toolResult.content;
+          const parsed =
+            typeof toolResult.content === 'string'
+              ? JSON.parse(toolResult.content)
+              : toolResult.content;
           if (parsed?.content_blocks && Array.isArray(parsed.content_blocks)) {
             contentBlocks = parsed.content_blocks;
             break;
@@ -157,23 +176,45 @@ export async function POST(req: NextRequest) {
     };
     if (widgets.length > 0) assistantMessage.widgets = widgets;
     if (contentBlocks?.length) assistantMessage.content_blocks = contentBlocks;
-    await repository.finish(sessionId, messages, assistantMessage);
-
-    return jsonOk({
+    const response: AiChatResponsePayload = {
       message: result.message,
       actions: result.actions,
       widgets,
-      content_blocks: contentBlocks,
+      ...(contentBlocks ? { content_blocks: contentBlocks } : {}),
       sessionId,
-    });
+    };
+    const persistedResponse = await repository.completeTurn(
+      turnId,
+      assistantMessage,
+      response,
+    );
+    activeTurn = null;
+
+    return jsonOk(persistedResponse);
   } catch (error) {
+    if (activeTurn) {
+      const failureMessage =
+        error instanceof Error ? error.message : 'AI chat failed';
+      try {
+        await activeTurn.repository.failTurn(
+          activeTurn.id,
+          'chat_failed',
+          failureMessage,
+        );
+      } catch (persistenceError) {
+        console.error(
+          '[ai/chat] failed to record terminal turn state:',
+          persistenceError,
+        );
+      }
+    }
     const isDev = process.env.NODE_ENV === 'development';
     const message = error instanceof Error ? error.message : 'AI chat failed';
     console.error('[ai/chat]', error);
     return jsonError(
       isDev ? message : 'An error occurred. Please try again.',
       500,
-      isDev && error instanceof Error ? { stack: error.stack } : undefined
+      isDev && error instanceof Error ? { stack: error.stack } : undefined,
     );
   }
 }
@@ -188,13 +229,14 @@ export async function GET(req: NextRequest) {
 
   try {
     const repository = createAiChatRepository(access.context);
-    const session = await repository.listHistory();
+    const history = await repository.listHistory();
     return jsonOk({
-      session: session || null,
-      messages: session?.messages || [],
+      session: history.session,
+      messages: history.messages,
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Failed to get chat history';
+    const message =
+      error instanceof Error ? error.message : 'Failed to get chat history';
     return jsonError(message, 500);
   }
 }

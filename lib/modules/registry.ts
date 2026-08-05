@@ -354,8 +354,6 @@ External data sources:
       'project_metric_trend',
       'benchmark_holding',
       'analyze_portfolio_risk',
-      'generate_insight',
-      'get_risk_snapshot',
     ],
     tables: [
       'benchmark_data',

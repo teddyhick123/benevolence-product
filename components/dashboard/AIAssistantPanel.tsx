@@ -175,6 +175,7 @@ Just ask me anything, and I'll help you out! If you don't like a change I make, 
 
     setMessages((prev) => [...prev, userMessage]);
     const sentInput = input;
+    const requestId = crypto.randomUUID();
     setInput('');
     setIsLoading(true);
     setLoadingStatus('Thinking…');
@@ -198,6 +199,7 @@ Just ask me anything, and I'll help you out! If you don't like a change I make, 
         body: JSON.stringify({
           portfolioId,
           message: sentInput,
+          requestId,
           currentPage: currentPage ?? null,
           conversationHistory: messages.slice(-20).map((m) => ({
             role: m.role,

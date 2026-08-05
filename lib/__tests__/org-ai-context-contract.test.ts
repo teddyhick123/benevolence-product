@@ -50,13 +50,16 @@ describe('Phase 4 org-specific AI context contract', () => {
   });
 
   it('wires confirmed assistant context suggestions', () => {
-    const definitions = readFileSync('lib/ai/assistant/tool-definitions.ts', 'utf8');
-    const executor = readFileSync('lib/ai/assistant/executor.ts', 'utf8');
+    const definitions = readFileSync('lib/ai/assistant/tool-definitions/core.ts', 'utf8');
+    const executor = readFileSync(
+      'lib/ai/assistant/executors/tools/suggest-context-entry.ts',
+      'utf8'
+    );
     const registry = readFileSync('lib/modules/registry.ts', 'utf8');
 
     expect(definitions).toMatch(/suggest_context_entry/);
     expect(definitions).toMatch(/explicit user confirmation/);
-    expect(executor).toMatch(/case 'suggest_context_entry'/);
+    expect(executor).toMatch(/executeSuggestContextEntry/);
     expect(executor).toMatch(/source: 'ai_suggestion'/);
     expect(registry).toMatch(/suggest_context_entry/);
   });

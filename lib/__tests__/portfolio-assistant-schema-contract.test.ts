@@ -1,17 +1,18 @@
 import { describe, expect, it } from 'vitest';
-import { readFileSync, readdirSync } from 'fs';
+import { readFileSync, readdirSync, statSync } from 'fs';
 import { join } from 'path';
 
-const assistantSrc = [
-  'lib/ai/assistant/context.ts',
-  'lib/ai/assistant/executor.ts',
-  'lib/ai/assistant/portfolio-assistant.ts',
-  'lib/ai/assistant/prompts.ts',
-  'lib/ai/assistant/tool-definitions.ts',
-  'lib/ai/assistant/helpers.ts',
-]
-  .map(file => readFileSync(file, 'utf8'))
-  .join('\n');
+function sourceFiles(root: string): string[] {
+  return readdirSync(root).flatMap((entry) => {
+    const path = join(root, entry);
+    return statSync(path).isDirectory() ? sourceFiles(path) : [path];
+  });
+}
+
+const assistantSourceFiles = sourceFiles('lib/ai/assistant')
+  .filter((file) => file.endsWith('.ts') && !file.includes('/__tests__/'));
+const assistantSources = assistantSourceFiles.map(file => readFileSync(file, 'utf8'));
+const assistantSrc = assistantSources.join('\n');
 const migrationsSrc = readdirSync('db/migrations')
   .filter(file => file.endsWith('.sql'))
   .sort()
@@ -73,10 +74,19 @@ function parseTableColumns() {
 }
 
 function parseObjectKeys(body: string) {
-  return unique(
-    Array.from(body.matchAll(/^\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*:/gm))
-      .map(match => match[1])
-  );
+  const keys: string[] = [];
+  let depth = 0;
+  for (const line of body.split('\n')) {
+    if (depth === 0) {
+      const key = line.match(/^\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*:/)?.[1];
+      if (key) keys.push(key);
+    }
+    for (const character of line) {
+      if (character === '{' || character === '[') depth += 1;
+      if (character === '}' || character === ']') depth -= 1;
+    }
+  }
+  return unique(keys);
 }
 
 function extractMutationObjects(src: string) {
@@ -84,7 +94,9 @@ function extractMutationObjects(src: string) {
   const fromRegex = /\.from\(['"]([^'"]+)['"]\)/g;
   for (const fromMatch of src.matchAll(fromRegex)) {
     const table = fromMatch[1];
-    const window = src.slice(fromMatch.index ?? 0, (fromMatch.index ?? 0) + 900);
+    const tail = src.slice(fromMatch.index ?? 0);
+    const statementEnd = tail.indexOf(';');
+    const window = tail.slice(0, statementEnd === -1 ? 900 : statementEnd + 1);
     const opMatch = window.match(/\.(insert|update)\(\{/);
     if (!opMatch || opMatch.index === undefined) continue;
 
@@ -112,7 +124,9 @@ function extractStaticSelects(src: string) {
   const fromRegex = /\.from\(['"]([^'"]+)['"]\)/g;
   for (const fromMatch of src.matchAll(fromRegex)) {
     const table = fromMatch[1];
-    const window = src.slice(fromMatch.index ?? 0, (fromMatch.index ?? 0) + 700);
+    const tail = src.slice(fromMatch.index ?? 0);
+    const statementEnd = tail.indexOf(';');
+    const window = tail.slice(0, statementEnd === -1 ? 700 : statementEnd + 1);
     const selectMatch = window.match(/\.select\(\s*(['"`])([\s\S]*?)\1/);
     if (selectMatch) {
       selects.push({ table, body: selectMatch[2] });
@@ -148,7 +162,7 @@ function relationName(token: string) {
   };
 }
 
-describe('claude-assistant schema contract', () => {
+describe('portfolio assistant schema contract', () => {
   it('only queries tables/views present in active migrations', () => {
     const dbObjects = parseDbObjects();
     const targets = unique(
@@ -190,7 +204,7 @@ describe('claude-assistant schema contract', () => {
     const tableColumns = parseTableColumns();
     const problems = [];
 
-    for (const mutation of extractMutationObjects(assistantSrc)) {
+    for (const mutation of assistantSources.flatMap(extractMutationObjects)) {
       const table = mutation.table;
       const columns = tableColumns.get(table);
       if (!columns) continue;
@@ -209,7 +223,7 @@ describe('claude-assistant schema contract', () => {
     const tableColumns = parseTableColumns();
     const problems = [];
 
-    for (const selection of extractStaticSelects(assistantSrc)) {
+    for (const selection of assistantSources.flatMap(extractStaticSelects)) {
       const columns = tableColumns.get(selection.table);
       if (!columns) continue;
 

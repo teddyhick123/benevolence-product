@@ -68,12 +68,15 @@ describe('Phase 2 runtime surface contract', () => {
   });
 
   it('registers AI read and search tools for custom fields', () => {
-    const defs = readFileSync('lib/ai/assistant/tool-definitions.ts', 'utf8');
-    const exec = readFileSync('lib/ai/assistant/executor.ts', 'utf8');
+    const defs = readFileSync('lib/ai/assistant/tool-definitions/core.ts', 'utf8');
+    const exec = readFileSync(
+      'lib/ai/assistant/executors/modules/custom-fields.ts',
+      'utf8'
+    );
     const registry = readFileSync('lib/modules/registry.ts', 'utf8');
     expect(defs).toMatch(/get_custom_fields/);
     expect(defs).toMatch(/search_custom_field_values/);
-    expect(exec).toMatch(/case 'search_custom_field_values'/);
+    expect(exec).toMatch(/search_custom_field_values/);
     expect(registry).toMatch(/search_custom_field_values/);
   });
 });

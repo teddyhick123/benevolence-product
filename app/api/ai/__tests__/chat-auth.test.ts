@@ -5,7 +5,10 @@ import { readFileSync } from 'fs';
 describe('AI chat viewer write bypass', () => {
   const chatSrc = readFileSync('app/api/ai/chat/route.ts', 'utf8');
   const assistantSrc = readFileSync('lib/ai/assistant/executor.ts', 'utf8');
-  const grantExecutorSrc = readFileSync('lib/ai/assistant/executors/grants.ts', 'utf8');
+  const grantExecutorSrc = [
+    'lib/ai/assistant/executors/grants.ts',
+    'lib/ai/assistant/executors/grants-workflows.ts',
+  ].map((file) => readFileSync(file, 'utf8')).join('\n');
   const actionExecutorSrc = readFileSync('lib/ai-action-executor.ts', 'utf8');
 
   it('chat route passes memberRole to assistant.chat()', () => {
@@ -47,7 +50,7 @@ describe('AI chat viewer write bypass', () => {
   });
 
   it('grant assistant tools are scoped to the active portfolio', () => {
-    expect(assistantSrc).toContain("{ ...args, portfolio_id: portfolioId }");
+    expect(assistantSrc).toContain('portfolioArgument !== params.portfolioId');
     expect(grantExecutorSrc).toContain(".eq('portfolio_id', portfolioId)");
     expect(grantExecutorSrc).toContain(".eq('workflow_instances.portfolio_id', portfolioId)");
     expect(grantExecutorSrc).not.toContain('portfolio_id ?? portfolioId');
@@ -62,10 +65,19 @@ describe('AI chat viewer write bypass', () => {
   });
 
   it('assistant holding and widget read tools are scoped to the active portfolio', () => {
-    expect(assistantSrc).toMatch(/case 'get_holding_details':[\s\S]*\.eq\('id', args\.holding_id\)[\s\S]*\.eq\('portfolio_id', portfolioId\)/);
-    expect(assistantSrc).toMatch(/case 'display_widget':[\s\S]*\.eq\('id', args\.widget_id\)[\s\S]*\.eq\('portfolio_id', portfolioId\)/);
-    expect(assistantSrc).toMatch(/case 'generate_holding_report':[\s\S]*\.eq\('id', args\.holding_id\)[\s\S]*\.eq\('portfolio_id', portfolioId\)/);
-    expect(assistantSrc).toMatch(/case 'search_similar_charities':[\s\S]*\.eq\('id', args\.holding_id\)[\s\S]*\.eq\('portfolio_id', portfolioId\)/);
-    expect(assistantSrc).toMatch(/case 'benchmark_holding':[\s\S]*\.eq\('id', args\.holding_id\)[\s\S]*\.eq\('portfolio_id', portfolioId\)/);
+    for (const [file, idArgument] of [
+      ['get-holding-details', 'holding_id'],
+      ['display-widget', 'widget_id'],
+      ['generate-holding-report', 'holding_id'],
+      ['search-similar-charities', 'holding_id'],
+      ['benchmark-holding', 'holding_id'],
+    ]) {
+      const source = readFileSync(
+        `lib/ai/assistant/executors/tools/${file}.ts`,
+        'utf8'
+      );
+      expect(source).toContain(`.eq('id', args.${idArgument})`);
+      expect(source).toContain(".eq('portfolio_id', portfolioId)");
+    }
   });
 });

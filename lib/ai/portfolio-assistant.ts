@@ -1,6 +1,5 @@
 export {
   PortfolioAssistant,
-  PortfolioAssistant as ClaudePortfolioAssistant,
   PORTFOLIO_TOOLS,
 } from '@/lib/ai/assistant';
 

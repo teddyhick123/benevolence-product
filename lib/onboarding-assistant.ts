@@ -1,4 +1,3 @@
-// @ts-nocheck - Supabase generated types don't include new onboarding tables yet
 /**
  * OnboardingAssistant
  *
@@ -253,7 +252,8 @@ function buildOnboardingSystemPrompt(quickIntake: QuickIntake, conversationState
 
   // Determine which topics to explore based on org type
   const topicsToExplore: string[] = [];
-  if (quickIntake.org_type === 'foundation' || quickIntake.org_type === 'daf') {
+  const legacyOrgType = quickIntake.org_type as string | undefined;
+  if (legacyOrgType === 'foundation' || legacyOrgType === 'daf') {
     if (!topicsCovered.includes('grant_process')) topicsToExplore.push('grant_process');
   }
   if (quickIntake.org_type === 'nonprofit') {
@@ -605,14 +605,15 @@ export class OnboardingAssistant {
     }
 
     // Add base recommendations based on org type
-    const orgTypeDefaults: Record<OrgType, ModuleId[]> = {
+    const orgTypeDefaults: Record<string, ModuleId[]> = {
       foundation: ['impact_tracking', 'grant_management', 'reporting'],
       daf: ['impact_tracking', 'tax_optimization', 'reporting'],
       nonprofit: ['impact_tracking', 'donor_management', 'reporting'],
       impact_investor: ['impact_tracking', 'analytics', 'reporting'],
     };
 
-    const defaults = quickIntake.org_type ? orgTypeDefaults[quickIntake.org_type] : [];
+    const legacyOrgType = quickIntake.org_type as string | undefined;
+    const defaults = legacyOrgType ? orgTypeDefaults[legacyOrgType] : [];
     for (const moduleId of defaults) {
       if (!moduleScores[moduleId]) {
         moduleScores[moduleId] = { score: 1, painPoints: [], goals: [] };
@@ -678,7 +679,7 @@ export class OnboardingAssistant {
       if (modDef.isCore || recommendedIds.has(moduleId)) continue;
 
       let reason = 'No matching needs identified';
-      if (moduleId === 'tax_optimization' && quickIntake.org_type !== 'daf') {
+      if (moduleId === 'tax_optimization' && legacyOrgType !== 'daf') {
         reason = 'Best suited for donor-advised fund sponsors';
       } else if (moduleId === 'grant_management' && quickIntake.org_type === 'nonprofit') {
         reason = 'More relevant for grantmakers than grant recipients';

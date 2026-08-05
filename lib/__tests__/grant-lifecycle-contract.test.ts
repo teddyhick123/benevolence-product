@@ -25,6 +25,9 @@ function readMigrations(): string {
 const migrations = readMigrations();
 const executorSrc = read('lib/ai/assistant/executor.ts');
 const grantsExecutorSrc = read('lib/ai/assistant/executors/grants.ts');
+const grantToolExecutor = (tool: string) => read(
+  `lib/ai/assistant/executors/tools/${tool.replaceAll('_', '-')}.ts`
+);
 
 // ---------------------------------------------------------------------------
 // 1. Canonical table is `grants`, not `grant_details`
@@ -227,18 +230,16 @@ describe('AI grant tools are not stubbed', () => {
     //   return { ... feature_not_available: true ... };
     // }
     // After implementation each tool gets its own case. Verify the stub pattern is gone.
-    const stubPattern = /case 'start_due_diligence':[\s\S]{0,800}feature_not_available:\s*true/;
-    expect(stubPattern.test(executorSrc)).toBe(false);
+    expect(executorSrc).toContain('GRANTS_EXECUTORS');
+    expect(GRANT_TOOL_NAMES.map(grantToolExecutor).join('\n'))
+      .not.toContain('feature_not_available');
   });
 
   for (const tool of GRANT_TOOL_NAMES) {
     it(`executor.ts handles case '${tool}' without feature_not_available`, () => {
-      // Find the case block for this tool and assert no feature_not_available inside it
-      const caseIdx = executorSrc.indexOf(`case '${tool}':`);
-      expect(caseIdx).toBeGreaterThan(-1);
-      // Extract a window after the case label and check for the stub flag
-      const window = executorSrc.slice(caseIdx, caseIdx + 600);
-      expect(window).not.toContain('feature_not_available');
+      const implementation = grantToolExecutor(tool);
+      expect(implementation).toMatch(/AssistantToolExecutor/);
+      expect(implementation).not.toContain('feature_not_available');
     });
   }
 });

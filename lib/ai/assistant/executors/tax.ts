@@ -11,6 +11,7 @@
 //   Filing status: tax_years.filing_status
 
 import type { ToolResult } from '@/lib/ai/types';
+import type { AssistantToolArguments } from '../executor-types';
 import { getStandardDeduction } from '@/lib/tax/constants';
 import type { FilingStatus } from '@/lib/schemas/tax';
 
@@ -31,7 +32,7 @@ type DB = any; // supabase client
 async function readAGI(
   supabase: DB,
   portfolioId: string,
-  taxYear: number
+  taxYear: number,
 ): Promise<{ agi: number | null; filingStatus: string | null }> {
   // Primary: tax_years
   const { data: taxYearData } = await supabase
@@ -74,23 +75,34 @@ async function readAGI(
  */
 function normalizeFilingStatus(raw: string | null): FilingStatus {
   switch (raw) {
-    case 'married_filing_jointly':   return 'married_joint';
-    case 'married_filing_separately': return 'married_separate';
-    case 'qualifying_widow':          return 'single';
-    case 'single':                    return 'single';
-    case 'married_joint':             return 'married_joint';
-    case 'married_separate':          return 'married_separate';
-    case 'head_of_household':         return 'head_of_household';
-    default:                          return 'single';
+    case 'married_filing_jointly':
+      return 'married_joint';
+    case 'married_filing_separately':
+      return 'married_separate';
+    case 'qualifying_widow':
+      return 'single';
+    case 'single':
+      return 'single';
+    case 'married_joint':
+      return 'married_joint';
+    case 'married_separate':
+      return 'married_separate';
+    case 'head_of_household':
+      return 'head_of_household';
+    default:
+      return 'single';
   }
 }
 
 /** Resolve AGI-limit percentage based on asset type and recipient type. */
 function agiLimitPercent(assetType: string, recipientType: string): number {
   if (assetType === 'cash' && recipientType === 'public_charity') return 0.6;
-  if (assetType === 'cash' && recipientType === 'private_foundation') return 0.3;
-  if (assetType === 'public_stock' && recipientType === 'public_charity') return 0.3;
-  if (assetType === 'public_stock' && recipientType === 'private_foundation') return 0.2;
+  if (assetType === 'cash' && recipientType === 'private_foundation')
+    return 0.3;
+  if (assetType === 'public_stock' && recipientType === 'public_charity')
+    return 0.3;
+  if (assetType === 'public_stock' && recipientType === 'private_foundation')
+    return 0.2;
   return 0.3; // conservative default for other assets
 }
 
@@ -100,8 +112,8 @@ function agiLimitPercent(assetType: string, recipientType: string): number {
 
 export async function runTaxScenario(
   supabase: DB,
-  args: any,
-  portfolioId: string
+  args: AssistantToolArguments,
+  portfolioId: string,
 ): Promise<ToolResult> {
   const scenarioType: string = args.scenario_type;
   const donationAmount: number = args.donation_amount;
@@ -132,7 +144,8 @@ export async function runTaxScenario(
     agi,
     filing_status: filingStatus,
     tax_bracket: taxBracket,
-    tax_bracket_note: 'Estimated at 37%; actual marginal rate may vary. Update in Tax Center for precise scenarios.',
+    tax_bracket_note:
+      'Estimated at 37%; actual marginal rate may vary. Update in Tax Center for precise scenarios.',
   };
 
   switch (scenarioType) {
@@ -155,7 +168,10 @@ export async function runTaxScenario(
       }
       const capGainsTaxAvoided = totalGainAvoided * 0.2; // 20% LTCG rate
       const stockTaxSavings = stockDeduction * taxBracket + capGainsTaxAvoided;
-      const stockCarryforward = Math.max(0, donationAmount - stockDeductionLimit);
+      const stockCarryforward = Math.max(
+        0,
+        donationAmount - stockDeductionLimit,
+      );
 
       result.scenarios = {
         cash: {
@@ -180,10 +196,12 @@ export async function runTaxScenario(
     }
 
     case 'bunching': {
-      const resolvedFilingStatus: FilingStatus = normalizeFilingStatus(filingStatus);
+      const resolvedFilingStatus: FilingStatus =
+        normalizeFilingStatus(filingStatus);
       const stdDeduction = getStandardDeduction(taxYear, resolvedFilingStatus);
       const spreadYearlyDonation = donationAmount / 2;
-      const spreadDeduction = Math.max(0, spreadYearlyDonation - stdDeduction) * 2;
+      const spreadDeduction =
+        Math.max(0, spreadYearlyDonation - stdDeduction) * 2;
       const bunchedDeduction = Math.max(0, donationAmount - stdDeduction);
 
       result.scenarios = {
@@ -219,8 +237,8 @@ export async function runTaxScenario(
 
 export async function calculateDeduction(
   supabase: DB,
-  args: any,
-  portfolioId: string
+  args: AssistantToolArguments,
+  portfolioId: string,
 ): Promise<ToolResult> {
   const amount: number = args.amount;
   const assetType: string = args.asset_type;
@@ -273,8 +291,8 @@ export async function calculateDeduction(
 
 export async function getCarryforward(
   supabase: DB,
-  args: any,
-  portfolioId: string
+  args: AssistantToolArguments,
+  portfolioId: string,
 ): Promise<ToolResult> {
   const taxYear: number = args.tax_year ?? new Date().getFullYear();
 
@@ -284,12 +302,12 @@ export async function getCarryforward(
   const { data: rows, error } = await supabase
     .from('tax_carryforwards')
     .select(
-      'id, portfolio_id, originating_tax_year, expires_tax_year, amount, amount_remaining, agi_limit_category, recipient_name'
+      'id, portfolio_id, originating_tax_year, expires_tax_year, amount, amount_remaining, agi_limit_category, recipient_name',
     )
     .eq('portfolio_id', portfolioId)
     .gt('amount_remaining', 0)
-    .gte('expires_tax_year', taxYear)       // not yet expired for the requested year
-    .lte('originating_tax_year', taxYear);  // already originated by the requested year
+    .gte('expires_tax_year', taxYear) // not yet expired for the requested year
+    .lte('originating_tax_year', taxYear); // already originated by the requested year
 
   if (error) {
     return {
@@ -307,8 +325,8 @@ export async function getCarryforward(
       cf.amount_remaining <= 0
         ? 'fully_used'
         : cf.amount_remaining < cf.amount
-        ? 'partially_used'
-        : 'available';
+          ? 'partially_used'
+          : 'available';
     return {
       id: cf.id,
       originating_tax_year: cf.originating_tax_year,
@@ -324,12 +342,12 @@ export async function getCarryforward(
 
   // Also include expiring-soon carryforwards as a heads-up
   const expiringSoon = carryforwards.filter(
-    (cf: any) => cf.years_until_expiry != null && cf.years_until_expiry <= 1
+    (cf: any) => cf.years_until_expiry != null && cf.years_until_expiry <= 1,
   );
 
   const totalCarryforward = carryforwards.reduce(
     (sum: number, cf: any) => sum + Number(cf.amount_remaining ?? 0),
-    0
+    0,
   );
 
   return {

@@ -8,12 +8,14 @@ import {
 } from '@/lib/api/access';
 import {
   createAiChatRepository,
+  type AiChatResponsePayload,
   type PersistedChatMessage,
 } from '@/lib/api/repositories/ai-chat';
 import { containsInjection } from '@/lib/ai/prompt-guard';
 import { aiLimiter } from '@/lib/rate-limit';
 import { aiAuthRequired, rateLimitExceeded } from '@/lib/rate-limit-response';
 import { aiChatRequestSchema } from '@/lib/schemas/ai';
+import { createAssistantToolCapabilities } from '@/lib/api/repositories/ai-tools';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -28,6 +30,34 @@ function streamError(error: string, status: number) {
     status,
     headers: { 'Content-Type': 'text/event-stream' },
   });
+}
+
+function replayStream(response: AiChatResponsePayload) {
+  return new Response(
+    [
+      JSON.stringify({
+        type: 'done',
+        message: response.message,
+        actions: response.actions,
+        toolResults: [],
+      }),
+      JSON.stringify({
+        type: 'meta',
+        sessionId: response.sessionId,
+        widgets: response.widgets.length > 0 ? response.widgets : undefined,
+        content_blocks: response.content_blocks,
+        replayed: true,
+      }),
+      '',
+    ].join('\n'),
+    {
+      headers: {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        Connection: 'keep-alive',
+      },
+    },
+  );
 }
 
 /** POST /api/ai/chat/stream — stream NDJSON assistant events. */
@@ -45,7 +75,7 @@ export async function POST(req: NextRequest) {
     return rateLimitExceeded(
       rateLimit.reset,
       rateLimit.remaining,
-      rateLimit.limit
+      rateLimit.limit,
     );
   }
 
@@ -59,7 +89,8 @@ export async function POST(req: NextRequest) {
   const validation = aiChatRequestSchema.safeParse(body);
   if (!validation.success) return streamError('Validation failed', 400);
 
-  const { portfolioId, message, conversationHistory } = validation.data;
+  const { portfolioId, message } = validation.data;
+  const requestId = validation.data.requestId ?? crypto.randomUUID();
   if (containsInjection(message)) {
     return streamError('Message rejected: contains disallowed content.', 400);
   }
@@ -67,7 +98,7 @@ export async function POST(req: NextRequest) {
   const portfolioAccess = await requirePortfolioAccessForUser(
     userAccess.context,
     portfolioId,
-    'viewer'
+    'viewer',
   );
   if (isAccessDenied(portfolioAccess)) {
     return portfolioAccess.reason === 'forbidden'
@@ -77,28 +108,31 @@ export async function POST(req: NextRequest) {
 
   const { orgId, role, db } = portfolioAccess.context;
   const repository = createAiChatRepository(portfolioAccess.context);
-  let sessionId: string;
-  let sessionMessages: PersistedChatMessage[];
+  let turn: Awaited<ReturnType<typeof repository.beginTurn>>;
   try {
-    const session = await repository.start(message);
-    sessionId = session.sessionId;
-    sessionMessages = session.messages;
+    turn = await repository.beginTurn(requestId, message);
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Failed to start AI session';
+    const message =
+      error instanceof Error ? error.message : 'Failed to start AI session';
     return streamError(message, 500);
   }
 
-  const assistant = new PortfolioAssistant(
-    db as unknown as ConstructorParameters<typeof PortfolioAssistant>[0]
-  );
-  const filteredHistory = (conversationHistory || [])
-    .filter((historyMessage) => (
-      historyMessage.role === 'user' || historyMessage.role === 'assistant'
-    ))
-    .map((historyMessage) => ({
-      role: historyMessage.role as 'user' | 'assistant',
-      content: historyMessage.content,
-    }));
+  if (turn.state === 'completed') return replayStream(turn.response);
+  if (turn.state !== 'started') {
+    return streamError(
+      turn.failureMessage ?? `AI turn is ${turn.state.replace('_', ' ')}`,
+      409,
+    );
+  }
+
+  const { sessionId, turnId } = turn;
+
+  const assistant = new PortfolioAssistant({
+    db: db as unknown as ConstructorParameters<
+      typeof PortfolioAssistant
+    >[0]['db'],
+    capabilities: createAssistantToolCapabilities(portfolioAccess.context),
+  });
   const encoder = new TextEncoder();
 
   const stream = new ReadableStream({
@@ -109,24 +143,34 @@ export async function POST(req: NextRequest) {
           orgId,
           userId: user.id,
           sessionId,
+          turnId,
           message,
-          conversationHistory: filteredHistory,
+          conversationHistory: turn.history,
           memberRole: role,
         });
         let finalMessage = '';
         let finalActions: any[] = [];
+        let finalUsage: {
+          model: string;
+          inputTokens: number;
+          outputTokens: number;
+        } | null = null;
+        let terminalChunk: string | null = null;
 
         for await (const chunk of streamGenerator) {
-          controller.enqueue(encoder.encode(chunk));
           try {
             const parsed = JSON.parse(chunk.trim());
             if (parsed.type === 'done') {
               finalMessage = parsed.message;
               finalActions = parsed.actions ?? [];
+              finalUsage = parsed.usage ?? null;
+              terminalChunk = chunk;
+              continue;
             }
           } catch {
             // Partial provider chunks need not be independently parseable.
           }
+          controller.enqueue(encoder.encode(chunk));
         }
 
         if (orgId) {
@@ -134,10 +178,20 @@ export async function POST(req: NextRequest) {
           redis.incr(`usage:ai:${orgId}:${month}`).catch(() => {});
         }
 
+        if (
+          finalUsage &&
+          (finalUsage.inputTokens > 0 || finalUsage.outputTokens > 0)
+        ) {
+          repository.recordUsage(sessionId, finalUsage).catch((error) => {
+            console.error('[ai/chat/stream] usage log insert failed:', error);
+          });
+        }
+
         const widgetActions = finalActions.filter(
-          (action: any) => action.entity_type === 'widget' && (
-            action.action_type === 'create' || action.action_type === 'preview'
-          )
+          (action: any) =>
+            action.entity_type === 'widget' &&
+            (action.action_type === 'create' ||
+              action.action_type === 'preview'),
         );
         const previewWidgets = widgetActions
           .filter((action: any) => action.action_type === 'preview')
@@ -156,18 +210,40 @@ export async function POST(req: NextRequest) {
           timestamp: new Date().toISOString(),
         };
         if (widgets.length > 0) assistantMessage.widgets = widgets;
-        await repository.finish(sessionId, sessionMessages, assistantMessage);
-
-        controller.enqueue(encoder.encode(`${JSON.stringify({
-          type: 'meta',
+        const response: AiChatResponsePayload = {
+          message: finalMessage,
+          actions: finalActions,
+          widgets,
           sessionId,
-          widgets: widgets.length > 0 ? widgets : undefined,
-        })}\n`));
+        };
+        await repository.completeTurn(turnId, assistantMessage, response);
+        if (terminalChunk) controller.enqueue(encoder.encode(terminalChunk));
+
+        controller.enqueue(
+          encoder.encode(
+            `${JSON.stringify({
+              type: 'meta',
+              sessionId,
+              widgets: widgets.length > 0 ? widgets : undefined,
+            })}\n`,
+          ),
+        );
       } catch (error) {
-        const message = error instanceof Error ? error.message : 'Stream failed';
-        controller.enqueue(encoder.encode(
-          `${JSON.stringify({ type: 'error', error: message })}\n`
-        ));
+        const message =
+          error instanceof Error ? error.message : 'Stream failed';
+        try {
+          await repository.failTurn(turnId, 'stream_failed', message);
+        } catch (persistenceError) {
+          console.error(
+            '[ai/chat/stream] failed to record terminal turn state:',
+            persistenceError,
+          );
+        }
+        controller.enqueue(
+          encoder.encode(
+            `${JSON.stringify({ type: 'error', error: message })}\n`,
+          ),
+        );
       } finally {
         controller.close();
       }
@@ -178,7 +254,7 @@ export async function POST(req: NextRequest) {
     headers: {
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache',
-      'Connection': 'keep-alive',
+      Connection: 'keep-alive',
     },
   });
 }

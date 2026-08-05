@@ -63,12 +63,17 @@ describe('AI tax executor contract', () => {
 
   // ── Executor delegation (executor.ts must delegate to tax module) ─────────
 
-  it('executor.ts imports from executors/tax', () => {
-    const executorSrc = fs.readFileSync(
-      path.join(ROOT, 'lib/ai/assistant/executor.ts'),
+  it('the tax module registry delegates wrappers to executors/tax', () => {
+    const registrySrc = fs.readFileSync(
+      path.join(ROOT, 'lib/ai/assistant/executors/modules/tax.ts'),
       'utf-8'
     );
-    expect(executorSrc).toMatch(/from ['"]\.\/executors\/tax['"]/);
+    const wrapperSrc = fs.readFileSync(
+      path.join(ROOT, 'lib/ai/assistant/executors/tools/run-tax-scenario.ts'),
+      'utf-8'
+    );
+    expect(registrySrc).toMatch(/run-tax-scenario/);
+    expect(wrapperSrc).toMatch(/from ['"]\.\.\/tax['"]/);
   });
 
   it('executor.ts does not contain inline run_tax_scenario implementation', () => {

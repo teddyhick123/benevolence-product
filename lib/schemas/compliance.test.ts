@@ -2,7 +2,7 @@
  * Compliance & Regulatory — Input Validation Tests
  *
  * Validates the shape and constraints expected by the AI tool executors
- * and API routes. These mirror the InputValidator calls in claude-assistant.ts
+ * and API routes. These mirror the portfolio assistant executor validation.
  * and the API route body parsing, giving a fast regression layer without
  * needing a live database.
  */

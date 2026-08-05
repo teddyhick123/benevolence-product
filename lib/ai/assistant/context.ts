@@ -1,4 +1,3 @@
-// @ts-nocheck - extracted from legacy assistant while Supabase generated types are incomplete
 import { createClient } from '@supabase/supabase-js';
 import { loadOrgAiContext } from '@/lib/org-ai-context';
 import { loadEntityVocabulary } from '@/lib/view-config';
@@ -11,7 +10,7 @@ export async function getPortfolioContext(supabase: ReturnType<typeof createClie
       .select('org_id')
       .eq('id', portfolioId)
       .single();
-    const contextOrgId = portfolioMeta?.org_id ?? null;
+    const contextOrgId = (portfolioMeta as { org_id?: string } | null)?.org_id ?? null;
 
     const [
       portfolio,
@@ -269,7 +268,11 @@ export async function getPortfolioContext(supabase: ReturnType<typeof createClie
         donorCount: modules.donors ? (donorStats.count ?? 0) : null,
         donorGivingThisYear: modules.donors ? donorGivingThisYear : null,
         nextFiling: modules.compliance && nextFiling.data?.[0]
-          ? { description: nextFiling.data[0].description || nextFiling.data[0].filing_type, due_date: nextFiling.data[0].due_date }
+          ? {
+              description: (nextFiling.data[0] as any).description
+                || (nextFiling.data[0] as any).filing_type,
+              due_date: (nextFiling.data[0] as any).due_date,
+            }
           : null,
         aiContext,
         entityVocabulary,

@@ -272,7 +272,7 @@ export interface ModuleDefinition {
   description: string;
   isCore: boolean;
   icon: string;
-  tools: string[];  // Tool names from claude-assistant.ts
+  tools: string[];  // Names from the portfolio assistant tool registry
   tables: string[];  // Database tables this module uses
   routes: string[];  // Frontend routes this module provides
   dependencies?: ModuleId[];  // Other modules this depends on
@@ -526,7 +526,7 @@ export function isRouteAccessible(route: string, enabledModules: ModuleId[]): bo
 
 import { Anthropic } from '@anthropic-ai/sdk';
 import { MODULE_REGISTRY, ModuleId, getToolsForModules } from './registry';
-import { PORTFOLIO_TOOLS } from '../claude-assistant';
+import { PORTFOLIO_TOOLS } from '../ai/portfolio-assistant';
 
 /**
  * Filter tools based on enabled modules
@@ -661,44 +661,36 @@ export async function disableModule(
 
 ---
 
-## Modified Claude Assistant
+## Portfolio Assistant
 
 ```typescript
-// Changes to /lib/claude-assistant.ts
+// /lib/ai/assistant/portfolio-assistant.ts
 
-// Add import
-import {
-  filterToolsForOrg,
-  getOrgEnabledModules,
-  getSystemPromptForModules,
-  ModuleId
-} from './modules/tool-filter';
+import { createAIProvider } from '@/lib/ai/factory';
+import type { AssistantToolCapabilities } from '@/lib/api/repositories/ai-tools';
+import { filterToolsForOrg, getOrgEnabledModules } from '@/lib/modules';
 
-export class ClaudePortfolioAssistant {
-  private anthropic: Anthropic;
-  private supabase: ReturnType<typeof createClient>;
-  private enabledModules: ModuleId[] = ['core'];  // Default to core only
+export class PortfolioAssistant {
+  private provider = createAIProvider();
+  private enabledModules: ModuleId[] = ['core'];
 
-  constructor(supabaseServiceRole: string, anthropicApiKey: string) {
-    this.anthropic = new Anthropic({ apiKey: anthropicApiKey });
-    this.supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      supabaseServiceRole,
-      { auth: { persistSession: false } }
-    );
+  constructor(private services: {
+    db: SessionClient;
+    capabilities: AssistantToolCapabilities;
+  }) {
   }
 
   /**
    * Initialize assistant with organization context
    */
   async initializeForOrg(orgId: string): Promise<void> {
-    this.enabledModules = await getOrgEnabledModules(this.supabase, orgId);
+    this.enabledModules = await getOrgEnabledModules(this.services.db, orgId);
   }
 
   /**
    * Get filtered tools based on enabled modules
    */
-  private getFilteredTools(): Anthropic.Tool[] {
+  private getFilteredTools(): ToolDefinition[] {
     return filterToolsForOrg(PORTFOLIO_TOOLS, this.enabledModules);
   }
 
@@ -728,15 +720,16 @@ export class ClaudePortfolioAssistant {
     // Use filtered tools
     const tools = this.getFilteredTools();
 
-    const response = await this.anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 4096,
+    const response = await this.provider.createMessage({
+      model: AI_MODELS.assistant,
+      maxTokens: 4096,
       system: this.buildSystemPrompt(context),
-      tools,  // Filtered based on enabled modules
-      messages: claudeMessages,
+      tools,
+      messages,
     });
 
-    // ... rest of chat logic
+    // Tool execution uses the scoped capabilities supplied by the authorized
+    // route. The assistant never constructs or receives an elevated client.
   }
 }
 ```
@@ -995,7 +988,7 @@ export default function ModuleSettingsPage() {
 1. Create database migration `0060_organization_modules.sql`
 2. Implement `/lib/modules/registry.ts` with module definitions
 3. Implement `/lib/modules/tool-filter.ts` for dynamic filtering
-4. Modify `ClaudePortfolioAssistant` to accept org context and filter tools
+4. Configure `PortfolioAssistant` with org context and filtered tools
 5. Create basic module settings page
 
 ### Phase 2: Core Module Refinement (Week 2-3)

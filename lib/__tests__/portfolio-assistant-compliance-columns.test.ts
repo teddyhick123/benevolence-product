@@ -1,12 +1,22 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
 
-describe('claude-assistant compliance executor column contract', () => {
-  const src = readFileSync('lib/ai/assistant/executor.ts', 'utf8');
-
-  const complianceStart = src.indexOf("case 'get_compliance_status'");
-  const complianceEnd = src.indexOf("default:\n        throw new Error(`Unknown function");
-  const complianceSrc = src.slice(complianceStart, complianceEnd);
+describe('portfolio assistant compliance executor column contract', () => {
+  const complianceSrc = [
+    'get-compliance-status',
+    'calculate-payout-requirement',
+    'get-payout-forecast',
+    'screen-for-self-dealing',
+    'register-disqualified-person',
+    'track-filing-deadline',
+    'log-expenditure-responsibility',
+    'assess-qualifying-distribution',
+    'get-990pf-export-data',
+    'get-state-registration-status',
+  ].map((name) => readFileSync(
+    `lib/ai/assistant/executors/tools/${name}.ts`,
+    'utf8'
+  )).join('\n');
 
   it('compliance cases do not use organization_id as a DB column', () => {
     // Check DB .eq() calls don't use 'organization_id' as column name
@@ -26,9 +36,10 @@ describe('claude-assistant compliance executor column contract', () => {
   });
 
   it('track_filing_deadline uses extension_due_date not extended_due_date in insert', () => {
-    const trackStart = complianceSrc.indexOf("case 'track_filing_deadline'");
-    const trackEnd = complianceSrc.indexOf("case 'log_expenditure_responsibility'");
-    const trackSrc = complianceSrc.slice(trackStart, trackEnd);
+    const trackSrc = readFileSync(
+      'lib/ai/assistant/executors/tools/track-filing-deadline.ts',
+      'utf8'
+    );
     // The insert should use extension_due_date (the real column name)
     expect(trackSrc).toContain('extension_due_date');
     // The old wrong column name should not appear in the insert
@@ -36,8 +47,10 @@ describe('claude-assistant compliance executor column contract', () => {
   });
 
   it('get_state_registration_status filters by state not state_code', () => {
-    const stateStart = complianceSrc.indexOf("case 'get_state_registration_status'");
-    const stateSrc = complianceSrc.slice(stateStart);
+    const stateSrc = readFileSync(
+      'lib/ai/assistant/executors/tools/get-state-registration-status.ts',
+      'utf8'
+    );
     expect(stateSrc).not.toContain('.order(\'state_name\')');
     expect(stateSrc).not.toMatch(/eq\('state_code'/);
   });

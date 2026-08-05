@@ -147,6 +147,13 @@ service-role usage always tenant-scoped after a guard.
 - Per-module tool definition files and `executors/<module>.ts`, composed through
   the module registry (continue the existing grants/tax extraction pattern).
   `executor.ts` becomes a dispatcher table.
+- Phase 3 consumes, and must not weaken, the Phase 2 access boundary: API routes
+  authorize the principal first, construct an org/portfolio/user-scoped
+  repository from that typed access context, and pass only scoped capabilities
+  into the assistant dispatcher and executors. Executors must not construct an
+  elevated client, accept a generic service-role client, or perform unscoped
+  table access. Elevated AI writes remain hidden behind tenant-scoped
+  repositories under `lib/api/repositories/`.
 - New invariant test: every registered tool has exactly one executor; every
   executor's tool is registered.
 - Remove `@ts-nocheck` file-by-file (one commit each) by introducing typed tool
@@ -155,8 +162,44 @@ service-role usage always tenant-scoped after a guard.
   `lib/claude-assistant.ts` shim and its contract test.
 - Onboarding assistant and Builder remain separate bounded systems.
 
+The just-in-time Phase 3 design discussion must also resolve AI message
+persistence and idempotency. The current portfolio chat repository stores the
+whole session history in one `ai_sessions.messages` JSON array using separate
+read/replace writes; concurrent turns can overwrite each other, as recorded in
+the 2026-08-05 findings entry. The discussion must cover:
+
+- normalized, append-only message/turn rows versus an atomic JSON-append RPC,
+  including ordering, history reads, retention, and migration of existing
+  session data;
+- a stable client-provided turn/request id, uniqueness constraints, and the
+  behavior for completed, failed, and concurrently in-progress retries;
+- persisting the user turn before model invocation, then durably recording the
+  assistant result and its action/tool-call linkage before reporting completion;
+- idempotency for tool side effects as well as message rows, so retrying one turn
+  cannot repeat a grant mutation, widget save, or other executor action;
+- identical durability semantics for streaming and non-streaming routes,
+  including disconnects and failures after partial output; and
+- repository contract and concurrency tests proving tenant scope, no lost
+  messages, deterministic replay, and at-most-once committed side effects.
+
+Preferred direction for discussion: normalized message/turn rows with database
+uniqueness and transactional begin/complete operations, while keeping
+`ai_sessions` as session metadata. The server should treat persisted history as
+authoritative instead of trusting a caller-supplied transcript. Onboarding chat
+has a related best-effort persistence finding (2026-08-03), but remains outside
+this phase unless its bounded-system scope is explicitly expanded.
+
+Implementing either persistence option is a reliability behavior change and
+likely an active-migration change, not a security fix. The Phase 3 design review
+must therefore explicitly approve an exception to the cross-phase migration and
+behavior-preservation rules, or defer implementation while still designing the
+repository interfaces so durable turns can be added without breaking the access
+boundary.
+
 **Exit:** no `@ts-nocheck` in `lib/`; no file in `lib/ai/` over ~500 lines;
-dispatcher invariant test green.
+dispatcher invariant test green. If durable turns are approved for Phase 3,
+message concurrency/idempotency contract tests are also green and both chat
+transports use the same scoped persistence service.
 
 ### Phase 4 — Thin pages
 
@@ -217,6 +260,7 @@ grep once the last domain converts); single hooks home.
 | Phase order | Guardrails → Auth/API → AI split → Thin pages → Client data → Hygiene |
 | Bug policy | Security bugs fixed in dedicated commits + flagged; quirks logged to findings file |
 | Planning model | This umbrella spec + just-in-time per-phase implementation plans |
+| Phase 3 persistence exception | Approved: normalized durable turns and idempotency are implemented in the active prerelease migration set |
 
 ## Risks
 
@@ -226,5 +270,8 @@ grep once the last domain converts); single hooks home.
   auto-select) — intended, but watch for redirect loops after deploy.
 - **AI dispatcher split breaks tool dispatch** — mitigated by the
   registry↔executor invariant test.
+- **AI retries lose messages or repeat side effects** — the Phase 3 design must
+  define durable turn state and end-to-end idempotency before changing either
+  chat transport or executor orchestration.
 - **Plan drift** — mitigated by writing each phase's detailed plan against the
   code as it exists when the phase starts.

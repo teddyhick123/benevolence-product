@@ -14,15 +14,70 @@ CREATE TABLE IF NOT EXISTS public.ai_sessions (
   user_id      UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   started_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   ended_at     TIMESTAMPTZ,
-  messages     JSONB NOT NULL DEFAULT '[]'::jsonb,
   context      JSONB NOT NULL DEFAULT '{}'::jsonb,
   created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (id, portfolio_id, user_id)
 );
 
 CREATE INDEX IF NOT EXISTS ai_sessions_portfolio_id_idx ON public.ai_sessions(portfolio_id);
 CREATE INDEX IF NOT EXISTS ai_sessions_user_id_idx      ON public.ai_sessions(user_id);
 CREATE INDEX IF NOT EXISTS ai_sessions_started_at_idx   ON public.ai_sessions(started_at DESC);
+
+-- ---------------------------------------------------------------------------
+-- ai_turns / ai_messages — durable, idempotent assistant conversation state
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.ai_turns (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  session_id      UUID NOT NULL,
+  portfolio_id    UUID NOT NULL,
+  user_id         UUID NOT NULL,
+  request_id      UUID NOT NULL,
+  status          TEXT NOT NULL DEFAULT 'in_progress'
+                  CHECK (status IN ('in_progress', 'completed', 'failed')),
+  response        JSONB,
+  failure_code    TEXT,
+  failure_message TEXT,
+  started_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  completed_at    TIMESTAMPTZ,
+  failed_at       TIMESTAMPTZ,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (user_id, request_id),
+  UNIQUE (id, session_id, portfolio_id, user_id),
+  FOREIGN KEY (session_id, portfolio_id, user_id)
+    REFERENCES public.ai_sessions(id, portfolio_id, user_id) ON DELETE CASCADE,
+  CHECK ((status = 'completed') = (response IS NOT NULL)),
+  CHECK (status <> 'failed' OR failure_message IS NOT NULL)
+);
+
+CREATE INDEX IF NOT EXISTS ai_turns_session_id_idx
+  ON public.ai_turns(session_id, created_at);
+CREATE INDEX IF NOT EXISTS ai_turns_portfolio_user_idx
+  ON public.ai_turns(portfolio_id, user_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS public.ai_messages (
+  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  session_id   UUID NOT NULL,
+  turn_id      UUID NOT NULL,
+  portfolio_id UUID NOT NULL,
+  user_id      UUID NOT NULL,
+  sequence_no  BIGINT GENERATED ALWAYS AS IDENTITY,
+  role         TEXT NOT NULL CHECK (role IN ('user', 'assistant')),
+  content      JSONB NOT NULL,
+  widgets      JSONB,
+  content_blocks JSONB,
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (turn_id, role),
+  UNIQUE (session_id, sequence_no),
+  FOREIGN KEY (turn_id, session_id, portfolio_id, user_id)
+    REFERENCES public.ai_turns(id, session_id, portfolio_id, user_id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS ai_messages_session_sequence_idx
+  ON public.ai_messages(session_id, sequence_no);
+CREATE INDEX IF NOT EXISTS ai_messages_portfolio_user_idx
+  ON public.ai_messages(portfolio_id, user_id, sequence_no DESC);
 
 -- ---------------------------------------------------------------------------
 -- ai_actions — audit trail of every action the AI takes (with undo/redo)
@@ -286,6 +341,239 @@ BEGIN
 END;
 $$;
 
+CREATE OR REPLACE FUNCTION public.begin_ai_turn(
+  p_portfolio_id UUID,
+  p_user_id      UUID,
+  p_request_id   UUID,
+  p_content      JSONB
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_session_id UUID;
+  v_turn public.ai_turns%ROWTYPE;
+  v_existing_content JSONB;
+BEGIN
+  IF auth.role() IS DISTINCT FROM 'service_role'
+     AND (
+       auth.uid() IS DISTINCT FROM p_user_id
+       OR public.can_view_portfolio(p_portfolio_id) IS NOT TRUE
+     ) THEN
+    RAISE EXCEPTION 'Access denied' USING ERRCODE = '42501';
+  END IF;
+
+  IF p_content IS NULL OR jsonb_typeof(p_content) IS DISTINCT FROM 'string' THEN
+    RAISE EXCEPTION 'Turn content must be a JSON string' USING ERRCODE = '22023';
+  END IF;
+
+  -- Serialize request claims across portfolios, then active-session selection.
+  PERFORM pg_advisory_xact_lock(
+    hashtextextended(p_user_id::TEXT || ':' || p_request_id::TEXT, 0)
+  );
+  PERFORM pg_advisory_xact_lock(
+    hashtextextended(p_user_id::TEXT || ':' || p_portfolio_id::TEXT, 0)
+  );
+
+  SELECT * INTO v_turn
+  FROM public.ai_turns
+  WHERE user_id = p_user_id
+    AND request_id = p_request_id;
+
+  IF FOUND THEN
+    IF v_turn.portfolio_id IS DISTINCT FROM p_portfolio_id THEN
+      RAISE EXCEPTION 'Access denied' USING ERRCODE = '42501';
+    END IF;
+
+    SELECT content INTO v_existing_content
+    FROM public.ai_messages
+    WHERE turn_id = v_turn.id
+      AND session_id = v_turn.session_id
+      AND portfolio_id = v_turn.portfolio_id
+      AND user_id = v_turn.user_id
+      AND role = 'user';
+
+    IF v_existing_content IS DISTINCT FROM p_content THEN
+      RAISE EXCEPTION 'Idempotency key reused for a different request'
+        USING ERRCODE = '22023';
+    END IF;
+
+    RETURN jsonb_build_object(
+      'started', false,
+      'turn_id', v_turn.id,
+      'session_id', v_turn.session_id,
+      'status', v_turn.status,
+      'response', v_turn.response,
+      'failure_code', v_turn.failure_code,
+      'failure_message', v_turn.failure_message
+    );
+  END IF;
+
+  v_session_id := public.get_or_create_ai_session(p_portfolio_id, p_user_id);
+
+  INSERT INTO public.ai_turns (
+    session_id,
+    portfolio_id,
+    user_id,
+    request_id
+  ) VALUES (
+    v_session_id,
+    p_portfolio_id,
+    p_user_id,
+    p_request_id
+  )
+  RETURNING * INTO v_turn;
+
+  INSERT INTO public.ai_messages (
+    session_id,
+    turn_id,
+    portfolio_id,
+    user_id,
+    role,
+    content
+  ) VALUES (
+    v_session_id,
+    v_turn.id,
+    p_portfolio_id,
+    p_user_id,
+    'user',
+    p_content
+  );
+
+  UPDATE public.ai_sessions
+  SET updated_at = NOW()
+  WHERE id = v_session_id
+    AND portfolio_id = p_portfolio_id
+    AND user_id = p_user_id;
+
+  RETURN jsonb_build_object(
+    'started', true,
+    'turn_id', v_turn.id,
+    'session_id', v_session_id,
+    'status', 'in_progress'
+  );
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.complete_ai_turn(
+  p_turn_id        UUID,
+  p_portfolio_id   UUID,
+  p_user_id        UUID,
+  p_content        JSONB,
+  p_widgets        JSONB,
+  p_content_blocks JSONB,
+  p_response       JSONB
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_turn public.ai_turns%ROWTYPE;
+BEGIN
+  IF auth.role() IS DISTINCT FROM 'service_role'
+     AND (
+       auth.uid() IS DISTINCT FROM p_user_id
+       OR public.can_view_portfolio(p_portfolio_id) IS NOT TRUE
+     ) THEN
+    RAISE EXCEPTION 'Access denied' USING ERRCODE = '42501';
+  END IF;
+
+  SELECT * INTO v_turn
+  FROM public.ai_turns
+  WHERE id = p_turn_id
+    AND portfolio_id = p_portfolio_id
+    AND user_id = p_user_id
+  FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'AI turn not found' USING ERRCODE = 'P0002';
+  END IF;
+
+  IF v_turn.status = 'completed' THEN
+    RETURN v_turn.response;
+  END IF;
+
+  IF v_turn.status IS DISTINCT FROM 'in_progress' THEN
+    RAISE EXCEPTION 'AI turn is not in progress' USING ERRCODE = '55000';
+  END IF;
+
+  INSERT INTO public.ai_messages (
+    session_id,
+    turn_id,
+    portfolio_id,
+    user_id,
+    role,
+    content,
+    widgets,
+    content_blocks
+  ) VALUES (
+    v_turn.session_id,
+    v_turn.id,
+    v_turn.portfolio_id,
+    v_turn.user_id,
+    'assistant',
+    p_content,
+    p_widgets,
+    p_content_blocks
+  );
+
+  UPDATE public.ai_turns
+  SET status = 'completed',
+      response = p_response,
+      completed_at = NOW(),
+      updated_at = NOW()
+  WHERE id = v_turn.id;
+
+  UPDATE public.ai_sessions
+  SET updated_at = NOW()
+  WHERE id = v_turn.session_id
+    AND portfolio_id = v_turn.portfolio_id
+    AND user_id = v_turn.user_id;
+
+  RETURN p_response;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.fail_ai_turn(
+  p_turn_id        UUID,
+  p_portfolio_id   UUID,
+  p_user_id        UUID,
+  p_failure_code   TEXT,
+  p_failure_message TEXT
+)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  IF auth.role() IS DISTINCT FROM 'service_role'
+     AND (
+       auth.uid() IS DISTINCT FROM p_user_id
+       OR public.can_view_portfolio(p_portfolio_id) IS NOT TRUE
+     ) THEN
+    RAISE EXCEPTION 'Access denied' USING ERRCODE = '42501';
+  END IF;
+
+  UPDATE public.ai_turns
+  SET status = 'failed',
+      failure_code = NULLIF(BTRIM(p_failure_code), ''),
+      failure_message = COALESCE(NULLIF(BTRIM(p_failure_message), ''), 'AI turn failed'),
+      failed_at = NOW(),
+      updated_at = NOW()
+  WHERE id = p_turn_id
+    AND portfolio_id = p_portfolio_id
+    AND user_id = p_user_id
+    AND status = 'in_progress';
+
+  RETURN FOUND;
+END;
+$$;
+
 CREATE OR REPLACE FUNCTION public.undo_ai_action(p_action_id UUID)
 RETURNS JSONB
 LANGUAGE plpgsql
@@ -337,6 +625,9 @@ END;
 $$;
 
 REVOKE ALL ON FUNCTION public.get_or_create_ai_session(UUID, UUID) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.begin_ai_turn(UUID, UUID, UUID, JSONB) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.complete_ai_turn(UUID, UUID, UUID, JSONB, JSONB, JSONB, JSONB) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.fail_ai_turn(UUID, UUID, UUID, TEXT, TEXT) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.undo_ai_action(UUID) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.redo_ai_action(UUID) FROM PUBLIC;
 
@@ -344,6 +635,12 @@ GRANT EXECUTE ON FUNCTION public.update_recommendation_interaction_status(UUID, 
 GRANT EXECUTE ON FUNCTION public.update_recommendation_interaction_status(UUID, TEXT, TEXT) TO service_role;
 GRANT EXECUTE ON FUNCTION public.get_or_create_ai_session(UUID, UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.get_or_create_ai_session(UUID, UUID) TO service_role;
+GRANT EXECUTE ON FUNCTION public.begin_ai_turn(UUID, UUID, UUID, JSONB) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.begin_ai_turn(UUID, UUID, UUID, JSONB) TO service_role;
+GRANT EXECUTE ON FUNCTION public.complete_ai_turn(UUID, UUID, UUID, JSONB, JSONB, JSONB, JSONB) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.complete_ai_turn(UUID, UUID, UUID, JSONB, JSONB, JSONB, JSONB) TO service_role;
+GRANT EXECUTE ON FUNCTION public.fail_ai_turn(UUID, UUID, UUID, TEXT, TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.fail_ai_turn(UUID, UUID, UUID, TEXT, TEXT) TO service_role;
 GRANT EXECUTE ON FUNCTION public.undo_ai_action(UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.undo_ai_action(UUID) TO service_role;
 GRANT EXECUTE ON FUNCTION public.redo_ai_action(UUID) TO authenticated;
@@ -353,6 +650,8 @@ GRANT EXECUTE ON FUNCTION public.redo_ai_action(UUID) TO service_role;
 -- RLS
 -- ---------------------------------------------------------------------------
 ALTER TABLE public.ai_sessions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.ai_turns ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.ai_messages ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.ai_actions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.portfolio_recommendations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.recommendation_comments ENABLE ROW LEVEL SECURITY;
@@ -369,6 +668,20 @@ CREATE POLICY "ai_sessions_write" ON public.ai_sessions
   WITH CHECK (public.can_view_portfolio(portfolio_id) AND user_id = auth.uid());
 
 CREATE POLICY "ai_sessions_service" ON public.ai_sessions
+  FOR ALL TO service_role USING (true) WITH CHECK (true);
+
+CREATE POLICY "ai_turns_read" ON public.ai_turns
+  FOR SELECT TO authenticated
+  USING (public.can_view_portfolio(portfolio_id) AND user_id = auth.uid());
+
+CREATE POLICY "ai_turns_service" ON public.ai_turns
+  FOR ALL TO service_role USING (true) WITH CHECK (true);
+
+CREATE POLICY "ai_messages_read" ON public.ai_messages
+  FOR SELECT TO authenticated
+  USING (public.can_view_portfolio(portfolio_id) AND user_id = auth.uid());
+
+CREATE POLICY "ai_messages_service" ON public.ai_messages
   FOR ALL TO service_role USING (true) WITH CHECK (true);
 
 CREATE POLICY "ai_actions_read" ON public.ai_actions
@@ -469,6 +782,8 @@ CREATE POLICY "rec_status_history_service" ON public.recommendation_status_histo
 -- Grants
 -- ---------------------------------------------------------------------------
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.ai_sessions TO authenticated;
+GRANT SELECT ON public.ai_turns TO authenticated;
+GRANT SELECT ON public.ai_messages TO authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.ai_actions TO authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.portfolio_recommendations TO authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.recommendation_comments TO authenticated;
@@ -476,6 +791,8 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON public.recommendation_favorites TO authe
 GRANT SELECT ON public.recommendation_status_history TO authenticated;
 
 GRANT ALL ON public.ai_sessions TO service_role;
+GRANT ALL ON public.ai_turns TO service_role;
+GRANT ALL ON public.ai_messages TO service_role;
 GRANT ALL ON public.ai_actions TO service_role;
 GRANT ALL ON public.portfolio_recommendations TO service_role;
 GRANT ALL ON public.recommendation_comments TO service_role;

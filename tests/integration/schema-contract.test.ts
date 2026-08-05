@@ -161,9 +161,11 @@ describe('Schema contract: prerelease migration cleanup', () => {
     return (migrationsSrc.match(new RegExp(`CREATE\\s+TABLE\\s+IF\\s+NOT\\s+EXISTS\\s+(?:public\\.)?${escaped}\\s*\\(`, 'gi')) || []).length;
   }
 
-  it('does not create legacy AI conversation/action-log tables', () => {
+  it('uses normalized AI messages without recreating legacy conversation/action-log tables', () => {
     expect(migrationsSrc).not.toMatch(/CREATE\s+TABLE\s+IF\s+NOT\s+EXISTS\s+(?:public\.)?ai_conversations\s*\(/i);
-    expect(migrationsSrc).not.toMatch(/CREATE\s+TABLE\s+IF\s+NOT\s+EXISTS\s+(?:public\.)?ai_messages\s*\(/i);
+    expect(createTableCount('ai_messages')).toBe(1);
+    expect(createTableCount('ai_turns')).toBe(1);
+    expect(migrationsSrc).toMatch(/UNIQUE\s*\(user_id,\s*request_id\)/i);
     expect(migrationsSrc).not.toMatch(/CREATE\s+TABLE\s+IF\s+NOT\s+EXISTS\s+(?:public\.)?ai_action_log\s*\(/i);
     expect(migrationsSrc).not.toMatch(/ON\s+ai_action_log\b/i);
   });

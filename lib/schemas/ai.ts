@@ -15,6 +15,7 @@ export const aiChatMessageSchema = z.object({
 export const aiChatRequestSchema = z.object({
   portfolioId: z.string().uuid('Invalid portfolio ID'),
   message: z.string().min(1, 'Message is required').max(10000, 'Message too long'),
+  requestId: z.string().uuid('Invalid request ID').optional(),
   sessionId: z.string().uuid('Invalid session ID').optional(),
   conversationHistory: z.array(aiChatMessageSchema).optional().default([]),
 });

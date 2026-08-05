@@ -1,4 +1,3 @@
-// @ts-nocheck - Supabase generated types are incomplete for assistant executor paths
 import { createClient } from '@supabase/supabase-js';
 import {
   ModuleId,
@@ -9,7 +8,14 @@ import {
 import { createAIProvider } from '@/lib/ai/factory';
 import { AI_MODELS } from '@/lib/ai/models';
 import type { AIProvider } from '@/lib/ai/provider';
-import type { AIAction, AIContentBlock, AIMessage, ToolDefinition, ToolResult } from '@/lib/ai/types';
+import type {
+  AIAction,
+  AIContentBlock,
+  AIMessage,
+  ToolDefinition,
+  ToolResult,
+} from '@/lib/ai/types';
+import type { AssistantToolCapabilities } from '@/lib/api/repositories/ai-tools';
 import { getPortfolioContext } from './context';
 import { executeAssistantTool } from './executor';
 import { buildSystemPrompt } from './prompts';
@@ -28,10 +34,18 @@ export class PortfolioAssistant {
   private supabase: ReturnType<typeof createClient>;
   private enabledModules: ModuleId[] = ['core'];
   private moduleSystemPrompt: string = '';
+  private capabilities: AssistantToolCapabilities;
 
-  constructor(supabaseClient: ReturnType<typeof createClient>, _apiKey?: string) {
+  constructor(
+    services: {
+      db: ReturnType<typeof createClient>;
+      capabilities: AssistantToolCapabilities;
+    },
+    _apiKey?: string,
+  ) {
     this.provider = createAIProvider();
-    this.supabase = supabaseClient;
+    this.supabase = services.db;
+    this.capabilities = services.capabilities;
   }
 
   /**
@@ -49,7 +63,9 @@ export class PortfolioAssistant {
     ]);
     this.enabledModules = enabledModules;
     this.moduleSystemPrompt = getSystemPromptForModules(this.enabledModules);
-    this.aiInstructions = orgRes.data?.ai_instructions ?? null;
+    this.aiInstructions =
+      (orgRes.data as { ai_instructions?: string | null } | null)
+        ?.ai_instructions ?? null;
   }
 
   /**
@@ -77,12 +93,25 @@ export class PortfolioAssistant {
     portfolioId: string;
     userId: string;
     sessionId: string;
+    turnId?: string;
     message: string;
     orgId?: string;
-    conversationHistory?: Array<{ role: 'user' | 'assistant'; content: string }>;
+    conversationHistory?: Array<{
+      role: 'user' | 'assistant';
+      content: string;
+    }>;
     memberRole?: string;
   }) {
-    const { portfolioId, userId, sessionId, message, orgId, conversationHistory = [], memberRole } = params;
+    const {
+      portfolioId,
+      userId,
+      sessionId,
+      turnId,
+      message,
+      orgId,
+      conversationHistory = [],
+      memberRole,
+    } = params;
 
     // Initialize for organization if provided (enables module filtering)
     if (orgId) {
@@ -96,11 +125,14 @@ export class PortfolioAssistant {
     const context = await getPortfolioContext(this.supabase, portfolioId);
 
     // Build system prompt with module-specific additions
-    const systemPrompt = buildSystemPrompt(context, { moduleSystemPrompt: this.moduleSystemPrompt, aiInstructions: this.aiInstructions });
+    const systemPrompt = buildSystemPrompt(context, {
+      moduleSystemPrompt: this.moduleSystemPrompt,
+      aiInstructions: this.aiInstructions,
+    });
 
     // Build mutable message history for multi-turn tool execution
     const currentMessages: AIMessage[] = [
-      ...conversationHistory.map(msg => ({
+      ...conversationHistory.map((msg) => ({
         role: msg.role as 'user' | 'assistant',
         content: msg.content,
       })),
@@ -109,10 +141,14 @@ export class PortfolioAssistant {
 
     // Multi-turn tool execution loop — continues until end_turn or max 5 iterations
     const actions: AIAction[] = [];
-    const allToolCalls: Array<{ id: string; type: string; function: { name: string; arguments: string } }> = [];
+    const allToolCalls: Array<{
+      id: string;
+      type: string;
+      function: { name: string; arguments: string };
+    }> = [];
     const allToolResults: Array<{ tool_use_id: string; content: string }> = [];
     let textContent = '';
-    const batchId = crypto.randomUUID();
+    const batchId = turnId ?? crypto.randomUUID();
     let sequenceCounter = 0;
     const MAX_TURNS = 5;
     let totalInputTokens = 0;
@@ -137,14 +173,16 @@ export class PortfolioAssistant {
 
       // Collect text from this turn
       const textBlocks = response.content.filter(
-        (block): block is AIContentBlock & { type: 'text' } => block.type === 'text'
+        (block): block is AIContentBlock & { type: 'text' } =>
+          block.type === 'text',
       );
-      const turnText = textBlocks.map(b => b.text).join('');
+      const turnText = textBlocks.map((b) => b.text).join('');
       if (turnText) textContent = turnText;
 
       // Check for tool use
       const toolUseBlocks = response.content.filter(
-        (block): block is AIContentBlock & { type: 'tool_use' } => block.type === 'tool_use'
+        (block): block is AIContentBlock & { type: 'tool_use' } =>
+          block.type === 'tool_use',
       );
 
       // No tool use or end_turn — we're done
@@ -153,12 +191,16 @@ export class PortfolioAssistant {
       }
 
       // Execute tools for this turn
-      const turnToolResults: Array<{ tool_use_id: string; content: string }> = [];
+      const turnToolResults: Array<{ tool_use_id: string; content: string }> =
+        [];
       for (const toolUse of toolUseBlocks) {
         allToolCalls.push({
           id: toolUse.id,
           type: 'function',
-          function: { name: toolUse.name, arguments: JSON.stringify(toolUse.input) },
+          function: {
+            name: toolUse.name,
+            arguments: JSON.stringify(toolUse.input),
+          },
         });
         try {
           const result = await this.executeTool(
@@ -170,15 +212,23 @@ export class PortfolioAssistant {
             batchId,
             sequenceCounter++,
             message,
-            memberRole
+            orgId,
+            memberRole,
           );
           if (result.action) actions.push(result.action);
-          if (result.additionalActions) actions.push(...result.additionalActions);
-          const toolResult = { tool_use_id: toolUse.id, content: JSON.stringify(result.output) };
+          if (result.additionalActions)
+            actions.push(...result.additionalActions);
+          const toolResult = {
+            tool_use_id: toolUse.id,
+            content: JSON.stringify(result.output),
+          };
           turnToolResults.push(toolResult);
           allToolResults.push(toolResult);
         } catch (error) {
-          const toolResult = { tool_use_id: toolUse.id, content: JSON.stringify({ error: (error as Error).message }) };
+          const toolResult = {
+            tool_use_id: toolUse.id,
+            content: JSON.stringify({ error: (error as Error).message }),
+          };
           turnToolResults.push(toolResult);
           allToolResults.push(toolResult);
         }
@@ -189,12 +239,12 @@ export class PortfolioAssistant {
         { role: 'assistant' as const, content: response.content },
         {
           role: 'user' as const,
-          content: turnToolResults.map(tr => ({
+          content: turnToolResults.map((tr) => ({
             type: 'tool_result' as const,
             tool_use_id: tr.tool_use_id,
             content: tr.content,
           })) as AIContentBlock[],
-        }
+        },
       );
     }
 
@@ -203,7 +253,11 @@ export class PortfolioAssistant {
       actions,
       toolCalls: allToolCalls,
       toolResults: allToolResults,
-      usage: { inputTokens: totalInputTokens, outputTokens: totalOutputTokens, model: lastModel },
+      usage: {
+        inputTokens: totalInputTokens,
+        outputTokens: totalOutputTokens,
+        model: lastModel,
+      },
     };
   }
 
@@ -221,26 +275,45 @@ export class PortfolioAssistant {
     portfolioId: string;
     userId: string;
     sessionId: string;
+    turnId?: string;
     message: string;
     orgId?: string;
-    conversationHistory?: Array<{ role: 'user' | 'assistant'; content: string }>;
+    conversationHistory?: Array<{
+      role: 'user' | 'assistant';
+      content: string;
+    }>;
     memberRole?: string;
   }): AsyncGenerator<string> {
-    const { portfolioId, userId, sessionId, message, orgId, conversationHistory = [], memberRole } = params;
+    const {
+      portfolioId,
+      userId,
+      sessionId,
+      turnId,
+      message,
+      orgId,
+      conversationHistory = [],
+      memberRole,
+    } = params;
 
     if (orgId) await this.initializeForOrg(orgId);
     const tools = this.getFilteredTools();
     const context = await getPortfolioContext(this.supabase, portfolioId);
-    const systemPrompt = buildSystemPrompt(context, { moduleSystemPrompt: this.moduleSystemPrompt, aiInstructions: this.aiInstructions });
+    const systemPrompt = buildSystemPrompt(context, {
+      moduleSystemPrompt: this.moduleSystemPrompt,
+      aiInstructions: this.aiInstructions,
+    });
 
     const currentMessages: AIMessage[] = [
-      ...conversationHistory.map(msg => ({ role: msg.role as 'user' | 'assistant', content: msg.content })),
+      ...conversationHistory.map((msg) => ({
+        role: msg.role as 'user' | 'assistant',
+        content: msg.content,
+      })),
       { role: 'user' as const, content: message },
     ];
 
     const actions: AIAction[] = [];
     let textContent = '';
-    const batchId = crypto.randomUUID();
+    const batchId = turnId ?? crypto.randomUUID();
     let sequenceCounter = 0;
     const MAX_TURNS = 5;
     let totalInputTokens = 0;
@@ -249,7 +322,11 @@ export class PortfolioAssistant {
 
     for (let turn = 0; turn < MAX_TURNS; turn++) {
       let turnTextContent = '';
-      const toolUseBlocks: Array<{ id: string; name: string; input: Record<string, any> }> = [];
+      const toolUseBlocks: Array<{
+        id: string;
+        name: string;
+        input: Record<string, any>;
+      }> = [];
       let stopReason: string | null = null;
 
       // Use createStream so text tokens arrive as they're generated
@@ -273,7 +350,8 @@ export class PortfolioAssistant {
             currentToolInputJson = '';
             // Yield status update when entering tool calling
             if (actions.length === 0 && toolUseBlocks.length === 0) {
-              yield JSON.stringify({ type: 'status', text: 'Calling tools…' }) + '\n';
+              yield JSON.stringify({ type: 'status', text: 'Calling tools…' }) +
+                '\n';
             }
           }
         } else if (chunk.type === 'text_delta') {
@@ -285,8 +363,14 @@ export class PortfolioAssistant {
         } else if (chunk.type === 'content_block_stop') {
           if (currentToolId && currentToolName) {
             let input: Record<string, any> = {};
-            try { input = JSON.parse(currentToolInputJson); } catch {}
-            toolUseBlocks.push({ id: currentToolId, name: currentToolName, input });
+            try {
+              input = JSON.parse(currentToolInputJson);
+            } catch {}
+            toolUseBlocks.push({
+              id: currentToolId,
+              name: currentToolName,
+              input,
+            });
             currentToolId = null;
             currentToolName = null;
             currentToolInputJson = '';
@@ -304,10 +388,12 @@ export class PortfolioAssistant {
       }
 
       // Yield status before executing tools
-      yield JSON.stringify({ type: 'status', text: 'Processing results…' }) + '\n';
+      yield JSON.stringify({ type: 'status', text: 'Processing results…' }) +
+        '\n';
 
       // Execute tools (same logic as chat())
-      const turnToolResults: Array<{ tool_use_id: string; content: string }> = [];
+      const turnToolResults: Array<{ tool_use_id: string; content: string }> =
+        [];
       for (const toolUse of toolUseBlocks) {
         try {
           const result = await this.executeTool(
@@ -319,16 +405,25 @@ export class PortfolioAssistant {
             batchId,
             sequenceCounter++,
             message,
-            memberRole
+            orgId,
+            memberRole,
           );
           if (result.action) actions.push(result.action);
-          if (result.additionalActions) actions.push(...result.additionalActions);
-          const toolContent = typeof result.output === 'string'
-            ? result.output
-            : JSON.stringify(result.output);
-          turnToolResults.push({ tool_use_id: toolUse.id, content: toolContent });
+          if (result.additionalActions)
+            actions.push(...result.additionalActions);
+          const toolContent =
+            typeof result.output === 'string'
+              ? result.output
+              : JSON.stringify(result.output);
+          turnToolResults.push({
+            tool_use_id: toolUse.id,
+            content: toolContent,
+          });
         } catch (err) {
-          turnToolResults.push({ tool_use_id: toolUse.id, content: `Error: ${err instanceof Error ? err.message : String(err)}` });
+          turnToolResults.push({
+            tool_use_id: toolUse.id,
+            content: `Error: ${err instanceof Error ? err.message : String(err)}`,
+          });
         }
       }
 
@@ -336,13 +431,24 @@ export class PortfolioAssistant {
       currentMessages.push({
         role: 'assistant',
         content: [
-          ...(turnTextContent ? [{ type: 'text' as const, text: turnTextContent }] : []),
-          ...toolUseBlocks.map(t => ({ type: 'tool_use' as const, id: t.id, name: t.name, input: t.input })),
+          ...(turnTextContent
+            ? [{ type: 'text' as const, text: turnTextContent }]
+            : []),
+          ...toolUseBlocks.map((t) => ({
+            type: 'tool_use' as const,
+            id: t.id,
+            name: t.name,
+            input: t.input,
+          })),
         ],
       });
       currentMessages.push({
         role: 'user',
-        content: turnToolResults.map(r => ({ type: 'tool_result' as const, tool_use_id: r.tool_use_id, content: r.content })),
+        content: turnToolResults.map((r) => ({
+          type: 'tool_result' as const,
+          tool_use_id: r.tool_use_id,
+          content: r.content,
+        })),
       });
     }
 
@@ -352,33 +458,39 @@ export class PortfolioAssistant {
       message: textContent,
       actions,
       toolResults: [],
-      usage: { inputTokens: totalInputTokens, outputTokens: totalOutputTokens, model: lastModel },
+      usage: {
+        inputTokens: totalInputTokens,
+        outputTokens: totalOutputTokens,
+        model: lastModel,
+      },
     }) + '\n';
   }
 
   private async executeTool(
     functionName: string,
-    args: any,
+    args: Record<string, unknown>,
     portfolioId: string,
     userId: string,
     sessionId: string,
     batchId: string,
     sequenceOrder: number,
     userPrompt: string,
-    memberRole?: string
+    orgId?: string,
+    memberRole?: string,
   ): Promise<ToolResult> {
     return executeAssistantTool({
-      supabase: this.supabase,
+      db: this.supabase,
       functionName,
       args,
       portfolioId,
+      orgId,
       userId,
       sessionId,
       batchId,
       sequenceOrder,
       userPrompt,
+      capabilities: this.capabilities,
       memberRole,
     });
   }
-
 }

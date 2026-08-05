@@ -1,8 +1,17 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
 
-describe('claude-assistant donor executor column contract', () => {
-  const src = readFileSync('lib/ai/assistant/executor.ts', 'utf8');
+describe('portfolio assistant donor executor column contract', () => {
+  const src = [
+    'log-contribution-received',
+    'generate-receipt',
+    'generate-acknowledgment',
+    'get-donor-summary',
+    'search-donors',
+  ].map((name) => readFileSync(
+    `lib/ai/assistant/executors/tools/${name}.ts`,
+    'utf8'
+  )).join('\n');
 
   it('does not reference donor.donor_type (use is_organization)', () => {
     expect(src).not.toMatch(/donor\.donor_type/);
@@ -52,11 +61,23 @@ describe('claude-assistant donor executor column contract', () => {
   });
 
   it('writes canonical acknowledgment_letters columns', () => {
-    expect(src).not.toMatch(/from\('acknowledgment_letters'\)[\s\S]{0,900}letter_type:/);
-    expect(src).not.toMatch(/from\('acknowledgment_letters'\)[\s\S]{0,900}contribution_id:/);
-    expect(src).not.toMatch(/from\('acknowledgment_letters'\)[\s\S]{0,900}sent_via:/);
-    expect(src).not.toMatch(/from\('acknowledgment_letters'\)[\s\S]{0,900}created_by:/);
-    expect(src).toMatch(/contribution_ids:/);
-    expect(src).toMatch(/delivery_method:/);
+    const insertBodies = ['generate-receipt', 'generate-acknowledgment'].map(
+      (name) => readFileSync(
+        `lib/ai/assistant/executors/tools/${name}.ts`,
+        'utf8'
+      ).match(
+        /from\('acknowledgment_letters'\)[\s\S]*?\.insert\(\{([\s\S]*?)\}\)\s*\.select/
+      )?.[1] ?? ''
+    );
+
+    expect(insertBodies).not.toContain('');
+    for (const insertBody of insertBodies) {
+      expect(insertBody).not.toMatch(/^\s*letter_type:/m);
+      expect(insertBody).not.toMatch(/^\s*contribution_id:/m);
+      expect(insertBody).not.toMatch(/^\s*sent_via:/m);
+      expect(insertBody).not.toMatch(/^\s*created_by:/m);
+      expect(insertBody).toMatch(/^\s*contribution_ids:/m);
+      expect(insertBody).toMatch(/^\s*delivery_method:/m);
+    }
   });
 });

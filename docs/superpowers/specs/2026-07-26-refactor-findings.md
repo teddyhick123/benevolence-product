@@ -425,3 +425,28 @@ normalized message table, which belongs with the full AI-system refactor.
 **Suggested follow-up (not scheduled):** Store turns in an `ai_messages` table
 with one row per message, or append them through an idempotent transactional
 database function keyed by session and turn ID.
+
+**Resolution (Phase 3):** Implemented normalized `ai_turns` and `ai_messages`
+rows plus transactional begin/complete/fail functions. Both chat transports now
+use the same scoped repository and deterministic request-ID replay contract.
+
+### 2026-08-05 — Phase 3, onboarding assistant — legacy org-type recommendation keys remain stale
+
+**What happened:** Removing the onboarding assistant's file-wide TypeScript
+suppression exposed that its recommendation defaults still use the legacy
+`foundation`, `daf`, and `impact_investor` keys, while `QuickIntake.org_type`
+uses the canonical organization-type union.
+
+**Expected vs. actual:** Canonical foundation, DAF sponsor, family office,
+community foundation, corporation, and individual values do not receive the
+legacy default recommendation branches. The established model-driven
+recommendation path still runs.
+
+**Why left alone:** Phase 3 removes the type suppression without changing the
+separate onboarding assistant's recommendation behavior. The mismatch is kept
+behind a narrow string-compatibility boundary rather than a file-wide type
+escape.
+
+**Suggested follow-up (not scheduled):** Define and product-review a canonical
+organization-type-to-module recommendation matrix, then update the prompt,
+defaults, exclusions, and onboarding regression tests together.

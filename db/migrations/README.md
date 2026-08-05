@@ -52,7 +52,7 @@ psql $DATABASE_URL -f db/demo/seed_demo_org.sql
 | 0030_ai_usage_log | AI | Token usage log per AI chat call (cost visibility) |
 | 0031_staging_cleanup | Admin | `cleanup_staging_pii()` function (SECURITY DEFINER) |
 | 0032_fix_v_donor_summary | Fix | Rebuild v_donor_summary with correct column aliases |
-| 0033_ai_sessions | AI | ai_sessions, ai_actions, portfolio_recommendations (undo/redo) |
+| 0033_ai_sessions | AI | ai_sessions, durable ai_turns/ai_messages, ai_actions, portfolio_recommendations |
 | 0034_onboarding | Onboarding | Onboarding sessions, profiles, recommendations, analytics |
 | 0035_analytics_module | Analytics | Benchmarks, projections cache, risk snapshots, insights, investment performance views |
 | 0036_seeds | Seeds | Module definitions and preset bundles |
@@ -112,9 +112,11 @@ One QB connection per org. `quickbooks_connections` and `qb_accounts` have
 link to individual holdings via `holding_id`.
 
 ### AI tables
-`ai_sessions` + `ai_actions` (0033) are the only active assistant state
-tables. The earlier `ai_conversations`, `ai_messages`, and `ai_action_log`
-schema is intentionally not created in active migrations.
+`ai_sessions`, `ai_turns`, `ai_messages`, and `ai_actions` (0033) are the
+canonical assistant state tables. Sessions hold metadata, turns provide a
+request-id idempotency boundary, and messages are normalized append-only rows.
+The earlier `ai_conversations` and `ai_action_log` schema is intentionally not
+created in active migrations.
 
 ### Seeds are migrations (0036)
 Module definitions and presets live in 0036_seeds.sql so they run in the same

@@ -247,7 +247,7 @@ describe('foundation reliability contracts', () => {
     const singleRoute = src('app/api/portfolio/[id]/holdings/[holdingId]/milestones/[milestoneId]/route.ts');
     const exportRoute = src('app/api/portfolio/[id]/grants/export/route.ts');
     const grantProducer = src('lib/tasks/automation/producers/grants.ts');
-    const toolDefinitions = src('lib/ai/assistant/tool-definitions.ts');
+    const toolDefinitions = src('lib/ai/assistant/tool-definitions/grants.ts');
     const grantExecutor = src('lib/ai/assistant/executors/grants.ts');
 
     const tableStart = migration.indexOf('CREATE TABLE IF NOT EXISTS public.grant_milestones');
@@ -383,7 +383,8 @@ describe('foundation reliability contracts', () => {
     const pfRoute = src('app/api/portfolio/[id]/compliance/990pf-export/route.ts');
     const complianceRepository = src('lib/api/repositories/compliance.ts');
     const grantExecutor = src('lib/ai/assistant/executors/grants.ts');
-    const assistantExecutor = src('lib/ai/assistant/executor.ts');
+    const assistantExecutor = src('lib/ai/assistant/executors/tools/record-grant-payment.ts');
+    const assistantCapabilities = src('lib/api/repositories/ai-tools.ts');
 
     expect(auditHelper).toContain('ORG_AUDIT_ACTIONS');
     expect(auditHelper).toContain('GRANT_DECISION_RECORDED');
@@ -403,8 +404,13 @@ describe('foundation reliability contracts', () => {
     expect(pfRoute).not.toContain('createAdminClient');
     expect(complianceRepository).toContain('writeOrgAuditEvent');
     expect(complianceRepository).toContain('ORG_AUDIT_ACTIONS.COMPLIANCE_990PF_EXPORTED');
-    expect(assistantExecutor).toContain('recordGrantPayment(supabase, args, portfolioId, userId)');
-    expect(grantExecutor).toContain('ORG_AUDIT_ACTIONS.GRANT_PAYMENT_RECORDED');
+    expect(assistantExecutor).toContain(
+      'recordGrantPayment(supabase, args, portfolioId, capabilities)'
+    );
+    expect(grantExecutor).toContain('capabilities.recordGrantPaymentAudit');
+    expect(assistantCapabilities).toContain('ORG_AUDIT_ACTIONS.GRANT_PAYMENT_RECORDED');
+    expect(assistantCapabilities).toContain(".eq('org_id', scope.orgId)");
+    expect(assistantCapabilities).toContain(".eq('portfolio_id', scope.portfolioId)");
     expect(grantExecutor).toContain('operation: \'insert\'');
     expect(grantExecutor).toContain('operation: \'update\'');
   });

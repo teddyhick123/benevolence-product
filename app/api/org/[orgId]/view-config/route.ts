@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { z } from 'zod';
-import { createAdminClient, createServerClient } from '@/lib/supabase';
+import { isAccessDenied, requireOrgAccess } from '@/lib/api/access';
+import { jsonError, jsonOk } from '@/lib/api/responses';
 import {
   DASHBOARD_SECTION_IDS,
   ENTITY_VOCABULARY_TYPES,
@@ -12,11 +13,8 @@ import {
   normalizeVocabulary,
   type ViewConfigScope,
 } from '@/lib/view-config';
-import { isWorkspaceManager } from '@/lib/roles';
 
 export const dynamic = 'force-dynamic';
-
-const NO_STORE = { 'Cache-Control': 'no-store' } as const;
 
 interface RouteParams {
   params: Promise<{ orgId: string }>;
@@ -55,19 +53,11 @@ const writeSchema = z.discriminatedUnion('config_scope', [
   }).strict(),
 ]);
 
-function json(body: unknown, init: ResponseInit = {}) {
-  return NextResponse.json(body, { ...init, headers: { ...NO_STORE, ...(init.headers || {}) } });
-}
-
 export async function GET(req: NextRequest, { params }: RouteParams) {
   try {
     const { orgId } = await params;
-    const supabase = await createServerClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return json({ error: 'Unauthorized' }, { status: 401 });
-
-    const { data: role } = await supabase.rpc('user_org_role', { p_org_id: orgId });
-    if (!role) return json({ error: 'Not authorized' }, { status: 403 });
+    const access = await requireOrgAccess(orgId);
+    if (isAccessDenied(access)) return access.response;
 
     const scopeParam = req.nextUrl.searchParams.get('scope');
     const scopeKey = req.nextUrl.searchParams.get('scope_key') ?? undefined;
@@ -77,34 +67,30 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       ? scopeParam as ViewConfigScope
       : undefined;
     if (scopeParam && !scope) {
-      return json({ error: `scope must be one of: ${VIEW_CONFIG_SCOPES.join(', ')}` }, { status: 400 });
+      return jsonError(`scope must be one of: ${VIEW_CONFIG_SCOPES.join(', ')}`, 400);
     }
 
-    const db = createAdminClient();
+    const db = access.context.db;
     const [configs, vocabulary] = await Promise.all([
       loadOrgViewConfig(db, orgId, { scope, scopeKey }),
       includeVocabulary ? loadEntityVocabulary(db, orgId) : Promise.resolve(null),
     ]);
 
-    return json({ configs, vocabulary });
-  } catch (err: any) {
-    return json({ error: err?.message ?? 'Internal error' }, { status: 500 });
+    return jsonOk({ configs, vocabulary });
+  } catch (err) {
+    return jsonError(err instanceof Error ? err.message : 'Internal error', 500);
   }
 }
 
 export async function POST(req: NextRequest, { params }: RouteParams) {
   try {
     const { orgId } = await params;
-    const supabase = await createServerClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return json({ error: 'Unauthorized' }, { status: 401 });
-
-    const { data: role } = await supabase.rpc('user_org_role', { p_org_id: orgId });
-    if (!isWorkspaceManager(role)) return json({ error: 'Admin access required' }, { status: 403 });
+    const access = await requireOrgAccess(orgId, 'admin');
+    if (isAccessDenied(access)) return access.response;
 
     const body = await req.json().catch(() => ({}));
     const parsed = writeSchema.safeParse(body);
-    if (!parsed.success) return json({ error: 'Validation failed', details: parsed.error.format() }, { status: 400 });
+    if (!parsed.success) return jsonError('Validation failed', 400, { details: parsed.error.format() });
 
     const input = parsed.data;
     let configValue: Record<string, unknown> = input.config_value;
@@ -113,7 +99,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       const sections = [...new Set(input.config_value.sections)];
       const hiddenSections = [...new Set(input.config_value.hidden_sections)];
       if (sections.every((section) => hiddenSections.includes(section))) {
-        return json({ error: 'At least one dashboard section must remain visible' }, { status: 400 });
+        return jsonError('At least one dashboard section must remain visible', 400);
       }
       configValue = { sections, hidden_sections: hiddenSections };
     }
@@ -121,7 +107,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     if (input.config_scope === 'table_columns') {
       const columns = [...new Set(input.config_value.columns)];
       const valid = columns.every((column) => GRANTS_TABLE_COLUMNS.includes(column as any) || /^custom:[a-z][a-z0-9_]{0,63}$/.test(column));
-      if (!valid) return json({ error: 'Invalid grants table column' }, { status: 400 });
+      if (!valid) return jsonError('Invalid grants table column', 400);
       configValue = { columns };
     }
 
@@ -130,8 +116,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       configValue = { ...normalizeVocabulary(input.config_value, entityType) };
     }
 
-    const db = createAdminClient();
-    const { data, error } = await db
+    const { data, error } = await access.context.db
       .from('org_view_config')
       .upsert({
         org_id: orgId,
@@ -143,8 +128,8 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       .single();
 
     if (error) throw error;
-    return json({ data });
-  } catch (err: any) {
-    return json({ error: err?.message ?? 'Internal error' }, { status: 500 });
+    return jsonOk({ data });
+  } catch (err) {
+    return jsonError(err instanceof Error ? err.message : 'Internal error', 500);
   }
 }

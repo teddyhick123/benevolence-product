@@ -355,10 +355,12 @@ describe('foundation reliability contracts', () => {
 
   it('receipt generation updates acknowledgment and contribution state atomically', () => {
     const route = src('app/api/org/[orgId]/contributions/[id]/receipt/route.ts');
+    const repository = src('lib/api/repositories/contribution-receipts.ts');
     const migration = src('db/migrations/0015_acknowledgments.sql');
     const postRoute = route.slice(0, route.indexOf('// GET /api/org/[orgId]/contributions/[id]/receipt'));
 
-    expect(route).toContain('"create_contribution_receipt_acknowledgment"');
+    expect(route).toContain('createContributionReceiptRepository');
+    expect(repository).toContain("'create_contribution_receipt_acknowledgment'");
     expect(postRoute).not.toContain('contributionUpdateError');
     expect(postRoute).not.toContain('from("acknowledgment_letters")');
     expect(postRoute).not.toContain('.delete()');
@@ -374,6 +376,7 @@ describe('foundation reliability contracts', () => {
   it('board-grade operations write org audit events with a shared taxonomy', () => {
     const auditHelper = src('lib/audit/org-audit.ts');
     const receiptRoute = src('app/api/org/[orgId]/contributions/[id]/receipt/route.ts');
+    const receiptRepository = src('lib/api/repositories/contribution-receipts.ts');
     const decisionRoute = src('app/api/org/[orgId]/grants/[grantId]/decisions/route.ts');
     const grantRepository = src('lib/api/repositories/grants.ts');
     const pfRoute = src('app/api/portfolio/[id]/compliance/990pf-export/route.ts');
@@ -388,8 +391,9 @@ describe('foundation reliability contracts', () => {
     expect(auditHelper).toContain('COMPLIANCE_990PF_EXPORTED');
     expect(auditHelper).toContain("from('org_audit_log').insert");
 
-    expect(receiptRoute).toContain('writeOrgAuditEvent');
-    expect(receiptRoute).toContain('ORG_AUDIT_ACTIONS.CONTRIBUTION_RECEIPT_GENERATED');
+    expect(receiptRoute).toContain('createContributionReceiptRepository');
+    expect(receiptRepository).toContain('writeOrgAuditEvent');
+    expect(receiptRepository).toContain('ORG_AUDIT_ACTIONS.CONTRIBUTION_RECEIPT_GENERATED');
     expect(decisionRoute).toContain('recordDecision');
     expect(grantRepository).toContain('writeOrgAuditEvent');
     expect(grantRepository).toContain('ORG_AUDIT_ACTIONS.GRANT_DECISION_RECORDED');

@@ -38,6 +38,11 @@ describe('Phase 5 view config contract', () => {
     expect(grantsPage).toMatch(/useEntityVocabulary/);
     expect(grantTable).toMatch(/resolveGrantsTableColumns/);
     expect(api).toMatch(/include_vocabulary/);
+    expect(api).toContain('requireOrgAccess');
+    expect(api).toContain('access.context.db');
+    expect(api).toContain('jsonOk');
+    expect(api).not.toContain('createAdminClient');
+    expect(api).not.toContain('createServerClient');
   });
 
   it('injects entity vocabulary into assistant context and onboarding', () => {

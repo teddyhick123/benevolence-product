@@ -3,6 +3,17 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'fs';
 
 describe('org-scoped route auth contracts', () => {
+  it('organization collection routes use the user principal and scoped provisioner', () => {
+    const src = readFileSync('app/api/org/route.ts', 'utf8');
+
+    expect(src).toContain('requireUserAccess');
+    expect(src).toContain('createOrganizationProvisioningRepository');
+    expect(src).toContain('createOrganizationSchema');
+    expect(src).toContain('jsonOk');
+    expect(src).not.toContain('createAdminClient');
+    expect(src).not.toContain('createServerClient');
+  });
+
   it('organization dashboard requires org membership before admin reads and disables caching', () => {
     const src = readFileSync('app/api/org/[orgId]/dashboard/route.ts', 'utf8');
 
@@ -147,9 +158,11 @@ describe('org-scoped route auth contracts', () => {
     expect(detailRoute).not.toContain('...rest');
 
     const receiptRoute = readFileSync('app/api/org/[orgId]/contributions/[id]/receipt/route.ts', 'utf8');
-    expect(receiptRoute).toContain('"Cache-Control": "no-store"');
-    expect(receiptRoute).toContain('createAdminClient');
-    expect(receiptRoute).toContain('"create_contribution_receipt_acknowledgment"');
+    expect(receiptRoute).toContain('jsonOk');
+    expect(receiptRoute).toContain('requireOrgAccess');
+    expect(receiptRoute).toContain('createContributionReceiptRepository');
+    expect(receiptRoute).not.toContain('createAdminClient');
+    expect(receiptRoute).not.toContain('createServerClient');
     const receiptPost = receiptRoute.slice(0, receiptRoute.indexOf('// GET /api/org/[orgId]/contributions/[id]/receipt'));
     expect(receiptPost).not.toContain('contributionUpdateError');
     expect(receiptPost).not.toContain('from("acknowledgment_letters")');
@@ -193,7 +206,10 @@ describe('org-scoped route auth contracts', () => {
 
   it('org admin routes use no-store, soft delete, and durable audit for membership changes', () => {
     const auditRoute = readFileSync('app/api/org/[orgId]/audit/route.ts', 'utf8');
-    expect(auditRoute).toContain("'Cache-Control': 'no-store'");
+    expect(auditRoute).toContain('jsonOk');
+    expect(auditRoute).toContain("requireOrgAccess(orgId, 'admin')");
+    expect(auditRoute).not.toContain('createAdminClient');
+    expect(auditRoute).not.toContain('createServerClient');
     expect(auditRoute).toContain('Number.isFinite(requestedLimit)');
 
     const orgRoute = readFileSync('app/api/org/[orgId]/route.ts', 'utf8');

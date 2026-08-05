@@ -18,6 +18,15 @@ describe('Phase 4 org-specific AI context contract', () => {
     expect(sql).toMatch(/org_ai_context_service/);
   });
 
+  it('uses the shared admin guard and the caller session in the management route', () => {
+    const route = readFileSync('app/api/org/[orgId]/ai-context/route.ts', 'utf8');
+    expect(route).toContain("requireOrgAccess(orgId, 'admin')");
+    expect(route).toContain('access.context.db');
+    expect(route).toContain('jsonOk');
+    expect(route).not.toContain('createAdminClient');
+    expect(route).not.toContain('createServerClient');
+  });
+
   it('wires helper loading and prompt injection', () => {
     const helper = readFileSync('lib/org-ai-context.ts', 'utf8');
     const context = readFileSync('lib/ai/assistant/context.ts', 'utf8');

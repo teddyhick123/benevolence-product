@@ -1,5 +1,0 @@
-app/api/org/[orgId]/ai-context/route.ts
-app/api/org/[orgId]/audit/route.ts
-app/api/org/[orgId]/contributions/[id]/receipt/route.ts
-app/api/org/[orgId]/view-config/route.ts
-app/api/org/route.ts

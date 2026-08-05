@@ -12,6 +12,10 @@ const portfoliosSql = migration('0004_portfolios.sql');
 const provisioningSql = migration('0023_admin_superuser_policies.sql');
 const capabilitiesSql = migration('0054_org_member_capabilities.sql');
 const orgRoute = fs.readFileSync(path.join(process.cwd(), 'app', 'api', 'org', 'route.ts'), 'utf8');
+const organizationProvisioningRepository = fs.readFileSync(
+  path.join(process.cwd(), 'lib', 'api', 'repositories', 'organization-provisioning.ts'),
+  'utf8'
+);
 const invitationAcceptRoute = fs.readFileSync(
   path.join(process.cwd(), 'app', 'api', 'invitations', '[token]', 'accept', 'route.ts'),
   'utf8'
@@ -77,9 +81,8 @@ describe('accepted organization membership security boundary', () => {
     expect(provisioningSql).toMatch(
       /INSERT INTO organization_members\s*\(org_id, user_id, role, accepted_at\)[\s\S]*?now\(\)/i
     );
-    expect(orgRoute).toMatch(
-      /from\('organization_members'\)[\s\S]*?insert\(\{[\s\S]*?accepted_at:\s*new Date\(\)\.toISOString\(\)/
-    );
+    expect(orgRoute).toContain('createOrganizationProvisioningRepository');
+    expect(organizationProvisioningRepository).toContain("'provision_organization'");
   });
 
   it('marks new and pre-existing pending invitation memberships as accepted', () => {

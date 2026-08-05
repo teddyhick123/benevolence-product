@@ -2,9 +2,7 @@
 
 // app/api/portfolio/[id]/settings/route.ts
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
-import { createServerClient } from '@supabase/ssr';
-import { requirePortfolioAccess, isAccessDenied } from '@/lib/portfolio-auth';
+import { requirePortfolioAccess, isAccessDenied } from '@/lib/api/access';
 
 /** Returns settings for a portfolio: { show_map: boolean, widgets: string[] }
  * Defaults: show_map=true, widgets=['kpi_waci','sector_emissions']
@@ -12,26 +10,12 @@ import { requirePortfolioAccess, isAccessDenied } from '@/lib/portfolio-auth';
 export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id: portfolio_id } = await ctx.params;
   const access = await requirePortfolioAccess(portfolio_id);
-  if (isAccessDenied(access)) return access.error;
-
-  // SSR-bound Supabase client (reads auth cookies)
-  const c = await cookies();
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        get(name: string) { return c.get(name)?.value; },
-        set(name: string, value: string, options: any) { c.set({ name, value, ...options }); },
-        remove(name: string) { c.delete(name); },
-      },
-    }
-  );
+  if (isAccessDenied(access)) return access.response;
 
   const DEFAULTS = { show_map: true, widgets: [] as string[] };
 
   try {
-    const { data, error } = await supabase
+    const { data, error } = await access.context.db
       .from('portfolio_settings')
       .select('show_map, widgets')
       .eq('portfolio_id', portfolio_id)

@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
-import { cookies } from 'next/headers';
-import { createServerClient } from '@supabase/ssr';
 import { query, type HookCallback } from '@anthropic-ai/claude-agent-sdk';
+import { isAccessDenied, requireAppAdmin } from '@/lib/api/access';
+import { jsonError } from '@/lib/api/responses';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300;
@@ -60,39 +60,19 @@ const migrationHook: HookCallback = async (input: any) => {
 
 export async function POST(req: NextRequest) {
   // Auth: signed-in admin only
-  const cookieStore = await cookies();
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        get(name: string) { return cookieStore.get(name)?.value; },
-        set(name: string, value: string, options: any) { cookieStore.set({ name, value, ...options }); },
-        remove(name: string, options: any) { cookieStore.set({ name, value: '', ...options }); },
-      },
-    }
-  );
-
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return Response.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
-  const { data: isAdmin } = await supabase.rpc('is_app_admin');
-  if (!isAdmin) {
-    return Response.json({ error: 'Admin access required' }, { status: 403 });
-  }
+  const access = await requireAppAdmin();
+  if (isAccessDenied(access)) return access.response;
 
   let body: { message: string; sessionId?: string };
   try {
     body = await req.json();
   } catch {
-    return Response.json({ error: 'Invalid JSON body' }, { status: 400 });
+    return jsonError('Invalid JSON body', 400);
   }
 
   const { message, sessionId } = body;
   if (!message?.trim()) {
-    return Response.json({ error: 'message is required' }, { status: 400 });
+    return jsonError('message is required', 400);
   }
 
   // Map tool_use_id → tool name for matching tool_end events

@@ -13,6 +13,40 @@ const routes = [
 ];
 
 describe('misc portfolio routes auth contract', () => {
+  it('self-service and session routes keep cookie-backed auth construction in lib/api', () => {
+    const userRoutes = [
+      'app/api/me/route.ts',
+      'app/api/profile/update/route.ts',
+      'app/api/profile/change-password/route.ts',
+    ];
+    for (const route of userRoutes) {
+      const source = readFileSync(route, 'utf8');
+      expect(source, route).toContain('requireUserAccess');
+      expect(source, route).not.toContain('@supabase/ssr');
+      expect(source, route).not.toContain('createServerClient');
+    }
+
+    const sessionRoute = readFileSync('app/api/auth/session/route.ts', 'utf8');
+    expect(sessionRoute).toContain('setServerSession');
+    expect(sessionRoute).toContain('clearServerSession');
+    expect(sessionRoute).not.toContain('createSupabaseServerClient');
+  });
+
+  it('constructor chat uses the shared app-admin principal', () => {
+    const source = readFileSync('app/api/constructor/chat/route.ts', 'utf8');
+    expect(source).toContain('requireAppAdmin');
+    expect(source).not.toContain('@supabase/ssr');
+    expect(source).not.toContain('createServerClient');
+  });
+
+  it('portfolio settings reuses the database from the typed portfolio context', () => {
+    const source = readFileSync('app/api/portfolio/[id]/settings/route.ts', 'utf8');
+    expect(source).toContain("from '@/lib/api/access'");
+    expect(source).toContain('access.context.db');
+    expect(source).not.toContain('@supabase/ssr');
+    expect(source).not.toContain('createServerClient');
+  });
+
   for (const route of routes) {
     it(`${route} imports requirePortfolioAccess`, () => {
       const src = readFileSync(route, 'utf8');

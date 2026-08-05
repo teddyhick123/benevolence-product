@@ -83,7 +83,7 @@ The branch begins with 18 page files over 300 lines. Work worst-first:
 For each route, apply the same ownership rule: domain reads/types/helpers in
 `lib/<domain>/`, reusable presentation in `components/<domain>/`, and only route
 concerns in `page.tsx`. Client-only page implementations may move to a named
-domain screen component when their network normalization belongs to Phase 5;
+domain screen component when their network normalization belongs to Phase 6;
 do not change their fetch semantics in this phase.
 
 ## Verification
@@ -96,4 +96,3 @@ After each pilot: focused unit/contract tests and TypeScript. At the end:
 3. full type, lint, unit, build, and clean-migration gates;
 4. diff audit for elevated clients, direct lifecycle writes, URL changes, and
    accidental changes to findings-log quirks.
-

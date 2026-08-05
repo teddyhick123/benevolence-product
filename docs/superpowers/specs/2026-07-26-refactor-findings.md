@@ -472,7 +472,10 @@ or removing those product surfaces is a data-model and behavior decision, not a
 thin-page boundary change. The prerelease schema can be aligned cleanly once
 the intended ownership of contact and theory-of-action data is confirmed.
 
-**Suggested follow-up (not scheduled):** Add the actively used fields to the
-canonical `holdings` definition (with a clean-reset regression contract), or
-move contact data to a first-class scoped table and update every read, write,
-photo upload, and AI/report consumer together.
+**Phase 5 decision:** Add `theory_of_action` to canonical `holdings`, but model
+contacts in a first-class `holding_contacts` table rather than embedding six
+single-contact columns. The table supports multiple contacts and roles, enforces
+at most one primary contact per holding, and owns photo/notes data. The existing
+single-contact UI will read and upsert the primary row through the holding
+repository/view model. Update every read, write, photo upload, and AI/report
+consumer together and protect the result with clean-reset and access contracts.

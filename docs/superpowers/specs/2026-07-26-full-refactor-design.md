@@ -213,7 +213,47 @@ transports use the same scoped persistence service.
 **Exit:** no page file over ~300 lines; pilots' behavior verified against
 walkthrough journeys.
 
-### Phase 5 — Client data normalization
+### Phase 5 — Canonical schema alignment
+
+The clean prerelease database must be made authoritative for every active
+application data contract before client-side transport patterns are normalized.
+The detailed implementation plan lives at
+`docs/superpowers/plans/2026-08-05-refactor-phase5-schema-alignment.md`.
+
+- Generate and commit typed Supabase database definitions from a clean reset,
+  then type the shared clients and tenant-scoped repositories so invalid table,
+  column, relationship, view, and RPC references fail TypeScript.
+- Classify each mismatch before changing it: add genuine product concepts to the
+  originating canonical migration; change code that uses obsolete aliases or FK
+  paths; add RLS-preserving views/functions only for reusable or atomic database
+  behavior; remove unsafe or dead infrastructure instead of recreating it.
+- Keep client/org variability in the existing extension primitives—custom fields,
+  KPI facts, widgets/view config, configurable automations/workflows, modules, and
+  validated JSONB—not in per-client DDL. A canonical column requires stable
+  semantics consumed by shared platform contracts.
+- Repair the confirmed holdings, investee/charity, metrics, analytics, donations,
+  reports/letters, admin, membership, and recommendation contracts, then sweep
+  every active domain for column, enum, FK, RLS, privilege, view, and RPC drift.
+- Fold prerelease corrections into their originating files under `db/migrations`.
+  Do not create compatibility migrations or preserve migration archaeology when
+  no deployed database or client data requires it.
+- Preserve Phase 2 tenant-scoped repository/access boundaries, the canonical
+  grant lifecycle, tax/CPA security rules, and Phase 3 AI turn persistence and
+  tool-side-effect idempotency.
+- Prove the result from an empty database with generated-type drift checks,
+  clean-reset schema/privilege contracts, representative module CRUD, and the
+  affected walkthrough journeys.
+- Make the type-drift gate part of Builder's migration verification path. Builder
+  product increments may correctly add newly numbered migrations; the
+  correction-folding rule must not become a blanket ban on later `ADD COLUMN`
+  migrations.
+
+**Exit:** a clean reset supports every active application data contract; typed
+clients expose no missing relations, columns, relationships, views, or RPCs;
+canonical migrations contain no prerelease compatibility patches; access and AI
+durability contracts remain green.
+
+### Phase 6 — Client-side data normalization
 
 - One shared JSON fetcher (parsing, error shape, non-authoritative org context)
   + per-domain SWR hooks in `lib/<domain>/`. Pages prefer server-side initial
@@ -228,7 +268,11 @@ walkthrough journeys.
 hook; no raw `fetch` in components outside the shared fetcher (enforced by a CI
 grep once the last domain converts); single hooks home.
 
-### Phase 6 — Final hygiene
+This phase is deliberately deferred until representative clean-schema journeys
+exist. The absence of client data does not make client-side transport consistency
+irrelevant, but it makes schema correctness the higher-value prerequisite.
+
+### Phase 7 — Final hygiene
 
 - Dead-dependency and dead-export audit (knip/depcheck); remove compatibility
   exports.
@@ -244,12 +288,17 @@ grep once the last domain converts); single hooks home.
 
 - Every phase lands as reviewable commits on green tests; user reviews at phase
   boundaries before the next phase's plan is written.
+- Phase 5 implementation starts only after the Phase 4 branch, including the
+  Phase 2 repository and Phase 3 AI persistence prerequisites it carries, has
+  completed review and merged.
 - Security bugs: fixed in dedicated commits with regression coverage and called
   out in the commit message. Behavior quirks: logged to the findings file, not
   fixed.
 - No URL changes or major dependency upgrades anywhere in the refactor. Active
-  migration changes are allowed only when required to correct a confirmed
-  security issue, with the reason and regression test recorded in the commit.
+  migration changes are allowed only for a confirmed security correction or the
+  explicitly approved Phase 3 persistence and Phase 5 prerelease schema-alignment
+  work. Every such change must be folded into the canonical migration set and
+  protected by a clean-reset regression contract.
 - Lint warning floor only ratchets down.
 
 ## Decisions log
@@ -257,10 +306,14 @@ grep once the last domain converts); single hooks home.
 | Decision | Choice |
 |---|---|
 | Middleware fix | Shipped immediately as standalone hotfix (`fbca6720`) |
-| Phase order | Guardrails → Auth/API → AI split → Thin pages → Client data → Hygiene |
+| Phase order | Guardrails → Auth/API → AI split → Thin pages → Schema alignment → Client-side data → Hygiene |
 | Bug policy | Security bugs fixed in dedicated commits + flagged; quirks logged to findings file |
 | Planning model | This umbrella spec + just-in-time per-phase implementation plans |
 | Phase 3 persistence exception | Approved: normalized durable turns and idempotency are implemented in the active prerelease migration set |
+| Phase 5 schema exception | Approved: with no deployed/client data, align and consolidate the active migration canon before client-side fetch normalization |
+| Extensibility boundary | Shared platform semantics may enter the canon; org/client variability stays in sanctioned data/configuration extension points |
+| Holding contacts | Use first-class `holding_contacts` with roles and one primary row; keep the current single-contact UI through a view model |
+| Builder migrations | New product increments use new migrations and must refresh generated types; prerelease corrections fold into owner migrations |
 
 ## Risks
 
@@ -273,5 +326,17 @@ grep once the last domain converts); single hooks home.
 - **AI retries lose messages or repeat side effects** — the Phase 3 design must
   define durable turn state and end-to-end idempotency before changing either
   chat transport or executor orchestration.
+- **Schema fixes recreate stale concepts** — every mismatch is classified before
+  implementation; aliases and obsolete FK paths are corrected in code rather
+  than added back to the database.
+- **Generated types create a noisy rollout** — land the generated contract and
+  shared-client typing first, then migrate domain repositories in bounded waves
+  with explicit handling for dynamic import staging tables.
+- **Alignment hard-codes client differences** — canonical-column promotion
+  requires shared platform semantics; otherwise the value stays in custom fields,
+  KPI facts, or the appropriate configuration primitive.
+- **Builder strands generated types or is blocked by correction rules** — run the
+  type drift assertion in Builder's migration verifier and distinguish valid new
+  product increments from corrections to the prerelease canon.
 - **Plan drift** — mitigated by writing each phase's detailed plan against the
   code as it exists when the phase starts.

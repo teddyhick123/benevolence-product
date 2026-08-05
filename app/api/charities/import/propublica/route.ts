@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { createAdminClient } from '@/lib/supabase';
+import { isAccessDenied, requireAppAdmin } from '@/lib/api/access';
+import { createCharityAdminRepository } from '@/lib/api/repositories/charities-admin';
 import { searchOrganizations, getOrganization, convertToCharity } from '@/lib/services/propublica';
 
 /**
@@ -14,7 +15,9 @@ import { searchOrganizations, getOrganization, convertToCharity } from '@/lib/se
  * - state: State filter (optional, for mode='search')
  */
 export async function POST(req: Request) {
-  const adminClient = createAdminClient();
+  const access = await requireAppAdmin();
+  if (isAccessDenied(access)) return access.response;
+  const repository = createCharityAdminRepository(access.context);
 
   try {
     const body = await req.json();
@@ -41,11 +44,7 @@ export async function POST(req: Request) {
           const charityData = convertToCharity(org);
 
           // Check if already exists
-          const { data: existing } = await adminClient
-            .from('charities')
-            .select('id')
-            .eq('ein', charityData.ein)
-            .maybeSingle();
+          const existing = await repository.findByEin(charityData.ein);
 
           if (existing) {
             skipped++;
@@ -53,18 +52,13 @@ export async function POST(req: Request) {
           }
 
           // Insert new charity
-          const { data: charity, error } = await adminClient
-            .from('charities')
-            .insert(charityData)
-            .select()
-            .single();
-
-          if (error) {
-            console.error(`Error importing ${charityData.ein}:`, error);
-            errors++;
-          } else {
+          try {
+            const charity = await repository.insert(charityData);
             imported++;
             results.push(charity);
+          } catch (error) {
+            console.error(`Error importing ${charityData.ein}:`, error);
+            errors++;
           }
         } catch (err) {
           console.error('Error processing organization:', err);
@@ -95,11 +89,7 @@ export async function POST(req: Request) {
       }
 
       // Check if already exists
-      const { data: existing } = await adminClient
-        .from('charities')
-        .select('id')
-        .eq('ein', ein)
-        .maybeSingle();
+      const existing = await repository.findByEin(ein);
 
       if (existing) {
         return NextResponse.json({
@@ -123,13 +113,10 @@ export async function POST(req: Request) {
       const charityData = convertToCharity(org);
 
       // Insert new charity
-      const { data: charity, error } = await adminClient
-        .from('charities')
-        .insert(charityData)
-        .select()
-        .single();
-
-      if (error) {
+      let charity;
+      try {
+        charity = await repository.insert(charityData);
+      } catch (error) {
         console.error(`Error importing ${ein}:`, error);
         return NextResponse.json(
           { error: 'Failed to import charity' },
@@ -156,11 +143,7 @@ export async function POST(req: Request) {
       for (const einToImport of eins) {
         try {
           // Check if already exists
-          const { data: existing } = await adminClient
-            .from('charities')
-            .select('id')
-            .eq('ein', einToImport)
-            .maybeSingle();
+          const existing = await repository.findByEin(einToImport);
 
           if (existing) {
             skipped++;
@@ -178,18 +161,13 @@ export async function POST(req: Request) {
           const charityData = convertToCharity(org);
 
           // Insert new charity
-          const { data: charity, error } = await adminClient
-            .from('charities')
-            .insert(charityData)
-            .select()
-            .single();
-
-          if (error) {
-            console.error(`Error importing ${einToImport}:`, error);
-            errors++;
-          } else {
+          try {
+            const charity = await repository.insert(charityData);
             imported++;
             results.push(charity);
+          } catch (error) {
+            console.error(`Error importing ${einToImport}:`, error);
+            errors++;
           }
 
           // Rate limiting

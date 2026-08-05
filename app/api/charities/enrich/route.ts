@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { createAdminClient } from '@/lib/supabase';
+import { isAccessDenied, requireAppAdmin } from '@/lib/api/access';
+import { createCharityAdminRepository } from '@/lib/api/repositories/charities-admin';
 import { getCharityNavigatorRating, transformCharityNavigatorRating } from '@/lib/services/charity-navigator';
 import { getCandidSeal, transformCandidSeal } from '@/lib/services/candid';
 
@@ -13,7 +14,9 @@ import { getCandidSeal, transformCandidSeal } from '@/lib/services/candid';
  * - providers: Array of providers to use ['charity_navigator', 'candid'] (default: both)
  */
 export async function POST(req: Request) {
-  const adminClient = createAdminClient();
+  const access = await requireAppAdmin();
+  if (isAccessDenied(access)) return access.response;
+  const repository = createCharityAdminRepository(access.context);
 
   try {
     const body = await req.json();
@@ -25,11 +28,7 @@ export async function POST(req: Request) {
 
     // If specific EIN provided, enrich just that one
     if (ein) {
-      const { data: charity } = await adminClient
-        .from('charities')
-        .select('id, ein, name')
-        .eq('ein', ein)
-        .maybeSingle();
+      const charity = await repository.findByEin(ein);
 
       if (!charity) {
         return NextResponse.json(
@@ -38,7 +37,7 @@ export async function POST(req: Request) {
         );
       }
 
-      const result = await enrichCharity(charity, providers);
+      const result = await enrichCharity(repository, charity, providers);
       return NextResponse.json({
         success: true,
         charity: result,
@@ -46,19 +45,7 @@ export async function POST(req: Request) {
     }
 
     // Otherwise, enrich multiple charities that haven't been enriched yet
-    const { data: charities, error: fetchError } = await adminClient
-      .from('charities')
-      .select('id, ein, name')
-      .is('charity_navigator_rating', null)  // Only charities without ratings
-      .limit(Math.min(limit, 100));
-
-    if (fetchError) {
-      console.error('Error fetching charities:', fetchError);
-      return NextResponse.json(
-        { error: 'Failed to fetch charities' },
-        { status: 500 }
-      );
-    }
+    const charities = await repository.listNeedingEnrichment(limit);
 
     if (!charities || charities.length === 0) {
       return NextResponse.json({
@@ -72,7 +59,7 @@ export async function POST(req: Request) {
 
     for (const charity of charities) {
       try {
-        const result = await enrichCharity(charity, providers);
+        const result = await enrichCharity(repository, charity, providers);
         enriched++;
         results.push(result);
 
@@ -107,10 +94,10 @@ export async function POST(req: Request) {
  * Enrich a single charity with ratings from external APIs
  */
 async function enrichCharity(
+  repository: ReturnType<typeof createCharityAdminRepository>,
   charity: { id: string; ein: string; name: string },
   providers: string[]
 ) {
-  const adminClient = createAdminClient();
   const updates: any = {};
 
   console.log(`[Enrich] Processing ${charity.name} (${charity.ein})`);
@@ -166,15 +153,7 @@ async function enrichCharity(
 
   // Update charity if we got any data
   if (Object.keys(updates).length > 0) {
-    const { error } = await adminClient
-      .from('charities')
-      .update(updates)
-      .eq('id', charity.id);
-
-    if (error) {
-      console.error(`  ❌ Database update error:`, error);
-      throw error;
-    }
+    await repository.update(charity.id, updates);
   }
 
   return {

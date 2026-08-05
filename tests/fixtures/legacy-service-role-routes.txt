@@ -1,6 +1,3 @@
-app/api/admin/bootstrap/route.ts
-app/api/admin/portfolios/[id]/members/route.ts
-app/api/admin/users/lookup/route.ts
 app/api/org/[orgId]/ai-context/route.ts
 app/api/org/[orgId]/audit/route.ts
 app/api/org/[orgId]/contributions/[id]/receipt/route.ts

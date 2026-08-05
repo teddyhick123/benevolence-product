@@ -9,6 +9,7 @@ import type {
   JobAccessContext,
   OrgAccessContext,
   PortfolioAccessContext,
+  PortfolioManagerAccessContext,
   UserAccessContext,
 } from '@/lib/api/principals';
 import {
@@ -134,6 +135,36 @@ export async function requirePortfolioAccess(
   if (!session.ok) return session;
 
   return requirePortfolioAccessForUser(session.context, portfolioId, minRole);
+}
+
+/** Allow an app admin or an admin/owner of one specific portfolio. */
+export async function requirePortfolioManagerOrAppAdmin(
+  portfolioId: string
+): Promise<AccessResult<PortfolioManagerAccessContext>> {
+  const session = await authenticatedSession();
+  if (!session.ok) return session;
+
+  const { data: isAppAdmin, error } = await session.context.db.rpc('is_app_admin');
+  if (error) return denied('infrastructure', error.message, 500);
+
+  if (isAppAdmin) {
+    return {
+      ok: true,
+      context: { ...session.context, portfolioId, isAppAdmin: true },
+    };
+  }
+
+  const portfolioAccess = await requirePortfolioAccessForUser(
+    session.context,
+    portfolioId,
+    'admin'
+  );
+  if (!portfolioAccess.ok) return portfolioAccess;
+
+  return {
+    ok: true,
+    context: { ...portfolioAccess.context, isAppAdmin: false },
+  };
 }
 
 /** Reuse an authenticated user context when the portfolio ID comes from a parsed body. */

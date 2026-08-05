@@ -29,6 +29,10 @@ export type PortfolioAccessContext = OrgAccessContext & {
   portfolioId: string;
 };
 
+export type PortfolioManagerAccessContext =
+  | (AppAdminAccessContext & { portfolioId: string })
+  | (PortfolioAccessContext & { isAppAdmin: false });
+
 export type CpaShareAccessContext = {
   principal: Extract<AccessPrincipal, { kind: 'cpa_share' }>;
   orgId: string;

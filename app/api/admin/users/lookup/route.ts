@@ -1,7 +1,7 @@
 // app/api/admin/users/lookup/route.ts
 import { NextResponse } from 'next/server';
-import { createSupabaseServerClient } from '@/lib/supabase';
-import { createClient as createSB } from '@supabase/supabase-js';
+import { isAccessDenied, requireAppAdmin } from '@/lib/api/access';
+import { createAppAdminDirectoryRepository } from '@/lib/api/repositories/admin-directory';
 
 function noStore(json: any, status = 200) {
   return NextResponse.json(json, { status, headers: { 'Cache-Control': 'no-store' } });
@@ -16,32 +16,14 @@ export async function GET(req: Request) {
   // light format check
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return noStore({ error: 'invalid email' }, 422);
 
-  // Check admin via SSR cookie-bound client
-  const supabase = await createSupabaseServerClient();
+  const access = await requireAppAdmin();
+  if (isAccessDenied(access)) return access.response;
 
-  const { data: isAdmin, error: adminErr } = await supabase.rpc('is_app_admin');
-  if (adminErr || !isAdmin) return noStore({ error: 'not authorized' }, 403);
-
-  // Use service role to search auth.users (server-side only)
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE;
-  if (!serviceKey) return noStore({ error: 'missing service role key' }, 500);
-  const admin = createSB(process.env.NEXT_PUBLIC_SUPABASE_URL!, serviceKey, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
-
-  const { data, error } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
-  if (error) return noStore({ error: error.message }, 500);
-
-  const user = data?.users?.find((u) => (u.email || '').toLowerCase() === email) || null;
-  if (!user) return noStore({ data: null });
-
-  const u = user;
-  return noStore({
-    data: {
-      id: u.id,
-      email: u.email,
-      created_at: u.created_at,
-      user_metadata: u.user_metadata ?? null,
-    },
-  });
+  try {
+    const user = await createAppAdminDirectoryRepository(access.context)
+      .findUserByEmail(email);
+    return noStore({ data: user });
+  } catch (error) {
+    return noStore({ error: error instanceof Error ? error.message : 'User lookup failed' }, 500);
+  }
 }

@@ -9,6 +9,7 @@ import {
   requireOrgAccess,
   requirePortfolioAccess,
   requirePortfolioAccessForUser,
+  requirePortfolioManagerOrAppAdmin,
   requireUserAccess,
 } from '@/lib/api/access';
 import { stubQuery } from '@/tests/helpers/supabase-mock';
@@ -241,6 +242,53 @@ describe('requirePortfolioAccess', () => {
       context: { portfolioId: 'portfolio-1', orgId: 'org-1' },
     });
     expect(mockCreateServerClient).not.toHaveBeenCalled();
+  });
+});
+
+describe('requirePortfolioManagerOrAppAdmin', () => {
+  it('admits an app admin without requiring portfolio membership', async () => {
+    const db = client({
+      rpc: { is_app_admin: { data: true, error: null } },
+      portfolioMembership: { data: null, error: null },
+    });
+    mockCreateServerClient.mockResolvedValue(db);
+
+    await expect(requirePortfolioManagerOrAppAdmin('portfolio-1')).resolves.toMatchObject({
+      ok: true,
+      context: { portfolioId: 'portfolio-1', isAppAdmin: true },
+    });
+    expect(db.from).not.toHaveBeenCalled();
+  });
+
+  it('admits portfolio admins through active portfolio and org membership', async () => {
+    mockCreateServerClient.mockResolvedValue(client({
+      rpc: { is_app_admin: { data: false, error: null } },
+      portfolioMembership: {
+        data: { role: 'admin', portfolios: { org_id: 'org-1' } },
+        error: null,
+      },
+    }));
+
+    await expect(requirePortfolioManagerOrAppAdmin('portfolio-1')).resolves.toMatchObject({
+      ok: true,
+      context: {
+        portfolioId: 'portfolio-1',
+        orgId: 'org-1',
+        role: 'admin',
+        isAppAdmin: false,
+      },
+    });
+  });
+
+  it('rejects portfolio members below admin', async () => {
+    mockCreateServerClient.mockResolvedValue(client({
+      rpc: { is_app_admin: { data: false, error: null } },
+    }));
+
+    const result = await requirePortfolioManagerOrAppAdmin('portfolio-1');
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error('expected access denial');
+    expect(result.response.status).toBe(403);
   });
 });
 

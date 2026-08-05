@@ -30,6 +30,40 @@ AS $$
   );
 $$;
 
+-- Atomically claim the first app-admin account. The transaction-scoped lock
+-- prevents concurrent first-run requests from promoting more than one user.
+CREATE OR REPLACE FUNCTION bootstrap_app_admin()
+RETURNS boolean
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  v_user_id uuid := auth.uid();
+  v_updated integer;
+BEGIN
+  IF v_user_id IS NULL THEN
+    RAISE EXCEPTION 'Authentication required' USING ERRCODE = '42501';
+  END IF;
+
+  PERFORM pg_advisory_xact_lock(hashtext('bootstrap_app_admin'));
+
+  IF EXISTS (SELECT 1 FROM profiles WHERE is_app_admin) THEN
+    RETURN false;
+  END IF;
+
+  UPDATE profiles SET is_app_admin = true WHERE id = v_user_id;
+  GET DIAGNOSTICS v_updated = ROW_COUNT;
+  IF v_updated <> 1 THEN
+    RAISE EXCEPTION 'Authenticated user profile not found';
+  END IF;
+
+  RETURN true;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION bootstrap_app_admin() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION bootstrap_app_admin() TO authenticated;
+
 -- ---------------------------------------------------------------------------
 -- Grant app admins read access to all orgs (for support/onboarding view)
 -- ---------------------------------------------------------------------------
@@ -54,6 +88,12 @@ CREATE POLICY "profiles: app admin can view all"
 CREATE POLICY "portfolios: app admin can view all"
   ON portfolios FOR SELECT
   USING (is_app_admin());
+
+-- App admins manage portfolio membership from the global admin console.
+CREATE POLICY "portfolio_members: app admin full access"
+  ON portfolio_members FOR ALL
+  USING (is_app_admin())
+  WITH CHECK (is_app_admin());
 
 -- audit_log: app admins can read
 CREATE POLICY "audit_log: app admin can read"

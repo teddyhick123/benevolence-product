@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createSupabaseServerClient } from '@/lib/supabase';
-import { fetchCharityRatings, shouldRefreshRatings, CharityRatingsData } from '@/lib/services/charity-ratings';
+import { isAccessDenied, requireRecommendationAccess } from '@/lib/api/access';
+import { fetchCharityRatings, shouldRefreshRatings } from '@/lib/services/charity-ratings';
 
 /**
  * GET /api/recommendations/[id]/ratings
@@ -15,23 +15,12 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id: recommendationId } = await params;
+  const access = await requireRecommendationAccess(recommendationId, 'member');
+  if (isAccessDenied(access)) return access.response;
+  const supabase = access.context.db;
+
   try {
-    const supabase = await createSupabaseServerClient();
-    const { id: recommendationId } = await params;
-
-    // Check authentication
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
-
-    if (authError || !user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
-
     // Get the recommendation
     const { data: recommendation, error: recError } = await supabase
       .from('portfolio_recommendations')
@@ -43,21 +32,6 @@ export async function GET(
       return NextResponse.json(
         { error: 'Recommendation not found' },
         { status: 404 }
-      );
-    }
-
-    // Verify user has access to this recommendation's portfolio
-    const { data: membership } = await supabase
-      .from('portfolio_members')
-      .select('portfolio_id')
-      .eq('portfolio_id', recommendation.portfolio_id)
-      .eq('user_id', user.id)
-      .single();
-
-    if (!membership) {
-      return NextResponse.json(
-        { error: 'Unauthorized - not a member of this portfolio' },
-        { status: 403 }
       );
     }
 
@@ -152,23 +126,12 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id: recommendationId } = await params;
+  const access = await requireRecommendationAccess(recommendationId, 'member');
+  if (isAccessDenied(access)) return access.response;
+  const supabase = access.context.db;
+
   try {
-    const supabase = await createSupabaseServerClient();
-    const { id: recommendationId } = await params;
-
-    // Check authentication
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
-
-    if (authError || !user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
-
     // Get the recommendation
     const { data: recommendation, error: recError } = await supabase
       .from('portfolio_recommendations')
@@ -180,21 +143,6 @@ export async function POST(
       return NextResponse.json(
         { error: 'Recommendation not found' },
         { status: 404 }
-      );
-    }
-
-    // Verify user has access to this recommendation's portfolio
-    const { data: membership } = await supabase
-      .from('portfolio_members')
-      .select('portfolio_id')
-      .eq('portfolio_id', recommendation.portfolio_id)
-      .eq('user_id', user.id)
-      .single();
-
-    if (!membership) {
-      return NextResponse.json(
-        { error: 'Unauthorized - not a member of this portfolio' },
-        { status: 403 }
       );
     }
 

@@ -1,6 +1,9 @@
 // app/api/recommendations/[id]/route.ts
 import { NextResponse } from 'next/server';
-import { createSupabaseServerClient } from '@/lib/supabase';
+import {
+  isAccessDenied,
+  requireRecommendationManagerOrAppAdmin,
+} from '@/lib/api/access';
 import { updateRecommendationSchema } from '@/lib/schemas/recommendations';
 
 function cacheHeaders() {
@@ -10,7 +13,9 @@ function cacheHeaders() {
 // PUT /api/recommendations/[id] - Update a recommendation
 export async function PUT(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
-  const supabase = await createSupabaseServerClient();
+  const access = await requireRecommendationManagerOrAppAdmin(id);
+  if (isAccessDenied(access)) return access.response;
+  const supabase = access.context.db;
 
   try {
     // Parse and validate request body
@@ -33,46 +38,6 @@ export async function PUT(req: Request, ctx: { params: Promise<{ id: string }> }
     }
 
     const validated = validation.data;
-
-    // Get current user
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401, headers: cacheHeaders() }
-      );
-    }
-
-    // Get the recommendation to check portfolio ownership
-    const { data: rec, error: recError } = await supabase
-      .from('portfolio_recommendations')
-      .select('portfolio_id')
-      .eq('id', id)
-      .single();
-
-    if (recError || !rec) {
-      return NextResponse.json(
-        { error: 'Recommendation not found' },
-        { status: 404, headers: cacheHeaders() }
-      );
-    }
-
-    // Verify user has owner role for this portfolio
-    const { data: member } = await supabase
-      .from('portfolio_members')
-      .select('role')
-      .eq('portfolio_id', rec.portfolio_id)
-      .eq('user_id', user.id)
-      .single();
-
-    const { data: isAdmin } = await supabase.rpc('is_app_admin');
-
-    if (!isAdmin && (!member || member.role !== 'owner')) {
-      return NextResponse.json(
-        { error: 'Insufficient permissions' },
-        { status: 403, headers: cacheHeaders() }
-      );
-    }
 
     // Build update object from validated data (only include provided fields)
     const updateData: Record<string, any> = { updated_at: new Date().toISOString() };
@@ -110,49 +75,11 @@ export async function PUT(req: Request, ctx: { params: Promise<{ id: string }> }
 // DELETE /api/recommendations/[id] - Archive a recommendation
 export async function DELETE(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
-  const supabase = await createSupabaseServerClient();
+  const access = await requireRecommendationManagerOrAppAdmin(id);
+  if (isAccessDenied(access)) return access.response;
+  const supabase = access.context.db;
 
   try {
-    // Get current user
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401, headers: cacheHeaders() }
-      );
-    }
-
-    // Get the recommendation to check portfolio ownership
-    const { data: rec, error: recError } = await supabase
-      .from('portfolio_recommendations')
-      .select('portfolio_id')
-      .eq('id', id)
-      .single();
-
-    if (recError || !rec) {
-      return NextResponse.json(
-        { error: 'Recommendation not found' },
-        { status: 404, headers: cacheHeaders() }
-      );
-    }
-
-    // Verify user has owner role for this portfolio
-    const { data: member } = await supabase
-      .from('portfolio_members')
-      .select('role')
-      .eq('portfolio_id', rec.portfolio_id)
-      .eq('user_id', user.id)
-      .single();
-
-    const { data: isAdmin } = await supabase.rpc('is_app_admin');
-
-    if (!isAdmin && (!member || member.role !== 'owner')) {
-      return NextResponse.json(
-        { error: 'Insufficient permissions' },
-        { status: 403, headers: cacheHeaders() }
-      );
-    }
-
     // Archive instead of hard delete
     const { data, error } = await supabase
       .from('portfolio_recommendations')

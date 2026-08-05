@@ -29,6 +29,22 @@ export type PortfolioAccessContext = OrgAccessContext & {
   portfolioId: string;
 };
 
+export type HoldingAccessContext = PortfolioAccessContext & {
+  holdingId: string;
+};
+
+export type RecommendationAccessContext = PortfolioAccessContext & {
+  recommendationId: string;
+};
+
+export type RecommendationManagerAccessContext =
+  | (AppAdminAccessContext & {
+      recommendationId: string;
+      portfolioId: string;
+      isAppAdmin: true;
+    })
+  | (RecommendationAccessContext & { isAppAdmin: false });
+
 export type PortfolioManagerAccessContext =
   | (AppAdminAccessContext & { portfolioId: string })
   | (PortfolioAccessContext & { isAppAdmin: false });

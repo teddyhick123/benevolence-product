@@ -1,6 +1,6 @@
 // app/api/recommendations/[id]/comments/route.ts
 import { NextResponse } from 'next/server';
-import { createSupabaseServerClient } from '@/lib/supabase';
+import { isAccessDenied, requireRecommendationAccess } from '@/lib/api/access';
 import { z } from 'zod';
 
 function cacheHeaders() {
@@ -15,18 +15,11 @@ const createCommentSchema = z.object({
 // GET /api/recommendations/[id]/comments - Fetch all comments for a recommendation
 export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id: recommendation_id } = await ctx.params;
-  const supabase = await createSupabaseServerClient();
+  const access = await requireRecommendationAccess(recommendation_id);
+  if (isAccessDenied(access)) return access.response;
+  const supabase = access.context.db;
 
   try {
-    // Get current user
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401, headers: cacheHeaders() }
-      );
-    }
-
     // Fetch comments with user information
     const { data, error } = await supabase
       .from('recommendation_comments')
@@ -81,18 +74,11 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
 // POST /api/recommendations/[id]/comments - Create a new comment
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id: recommendation_id } = await ctx.params;
-  const supabase = await createSupabaseServerClient();
+  const access = await requireRecommendationAccess(recommendation_id, 'member');
+  if (isAccessDenied(access)) return access.response;
+  const supabase = access.context.db;
 
   try {
-    // Get current user
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401, headers: cacheHeaders() }
-      );
-    }
-
     // Parse and validate request body
     let body;
     try {
@@ -117,7 +103,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
 
     const { content, parent_comment_id } = validation.data;
 
-    // Verify user has access to this recommendation
+    // Verify the recommendation remains active before accepting comments.
     const { data: rec } = await supabase
       .from('portfolio_recommendations')
       .select('portfolio_id')
@@ -129,21 +115,6 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
       return NextResponse.json(
         { error: 'Recommendation not found' },
         { status: 404, headers: cacheHeaders() }
-      );
-    }
-
-    // Verify user is a portfolio member
-    const { data: member } = await supabase
-      .from('portfolio_members')
-      .select('user_id')
-      .eq('portfolio_id', rec.portfolio_id)
-      .eq('user_id', user.id)
-      .single();
-
-    if (!member) {
-      return NextResponse.json(
-        { error: 'Access denied' },
-        { status: 403, headers: cacheHeaders() }
       );
     }
 
@@ -170,7 +141,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
       .from('recommendation_comments')
       .insert({
         recommendation_id,
-        user_id: user.id,
+        user_id: access.context.user.id,
         content,
         parent_comment_id: parent_comment_id || null,
       })

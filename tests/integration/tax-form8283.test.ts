@@ -12,7 +12,7 @@
 //   - DB error on contributions returns 500 JSON.
 //
 // Mock strategy:
-//   - `@/lib/portfolio-auth` is mocked at the module boundary to control access.
+//   - `@/lib/api/access` is mocked at the module boundary to control access.
 //   - `@/lib/supabase` is mocked so no live DB calls are made.
 //   - `@/lib/tax/form8283-generator` is mocked to return a fixed Buffer;
 //     PDF generation correctness is a unit concern for that module, not this route.
@@ -45,19 +45,6 @@ let _enhancedContribs: any[] = [];
 let _enhancedError: { message: string } | null = null;
 
 // ── Mocks ──────────────────────────────────────────────────────────────────────
-
-// Mock portfolio-auth — controls whether access is granted
-vi.mock('@/lib/portfolio-auth', () => ({
-  requirePortfolioAccess: vi.fn(async (_portfolioId: string) => {
-    if (_accessDenied) {
-      return {
-        error: NextResponse.json({ error: 'Access denied' }, { status: 403 }),
-      };
-    }
-    return { user: { id: USER_ID }, role: _accessRole };
-  }),
-  isAccessDenied: vi.fn((result: any) => 'error' in result),
-}));
 
 vi.mock('@/lib/api/access', () => ({
   requirePortfolioAccess: vi.fn(async (_portfolioId: string) => {

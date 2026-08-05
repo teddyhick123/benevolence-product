@@ -4,12 +4,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   requireAppAdmin,
   requireCpaToken,
+  requireHoldingAccess,
   requireJobAccess,
   requireInvitationToken,
   requireOrgAccess,
   requirePortfolioAccess,
   requirePortfolioAccessForUser,
   requirePortfolioManagerOrAppAdmin,
+  requireRecommendationAccess,
+  requireRecommendationManagerOrAppAdmin,
   requireUserAccess,
 } from '@/lib/api/access';
 import { stubQuery } from '@/tests/helpers/supabase-mock';
@@ -40,6 +43,8 @@ type ClientOptions = {
   rpc?: Record<string, { data: unknown; error: { message: string } | null }>;
   portfolioMembership?: { data: unknown; error: { message: string } | null };
   orgMembership?: { data: unknown; error: { message: string } | null };
+  holding?: { data: unknown; error: { message: string } | null };
+  recommendation?: { data: unknown; error: { message: string } | null };
 };
 
 function client(options: ClientOptions = {}) {
@@ -56,6 +61,17 @@ function client(options: ClientOptions = {}) {
     }
     if (table === 'organization_members') {
       const result = options.orgMembership ?? { data: { id: 'membership-1' }, error: null };
+      return stubQuery(result, { maybeSingle: result });
+    }
+    if (table === 'holdings') {
+      const result = options.holding ?? { data: { portfolio_id: 'portfolio-1' }, error: null };
+      return stubQuery(result, { maybeSingle: result });
+    }
+    if (table === 'portfolio_recommendations') {
+      const result = options.recommendation ?? {
+        data: { portfolio_id: 'portfolio-1' },
+        error: null,
+      };
       return stubQuery(result, { maybeSingle: result });
     }
     throw new Error(`unexpected table ${table}`);
@@ -242,6 +258,79 @@ describe('requirePortfolioAccess', () => {
       context: { portfolioId: 'portfolio-1', orgId: 'org-1' },
     });
     expect(mockCreateServerClient).not.toHaveBeenCalled();
+  });
+});
+
+describe('requireHoldingAccess', () => {
+  it('resolves the holding and returns its portfolio scope', async () => {
+    mockCreateServerClient.mockResolvedValue(client());
+
+    await expect(requireHoldingAccess('holding-1', 'member')).resolves.toMatchObject({
+      ok: true,
+      context: {
+        holdingId: 'holding-1',
+        portfolioId: 'portfolio-1',
+        orgId: 'org-1',
+        role: 'member',
+      },
+    });
+  });
+
+  it('returns a not-found denial when RLS does not expose the holding', async () => {
+    mockCreateServerClient.mockResolvedValue(client({
+      holding: { data: null, error: null },
+    }));
+
+    const result = await requireHoldingAccess('missing-holding');
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error('expected access denial');
+    expect(result.reason).toBe('not_found');
+    expect(result.response.status).toBe(404);
+  });
+});
+
+describe('recommendation access', () => {
+  it('resolves a recommendation through its portfolio membership', async () => {
+    mockCreateServerClient.mockResolvedValue(client());
+
+    await expect(requireRecommendationAccess('recommendation-1')).resolves.toMatchObject({
+      ok: true,
+      context: {
+        recommendationId: 'recommendation-1',
+        portfolioId: 'portfolio-1',
+        orgId: 'org-1',
+      },
+    });
+  });
+
+  it('admits an app admin without portfolio membership for recommendation management', async () => {
+    const db = client({
+      rpc: { is_app_admin: { data: true, error: null } },
+      portfolioMembership: { data: null, error: null },
+    });
+    mockCreateServerClient.mockResolvedValue(db);
+
+    await expect(
+      requireRecommendationManagerOrAppAdmin('recommendation-1')
+    ).resolves.toMatchObject({
+      ok: true,
+      context: {
+        recommendationId: 'recommendation-1',
+        portfolioId: 'portfolio-1',
+        isAppAdmin: true,
+      },
+    });
+  });
+
+  it('requires the portfolio owner role for non-admin recommendation management', async () => {
+    mockCreateServerClient.mockResolvedValue(client({
+      rpc: { is_app_admin: { data: false, error: null } },
+    }));
+
+    const result = await requireRecommendationManagerOrAppAdmin('recommendation-1');
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error('expected access denial');
+    expect(result.response.status).toBe(403);
   });
 });
 

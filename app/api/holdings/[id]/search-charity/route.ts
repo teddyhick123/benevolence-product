@@ -1,6 +1,6 @@
 // app/api/holdings/[id]/search-charity/route.ts
 import { NextResponse } from 'next/server';
-import { createServerClient } from '@/lib/supabase';
+import { isAccessDenied, requireHoldingAccess } from '@/lib/api/access';
 import { searchOrganizations, convertToCharity } from '@/lib/services/propublica';
 
 const NO_STORE = { 'Cache-Control': 'no-store' } as const;
@@ -12,32 +12,11 @@ const NO_STORE = { 'Cache-Control': 'no-store' } as const;
  */
 export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id: holdingId } = await ctx.params;
-  const sb = await createServerClient();
+  const access = await requireHoldingAccess(holdingId, 'member');
+  if (isAccessDenied(access)) return access.response;
+  const sb = access.context.db;
 
   try {
-    const { data: { user } } = await sb.auth.getUser();
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401, headers: NO_STORE });
-    }
-
-    const { data: holding, error: holdingError } = await sb
-      .from('holdings')
-      .select('portfolio_id')
-      .eq('id', holdingId)
-      .single();
-
-    if (holdingError || !holding) {
-      return NextResponse.json({ error: 'Holding not found' }, { status: 404, headers: NO_STORE });
-    }
-
-    const { data: canEdit, error: canEditErr } = await sb.rpc('can_edit_portfolio', {
-      p_portfolio_id: holding.portfolio_id,
-    });
-
-    if (canEditErr || !canEdit) {
-      return NextResponse.json({ error: 'not authorized' }, { status: 403, headers: NO_STORE });
-    }
-
     const { searchParams } = new URL(req.url);
     const query = searchParams.get('q');
     const state = searchParams.get('state') || undefined;

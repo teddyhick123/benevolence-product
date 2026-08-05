@@ -30,23 +30,24 @@ describe('holding route auth contracts', () => {
 
   it('holding charity search requires edit access before external lookup', () => {
     const src = readFileSync('app/api/holdings/[id]/search-charity/route.ts', 'utf8');
-    expect(src).toContain("select('portfolio_id')");
-    expect(src).toContain("rpc('can_edit_portfolio'");
+    expect(src).toContain("requireHoldingAccess(holdingId, 'member')");
+    expect(src).not.toContain('createServerClient');
     expect(src).toContain("'Cache-Control': 'no-store'");
   });
 
   it('holding financial profile reads require view access and no-store responses', () => {
     const src = readFileSync('app/api/holdings/[id]/financial-profile/route.ts', 'utf8');
     expect(src).toContain("select('id, name, charity_id, portfolio_id')");
-    expect(src).toContain("rpc('can_view_portfolio'");
+    expect(src).toContain('requireHoldingAccess(holdingId)');
+    expect(src).not.toContain('createServerClient');
     expect(src).toContain("'Cache-Control': 'no-store'");
   });
 
   it('holding financial analysis generation requires edit access and AI rate limiting', () => {
     const src = readFileSync('app/api/holdings/[id]/financial-profile/generate/route.ts', 'utf8');
-    expect(src).toContain("select('portfolio_id')");
-    expect(src).toContain("rpc('can_view_portfolio'");
-    expect(src).toContain("rpc('can_edit_portfolio'");
+    expect(src).toContain('requireHoldingAccess(holdingId)');
+    expect(src).toContain("requireHoldingAccess(holdingId, 'member')");
+    expect(src).not.toContain('createServerClient');
     expect(src).toContain('aiLimiter.limit');
     expect(src).toContain("'Cache-Control': 'no-store'");
   });
@@ -55,13 +56,20 @@ describe('holding route auth contracts', () => {
     for (const route of [
       'app/api/holdings/[id]/update-basic/route.ts',
       'app/api/holdings/[id]/link-charity/route.ts',
-      'app/api/holdings/[id]/create-tax-record/route.ts',
     ]) {
       const src = readFileSync(route, 'utf8');
-      expect(src, route).toContain("rpc('can_edit_portfolio'");
+      expect(src, route).toContain("requireHoldingAccess(holdingId, 'member')");
       expect(src, route).toContain("'Cache-Control': 'no-store'");
       expect(src, route).not.toContain("from('portfolio_members')");
+      expect(src, route).not.toContain('createServerClient');
     }
+
+    const taxRecord = readFileSync(
+      'app/api/holdings/[id]/create-tax-record/route.ts',
+      'utf8'
+    );
+    expect(taxRecord).toContain("rpc('can_edit_portfolio'");
+    expect(taxRecord).toContain("'Cache-Control': 'no-store'");
   });
 
   it('holding charity linking uses normal not-found lookups and checks linked charity reads', () => {

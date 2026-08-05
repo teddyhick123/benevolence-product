@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { createSupabaseServerClient } from '@/lib/supabase';
+import { isAccessDenied, requireAppAdmin } from '@/lib/api/access';
 
 /**
  * GET /api/metrics
@@ -7,7 +7,9 @@ import { createSupabaseServerClient } from '@/lib/supabase';
  * Used by admin KPI management to populate metric selection dropdown
  */
 export async function GET() {
-  const supabase = await createSupabaseServerClient();
+  const access = await requireAppAdmin();
+  if (isAccessDenied(access)) return access.response;
+  const supabase = access.context.db;
 
   const { data, error } = await supabase
     .from('metrics')

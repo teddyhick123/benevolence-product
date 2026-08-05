@@ -17,13 +17,6 @@ function denied(message: string, status: number) {
   return { ok: false, response, error: response };
 }
 
-vi.mock('@/lib/portfolio-auth', () => ({
-  requirePortfolioAccess: mockRequirePortfolioAccess,
-  isAccessDenied: vi.fn((result: { ok?: boolean; error?: Response }) =>
-    result.ok === false || 'error' in result
-  ),
-}));
-
 vi.mock('@/lib/api/access', () => ({
   requirePortfolioAccess: mockRequirePortfolioAccess,
   isAccessDenied: vi.fn((result: { ok: boolean }) => !result.ok),

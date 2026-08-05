@@ -1,6 +1,6 @@
 // app/api/holdings/[id]/financial-profile/route.ts
 import { NextResponse } from 'next/server';
-import { createServerClient } from '@/lib/supabase';
+import { isAccessDenied, requireHoldingAccess } from '@/lib/api/access';
 import { getOrganization } from '@/lib/services/propublica';
 import { getCharityNavigatorRating } from '@/lib/services/charity-navigator';
 
@@ -13,14 +13,11 @@ const NO_STORE = { 'Cache-Control': 'no-store' } as const;
  */
 export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id: holdingId } = await ctx.params;
-  const sb = await createServerClient();
+  const access = await requireHoldingAccess(holdingId);
+  if (isAccessDenied(access)) return access.response;
+  const sb = access.context.db;
 
   try {
-    const { data: { user } } = await sb.auth.getUser();
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401, headers: NO_STORE });
-    }
-
     // Fetch holding with charity link
     const { data: holding, error: holdingError } = await sb
       .from('holdings')
@@ -29,14 +26,6 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
       .single();
 
     if (holdingError) throw holdingError;
-
-    const { data: canView, error: canViewErr } = await sb.rpc('can_view_portfolio', {
-      p_portfolio_id: holding.portfolio_id,
-    });
-
-    if (canViewErr || !canView) {
-      return NextResponse.json({ error: 'not authorized' }, { status: 403, headers: NO_STORE });
-    }
 
     if (!holding?.charity_id) {
       return NextResponse.json(

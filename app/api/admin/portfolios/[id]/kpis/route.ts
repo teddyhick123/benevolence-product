@@ -1,18 +1,12 @@
 import { NextResponse } from 'next/server';
-import { supabasePublic } from '@/lib/supabase';
-import { requireAdmin } from '@/lib/admin-auth';
+import { isAccessDenied, requireAppAdmin } from '@/lib/api/access';
 
 export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> }) {
-  const adminUserId = await requireAdmin();
-  if (!adminUserId) {
-    return NextResponse.json(
-      { error: 'not authorized' },
-      { status: 403, headers: { 'Cache-Control': 'no-store' } }
-    );
-  }
+  const access = await requireAppAdmin();
+  if (isAccessDenied(access)) return access.response;
 
   const { id: portfolioId } = await ctx.params;
-  const sb = await supabasePublic();
+  const sb = access.context.db;
 
   const { data: portfolio } = await sb
     .from('portfolios')

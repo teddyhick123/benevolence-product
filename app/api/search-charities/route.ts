@@ -1,6 +1,6 @@
 // app/api/search-charities/route.ts
 import { NextResponse } from 'next/server';
-import { createServerClient } from '@/lib/supabase';
+import { isAccessDenied, requireUserAccess } from '@/lib/api/access';
 import { searchOrganizations, convertToCharity } from '@/lib/services/propublica';
 
 /**
@@ -9,14 +9,11 @@ import { searchOrganizations, convertToCharity } from '@/lib/services/propublica
  * Searches local DB first, then ProPublica for additional results.
  */
 export async function GET(req: Request) {
-  const sb = await createServerClient();
+  const access = await requireUserAccess();
+  if (isAccessDenied(access)) return access.response;
+  const sb = access.context.db;
 
   try {
-    const { data: { user } } = await sb.auth.getUser();
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
     const { searchParams } = new URL(req.url);
     const query = searchParams.get('q');
 

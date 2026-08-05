@@ -7,11 +7,10 @@ describe('link-charity ownership contract', () => {
     'utf8'
   );
 
-  it('verifies portfolio membership in POST', () => {
-    expect(src).toMatch(/portfolio_member|portfolio_id/);
-  });
-
-  it('returns 403 for unauthorized holding access', () => {
-    expect(src).toContain('403');
+  it('uses the shared holding edit boundary for link and unlink', () => {
+    expect(src.match(/requireHoldingAccess\(holdingId, 'member'\)/g)).toHaveLength(2);
+    expect(src).toContain('isAccessDenied(access)');
+    expect(src).toContain('access.context.db');
+    expect(src).not.toContain('createServerClient');
   });
 });

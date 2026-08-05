@@ -1,6 +1,6 @@
 // app/api/holdings/[id]/link-charity/route.ts
 import { NextResponse } from 'next/server';
-import { createServerClient } from '@/lib/supabase';
+import { isAccessDenied, requireHoldingAccess } from '@/lib/api/access';
 import { getOrganization, convertToCharity } from '@/lib/services/propublica';
 
 function json(body: Record<string, unknown>, init?: ResponseInit) {
@@ -20,33 +20,11 @@ function json(body: Record<string, unknown>, init?: ResponseInit) {
  */
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id: holdingId } = await ctx.params;
-  const sb = await createServerClient();
+  const access = await requireHoldingAccess(holdingId, 'member');
+  if (isAccessDenied(access)) return access.response;
+  const sb = access.context.db;
 
   try {
-    const { data: { user } } = await sb.auth.getUser();
-    if (!user) {
-      return json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const { data: holding, error: holdingError } = await sb
-      .from('holdings')
-      .select('portfolio_id')
-      .eq('id', holdingId)
-      .single();
-
-    if (holdingError || !holding) {
-      return json({ error: 'Holding not found' }, { status: 404 });
-    }
-
-    const { data: canEdit, error: canEditErr } = await sb.rpc('can_edit_portfolio', {
-      p_portfolio_id: holding.portfolio_id,
-    });
-    if (canEditErr) return json({ error: canEditErr.message }, { status: 500 });
-
-    if (!canEdit) {
-      return json({ error: 'Forbidden' }, { status: 403 });
-    }
-
     const body = await req.json();
     const { ein, charity_id } = body;
 
@@ -151,33 +129,11 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
  */
 export async function DELETE(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id: holdingId } = await ctx.params;
-  const sb = await createServerClient();
+  const access = await requireHoldingAccess(holdingId, 'member');
+  if (isAccessDenied(access)) return access.response;
+  const sb = access.context.db;
 
   try {
-    const { data: { user } } = await sb.auth.getUser();
-    if (!user) {
-      return json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const { data: holding, error: holdingError } = await sb
-      .from('holdings')
-      .select('portfolio_id')
-      .eq('id', holdingId)
-      .single();
-
-    if (holdingError || !holding) {
-      return json({ error: 'Holding not found' }, { status: 404 });
-    }
-
-    const { data: canEdit, error: canEditErr } = await sb.rpc('can_edit_portfolio', {
-      p_portfolio_id: holding.portfolio_id,
-    });
-    if (canEditErr) return json({ error: canEditErr.message }, { status: 500 });
-
-    if (!canEdit) {
-      return json({ error: 'Forbidden' }, { status: 403 });
-    }
-
     const { error } = await sb
       .from('holdings')
       .update({ charity_id: null })

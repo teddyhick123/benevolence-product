@@ -7,19 +7,11 @@ describe('update-basic auth contract', () => {
     'utf8'
   );
 
-  it('calls auth.getUser()', () => {
-    expect(src).toContain('auth.getUser()');
-  });
-
-  it('verifies portfolio membership before update', () => {
-    expect(src).toMatch(/portfolio_member|portfolio_id.*user|user.*portfolio_id/);
-  });
-
-  it('returns 401 when no user', () => {
-    expect(src).toContain('401');
-  });
-
-  it('returns 403 when not authorized', () => {
-    expect(src).toContain('403');
+  it('uses the shared holding edit boundary and its session database', () => {
+    expect(src).toContain("requireHoldingAccess(holdingId, 'member')");
+    expect(src).toContain('isAccessDenied(access)');
+    expect(src).toContain('access.context.db');
+    expect(src).not.toContain('auth.getUser()');
+    expect(src).not.toContain('createServerClient');
   });
 });

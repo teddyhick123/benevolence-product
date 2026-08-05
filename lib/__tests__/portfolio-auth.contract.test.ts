@@ -3,8 +3,8 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
 
-describe('portfolio-auth helper contract', () => {
-  const src = readFileSync('lib/portfolio-auth.ts', 'utf8');
+describe('typed portfolio access contract', () => {
+  const src = readFileSync('lib/api/access.ts', 'utf8');
 
   it('exports requirePortfolioAccess', () => {
     expect(src).toContain('export async function requirePortfolioAccess');
@@ -15,11 +15,11 @@ describe('portfolio-auth helper contract', () => {
   });
 
   it('returns 401 when no user', () => {
-    expect(src).toContain('status: 401');
+    expect(src).toContain("denied('unauthenticated', 'Unauthorized', 401)");
   });
 
   it('returns 403 when not a member', () => {
-    expect(src).toContain('status: 403');
+    expect(src).toContain("denied('forbidden', 'Access denied', 403)");
   });
 
   it('checks portfolio_members table', () => {
@@ -27,7 +27,7 @@ describe('portfolio-auth helper contract', () => {
   });
 
   it('filters by user_id', () => {
-    expect(src).toContain("eq('user_id', user.id)");
+    expect(src).toContain("eq('user_id', session.user.id)");
   });
 
   it('filters out soft-deleted portfolio memberships', () => {

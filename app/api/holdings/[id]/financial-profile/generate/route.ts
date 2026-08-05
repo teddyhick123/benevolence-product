@@ -1,6 +1,6 @@
 // app/api/holdings/[id]/financial-profile/generate/route.ts
 import { NextResponse } from 'next/server';
-import { createServerClient } from '@/lib/supabase';
+import { isAccessDenied, requireHoldingAccess } from '@/lib/api/access';
 import { getOrganization } from '@/lib/services/propublica';
 import { aiAuthRequired } from '@/lib/rate-limit-response';
 import { AI_MODELS } from '@/lib/ai/models';
@@ -16,32 +16,13 @@ const NO_STORE = { 'Cache-Control': 'no-store' } as const;
  */
 export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id: holdingId } = await ctx.params;
-  const sb = await createServerClient();
+  const access = await requireHoldingAccess(holdingId);
+  if (isAccessDenied(access)) {
+    return access.reason === 'unauthenticated' ? aiAuthRequired() : access.response;
+  }
+  const sb = access.context.db;
 
   try {
-    const { data: { user } } = await sb.auth.getUser();
-    if (!user) {
-      return aiAuthRequired();
-    }
-
-    const { data: holding, error: holdingError } = await sb
-      .from('holdings')
-      .select('portfolio_id')
-      .eq('id', holdingId)
-      .single();
-
-    if (holdingError || !holding) {
-      return NextResponse.json({ error: 'Holding not found' }, { status: 404, headers: NO_STORE });
-    }
-
-    const { data: canView, error: canViewErr } = await sb.rpc('can_view_portfolio', {
-      p_portfolio_id: holding.portfolio_id,
-    });
-
-    if (canViewErr || !canView) {
-      return NextResponse.json({ error: 'not authorized' }, { status: 403, headers: NO_STORE });
-    }
-
     const { data: cached, error } = await sb
       .from('generated_financial_analyses')
       .select('*')
@@ -81,33 +62,14 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   const { id: holdingId } = await ctx.params;
   const { searchParams } = new URL(req.url);
   const forceRegenerate = searchParams.get('force') === 'true';
-  const sb = await createServerClient();
+  const access = await requireHoldingAccess(holdingId, 'member');
+  if (isAccessDenied(access)) {
+    return access.reason === 'unauthenticated' ? aiAuthRequired() : access.response;
+  }
+  const sb = access.context.db;
 
   try {
-    const { data: { user } } = await sb.auth.getUser();
-    if (!user) {
-      return aiAuthRequired();
-    }
-
-    const { data: holdingAccess, error: holdingAccessError } = await sb
-      .from('holdings')
-      .select('portfolio_id')
-      .eq('id', holdingId)
-      .single();
-
-    if (holdingAccessError || !holdingAccess) {
-      return NextResponse.json({ error: 'Holding not found' }, { status: 404, headers: NO_STORE });
-    }
-
-    const { data: canEdit, error: canEditErr } = await sb.rpc('can_edit_portfolio', {
-      p_portfolio_id: holdingAccess.portfolio_id,
-    });
-
-    if (canEditErr || !canEdit) {
-      return NextResponse.json({ error: 'not authorized' }, { status: 403, headers: NO_STORE });
-    }
-
-    const { success, reset, remaining, limit } = await aiLimiter.limit(user.id);
+    const { success, reset, remaining, limit } = await aiLimiter.limit(access.context.user.id);
     if (!success) return rateLimitExceeded(reset, remaining, limit);
 
     // Check for cached analysis (unless force)
@@ -219,7 +181,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
         analysis_content: analysisContent,
         financial_snapshot: financialSnapshot,
         generated_at: generatedAt,
-        generated_by: user.id,
+        generated_by: access.context.user.id,
         version: newVersion,
       });
 

@@ -80,8 +80,9 @@ describe('admin route auth contracts', () => {
       'app/api/admin/portfolios/[id]/kpis/route.ts',
     ]) {
       const src = readFileSync(route, 'utf8');
-      expect(src, route).toContain("import { requireAdmin } from '@/lib/admin-auth'");
-      expect(src, route).toContain('await requireAdmin()');
+      expect(src, route).toContain('requireAppAdmin');
+      expect(src, route).toContain('access.context.db');
+      expect(src, route).not.toContain("@/lib/admin-auth");
       expect(src, route).toContain("'Cache-Control': 'no-store'");
     }
   });

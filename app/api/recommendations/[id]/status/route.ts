@@ -1,6 +1,6 @@
 // app/api/recommendations/[id]/status/route.ts
 import { NextResponse } from 'next/server';
-import { createSupabaseServerClient } from '@/lib/supabase';
+import { isAccessDenied, requireRecommendationAccess } from '@/lib/api/access';
 import { z } from 'zod';
 
 function cacheHeaders() {
@@ -25,18 +25,11 @@ const updateStatusSchema = z.object({
 // GET /api/recommendations/[id]/status - Get status history
 export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
-  const supabase = await createSupabaseServerClient();
+  const access = await requireRecommendationAccess(id);
+  if (isAccessDenied(access)) return access.response;
+  const supabase = access.context.db;
 
   try {
-    // Get current user
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401, headers: cacheHeaders() }
-      );
-    }
-
     // Fetch status history with user information
     const { data, error } = await supabase
       .from('recommendation_status_history')
@@ -64,18 +57,11 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
 // PUT /api/recommendations/[id]/status - Update recommendation status
 export async function PUT(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
-  const supabase = await createSupabaseServerClient();
+  const access = await requireRecommendationAccess(id, 'member');
+  if (isAccessDenied(access)) return access.response;
+  const supabase = access.context.db;
 
   try {
-    // Get current user
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401, headers: cacheHeaders() }
-      );
-    }
-
     // Parse and validate request body
     let body;
     try {

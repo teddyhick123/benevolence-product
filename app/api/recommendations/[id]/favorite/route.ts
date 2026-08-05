@@ -1,6 +1,6 @@
 // app/api/recommendations/[id]/favorite/route.ts
 import { NextResponse } from 'next/server';
-import { createSupabaseServerClient } from '@/lib/supabase';
+import { isAccessDenied, requireRecommendationAccess } from '@/lib/api/access';
 
 function cacheHeaders() {
   return { 'Cache-Control': 'no-store' } as const;
@@ -9,19 +9,12 @@ function cacheHeaders() {
 // POST /api/recommendations/[id]/favorite - Add to favorites
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
-  const supabase = await createSupabaseServerClient();
+  const access = await requireRecommendationAccess(id);
+  if (isAccessDenied(access)) return access.response;
+  const supabase = access.context.db;
 
   try {
-    // Get current user
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401, headers: cacheHeaders() }
-      );
-    }
-
-    // Verify the recommendation exists and user has access to it
+    // Verify the recommendation is active before favoriting it.
     const { data: rec, error: recError } = await supabase
       .from('portfolio_recommendations')
       .select('id, portfolio_id')
@@ -36,26 +29,11 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
       );
     }
 
-    // Verify user is a member of the portfolio
-    const { data: member } = await supabase
-      .from('portfolio_members')
-      .select('user_id')
-      .eq('portfolio_id', rec.portfolio_id)
-      .eq('user_id', user.id)
-      .single();
-
-    if (!member) {
-      return NextResponse.json(
-        { error: 'Access denied' },
-        { status: 403, headers: cacheHeaders() }
-      );
-    }
-
     // Add to favorites (upsert to handle duplicate attempts gracefully)
     const { data, error } = await supabase
       .from('recommendation_favorites')
       .upsert({
-        user_id: user.id,
+        user_id: access.context.user.id,
         recommendation_id: id,
       })
       .select()
@@ -83,23 +61,16 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
 // DELETE /api/recommendations/[id]/favorite - Remove from favorites
 export async function DELETE(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
-  const supabase = await createSupabaseServerClient();
+  const access = await requireRecommendationAccess(id);
+  if (isAccessDenied(access)) return access.response;
+  const supabase = access.context.db;
 
   try {
-    // Get current user
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401, headers: cacheHeaders() }
-      );
-    }
-
     // Remove from favorites
     const { error } = await supabase
       .from('recommendation_favorites')
       .delete()
-      .eq('user_id', user.id)
+      .eq('user_id', access.context.user.id)
       .eq('recommendation_id', id);
 
     if (error) throw error;

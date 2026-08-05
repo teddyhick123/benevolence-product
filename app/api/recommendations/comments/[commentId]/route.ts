@@ -1,6 +1,6 @@
 // app/api/recommendations/comments/[commentId]/route.ts
 import { NextResponse } from 'next/server';
-import { createSupabaseServerClient } from '@/lib/supabase';
+import { isAccessDenied, requireUserAccess } from '@/lib/api/access';
 import { z } from 'zod';
 
 function cacheHeaders() {
@@ -14,18 +14,11 @@ const updateCommentSchema = z.object({
 // PUT /api/recommendations/comments/[commentId] - Update a comment
 export async function PUT(req: Request, ctx: { params: Promise<{ commentId: string }> }) {
   const { commentId } = await ctx.params;
-  const supabase = await createSupabaseServerClient();
+  const access = await requireUserAccess();
+  if (isAccessDenied(access)) return access.response;
+  const supabase = access.context.db;
 
   try {
-    // Get current user
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401, headers: cacheHeaders() }
-      );
-    }
-
     // Parse and validate request body
     let body;
     try {
@@ -56,7 +49,7 @@ export async function PUT(req: Request, ctx: { params: Promise<{ commentId: stri
         updated_at: new Date().toISOString(),
       })
       .eq('id', commentId)
-      .eq('user_id', user.id)
+      .eq('user_id', access.context.user.id)
       .is('deleted_at', null)
       .select(`
         *,
@@ -89,18 +82,11 @@ export async function PUT(req: Request, ctx: { params: Promise<{ commentId: stri
 // DELETE /api/recommendations/comments/[commentId] - Soft delete a comment
 export async function DELETE(req: Request, ctx: { params: Promise<{ commentId: string }> }) {
   const { commentId } = await ctx.params;
-  const supabase = await createSupabaseServerClient();
+  const access = await requireUserAccess();
+  if (isAccessDenied(access)) return access.response;
+  const supabase = access.context.db;
 
   try {
-    // Get current user
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401, headers: cacheHeaders() }
-      );
-    }
-
     // Soft delete comment (RLS ensures user owns it)
     const { data, error } = await supabase
       .from('recommendation_comments')
@@ -108,7 +94,7 @@ export async function DELETE(req: Request, ctx: { params: Promise<{ commentId: s
         deleted_at: new Date().toISOString(),
       })
       .eq('id', commentId)
-      .eq('user_id', user.id)
+      .eq('user_id', access.context.user.id)
       .is('deleted_at', null)
       .select()
       .single();

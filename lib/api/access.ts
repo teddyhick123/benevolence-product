@@ -5,11 +5,14 @@ import { jsonError } from '@/lib/api/responses';
 import type {
   AppAdminAccessContext,
   CpaShareAccessContext,
+  HoldingAccessContext,
   InvitationAccessContext,
   JobAccessContext,
   OrgAccessContext,
   PortfolioAccessContext,
   PortfolioManagerAccessContext,
+  RecommendationAccessContext,
+  RecommendationManagerAccessContext,
   UserAccessContext,
 } from '@/lib/api/principals';
 import {
@@ -135,6 +138,113 @@ export async function requirePortfolioAccess(
   if (!session.ok) return session;
 
   return requirePortfolioAccessForUser(session.context, portfolioId, minRole);
+}
+
+/** Resolve a holding to its portfolio, then enforce active portfolio and org membership. */
+export async function requireHoldingAccess(
+  holdingId: string,
+  minRole: OrgRole = 'viewer'
+): Promise<AccessResult<HoldingAccessContext>> {
+  const session = await authenticatedSession();
+  if (!session.ok) return session;
+
+  const { data: holding, error } = await session.context.db
+    .from('holdings')
+    .select('portfolio_id')
+    .eq('id', holdingId)
+    .is('deleted_at', null)
+    .maybeSingle();
+
+  if (error) return denied('infrastructure', error.message, 500);
+  if (!holding) return denied('not_found', 'Holding not found', 404);
+
+  const portfolioAccess = await requirePortfolioAccessForUser(
+    session.context,
+    holding.portfolio_id,
+    minRole
+  );
+  if (!portfolioAccess.ok) return portfolioAccess;
+
+  return {
+    ok: true,
+    context: { ...portfolioAccess.context, holdingId },
+  };
+}
+
+async function recommendationPortfolioId(
+  session: UserAccessContext,
+  recommendationId: string
+): Promise<AccessResult<{ portfolioId: string }>> {
+  const { data: recommendation, error } = await session.db
+    .from('portfolio_recommendations')
+    .select('portfolio_id')
+    .eq('id', recommendationId)
+    .maybeSingle();
+
+  if (error) return denied('infrastructure', error.message, 500);
+  if (!recommendation) return denied('not_found', 'Recommendation not found', 404);
+  return { ok: true, context: { portfolioId: recommendation.portfolio_id } };
+}
+
+/** Resolve a recommendation to its portfolio and enforce active membership. */
+export async function requireRecommendationAccess(
+  recommendationId: string,
+  minRole: OrgRole = 'viewer'
+): Promise<AccessResult<RecommendationAccessContext>> {
+  const session = await authenticatedSession();
+  if (!session.ok) return session;
+
+  const recommendation = await recommendationPortfolioId(session.context, recommendationId);
+  if (!recommendation.ok) return recommendation;
+
+  const portfolioAccess = await requirePortfolioAccessForUser(
+    session.context,
+    recommendation.context.portfolioId,
+    minRole
+  );
+  if (!portfolioAccess.ok) return portfolioAccess;
+
+  return {
+    ok: true,
+    context: { ...portfolioAccess.context, recommendationId },
+  };
+}
+
+/** Allow an app admin or the owner of the recommendation's portfolio. */
+export async function requireRecommendationManagerOrAppAdmin(
+  recommendationId: string
+): Promise<AccessResult<RecommendationManagerAccessContext>> {
+  const session = await authenticatedSession();
+  if (!session.ok) return session;
+
+  const recommendation = await recommendationPortfolioId(session.context, recommendationId);
+  if (!recommendation.ok) return recommendation;
+
+  const { data: isAppAdmin, error } = await session.context.db.rpc('is_app_admin');
+  if (error) return denied('infrastructure', error.message, 500);
+  if (isAppAdmin) {
+    return {
+      ok: true,
+      context: {
+        ...session.context,
+        recommendationId,
+        portfolioId: recommendation.context.portfolioId,
+        isAppAdmin: true,
+      },
+    };
+  }
+
+  const portfolioAccess = await requirePortfolioAccessForUser(
+    session.context,
+    recommendation.context.portfolioId,
+    'owner'
+  );
+  if (!portfolioAccess.ok) return portfolioAccess;
+
+  return {
+    ok: true,
+    context: { ...portfolioAccess.context, recommendationId, isAppAdmin: false },
+  };
 }
 
 /** Allow an app admin or an admin/owner of one specific portfolio. */

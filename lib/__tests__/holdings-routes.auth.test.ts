@@ -22,10 +22,11 @@ describe('holding route auth contracts', () => {
   });
 
   it('holding page resolves stored contact photo paths to signed URLs for display', () => {
-    const src = readFileSync('app/dashboard/holdings/[holdingId]/page.tsx', 'utf8');
-    expect(src).toContain('resolveHoldingPhotoUrl');
-    expect(src).toContain("storage\n    .from('holdings')");
-    expect(src).toContain('createSignedUrl(photo, 3600)');
+    const page = readFileSync('components/holdings/detail/HoldingDetailPage.tsx', 'utf8');
+    const queries = readFileSync('lib/holdings/detail/queries.ts', 'utf8');
+    expect(page).toContain('resolveHoldingPhotoUrl');
+    expect(queries).toContain("storage.from('holdings')");
+    expect(queries).toContain('createSignedUrl(photo, 3600)');
   });
 
   it('holding charity search requires edit access before external lookup', () => {

@@ -29,7 +29,7 @@ describe('Phase 5 view config contract', () => {
 
   it('wires runtime view config surfaces', () => {
     const dashboard = readFileSync('app/dashboard/page.tsx', 'utf8');
-    const grantsPage = readFileSync('app/dashboard/grants/page.tsx', 'utf8');
+    const grantsPage = readFileSync('components/grants/list/GrantsPage.tsx', 'utf8');
     const grantTable = readFileSync('components/grants/GrantTableView.tsx', 'utf8');
     const api = readFileSync('app/api/org/[orgId]/view-config/route.ts', 'utf8');
 

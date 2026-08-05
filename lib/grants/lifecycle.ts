@@ -11,6 +11,7 @@ import {
   type LifecycleStage,
 } from './lifecycle-shared';
 import { createGrantRepository } from '@/lib/api/repositories/grants';
+import type { GrantLifecycleTransitionInput } from '@/lib/api/repositories/grants';
 
 export {
   ALLOWED_TRANSITIONS,
@@ -132,4 +133,19 @@ export async function transitionGrant(
   } catch (automationErr) {
     console.error('Grant transition automation failed:', automationErr);
   }
+}
+
+/**
+ * Commits an all-or-nothing set of already-preflighted lifecycle transitions.
+ * The repository owns the org-scoped atomic RPC; this service remains the only
+ * application boundary allowed to invoke lifecycle writes.
+ */
+export async function transitionGrantBatch(
+  transitions: GrantLifecycleTransitionInput[],
+  actorId: string,
+  expectedOrgId: string,
+) {
+  if (!expectedOrgId) throw new GrantNotFoundError('batch');
+  const repository = createGrantRepository({ orgId: expectedOrgId, actorId });
+  return repository.transitionLifecycleBatch(transitions);
 }

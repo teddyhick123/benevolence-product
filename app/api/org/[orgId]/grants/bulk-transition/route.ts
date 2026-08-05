@@ -7,6 +7,7 @@ import {
   canTransition,
   requiresDecision,
   transitionGrant,
+  transitionGrantBatch,
 } from '@/lib/grants/lifecycle';
 import { requireOrgAccess } from '@/lib/api/access';
 import { jsonOk } from '@/lib/api/responses';
@@ -202,14 +203,16 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
 
     if (rollbackOnError) {
       const { data: batchResult, error: batchError } =
-        await repository.transitionLifecycleBatch(
+        await transitionGrantBatch(
           executableTransitions.map(({ item, decisionPayload }) => ({
             grantId: item.grantId,
             expectedFromStage: item.expectedFromStage as LifecycleStage,
             targetStage: item.targetStage as LifecycleStage,
             reason: item.reason,
             decisionPayload,
-          }))
+          })),
+          user.id,
+          orgId,
         );
 
       if (batchError) {

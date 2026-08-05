@@ -54,9 +54,9 @@ describe('Phase 2 runtime surface contract', () => {
   });
 
   it('renders custom fields on grant, holding, and donor detail pages', () => {
-    expect(readFileSync('app/dashboard/grants/[grantId]/page.tsx', 'utf8')).toMatch(/CustomFieldsPanel/);
-    expect(readFileSync('app/dashboard/holdings/[holdingId]/page.tsx', 'utf8')).toMatch(/entityType="holding"/);
-    expect(readFileSync('app/dashboard/donors/[donorId]/page.tsx', 'utf8')).toMatch(/entityType="donor"/);
+    expect(readFileSync('components/grants/detail/GrantDetailPage.tsx', 'utf8')).toMatch(/CustomFieldsPanel/);
+    expect(readFileSync('components/holdings/detail/HoldingDetailPage.tsx', 'utf8')).toMatch(/entityType="holding"/);
+    expect(readFileSync('components/donors/screens/DashboardDonorDetailPage.tsx', 'utf8')).toMatch(/entityType="donor"/);
   });
 
   it('shows custom fields as sortable and filterable grant table columns', () => {

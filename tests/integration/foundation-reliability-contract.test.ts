@@ -299,7 +299,7 @@ describe('foundation reliability contracts', () => {
   it('bulk grant transitions document partial mode and support safe preview/all-or-none modes', () => {
     const route = src('app/api/org/[orgId]/grants/bulk-transition/route.ts');
     const repository = src('lib/api/repositories/grants.ts');
-    const page = src('app/dashboard/grants/page.tsx');
+    const page = src('components/grants/list/GrantsPage.tsx');
     const decisionQueue = src('components/grants/BulkDecisionQueue.tsx');
     const migration = src('db/migrations/0047_grant_lifecycle_transition_rpc.sql');
 
@@ -307,7 +307,9 @@ describe('foundation reliability contracts', () => {
     expect(route).toContain('rollback_on_error');
     expect(route).toContain("mode: 'partial'");
     expect(route).toContain('not rolled back in partial mode');
-    expect(route).toContain('transitionLifecycleBatch');
+    expect(route).toContain('transitionGrantBatch');
+    expect(route).not.toContain('repository.transitionLifecycleBatch');
+    expect(src('lib/grants/lifecycle.ts')).toContain('repository.transitionLifecycleBatch');
     expect(repository).toContain("rpc('transition_grant_lifecycle_batch'");
     expect(migration).toContain('CREATE OR REPLACE FUNCTION public.transition_grant_lifecycle_batch');
     expect(migration).toContain('PERFORM public.transition_grant_lifecycle');

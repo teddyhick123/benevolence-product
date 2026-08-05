@@ -450,3 +450,29 @@ escape.
 **Suggested follow-up (not scheduled):** Define and product-review a canonical
 organization-type-to-module recommendation matrix, then update the prompt,
 defaults, exclusions, and onboarding regression tests together.
+
+### 2026-08-05 — Phase 4, holdings pilot — detail fields are absent from the canonical schema
+
+**What happened:** The holdings detail read and its existing edit/photo actions
+use `primary_contact_name`, `primary_contact_email`, `primary_contact_phone`,
+`primary_contact_photo`, `primary_contact_notes`, and `theory_of_action` on
+`holdings`. None of those columns exists in the canonical `db/migrations`
+definition. A clean walkthrough database therefore rejects the detail query at
+the first missing column, and contact/photo/theory mutations would also fail.
+
+**Expected vs. actual:** The detail route is expected to render the seeded
+holding and allow its contact and narrative fields to be edited. On the clean
+schema it renders the established diagnostic panel with “column
+holdings.primary_contact_name does not exist.” The grants list/detail journey
+is unaffected.
+
+**Why left alone:** The Phase 4 extraction preserved the existing select list,
+forms, RLS-backed writes, and error panel exactly. Adding new canonical columns
+or removing those product surfaces is a data-model and behavior decision, not a
+thin-page boundary change. The prerelease schema can be aligned cleanly once
+the intended ownership of contact and theory-of-action data is confirmed.
+
+**Suggested follow-up (not scheduled):** Add the actively used fields to the
+canonical `holdings` definition (with a clean-reset regression contract), or
+move contact data to a first-class scoped table and update every read, write,
+photo upload, and AI/report consumer together.

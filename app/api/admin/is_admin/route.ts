@@ -1,13 +1,13 @@
 // app/api/admin/is_admin/route.ts
 import { NextResponse } from 'next/server';
-import { createSupabaseServerClient } from '@/lib/supabase';
+import { isAccessDenied, requireUserAccess } from '@/lib/api/access';
 
 export async function GET() {
-  const supabase = await createSupabaseServerClient();
+  const access = await requireUserAccess();
+  if (isAccessDenied(access)) {
+    return NextResponse.json({ is_admin: false }, { headers: { 'Cache-Control': 'no-store' } });
+  }
 
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ is_admin: false }, { headers: { 'Cache-Control': 'no-store' } });
-
-  const { data: isAdmin } = await supabase.rpc('is_app_admin');
+  const { data: isAdmin } = await access.context.db.rpc('is_app_admin');
   return NextResponse.json({ is_admin: !!isAdmin }, { headers: { 'Cache-Control': 'no-store' } });
 }

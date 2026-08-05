@@ -1,8 +1,7 @@
 // app/api/admin/kpis/[kpiId]/route.ts
 import { NextResponse } from 'next/server';
-import { createServerClient } from '@/lib/supabase';
-import { requireAdmin } from '@/lib/admin-auth';
 import { adminUpdateKpiSchema } from '@/lib/schemas/admin';
+import { isAccessDenied, requireAppAdmin } from '@/lib/api/access';
 
 function toNumber(value: any): number | null {
   if (value === null || value === undefined || value === '') return null;
@@ -46,11 +45,10 @@ export async function PUT(req: Request, ctx: { params: Promise<{ kpiId: string }
     );
   }
 
-  const userId = await requireAdmin();
-  if (!userId) return NextResponse.json({ error: 'not authorized' }, { status: 403 });
-  const supabase = await createServerClient();
+  const access = await requireAppAdmin();
+  if (isAccessDenied(access)) return access.response;
 
-  const { error } = await supabase.from('kpi_definitions').update(validation.data).eq('id', kpiId);
+  const { error } = await access.context.db.from('kpi_definitions').update(validation.data).eq('id', kpiId);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   const referer = (typeof (parsed as any)?.get === 'function') ? ((parsed as FormData).get('__referer') as string | null) : null;
@@ -60,11 +58,10 @@ export async function PUT(req: Request, ctx: { params: Promise<{ kpiId: string }
 
 export async function DELETE(_req: Request, ctx: { params: Promise<{ kpiId: string }> }) {
   const { kpiId } = await ctx.params;
-  const userId = await requireAdmin();
-  if (!userId) return NextResponse.json({ error: 'not authorized' }, { status: 403 });
-  const supabase = await createServerClient();
+  const access = await requireAppAdmin();
+  if (isAccessDenied(access)) return access.response;
 
-  const { error } = await supabase.from('kpi_definitions').delete().eq('id', kpiId);
+  const { error } = await access.context.db.from('kpi_definitions').delete().eq('id', kpiId);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ ok: true });
 }

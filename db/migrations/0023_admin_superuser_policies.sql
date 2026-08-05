@@ -84,14 +84,25 @@ CREATE POLICY "profiles: app admin can view all"
   ON profiles FOR SELECT
   USING (is_app_admin());
 
--- portfolios: app admins can view all
-CREATE POLICY "portfolios: app admin can view all"
-  ON portfolios FOR SELECT
-  USING (is_app_admin());
+-- portfolios and their settings: app admins manage the global admin console
+CREATE POLICY "portfolios: app admin full access"
+  ON portfolios FOR ALL
+  USING (is_app_admin())
+  WITH CHECK (is_app_admin());
+
+CREATE POLICY "portfolio_settings: app admin full access"
+  ON portfolio_settings FOR ALL
+  USING (is_app_admin())
+  WITH CHECK (is_app_admin());
 
 -- App admins manage portfolio membership from the global admin console.
 CREATE POLICY "portfolio_members: app admin full access"
   ON portfolio_members FOR ALL
+  USING (is_app_admin())
+  WITH CHECK (is_app_admin());
+
+CREATE POLICY "kpi_definitions: app admin full access"
+  ON kpi_definitions FOR ALL
   USING (is_app_admin())
   WITH CHECK (is_app_admin());
 

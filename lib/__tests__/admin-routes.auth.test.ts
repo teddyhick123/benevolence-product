@@ -3,6 +3,45 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'fs';
 
 describe('admin route auth contracts', () => {
+  it('remaining admin console routes use typed access contexts and no route client factories', () => {
+    const appAdminRoutes = [
+      'app/api/admin/demo/load/route.ts',
+      'app/api/admin/kpis/[kpiId]/route.ts',
+      'app/api/admin/portfolios/[id]/settings/route.ts',
+      'app/api/admin/portfolios/route.ts',
+    ];
+    for (const route of appAdminRoutes) {
+      const source = readFileSync(route, 'utf8');
+      expect(source, route).toContain('requireAppAdmin');
+      expect(source, route).not.toContain('createServerClient');
+      expect(source, route).not.toContain('createSupabaseServerClient');
+    }
+
+    const memberRoute = readFileSync(
+      'app/api/admin/portfolios/[id]/members/[userId]/route.ts',
+      'utf8'
+    );
+    expect(memberRoute).toContain('requirePortfolioManagerOrAppAdmin');
+    expect(memberRoute).not.toContain('createSupabaseServerClient');
+
+    const adminStatus = readFileSync('app/api/admin/is_admin/route.ts', 'utf8');
+    expect(adminStatus).toContain('requireUserAccess');
+    expect(adminStatus).not.toContain('createSupabaseServerClient');
+  });
+
+  it('admin portfolio creation uses canonical organization and settings columns', () => {
+    const route = readFileSync('app/api/admin/portfolios/route.ts', 'utf8');
+    const migration = readFileSync('db/migrations/0023_admin_superuser_policies.sql', 'utf8');
+
+    expect(route).toContain('org_id: ownerMembership.org_id');
+    expect(route).toContain('owner_id: owner_user_id');
+    expect(route).toContain('settings: { base_currency }');
+    expect(route).not.toContain("select('user_id')");
+    expect(migration).toContain('portfolios: app admin full access');
+    expect(migration).toContain('portfolio_settings: app admin full access');
+    expect(migration).toContain('kpi_definitions: app admin full access');
+  });
+
   it('first-admin bootstrap uses the authenticated session and atomic canonical RPC', () => {
     const route = readFileSync('app/api/admin/bootstrap/route.ts', 'utf8');
     const migration = readFileSync('db/migrations/0023_admin_superuser_policies.sql', 'utf8');

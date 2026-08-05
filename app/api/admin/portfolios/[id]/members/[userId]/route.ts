@@ -1,7 +1,7 @@
 // app/api/admin/portfolios/[id]/members/[userId]/route.ts
 import { NextResponse } from 'next/server';
-import { createSupabaseServerClient } from '@/lib/supabase';
 import { updateMemberRoleSchema } from '@/lib/schemas/admin';
+import { isAccessDenied, requirePortfolioManagerOrAppAdmin } from '@/lib/api/access';
 
 export async function POST(req: Request, ctx: { params: Promise<{ id: string; userId: string }> }) {
   // Support form method override (_method=DELETE) for simple forms
@@ -18,19 +18,9 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string; us
 export async function DELETE(_req: Request, ctx: { params: Promise<{ id: string; userId: string }> }) {
   const { id: portfolioId, userId } = await ctx.params;
 
-  const supabase = await createSupabaseServerClient();
-
-  const { data: isAdmin, error: adminErr } = await supabase.rpc('is_app_admin');
-  if (adminErr) return NextResponse.json({ error: adminErr.message }, { status: 500 });
-
-  let callerRole: 'viewer'|'member'|'owner'|'admin' = 'viewer';
-  if (isAdmin) {
-    callerRole = 'admin';
-  } else {
-    const { data: roleRow, error: roleErr } = await supabase.rpc('role_for_portfolio', { p_portfolio_id: portfolioId });
-    if (roleErr) return NextResponse.json({ error: roleErr.message }, { status: 500 });
-    callerRole = (roleRow as any) ?? 'viewer';
-  }
+  const access = await requirePortfolioManagerOrAppAdmin(portfolioId);
+  if (isAccessDenied(access)) return access.response;
+  const supabase = access.context.db;
 
   // Prevent removing the last owner
   const { data: targetMember, error: targetErr } = await supabase
@@ -42,12 +32,9 @@ export async function DELETE(_req: Request, ctx: { params: Promise<{ id: string;
   if (targetErr) return NextResponse.json({ error: targetErr.message }, { status: 500 });
 
   // Owners can only remove non-owners
-  if (callerRole !== 'admin') {
-    if (callerRole !== 'owner') {
-      return NextResponse.json({ error: 'not authorized' }, { status: 403 });
-    }
+  if (!access.context.isAppAdmin && access.context.role !== 'owner') {
     if (targetMember?.role === 'owner') {
-      return NextResponse.json({ error: 'owners cannot remove other owners' }, { status: 403 });
+      return NextResponse.json({ error: 'Only owners can remove owners' }, { status: 403 });
     }
   }
 
@@ -95,27 +82,14 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string; u
 
   const { role } = validation.data;
 
-  const supabase = await createSupabaseServerClient();
-
-  const { data: isAdmin, error: adminErr } = await supabase.rpc('is_app_admin');
-  if (adminErr) return NextResponse.json({ error: adminErr.message }, { status: 500 });
-
-  let callerRole: 'viewer'|'member'|'owner'|'admin' = 'viewer';
-  if (isAdmin) {
-    callerRole = 'admin';
-  } else {
-    const { data: roleRow, error: roleErr } = await supabase.rpc('role_for_portfolio', { p_portfolio_id: portfolioId });
-    if (roleErr) return NextResponse.json({ error: roleErr.message }, { status: 500 });
-    callerRole = (roleRow as any) ?? 'viewer';
-  }
+  const access = await requirePortfolioManagerOrAppAdmin(portfolioId);
+  if (isAccessDenied(access)) return access.response;
+  const supabase = access.context.db;
 
   // Owners can only set non-owner operational roles. App admins can set any role.
-  if (callerRole !== 'admin') {
-    if (callerRole !== 'owner') {
-      return NextResponse.json({ error: 'not authorized' }, { status: 403 });
-    }
+  if (!access.context.isAppAdmin && access.context.role !== 'owner') {
     if (role === 'owner') {
-      return NextResponse.json({ error: 'owners cannot assign owner role' }, { status: 403 });
+      return NextResponse.json({ error: 'Only owners can assign owner role' }, { status: 403 });
     }
   }
 
@@ -128,8 +102,8 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string; u
   if (currErr) return NextResponse.json({ error: currErr.message }, { status: 500 });
 
   // Non-admin owners cannot change roles of owners
-  if (callerRole === 'owner' && currentMember?.role === 'owner') {
-    return NextResponse.json({ error: 'owners cannot change roles of other owners' }, { status: 403 });
+  if (!access.context.isAppAdmin && access.context.role !== 'owner' && currentMember?.role === 'owner') {
+    return NextResponse.json({ error: 'Only owners can change owner roles' }, { status: 403 });
   }
 
   // Prevent demoting the last owner

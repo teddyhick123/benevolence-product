@@ -4,24 +4,14 @@
 // executes the SQL via Supabase.
 
 import { NextResponse } from 'next/server';
-import { createSupabaseServerClient } from '@/lib/supabase';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { isAccessDenied, requireAppAdmin } from '@/lib/api/access';
 
 export async function POST() {
-  const supabase = await createSupabaseServerClient();
-
-  // Auth guard
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
-  // Admin guard
-  const { data: isAdmin } = await supabase.rpc('is_app_admin');
-  if (!isAdmin) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-  }
+  const access = await requireAppAdmin();
+  if (isAccessDenied(access)) return access.response;
+  const supabase = access.context.db;
 
   // Resolve portfolio for this user — pick first or create one
   const { data: portfolios } = await supabase

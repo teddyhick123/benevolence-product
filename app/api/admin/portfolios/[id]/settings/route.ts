@@ -2,8 +2,8 @@
 
 // app/api/admin/portfolios/[id]/settings/route.ts
 import { NextResponse } from 'next/server';
-import { createSupabaseServerClient } from '@/lib/supabase';
 import { portfolioSettingsSchema } from '@/lib/schemas/admin';
+import { isAccessDenied, requireAppAdmin } from '@/lib/api/access';
 
 /** Admin-only: upsert settings { show_map?: boolean, widgets?: string[] } */
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
@@ -37,13 +37,9 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
 
   const { name, show_map, widgets } = validation.data;
 
-  const supabase = await createSupabaseServerClient();
-
-  // Admin check
-  const { data: isAdmin, error: adminErr } = await supabase.rpc('is_app_admin');
-  if (adminErr || !isAdmin) {
-    return NextResponse.json({ error: 'not authorized' }, { status: 403, headers: { 'Cache-Control': 'no-store' } });
-  }
+  const access = await requireAppAdmin();
+  if (isAccessDenied(access)) return access.response;
+  const supabase = access.context.db;
 
   // Update portfolio name if provided
   if (name !== undefined) {

@@ -1,7 +1,7 @@
 // app/api/admin/portfolios/route.ts
 import { NextResponse } from 'next/server';
-import { createSupabaseServerClient } from '@/lib/supabase';
 import { createAdminPortfolioSchema } from '@/lib/schemas/admin';
+import { isAccessDenied, requireAppAdmin } from '@/lib/api/access';
 
 export async function POST(req: Request) {
   // Parse and validate request body
@@ -26,35 +26,55 @@ export async function POST(req: Request) {
   const { name, base_currency, owner_user_id: initialOwnerId, owner_email } = validation.data;
   let owner_user_id = initialOwnerId;
 
-  const supabase = await createSupabaseServerClient();
-
-  // Must be admin
-  const { data: isAdmin, error: adminErr } = await supabase.rpc('is_app_admin');
-  if (adminErr || !isAdmin) {
-    return NextResponse.json({ error: 'not authorized' }, { status: 403 });
-  }
+  const access = await requireAppAdmin();
+  if (isAccessDenied(access)) return access.response;
+  const supabase = access.context.db;
 
   // If owner_email is provided (and no owner_user_id), look up the user via profiles table
   if (!owner_user_id && owner_email) {
     try {
       const { data: profile } = await supabase
         .from('profiles')
-        .select('user_id')
+        .select('id')
         .eq('email', owner_email)
         .maybeSingle();
 
-      if (profile?.user_id) {
-        owner_user_id = profile.user_id;
+      if (profile?.id) {
+        owner_user_id = profile.id;
       }
     } catch (e) {
       // Owner email lookup failed, will proceed without owner assignment
     }
   }
 
-  // Create the portfolio
+  owner_user_id ??= access.context.user.id;
+  const { data: ownerMembership, error: membershipError } = await supabase
+    .from('organization_members')
+    .select('org_id')
+    .eq('user_id', owner_user_id)
+    .is('deleted_at', null)
+    .not('accepted_at', 'is', null)
+    .limit(1)
+    .maybeSingle();
+  if (membershipError) {
+    return NextResponse.json({ error: membershipError.message }, { status: 500 });
+  }
+  if (!ownerMembership) {
+    return NextResponse.json(
+      { error: 'Portfolio owner must be an accepted organization member' },
+      { status: 400 }
+    );
+  }
+
+  // Create the canonical organization-scoped portfolio.
   const { data: inserted, error: insErr } = await supabase
     .from('portfolios')
-    .insert({ name, base_currency })
+    .insert({
+      name,
+      org_id: ownerMembership.org_id,
+      owner_id: owner_user_id,
+      settings: { base_currency },
+    })
     .select('id')
     .single();
 
@@ -83,16 +103,20 @@ export async function POST(req: Request) {
 
 // (Optional) GET: list portfolios with member count (admin only)
 export async function GET() {
-  const supabase = await createSupabaseServerClient();
+  const access = await requireAppAdmin();
+  if (isAccessDenied(access)) return access.response;
 
-  const { data: isAdmin, error: adminErr } = await supabase.rpc('is_app_admin');
-  if (adminErr || !isAdmin) return NextResponse.json({ error: 'not authorized' }, { status: 403 });
-
-  const { data, error } = await supabase
+  const { data, error } = await access.context.db
     .from('portfolios')
-    .select('id, name, base_currency')
+    .select('id, name, settings')
     .order('name', { ascending: true });
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ data: data ?? [] });
+  return NextResponse.json({
+    data: (data ?? []).map(portfolio => ({
+      id: portfolio.id,
+      name: portfolio.name,
+      base_currency: portfolio.settings?.base_currency ?? 'USD',
+    })),
+  });
 }

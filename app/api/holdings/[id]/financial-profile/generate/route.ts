@@ -7,6 +7,7 @@ import { AI_MODELS } from '@/lib/ai/models';
 import { generateText } from '@/lib/ai/text';
 import { aiLimiter } from '@/lib/rate-limit';
 import { rateLimitExceeded } from '@/lib/rate-limit-response';
+import { getHoldingCharityLink, toCharityResponseAliases } from '@/lib/holdings/charities';
 
 const NO_STORE = { 'Cache-Control': 'no-store' } as const;
 
@@ -94,14 +95,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     }
 
     // Fetch holding with charity link
-    const { data: holding, error: holdingError } = await sb
-      .from('holdings')
-      .select('id, name, charity_id')
-      .eq('id', holdingId)
-      .single();
-
-    if (holdingError) throw holdingError;
-    if (!holding?.charity_id) {
+    const holding = await getHoldingCharityLink(sb, holdingId);
+    if (!holding.charityId) {
       return NextResponse.json(
         { error: 'No charity linked to this holding' },
         { status: 400, headers: NO_STORE }
@@ -112,7 +107,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     const { data: charity, error: charityError } = await sb
       .from('charities')
       .select('*')
-      .eq('id', holding.charity_id)
+      .eq('id', holding.charityId)
       .single();
 
     if (charityError) throw charityError;
@@ -135,7 +130,11 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     }
 
     // Build context for the AI provider
-    const financialContext = buildFinancialContext(charity, filings);
+    const charityView = {
+      ...toCharityResponseAliases(charity),
+      legal_name: charity.also_known_as,
+    };
+    const financialContext = buildFinancialContext(charityView, filings);
 
     // Generate analysis using the configured AI provider
     const analysisContent = await generateText({
@@ -164,11 +163,11 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
       charity: {
         ein: charity.ein,
         name: charity.name,
-        sector: charity.sector,
-        annual_revenue: charity.annual_revenue,
-        annual_expenses: charity.annual_expenses,
-        assets: charity.assets,
-        program_expense_ratio: charity.program_expense_ratio,
+        sector: charityView.sector,
+        annual_revenue: charityView.annual_revenue,
+        annual_expenses: charityView.annual_expenses,
+        assets: charityView.assets,
+        program_expense_ratio: charityView.program_expense_ratio,
       },
       filings,
     };
@@ -177,7 +176,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
       .from('generated_financial_analyses')
       .insert({
         holding_id: holdingId,
-        charity_id: holding.charity_id,
+        charity_id: holding.charityId,
         analysis_content: analysisContent,
         financial_snapshot: financialSnapshot,
         generated_at: generatedAt,

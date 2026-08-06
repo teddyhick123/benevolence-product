@@ -38,7 +38,7 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
         .eq('donor_id', donorId)
         .order('contribution_date', { ascending: false }),
       db.from('acknowledgment_letters')
-        .select('id, letter_type, status, subject, sent_via, sent_at, pdf_url, created_at')
+        .select('id, letter_type, status, subject, delivery_method, sent_at, storage_path, created_at')
         .eq('org_id', orgId)
         .eq('donor_id', donorId)
         .order('created_at', { ascending: false }),
@@ -49,7 +49,11 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
     return jsonOk({
       donor,
       contributions: contributionResult.data || [],
-      letters: letterResult.data || [],
+      letters: (letterResult.data || []).map((letter) => ({
+        ...letter,
+        sent_via: letter.delivery_method,
+        pdf_url: null,
+      })),
     });
   } catch (err: unknown) {
     return jsonError(err instanceof Error ? err.message : 'Internal error', 500);

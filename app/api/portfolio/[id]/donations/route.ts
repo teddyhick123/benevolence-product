@@ -55,11 +55,20 @@ export async function GET(
     if (canViewErr) return json({ error: canViewErr.message }, { status: 500 });
     if (!canView) return json({ error: 'Portfolio not found or access denied' }, { status: 403 });
 
-    // Build query on holdings table for donations
-    // Optionally join with tax_contributions if needed
+    const { data: linkedRows, error: linkedRowsError } = await supabase
+      .from('holding_contributions')
+      .select('holding_id')
+      .eq('portfolio_id', portfolioId)
+      .not('holding_id', 'is', null)
+      .not('tax_contribution_id', 'is', null);
+    if (linkedRowsError) return json({ error: linkedRowsError.message }, { status: 500 });
+    const linkedHoldingIds = [...new Set((linkedRows ?? []).map(row => row.holding_id).filter(Boolean))] as string[];
+
+    // Donations own no direct tax-contribution relationship. Embed tax rows only
+    // through the canonical holding_contributions junction.
     let query = supabase
       .from('holdings')
-      .select('*, tax_contributions(*)', { count: 'exact' })
+      .select('*, holding_contributions(tax_contribution_id, tax_contributions(*))', { count: 'exact' })
       .eq('portfolio_id', portfolioId)
       .eq('asset_type', 'donation');
 
@@ -78,11 +87,11 @@ export async function GET(
 
     // Filter by tax contribution linkage
     if (validated.has_tax_contribution === true) {
-      // Only donations with tax contributions
-      query = query.not('tax_contributions', 'is', null);
-    } else if (validated.has_tax_contribution === false) {
-      // Only donations without tax contributions
-      query = query.is('tax_contributions', null);
+      query = query.in('id', linkedHoldingIds.length > 0
+        ? linkedHoldingIds
+        : ['00000000-0000-0000-0000-000000000000']);
+    } else if (validated.has_tax_contribution === false && linkedHoldingIds.length > 0) {
+      query = query.not('id', 'in', `(${linkedHoldingIds.join(',')})`);
     }
 
     // Apply sorting
@@ -104,14 +113,24 @@ export async function GET(
     }
 
     // Fetch portfolio-level summary
-    const { data: summary } = await supabase
+    const { data: summary, error: summaryError } = await supabase
       .from('v_portfolio_donation_summary')
       .select('*')
       .eq('portfolio_id', portfolioId)
       .single();
+    if (summaryError && summaryError.code !== 'PGRST116') {
+      return json({ error: summaryError.message }, { status: 500 });
+    }
+
+    const responseDonations = (donations ?? []).map(donation => ({
+      ...donation,
+      tax_contributions: (donation.holding_contributions ?? [])
+        .map(link => link.tax_contributions)
+        .filter(Boolean),
+    }));
 
     return json({
-      data: donations || [],
+      data: responseDonations,
       count: count || 0,
       summary: summary || null,
       pagination: {

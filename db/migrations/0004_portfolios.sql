@@ -126,6 +126,90 @@ $$
   );
 $$;
 
+-- Concurrency-safe portfolio member removal/role change. A per-portfolio
+-- transaction lock makes the last-owner invariant part of the mutation rather
+-- than a race-prone count performed by the application.
+CREATE OR REPLACE FUNCTION mutate_portfolio_member(
+  p_portfolio_id uuid,
+  p_user_id uuid,
+  p_action text,
+  p_role member_role_enum DEFAULT NULL
+)
+RETURNS boolean
+LANGUAGE plpgsql
+VOLATILE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_actor_role member_role_enum;
+  v_target_role member_role_enum;
+  v_owner_count integer;
+BEGIN
+  IF p_action NOT IN ('delete', 'update_role') THEN
+    RAISE EXCEPTION 'unsupported portfolio member action'
+      USING ERRCODE = '22023';
+  END IF;
+  IF p_action = 'update_role' AND p_role IS NULL THEN
+    RAISE EXCEPTION 'p_role is required for update_role'
+      USING ERRCODE = '22023';
+  END IF;
+
+  v_actor_role := public.user_portfolio_role(p_portfolio_id);
+  IF NOT public.is_app_admin() AND v_actor_role NOT IN ('admin', 'owner') THEN
+    RAISE EXCEPTION 'not authorized to manage portfolio members'
+      USING ERRCODE = '42501';
+  END IF;
+
+  PERFORM pg_advisory_xact_lock(hashtextextended(p_portfolio_id::text, 0));
+
+  SELECT role INTO v_target_role
+  FROM public.portfolio_members
+  WHERE portfolio_id = p_portfolio_id
+    AND user_id = p_user_id
+    AND deleted_at IS NULL
+  FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'portfolio member not found'
+      USING ERRCODE = 'P0002';
+  END IF;
+
+  IF NOT public.is_app_admin()
+     AND v_actor_role <> 'owner'
+     AND (v_target_role = 'owner' OR p_role = 'owner') THEN
+    RAISE EXCEPTION 'only owners can change owner membership'
+      USING ERRCODE = '42501';
+  END IF;
+
+  IF v_target_role = 'owner'
+     AND (p_action = 'delete' OR p_role IS DISTINCT FROM 'owner'::member_role_enum) THEN
+    SELECT COUNT(*) INTO v_owner_count
+    FROM public.portfolio_members
+    WHERE portfolio_id = p_portfolio_id
+      AND role = 'owner'
+      AND deleted_at IS NULL;
+    IF v_owner_count <= 1 THEN
+      RAISE EXCEPTION 'cannot remove or demote the last portfolio owner'
+        USING ERRCODE = '23514';
+    END IF;
+  END IF;
+
+  IF p_action = 'delete' THEN
+    DELETE FROM public.portfolio_members
+    WHERE portfolio_id = p_portfolio_id AND user_id = p_user_id;
+  ELSE
+    UPDATE public.portfolio_members
+    SET role = p_role
+    WHERE portfolio_id = p_portfolio_id AND user_id = p_user_id;
+  END IF;
+
+  RETURN true;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION mutate_portfolio_member(uuid, uuid, text, member_role_enum) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION mutate_portfolio_member(uuid, uuid, text, member_role_enum) TO authenticated, service_role;
+
 -- ---------------------------------------------------------------------------
 -- Constraint: portfolio membership ⊆ org membership
 -- A user cannot be added to a portfolio unless they are already a member of

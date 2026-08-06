@@ -11,7 +11,7 @@
 // apply flows — later tasks (5, 7, 8, 9) call into it.
 
 import { createHash } from 'crypto';
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { SupabaseClient } from '@/lib/database-client';
 import { normalizeProposalPath } from './path-policy';
 
 const BUCKET = 'builder-artifacts';

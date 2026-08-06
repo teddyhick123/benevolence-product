@@ -1,5 +1,5 @@
 // lib/grants/workflow-config.ts
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { SupabaseClient } from '@/lib/database-client';
 import type { LifecycleStage } from './lifecycle-shared';
 import { getGrantFieldValue, REQUIRED_FIELD_ALLOWLIST, type RequiredFieldName } from './workflow-config-constants';
 import { checkRequiredGrantCustomFields } from '@/lib/custom-fields';

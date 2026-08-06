@@ -45,6 +45,8 @@ CREATE TABLE IF NOT EXISTS acknowledgment_letters (
 
   -- Linked contributions (one letter can cover multiple gifts)
   contribution_ids uuid[] NOT NULL DEFAULT '{}',
+  letter_type     text NOT NULL DEFAULT 'general'
+    CHECK (letter_type IN ('year_end', 'receipt', 'qcd', 'non_cash', 'thank_you', 'welcome', 'annual_summary', 'custom', 'general')),
 
   -- Content (rendered from template at generation time)
   subject         text,
@@ -133,6 +135,7 @@ BEGIN
     org_id,
     donor_id,
     contribution_ids,
+    letter_type,
     subject,
     body,
     status,
@@ -145,6 +148,7 @@ BEGIN
     p_org_id,
     v_contribution.donor_id,
     ARRAY[p_contribution_id],
+    'receipt',
     p_subject,
     p_body,
     CASE WHEN v_send THEN 'sent' ELSE 'draft' END,

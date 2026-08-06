@@ -40,10 +40,9 @@ export type ContributionRow = {
   id: string;
   portfolio_id: string;
   holding_id: string;
-  amount: number;
-  contributed_at: string;
-  memo?: string | null;
-  source?: string | null;
+  amount_usd: number;
+  contribution_date: string;
+  notes?: string | null;
 };
 
 export type HoldingLocationRow = {

@@ -37,13 +37,7 @@ export default async function ProfilePage() {
   })) || [];
 
   // Check if user is admin
-  const { data: adminData } = await supabase
-    .from('admins')
-    .select('user_id')
-    .eq('user_id', user.id)
-    .single();
-
-  const isAdmin = !!adminData;
+  const { data: isAdmin } = await supabase.rpc('is_app_admin');
 
   // Fetch user metadata (we'll store display name, etc. in user metadata)
   const displayName = user.user_metadata?.display_name || user.email?.split('@')[0] || 'User';
@@ -56,7 +50,7 @@ export default async function ProfilePage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-serif">Profile</h1>
-        {isAdmin && (
+        {!!isAdmin && (
           <a
             href="/admin/console"
             className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-neutral-900 text-white text-sm font-medium hover:bg-neutral-800 transition-colors"
@@ -91,7 +85,7 @@ export default async function ProfilePage() {
       {/* Portfolio Access (Full Width) */}
       <PortfolioAccess
         portfolios={portfolios || []}
-        isAdmin={isAdmin}
+        isAdmin={!!isAdmin}
       />
     </div>
   );

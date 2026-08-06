@@ -479,3 +479,54 @@ at most one primary contact per holding, and owns photo/notes data. The existing
 single-contact UI will read and upsert the primary row through the holding
 repository/view model. Update every read, write, photo upload, and AI/report
 consumer together and protect the result with clean-reset and access contracts.
+
+**Resolution (Phase 5):** Implemented the first-class contact model, private
+contact-photo storage, parent-holding RLS, primary-contact adapter, and canonical
+`theory_of_action`. Holding/charity consumers now traverse
+`holdings.investee_id → investees.charity_id`; direct `holdings.charity_id` and
+`holdings.nav` assumptions were removed.
+
+### 2026-08-05 — Phase 5, schema alignment — active contracts diverged from the clean database
+
+**What happened:** Active routes referenced missing KPI/donation views, missing
+aggregate and risk RPCs, `generated_letters`, `admins`, `exec_sql`, and a
+count-only last-owner helper. Donation reads also inferred a direct holding/tax
+relationship, recommendation validators serialized arrays/JSONB as strings, and
+Builder migration verification could leave generated database types stale.
+
+**Expected vs. actual:** The application and Builder should compile and verify
+against one prerelease schema canon. Instead, several features could type-check
+through unparameterized clients while failing only at runtime on a clean
+database. Unsafe or obsolete infrastructure was tempting to recreate as a
+compatibility layer.
+
+**Resolution (Phase 5):** Added generated database types and a post-reset drift
+gate shared by normal and Builder verification. Added security-invoker KPI
+series and donation summary views, repository-level KPI aggregation, an
+authorized atomic risk-snapshot function, versioned `letter` documents, and an
+authorized serialized portfolio-member mutation for last-owner safety. Profile
+admin checks use `is_app_admin()`, demo seeding is a fixed typed adapter, and
+recommendation validation now matches `text[]`/JSONB. No `admins`,
+`generated_letters`, generic `exec_sql`, or count-only owner RPC was created.
+
+**Extensibility boundary:** The generated `Database` type describes stable
+platform canon only. Org-specific fields, KPIs, layouts, workflows,
+automations, and module choices remain data in the sanctioned extension tables
+and validated configuration. Import staging remains the only intentionally
+schema-variable surface; client-specific DDL is not an extension mechanism.
+
+**AI durability check:** The Phase 3 normalized `ai_turns`/`ai_messages`, unique
+`(user_id, request_id)` claim, transactional begin/complete/fail functions,
+deterministic replay, and completed-turn short circuit remain unchanged and are
+covered by the Phase 5 schema contract. Schema alignment did not reintroduce a
+session message JSON array or a second execution path around the durable turn
+boundary.
+
+**Additional compiler findings:** CRM screens actively consume donor anonymity,
+organization contact, communication preference, and do-not-contact semantics,
+so those stable product fields now live on canonical `donors`. ZIP,
+contribution designation, and acknowledgment status remain response/view-model
+aliases over `zip`, `fund_designation`, and `acknowledgment_sent`. Letter type is
+canonical on `acknowledgment_letters` because routes, filters, PDFs, and AI tools
+share its lifecycle; linked gifts remain the `contribution_ids` array and PDFs
+remain private storage objects exposed through signed URLs.

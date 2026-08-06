@@ -1,5 +1,5 @@
 // lib/tasks/automation/task-writer.ts
-import { SupabaseClient } from '@supabase/supabase-js';
+import type { SupabaseClient } from '@/lib/database-client';
 import { UpsertGeneratedTaskInput, TaskLink } from './types';
 
 export type UpsertResult = 'created' | 'updated' | 'skipped';

@@ -21,7 +21,7 @@ type Contribution = {
     address_line1: string | null;
     city: string | null;
     state: string | null;
-    postal_code: string | null;
+    zip: string | null;
   };
 };
 

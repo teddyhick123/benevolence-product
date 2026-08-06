@@ -75,7 +75,7 @@ function HoldingsPieAutoRenderer({ portfolioId, title, config }: { portfolioId: 
   const legendMaxHeight = Number(config?.legendMaxHeight ?? 240);
   const nameField = String(config?.nameField || 'name');
   const valueFieldPrimary = String(config?.valueFieldPrimary || 'funds_allocated');
-  const valueFieldFallback = String(config?.valueFieldFallback || 'nav');
+  const valueFieldFallback = String(config?.valueFieldFallback || 'current_value');
   const endpoint = config?.endpoint || `/api/portfolio/${portfolioId}/holdings`;
 
   const [data, setData] = useState<any[]>([]);

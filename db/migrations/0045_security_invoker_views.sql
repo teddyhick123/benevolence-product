@@ -26,7 +26,7 @@ ALTER VIEW public.v_asset_allocation            SET (security_invoker = true);
 -- 0022 — module enforcement
 ALTER VIEW public.v_org_modules                 SET (security_invoker = true);
 
--- 0032 — donor summary
+-- 0014 — donor summary
 ALTER VIEW public.v_donor_summary               SET (security_invoker = true);
 
 -- 0035 — analytics module

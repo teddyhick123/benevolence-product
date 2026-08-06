@@ -46,7 +46,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
     // 4. Fetch holdings summary
     const { data: holdings, error: holdingsError } = await sb
       .from('holdings')
-      .select('id, name, status, sector, funds_allocated, nav')
+      .select('id, name, status, sector, funds_allocated, current_value')
       .eq('portfolio_id', portfolio_id)
       .order('name', { ascending: true });
 
@@ -55,7 +55,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
     // 5. Calculate portfolio summary stats
     const totalHoldings = (holdings || []).length;
     const totalFundsAllocated = (holdings || []).reduce((sum: number, h: any) => sum + (h.funds_allocated || 0), 0);
-    const totalNAV = (holdings || []).reduce((sum: number, h: any) => sum + (h.nav || 0), 0);
+    const totalNAV = (holdings || []).reduce((sum: number, h: any) => sum + (h.current_value || 0), 0);
 
     // 6. Return structured data
     return NextResponse.json({

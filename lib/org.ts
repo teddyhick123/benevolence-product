@@ -1,14 +1,14 @@
-import { SupabaseClient } from '@supabase/supabase-js';
+import type { SupabaseClient } from '@/lib/database-client';
 import { OrgRole } from './roles';
 
 export interface Organization {
   id: string;
   name: string;
   ein: string | null;
-  charity_id: string | null;
-  logo_url: string | null;
+  charity_id?: string | null;
+  logo_url?: string | null;
   website: string | null;
-  description: string | null;
+  description?: string | null;
   created_at: string;
   updated_at: string;
 }

@@ -2,6 +2,16 @@
 import { NextResponse } from 'next/server';
 import { updateMemberRoleSchema } from '@/lib/schemas/admin';
 import { isAccessDenied, requirePortfolioManagerOrAppAdmin } from '@/lib/api/access';
+import { createPortfolioMembershipRepository } from '@/lib/api/repositories/portfolio-memberships';
+
+function membershipError(error: unknown, fallback: string) {
+  const dbError = error as { code?: string; message?: string };
+  const status = dbError.code === '42501' ? 403
+    : dbError.code === 'P0002' ? 404
+      : dbError.code === '23514' || dbError.code === '22023' ? 400
+        : 500;
+  return NextResponse.json({ error: dbError.message || fallback }, { status });
+}
 
 export async function POST(req: Request, ctx: { params: Promise<{ id: string; userId: string }> }) {
   // Support form method override (_method=DELETE) for simple forms
@@ -20,39 +30,11 @@ export async function DELETE(_req: Request, ctx: { params: Promise<{ id: string;
 
   const access = await requirePortfolioManagerOrAppAdmin(portfolioId);
   if (isAccessDenied(access)) return access.response;
-  const supabase = access.context.db;
-
-  // Prevent removing the last owner
-  const { data: targetMember, error: targetErr } = await supabase
-    .from('portfolio_members')
-    .select('role')
-    .eq('portfolio_id', portfolioId)
-    .eq('user_id', userId)
-    .maybeSingle();
-  if (targetErr) return NextResponse.json({ error: targetErr.message }, { status: 500 });
-
-  // Owners can only remove non-owners
-  if (!access.context.isAppAdmin && access.context.role !== 'owner') {
-    if (targetMember?.role === 'owner') {
-      return NextResponse.json({ error: 'Only owners can remove owners' }, { status: 403 });
-    }
+  try {
+    await createPortfolioMembershipRepository(access.context).remove(userId);
+  } catch (error) {
+    return membershipError(error, 'Failed to remove portfolio member');
   }
-
-  if (targetMember?.role === 'owner') {
-    const { data: ownerCount, error: ownerCountErr } = await supabase.rpc('owner_count_for_portfolio', { p_portfolio_id: portfolioId });
-    if (ownerCountErr) return NextResponse.json({ error: ownerCountErr.message }, { status: 500 });
-    if ((ownerCount as number) <= 1) {
-      return NextResponse.json({ error: 'Cannot remove the last owner from this portfolio.' }, { status: 400 });
-    }
-  }
-
-  const { error } = await supabase
-    .from('portfolio_members')
-    .delete()
-    .eq('portfolio_id', portfolioId)
-    .eq('user_id', userId);
-
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ ok: true });
 }
 
@@ -84,43 +66,10 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string; u
 
   const access = await requirePortfolioManagerOrAppAdmin(portfolioId);
   if (isAccessDenied(access)) return access.response;
-  const supabase = access.context.db;
-
-  // Owners can only set non-owner operational roles. App admins can set any role.
-  if (!access.context.isAppAdmin && access.context.role !== 'owner') {
-    if (role === 'owner') {
-      return NextResponse.json({ error: 'Only owners can assign owner role' }, { status: 403 });
-    }
+  try {
+    await createPortfolioMembershipRepository(access.context).updateRole(userId, role);
+  } catch (error) {
+    return membershipError(error, 'Failed to update portfolio member');
   }
-
-  const { data: currentMember, error: currErr } = await supabase
-    .from('portfolio_members')
-    .select('role')
-    .eq('portfolio_id', portfolioId)
-    .eq('user_id', userId)
-    .maybeSingle();
-  if (currErr) return NextResponse.json({ error: currErr.message }, { status: 500 });
-
-  // Non-admin owners cannot change roles of owners
-  if (!access.context.isAppAdmin && access.context.role !== 'owner' && currentMember?.role === 'owner') {
-    return NextResponse.json({ error: 'Only owners can change owner roles' }, { status: 403 });
-  }
-
-  // Prevent demoting the last owner
-  if (currentMember?.role === 'owner' && role !== 'owner') {
-    const { data: ownerCount, error: ownerCountErr } = await supabase.rpc('owner_count_for_portfolio', { p_portfolio_id: portfolioId });
-    if (ownerCountErr) return NextResponse.json({ error: ownerCountErr.message }, { status: 500 });
-    if ((ownerCount as number) <= 1) {
-      return NextResponse.json({ error: 'Cannot demote the last owner.' }, { status: 400 });
-    }
-  }
-
-  const { error } = await supabase
-    .from('portfolio_members')
-    .update({ role })
-    .eq('portfolio_id', portfolioId)
-    .eq('user_id', userId);
-
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ ok: true });
 }

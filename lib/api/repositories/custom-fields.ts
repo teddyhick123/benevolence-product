@@ -71,13 +71,12 @@ export function createCustomFieldRepository(scope: CustomFieldScope) {
     entityIds: string[]
   ): Promise<Set<string>> {
     if (entityType === 'grant' || entityType === 'holding' || entityType === 'donor') {
-      const table = entityType === 'grant'
-        ? 'grants'
+      const query = entityType === 'grant'
+        ? db.from('grants')
         : entityType === 'holding'
-          ? 'holdings'
-          : 'donors';
-      const { data, error } = await db
-        .from(table)
+          ? db.from('holdings')
+          : db.from('donors');
+      const { data, error } = await query
         .select('id')
         .eq('org_id', scope.orgId)
         .is('deleted_at', null)

@@ -10,6 +10,7 @@ import { suggestRowFixes } from '@/lib/import/ai/validate-row';
 import type { AISuggestion } from '@/lib/import/ai/validate-row';
 import { aiLimiter } from '@/lib/rate-limit';
 import { rateLimitExceeded } from '@/lib/rate-limit-response';
+import { fromImportRelation, IMPORT_STAGING_RELATIONS } from '@/lib/import/database';
 
 interface StagingRow {
   id: string;
@@ -23,17 +24,9 @@ interface StagingRow {
   }> | null;
 }
 
-const ALLOWED_STAGING_TABLES = [
-  'staging_import_donors',
-  'staging_import_holdings',
-  'staging_import_investees',
-  'staging_import_contributions',
-  'staging_import_metrics',
-] as const;
-
 const suggestSchema = z.object({
   import_job_id: z.string().uuid(),
-  staging_table: z.enum(ALLOWED_STAGING_TABLES),
+  staging_table: z.enum(IMPORT_STAGING_RELATIONS),
   staging_row_ids: z.array(z.string().uuid()).min(1).max(100),
 }).strict();
 
@@ -51,8 +44,7 @@ export async function POST(req: Request) {
     const { db } = access.context;
 
     // Fetch the requested rows
-    const { data: rows, error: fetchError } = await db
-      .from(staging_table)
+    const { data: rows, error: fetchError } = await fromImportRelation(db, staging_table)
       .select('id, raw_data, transformed_data, validation_errors')
       .in('id', staging_row_ids)
       .eq('import_job_id', import_job_id);

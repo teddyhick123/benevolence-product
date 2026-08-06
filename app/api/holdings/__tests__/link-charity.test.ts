@@ -10,7 +10,7 @@ describe('link-charity ownership contract', () => {
   it('uses the shared holding edit boundary for link and unlink', () => {
     expect(src.match(/requireHoldingAccess\(holdingId, 'member'\)/g)).toHaveLength(2);
     expect(src).toContain('isAccessDenied(access)');
-    expect(src).toContain('access.context.db');
+    expect(src).toContain('createHoldingCharityRepository(access.context)');
     expect(src).not.toContain('createServerClient');
   });
 });

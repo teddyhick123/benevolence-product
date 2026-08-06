@@ -106,19 +106,6 @@ describe('Portfolio Schemas', () => {
       expect(result.success).toBe(false);
     });
 
-    it('should handle legacy nav field', () => {
-      const dataWithNav = {
-        name: 'Test',
-        nav: 50000,
-      };
-
-      const result = createHoldingSchema.safeParse(dataWithNav);
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.data.nav).toBe(50000);
-      }
-    });
-
     it('should validate date format for as_of', () => {
       const validDate = {
         name: 'Test',

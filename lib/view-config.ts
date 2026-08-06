@@ -1,4 +1,4 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { SupabaseClient } from '@/lib/database-client';
 
 export const VIEW_CONFIG_SCOPES = ['dashboard', 'module_default', 'table_columns', 'entity_vocabulary'] as const;
 export const ENTITY_VOCABULARY_TYPES = ['grant', 'holding', 'donor', 'contribution'] as const;

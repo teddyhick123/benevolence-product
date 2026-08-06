@@ -23,7 +23,7 @@ export default function HoldingsPieConfig({ initialConfig, onSave, onCancel, onP
         legendMaxHeight: 240,
         nameField: 'name',
         valueFieldPrimary: 'funds_allocated',
-        valueFieldFallback: 'nav'
+        valueFieldFallback: 'current_value'
       }
     });
   }, [onPreviewChange, showLegend, title]);
@@ -39,7 +39,7 @@ export default function HoldingsPieConfig({ initialConfig, onSave, onCancel, onP
         legendMaxHeight: 240,
         nameField: 'name',
         valueFieldPrimary: 'funds_allocated',
-        valueFieldFallback: 'nav'
+        valueFieldFallback: 'current_value'
       }
     });
   };

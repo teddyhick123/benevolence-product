@@ -1,5 +1,5 @@
 // lib/notifications/recipients.ts
-import { SupabaseClient } from '@supabase/supabase-js';
+import type { SupabaseClient } from '@/lib/database-client';
 import { WORKSPACE_MANAGER_ROLES } from '@/lib/roles';
 
 export type Recipient = {

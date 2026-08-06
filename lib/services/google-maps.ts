@@ -14,6 +14,7 @@
  */
 
 import { createClient } from '@supabase/supabase-js';
+import type { PlatformDatabase } from '@/lib/database-client';
 import type { GeocodeRequest, GeocodeResult, GeocodeCacheEntry } from '@/lib/types/map';
 import { generateLocationKey } from '@/lib/schemas/geocoding';
 
@@ -89,7 +90,7 @@ function getSupabaseClient() {
     throw new Error('Missing Supabase environment variables for geocoding cache');
   }
 
-  return createClient(supabaseUrl, supabaseKey, {
+  return createClient<PlatformDatabase>(supabaseUrl, supabaseKey, {
     auth: { persistSession: false },
   });
 }

@@ -113,8 +113,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
 
   const validated = validation.data;
 
-  // Handle legacy nav field by preferring funds_allocated
-  const funds_allocated = validated.funds_allocated ?? validated.nav ?? null;
+  const funds_allocated = validated.funds_allocated ?? null;
 
   // Handle date parsing for as_of field (accepts as_of or legacy as_of_date)
   let as_of: string | null = null;

@@ -18,7 +18,7 @@ type Donor = {
   address_line1: string | null;
   city: string | null;
   state: string | null;
-  postal_code: string | null;
+  zip: string | null;
 };
 
 type Organization = {
@@ -304,7 +304,7 @@ export default function DonorDetailPage() {
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-neutral-700 mb-1">ZIP</label>
-                  <input type="text" value={editFields.postal_code ?? ''} onChange={e => setEditFields(p => ({ ...p, postal_code: e.target.value }))} className="w-full px-3 py-2 text-sm border border-black/10 rounded-2xl focus:ring-2 focus:ring-azure/30 focus:border-azure" />
+                  <input type="text" value={editFields.zip ?? ''} onChange={e => setEditFields(p => ({ ...p, zip: e.target.value }))} className="w-full px-3 py-2 text-sm border border-black/10 rounded-2xl focus:ring-2 focus:ring-azure/30 focus:border-azure" />
                 </div>
               </div>
               <div className="flex justify-end gap-3 pt-2">

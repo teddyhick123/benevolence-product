@@ -4,6 +4,7 @@
 
 import { requireAppAdmin } from '@/lib/api/access';
 import { jsonOk } from '@/lib/api/responses';
+import { fromImportRelation } from '@/lib/import/database';
 
 const STAGING_TABLES = [
   'staging_import_donors',
@@ -27,8 +28,7 @@ export async function POST(
 
   for (const table of STAGING_TABLES) {
     // Find rows that are 'warning' status — these have only warnings, no hard errors
-    const { data: warningRows } = await db
-      .from(table)
+    const { data: warningRows } = await fromImportRelation(db, table)
       .select('id, validation_errors')
       .eq('import_job_id', importJobId)
       .eq('validation_status', 'warning');
@@ -44,8 +44,7 @@ export async function POST(
     if (rowsToPromote.length === 0) continue;
 
     const ids = rowsToPromote.map((r) => r.id as string);
-    const { error } = await db
-      .from(table)
+    const { error } = await fromImportRelation(db, table)
       .update({
         validation_status: 'valid',
         updated_at: new Date().toISOString(),

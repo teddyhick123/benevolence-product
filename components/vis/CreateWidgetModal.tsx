@@ -650,7 +650,7 @@ function getDefaultWidgetDraft(
           legendMaxHeight: 240,
           nameField: 'name',
           valueFieldPrimary: 'funds_allocated',
-          valueFieldFallback: 'nav'
+          valueFieldFallback: 'current_value'
         }
       };
     case 'small_multiples':

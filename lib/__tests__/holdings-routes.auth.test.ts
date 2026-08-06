@@ -15,9 +15,10 @@ describe('holding route auth contracts', () => {
     const src = readFileSync('app/api/holdings/[id]/upload-contact-photo/route.ts', 'utf8');
     expect(src).toContain("select('portfolio_id')");
     expect(src).toContain("rpc('can_edit_portfolio'");
-    expect(src).toContain('primary_contact_photo: filePath');
+    expect(src).toContain('upsertPrimaryHoldingContact');
+    expect(src).toContain('{ photoPath: filePath }');
     expect(src).toContain('createSignedUrl(filePath, 3600)');
-    expect(src).toMatch(/storage\.from\('holdings'\)\.remove\(\[filePath\]\)/);
+    expect(src).toMatch(/storage\.from\('holding-contact-photos'\)\.remove\(\[filePath\]\)/);
     expect(src).toContain("'Cache-Control': 'no-store'");
   });
 
@@ -25,7 +26,7 @@ describe('holding route auth contracts', () => {
     const page = readFileSync('components/holdings/detail/HoldingDetailPage.tsx', 'utf8');
     const queries = readFileSync('lib/holdings/detail/queries.ts', 'utf8');
     expect(page).toContain('resolveHoldingPhotoUrl');
-    expect(queries).toContain("storage.from('holdings')");
+    expect(queries).toContain("storage.from('holding-contact-photos')");
     expect(queries).toContain('createSignedUrl(photo, 3600)');
   });
 
@@ -38,7 +39,7 @@ describe('holding route auth contracts', () => {
 
   it('holding financial profile reads require view access and no-store responses', () => {
     const src = readFileSync('app/api/holdings/[id]/financial-profile/route.ts', 'utf8');
-    expect(src).toContain("select('id, name, charity_id, portfolio_id')");
+    expect(src).toContain('getHoldingCharityLink');
     expect(src).toContain('requireHoldingAccess(holdingId)');
     expect(src).not.toContain('createServerClient');
     expect(src).toContain("'Cache-Control': 'no-store'");
@@ -75,8 +76,8 @@ describe('holding route auth contracts', () => {
 
   it('holding charity linking uses normal not-found lookups and checks linked charity reads', () => {
     const src = readFileSync('app/api/holdings/[id]/link-charity/route.ts', 'utf8');
-    expect(src).toContain('.maybeSingle()');
-    expect(src).toContain('charityError');
+    expect(src).toContain('createHoldingCharityRepository');
+    expect(src).toContain('repository.link');
   });
 
   it('holding tax-record creation checks supporting reads before writing tax data', () => {

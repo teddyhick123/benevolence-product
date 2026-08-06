@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { requireOrgAccess } from '@/lib/api/access';
 import { jsonError, jsonOk } from '@/lib/api/responses';
+import { fromImportRelation, type ImportVariableRelation } from '@/lib/import/database';
 
 export const dynamic = 'force-dynamic';
 
@@ -8,12 +9,7 @@ interface RouteParams {
   params: Promise<{ orgId: string; jobId: string }>;
 }
 
-type StagingTable =
-  | 'staging_import_donors'
-  | 'staging_import_holdings'
-  | 'staging_import_investees'
-  | 'staging_import_contributions'
-  | 'staging_import_metrics';
+type StagingTable = Extract<ImportVariableRelation, `staging_import_${string}`>;
 
 interface StagingCounts {
   total: number;
@@ -49,8 +45,7 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
   const stagingCounts: Record<string, StagingCounts> = {};
   await Promise.all(
     Object.entries(stagingTables).map(async ([entityType, table]) => {
-      const { data: rows } = await db
-        .from(table)
+      const { data: rows } = await fromImportRelation(db, table)
         .select('validation_status')
         .eq('import_job_id', jobId)
         .eq('org_id', orgId);

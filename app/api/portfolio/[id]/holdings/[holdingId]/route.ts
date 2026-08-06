@@ -52,10 +52,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string; h
   let body: any;
   try {
     body = await req.json();
-    // Handle legacy field names before validation
-    if (body.nav !== undefined && body.funds_allocated === undefined) {
-      body.funds_allocated = body.nav;
-    }
+    // Normalize the remaining date response alias before validation.
     if (body.as_of_date !== undefined && body.as_of === undefined) {
       body.as_of = body.as_of_date;
     }

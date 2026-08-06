@@ -88,6 +88,7 @@ function migrationDetail(path: string): string | null {
 export function evaluatePathPolicy(paths: string[]): PathPolicyResult {
   const violations: PathPolicyViolation[] = [];
   const seen = new Set<string>();
+  const normalizedPaths = paths.map(normalizeProposalPath);
 
   for (const raw of paths) {
     const path = normalizeProposalPath(raw);
@@ -120,6 +121,15 @@ export function evaluatePathPolicy(paths: string[]): PathPolicyResult {
     if (migration) {
       violations.push({ path: raw, rule: 'migration-rewrite', detail: migration });
     }
+  }
+
+  const proposesMigration = normalizedPaths.some((path) => path.startsWith('db/migrations/'));
+  if (proposesMigration && !normalizedPaths.includes('lib/database.types.ts')) {
+    violations.push({
+      path: 'lib/database.types.ts',
+      rule: 'migration-types',
+      detail: 'Migration proposals must include regenerated lib/database.types.ts.',
+    });
   }
 
   return { allowed: violations.length === 0, violations };

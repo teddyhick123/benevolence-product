@@ -150,9 +150,12 @@ describe('foundation reliability contracts', () => {
     expect(grantExport).not.toContain('createAdminClient');
 
     const letterGenerate = src('app/api/portfolio/[id]/letter/generate/route.ts');
+    const documentRepository = src('lib/api/repositories/generated-documents.ts');
     expect(letterGenerate).toContain('requirePortfolioAccess');
     expect(letterGenerate).not.toContain('createSupabaseServerClient');
-    expect(letterGenerate).toContain('return json({ error: insertError.message }, { status: 500 })');
+    expect(letterGenerate).toContain('await documents.saveLetter');
+    expect(documentRepository).toContain('if (error) throw error');
+    expect(documentRepository).toContain(".eq('document_type', 'letter')");
     expect(letterGenerate).toContain("'Cache-Control': 'no-store'");
   });
 

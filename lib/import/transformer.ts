@@ -1,7 +1,7 @@
 // lib/import/transformer.ts
 // Applies field mapping from import_mapping_profiles to raw staging data
 
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { DynamicImportClient as SupabaseClient } from '@/lib/database-client';
 import type { EntityMappingConfig, FieldMappingConfig, EntityType } from './types';
 import { normalizeEIN } from './utils/normalize-ein';
 import { parseFlexibleDate, deriveTaxYear } from './utils/date-parser';

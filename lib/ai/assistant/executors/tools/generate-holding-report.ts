@@ -65,13 +65,18 @@ export const executeGenerateHoldingReport: AssistantToolExecutor = async (
       throw new Error(`Holding ${args.holding_id} not found`);
     }
 
-    const { data: charity } = holdingData.ein
+    const { data: investee } = holdingData.investee_id
+      ? await supabase
+          .from('investees')
+          .select('charity_id')
+          .eq('id', holdingData.investee_id)
+          .maybeSingle()
+      : { data: null };
+    const { data: charity } = investee?.charity_id
       ? await supabase
           .from('charities')
-          .select(
-            'ein, name, mission, website, city, state, country, total_revenue, total_expenses, net_assets, charity_navigator_rating, charity_navigator_score',
-          )
-          .eq('ein', holdingData.ein)
+          .select('ein, name, mission, website, city, state, country, total_revenue, total_expenses, net_assets, charity_navigator_rating, charity_navigator_score')
+          .eq('id', investee.charity_id)
           .maybeSingle()
       : { data: null };
 
@@ -192,8 +197,8 @@ export const executeGenerateHoldingReport: AssistantToolExecutor = async (
       if (holdingData.funds_allocated) {
         financialText += `- **Funds Allocated:** $${holdingData.funds_allocated.toLocaleString()}\n`;
       }
-      if (holdingData.nav) {
-        financialText += `- **Current NAV:** $${holdingData.nav.toLocaleString()}\n`;
+      if (holdingData.current_value) {
+        financialText += `- **Current Value:** $${holdingData.current_value.toLocaleString()}\n`;
       }
       if (charityContext?.annual_revenue) {
         financialText += `- **Annual Revenue:** $${charityContext.annual_revenue.toLocaleString()}\n`;
@@ -314,7 +319,7 @@ export const executeGenerateHoldingReport: AssistantToolExecutor = async (
           country: holdingData.country,
           status: holdingData.status,
           funds_allocated: holdingData.funds_allocated,
-          nav: holdingData.nav,
+          current_value: holdingData.current_value,
           asset_type: holdingData.asset_type,
         },
         charity: charityContext,

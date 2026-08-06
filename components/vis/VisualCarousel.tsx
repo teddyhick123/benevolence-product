@@ -123,7 +123,7 @@ function HoldingsPieAutoRenderer({
 
   const nameField: string = String(config?.nameField ?? 'name');
   const valueFieldPrimary: string = String(config?.valueFieldPrimary ?? 'funds_allocated');
-  const valueFieldFallback: string = String(config?.valueFieldFallback ?? 'nav');
+  const valueFieldFallback: string = String(config?.valueFieldFallback ?? 'current_value');
   const customEndpoint: string | undefined = config?.endpoint;
 
   // Use shared SWR hook when no custom endpoint — deduplicates across components

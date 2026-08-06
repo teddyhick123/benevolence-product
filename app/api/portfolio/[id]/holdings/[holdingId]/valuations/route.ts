@@ -19,7 +19,7 @@ function normalizeValuationBody(body: any, holdingId: string) {
     ...body,
     holding_id: holdingId,
     valued_at: body.valued_at ?? body.as_of_date,
-    value: body.value ?? body.nav,
+    value: body.value,
     source: body.source ?? body.valuation_source ?? null,
     valuation_type: body.valuation_type ?? 'mark_to_market',
     currency: body.currency ?? 'USD',

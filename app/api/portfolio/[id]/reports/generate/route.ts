@@ -87,7 +87,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     // Get holding data
     const { data: holding, error: holdingErr } = await sb
       .from('holdings')
-      .select('*, charities(*)')
+      .select('*, investees(charities(*))')
       .eq('id', holding_id)
       .eq('portfolio_id', portfolio_id)
       .single();
@@ -122,22 +122,22 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
       });
     });
 
-    const charity = holding.charities;
+    const investee = Array.isArray(holding.investees) ? holding.investees[0] : holding.investees;
+    const charity = Array.isArray(investee?.charities) ? investee.charities[0] : investee?.charities;
 
     // Build content blocks
     if (reportSections.includes('overview')) {
       contentBlocks.push({
         type: 'text',
-        content: `# ${title || holding.name + ' Report'}\n\n## Overview\n\n**${holding.name}** is a ${holding.status || 'Active'} holding in the ${holding.sector || 'General'} sector${holding.country ? `, based in ${holding.country}` : ''}.${charity?.mission_statement ? `\n\n**Mission:** ${charity.mission_statement}` : ''}`,
+        content: `# ${title || holding.name + ' Report'}\n\n## Overview\n\n**${holding.name}** is a ${holding.status || 'Active'} holding in the ${holding.sector || 'General'} sector${holding.country ? `, based in ${holding.country}` : ''}.${charity?.mission ? `\n\n**Mission:** ${charity.mission}` : ''}`,
       });
     }
 
-    if (reportSections.includes('financials') && (holding.funds_allocated || charity?.annual_revenue)) {
+    if (reportSections.includes('financials') && (holding.funds_allocated || charity?.total_revenue)) {
       let financialText = '## Financial Overview\n\n';
       if (holding.funds_allocated) financialText += `- **Funds Allocated:** $${holding.funds_allocated.toLocaleString()}\n`;
-      if (holding.nav) financialText += `- **Current NAV:** $${holding.nav.toLocaleString()}\n`;
-      if (charity?.annual_revenue) financialText += `- **Annual Revenue:** $${charity.annual_revenue.toLocaleString()}\n`;
-      if (charity?.program_expense_ratio) financialText += `- **Program Expense Ratio:** ${(charity.program_expense_ratio * 100).toFixed(1)}%\n`;
+      if (holding.current_value) financialText += `- **Current Value:** $${holding.current_value.toLocaleString()}\n`;
+      if (charity?.total_revenue) financialText += `- **Annual Revenue:** $${charity.total_revenue.toLocaleString()}\n`;
       contentBlocks.push({ type: 'text', content: financialText });
     }
 

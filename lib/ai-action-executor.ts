@@ -1,6 +1,30 @@
 import type { AIAction } from './ai/types';
 
-type SupabaseClient = any;
+import type { SupabaseClient } from '@/lib/database-client';
+
+function reversibleActionRelation(db: SupabaseClient, relation: unknown): any {
+  switch (relation) {
+    case 'holdings':
+      return db.from('holdings');
+    case 'metric_facts':
+      return db.from('metric_facts');
+    case 'holding_widgets':
+      return db.from('holding_widgets');
+    case 'widgets':
+      return db.from('widgets');
+    case 'holding_locations':
+      return db.from('holding_locations');
+    case 'filing_calendar':
+      return db.from('filing_calendar');
+    default:
+      throw new Error(`AI action relation is not reversible: ${String(relation)}`);
+  }
+}
+
+async function requireMutation(result: PromiseLike<{ error: unknown }>): Promise<void> {
+  const { error } = await result;
+  if (error) throw error;
+}
 
 /**
  * Executes and undoes AI actions with full tracking
@@ -161,7 +185,7 @@ export class AIActionExecutor {
       .single();
 
     return {
-      action: action as AIAction,
+      action: action as unknown as AIAction,
       output: after,
     };
   }
@@ -225,7 +249,7 @@ export class AIActionExecutor {
       .single();
 
     return {
-      action: action as AIAction,
+      action: action as unknown as AIAction,
       output: { deleted: true },
     };
   }
@@ -294,7 +318,7 @@ export class AIActionExecutor {
       .single();
 
     return {
-      action: action as AIAction,
+      action: action as unknown as AIAction,
       output: fact,
     };
   }
@@ -368,7 +392,7 @@ export class AIActionExecutor {
       .single();
 
     return {
-      action: action as AIAction,
+      action: action as unknown as AIAction,
       output: widget,
     };
   }
@@ -439,7 +463,7 @@ export class AIActionExecutor {
       .single();
 
     return {
-      action: action as AIAction,
+      action: action as unknown as AIAction,
       output: widget,
     };
   }
@@ -514,7 +538,7 @@ export class AIActionExecutor {
       .single();
 
     return {
-      action: action as AIAction,
+      action: action as unknown as AIAction,
       output: location,
     };
   }
@@ -539,33 +563,38 @@ export class AIActionExecutor {
     switch (action.action_type) {
       case 'create':
         // Undo create = delete the entity
-        await this.supabase
-          .from(opData.table)
-          .delete()
-          .eq('id', action.entity_id as string);
+        await requireMutation(
+          reversibleActionRelation(this.supabase, opData.table)
+            .delete()
+            .eq('id', action.entity_id as string)
+        );
         break;
 
       case 'update':
         // Undo update = restore previous values
-        await this.supabase
-          .from(opData.table)
-          .update(opData.before)
-          .eq('id', action.entity_id as string);
+        await requireMutation(
+          reversibleActionRelation(this.supabase, opData.table)
+            .update(opData.before)
+            .eq('id', action.entity_id as string)
+        );
         break;
 
       case 'delete':
         // Undo delete = recreate the entity
-        await this.supabase
-          .from(opData.table)
-          .insert(opData.before);
+        await requireMutation(
+          reversibleActionRelation(this.supabase, opData.table)
+            .insert(opData.before)
+        );
         break;
     }
 
     // Mark action as undone
-    await this.supabase
-      .from('ai_actions')  // @ts-ignore
-      .update({ status: 'undone', updated_at: new Date().toISOString() })
-      .eq('id', actionId);
+    await requireMutation(
+      this.supabase
+        .from('ai_actions')
+        .update({ status: 'undone', updated_at: new Date().toISOString() })
+        .eq('id', actionId)
+    );
 
     return { success: true, action };
   }
@@ -590,33 +619,38 @@ export class AIActionExecutor {
     switch (action.action_type) {
       case 'create':
         // Redo create = recreate the entity
-        await this.supabase
-          .from(opData.table)
-          .insert(opData.after);
+        await requireMutation(
+          reversibleActionRelation(this.supabase, opData.table)
+            .insert(opData.after)
+        );
         break;
 
       case 'update':
         // Redo update = apply new values
-        await this.supabase
-          .from(opData.table)
-          .update(opData.after)
-          .eq('id', action.entity_id as string);
+        await requireMutation(
+          reversibleActionRelation(this.supabase, opData.table)
+            .update(opData.after)
+            .eq('id', action.entity_id as string)
+        );
         break;
 
       case 'delete':
         // Redo delete = delete again
-        await this.supabase
-          .from(opData.table)
-          .delete()
-          .eq('id', action.entity_id as string);
+        await requireMutation(
+          reversibleActionRelation(this.supabase, opData.table)
+            .delete()
+            .eq('id', action.entity_id as string)
+        );
         break;
     }
 
     // Mark action as redone
-    await this.supabase
-      .from('ai_actions')  // @ts-ignore
-      .update({ status: 'redone', updated_at: new Date().toISOString() })
-      .eq('id', actionId);
+    await requireMutation(
+      this.supabase
+        .from('ai_actions')
+        .update({ status: 'redone', updated_at: new Date().toISOString() })
+        .eq('id', actionId)
+    );
 
     return { success: true, action };
   }

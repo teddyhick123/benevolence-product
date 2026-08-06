@@ -4,7 +4,7 @@
  * Shared type definitions for the AI assistant system.
  */
 
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { SupabaseClient } from '@/lib/database-client';
 
 /**
  * AI Action - Tracks AI-initiated changes with undo/redo capability

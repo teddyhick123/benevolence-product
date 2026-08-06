@@ -1,4 +1,4 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { SupabaseClient } from '@/lib/database-client';
 import type { LifecycleStage } from '@/lib/grants/lifecycle-shared';
 
 export const CUSTOM_FIELD_ENTITY_TYPES = ['grant', 'holding', 'donor', 'contribution'] as const;

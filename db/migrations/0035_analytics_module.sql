@@ -215,12 +215,16 @@ GROUP BY h.portfolio_id;
 
 GRANT SELECT ON public.v_portfolio_investment_summary TO authenticated, service_role;
 
-CREATE OR REPLACE VIEW public.v_latest_risk_snapshot AS
+CREATE OR REPLACE VIEW public.v_latest_risk_snapshot
+  WITH (security_invoker = true)
+AS
 SELECT DISTINCT ON (portfolio_id) *
 FROM public.portfolio_risk_snapshots
 ORDER BY portfolio_id, snapshot_date DESC;
 
-CREATE OR REPLACE VIEW public.v_active_insights AS
+CREATE OR REPLACE VIEW public.v_active_insights
+  WITH (security_invoker = true)
+AS
 SELECT
   ai.*,
   h.name   AS holding_name,
@@ -239,7 +243,9 @@ ORDER BY
   END,
   ai.created_at DESC;
 
-CREATE OR REPLACE VIEW public.v_benchmark_lookup AS
+CREATE OR REPLACE VIEW public.v_benchmark_lookup
+  WITH (security_invoker = true)
+AS
 SELECT
   benchmark_type, benchmark_key, metric_code, data_year,
   metric_value, percentile_25, percentile_50, percentile_75,
@@ -265,10 +271,13 @@ DECLARE
   r       RECORD;
 BEGIN
   SELECT COALESCE(SUM(funds_allocated), 0) INTO v_total
-  FROM public.holdings WHERE portfolio_id = p_portfolio_id;
+  FROM public.holdings
+  WHERE portfolio_id = p_portfolio_id AND deleted_at IS NULL;
   IF v_total = 0 THEN RETURN 0; END IF;
   FOR r IN SELECT funds_allocated FROM public.holdings
-           WHERE portfolio_id = p_portfolio_id AND funds_allocated > 0
+           WHERE portfolio_id = p_portfolio_id
+             AND deleted_at IS NULL
+             AND funds_allocated > 0
   LOOP
     v_hhi := v_hhi + POWER((r.funds_allocated / v_total) * 100, 2);
   END LOOP;
@@ -292,6 +301,216 @@ $$;
 
 GRANT EXECUTE ON FUNCTION public.calculate_hhi(UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.get_concentration_risk_level(NUMERIC) TO authenticated;
+
+-- Generate and persist one deterministic risk snapshot per portfolio/day.
+-- The permission check and upsert are one database operation so callers cannot
+-- race a separate authorization or existence check.
+CREATE OR REPLACE FUNCTION public.generate_risk_snapshot(p_portfolio_id UUID)
+RETURNS UUID
+LANGUAGE plpgsql
+VOLATILE
+SET search_path = public
+AS $$
+DECLARE
+  v_snapshot_id UUID;
+  v_total_holdings INTEGER;
+  v_total_allocation NUMERIC;
+  v_top3_percent NUMERIC := 0;
+  v_top3 JSONB := '[]'::jsonb;
+  v_hhi NUMERIC := 0;
+  v_concentration_level TEXT;
+  v_sector_distribution JSONB := '[]'::jsonb;
+  v_sector_count INTEGER := 0;
+  v_largest_sector_percent NUMERIC := 0;
+  v_sector_level TEXT;
+  v_geography_distribution JSONB := '[]'::jsonb;
+  v_geography_count INTEGER := 0;
+  v_largest_geography_percent NUMERIC := 0;
+  v_geography_level TEXT;
+  v_asset_type_distribution JSONB := '[]'::jsonb;
+  v_asset_type_count INTEGER := 0;
+  v_overall_score NUMERIC;
+  v_overall_level TEXT;
+  v_risk_factors JSONB := '[]'::jsonb;
+  v_recommendations JSONB := '[]'::jsonb;
+BEGIN
+  IF COALESCE(auth.role(), '') <> 'service_role'
+     AND NOT public.can_edit_portfolio(p_portfolio_id) THEN
+    RAISE EXCEPTION 'not authorized to generate a risk snapshot for portfolio %', p_portfolio_id
+      USING ERRCODE = '42501';
+  END IF;
+
+  SELECT COUNT(*)::INTEGER, COALESCE(SUM(COALESCE(funds_allocated, 0)), 0)
+    INTO v_total_holdings, v_total_allocation
+  FROM public.holdings
+  WHERE portfolio_id = p_portfolio_id
+    AND deleted_at IS NULL;
+
+  WITH ranked AS (
+    SELECT id, name, COALESCE(funds_allocated, 0) AS allocation
+    FROM public.holdings
+    WHERE portfolio_id = p_portfolio_id AND deleted_at IS NULL
+    ORDER BY COALESCE(funds_allocated, 0) DESC, id
+    LIMIT 3
+  )
+  SELECT
+    COALESCE(ROUND(SUM(allocation) / NULLIF(v_total_allocation, 0) * 100, 2), 0),
+    COALESCE(jsonb_agg(jsonb_build_object(
+      'id', id,
+      'name', name,
+      'allocation', allocation,
+      'percent', COALESCE(ROUND(allocation / NULLIF(v_total_allocation, 0) * 100, 2), 0)
+    ) ORDER BY allocation DESC, id), '[]'::jsonb)
+  INTO v_top3_percent, v_top3
+  FROM ranked;
+
+  v_hhi := public.calculate_hhi(p_portfolio_id);
+  v_concentration_level := public.get_concentration_risk_level(v_hhi);
+
+  WITH grouped AS (
+    SELECT COALESCE(sector, 'Unknown') AS label,
+           COUNT(*)::INTEGER AS holding_count,
+           SUM(COALESCE(funds_allocated, 0)) AS allocation
+    FROM public.holdings
+    WHERE portfolio_id = p_portfolio_id AND deleted_at IS NULL
+    GROUP BY COALESCE(sector, 'Unknown')
+  ), enriched AS (
+    SELECT *, COALESCE(ROUND(allocation / NULLIF(v_total_allocation, 0) * 100, 2), 0) AS percent
+    FROM grouped
+  )
+  SELECT
+    COALESCE(jsonb_agg(jsonb_build_object(
+      'sector', label, 'count', holding_count, 'amount', allocation, 'percent', percent
+    ) ORDER BY allocation DESC, label), '[]'::jsonb),
+    COUNT(*)::INTEGER,
+    COALESCE(MAX(percent), 0)
+  INTO v_sector_distribution, v_sector_count, v_largest_sector_percent
+  FROM enriched;
+
+  v_sector_level := CASE
+    WHEN v_largest_sector_percent > 85 THEN 'critical'
+    WHEN v_largest_sector_percent > 70 THEN 'high'
+    WHEN v_largest_sector_percent > 50 THEN 'medium'
+    ELSE 'low'
+  END;
+
+  WITH grouped AS (
+    SELECT COALESCE(country, 'Unknown') AS label,
+           COUNT(*)::INTEGER AS holding_count,
+           SUM(COALESCE(funds_allocated, 0)) AS allocation
+    FROM public.holdings
+    WHERE portfolio_id = p_portfolio_id AND deleted_at IS NULL
+    GROUP BY COALESCE(country, 'Unknown')
+  ), enriched AS (
+    SELECT *, COALESCE(ROUND(allocation / NULLIF(v_total_allocation, 0) * 100, 2), 0) AS percent
+    FROM grouped
+  )
+  SELECT
+    COALESCE(jsonb_agg(jsonb_build_object(
+      'geography', label, 'count', holding_count, 'amount', allocation, 'percent', percent
+    ) ORDER BY allocation DESC, label), '[]'::jsonb),
+    COUNT(*)::INTEGER,
+    COALESCE(MAX(percent), 0)
+  INTO v_geography_distribution, v_geography_count, v_largest_geography_percent
+  FROM enriched;
+
+  v_geography_level := CASE
+    WHEN v_largest_geography_percent > 90 THEN 'critical'
+    WHEN v_largest_geography_percent > 80 THEN 'high'
+    WHEN v_largest_geography_percent > 60 THEN 'medium'
+    ELSE 'low'
+  END;
+
+  WITH grouped AS (
+    SELECT asset_type::TEXT AS label,
+           COUNT(*)::INTEGER AS holding_count,
+           SUM(COALESCE(funds_allocated, 0)) AS allocation
+    FROM public.holdings
+    WHERE portfolio_id = p_portfolio_id AND deleted_at IS NULL
+    GROUP BY asset_type
+  )
+  SELECT
+    COALESCE(jsonb_agg(jsonb_build_object(
+      'asset_type', label,
+      'count', holding_count,
+      'amount', allocation,
+      'percent', COALESCE(ROUND(allocation / NULLIF(v_total_allocation, 0) * 100, 2), 0)
+    ) ORDER BY allocation DESC, label), '[]'::jsonb),
+    COUNT(*)::INTEGER
+  INTO v_asset_type_distribution, v_asset_type_count
+  FROM grouped;
+
+  v_overall_score := ROUND((
+    CASE v_concentration_level WHEN 'critical' THEN 100 WHEN 'high' THEN 75 WHEN 'medium' THEN 50 ELSE 25 END +
+    CASE v_sector_level WHEN 'critical' THEN 100 WHEN 'high' THEN 75 WHEN 'medium' THEN 50 ELSE 25 END +
+    CASE v_geography_level WHEN 'critical' THEN 100 WHEN 'high' THEN 75 WHEN 'medium' THEN 50 ELSE 25 END
+  )::NUMERIC / 3, 2);
+  v_overall_level := CASE
+    WHEN v_overall_score >= 87.5 THEN 'critical'
+    WHEN v_overall_score >= 62.5 THEN 'high'
+    WHEN v_overall_score >= 37.5 THEN 'medium'
+    ELSE 'low'
+  END;
+
+  IF v_concentration_level IN ('high', 'critical') THEN
+    v_risk_factors := v_risk_factors || jsonb_build_array('Portfolio value is concentrated in a small number of holdings');
+    v_recommendations := v_recommendations || jsonb_build_array('Review concentration limits and diversification options');
+  END IF;
+  IF v_sector_level IN ('high', 'critical') THEN
+    v_risk_factors := v_risk_factors || jsonb_build_array('Portfolio value is concentrated in one sector');
+    v_recommendations := v_recommendations || jsonb_build_array('Consider diversifying exposure across sectors');
+  END IF;
+  IF v_geography_level IN ('high', 'critical') THEN
+    v_risk_factors := v_risk_factors || jsonb_build_array('Portfolio value is concentrated in one geography');
+    v_recommendations := v_recommendations || jsonb_build_array('Review geographic diversification');
+  END IF;
+
+  INSERT INTO public.portfolio_risk_snapshots (
+    portfolio_id, snapshot_date, total_holdings, total_allocation,
+    concentration_top3_percent, concentration_top3_holdings,
+    concentration_risk_level, herfindahl_index,
+    sector_distribution, sector_count, largest_sector_percent, sector_risk_level,
+    geography_distribution, geography_count, largest_geography_percent, geography_risk_level,
+    asset_type_distribution, asset_type_count,
+    overall_risk_score, overall_risk_level, risk_factors, recommendations
+  ) VALUES (
+    p_portfolio_id, CURRENT_DATE, v_total_holdings, v_total_allocation,
+    v_top3_percent, v_top3, v_concentration_level, v_hhi,
+    v_sector_distribution, v_sector_count, v_largest_sector_percent, v_sector_level,
+    v_geography_distribution, v_geography_count, v_largest_geography_percent, v_geography_level,
+    v_asset_type_distribution, v_asset_type_count,
+    v_overall_score, v_overall_level, v_risk_factors, v_recommendations
+  )
+  ON CONFLICT (portfolio_id, snapshot_date) DO UPDATE SET
+    total_holdings = EXCLUDED.total_holdings,
+    total_allocation = EXCLUDED.total_allocation,
+    concentration_top3_percent = EXCLUDED.concentration_top3_percent,
+    concentration_top3_holdings = EXCLUDED.concentration_top3_holdings,
+    concentration_risk_level = EXCLUDED.concentration_risk_level,
+    herfindahl_index = EXCLUDED.herfindahl_index,
+    sector_distribution = EXCLUDED.sector_distribution,
+    sector_count = EXCLUDED.sector_count,
+    largest_sector_percent = EXCLUDED.largest_sector_percent,
+    sector_risk_level = EXCLUDED.sector_risk_level,
+    geography_distribution = EXCLUDED.geography_distribution,
+    geography_count = EXCLUDED.geography_count,
+    largest_geography_percent = EXCLUDED.largest_geography_percent,
+    geography_risk_level = EXCLUDED.geography_risk_level,
+    asset_type_distribution = EXCLUDED.asset_type_distribution,
+    asset_type_count = EXCLUDED.asset_type_count,
+    overall_risk_score = EXCLUDED.overall_risk_score,
+    overall_risk_level = EXCLUDED.overall_risk_level,
+    risk_factors = EXCLUDED.risk_factors,
+    recommendations = EXCLUDED.recommendations,
+    created_at = NOW()
+  RETURNING id INTO v_snapshot_id;
+
+  RETURN v_snapshot_id;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.generate_risk_snapshot(UUID) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.generate_risk_snapshot(UUID) TO authenticated, service_role;
 
 -- ---------------------------------------------------------------------------
 -- updated_at trigger

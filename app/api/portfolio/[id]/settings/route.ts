@@ -17,9 +17,9 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
   try {
     const { data, error } = await access.context.db
       .from('portfolio_settings')
-      .select('show_map, widgets')
+      .select('key, value')
       .eq('portfolio_id', portfolio_id)
-      .single();
+      .in('key', ['show_map', 'widgets']);
 
     const cacheHeaders = { 'Cache-Control': 'no-store' };
 
@@ -33,9 +33,12 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
       return NextResponse.json({ ...DEFAULTS, _hint: 'settings_error', _detail: error.message }, { headers: { 'Cache-Control': 'no-store' } });
     }
 
-    const show_map = typeof data?.show_map === 'boolean' ? data.show_map : DEFAULTS.show_map;
-    const widgets = Array.isArray(data?.widgets) && (data.widgets as any[]).length
-      ? (data.widgets as string[])
+    const settings = new Map((data ?? []).map(row => [row.key, row.value]));
+    const showMapValue = settings.get('show_map');
+    const widgetsValue = settings.get('widgets');
+    const show_map = typeof showMapValue === 'boolean' ? showMapValue : DEFAULTS.show_map;
+    const widgets = Array.isArray(widgetsValue) && widgetsValue.length
+      ? widgetsValue.filter((value): value is string => typeof value === 'string')
       : DEFAULTS.widgets;
 
     return NextResponse.json({ show_map, widgets }, { headers: cacheHeaders });

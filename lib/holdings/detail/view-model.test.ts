@@ -16,7 +16,7 @@ describe('holding detail view model', () => {
     const result = buildHoldingDetailViewModel(
       holding,
       [{ id: 'fact', holding_id: 'holding', metric_code: 'JOBS', value: 100, updated_at: '2026-01-01' }],
-      [{ id: 'contribution', portfolio_id: 'portfolio', holding_id: 'holding', amount: 1_000, contributed_at: '2026-01-01' }],
+      [{ id: 'contribution', portfolio_id: 'portfolio', holding_id: 'holding', amount_usd: 1_000, contribution_date: '2026-01-01' }],
       new Map([['JOBS', 'Jobs created']]),
     );
 

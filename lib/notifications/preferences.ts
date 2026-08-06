@@ -4,7 +4,7 @@ import {
   NotificationAlertKey,
   DEFAULT_NOTIFICATION_PREFS,
 } from './types';
-import { SupabaseClient } from '@supabase/supabase-js';
+import type { SupabaseClient } from '@/lib/database-client';
 
 export function mergePrefsWithDefaults(raw: any): NotificationPrefs {
   return {

@@ -110,8 +110,9 @@ describe('org-scoped route auth contracts', () => {
 
     expect(src).toContain('TASK_ENTITY_TYPES');
     expect(src).toContain('assertEntityLink');
-    expect(src).toContain('DIRECT_ORG_ENTITY_TABLES');
-    expect(src).toContain('GRANT_CHILD_ENTITY_TABLES');
+    expect(src).toContain('directEntityQuery');
+    expect(src).toContain('grantChildEntityQuery');
+    expect(src).not.toMatch(/\.from\((directTable|grantChildTable)\)/);
     expect(src).toContain("await db.from('tasks').delete()");
     expect(src).toContain('linkError');
     expect(src).toContain('eventError');

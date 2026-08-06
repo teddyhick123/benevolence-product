@@ -79,7 +79,9 @@ CREATE TRIGGER trg_metric_facts_updated_at
 -- ---------------------------------------------------------------------------
 -- v_portfolio_kpi_latest — latest KPI value per holding, enriched with org KPI config
 -- ---------------------------------------------------------------------------
-CREATE OR REPLACE VIEW v_portfolio_kpi_latest AS
+CREATE OR REPLACE VIEW v_portfolio_kpi_latest
+  WITH (security_invoker = true)
+AS
 SELECT DISTINCT ON (mf.holding_id, mf.metric_code)
   mf.holding_id,
   h.portfolio_id,
@@ -118,6 +120,38 @@ LEFT JOIN kpi_definitions kd
 ORDER BY mf.holding_id, mf.metric_code, mf.period_end DESC;
 
 -- ---------------------------------------------------------------------------
+-- v_portfolio_kpi_series — complete portfolio KPI history for charts/reports
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE VIEW v_portfolio_kpi_series
+  WITH (security_invoker = true)
+AS
+SELECT
+  h.portfolio_id,
+  h.org_id,
+  mf.holding_id,
+  h.name                              AS holding_name,
+  h.sector,
+  h.country,
+  mf.kpi_id,
+  mf.metric_code,
+  COALESCE(kd.name, mf.metric_code)   AS metric_name,
+  COALESCE(kd.name, mf.metric_code)   AS display_name,
+  mf.value,
+  mf.unit,
+  mf.period_start,
+  mf.period_end,
+  mf.source,
+  mf.created_at
+FROM metric_facts mf
+JOIN holdings h
+  ON h.id = mf.holding_id
+ AND h.deleted_at IS NULL
+LEFT JOIN kpi_definitions kd
+  ON kd.org_id = h.org_id
+ AND kd.slug = mf.metric_code
+ AND kd.is_active;
+
+-- ---------------------------------------------------------------------------
 -- RLS
 -- ---------------------------------------------------------------------------
 ALTER TABLE kpi_definitions ENABLE ROW LEVEL SECURITY;
@@ -151,3 +185,4 @@ GRANT ALL ON kpi_definitions TO service_role;
 GRANT SELECT, INSERT, UPDATE, DELETE ON metric_facts TO authenticated;
 GRANT ALL ON metric_facts TO service_role;
 GRANT SELECT ON v_portfolio_kpi_latest TO authenticated, service_role;
+GRANT SELECT ON v_portfolio_kpi_series TO authenticated, service_role;

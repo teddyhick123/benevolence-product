@@ -1,9 +1,9 @@
-import { createClient } from '@supabase/supabase-js';
+import type { SupabaseClient } from '@/lib/database-client';
 import { loadOrgAiContext } from '@/lib/org-ai-context';
 import { loadEntityVocabulary } from '@/lib/view-config';
 
 
-export async function getPortfolioContext(supabase: ReturnType<typeof createClient>, portfolioId: string) {
+export async function getPortfolioContext(supabase: SupabaseClient, portfolioId: string) {
     // Pre-fetch org_id so kpi_definitions can be fetched in the main parallel block
     const { data: portfolioMeta } = await supabase
       .from('portfolios')
@@ -27,7 +27,7 @@ export async function getPortfolioContext(supabase: ReturnType<typeof createClie
         .single(),
       supabase
         .from('holdings')
-        .select('id, name, sector, country, status, funds_allocated, asset_type, description')
+        .select('id, name, sector, country, status, funds_allocated, current_value, asset_type, description')
         .eq('portfolio_id', portfolioId)
         .order('funds_allocated', { ascending: false, nullsFirst: false }),
       contextOrgId
@@ -62,7 +62,7 @@ export async function getPortfolioContext(supabase: ReturnType<typeof createClie
     const kpiDefsData = (kpiDefs as any).data || [];
 
     const totalAUM = holdingsData.reduce((sum: number, h: any) => sum + (h.funds_allocated || 0), 0);
-    const totalNAV = holdingsData.reduce((sum: number, h: any) => sum + (h.nav || 0), 0);
+    const totalNAV = holdingsData.reduce((sum: number, h: any) => sum + (h.current_value || 0), 0);
 
     const sectorBreakdown: Record<string, { count: number; funds: number }> = {};
     holdingsData.forEach((h: any) => {

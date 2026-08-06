@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS organizations (
 
   -- Identity
   name            text NOT NULL,
+  description     text,
   slug            text UNIQUE,            -- URL-safe short name (optional)
   ein             text,                   -- EIN / tax ID for US nonprofits
   org_type        org_type_enum NOT NULL DEFAULT 'private_foundation',

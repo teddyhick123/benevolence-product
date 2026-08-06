@@ -1,5 +1,4 @@
-import { cookies } from "next/headers";
-import { createServerClient } from "@supabase/ssr";
+import { createServerClient } from "@/lib/api/server-client";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { getOrgEnabledModules } from "@/lib/modules";
@@ -27,20 +26,7 @@ export default async function OrgDashboardPage({ params }: Props) {
   const { orgId } = await params;
 
   // Auth check
-  const cookieStore = await cookies();
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        get(name: string) {
-          return cookieStore.get(name)?.value;
-        },
-        set() {},
-        remove() {},
-      },
-    }
-  );
+  const supabase = await createServerClient();
 
   const {
     data: { user },

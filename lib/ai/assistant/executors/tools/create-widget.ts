@@ -11,7 +11,7 @@ export const executeCreateWidget: AssistantToolExecutor = async (runtime) => {
     sequenceOrder,
     userPrompt,
   } = runtime;
-  const executor = new AIActionExecutor(runtime.db as never);
+  const executor = new AIActionExecutor(runtime.db);
   return await executor.createWidget(
     portfolioId,
     userId,

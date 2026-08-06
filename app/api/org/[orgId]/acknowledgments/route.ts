@@ -47,7 +47,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     const offset = Number.isFinite(requestedOffset) && requestedOffset >= 0 ? requestedOffset : 0;
 
     if (donorId) query = query.eq('donor_id', donorId);
-    void letterType;
+    if (letterType) query = query.eq('letter_type', letterType);
     if (status) query = query.eq('status', status);
 
     const { data: letters, error } = await query
@@ -211,6 +211,7 @@ ${orgName}`;
         org_id: orgId,
         donor_id,
         contribution_ids: contribution_id ? [contribution_id] : [],
+        letter_type: type,
         status: 'draft',
         subject: finalSubject,
         body: finalBody,

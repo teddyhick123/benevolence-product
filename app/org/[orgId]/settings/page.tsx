@@ -21,24 +21,24 @@ async function loadSettingsData(orgId: string) {
     return { error: "Not authorized", org: null, holdings: [], charity: null, isAdmin: false };
   }
 
-  // Load organization with charity link
+  // Organizations link to the global charity directory by canonical EIN.
   const { data: org, error: orgError } = await supabase
     .from("organizations")
-    .select(`
-      *,
-      charities (
-        id,
-        name,
-        ein,
-        website
-      )
-    `)
+    .select("*")
     .eq("id", orgId)
     .single();
 
   if (orgError) {
     return { error: orgError.message, org: null, holdings: [], charity: null, isAdmin: !!isAdmin };
   }
+
+  const { data: charity } = org.ein
+    ? await supabase
+        .from("charities")
+        .select("id, name, ein, website")
+        .eq("ein", org.ein)
+        .maybeSingle()
+    : { data: null };
 
   // Load holdings owned by this organization
   const { data: holdingRows } = await supabase
@@ -73,7 +73,7 @@ async function loadSettingsData(orgId: string) {
     error: null,
     org,
     holdings: holdingLinks || [],
-    charity: org?.charities || null,
+    charity,
     isAdmin: !!isAdmin,
     role: roleData,
   };

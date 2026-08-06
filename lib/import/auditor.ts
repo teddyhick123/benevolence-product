@@ -1,7 +1,7 @@
 // lib/import/auditor.ts
 // Buffered audit logger for import operations — writes before/after snapshots
 
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { DynamicImportClient as SupabaseClient } from '@/lib/database-client';
 
 export interface AuditEntry {
   importJobId: string;

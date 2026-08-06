@@ -1,5 +1,6 @@
 import { isAccessDenied, requirePortfolioAccess } from '@/lib/api/access';
 import { jsonError, jsonOk } from '@/lib/api/responses';
+import { createPortfolioMetricsRepository } from '@/lib/api/repositories/metrics';
 
 export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id: portfolio_id } = await ctx.params;
@@ -46,10 +47,8 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
   let kpisMap = new Map<string, any[]>();
   if (holdingIds.length > 0) {
     try {
-      const { data: kpisData } = await supabase.rpc('get_top_kpis_per_holding', {
-        p_holding_ids: holdingIds,
-        p_limit: 3,
-      });
+      const kpisData = await createPortfolioMetricsRepository(supabase, portfolio_id)
+        .topByHolding(holdingIds, 3);
 
       if (kpisData) {
         // Group KPIs by holding_id
@@ -77,14 +76,14 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
     try {
       const { data: contribData } = await supabase
         .from('holding_contributions')
-        .select('holding_id, amount')
+        .select('holding_id, amount_usd')
         .in('holding_id', holdingIds);
 
       if (contribData) {
         // Sum contributions by holding_id
         for (const contrib of contribData) {
           const existing = financialMap.get(contrib.holding_id) || 0;
-          financialMap.set(contrib.holding_id, existing + (contrib.amount || 0));
+          financialMap.set(contrib.holding_id, existing + (contrib.amount_usd || 0));
         }
       }
     } catch (err) {

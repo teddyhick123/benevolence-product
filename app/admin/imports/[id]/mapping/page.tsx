@@ -7,6 +7,7 @@ import { branding } from '@/lib/config';
 import { MappingPageClient } from './MappingPageClient';
 import type { ImportJob, MappingProfile } from '@/lib/import/types';
 import { STAGING_TABLE_MAP } from '@/lib/import/types';
+import { fromImportRelation } from '@/lib/import/database';
 
 export const dynamic = 'force-dynamic';
 
@@ -87,14 +88,12 @@ export default async function MappingPage({
   const stagingPreviews = await Promise.all(
     entityTypes.map(async (entity) => {
       const table = STAGING_TABLE_MAP[entity];
-      const { data: sampleRows } = await adminSupabase
-        .from(table)
+      const { data: sampleRows } = await fromImportRelation(adminSupabase, table)
         .select('raw_data')
         .eq('import_job_id', id)
         .limit(5);
 
-      const { count } = await adminSupabase
-        .from(table)
+      const { count } = await fromImportRelation(adminSupabase, table)
         .select('*', { count: 'exact', head: true })
         .eq('import_job_id', id);
 

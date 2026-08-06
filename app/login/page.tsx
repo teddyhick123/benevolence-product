@@ -1,13 +1,10 @@
 'use client';
 import { useEffect, useMemo, useState, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { createClient } from '@supabase/supabase-js';
+import { createBrowserClient } from '@/lib/supabase-browser';
 import { branding } from '@/lib/config';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+const supabase = createBrowserClient();
 
 function authErrorMessage(error: unknown, fallback: string) {
   if (error instanceof TypeError && error.message === 'Failed to fetch') {

@@ -46,7 +46,7 @@ export default function HoldingsSection({ portfolioId, canEdit = false }: { port
       id: row.id,
       name: row.name ?? row.holding_name,
       asset_type: row.asset_type,
-      funds_allocated: row.funds ?? row.funds_allocated ?? row.nav ?? null,
+      funds_allocated: row.funds ?? row.funds_allocated ?? null,
       status: row.status,
       as_of: row.asOfRaw ?? row.as_of ?? row.as_of_date ?? null,
       sector: row.sector ?? null,

@@ -72,7 +72,7 @@ describe('portfolio assistant donor executor column contract', () => {
 
     expect(insertBodies).not.toContain('');
     for (const insertBody of insertBodies) {
-      expect(insertBody).not.toMatch(/^\s*letter_type:/m);
+      expect(insertBody).toMatch(/^\s*letter_type:/m);
       expect(insertBody).not.toMatch(/^\s*contribution_id:/m);
       expect(insertBody).not.toMatch(/^\s*sent_via:/m);
       expect(insertBody).not.toMatch(/^\s*created_by:/m);

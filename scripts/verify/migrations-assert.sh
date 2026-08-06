@@ -19,3 +19,4 @@ if [ "${count:-0}" -lt 10 ]; then
   exit 1
 fi
 echo "migrations-assert: ${count} public tables present"
+npm run db:types:check

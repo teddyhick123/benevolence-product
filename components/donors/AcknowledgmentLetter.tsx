@@ -12,7 +12,7 @@ type Donor = {
   address_line1: string | null;
   city: string | null;
   state: string | null;
-  postal_code: string | null;
+  zip: string | null;
 };
 
 type Organization = {
@@ -257,7 +257,7 @@ ${organization.name}`;
                 {donor.address_line1}
                 {donor.city && `, ${donor.city}`}
                 {donor.state && `, ${donor.state}`}
-                {donor.postal_code && ` ${donor.postal_code}`}
+                {donor.zip && ` ${donor.zip}`}
               </p>
             </div>
           )}

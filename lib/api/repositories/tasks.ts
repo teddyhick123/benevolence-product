@@ -22,25 +22,6 @@ export type TaskListInput = {
   limit: number;
 };
 
-const DIRECT_ORG_ENTITY_TABLES: Record<string, string> = {
-  filing: 'compliance_filings',
-  state_registration: 'state_registrations',
-  pledge_installment: 'pledge_installments',
-  pledge: 'pledges',
-  donor: 'donors',
-  grant: 'grants',
-  holding: 'holdings',
-  portfolio: 'portfolios',
-  import_job: 'import_jobs',
-  workflow_instance: 'workflow_instances',
-};
-
-const GRANT_CHILD_ENTITY_TABLES: Record<string, string> = {
-  grant_milestone: 'grant_milestones',
-  grant_report: 'grant_reports',
-  grant_payment: 'grant_payments',
-};
-
 export class TaskRepositoryError extends Error {
   readonly status: 400 | 403 | 404;
 
@@ -86,6 +67,31 @@ function eventTypeForUpdates(updates: Record<string, any>) {
 export function createOrgTaskRepository(scope: TaskRepositoryScope) {
   const db = createElevatedClient();
 
+  function directEntityQuery(entityType: string) {
+    switch (entityType) {
+      case 'filing': return db.from('filing_calendar');
+      case 'state_registration': return db.from('state_registrations');
+      case 'pledge_installment': return db.from('pledge_installments');
+      case 'pledge': return db.from('pledges');
+      case 'donor': return db.from('donors');
+      case 'grant': return db.from('grants');
+      case 'holding': return db.from('holdings');
+      case 'portfolio': return db.from('portfolios');
+      case 'import_job': return db.from('import_jobs');
+      case 'workflow_instance': return db.from('workflow_instances');
+      default: return null;
+    }
+  }
+
+  function grantChildEntityQuery(entityType: string) {
+    switch (entityType) {
+      case 'grant_milestone': return db.from('grant_milestones');
+      case 'grant_report': return db.from('grant_reports');
+      case 'grant_payment': return db.from('grant_payments');
+      default: return null;
+    }
+  }
+
   async function loadTask(taskId: string, selection = '*') {
     const { data, error } = await db
       .from('tasks')
@@ -127,10 +133,9 @@ export function createOrgTaskRepository(scope: TaskRepositoryScope) {
   async function assertEntityLink(link: { entity_type: string; entity_id: string }) {
     if (!TASK_ENTITY_TYPES.includes(link.entity_type as any)) return false;
 
-    const directTable = DIRECT_ORG_ENTITY_TABLES[link.entity_type];
-    if (directTable) {
-      const { data, error } = await db
-        .from(directTable)
+    const directQuery = directEntityQuery(link.entity_type);
+    if (directQuery) {
+      const { data, error } = await directQuery
         .select('id')
         .eq('id', link.entity_id)
         .eq('org_id', scope.orgId)
@@ -139,10 +144,9 @@ export function createOrgTaskRepository(scope: TaskRepositoryScope) {
       return !!data;
     }
 
-    const grantChildTable = GRANT_CHILD_ENTITY_TABLES[link.entity_type];
-    if (grantChildTable) {
-      const { data, error } = await db
-        .from(grantChildTable)
+    const grantChildQuery = grantChildEntityQuery(link.entity_type);
+    if (grantChildQuery) {
+      const { data, error } = await grantChildQuery
         .select('id, grants!inner(org_id)')
         .eq('id', link.entity_id)
         .eq('grants.org_id', scope.orgId)

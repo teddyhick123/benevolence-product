@@ -51,7 +51,6 @@ psql $DATABASE_URL -f db/demo/seed_demo_org.sql
 | 0029_ai_action_source | Historical | Placeholder only; ai_actions.initiated_by is defined in 0033 |
 | 0030_ai_usage_log | AI | Token usage log per AI chat call (cost visibility) |
 | 0031_staging_cleanup | Admin | `cleanup_staging_pii()` function (SECURITY DEFINER) |
-| 0032_fix_v_donor_summary | Fix | Rebuild v_donor_summary with correct column aliases |
 | 0033_ai_sessions | AI | ai_sessions, durable ai_turns/ai_messages, ai_actions, portfolio_recommendations |
 | 0034_onboarding | Onboarding | Onboarding sessions, profiles, recommendations, analytics |
 | 0035_analytics_module | Analytics | Benchmarks, projections cache, risk snapshots, insights, investment performance views |

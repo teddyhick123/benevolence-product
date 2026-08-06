@@ -1,4 +1,4 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { SupabaseClient } from '@/lib/database-client';
 import type { LifecycleStage } from '@/lib/grants/lifecycle-shared';
 import { createAdminClient } from '@/lib/supabase';
 import { CUSTOM_FIELD_ENTITY_TYPES, typedValuePatch, type CustomFieldEntityType } from '@/lib/custom-fields';

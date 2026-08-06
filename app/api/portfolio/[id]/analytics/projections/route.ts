@@ -179,9 +179,9 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
   if (cached && !holding_id) {
     return NextResponse.json({
       projection: {
+        ...cached,
         metric_code,
         method,
-        ...cached,
         from_cache: true,
       },
     }, { headers: cacheHeaders() });

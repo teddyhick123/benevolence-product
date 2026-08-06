@@ -29,7 +29,7 @@ type Contribution = {
     address_line1: string | null;
     city: string | null;
     state: string | null;
-    postal_code: string | null;
+    zip: string | null;
   } | null;
 };
 
@@ -76,7 +76,7 @@ export default function ContributionsPage() {
                 address_line1,
                 city,
                 state,
-                postal_code
+                zip
               )
             `)
             .eq('org_id', organizationId)
@@ -88,7 +88,14 @@ export default function ContributionsPage() {
             .single(),
         ]);
 
-        if (!contribRes.error) setContributions(contribRes.data || []);
+        if (!contribRes.error) {
+          setContributions((contribRes.data || []).map((contribution) => ({
+            ...contribution,
+            designation: contribution.fund_designation,
+            acknowledgment_status: contribution.acknowledgment_sent ? 'sent' : 'pending',
+            donors: contribution.donors,
+          })));
+        }
         if (!orgRes.error) setOrganization(orgRes.data);
       } catch (err) {
         console.error('Error fetching contributions:', err);

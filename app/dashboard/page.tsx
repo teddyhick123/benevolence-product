@@ -11,27 +11,10 @@ import GrantsList from '@/components/grants/GrantsList';
 import PayoutMiniGauge from '@/components/compliance/PayoutMiniGauge';
 import TaskSummaryWidget from '@/components/tasks/TaskSummaryWidget';
 import { loadOrgViewConfig, resolveDashboardSections, type DashboardSectionId } from '@/lib/view-config';
+import { createPortfolioMetricsRepository } from '@/lib/api/repositories/metrics';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
-
-type OverviewRow = {
-  portfolio_id: string;
-  metric_code?: string | null;    // new shape
-  value?: number | null;          // new shape
-  unit?: string | null;           // new shape (nullable)
-  period_start?: string | null;   // new shape
-  period_end?: string | null;     // new shape
-  created_at?: string | null;     // new shape
-  holding_name?: string | null;
-  sector?: string | null;
-  country?: string | null;
-  metric_name?: string | null;
-  metric_value?: number | null;
-  as_of_date?: string | null;
-};
-
-type KpiSum = { metric_code: string; total_value: number | null; latest_period: string | null };
 
 async function getBaseUrl() {
   const h = await headers(); // <-- await removed
@@ -82,7 +65,8 @@ export default async function Dashboard({ searchParams }: { searchParams?: Promi
   // Parallelize all fetches for better performance
   const supabase = await getSupabase();
 
-  const [metaRes, roleRes, settingsRes, kpiResult] = await Promise.all([
+  const metricsRepository = createPortfolioMetricsRepository(supabase, portfolioId);
+  const [metaRes, roleRes, settingsRes, kpiSums] = await Promise.all([
     fetch(`${base}/api/portfolio/${portfolioId}/meta`, {
       cache: 'no-store',
       headers: { cookie: cookieHeader }
@@ -95,13 +79,7 @@ export default async function Dashboard({ searchParams }: { searchParams?: Promi
       cache: 'no-store',
       headers: { cookie: cookieHeader }
     }).catch(() => null),
-    (async () => {
-      try {
-        return await supabase.rpc('get_portfolio_latest_kpis_sum', { p_portfolio_id: portfolioId });
-      } catch {
-        return { data: [] };
-      }
-    })(),
+    metricsRepository.latestSums().catch(() => []),
   ]);
 
   // Parse responses
@@ -121,7 +99,6 @@ export default async function Dashboard({ searchParams }: { searchParams?: Promi
     : { show_map: true, widgets: [] };
   const showMap = settingsJson.show_map !== false;
 
-  const kpiSums: KpiSum[] = Array.isArray(kpiResult?.data) ? kpiResult.data as KpiSum[] : [];
   const dashboardConfigRows = orgId
     ? await loadOrgViewConfig(supabase as any, orgId, { scope: 'dashboard', scopeKey: 'main' }).catch(() => [])
     : [];

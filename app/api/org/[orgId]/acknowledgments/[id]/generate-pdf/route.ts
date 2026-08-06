@@ -23,7 +23,8 @@ export async function POST(_req: NextRequest, { params }: RouteParams) {
       .from('acknowledgment_letters')
       .select(`
         *,
-        donors(first_name, last_name, organization_name, is_organization, address_line1, address_line2, city, state, zip, country)
+        donors(first_name, last_name, organization_name, is_organization, address_line1, address_line2, city, state, zip, country),
+        organizations(name, ein)
       `)
       .eq('id', id)
       .eq('org_id', orgId)
@@ -33,7 +34,11 @@ export async function POST(_req: NextRequest, { params }: RouteParams) {
       return jsonError('Letter not found', 404);
     }
 
-    const pdfBuffer = generateAcknowledgmentPDF(letter);
+    const pdfBuffer = generateAcknowledgmentPDF({
+      ...letter,
+      org_name: letter.organizations?.name,
+      org_ein: letter.organizations?.ein,
+    });
     const pdfRepository = createAcknowledgmentPdfRepository(access.context);
     const storagePath = await pdfRepository.upload(id, pdfBuffer);
 

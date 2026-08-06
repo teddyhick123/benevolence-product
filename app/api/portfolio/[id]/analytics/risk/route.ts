@@ -1,6 +1,7 @@
 // app/api/portfolio/[id]/analytics/risk/route.ts
 import { NextResponse } from 'next/server';
 import { requirePortfolioAccess, isAccessDenied } from '@/lib/api/access';
+import { hasOrgRole } from '@/lib/roles';
 
 function cacheHeaders() {
   return { 'Cache-Control': 'no-store' } as const;
@@ -26,17 +27,31 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
     .limit(1)
     .maybeSingle();
 
+  if (snapshotError) {
+    return NextResponse.json(
+      { error: `Failed to read risk snapshot: ${snapshotError.message}` },
+      { status: 500, headers: cacheHeaders() }
+    );
+  }
+
   // If no snapshot or it's old, generate a new one
   const today = new Date().toISOString().split('T')[0];
   let currentSnapshot = latestSnapshot;
 
-  if (!latestSnapshot || latestSnapshot.snapshot_date !== today) {
+  if ((!latestSnapshot || latestSnapshot.snapshot_date !== today) && hasOrgRole(access.context.role, 'member')) {
     // Generate new snapshot
     const { data: newSnapshotId, error: genError } = await sb.rpc('generate_risk_snapshot', {
       p_portfolio_id: portfolio_id,
     });
 
-    if (!genError && newSnapshotId) {
+    if (genError) {
+      return NextResponse.json(
+        { error: `Failed to persist risk snapshot: ${genError.message}` },
+        { status: 500, headers: cacheHeaders() }
+      );
+    }
+
+    if (newSnapshotId) {
       const { data: newSnapshot } = await sb
         .from('portfolio_risk_snapshots')
         .select('*')

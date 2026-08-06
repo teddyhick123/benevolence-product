@@ -76,7 +76,9 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     const {
       first_name, last_name, email, phone,
       organization_name, is_organization, preferred_name,
+      contact_name, is_anonymous,
       address_line1, address_line2, city, state, zip, country,
+      communication_preference, do_not_contact,
       tier, notes, tags,
     } = parsed.data;
 
@@ -91,12 +93,16 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
         organization_name: organization_name || null,
         is_organization: is_organization || false,
         preferred_name: preferred_name || null,
+        contact_name: contact_name || null,
+        is_anonymous: is_anonymous || false,
         address_line1: address_line1 || null,
         address_line2: address_line2 || null,
         city: city || null,
         state: state || null,
         zip: zip || null,
         country: country || 'US',
+        communication_preference: communication_preference || 'email',
+        do_not_contact: do_not_contact || false,
         tier: tier || 'prospect',
         notes: notes || null,
         tags: tags || [],

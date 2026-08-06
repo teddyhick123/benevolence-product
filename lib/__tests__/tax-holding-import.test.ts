@@ -302,7 +302,7 @@ describe('createTaxContributionDraft: stock / equity holding', () => {
 });
 
 // ---------------------------------------------------------------------------
-// 8. Helper: createTaxContributionDraft — stock without provided cost_basis/nav
+// 8. Helper: createTaxContributionDraft — stock without provided cost basis/current value
 // ---------------------------------------------------------------------------
 describe('createTaxContributionDraft: equity holding with no external perf data', () => {
   const holding = {

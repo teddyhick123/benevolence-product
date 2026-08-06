@@ -21,7 +21,6 @@ type SimpleRow = {
   name?: string | null;
   holding_name?: string | null; // legacy
   funds_allocated?: number | null;
-  nav?: number | null; // legacy
   asset_type?: string | null;
   instrument_type?: string | null;
   as_of?: string | null; // canonical 'YYYY-MM-DD'
@@ -105,9 +104,7 @@ export default function HoldingsTable({
       const inv = Array.isArray(r.investees) ? (r.investees[0] ?? null) : (r.investees ?? null);
 
       const name = r.name || r.holding_name || inv?.display_name || '—';
-      const funds = r.funds_allocated != null ? Number(r.funds_allocated)
-                   : (r as any).nav != null ? Number((r as any).nav)
-                   : null;
+      const funds = r.funds_allocated != null ? Number(r.funds_allocated) : null;
       const assetClass = r.asset_type
         ? (ASSET_TYPE_LABELS[r.asset_type as AssetType] || r.asset_type)
         : '—';

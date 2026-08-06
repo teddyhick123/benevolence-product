@@ -22,9 +22,7 @@ export type ResolvedAiActionMutation =
 export type AiActionMutationRepository = ReturnType<typeof createMutationRepository>;
 
 function createMutationRepository(db: SessionClient, scope: ActionScope) {
-  const executor = new AIActionExecutor(
-    db as unknown as ConstructorParameters<typeof AIActionExecutor>[0]
-  );
+  const executor = new AIActionExecutor(db);
 
   async function requireAction(actionId: string) {
     const { data, error } = await db

@@ -88,10 +88,10 @@ export interface MappingProfile {
   updated_at: string;
 }
 
-export const STAGING_TABLE_MAP: Record<EntityType, string> = {
+export const STAGING_TABLE_MAP = {
   donors: 'staging_import_donors',
   investees: 'staging_import_investees',
   holdings: 'staging_import_holdings',
   contributions: 'staging_import_contributions',
   metrics: 'staging_import_metrics',
-};
+} as const satisfies Record<EntityType, string>;

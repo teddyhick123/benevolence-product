@@ -10,7 +10,7 @@ export const revalidate = 0;
 type MemberRow = {
   user_id: string;
   role: 'owner' | 'admin' | 'member' | 'viewer' | string;
-  added_at: string | null;
+  created_at: string | null;
   profiles?: { display_name?: string | null } | null;
 };
 
@@ -27,7 +27,7 @@ async function loadMembers(portfolioId: string) {
     .select(`
       user_id,
       role,
-      added_at,
+      created_at,
       profiles!portfolio_members_profiles_fkey(display_name)
     `)
     .eq('portfolio_id', portfolioId)
@@ -127,7 +127,7 @@ export default async function MembersPage(ctx: { params: Promise<{ id: string }>
                       initialRole={(m.role as any) || 'viewer'}
                     />
                   </td>
-                  <td className="px-3 py-2">{m.added_at ? new Date(m.added_at).toLocaleString() : '—'}</td>
+                  <td className="px-3 py-2">{m.created_at ? new Date(m.created_at).toLocaleString() : '—'}</td>
                   <td className="px-3 py-2 text-right">
                     <RemoveMemberButton portfolioId={portfolioId} userId={m.user_id} />
                   </td>

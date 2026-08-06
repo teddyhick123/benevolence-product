@@ -1,9 +1,10 @@
 // lib/import/rollback.ts
 // Full and partial rollback of an import using the audit log
 
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { DynamicImportClient as SupabaseClient } from '@/lib/database-client';
 import type { LoadPhase } from './loader';
 import { ImportAuditor } from './auditor';
+import { fromImportRelation } from './database';
 
 export type RollbackScope = 'full' | LoadPhase;
 
@@ -116,8 +117,7 @@ export async function rollbackImport(
       for (let i = 0; i < ids.length; i += chunkSize) {
         const chunk = ids.slice(i, i + chunkSize);
         try {
-          const { error } = await supabase
-            .from(tableName)
+          const { error } = await fromImportRelation(supabase, tableName)
             .delete()
             .in('id', chunk);
           if (error) throw new Error(error.message);
@@ -161,8 +161,7 @@ export async function rollbackImport(
       for (let i = 0; i < restorePayloads.length; i += chunkSize) {
         const chunk = restorePayloads.slice(i, i + chunkSize);
         try {
-          const { error } = await supabase
-            .from(tableName)
+          const { error } = await fromImportRelation(supabase, tableName)
             .upsert(chunk, { onConflict: 'id' });
           if (error) throw new Error(error.message);
           result.recordsReverted += chunk.length;
@@ -189,8 +188,7 @@ export async function rollbackImport(
     // Reset staging rows
     if (scope === 'full') {
       for (const stagingTable of Object.values(STAGING_TABLES)) {
-        await supabase
-          .from(stagingTable)
+        await fromImportRelation(supabase, stagingTable)
           .update({ action_taken: 'pending', final_id: null })
           .eq('import_job_id', importJobId);
       }
@@ -221,8 +219,7 @@ export async function rollbackImport(
         updateFields.final_id = null;
       }
 
-      await supabase
-        .from(stagingTable)
+      await fromImportRelation(supabase, stagingTable)
         .update(updateFields)
         .eq('import_job_id', importJobId);
 

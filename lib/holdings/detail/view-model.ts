@@ -30,7 +30,7 @@ export function buildHoldingDetailViewModel(
   metricNames: Map<string, string>,
 ) {
   const totalContributions = contributions.reduce(
-    (sum, contribution) => sum + (Number(contribution.amount) || 0),
+    (sum, contribution) => sum + (Number(contribution.amount_usd) || 0),
     0,
   );
   const funds = totalContributions > 0

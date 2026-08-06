@@ -2,9 +2,10 @@
 // Streaming CSV parser that extracts rows into staging tables
 
 import Papa from 'papaparse';
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { DynamicImportClient as SupabaseClient } from '@/lib/database-client';
 import type { EntityType } from './types';
 import { STAGING_TABLE_MAP } from './types';
+import { fromImportRelation } from './database';
 
 export interface ExtractResult {
   rowsInserted: number;
@@ -84,7 +85,7 @@ export async function extractCSVToStaging(
       validation_status: 'pending' as const,
     }));
 
-    const { error: insertError } = await supabase.from(stagingTable).insert(records);
+    const { error: insertError } = await fromImportRelation(supabase, stagingTable).insert(records);
 
     if (insertError) {
       errors.push(

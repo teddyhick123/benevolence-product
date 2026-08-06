@@ -1,4 +1,4 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { SupabaseClient } from '@/lib/database-client';
 
 export const ORG_CAPABILITIES = ['implementation_reviewer'] as const;
 export type OrgCapability = typeof ORG_CAPABILITIES[number];

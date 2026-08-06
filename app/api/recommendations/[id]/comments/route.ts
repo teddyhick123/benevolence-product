@@ -31,7 +31,6 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
         )
       `)
       .eq('recommendation_id', recommendation_id)
-      .is('deleted_at', null)
       .order('created_at', { ascending: true });
 
     if (error) throw error;
@@ -49,8 +48,8 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
     // Second pass: organize into threads
     comments.forEach(comment => {
       const commentWithReplies = commentMap.get(comment.id);
-      if (comment.parent_comment_id) {
-        const parent = commentMap.get(comment.parent_comment_id);
+      if (comment.parent_id) {
+        const parent = commentMap.get(comment.parent_id);
         if (parent) {
           parent.replies.push(commentWithReplies);
         }

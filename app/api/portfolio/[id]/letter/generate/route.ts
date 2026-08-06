@@ -4,6 +4,7 @@ import { aiAuthRequired } from '@/lib/rate-limit-response';
 import { AI_MODELS } from '@/lib/ai/models';
 import { generateText } from '@/lib/ai/text';
 import { isAccessDenied, requirePortfolioAccess } from '@/lib/api/access';
+import { createGeneratedDocumentsRepository } from '@/lib/api/repositories/generated-documents';
 
 function json(body: Record<string, unknown>, init?: ResponseInit) {
   return NextResponse.json(body, {
@@ -25,19 +26,13 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
   if (isAccessDenied(access)) {
     return access.reason === 'unauthenticated' ? aiAuthRequired() : access.response;
   }
-  const sb = access.context.db;
+  const documents = createGeneratedDocumentsRepository(access.context);
 
   try {
     // Fetch the latest cached letter for this portfolio
-    const { data: cachedLetter, error } = await sb
-      .from('generated_letters')
-      .select('*')
-      .eq('portfolio_id', portfolio_id)
-      .order('version', { ascending: false })
-      .limit(1)
-      .single();
+    const cachedLetter = await documents.latestLetter();
 
-    if (error || !cachedLetter) {
+    if (!cachedLetter) {
       return json(
         { error: 'No cached letter found', code: 'NOT_FOUND' },
         { status: 404 }
@@ -83,22 +78,17 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   const { searchParams } = new URL(req.url);
   const forceRegenerate = searchParams.get('force') === 'true';
 
-  const access = await requirePortfolioAccess(portfolio_id);
+  const access = await requirePortfolioAccess(portfolio_id, 'member');
   if (isAccessDenied(access)) {
     return access.reason === 'unauthenticated' ? aiAuthRequired() : access.response;
   }
   const sb = access.context.db;
+  const documents = createGeneratedDocumentsRepository(access.context);
 
   try {
     // Check for existing cached letter (unless force regenerate)
     if (!forceRegenerate) {
-      const { data: cachedLetter } = await sb
-        .from('generated_letters')
-        .select('*')
-        .eq('portfolio_id', portfolio_id)
-        .order('version', { ascending: false })
-        .limit(1)
-        .single();
+      const cachedLetter = await documents.latestLetter();
 
       if (cachedLetter) {
         // Return cached letter
@@ -157,7 +147,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     // 3. Fetch holdings summary
     const { data: holdings, error: holdingsError } = await sb
       .from('holdings')
-      .select('id, name, status, sector, funds_allocated')
+      .select('id, name, status, sector, funds_allocated, current_value')
       .eq('portfolio_id', portfolio_id)
       .order('name', { ascending: true });
 
@@ -166,7 +156,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     // 4. Calculate portfolio summary stats
     const totalHoldings = (holdings || []).length;
     const totalFundsAllocated = (holdings || []).reduce((sum: number, h: any) => sum + (h.funds_allocated || 0), 0);
-    const totalNAV = totalFundsAllocated;
+    const totalNAV = (holdings || []).reduce((sum: number, h: any) => sum + (h.current_value || 0), 0);
 
     // 5. Build context for the AI provider
     const portfolioContext = `
@@ -223,19 +213,7 @@ INTEGRATION OF VISUALIZATIONS:
 
     const generatedAt = new Date().toISOString();
 
-    // 7. Get current max version for this portfolio
-    const { data: existingVersions } = await sb
-      .from('generated_letters')
-      .select('version')
-      .eq('portfolio_id', portfolio_id)
-      .order('version', { ascending: false })
-      .limit(1);
-
-    const newVersion = existingVersions && existingVersions.length > 0
-      ? existingVersions[0].version + 1
-      : 1;
-
-    // 8. Save generated letter to database
+    // 7. Save generated letter as a canonical generated document.
     const summaryData = {
       portfolio: {
         id: portfolio.id,
@@ -250,21 +228,10 @@ INTEGRATION OF VISUALIZATIONS:
       holdings: holdings || [],
     };
 
-    const { error: insertError } = await sb
-      .from('generated_letters')
-      .insert({
-        portfolio_id: portfolio_id,
-        letter_content: generatedLetter,
-        summary_data: summaryData,
-        generated_at: generatedAt,
-        generated_by: access.context.user.id,
-        version: newVersion,
-      });
-
-    if (insertError) {
-      console.error('Failed to cache letter:', insertError);
-      return json({ error: insertError.message }, { status: 500 });
-    }
+    const savedDocument = await documents.saveLetter({
+      letter_content: generatedLetter,
+      summary_data: summaryData,
+    });
 
     // 9. Return generated letter along with structured data
     return json({
@@ -282,7 +249,7 @@ INTEGRATION OF VISUALIZATIONS:
       kpis: kpisWithValues,
       holdings: holdings || [],
       cached: false,
-      version: newVersion,
+      version: savedDocument.version,
     });
 
   } catch (error: any) {

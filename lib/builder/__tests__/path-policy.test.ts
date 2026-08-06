@@ -18,6 +18,7 @@ describe('evaluatePathPolicy', () => {
       'app/api/org/[orgId]/volunteer-tracking/route.ts',
       'app/dashboard/volunteer-tracking/page.tsx',
       'lib/modules/registry.ts',
+      'lib/database.types.ts',
       'db/migrations/0057_volunteer_tracking.sql',
     ]);
     expect(result.allowed).toBe(true);
@@ -62,6 +63,14 @@ describe('evaluatePathPolicy', () => {
   it('denies non-canonical names under db/migrations/', () => {
     expect(rules(['db/migrations/notes.md'])).toContain('migration-rewrite');
     expect(rules(['db/migrations/patch.sql'])).toContain('migration-rewrite');
+  });
+
+  it('requires generated database types with migration proposals', () => {
+    expect(rules(['db/migrations/0057_volunteer_tracking.sql'])).toContain('migration-types');
+    expect(rules([
+      'db/migrations/0057_volunteer_tracking.sql',
+      'lib/database.types.ts',
+    ])).not.toContain('migration-types');
   });
 
   it('flags duplicate paths after normalization', () => {

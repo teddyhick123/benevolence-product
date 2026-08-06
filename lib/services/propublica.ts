@@ -105,9 +105,7 @@ export function convertToCharity(org: ProPublicaOrganization) {
   // Get most recent filing data
   const latestFiling = org.filings_with_data?.[0];
 
-  // Map NTEE code to sector
   const nteeCode = org.ntee_code || org.organization?.ntee_code;
-  const sector = mapNTEEtoSector(nteeCode);
 
   return {
     ein: org.ein || org.organization?.ein,
@@ -115,55 +113,12 @@ export function convertToCharity(org: ProPublicaOrganization) {
     city: org.city || org.organization?.city,
     state: org.state || org.organization?.state,
     ntee_code: nteeCode,
-    sector,
-    annual_revenue: latestFiling?.totrevenue || org.revenue_amount || org.income_amount,
-    annual_expenses: latestFiling?.totfuncexpns || org.expense_amount,
-    assets: latestFiling?.totassetsend || org.asset_amount,
-    irs_deductibility_status: org.subsection_code || org.organization?.subsection_code,
-    last_form_990_date: latestFiling?.tax_prd,
-    data_source: 'propublica',
+    subsection_code: org.subsection_code || org.organization?.subsection_code,
+    total_revenue: latestFiling?.totrevenue || org.revenue_amount || org.income_amount,
+    total_expenses: latestFiling?.totfuncexpns || org.expense_amount,
+    net_assets: latestFiling?.totassetsend || org.asset_amount,
+    fiscal_year: latestFiling?.tax_prd_yr ? Number(latestFiling.tax_prd_yr) : undefined,
   };
-}
-
-/**
- * Map NTEE code to our sector categories
- * NTEE codes: https://nccs.urban.org/publication/irs-activity-codes
- */
-function mapNTEEtoSector(nteeCode?: string): string | undefined {
-  if (!nteeCode) return undefined;
-
-  const prefix = nteeCode.charAt(0).toUpperCase();
-
-  const sectorMap: Record<string, string> = {
-    'A': 'Arts & Culture',
-    'B': 'Education',
-    'C': 'Environment',
-    'D': 'Animals',
-    'E': 'Health',
-    'F': 'Mental Health',
-    'G': 'Health',
-    'H': 'Health',
-    'I': 'Crime & Legal',
-    'J': 'Employment',
-    'K': 'Food & Agriculture',
-    'L': 'Housing',
-    'M': 'Public Safety',
-    'N': 'Recreation & Sports',
-    'O': 'Youth Programs',
-    'P': 'Human Services',
-    'Q': 'International',
-    'R': 'Civil Rights',
-    'S': 'Community Development',
-    'T': 'Philanthropy',
-    'U': 'Science & Technology',
-    'V': 'Social Science',
-    'W': 'Public Affairs',
-    'X': 'Religion',
-    'Y': 'Professional Associations',
-    'Z': 'Unknown',
-  };
-
-  return sectorMap[prefix] || 'Other';
 }
 
 /**

@@ -108,7 +108,7 @@ describe('unitTestTargets', () => {
 describe('package.json verify scripts contract', () => {
   const pkg = JSON.parse(readFileSync(path.join(process.cwd(), 'package.json'), 'utf8'));
   it.each([
-    ['verify:types', 'tsc --noEmit'],
+    ['verify:types', 'node --max-old-space-size=8192 node_modules/typescript/bin/tsc --noEmit'],
     ['verify:lint', /^eslint /],
     ['verify:unit', /^vitest run/],
     ['verify:migrations', /^supabase db reset && bash scripts\/verify\/migrations-assert\.sh$/],

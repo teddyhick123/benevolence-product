@@ -82,8 +82,6 @@ export default function DonorDetail({ organizationId, donorId, onEdit }: Props) 
           .single();
 
         if (donorError) throw donorError;
-        setDonor(donorData);
-
         // Fetch contributions
         const { data: contribData } = await supabase
           .from('contributions_received')
@@ -91,7 +89,27 @@ export default function DonorDetail({ organizationId, donorId, onEdit }: Props) 
           .eq('donor_id', donorId)
           .order('contribution_date', { ascending: false });
 
-        setContributions(contribData || []);
+        const contributionRows = contribData || [];
+        const year = new Date().getFullYear();
+        const ytdGiving = contributionRows.reduce((total, contribution) => (
+          new Date(contribution.contribution_date).getFullYear() === year
+            ? total + Number(contribution.amount)
+            : total
+        ), 0);
+        setDonor({
+          ...donorData,
+          postal_code: donorData.zip,
+          total_lifetime_giving: Number(donorData.lifetime_giving),
+          total_ytd_giving: ytdGiving,
+          average_gift: donorData.gift_count > 0
+            ? Number(donorData.lifetime_giving) / donorData.gift_count
+            : 0,
+        });
+        setContributions(contributionRows.map((contribution) => ({
+          ...contribution,
+          designation: contribution.fund_designation,
+          acknowledgment_status: contribution.acknowledgment_sent ? 'sent' : 'pending',
+        })));
 
         // Fetch communications
         const { data: commData } = await supabase

@@ -21,7 +21,7 @@ export type PortfolioDonationSummary = {
  */
 export const donationQuerySchema = z.object({
   portfolio_id: z.string().uuid().optional(),
-  status: z.enum(['Active', 'Exited', 'Pipeline']).optional(),
+  status: z.enum(['active', 'exited', 'pipeline']).optional(),
   min_amount: z.coerce.number().optional(),
   max_amount: z.coerce.number().optional(),
   has_tax_contribution: z.coerce.boolean().optional(),

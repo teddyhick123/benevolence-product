@@ -13,7 +13,7 @@
 // pass in the admin Supabase client (never constructed here, mirrors every
 // other lib/builder/*.ts module).
 
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { SupabaseClient } from '@/lib/database-client';
 import type { CheckKey } from './check-matrix';
 import type { CheckExecution, VerificationRunner } from './verification-runner';
 import { capAndRedactLog, sha256Hex, putTextArtifact, artifactPrefix, ARTIFACT_KEYS } from './artifacts';

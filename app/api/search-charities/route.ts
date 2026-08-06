@@ -2,6 +2,7 @@
 import { NextResponse } from 'next/server';
 import { isAccessDenied, requireUserAccess } from '@/lib/api/access';
 import { searchOrganizations, convertToCharity } from '@/lib/services/propublica';
+import { toCharityResponseAliases } from '@/lib/holdings/charities';
 
 /**
  * GET /api/search-charities?q=search+term
@@ -27,7 +28,7 @@ export async function GET(req: Request) {
     // Search local charities DB first
     const { data: localResults } = await sb
       .from('charities')
-      .select('id, ein, name, city, state, sector, annual_revenue')
+      .select('id, ein, name, city, state, ntee_code, total_revenue')
       .textSearch('search_vector', query, { type: 'websearch' })
       .limit(10);
 
@@ -44,8 +45,8 @@ export async function GET(req: Request) {
             name: converted.name,
             city: converted.city,
             state: converted.state,
-            sector: converted.sector,
-            annual_revenue: converted.annual_revenue,
+            sector: converted.ntee_code,
+            annual_revenue: converted.total_revenue,
             source: 'propublica' as const,
           };
         });
@@ -60,7 +61,7 @@ export async function GET(req: Request) {
     for (const r of localResults || []) {
       if (r.ein && !seenEINs.has(r.ein)) {
         seenEINs.add(r.ein);
-        results.push({ ...r, source: 'local' });
+        results.push({ ...toCharityResponseAliases(r), source: 'local' });
       }
     }
 

@@ -11,7 +11,7 @@ export const executeGetPortfolioSummary: AssistantToolExecutor = async (
 
     const { data: holdings } = await supabase
       .from('holdings')
-      .select('id, name, sector, status, funds_allocated')
+      .select('id, name, sector, status, funds_allocated, current_value')
       .eq('portfolio_id', portfolioId)
       .order('funds_allocated', { ascending: false });
 
@@ -21,7 +21,7 @@ export const executeGetPortfolioSummary: AssistantToolExecutor = async (
       0,
     );
     const totalNAV = holdingsData.reduce(
-      (sum: number, h: any) => sum + (h.nav || 0),
+      (sum: number, h: any) => sum + (h.current_value || 0),
       0,
     );
 

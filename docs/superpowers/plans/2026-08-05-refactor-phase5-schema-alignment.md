@@ -4,7 +4,7 @@
 
 **Findings:** `docs/superpowers/specs/2026-07-26-refactor-findings.md`
 
-**Status:** Approved scope; implementation pending
+**Status:** Complete
 
 ## Goal
 
@@ -21,10 +21,9 @@ shape instead of retaining compatibility patches.
 ## Execution prerequisite
 
 Phase 5 depends on the Phase 2 tenant-scoped repositories, Phase 3 durable AI
-turns/messages, and Phase 4 holding/grant boundaries that currently live on the
-`codex/refactor-phase4-thin-pages` branch. Complete the Phase 4 review and merge
-before any Phase 5 implementation commit begins. This plan and the umbrella
-roadmap land first as the phase-boundary documentation commit.
+turns/messages, and Phase 4 holding/grant boundaries. Those prerequisites were
+reviewed and merged before Phase 5 implementation began; this phase extends
+their boundaries rather than replacing them.
 
 ## Canonical rules
 
@@ -387,3 +386,18 @@ typed response contracts: shared JSON transport, per-domain SWR hooks, named
 upload/download/stream helpers, and consolidation of hook locations. It should
 not be pulled into Phase 5 except where a touched client must change to consume a
 corrected canonical response.
+
+## Completion evidence
+
+- The canonical migrations reset cleanly from zero twice; post-reset assertions
+  report 135 public tables and generated database types match the live schema.
+- The generated-type compiler audit and production build pass.
+- The full Vitest suite passes (2,505 tests; six live-environment tests skipped),
+  including schema, privilege, Builder, access-boundary, grant-lifecycle, and AI
+  persistence/idempotency contracts.
+- Lint passes at the approved 467-warning ceiling with no errors.
+- The seeded walkthrough smoke set covers all nine journeys; eight passed in the
+  initial run and the one transient module-gating timeout passed on focused retry.
+- All variable relational selection is confined to the import adapter's closed
+  staging/target allowlist; fixed Builder relations and storage buckets remain
+  statically owned surfaces.

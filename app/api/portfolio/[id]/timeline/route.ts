@@ -81,7 +81,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
     .from('holding_contributions')
     .select('*')
     .eq('portfolio_id', portfolioId)
-    .order('contributed_at', { ascending: false })
+    .order('contribution_date', { ascending: false })
     .limit(1000);
 
   if (contributions) {
@@ -90,11 +90,11 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
       if (holdingName) {
         events.push({
           id: `contribution-${contrib.id}`,
-          date: contrib.contributed_at.split('T')[0], // Extract date only
-          title: contrib.memo || 'Funding Contribution',
-          description: contrib.source || undefined,
+          date: contrib.contribution_date,
+          title: contrib.notes || 'Funding Contribution',
+          description: undefined,
           type: 'funding',
-          value: Number(contrib.amount) || 0,
+          value: Number(contrib.amount_usd) || 0,
           unit: 'USD',
           holdingId: contrib.holding_id,
           holdingName

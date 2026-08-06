@@ -138,6 +138,16 @@ CREATE POLICY "investees: service role full access"
 GRANT SELECT ON investees TO authenticated;
 GRANT ALL ON investees TO service_role;
 
+-- Complete the canonical holding → investee relationship after investees exists
+-- (holdings is created earlier in 0006).
+ALTER TABLE holdings
+  ADD CONSTRAINT holdings_investee_id_fkey
+  FOREIGN KEY (investee_id) REFERENCES investees(id) ON DELETE SET NULL;
+
+CREATE INDEX idx_holdings_investee_id
+  ON holdings (investee_id)
+  WHERE investee_id IS NOT NULL AND deleted_at IS NULL;
+
 -- ---------------------------------------------------------------------------
 -- charity_rating_cache — cached provider ratings for charities
 -- ---------------------------------------------------------------------------

@@ -1,13 +1,14 @@
 // lib/import/etl-runner.ts
 // Orchestrates the transform + validate phase for an import job
 
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { DynamicImportClient as SupabaseClient } from '@/lib/database-client';
 import type { MappingProfile, EntityType } from './types';
 import { STAGING_TABLE_MAP } from './types';
 import { applyFieldMapping, enrichTransformedRow, applyEnrichment } from './transformer';
 import { validateTransformedRow } from './validator';
 import type { EntityMappingConfig } from './validator';
 import { ImportProgressEmitter } from './progress-emitter';
+import { fromImportRelation } from './database';
 
 interface ETLRunResult {
   processed: number;
@@ -39,8 +40,7 @@ export async function runTransformValidate(
     let totalRows = 0;
 
     // Get total count for progress calculation
-    const { count } = await supabase
-      .from(stagingTable)
+    const { count } = await fromImportRelation(supabase, stagingTable)
       .select('*', { count: 'exact', head: true })
       .eq('import_job_id', importJobId)
       .eq('validation_status', 'pending');
@@ -48,8 +48,7 @@ export async function runTransformValidate(
 
     while (hasMore) {
       // Keyset pagination — avoids slow OFFSET on large tables
-      let query = supabase
-        .from(stagingTable)
+      let query = fromImportRelation(supabase, stagingTable)
         .select('id, raw_data')
         .eq('import_job_id', importJobId)
         .eq('validation_status', 'pending')
@@ -123,8 +122,7 @@ export async function runTransformValidate(
             })),
           ];
 
-          await supabase
-            .from(stagingTable)
+          await fromImportRelation(supabase, stagingTable)
             .update({
               transformed_data: enrichedData,
               validation_status: validationStatus,
@@ -134,8 +132,7 @@ export async function runTransformValidate(
         } catch (err) {
           console.error(`[etl-runner] Row-level error for ${row.id}:`, err);
           // Mark as invalid so it surfaces in error browser
-          await supabase
-            .from(stagingTable)
+          await fromImportRelation(supabase, stagingTable)
             .update({
               validation_status: 'invalid',
               validation_errors: [

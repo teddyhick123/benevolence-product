@@ -307,7 +307,10 @@ describe('runBuildPhase — deterministic verification (Increment 3)', () => {
   it('records classifier-derived required_check_keys including verify:migrations for a migration file', async () => {
     const MIGRATION_PLAN = {
       ...SCAFFOLD_PLAN,
-      files: [{ path: 'db/migrations/0099_volunteer_scaffold.sql', description: 'volunteer schema' }],
+      files: [
+        { path: 'db/migrations/0099_volunteer_scaffold.sql', description: 'volunteer schema' },
+        { path: 'lib/database.types.ts', description: 'regenerated schema types' },
+      ],
     };
     const mock = new SupabaseMock();
     mock.queueTable('builder_proposals', { data: baseProposal({ plan_content: MIGRATION_PLAN }), error: null });
@@ -316,6 +319,7 @@ describe('runBuildPhase — deterministic verification (Increment 3)', () => {
     mock.queueTable('builder_proposals', { data: { code_state: 'ready_to_apply' }, error: null });
     mock.queueTable('builder_proposal_revisions', { data: baseRevision(), error: null });
     mock.queueTable('builder_proposal_revisions', { data: null, error: null }); // progress
+    mock.queueTable('builder_proposal_revisions', { data: null, error: null }); // second-file progress
     mock.queueTable('builder_proposal_revisions', { data: null, error: null }); // hash stamp
     mock.queueTable('builder_review_attempts', { data: null, error: null }); // count
     mock.queueTable('builder_review_attempts', { data: { id: ATTEMPT_ID }, error: null }); // insert
@@ -323,8 +327,8 @@ describe('runBuildPhase — deterministic verification (Increment 3)', () => {
     mock.queueTable('builder_review_findings', { data: [], error: null });
     const migrationKeys = ['verify:types', 'verify:lint', 'verify:unit', 'verify:migrations'];
     mock.queueTable('builder_verification_runs', { data: passedRuns(migrationKeys), error: null });
-    for (let i = 0; i < 6; i++) mock.queueStorageUpload('builder-artifacts', { data: { path: 'x' }, error: null });
-    aiQueue = ['-- migration sql', REVIEW_PASS];
+    for (let i = 0; i < 7; i++) mock.queueStorageUpload('builder-artifacts', { data: { path: 'x' }, error: null });
+    aiQueue = ['-- migration sql', 'export type Database = {};', REVIEW_PASS];
     currentAdmin = mock.client();
 
     await runBuildPhase({ proposalId: PROPOSAL_ID, orgId: ORG_ID, revisionId: REVISION_ID });
@@ -332,7 +336,7 @@ describe('runBuildPhase — deterministic verification (Increment 3)', () => {
     const insert = mock.calls.find(c => c.table === 'builder_review_attempts' && c.method === 'insert');
     const payload = insert!.args[0] as Record<string, unknown>;
     expect(payload.required_check_keys).toEqual(
-      requiredCheckKeys(['db/migrations/0099_volunteer_scaffold.sql'])
+      requiredCheckKeys(['db/migrations/0099_volunteer_scaffold.sql', 'lib/database.types.ts'])
     );
     expect(payload.required_check_keys).toContain('verify:migrations');
     // The gate is fed the SAME keys that were recorded — the run passes.

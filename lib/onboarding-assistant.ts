@@ -8,7 +8,7 @@
  * Personality: warm, curious, conversational
  */
 
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { SupabaseClient } from '@/lib/database-client';
 import type { ModuleId } from './modules/registry';
 import { MODULE_REGISTRY } from './modules/registry';
 import { branding } from './config';

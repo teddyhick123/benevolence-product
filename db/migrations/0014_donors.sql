@@ -40,6 +40,8 @@ CREATE TABLE IF NOT EXISTS donors (
   organization_name   text,        -- for corporate / foundation donors
   is_organization     boolean NOT NULL DEFAULT false,
   preferred_name      text,
+  contact_name        text,        -- primary contact for an organization donor
+  is_anonymous        boolean NOT NULL DEFAULT false,
 
   -- Contact
   email               text,
@@ -50,6 +52,9 @@ CREATE TABLE IF NOT EXISTS donors (
   state               text,
   zip                 text,
   country             text DEFAULT 'US',
+  communication_preference text NOT NULL DEFAULT 'email'
+    CHECK (communication_preference IN ('email', 'mail', 'phone', 'none')),
+  do_not_contact      boolean NOT NULL DEFAULT false,
 
   -- CRM metadata
   tier                donor_tier_enum NOT NULL DEFAULT 'prospect',
@@ -263,12 +268,41 @@ CREATE TRIGGER trg_donor_communications_updated_at
 -- ---------------------------------------------------------------------------
 -- v_donor_summary — rich view used by CRM list
 -- ---------------------------------------------------------------------------
-CREATE OR REPLACE VIEW v_donor_summary AS
+CREATE OR REPLACE VIEW v_donor_summary
+  WITH (security_invoker = true)
+AS
 SELECT
   d.*,
-  d.first_name || ' ' || COALESCE(d.last_name, '') AS full_name
+  d.id AS donor_id,
+  CASE
+    WHEN d.is_organization THEN COALESCE(d.organization_name, 'Unknown Organization')
+    ELSE COALESCE(NULLIF(TRIM(COALESCE(d.first_name, '') || ' ' || COALESCE(d.last_name, '')), ''), 'Unknown Donor')
+  END AS display_name,
+  d.lifetime_giving AS total_lifetime_giving,
+  COALESCE(stats.total_ytd_giving, 0) AS total_ytd_giving,
+  CASE WHEN d.gift_count > 0 THEN d.lifetime_giving / d.gift_count ELSE 0 END AS average_gift,
+  d.tier AS computed_tier,
+  d.tier AS donor_tier,
+  EXISTS (
+    SELECT 1 FROM contributions_received cr
+    WHERE cr.donor_id = d.id AND cr.receipt_status <> 'sent' AND NOT cr.is_pledge
+  ) AS has_pending_receipts,
+  EXISTS (
+    SELECT 1 FROM contributions_received cr
+    WHERE cr.donor_id = d.id AND NOT cr.acknowledgment_sent AND NOT cr.is_pledge
+  ) AS has_pending_acknowledgments,
+  CASE WHEN d.last_gift_date IS NULL THEN NULL ELSE CURRENT_DATE - d.last_gift_date END AS days_since_last_gift
 FROM donors d
+LEFT JOIN LATERAL (
+  SELECT COALESCE(SUM(cr.amount), 0) AS total_ytd_giving
+  FROM contributions_received cr
+  WHERE cr.donor_id = d.id
+    AND NOT cr.is_pledge
+    AND cr.contribution_date >= date_trunc('year', CURRENT_DATE)::date
+) stats ON true
 WHERE d.deleted_at IS NULL;
+
+GRANT SELECT ON v_donor_summary TO authenticated, service_role;
 
 -- ---------------------------------------------------------------------------
 -- v_contribution_with_donor — enriched contribution rows for reporting

@@ -1,5 +1,5 @@
 // lib/builder/tools.ts
-import { SupabaseClient } from '@supabase/supabase-js';
+import type { SupabaseClient } from '@/lib/database-client';
 import type { ToolDefinition } from '@/lib/ai/types';
 import { createAIProvider } from '@/lib/ai/factory';
 import { AI_MODELS } from '@/lib/ai/models';

@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS holdings (
   -- Identity
   name            text NOT NULL,
   description     text,
+  theory_of_action text,
   sector          text,
   ein             text,           -- for nonprofits / grantees
   investee_id     uuid,
@@ -186,6 +187,41 @@ CREATE TRIGGER trg_holding_widgets_updated_at
   FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
 -- ---------------------------------------------------------------------------
+-- holding_contacts — first-class contacts for a holding
+-- The current workspace presents the primary row; the model supports multiple
+-- contacts and roles without adding client-specific columns to holdings.
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS holding_contacts (
+  id           uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  created_at   timestamptz NOT NULL DEFAULT now(),
+  updated_at   timestamptz NOT NULL DEFAULT now(),
+
+  holding_id   uuid NOT NULL REFERENCES holdings(id) ON DELETE CASCADE,
+  name         text,
+  email        text,
+  phone        text,
+  role         text,
+  organization text,
+  photo_path   text,
+  notes        text,
+  is_primary   boolean NOT NULL DEFAULT false,
+
+  CONSTRAINT holding_contacts_has_identity CHECK (
+    name IS NOT NULL OR email IS NOT NULL OR phone IS NOT NULL
+    OR photo_path IS NOT NULL OR notes IS NOT NULL
+  )
+);
+
+CREATE INDEX idx_holding_contacts_holding_id ON holding_contacts (holding_id);
+CREATE UNIQUE INDEX idx_holding_contacts_one_primary
+  ON holding_contacts (holding_id)
+  WHERE is_primary;
+
+CREATE TRIGGER trg_holding_contacts_updated_at
+  BEFORE UPDATE ON holding_contacts
+  FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+-- ---------------------------------------------------------------------------
 -- widgets — portfolio-level dashboard widget configuration
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS widgets (
@@ -321,6 +357,27 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON holding_widgets TO authenticated;
 GRANT ALL ON holding_widgets TO service_role;
 
 -- ---------------------------------------------------------------------------
+-- RLS: holding_contacts
+-- ---------------------------------------------------------------------------
+ALTER TABLE holding_contacts ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "holding_contacts: can view via holding"
+  ON holding_contacts FOR SELECT TO authenticated
+  USING (can_view_portfolio((SELECT portfolio_id FROM holdings WHERE id = holding_id)));
+
+CREATE POLICY "holding_contacts: can manage via holding"
+  ON holding_contacts FOR ALL TO authenticated
+  USING (can_edit_portfolio((SELECT portfolio_id FROM holdings WHERE id = holding_id)))
+  WITH CHECK (can_edit_portfolio((SELECT portfolio_id FROM holdings WHERE id = holding_id)));
+
+CREATE POLICY "holding_contacts: service role full access"
+  ON holding_contacts FOR ALL TO service_role
+  USING (true) WITH CHECK (true);
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON holding_contacts TO authenticated;
+GRANT ALL ON holding_contacts TO service_role;
+
+-- ---------------------------------------------------------------------------
 -- RLS: widgets
 -- ---------------------------------------------------------------------------
 ALTER TABLE widgets ENABLE ROW LEVEL SECURITY;
@@ -361,3 +418,58 @@ CREATE POLICY "holding_locations: service role full access"
 
 GRANT SELECT, INSERT, UPDATE, DELETE ON holding_locations TO authenticated;
 GRANT ALL ON holding_locations TO service_role;
+
+-- ---------------------------------------------------------------------------
+-- Private holding contact photo storage. Paths are
+-- <portfolio_id>/<holding_id>/<unique-file-name> so storage RLS can preserve
+-- the same portfolio access boundary as the contact row.
+-- ---------------------------------------------------------------------------
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES (
+  'holding-contact-photos',
+  'holding-contact-photos',
+  false,
+  5242880,
+  ARRAY['image/jpeg', 'image/png', 'image/gif', 'image/webp']
+)
+ON CONFLICT (id) DO UPDATE SET
+  public = EXCLUDED.public,
+  file_size_limit = EXCLUDED.file_size_limit,
+  allowed_mime_types = EXCLUDED.allowed_mime_types;
+
+CREATE POLICY "holding_contact_photos_read" ON storage.objects
+  FOR SELECT TO authenticated
+  USING (
+    bucket_id = 'holding-contact-photos'
+    AND public.can_view_portfolio(((storage.foldername(name))[1])::uuid)
+  );
+
+CREATE POLICY "holding_contact_photos_write" ON storage.objects
+  FOR INSERT TO authenticated
+  WITH CHECK (
+    bucket_id = 'holding-contact-photos'
+    AND public.can_edit_portfolio(((storage.foldername(name))[1])::uuid)
+  );
+
+CREATE POLICY "holding_contact_photos_update" ON storage.objects
+  FOR UPDATE TO authenticated
+  USING (
+    bucket_id = 'holding-contact-photos'
+    AND public.can_edit_portfolio(((storage.foldername(name))[1])::uuid)
+  )
+  WITH CHECK (
+    bucket_id = 'holding-contact-photos'
+    AND public.can_edit_portfolio(((storage.foldername(name))[1])::uuid)
+  );
+
+CREATE POLICY "holding_contact_photos_delete" ON storage.objects
+  FOR DELETE TO authenticated
+  USING (
+    bucket_id = 'holding-contact-photos'
+    AND public.can_edit_portfolio(((storage.foldername(name))[1])::uuid)
+  );
+
+CREATE POLICY "holding_contact_photos_service" ON storage.objects
+  FOR ALL TO service_role
+  USING (bucket_id = 'holding-contact-photos')
+  WITH CHECK (bucket_id = 'holding-contact-photos');

@@ -250,7 +250,7 @@ export const executeGenerateCustomReport: AssistantToolExecutor = async (
     // Portfolio-level report
     const { data: holdings } = await supabase
       .from('holdings')
-      .select('id, name, sector, funds_allocated, status')
+      .select('id, name, sector, funds_allocated, current_value, status')
       .eq('portfolio_id', portfolioId)
       .order('funds_allocated', { ascending: false });
 
@@ -263,7 +263,7 @@ export const executeGenerateCustomReport: AssistantToolExecutor = async (
       0,
     );
     const totalNAV = holdingsData.reduce(
-      (s: number, h: any) => s + (h.nav || 0),
+      (s: number, h: any) => s + (h.current_value || 0),
       0,
     );
 

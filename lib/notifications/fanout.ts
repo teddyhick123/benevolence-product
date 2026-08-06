@@ -1,5 +1,5 @@
 // lib/notifications/fanout.ts
-import { SupabaseClient } from '@supabase/supabase-js';
+import type { SupabaseClient } from '@/lib/database-client';
 import {
   FanOutTaskEventInput,
   NotificationEventType,
@@ -130,7 +130,8 @@ export async function fanOutTaskEvent(
         task_id,
         event_type,
         actor_id,
-        metadata,
+        before_values,
+        after_values,
         created_at,
         tasks!inner (
           id,
@@ -174,7 +175,7 @@ export async function fanOutTaskEvent(
       return result;
     }
 
-    const eventMeta = (event as any).metadata ?? {};
+    const eventMeta = (event as any).after_values ?? {};
     const notifType = classifyEvent(event.event_type, task.task_type, eventMeta);
     if (!notifType) {
       result.suppressed++;

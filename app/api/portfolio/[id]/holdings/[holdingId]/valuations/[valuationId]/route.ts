@@ -18,7 +18,7 @@ function normalizeValuationBody(body: any) {
   return {
     ...body,
     valued_at: body.valued_at ?? body.as_of_date,
-    value: body.value ?? body.nav,
+    value: body.value,
     source: body.source ?? body.valuation_source,
   };
 }

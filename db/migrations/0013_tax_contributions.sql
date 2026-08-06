@@ -381,6 +381,53 @@ CREATE TRIGGER trg_tax_carryforward_applications_updated_at
   BEFORE UPDATE ON public.tax_carryforward_applications
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 
+-- Portfolio donation totals derived through the canonical contribution junction.
+CREATE OR REPLACE VIEW public.v_portfolio_donation_summary
+  WITH (security_invoker = true)
+AS
+WITH donation_totals AS (
+  SELECT
+    h.portfolio_id,
+    COUNT(*)::INTEGER AS total_donations,
+    COUNT(*) FILTER (WHERE h.status = 'active')::INTEGER AS active_donations,
+    COALESCE(SUM(h.funds_allocated), 0) AS total_donation_amount,
+    COALESCE(AVG(h.funds_allocated), 0) AS avg_donation_amount,
+    COALESCE(MAX(h.funds_allocated), 0) AS largest_donation
+  FROM public.holdings h
+  WHERE h.asset_type = 'donation'
+    AND h.deleted_at IS NULL
+  GROUP BY h.portfolio_id
+), linked_tax AS (
+  SELECT
+    hc.portfolio_id,
+    COUNT(DISTINCT tc.id)::INTEGER AS linked_tax_contributions,
+    COALESCE(SUM(tc.deductible_amount), 0) AS total_tax_deductible_amount,
+    COALESCE(SUM(
+      GREATEST(COALESCE(tc.fair_market_value, tc.amount_usd) - COALESCE(tc.cost_basis, tc.fair_market_value, tc.amount_usd), 0) * 0.20
+    ), 0) AS total_avoided_capital_gains
+  FROM public.holding_contributions hc
+  JOIN public.tax_contributions tc ON tc.id = hc.tax_contribution_id
+  GROUP BY hc.portfolio_id
+), carryforward_totals AS (
+  SELECT portfolio_id, COALESCE(SUM(amount_remaining), 0) AS total_carryforward_available
+  FROM public.tax_carryforwards
+  GROUP BY portfolio_id
+)
+SELECT
+  d.portfolio_id,
+  d.total_donations,
+  d.active_donations,
+  d.total_donation_amount,
+  d.avg_donation_amount,
+  d.largest_donation,
+  COALESCE(t.linked_tax_contributions, 0) AS linked_tax_contributions,
+  COALESCE(t.total_tax_deductible_amount, 0) AS total_tax_deductible_amount,
+  COALESCE(t.total_avoided_capital_gains, 0) AS total_avoided_capital_gains,
+  COALESCE(c.total_carryforward_available, 0) AS total_carryforward_available
+FROM donation_totals d
+LEFT JOIN linked_tax t ON t.portfolio_id = d.portfolio_id
+LEFT JOIN carryforward_totals c ON c.portfolio_id = d.portfolio_id;
+
 -- ---------------------------------------------------------------------------
 -- DAF grants and foundation 990-PF data.
 -- ---------------------------------------------------------------------------
@@ -1064,6 +1111,7 @@ GRANT SELECT ON public.v_tax_deduction_summary TO authenticated, service_role;
 GRANT SELECT ON public.v_portfolio_tax_summary TO authenticated, service_role;
 GRANT SELECT ON public.v_carryforward_schedule TO authenticated, service_role;
 GRANT SELECT ON public.v_active_carryforwards TO authenticated, service_role;
+GRANT SELECT ON public.v_portfolio_donation_summary TO authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.get_donation_capacity(UUID, INTEGER) TO authenticated, service_role;
 
 COMMENT ON TABLE public.tax_profiles IS 'Per-portfolio/year tax planning inputs used by tax optimization workflows.';

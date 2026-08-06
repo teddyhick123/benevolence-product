@@ -1,4 +1,4 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { SupabaseClient } from '@/lib/database-client';
 import type { ToolResult } from '@/lib/ai/types';
 import type { AssistantToolCapabilities } from '@/lib/api/repositories/ai-tools';
 

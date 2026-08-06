@@ -80,17 +80,17 @@ export const executeSearchCustomFieldValues: AssistantToolExecutor = async (
         `%${String(value).slice(0, 120)}%`,
       );
     } else if (operator === 'eq') {
-      valuesQuery = valuesQuery.eq(column, value);
+      valuesQuery = valuesQuery.eq(column, value as any);
     } else {
       if (!['integer', 'decimal', 'date'].includes(definition.field_type)) {
         throw new Error(
           `${operator} is only supported for numeric and date custom fields`,
         );
       }
-      if (operator === 'lt') valuesQuery = valuesQuery.lt(column, value);
-      if (operator === 'lte') valuesQuery = valuesQuery.lte(column, value);
-      if (operator === 'gt') valuesQuery = valuesQuery.gt(column, value);
-      if (operator === 'gte') valuesQuery = valuesQuery.gte(column, value);
+      if (operator === 'lt') valuesQuery = valuesQuery.lt(column, value as any);
+      if (operator === 'lte') valuesQuery = valuesQuery.lte(column, value as any);
+      if (operator === 'gt') valuesQuery = valuesQuery.gt(column, value as any);
+      if (operator === 'gte') valuesQuery = valuesQuery.gte(column, value as any);
     }
 
     const { data: matchedValues, error: valuesErr } = await valuesQuery;

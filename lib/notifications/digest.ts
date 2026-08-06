@@ -1,5 +1,5 @@
 // lib/notifications/digest.ts
-import { SupabaseClient } from '@supabase/supabase-js';
+import type { SupabaseClient } from '@/lib/database-client';
 import { Resend } from 'resend';
 import { render } from '@react-email/components';
 import { branding } from '@/lib/config';

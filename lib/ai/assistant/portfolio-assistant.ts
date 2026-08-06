@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
+import type { SupabaseClient } from '@/lib/database-client';
 import {
   ModuleId,
   filterToolsForOrg,
@@ -31,14 +31,14 @@ import { PORTFOLIO_TOOLS } from './tool-definitions';
 export class PortfolioAssistant {
   private provider: AIProvider;
   private aiInstructions: string | null = null;
-  private supabase: ReturnType<typeof createClient>;
+  private supabase: SupabaseClient;
   private enabledModules: ModuleId[] = ['core'];
   private moduleSystemPrompt: string = '';
   private capabilities: AssistantToolCapabilities;
 
   constructor(
     services: {
-      db: ReturnType<typeof createClient>;
+      db: SupabaseClient;
       capabilities: AssistantToolCapabilities;
     },
     _apiKey?: string,

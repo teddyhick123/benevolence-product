@@ -54,17 +54,38 @@ export default function AcknowledgmentsPage() {
               organization_name,
               is_organization,
               email
-            ),
-            contributions_received (
-              id,
-              amount,
-              contribution_date
             )
           `)
           .eq('org_id', organizationId)
           .order('created_at', { ascending: false });
 
-        if (!error) setAcknowledgments(data || []);
+        if (!error) {
+          const letters = data || [];
+          const contributionIds = Array.from(new Set(
+            letters.flatMap((letter) => letter.contribution_ids || [])
+          ));
+          const { data: contributionRows } = contributionIds.length
+            ? await supabase
+                .from('contributions_received')
+                .select('id, amount, contribution_date')
+                .in('id', contributionIds)
+            : { data: [] };
+          const contributionsById = new Map(
+            (contributionRows || []).map((contribution) => [contribution.id, contribution])
+          );
+
+          setAcknowledgments(letters.map((letter) => ({
+            id: letter.id,
+            letter_type: letter.letter_type,
+            subject: letter.subject,
+            content: letter.body,
+            status: letter.status,
+            sent_at: letter.sent_at,
+            created_at: letter.created_at,
+            donors: letter.donors,
+            contributions_received: contributionsById.get(letter.contribution_ids?.[0]) || null,
+          })));
+        }
       } catch (err) {
         console.error('Error fetching acknowledgments:', err);
       } finally {

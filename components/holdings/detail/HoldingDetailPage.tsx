@@ -663,38 +663,23 @@ export default async function HoldingMiniDashboard({
                   <th className="px-4 py-3 text-left text-xs font-semibold text-neutral-700">Date</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-neutral-700">Amount</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-neutral-700">Memo</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-neutral-700">Source</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-neutral-100 bg-white">
                 {contributions.length === 0 ? (
                   <tr>
-                    <td className="px-4 py-8 text-sm text-neutral-500 text-center" colSpan={4}>
+                    <td className="px-4 py-8 text-sm text-neutral-500 text-center" colSpan={3}>
                       No contributions recorded yet. Add your first contribution above.
                     </td>
                   </tr>
                 ) : (
                   contributions.map((c) => (
                     <tr key={c.id} className="hover:bg-neutral-50 transition-colors">
-                      <td className="px-4 py-3 text-sm text-neutral-800">{humanDate(c.contributed_at)}</td>
+                      <td className="px-4 py-3 text-sm text-neutral-800">{humanDate(c.contribution_date)}</td>
                       <td className="px-4 py-3 text-sm font-medium text-neutral-900">
-                        {new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(c.amount)}
+                        {new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(c.amount_usd)}
                       </td>
-                      <td className="px-4 py-3 text-sm text-neutral-800">{c.memo ?? '—'}</td>
-                      <td className="px-4 py-3 text-sm">
-                        {c.source ? (
-                          <a
-                            className="text-azure hover:text-azure-deep hover:underline"
-                            href={c.source}
-                            target="_blank"
-                            rel="noreferrer"
-                          >
-                            View Source
-                          </a>
-                        ) : (
-                          <span className="text-neutral-400">—</span>
-                        )}
-                      </td>
+                      <td className="px-4 py-3 text-sm text-neutral-800">{c.notes ?? '—'}</td>
                     </tr>
                   ))
                 )}

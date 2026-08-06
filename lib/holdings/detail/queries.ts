@@ -6,16 +6,34 @@ import type {
   HoldingLocationRow,
   HoldingRow,
 } from './types';
+import { getPrimaryHoldingContact } from '@/lib/holdings/contacts';
 
 async function fetchHolding(holdingId: string) {
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase
     .from('holdings')
-    .select('id, org_id, portfolio_id, name, asset_type, description, primary_contact_name, primary_contact_email, primary_contact_phone, primary_contact_photo, primary_contact_notes, website, location_city, location_state, location_country, theory_of_action, cost_per_outcome, cost_per_outcome_unit, funds_allocated, total_org_funding, status, sector, as_of, charity_id')
+    .select('id, org_id, portfolio_id, name, asset_type, description, website, location_city, location_state, location_country, theory_of_action, cost_per_outcome, cost_per_outcome_unit, funds_allocated, total_org_funding, status, sector, as_of, investees(charity_id)')
     .eq('id', holdingId)
     .single();
 
-  return { holding: (data as HoldingRow | null) ?? null, error };
+  if (!data) return { holding: null, error };
+
+  try {
+    const contact = await getPrimaryHoldingContact(supabase, holdingId);
+    const investee = Array.isArray(data.investees) ? data.investees[0] : data.investees;
+    const holding: HoldingRow = {
+      ...data,
+      primary_contact_name: contact?.name ?? null,
+      primary_contact_email: contact?.email ?? null,
+      primary_contact_phone: contact?.phone ?? null,
+      primary_contact_photo: contact?.photo_path ?? null,
+      primary_contact_notes: contact?.notes ?? null,
+      charity_id: investee?.charity_id ?? null,
+    };
+    return { holding, error };
+  } catch (contactError) {
+    return { holding: null, error: contactError };
+  }
 }
 
 export async function resolveHoldingPhotoUrl(photo: string | null | undefined) {
@@ -23,7 +41,7 @@ export async function resolveHoldingPhotoUrl(photo: string | null | undefined) {
   if (/^https?:\/\//.test(photo) || photo.startsWith('data:')) return photo;
 
   const supabase = await createSupabaseServerClient();
-  const { data } = await supabase.storage.from('holdings').createSignedUrl(photo, 3600);
+  const { data } = await supabase.storage.from('holding-contact-photos').createSignedUrl(photo, 3600);
   return data?.signedUrl ?? null;
 }
 
@@ -42,10 +60,10 @@ async function fetchContributions(portfolioId: string, holdingId: string): Promi
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase
     .from('holding_contributions')
-    .select('id, portfolio_id, holding_id, amount, contributed_at, memo, source')
+    .select('id, portfolio_id, holding_id, amount_usd, contribution_date, notes')
     .eq('portfolio_id', portfolioId)
     .eq('holding_id', holdingId)
-    .order('contributed_at', { ascending: false });
+    .order('contribution_date', { ascending: false });
   return error || !data ? [] : (data as ContributionRow[]);
 }
 

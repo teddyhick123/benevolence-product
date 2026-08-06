@@ -1,5 +1,6 @@
 // app/api/portfolio/[id]/recommendations/route.ts
 import { NextResponse } from 'next/server';
+import { createRecommendationSchema } from '@/lib/schemas/recommendations';
 import {
   isAccessDenied,
   requirePortfolioAccess,
@@ -87,7 +88,14 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   const supabase = access.context.db;
 
   try {
-    const body = await req.json();
+    const parsed = createRecommendationSchema.safeParse(await req.json());
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: 'Validation failed', details: parsed.error.format() },
+        { status: 400, headers: cacheHeaders() }
+      );
+    }
+    const body = parsed.data;
 
     // Get current user for recommended_by field
     const { user } = access.context;

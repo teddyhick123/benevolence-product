@@ -163,7 +163,6 @@ export const createHoldingSchema = z.object({
   country: z.string().max(100).optional().nullable(),
   investee_id: z.string().uuid().optional().nullable(),
   funds_allocated: z.number().positive('Funds allocated must be positive').optional().nullable(),
-  nav: z.number().positive('NAV must be positive').optional().nullable(), // Legacy support
   as_of: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD').optional().nullable(),
   as_of_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD').optional().nullable(), // Legacy support
   // Location fields for geocoding

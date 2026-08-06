@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server';
 import { createSupabaseServerClient } from '@/lib/supabase';
 import { revalidatePath } from 'next/cache';
+import {
+  getPrimaryHoldingContact,
+  upsertPrimaryHoldingContact,
+} from '@/lib/holdings/contacts';
 
 const getSupabase = createSupabaseServerClient;
 const NO_STORE = { 'Cache-Control': 'no-store' } as const;
@@ -51,8 +55,15 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   }
 
   // Validate file type
-  if (!file.type.startsWith('image/')) {
-    return json({ error: 'File must be an image' }, { status: 400 });
+  const extensionByMime: Record<string, string> = {
+    'image/jpeg': 'jpg',
+    'image/png': 'png',
+    'image/gif': 'gif',
+    'image/webp': 'webp',
+  };
+  const fileExt = extensionByMime[file.type];
+  if (!fileExt) {
+    return json({ error: 'File must be a JPEG, PNG, GIF, or WebP image' }, { status: 400 });
   }
 
   // Validate file size (max 5MB)
@@ -62,9 +73,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
 
   try {
     // Generate unique filename
-    const fileExt = file.name.split('.').pop();
-    const fileName = `${holdingId}-${Date.now()}.${fileExt}`;
-    const filePath = `contact-photos/${fileName}`;
+    const fileName = `${crypto.randomUUID()}.${fileExt}`;
+    const filePath = `${holding.portfolio_id}/${holdingId}/${fileName}`;
 
     // Convert File to ArrayBuffer then to Buffer
     const arrayBuffer = await file.arrayBuffer();
@@ -72,7 +82,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
 
     // Upload to Supabase Storage
     const { error: uploadError } = await supabase.storage
-      .from('holdings')
+      .from('holding-contact-photos')
       .upload(filePath, buffer, {
         contentType: file.type,
         upsert: false,
@@ -84,33 +94,37 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
 
     // Generate signed URL (1 hour expiry) — bucket is private
     const { data: signedUrlData, error: signedUrlError } = await supabase.storage
-      .from('holdings')
+      .from('holding-contact-photos')
       .createSignedUrl(filePath, 3600);
 
     if (signedUrlError || !signedUrlData) {
-      await supabase.storage.from('holdings').remove([filePath]);
+      await supabase.storage.from('holding-contact-photos').remove([filePath]);
       return json({ error: 'Failed to generate signed URL' }, { status: 500 });
     }
 
     const photoUrl = signedUrlData.signedUrl;
 
     // Store the stable private storage path, and return a fresh signed URL for immediate display.
-    const { error: updateError, data: updateData } = await supabase
-      .from('holdings')
-      .update({ primary_contact_photo: filePath })
-      .eq('id', holdingId)
-      .eq('portfolio_id', holding.portfolio_id)
-      .select();
+    const previousContact = await getPrimaryHoldingContact(supabase, holdingId);
+    let updatedContact;
+    try {
+      updatedContact = await upsertPrimaryHoldingContact(supabase, holdingId, { photoPath: filePath });
+    } catch (error) {
+      await supabase.storage.from('holding-contact-photos').remove([filePath]);
+      return json(
+        { error: error instanceof Error ? error.message : 'Failed to update contact' },
+        { status: 500 }
+      );
+    }
 
-    if (updateError) {
-      await supabase.storage.from('holdings').remove([filePath]);
-      return json({ error: updateError.message }, { status: 500 });
+    if (previousContact?.photo_path && previousContact.photo_path !== filePath) {
+      await supabase.storage.from('holding-contact-photos').remove([previousContact.photo_path]);
     }
 
     revalidatePath(`/dashboard/holdings/${holdingId}`);
     revalidatePath(`/dashboard`);
 
-    return json({ photoUrl, storagePath: filePath, updated: updateData });
+    return json({ photoUrl, storagePath: filePath, updated: updatedContact });
   } catch (error) {
     return json({ error: 'Failed to upload file' }, { status: 500 });
   }

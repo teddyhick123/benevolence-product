@@ -2,6 +2,7 @@ import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase";
 import { assetTypeSchema } from "@/lib/schemas/portfolio";
 import { geocodeLocation } from "@/lib/services/google-maps";
+import { upsertPrimaryHoldingContact } from '@/lib/holdings/contacts';
 
 const getSupabase = createSupabaseServerClient;
 function numOrNull(v: FormDataEntryValue | null) {
@@ -77,32 +78,28 @@ export async function updateHoldingContact(formData: FormData) {
   const supabase = await getSupabase();
   const holdingId = String(formData.get('holding_id'));
 
-  const updates: any = {};
-
   const primary_contact_name = getValue(formData, 'primary_contact_name');
-  if (primary_contact_name !== undefined) updates.primary_contact_name = primary_contact_name;
-
   const primary_contact_email = getValue(formData, 'primary_contact_email');
-  if (primary_contact_email !== undefined) updates.primary_contact_email = primary_contact_email;
-
   const primary_contact_phone = getValue(formData, 'primary_contact_phone');
-  if (primary_contact_phone !== undefined) updates.primary_contact_phone = primary_contact_phone;
-
   const primary_contact_photo = getValue(formData, 'primary_contact_photo');
-  if (primary_contact_photo !== undefined) updates.primary_contact_photo = primary_contact_photo;
-
   const primary_contact_notes = getValue(formData, 'primary_contact_notes');
-  if (primary_contact_notes !== undefined) updates.primary_contact_notes = primary_contact_notes;
-
   const website = getValue(formData, 'website');
-  if (website !== undefined) updates.website = website;
 
-
-  const { error, data } = await supabase.from('holdings').update(updates).eq('id', holdingId).select();
-
-  if (error) {
+  try {
+    await upsertPrimaryHoldingContact(supabase, holdingId, {
+      name: primary_contact_name,
+      email: primary_contact_email,
+      phone: primary_contact_phone,
+      photoPath: primary_contact_photo,
+      notes: primary_contact_notes,
+    });
+    if (website !== undefined) {
+      const { error } = await supabase.from('holdings').update({ website }).eq('id', holdingId);
+      if (error) throw error;
+    }
+  } catch (error) {
     console.error('updateHoldingContact error:', error);
-    throw new Error(`Failed to update contact: ${error.message}`);
+    throw new Error(`Failed to update contact: ${error instanceof Error ? error.message : 'unknown error'}`);
   }
 
   revalidatePath(`/dashboard/holdings/${holdingId}`);
@@ -249,14 +246,11 @@ export async function updateContactNotes(holdingId: string, primary_contact_note
   'use server';
   const supabase = await getSupabase();
 
-  const { error } = await supabase
-    .from('holdings')
-    .update({ primary_contact_notes })
-    .eq('id', holdingId);
-
-  if (error) {
+  try {
+    await upsertPrimaryHoldingContact(supabase, holdingId, { notes: primary_contact_notes });
+  } catch (error) {
     console.error('updateContactNotes error:', error);
-    throw new Error(`Failed to update contact notes: ${error.message}`);
+    throw new Error(`Failed to update contact notes: ${error instanceof Error ? error.message : 'unknown error'}`);
   }
 
   revalidatePath(`/dashboard/holdings/${holdingId}`);
@@ -347,10 +341,9 @@ export async function addContribution(formData: FormData) {
   const row = {
     portfolio_id: portfolioId,
     holding_id: holdingId,
-    amount: amount,
-    contributed_at: String(contributedAt),
-    memo: memo || null,
-    source: source || null,
+    amount_usd: amount,
+    contribution_date: String(contributedAt),
+    notes: [memo, source].filter(Boolean).join(' — ') || null,
   };
 
 

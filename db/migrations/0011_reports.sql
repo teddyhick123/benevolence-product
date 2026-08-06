@@ -135,7 +135,8 @@ CREATE TABLE IF NOT EXISTS generated_documents (
 
   title             text NOT NULL,
   document_type     text NOT NULL DEFAULT 'report'
-                    CHECK (document_type IN ('report', 'export')),
+                    CHECK (document_type IN ('report', 'export', 'letter')),
+  version           integer NOT NULL DEFAULT 1 CHECK (version > 0),
   format            text NOT NULL DEFAULT 'html'
                     CHECK (format IN ('html', 'csv', 'json', 'xlsx', 'pdf')),
   scope             text NOT NULL DEFAULT 'portfolio'
@@ -158,6 +159,9 @@ CREATE TABLE IF NOT EXISTS generated_documents (
 CREATE INDEX idx_generated_documents_portfolio_id ON generated_documents (portfolio_id);
 CREATE INDEX idx_generated_documents_share_token ON generated_documents (share_token) WHERE is_public = true;
 CREATE INDEX idx_generated_documents_status ON generated_documents (portfolio_id, status);
+CREATE UNIQUE INDEX uq_generated_documents_letter_version
+  ON generated_documents (portfolio_id, version)
+  WHERE document_type = 'letter';
 
 ALTER TABLE generated_documents ENABLE ROW LEVEL SECURITY;
 

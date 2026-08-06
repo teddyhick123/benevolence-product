@@ -47,8 +47,8 @@ export default function AllAssetsOverview({
 
     holdings.forEach((holding: any) => {
       const assetType = holding.asset_type as AssetType;
-      const value = Number(holding.funds_allocated || holding.nav || 0);
-      const isActive = holding.status === 'Active';
+      const value = Number(holding.current_value ?? holding.funds_allocated ?? 0);
+      const isActive = holding.status === 'active';
       totalValue += value;
       totalHoldings++;
       if (isActive) activeHoldings++;

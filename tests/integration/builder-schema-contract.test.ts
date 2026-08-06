@@ -103,6 +103,28 @@ describe('migration set hygiene', () => {
   });
 });
 
+describe('builder migration type drift gate', () => {
+  const checkMatrix = readFileSync(path.join(process.cwd(), 'lib/builder/check-matrix.ts'), 'utf8');
+  const migrationAssert = readFileSync(path.join(process.cwd(), 'scripts/verify/migrations-assert.sh'), 'utf8');
+  const pathPolicy = readFileSync(path.join(process.cwd(), 'lib/builder/path-policy.ts'), 'utf8');
+  const pkg = JSON.parse(readFileSync(path.join(process.cwd(), 'package.json'), 'utf8'));
+
+  it('routes every migration proposal through reset verification and this schema suite', () => {
+    expect(checkMatrix).toContain("required.add('verify:migrations')");
+    expect(checkMatrix).toContain("const SCHEMA_CONTRACT_SUITE = 'tests/integration/builder-schema-contract.test.ts'");
+  });
+
+  it('checks generated types after the migration reset', () => {
+    expect(pkg.scripts['db:types:check']).toBe('node scripts/verify/database-types.mjs check');
+    expect(migrationAssert).toContain('npm run db:types:check');
+  });
+
+  it('requires migration proposals to carry regenerated types', () => {
+    expect(pathPolicy).toContain("rule: 'migration-types'");
+    expect(pathPolicy).toContain("normalizedPaths.includes('lib/database.types.ts')");
+  });
+});
+
 describe('transitional builder field guard', () => {
   const SOURCE_ROOTS = ['app', 'lib', 'components'];
   const SKIP_DIR_NAMES = new Set(['node_modules', '__tests__', '.next']);

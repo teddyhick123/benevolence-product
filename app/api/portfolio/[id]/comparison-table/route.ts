@@ -48,10 +48,11 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
     );
   }
 
-  // Get metric metadata (names, units, directionality)
+  // Get canonical global metric metadata. Directionality is not part of the
+  // metric catalog, so consumers receive null until it becomes platform canon.
   const { data: metricMeta, error: metaErr } = await supabase
     .from('metrics')
-    .select('code, name, unit, directionality')
+    .select('code, name, unit')
     .in('code', metricCodes);
 
   if (metaErr) {
@@ -67,7 +68,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
       {
         name: m.name || m.code,
         unit: m.unit,
-        directionality: m.directionality
+        directionality: null
       }
     ])
   );

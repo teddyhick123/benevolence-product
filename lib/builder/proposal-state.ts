@@ -6,7 +6,7 @@
 // constructed here, so this module is importable from both server routes
 // and client components (mirrors lib/builder/review-gate.ts).
 
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { SupabaseClient } from '@/lib/database-client';
 
 // ============================================================
 // State model

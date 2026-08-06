@@ -9,7 +9,7 @@ interface Organization {
   ein: string | null;
   website: string | null;
   description: string | null;
-  logo_url: string | null;
+  branding: { logo_url?: string } | null;
 }
 
 interface Props {
@@ -36,12 +36,19 @@ export default function OrgSettingsForm({ org, isAdmin }: Props) {
     const ein = formData.get("ein") as string;
     const website = formData.get("website") as string;
     const description = formData.get("description") as string;
+    const logoUrl = formData.get("logo_url") as string;
 
     try {
       const res = await fetch(`/api/org/${org.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, ein, website, description }),
+        body: JSON.stringify({
+          name,
+          ein: ein || null,
+          website: website || null,
+          description: description || null,
+          branding: { ...(org.branding || {}), logo_url: logoUrl || null },
+        }),
       });
 
       const data = await res.json();
@@ -123,7 +130,7 @@ export default function OrgSettingsForm({ org, isAdmin }: Props) {
           <input
             type="url"
             name="logo_url"
-            defaultValue={org.logo_url || ""}
+            defaultValue={org.branding?.logo_url || ""}
             disabled={!isAdmin}
             className="w-full px-3 py-2 border border-black/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-azure/50 disabled:bg-neutral-50 disabled:text-neutral-500"
             placeholder="https://yourorg.org/logo.png"

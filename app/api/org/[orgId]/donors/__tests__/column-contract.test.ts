@@ -10,13 +10,16 @@ describe('donors route column contract', () => {
     expect(routeSrc).toContain('org_id');
   });
 
-  it('does not insert phantom columns', () => {
+  it('does not insert phantom columns or stale aliases', () => {
     expect(routeSrc).not.toContain('donor_type');
-    expect(routeSrc).not.toContain('contact_name');
     expect(routeSrc).not.toContain('postal_code');
-    expect(routeSrc).not.toContain('is_anonymous');
-    expect(routeSrc).not.toContain('communication_preference');
-    expect(routeSrc).not.toContain('do_not_contact');
     expect(routeSrc).not.toContain('created_by');
+  });
+
+  it('persists platform CRM fields on donors', () => {
+    expect(routeSrc).toContain('contact_name');
+    expect(routeSrc).toContain('is_anonymous');
+    expect(routeSrc).toContain('communication_preference');
+    expect(routeSrc).toContain('do_not_contact');
   });
 });

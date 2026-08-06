@@ -1,7 +1,8 @@
 // lib/import/reconciler.ts
 // Compares staging source data vs loaded production data to detect discrepancies
 
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { DynamicImportClient as SupabaseClient } from '@/lib/database-client';
+import { fromImportRelation } from './database';
 
 export interface EntityReconciliation {
   entity: string;
@@ -124,33 +125,28 @@ async function reconcileSimpleEntity(
   finalIdColumn: string,
   tolerancePercent: number
 ): Promise<EntityReconciliation> {
-  const { count: sourceCount } = await supabase
-    .from(stagingTable)
+  const { count: sourceCount } = await fromImportRelation(supabase, stagingTable)
     .select('*', { count: 'exact', head: true })
     .eq('import_job_id', importJobId)
     .in('validation_status', ['valid', 'warning']);
 
-  const { count: loadedCount } = await supabase
-    .from(stagingTable)
+  const { count: loadedCount } = await fromImportRelation(supabase, stagingTable)
     .select('*', { count: 'exact', head: true })
     .eq('import_job_id', importJobId)
     .in('action_taken', ['create', 'update']);
 
-  const { count: skippedCount } = await supabase
-    .from(stagingTable)
+  const { count: skippedCount } = await fromImportRelation(supabase, stagingTable)
     .select('*', { count: 'exact', head: true })
     .eq('import_job_id', importJobId)
     .eq('action_taken', 'skip');
 
-  const { count: failedCount } = await supabase
-    .from(stagingTable)
+  const { count: failedCount } = await fromImportRelation(supabase, stagingTable)
     .select('*', { count: 'exact', head: true })
     .eq('import_job_id', importJobId)
     .eq('action_taken', 'error');
 
   // Missing: rows with no final_id, not skipped
-  const { data: missingRows } = await supabase
-    .from(stagingTable)
+  const { data: missingRows } = await fromImportRelation(supabase, stagingTable)
     .select('id')
     .eq('import_job_id', importJobId)
     .in('validation_status', ['valid', 'warning'])

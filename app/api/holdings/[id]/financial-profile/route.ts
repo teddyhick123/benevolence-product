@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { isAccessDenied, requireHoldingAccess } from '@/lib/api/access';
 import { getOrganization } from '@/lib/services/propublica';
 import { getCharityNavigatorRating } from '@/lib/services/charity-navigator';
+import { getHoldingCharityLink, toCharityResponseAliases } from '@/lib/holdings/charities';
 
 const NO_STORE = { 'Cache-Control': 'no-store' } as const;
 
@@ -19,15 +20,8 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
 
   try {
     // Fetch holding with charity link
-    const { data: holding, error: holdingError } = await sb
-      .from('holdings')
-      .select('id, name, charity_id, portfolio_id')
-      .eq('id', holdingId)
-      .single();
-
-    if (holdingError) throw holdingError;
-
-    if (!holding?.charity_id) {
+    const holding = await getHoldingCharityLink(sb, holdingId);
+    if (!holding.charityId) {
       return NextResponse.json(
         { error: 'No charity linked to this holding', code: 'NO_CHARITY' },
         { status: 404, headers: NO_STORE }
@@ -38,7 +32,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
     const { data: charity, error: charityError } = await sb
       .from('charities')
       .select('*')
-      .eq('id', holding.charity_id)
+      .eq('id', holding.charityId)
       .single();
 
     if (charityError) throw charityError;
@@ -74,22 +68,9 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
         name: holding.name,
       },
       charity: {
-        id: charity.id,
-        ein: charity.ein,
-        name: charity.name,
-        legal_name: charity.legal_name,
-        sector: charity.sector,
-        ntee_code: charity.ntee_code,
-        city: charity.city,
-        state: charity.state,
+        ...toCharityResponseAliases(charity),
+        legal_name: charity.also_known_as,
         website: charity.website,
-        mission_statement: charity.mission_statement,
-        annual_revenue: charity.annual_revenue,
-        annual_expenses: charity.annual_expenses,
-        assets: charity.assets,
-        program_expense_ratio: charity.program_expense_ratio,
-        irs_deductibility_status: charity.irs_deductibility_status,
-        last_form_990_date: charity.last_form_990_date,
       },
       filings,
       charity_navigator_rating: cnRating,

@@ -53,7 +53,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     const supabase = access.context.db;
 
     const body = await req.json();
-    const allowed = ['name', 'ein', 'org_type', 'fiscal_year_end', 'state_of_incorporation', 'modules', 'branding'];
+    const allowed = ['name', 'description', 'ein', 'website', 'org_type', 'fiscal_year_end', 'state_of_incorporation', 'modules', 'branding'];
     const updates: Record<string, any> = {};
     for (const key of allowed) {
       if (body[key] !== undefined) updates[key] = body[key];

@@ -97,6 +97,24 @@ function extractCreatedRelations(sql: string): Set<string> {
   return relations;
 }
 
+function extractCreatedFunctions(sql: string): Set<string> {
+  const functions = new Set<string>();
+  const pattern = /CREATE\s+(?:OR\s+REPLACE\s+)?FUNCTION\s+(?:public\.)?([a-zA-Z_][a-zA-Z0-9_]*)\s*\(/gi;
+  for (const match of sql.matchAll(pattern)) functions.add(match[1]);
+  return functions;
+}
+
+function stripStorageBucketCalls(src: string): string {
+  return src.replace(/\.storage\s*\.from\(\s*(['"])[^'"]+\1\s*\)/g, '.storage.bucket()');
+}
+
+function extractLiteralCalls(src: string, method: 'from' | 'rpc'): Set<string> {
+  const calls = new Set<string>();
+  const pattern = new RegExp(`\\.${method}\\(\\s*(['"])([a-zA-Z_][a-zA-Z0-9_]*)\\1`, 'g');
+  for (const match of src.matchAll(pattern)) calls.add(match[2]);
+  return calls;
+}
+
 function extractModuleRegistryTables(src: string): Set<string> {
   const tables = new Set<string>();
 
@@ -120,6 +138,26 @@ describe('Schema contract: RPC function names', () => {
 
   it('no calls to org_has_module with p_module_id (should be p_module)', () => {
     expect(appSrc).not.toMatch(/p_module_id:/);
+  });
+});
+
+describe('Schema contract: active database calls exist in the canonical migrations', () => {
+  const databaseSrc = stripStorageBucketCalls(appSrc);
+  const createdRelations = extractCreatedRelations(migrationsSrc);
+  const createdFunctions = extractCreatedFunctions(migrationsSrc);
+
+  it('all literal relation calls resolve to a canonical table or view', () => {
+    const missing = Array.from(extractLiteralCalls(databaseSrc, 'from'))
+      .filter((relation) => !createdRelations.has(relation))
+      .sort();
+    expect(missing).toEqual([]);
+  });
+
+  it('all literal RPC calls resolve to a canonical database function', () => {
+    const missing = Array.from(extractLiteralCalls(databaseSrc, 'rpc'))
+      .filter((fn) => !createdFunctions.has(fn))
+      .sort();
+    expect(missing).toEqual([]);
   });
 });
 

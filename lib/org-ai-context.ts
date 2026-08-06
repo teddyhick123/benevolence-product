@@ -1,4 +1,4 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { SupabaseClient } from '@/lib/database-client';
 
 export const ORG_AI_CONTEXT_TYPES = ['operating_norm', 'naming_convention', 'process_rule', 'preference'] as const;
 export const ORG_AI_CONTEXT_SOURCES = ['builder_chat', 'onboarding', 'ai_suggestion'] as const;

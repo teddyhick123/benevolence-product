@@ -1,5 +1,5 @@
 // lib/builder/context-bundle.ts
-import { SupabaseClient } from '@supabase/supabase-js';
+import type { SupabaseClient } from '@/lib/database-client';
 import { getCodebaseIndex, formatIndexForPrompt } from './codebase-index';
 import { branding } from '@/lib/config';
 

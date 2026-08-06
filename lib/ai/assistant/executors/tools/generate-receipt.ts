@@ -91,6 +91,7 @@ export const executeGenerateReceipt: AssistantToolExecutor = async (
         org_id: contribution.org_id,
         donor_id: contribution.donor_id,
         contribution_ids: [contribution.id],
+        letter_type: 'receipt',
         subject: `Tax Receipt - ${receiptNumber}`,
         body: receiptBody,
         status: 'draft',

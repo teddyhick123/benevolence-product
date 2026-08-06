@@ -87,15 +87,12 @@ export async function DELETE(req: Request, ctx: { params: Promise<{ commentId: s
   const supabase = access.context.db;
 
   try {
-    // Soft delete comment (RLS ensures user owns it)
+    // Delete comment (RLS ensures user owns it; replies cascade canonically).
     const { data, error } = await supabase
       .from('recommendation_comments')
-      .update({
-        deleted_at: new Date().toISOString(),
-      })
+      .delete()
       .eq('id', commentId)
       .eq('user_id', access.context.user.id)
-      .is('deleted_at', null)
       .select()
       .single();
 

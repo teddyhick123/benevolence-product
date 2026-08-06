@@ -12,7 +12,7 @@ export const executeAddMetricFact: AssistantToolExecutor = async (runtime) => {
     userPrompt,
   } = runtime;
   const normalizedArgs = { ...args, value: Number(args.value) };
-  const executor = new AIActionExecutor(runtime.db as never);
+  const executor = new AIActionExecutor(runtime.db);
   return await executor.addMetricFact(
     portfolioId,
     userId,

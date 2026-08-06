@@ -139,12 +139,13 @@ export const executeGenerateAcknowledgment: AssistantToolExecutor = async (
         org_id: args.organization_id,
         donor_id: args.donor_id,
         contribution_ids: args.contribution_id ? [args.contribution_id] : [],
+        letter_type: letterType,
         subject,
         body,
         status: 'draft',
         delivery_method: args.send_via || 'email',
         sent_by: userId,
-        notes: `type=${letterType}`,
+        notes: null,
       })
       .select()
       .single();

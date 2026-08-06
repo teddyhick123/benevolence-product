@@ -106,7 +106,7 @@ export const executeTrackFilingDeadline: AssistantToolExecutor = async (
           entityType: 'compliance_filing' as any,
           entityId: data.id,
           operationData: { table: 'filing_calendar', after: data },
-          aiReasoning: `Created ${data.filing_type} deadline for ${data.tax_year} due ${data.due_date}`,
+          aiReasoning: `Created ${data.filing_type} deadline due ${data.due_date}`,
           userPrompt,
           status: 'applied',
           batchId,
@@ -116,7 +116,7 @@ export const executeTrackFilingDeadline: AssistantToolExecutor = async (
           success: true,
           action: 'created',
           filing: data,
-          message: `${data.filing_type.replace(/_/g, '-').toUpperCase()} deadline added for tax year ${data.tax_year}, due ${data.due_date}`,
+          message: `${data.filing_type.replace(/_/g, '-').toUpperCase()} deadline added, due ${data.due_date}`,
         },
       };
     }

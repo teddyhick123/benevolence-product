@@ -2,6 +2,7 @@
 import { NextResponse } from 'next/server';
 import { isAccessDenied, requireHoldingAccess } from '@/lib/api/access';
 import { getOrganization, convertToCharity } from '@/lib/services/propublica';
+import { createHoldingCharityRepository } from '@/lib/api/repositories/holding-charities';
 
 function json(body: Record<string, unknown>, init?: ResponseInit) {
   return NextResponse.json(body, {
@@ -22,7 +23,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   const { id: holdingId } = await ctx.params;
   const access = await requireHoldingAccess(holdingId, 'member');
   if (isAccessDenied(access)) return access.response;
-  const sb = access.context.db;
+  const repository = createHoldingCharityRepository(access.context);
 
   try {
     const body = await req.json();
@@ -40,11 +41,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     // If EIN provided, look up or create charity
     if (ein && !charity_id) {
       // Check local DB first
-      const { data: existingCharity } = await sb
-        .from('charities')
-        .select('id')
-        .eq('ein', ein)
-        .maybeSingle();
+      const existingCharity = await repository.findCharityByEin(ein);
 
       if (existingCharity) {
         resolvedCharityId = existingCharity.id;
@@ -59,29 +56,21 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
         }
 
         const charityData = convertToCharity(org);
-        const { data: newCharity, error: insertError } = await sb
-          .from('charities')
-          .insert({
+        if (!charityData.ein || !charityData.name) {
+          return json({ error: 'Charity record is missing EIN or name' }, { status: 422 });
+        }
+        try {
+          const newCharity = await repository.createCharity({
             ...charityData,
+            ein: charityData.ein,
+            name: charityData.name,
             is_active: true,
-          })
-          .select('id')
-          .single();
-
-        if (insertError) {
-          // If duplicate EIN error, try to fetch existing
-          if (insertError.code === '23505') {
-            const { data: existing } = await sb
-              .from('charities')
-              .select('id')
-              .eq('ein', ein)
-              .maybeSingle();
-            resolvedCharityId = existing?.id;
-          } else {
-            throw insertError;
-          }
-        } else {
+          });
           resolvedCharityId = newCharity.id;
+        } catch (insertError: any) {
+          if (insertError?.code !== '23505') throw insertError;
+          const existing = await repository.findCharityByEin(ein);
+          resolvedCharityId = existing?.id;
         }
       }
     }
@@ -93,23 +82,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
       );
     }
 
-    // Update the holding with the charity_id
-    const { data: updatedHolding, error: updateError } = await sb
-      .from('holdings')
-      .update({ charity_id: resolvedCharityId })
-      .eq('id', holdingId)
-      .select('id, name, charity_id')
-      .single();
-
-    if (updateError) throw updateError;
-
-    // Fetch the linked charity details
-    const { data: charity, error: charityError } = await sb
-      .from('charities')
-      .select('id, ein, name, sector, city, state, annual_revenue, annual_expenses, assets, program_expense_ratio, mission_statement')
-      .eq('id', resolvedCharityId)
-      .single();
-    if (charityError) throw charityError;
+    const { holding: updatedHolding, charity } = await repository.link(resolvedCharityId);
 
     return json({
       holding: updatedHolding,
@@ -131,15 +104,10 @@ export async function DELETE(req: Request, ctx: { params: Promise<{ id: string }
   const { id: holdingId } = await ctx.params;
   const access = await requireHoldingAccess(holdingId, 'member');
   if (isAccessDenied(access)) return access.response;
-  const sb = access.context.db;
+  const repository = createHoldingCharityRepository(access.context);
 
   try {
-    const { error } = await sb
-      .from('holdings')
-      .update({ charity_id: null })
-      .eq('id', holdingId);
-
-    if (error) throw error;
+    await repository.unlink();
 
     return json({ success: true });
   } catch (error: any) {

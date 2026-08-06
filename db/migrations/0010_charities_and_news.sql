@@ -148,6 +148,97 @@ CREATE INDEX idx_holdings_investee_id
   ON holdings (investee_id)
   WHERE investee_id IS NOT NULL AND deleted_at IS NULL;
 
+-- Link one authorized holding to an existing canonical charity. The function
+-- may materialize an investee from that read-only catalog record, but callers
+-- cannot supply or rewrite global catalog attributes.
+CREATE OR REPLACE FUNCTION public.link_holding_to_charity(
+  p_holding_id uuid,
+  p_portfolio_id uuid,
+  p_charity_id uuid
+)
+RETURNS uuid
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_charity public.charities%ROWTYPE;
+  v_investee_id uuid;
+  v_existing_charity_id uuid;
+BEGIN
+  IF COALESCE(auth.role(), '') <> 'service_role'
+     AND NOT public.can_edit_portfolio(p_portfolio_id) THEN
+    RAISE EXCEPTION 'not authorized to link a charity for portfolio %', p_portfolio_id
+      USING ERRCODE = '42501';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM public.holdings h
+    WHERE h.id = p_holding_id
+      AND h.portfolio_id = p_portfolio_id
+      AND h.deleted_at IS NULL
+  ) THEN
+    RAISE EXCEPTION 'holding not found' USING ERRCODE = 'P0002';
+  END IF;
+
+  SELECT * INTO v_charity
+  FROM public.charities c
+  WHERE c.id = p_charity_id
+    AND c.is_active IS NOT FALSE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'charity not found' USING ERRCODE = 'P0002';
+  END IF;
+
+  PERFORM pg_advisory_xact_lock(hashtextextended('charity-investee:' || p_charity_id::text, 0));
+
+  SELECT i.id INTO v_investee_id
+  FROM public.investees i
+  WHERE i.charity_id = p_charity_id
+  ORDER BY i.created_at, i.id
+  LIMIT 1;
+
+  IF v_investee_id IS NULL AND v_charity.ein IS NOT NULL THEN
+    SELECT i.id, i.charity_id INTO v_investee_id, v_existing_charity_id
+    FROM public.investees i
+    WHERE i.ein = v_charity.ein
+    LIMIT 1;
+
+    IF v_investee_id IS NOT NULL AND v_existing_charity_id IS DISTINCT FROM p_charity_id THEN
+      RAISE EXCEPTION 'canonical investee EIN is linked to a different charity'
+        USING ERRCODE = '23505';
+    END IF;
+  END IF;
+
+  IF v_investee_id IS NULL THEN
+    INSERT INTO public.investees (
+      display_name, ein, sector, city, state, country, website, charity_id
+    ) VALUES (
+      v_charity.name,
+      v_charity.ein,
+      v_charity.ntee_code,
+      v_charity.city,
+      v_charity.state,
+      COALESCE(v_charity.country, 'US'),
+      v_charity.website,
+      v_charity.id
+    )
+    RETURNING investees.id INTO v_investee_id;
+  END IF;
+
+  UPDATE public.holdings
+  SET investee_id = v_investee_id
+  WHERE id = p_holding_id
+    AND portfolio_id = p_portfolio_id
+    AND deleted_at IS NULL;
+
+  RETURN v_investee_id;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.link_holding_to_charity(uuid, uuid, uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.link_holding_to_charity(uuid, uuid, uuid)
+  TO authenticated, service_role;
+
 -- ---------------------------------------------------------------------------
 -- charity_rating_cache — cached provider ratings for charities
 -- ---------------------------------------------------------------------------

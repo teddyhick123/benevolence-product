@@ -2,7 +2,7 @@
 // Compares staging source data vs loaded production data to detect discrepancies
 
 import type { DynamicImportClient as SupabaseClient } from '@/lib/database-client';
-import { fromImportRelation } from './database';
+import { fromImportStagingRelation } from './database';
 
 export interface EntityReconciliation {
   entity: string;
@@ -125,28 +125,28 @@ async function reconcileSimpleEntity(
   finalIdColumn: string,
   tolerancePercent: number
 ): Promise<EntityReconciliation> {
-  const { count: sourceCount } = await fromImportRelation(supabase, stagingTable)
+  const { count: sourceCount } = await fromImportStagingRelation(supabase, stagingTable)
     .select('*', { count: 'exact', head: true })
     .eq('import_job_id', importJobId)
     .in('validation_status', ['valid', 'warning']);
 
-  const { count: loadedCount } = await fromImportRelation(supabase, stagingTable)
+  const { count: loadedCount } = await fromImportStagingRelation(supabase, stagingTable)
     .select('*', { count: 'exact', head: true })
     .eq('import_job_id', importJobId)
     .in('action_taken', ['create', 'update']);
 
-  const { count: skippedCount } = await fromImportRelation(supabase, stagingTable)
+  const { count: skippedCount } = await fromImportStagingRelation(supabase, stagingTable)
     .select('*', { count: 'exact', head: true })
     .eq('import_job_id', importJobId)
     .eq('action_taken', 'skip');
 
-  const { count: failedCount } = await fromImportRelation(supabase, stagingTable)
+  const { count: failedCount } = await fromImportStagingRelation(supabase, stagingTable)
     .select('*', { count: 'exact', head: true })
     .eq('import_job_id', importJobId)
     .eq('action_taken', 'error');
 
   // Missing: rows with no final_id, not skipped
-  const { data: missingRows } = await fromImportRelation(supabase, stagingTable)
+  const { data: missingRows } = await fromImportStagingRelation(supabase, stagingTable)
     .select('id')
     .eq('import_job_id', importJobId)
     .in('validation_status', ['valid', 'warning'])

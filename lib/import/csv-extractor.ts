@@ -5,7 +5,7 @@ import Papa from 'papaparse';
 import type { DynamicImportClient as SupabaseClient } from '@/lib/database-client';
 import type { EntityType } from './types';
 import { STAGING_TABLE_MAP } from './types';
-import { fromImportRelation } from './database';
+import { fromImportStagingRelation } from './database';
 
 export interface ExtractResult {
   rowsInserted: number;
@@ -85,7 +85,7 @@ export async function extractCSVToStaging(
       validation_status: 'pending' as const,
     }));
 
-    const { error: insertError } = await fromImportRelation(supabase, stagingTable).insert(records);
+    const { error: insertError } = await fromImportStagingRelation(supabase, stagingTable).insert(records);
 
     if (insertError) {
       errors.push(

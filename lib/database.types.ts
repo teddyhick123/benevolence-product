@@ -12835,28 +12835,27 @@ export type Database = {
           largest_donation: number | null
           linked_tax_contributions: number | null
           portfolio_id: string | null
-          total_avoided_capital_gains: number | null
+          total_appreciated_asset_gain: number | null
           total_carryforward_available: number | null
           total_donation_amount: number | null
           total_donations: number | null
           total_tax_deductible_amount: number | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "holdings_portfolio_id_fkey"
-            columns: ["portfolio_id"]
-            isOneToOne: false
-            referencedRelation: "portfolios"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "holdings_portfolio_id_fkey"
-            columns: ["portfolio_id"]
-            isOneToOne: false
-            referencedRelation: "v_portfolio_summary"
-            referencedColumns: ["portfolio_id"]
-          },
-        ]
+        Relationships: []
+      }
+      v_portfolio_donations: {
+        Row: {
+          created_at: string | null
+          funds_allocated: number | null
+          has_tax_contribution: boolean | null
+          holding: Json | null
+          id: string | null
+          name: string | null
+          portfolio_id: string | null
+          status: string | null
+          tax_contributions: Json | null
+        }
+        Relationships: []
       }
       v_portfolio_grant_summary: {
         Row: {
@@ -13727,6 +13726,18 @@ export type Database = {
         }
         Returns: Json
       }
+      create_generated_letter: {
+        Args: {
+          p_content: Json
+          p_generated_by: string
+          p_portfolio_id: string
+        }
+        Returns: {
+          generated_at: string
+          id: string
+          version: number
+        }[]
+      }
       create_grant_with_foundation_records: {
         Args: {
           p_actor_id: string
@@ -13856,6 +13867,14 @@ export type Database = {
       }
       is_app_admin: { Args: never; Returns: boolean }
       is_org_admin: { Args: { p_org_id: string }; Returns: boolean }
+      link_holding_to_charity: {
+        Args: {
+          p_charity_id: string
+          p_holding_id: string
+          p_portfolio_id: string
+        }
+        Returns: string
+      }
       mark_stale_import_jobs: {
         Args: { p_stale_threshold_minutes?: number }
         Returns: number

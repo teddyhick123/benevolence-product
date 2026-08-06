@@ -54,7 +54,7 @@ export default function PortfolioDonationSummaryCard({ summary, loading = false,
       </div>
 
       {/* Tax Benefits Banner */}
-      {summary.total_avoided_capital_gains > 0 && (
+      {summary.total_appreciated_asset_gain > 0 && (
         <div className="mb-5 p-3 bg-green-50 border border-green-200 rounded-xl">
           <div className="flex items-center gap-2 mb-1">
             <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -63,7 +63,7 @@ export default function PortfolioDonationSummaryCard({ summary, loading = false,
             <span className="text-xs font-medium text-green-900">Tax Optimization</span>
           </div>
           <div className="text-sm text-green-800">
-            {formatCurrency(summary.total_avoided_capital_gains)} in avoided capital gains tax
+            {formatCurrency(summary.total_appreciated_asset_gain)} in appreciated assets donated without sale
           </div>
         </div>
       )}
@@ -108,11 +108,11 @@ export default function PortfolioDonationSummaryCard({ summary, loading = false,
         )}
 
         {/* Capital Gains Avoided */}
-        {summary.total_avoided_capital_gains > 0 && (
+        {summary.total_appreciated_asset_gain > 0 && (
           <MetricItem
-            label="Capital Gains Avoided"
-            value={formatCurrency(summary.total_avoided_capital_gains)}
-            helpText="tax savings"
+            label="Appreciated Assets"
+            value={formatCurrency(summary.total_appreciated_asset_gain)}
+            helpText="gain donated without sale"
           />
         )}
 
@@ -147,4 +147,3 @@ export default function PortfolioDonationSummaryCard({ summary, loading = false,
     </div>
   );
 }
-

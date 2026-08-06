@@ -10,7 +10,7 @@ import { suggestRowFixes } from '@/lib/import/ai/validate-row';
 import type { AISuggestion } from '@/lib/import/ai/validate-row';
 import { aiLimiter } from '@/lib/rate-limit';
 import { rateLimitExceeded } from '@/lib/rate-limit-response';
-import { fromImportRelation, IMPORT_STAGING_RELATIONS } from '@/lib/import/database';
+import { fromImportStagingRelation, IMPORT_STAGING_RELATIONS } from '@/lib/import/database';
 
 interface StagingRow {
   id: string;
@@ -44,7 +44,7 @@ export async function POST(req: Request) {
     const { db } = access.context;
 
     // Fetch the requested rows
-    const { data: rows, error: fetchError } = await fromImportRelation(db, staging_table)
+    const { data: rows, error: fetchError } = await fromImportStagingRelation(db, staging_table)
       .select('id, raw_data, transformed_data, validation_errors')
       .in('id', staging_row_ids)
       .eq('import_job_id', import_job_id);

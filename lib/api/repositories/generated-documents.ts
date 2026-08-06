@@ -41,36 +41,29 @@ export function createGeneratedDocumentsRepository(scope: PortfolioAccessContext
       .select('id, content, generated_at, version')
       .eq('portfolio_id', portfolioId)
       .eq('document_type', 'letter')
-      .order('version', { ascending: false })
-      .limit(1)
-      .maybeSingle();
+      .order('version', { ascending: false });
     if (error) throw error;
-    if (!data) return null;
-    const content = parseLetterContent(data.content);
-    return content ? { ...data, ...content } : null;
+    for (const document of data ?? []) {
+      const content = parseLetterContent(document.content);
+      if (content) return { ...document, ...content };
+    }
+    return null;
   }
 
   return {
     latestLetter,
 
     async saveLetter(letter: LetterContent) {
-      const latest = await latestLetter();
-      const version = (latest?.version ?? 0) + 1;
-      const { data, error } = await db
-        .from('generated_documents')
-        .insert({
-          portfolio_id: portfolioId,
-          generated_by: scope.user.id,
-          title: `Portfolio letter v${version}`,
-          document_type: 'letter',
-          format: 'html',
-          scope: 'portfolio',
-          content: letter as unknown as Json,
-          version,
+      const { data: rawData, error } = await db
+        .rpc('create_generated_letter', {
+          p_portfolio_id: portfolioId,
+          p_generated_by: scope.user.id,
+          p_content: letter as unknown as Json,
         })
-        .select('id, generated_at, version')
         .single();
       if (error) throw error;
+      const data = rawData as { id: string; generated_at: string; version: number } | null;
+      if (!data) throw new Error('Generated letter was not persisted');
       return data;
     },
   };

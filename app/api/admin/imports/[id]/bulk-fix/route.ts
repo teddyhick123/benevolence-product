@@ -6,7 +6,7 @@ import { z } from 'zod';
 import { requireAppAdmin } from '@/lib/api/access';
 import { jsonError, jsonOk } from '@/lib/api/responses';
 import { parseFlexibleDate } from '@/lib/import/utils/date-parser';
-import { fromImportRelation } from '@/lib/import/database';
+import { fromImportStagingRelation } from '@/lib/import/database';
 
 type FixType = 'normalize_ein' | 'parse_date' | 'strip_currency' | 'map_gift_type';
 
@@ -93,7 +93,7 @@ export async function POST(
   const { db } = access.context;
 
   // Fetch all invalid rows for this job+entity (no hard cap)
-  const { data: rows, error: fetchError } = await fromImportRelation(db, stagingTable)
+  const { data: rows, error: fetchError } = await fromImportStagingRelation(db, stagingTable)
     .select('id, transformed_data, validation_errors, validation_status')
     .eq('import_job_id', importJobId)
     .in('validation_status', ['invalid', 'warning']);
@@ -145,7 +145,7 @@ export async function POST(
   const chunkSize = 500;
   for (let i = 0; i < updates.length; i += chunkSize) {
     const chunk = updates.slice(i, i + chunkSize);
-    const { error: upsertError } = await fromImportRelation(db, stagingTable)
+    const { error: upsertError } = await fromImportStagingRelation(db, stagingTable)
       .upsert(chunk, { onConflict: 'id' });
     if (upsertError) {
       return jsonError(upsertError.message, 500);

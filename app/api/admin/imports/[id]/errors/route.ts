@@ -8,7 +8,7 @@ import { requireAppAdmin } from '@/lib/api/access';
 import { jsonError, jsonOk } from '@/lib/api/responses';
 import type { EntityType } from '@/lib/import/types';
 import { STAGING_TABLE_MAP } from '@/lib/import/types';
-import { fromImportRelation } from '@/lib/import/database';
+import { fromImportStagingRelation } from '@/lib/import/database';
 
 const stagingTables = Object.values(STAGING_TABLE_MAP) as [string, ...string[]];
 const correctionSchema = z.object({
@@ -45,7 +45,7 @@ export async function GET(
     return jsonError(`Unknown entity type: ${entity}`, 400);
   }
 
-  let query = fromImportRelation(access.context.db, stagingTable)
+  let query = fromImportStagingRelation(access.context.db, stagingTable)
     .select('id, row_number, raw_data, transformed_data, validation_errors, validation_status, action_taken', { count: 'exact' })
     .eq('import_job_id', id)
     .not('validation_errors', 'is', null)
@@ -87,7 +87,7 @@ export async function PATCH(
   const { db } = access.context;
 
   // Fetch current transformed_data for this row
-  const { data: row, error: fetchErr } = await fromImportRelation(db, staging_table)
+  const { data: row, error: fetchErr } = await fromImportStagingRelation(db, staging_table)
     .select('transformed_data, validation_errors')
     .eq('id', row_id)
     .eq('import_job_id', importJobId)
@@ -106,7 +106,7 @@ export async function PATCH(
   const newStatus = remainingErrors.length === 0 ? 'valid' :
     remainingErrors.some((e: { severity: string }) => e.severity === 'error') ? 'invalid' : 'warning';
 
-  const { error: updateErr } = await fromImportRelation(db, staging_table)
+  const { error: updateErr } = await fromImportStagingRelation(db, staging_table)
     .update({
       transformed_data: updatedData,
       validation_errors: remainingErrors.length > 0 ? remainingErrors : null,

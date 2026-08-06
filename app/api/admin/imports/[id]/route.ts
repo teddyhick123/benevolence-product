@@ -4,9 +4,9 @@
 import { NextRequest } from 'next/server';
 import { requireAppAdmin } from '@/lib/api/access';
 import { jsonError, jsonOk } from '@/lib/api/responses';
-import { fromImportRelation, type ImportVariableRelation } from '@/lib/import/database';
+import { fromImportStagingRelation, type ImportStagingRelation } from '@/lib/import/database';
 
-type StagingTable = Extract<ImportVariableRelation, `staging_import_${string}`>;
+type StagingTable = ImportStagingRelation;
 
 interface StagingCounts {
   total: number;
@@ -50,7 +50,7 @@ export async function GET(
 
   await Promise.all(
     Object.entries(stagingTables).map(async ([entityType, table]) => {
-      const { data: rows } = await fromImportRelation(db, table)
+      const { data: rows } = await fromImportStagingRelation(db, table)
         .select('validation_status')
         .eq('import_job_id', id);
 

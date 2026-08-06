@@ -12,7 +12,7 @@ export type PortfolioDonationSummary = {
   largest_donation: number;
   linked_tax_contributions: number;
   total_tax_deductible_amount: number;
-  total_avoided_capital_gains: number;
+  total_appreciated_asset_gain: number;
   total_carryforward_available: number;
 };
 

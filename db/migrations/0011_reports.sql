@@ -184,6 +184,66 @@ CREATE POLICY "generated_documents: service role full access"
 GRANT SELECT, INSERT, UPDATE, DELETE ON generated_documents TO authenticated;
 GRANT ALL ON generated_documents TO service_role;
 
+-- Allocate letter versions under a portfolio-scoped transaction lock. This is
+-- deliberately narrow: callers can create only a letter for a portfolio they
+-- can edit, and cannot choose version/title/status fields themselves.
+CREATE OR REPLACE FUNCTION public.create_generated_letter(
+  p_portfolio_id uuid,
+  p_generated_by uuid,
+  p_content jsonb
+)
+RETURNS TABLE(id uuid, generated_at timestamptz, version integer)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_version integer;
+  v_id uuid;
+  v_generated_at timestamptz;
+BEGIN
+  IF COALESCE(auth.role(), '') <> 'service_role'
+     AND (
+       auth.uid() IS DISTINCT FROM p_generated_by
+       OR NOT public.can_edit_portfolio(p_portfolio_id)
+     ) THEN
+    RAISE EXCEPTION 'not authorized to create a generated letter for portfolio %', p_portfolio_id
+      USING ERRCODE = '42501';
+  END IF;
+
+  PERFORM pg_advisory_xact_lock(
+    hashtextextended('generated-letter:' || p_portfolio_id::text, 0)
+  );
+
+  SELECT COALESCE(MAX(gd.version), 0) + 1
+    INTO v_version
+  FROM public.generated_documents gd
+  WHERE gd.portfolio_id = p_portfolio_id
+    AND gd.document_type = 'letter';
+
+  INSERT INTO public.generated_documents (
+    portfolio_id, generated_by, title, document_type, format, scope, content, version
+  ) VALUES (
+    p_portfolio_id,
+    p_generated_by,
+    'Portfolio letter v' || v_version,
+    'letter',
+    'html',
+    'portfolio',
+    p_content,
+    v_version
+  )
+  RETURNING generated_documents.id, generated_documents.generated_at
+    INTO v_id, v_generated_at;
+
+  RETURN QUERY SELECT v_id, v_generated_at, v_version;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.create_generated_letter(uuid, uuid, jsonb) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.create_generated_letter(uuid, uuid, jsonb)
+  TO authenticated, service_role;
+
 -- ---------------------------------------------------------------------------
 -- report_schedules — recurring report generation schedules
 -- ---------------------------------------------------------------------------

@@ -5,7 +5,7 @@ import { jsonError, jsonOk } from '@/lib/api/responses';
 import type { SessionClient } from '@/lib/api/server-client';
 import type { EntityType } from '@/lib/import/types';
 import { STAGING_TABLE_MAP } from '@/lib/import/types';
-import { fromImportRelation } from '@/lib/import/database';
+import { fromImportStagingRelation } from '@/lib/import/database';
 
 export const dynamic = 'force-dynamic';
 
@@ -55,7 +55,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     return jsonError('Import job not found', 404);
   }
 
-  let query = fromImportRelation(db, stagingTable)
+  let query = fromImportStagingRelation(db, stagingTable)
     .select('id, row_number, raw_data, transformed_data, validation_errors, validation_status, action_taken', { count: 'exact' })
     .eq('import_job_id', jobId)
     .eq('org_id', orgId)
@@ -87,7 +87,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     return jsonError('Import job not found', 404);
   }
 
-  const { data: row, error: fetchError } = await fromImportRelation(db, staging_table)
+  const { data: row, error: fetchError } = await fromImportStagingRelation(db, staging_table)
     .select('transformed_data, validation_errors')
     .eq('id', row_id)
     .eq('import_job_id', jobId)
@@ -106,7 +106,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
       ? 'invalid'
       : 'warning';
 
-  const { error: updateError } = await fromImportRelation(db, staging_table)
+  const { error: updateError } = await fromImportStagingRelation(db, staging_table)
     .update({
       transformed_data: updatedData,
       validation_errors: remainingErrors.length > 0 ? remainingErrors : null,

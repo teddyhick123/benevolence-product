@@ -4,7 +4,7 @@
 import type { DynamicImportClient as SupabaseClient } from '@/lib/database-client';
 import { ImportProgressEmitter } from './progress-emitter';
 import { ImportAuditor } from './auditor';
-import { fromImportRelation } from './database';
+import { fromImportStagingRelation } from './database';
 
 export type LoadPhase = 'donors' | 'investees' | 'holdings' | 'contributions' | 'metrics';
 
@@ -133,7 +133,7 @@ async function loadPhase(
   let hasMore = true;
 
   while (hasMore) {
-    const { data: rows, error: fetchError } = await fromImportRelation(supabase, stagingTable)
+    const { data: rows, error: fetchError } = await fromImportStagingRelation(supabase, stagingTable)
       .select('*')
       .eq('import_job_id', importJobId)
       .in('validation_status', ['valid', 'warning'])
@@ -171,7 +171,7 @@ async function loadPhase(
           errorMessage: message,
         });
         if (!dryRun) {
-          await fromImportRelation(supabase, stagingTable)
+          await fromImportStagingRelation(supabase, stagingTable)
             .update({ action_taken: 'error' })
             .eq('id', row.id);
         }

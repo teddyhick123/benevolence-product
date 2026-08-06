@@ -42,9 +42,10 @@ type RelaxFunctionReturns<Functions> = {
 };
 
 /**
- * Generated rows, relations, columns, views, and RPCs remain exact. Write value
- * types are relaxed because domain validators own JSON/config input coercion;
- * the generated Insert/Update keys still reject nonexistent columns.
+ * The generated schema preserves relation, column, view, RPC, and argument-key
+ * names. Values, RPC returns, and write-requiredness are intentionally relaxed
+ * because domain validators own input coercion. This is a structural drift
+ * guard, not a substitute for runtime validation or exact generated row types.
  */
 export type PlatformDatabase = Omit<Database, 'public'> & {
   public: Omit<Database['public'], 'Tables' | 'Views' | 'Functions'> & {

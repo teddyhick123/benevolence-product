@@ -8,7 +8,7 @@ import type { SessionClient } from '@/lib/api/server-client';
 import { generateMigrationReport } from '@/lib/import/ai/generate-report';
 import type { ReportParams, EntityStats } from '@/lib/import/ai/generate-report';
 import { calculateHealthScore } from '@/lib/pdf/migration-report-generator';
-import { fromImportRelation } from '@/lib/import/database';
+import { fromImportStagingRelation } from '@/lib/import/database';
 
 type StagingRow = Record<string, unknown>;
 
@@ -20,16 +20,16 @@ async function countStagingRows(
   table: string
 ): Promise<EntityStats> {
   const [total, loaded, failed] = await Promise.all([
-    fromImportRelation(db, table)
+    fromImportStagingRelation(db, table)
       .select('*', { count: 'exact', head: true })
       .eq('import_job_id', importJobId)
       .then(({ count }) => count ?? 0),
-    fromImportRelation(db, table)
+    fromImportStagingRelation(db, table)
       .select('*', { count: 'exact', head: true })
       .eq('import_job_id', importJobId)
       .in('action_taken', ['create', 'update'])
       .then(({ count }) => count ?? 0),
-    fromImportRelation(db, table)
+    fromImportStagingRelation(db, table)
       .select('*', { count: 'exact', head: true })
       .eq('import_job_id', importJobId)
       .eq('action_taken', 'error')

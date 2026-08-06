@@ -530,3 +530,36 @@ aliases over `zip`, `fund_designation`, and `acknowledgment_sent`. Letter type i
 canonical on `acknowledgment_letters` because routes, filters, PDFs, and AI tools
 share its lifecycle; linked gifts remain the `contribution_ids` array and PDFs
 remain private storage objects exposed through signed URLs.
+
+### 2026-08-06 — Phase 5 review — behavioral gaps remained behind green source contracts
+
+**What happened:** The first Phase 5 pass left a stale import-route assertion in
+the full test suite. Review also found that donation tax-link filtering built an
+unbounded ID list, donation summaries mixed scopes and assumed a 20% tax rate,
+generated-letter version allocation raced, malformed latest letter content could
+reset versioning, and holding/charity linking exposed broad elevated writes to a
+global registry. Smaller findings covered typed-client documentation, import
+adapter separation, raw membership errors, risk snapshot timestamps, browser
+auth coverage, and stale tax documentation.
+
+**Expected vs. actual:** The schema contract should enforce behavior under row
+limits, concurrent writes, empty portfolios, soft deletion, and tenant access;
+regex checks alone proved only that expected SQL fragments existed. Global
+catalog changes should pass through a narrow capability rather than a service
+client available to a member-triggered repository.
+
+**Resolution (Phase 5 review):** Donation listing and summary semantics now live
+in security-invoker views and are covered by post-reset transactional assertions.
+Letter creation uses an authorized advisory-locked RPC; cache reads skip malformed
+rows without influencing database version allocation. Charity linking accepts
+only an existing canonical charity and uses an authorized, serialized RPC that
+can materialize but cannot arbitrarily rewrite investee/catalog attributes. The
+import adapter exposes distinct staging and target capabilities, internal member
+errors no longer leak, risk upserts preserve `created_at`, browser-client
+delegation is tested, tax documentation is current, and the stale suite assertion
+was corrected.
+
+**Contract clarification:** `PlatformDatabase` guarantees generated structural
+names—relations, columns, views, RPCs, and argument keys. Value types, RPC return
+values, and write-requiredness are deliberately relaxed because validated domain
+boundaries own coercion. Tests and documentation now state that narrower promise.

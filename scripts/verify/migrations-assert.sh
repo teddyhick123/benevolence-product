@@ -8,8 +8,11 @@ query="select count(*) from pg_tables where schemaname='public'"
 
 if command -v psql >/dev/null 2>&1; then
   count=$(psql "$DB_URL" -Atc "$query")
+  psql "$DB_URL" -f scripts/verify/schema-behavior.sql >/dev/null
 elif command -v docker >/dev/null 2>&1; then
   count=$(docker exec "$DB_CONTAINER" psql -U postgres -d postgres -Atc "$query")
+  docker exec -i "$DB_CONTAINER" psql -U postgres -d postgres \
+    < scripts/verify/schema-behavior.sql >/dev/null
 else
   echo "migrations-assert: requires psql or Docker" >&2
   exit 1
@@ -19,4 +22,5 @@ if [ "${count:-0}" -lt 10 ]; then
   exit 1
 fi
 echo "migrations-assert: ${count} public tables present"
+echo "migrations-assert: schema behavior checks passed"
 npm run db:types:check

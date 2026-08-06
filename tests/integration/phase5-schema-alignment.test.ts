@@ -26,8 +26,12 @@ describe('Phase 5 canonical schema alignment', () => {
 
   it('uses the canonical holding → investee → charity relationship', () => {
     expect(charities).toMatch(/holdings_investee_id_fkey[\s\S]*FOREIGN KEY \(investee_id\)[\s\S]*REFERENCES investees\(id\)/i);
+    expect(charities).toMatch(/FUNCTION public\.link_holding_to_charity[\s\S]*public\.can_edit_portfolio\(p_portfolio_id\)/i);
     expect(read('app/api/holdings/[id]/link-charity/route.ts')).toContain('createHoldingCharityRepository');
-    expect(read('lib/api/repositories/holding-charities.ts')).toContain('.update({ investee_id: investeeId })');
+    const repository = read('lib/api/repositories/holding-charities.ts');
+    expect(repository).toContain("rpc('link_holding_to_charity'");
+    expect(repository).not.toContain('createElevatedClient');
+    expect(repository).not.toContain('.or(');
   });
 
   it('defines security-invoker KPI reads and scoped repository aggregates', () => {
@@ -47,16 +51,25 @@ describe('Phase 5 canonical schema alignment', () => {
 
   it('derives donations through holding_contributions and a security-invoker summary', () => {
     const route = read('app/api/portfolio/[id]/donations/route.ts');
-    expect(route).toContain('holding_contributions(tax_contribution_id, tax_contributions(*))');
+    expect(route).toContain("from('v_portfolio_donations')");
+    expect(route).toContain("query.eq('has_tax_contribution'");
+    expect(route).not.toContain('linkedHoldingIds');
     expect(route).not.toContain("select('*, tax_contributions(*)'");
+    expect(tax).toMatch(/VIEW public\.v_portfolio_donations\s+WITH \(security_invoker = true\)/i);
+    expect(tax).toMatch(/WHERE h\.asset_type = 'donation'[\s\S]*h\.deleted_at IS NULL/i);
     expect(tax).toMatch(/VIEW public\.v_portfolio_donation_summary\s+WITH \(security_invoker = true\)/i);
     expect(tax).toMatch(/JOIN public\.tax_contributions tc ON tc\.id = hc\.tax_contribution_id/i);
+    expect(tax).toContain('total_appreciated_asset_gain');
+    expect(tax).not.toContain('total_avoided_capital_gains');
   });
 
   it('stores versioned letters in generated_documents', () => {
     expect(reports).toMatch(/document_type IN \('report', 'export', 'letter'\)/i);
     expect(reports).toMatch(/version\s+integer NOT NULL DEFAULT 1 CHECK \(version > 0\)/i);
     expect(reports).toMatch(/uq_generated_documents_letter_version[\s\S]*WHERE document_type = 'letter'/i);
+    expect(reports).toMatch(/FUNCTION public\.create_generated_letter[\s\S]*pg_advisory_xact_lock/i);
+    expect(reports).toMatch(/MAX\(gd\.version\)[\s\S]*document_type = 'letter'/i);
+    expect(read('lib/api/repositories/generated-documents.ts')).toContain("rpc('create_generated_letter'");
     expect(read('app/api/portfolio/[id]/letter/generate/route.ts')).toContain('createGeneratedDocumentsRepository');
   });
 
@@ -94,7 +107,8 @@ describe('Phase 5 canonical schema alignment', () => {
     const adapter = read('lib/import/database.ts');
     expect(adapter).toContain('IMPORT_STAGING_RELATIONS');
     expect(adapter).toContain('IMPORT_TARGET_RELATIONS');
-    expect(adapter).toContain('Import relation is not allowed');
+    expect(adapter).toContain('Import staging relation is not allowed');
+    expect(adapter).toContain('Import target relation is not allowed');
 
     const importSources = [
       'reconciler.ts',
@@ -112,7 +126,10 @@ describe('Phase 5 canonical schema alignment', () => {
       'app/api/org/[orgId]/imports/[jobId]/route.ts',
     ].map(read).join('\n');
     expect(importRoutes).not.toMatch(/\.from\((table|staging_table)\)/);
-    expect(importRoutes).toContain('fromImportRelation');
+    expect(importRoutes).toContain('fromImportStagingRelation');
+
+    expect(adapter).not.toMatch(/function fromImportRelation\(/);
+    expect(read('lib/import/rollback.ts')).toContain('fromImportTargetRelation(supabase, tableName)');
 
     const aiActions = read('lib/ai-action-executor.ts');
     expect(aiActions).not.toContain('.from(opData.table)');

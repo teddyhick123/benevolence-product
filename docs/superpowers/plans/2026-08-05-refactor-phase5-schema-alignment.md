@@ -392,7 +392,7 @@ corrected canonical response.
 - The canonical migrations reset cleanly from zero twice; post-reset assertions
   report 135 public tables and generated database types match the live schema.
 - The generated-type compiler audit and production build pass.
-- The full Vitest suite passes (2,505 tests; six live-environment tests skipped),
+- The full Vitest suite passes (2,509 tests; six live-environment tests skipped),
   including schema, privilege, Builder, access-boundary, grant-lifecycle, and AI
   persistence/idempotency contracts.
 - Lint passes at the approved 467-warning ceiling with no errors.
@@ -401,3 +401,35 @@ corrected canonical response.
 - All variable relational selection is confined to the import adapter's closed
   staging/target allowlist; fixed Builder relations and storage buckets remain
   statically owned surfaces.
+
+## Post-review hardening
+
+The completed implementation received a second review before merge. The review
+found one stale contract assertion plus several behaviors that source-regex
+checks could not prove. Phase 5 therefore also includes:
+
+- a security-invoker donation listing view whose SQL `EXISTS` predicate replaces
+  unbounded link-ID materialization and always excludes soft-deleted holdings;
+- a portfolio-anchored donation summary that scopes tax contributions and
+  carryforwards through live donation holdings, returns a zero-valued row for an
+  empty portfolio, and reports appreciated gain without inventing a tax rate;
+- transactional generated-letter version allocation under a portfolio advisory
+  lock, with malformed cached documents skipped independently of versioning;
+- a narrow `link_holding_to_charity` capability that validates portfolio edit
+  access, accepts only an existing canonical charity, serializes investee
+  materialization, and removes the route's elevated global-catalog client;
+- separate staging and production-target import adapters, so a staging route
+  cannot accidentally select a canonical target table through a union allowlist;
+- generic infrastructure errors for member administration, stable risk snapshot
+  creation timestamps, corrected tax canon documentation, and an explicit test
+  of the `@supabase/ssr` browser-client delegation introduced by the typed-client
+  work; and
+- transactional live-schema assertions for donation scoping/empty summaries,
+  generated-letter versioning, idempotent charity linking, and risk snapshot
+  timestamp stability, run after every clean reset alongside generated-type
+  drift checks.
+
+The typed-client contract is intentionally structural: generated relation,
+column, view, RPC, and RPC-argument names are exact, while values, RPC returns,
+and write-requiredness remain relaxed behind domain validators. Phase 5 does not
+claim that the wrapper provides exact generated value types.

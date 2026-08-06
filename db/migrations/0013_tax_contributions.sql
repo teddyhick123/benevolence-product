@@ -381,6 +381,33 @@ CREATE TRIGGER trg_tax_carryforward_applications_updated_at
   BEFORE UPDATE ON public.tax_carryforward_applications
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 
+-- Donation holdings with bounded, per-row tax linkage. Keeping the existence
+-- predicate in SQL avoids materializing every portfolio link in API memory.
+CREATE OR REPLACE VIEW public.v_portfolio_donations
+  WITH (security_invoker = true)
+AS
+SELECT
+  h.id::text AS id,
+  h.portfolio_id::text AS portfolio_id,
+  h.name,
+  h.status::text AS status,
+  h.funds_allocated,
+  h.created_at,
+  to_jsonb(h) AS holding,
+  COALESCE(linked.has_tax_contribution, false) AS has_tax_contribution,
+  COALESCE(linked.tax_contributions, '[]'::jsonb) AS tax_contributions
+FROM public.holdings h
+LEFT JOIN LATERAL (
+  SELECT
+    COUNT(*) > 0 AS has_tax_contribution,
+    jsonb_agg(to_jsonb(tc) ORDER BY tc.contribution_date DESC, tc.id) AS tax_contributions
+  FROM public.holding_contributions hc
+  JOIN public.tax_contributions tc ON tc.id = hc.tax_contribution_id
+  WHERE hc.holding_id = h.id
+) linked ON true
+WHERE h.asset_type = 'donation'
+  AND h.deleted_at IS NULL;
+
 -- Portfolio donation totals derived through the canonical contribution junction.
 CREATE OR REPLACE VIEW public.v_portfolio_donation_summary
   WITH (security_invoker = true)
@@ -397,36 +424,49 @@ WITH donation_totals AS (
   WHERE h.asset_type = 'donation'
     AND h.deleted_at IS NULL
   GROUP BY h.portfolio_id
+), donation_tax_contributions AS (
+  SELECT DISTINCT hc.portfolio_id, tc.id, tc.deductible_amount,
+    tc.fair_market_value, tc.amount_usd, tc.cost_basis
+  FROM public.holding_contributions hc
+  JOIN public.holdings h ON h.id = hc.holding_id
+  JOIN public.tax_contributions tc ON tc.id = hc.tax_contribution_id
+  WHERE h.asset_type = 'donation'
+    AND h.deleted_at IS NULL
 ), linked_tax AS (
   SELECT
-    hc.portfolio_id,
-    COUNT(DISTINCT tc.id)::INTEGER AS linked_tax_contributions,
-    COALESCE(SUM(tc.deductible_amount), 0) AS total_tax_deductible_amount,
+    dt.portfolio_id,
+    COUNT(*)::INTEGER AS linked_tax_contributions,
+    COALESCE(SUM(dt.deductible_amount), 0) AS total_tax_deductible_amount,
     COALESCE(SUM(
-      GREATEST(COALESCE(tc.fair_market_value, tc.amount_usd) - COALESCE(tc.cost_basis, tc.fair_market_value, tc.amount_usd), 0) * 0.20
-    ), 0) AS total_avoided_capital_gains
-  FROM public.holding_contributions hc
-  JOIN public.tax_contributions tc ON tc.id = hc.tax_contribution_id
-  GROUP BY hc.portfolio_id
+      GREATEST(
+        COALESCE(dt.fair_market_value, dt.amount_usd)
+          - COALESCE(dt.cost_basis, dt.fair_market_value, dt.amount_usd),
+        0
+      )
+    ), 0) AS total_appreciated_asset_gain
+  FROM donation_tax_contributions dt
+  GROUP BY dt.portfolio_id
 ), carryforward_totals AS (
-  SELECT portfolio_id, COALESCE(SUM(amount_remaining), 0) AS total_carryforward_available
-  FROM public.tax_carryforwards
-  GROUP BY portfolio_id
+  SELECT cf.portfolio_id, COALESCE(SUM(cf.amount_remaining), 0) AS total_carryforward_available
+  FROM public.tax_carryforwards cf
+  JOIN donation_tax_contributions dt ON dt.id = cf.tax_contribution_id
+  GROUP BY cf.portfolio_id
 )
 SELECT
-  d.portfolio_id,
-  d.total_donations,
-  d.active_donations,
-  d.total_donation_amount,
-  d.avg_donation_amount,
-  d.largest_donation,
+  p.id::text AS portfolio_id,
+  COALESCE(d.total_donations, 0) AS total_donations,
+  COALESCE(d.active_donations, 0) AS active_donations,
+  COALESCE(d.total_donation_amount, 0) AS total_donation_amount,
+  COALESCE(d.avg_donation_amount, 0) AS avg_donation_amount,
+  COALESCE(d.largest_donation, 0) AS largest_donation,
   COALESCE(t.linked_tax_contributions, 0) AS linked_tax_contributions,
   COALESCE(t.total_tax_deductible_amount, 0) AS total_tax_deductible_amount,
-  COALESCE(t.total_avoided_capital_gains, 0) AS total_avoided_capital_gains,
+  COALESCE(t.total_appreciated_asset_gain, 0) AS total_appreciated_asset_gain,
   COALESCE(c.total_carryforward_available, 0) AS total_carryforward_available
-FROM donation_totals d
-LEFT JOIN linked_tax t ON t.portfolio_id = d.portfolio_id
-LEFT JOIN carryforward_totals c ON c.portfolio_id = d.portfolio_id;
+FROM public.portfolios p
+LEFT JOIN donation_totals d ON d.portfolio_id = p.id
+LEFT JOIN linked_tax t ON t.portfolio_id = p.id
+LEFT JOIN carryforward_totals c ON c.portfolio_id = p.id;
 
 -- ---------------------------------------------------------------------------
 -- DAF grants and foundation 990-PF data.
@@ -1111,6 +1151,7 @@ GRANT SELECT ON public.v_tax_deduction_summary TO authenticated, service_role;
 GRANT SELECT ON public.v_portfolio_tax_summary TO authenticated, service_role;
 GRANT SELECT ON public.v_carryforward_schedule TO authenticated, service_role;
 GRANT SELECT ON public.v_active_carryforwards TO authenticated, service_role;
+GRANT SELECT ON public.v_portfolio_donations TO authenticated, service_role;
 GRANT SELECT ON public.v_portfolio_donation_summary TO authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.get_donation_capacity(UUID, INTEGER) TO authenticated, service_role;
 

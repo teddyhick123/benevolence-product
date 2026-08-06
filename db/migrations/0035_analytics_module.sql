@@ -501,8 +501,7 @@ BEGIN
     overall_risk_score = EXCLUDED.overall_risk_score,
     overall_risk_level = EXCLUDED.overall_risk_level,
     risk_factors = EXCLUDED.risk_factors,
-    recommendations = EXCLUDED.recommendations,
-    created_at = NOW()
+    recommendations = EXCLUDED.recommendations
   RETURNING id INTO v_snapshot_id;
 
   RETURN v_snapshot_id;

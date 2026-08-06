@@ -448,7 +448,7 @@ Views: `v_tax_contributions_enriched`, `v_tax_contributions_with_limits`, `v_tax
 
 These views must be created with `WITH (security_invoker = true)`. Plain Postgres/Supabase views are not security-invoker by default and can bypass base-table RLS. Do NOT add `SECURITY DEFINER`.
 
-`v_tax_contributions_enriched` exposes computed fields such as `substantiation_requirement`, `substantiation_status`, `is_compliant`, and `calculated_deductible_amount`; do not add those as physical `tax_contributions` columns unless the schema is deliberately redesigned.
+`tax_contributions` canonically stores `deductible_amount` and exposes the generated stored column `fair_market_value` (derived from `fmv_at_donation`/`amount_usd`). `v_tax_contributions_enriched` additionally exposes computed fields such as `substantiation_requirement`, `substantiation_status`, `is_compliant`, and `calculated_deductible_amount`; do not duplicate those view-only fields as physical columns unless the schema is deliberately redesigned.
 
 ### CPA sharing
 

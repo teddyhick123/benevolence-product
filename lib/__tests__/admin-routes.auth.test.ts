@@ -100,8 +100,9 @@ describe('admin route auth contracts', () => {
     const src = readFileSync('app/api/admin/import/ai/suggest/route.ts', 'utf8');
     expect(src).toContain('requireAppAdmin');
     expect(src).toContain('aiLimiter.limit');
-    expect(src).toContain('ALLOWED_STAGING_TABLES');
-    expect(src).toContain('z.enum(ALLOWED_STAGING_TABLES)');
+    expect(src).toContain('IMPORT_STAGING_RELATIONS');
+    expect(src).toContain('z.enum(IMPORT_STAGING_RELATIONS)');
+    expect(src).toContain('fromImportStagingRelation');
     expect(src).toContain('jsonOk');
     expect(src).not.toContain('createAdminClient');
   });

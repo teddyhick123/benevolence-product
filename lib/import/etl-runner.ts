@@ -8,7 +8,7 @@ import { applyFieldMapping, enrichTransformedRow, applyEnrichment } from './tran
 import { validateTransformedRow } from './validator';
 import type { EntityMappingConfig } from './validator';
 import { ImportProgressEmitter } from './progress-emitter';
-import { fromImportRelation } from './database';
+import { fromImportStagingRelation } from './database';
 
 interface ETLRunResult {
   processed: number;
@@ -40,7 +40,7 @@ export async function runTransformValidate(
     let totalRows = 0;
 
     // Get total count for progress calculation
-    const { count } = await fromImportRelation(supabase, stagingTable)
+    const { count } = await fromImportStagingRelation(supabase, stagingTable)
       .select('*', { count: 'exact', head: true })
       .eq('import_job_id', importJobId)
       .eq('validation_status', 'pending');
@@ -48,7 +48,7 @@ export async function runTransformValidate(
 
     while (hasMore) {
       // Keyset pagination — avoids slow OFFSET on large tables
-      let query = fromImportRelation(supabase, stagingTable)
+      let query = fromImportStagingRelation(supabase, stagingTable)
         .select('id, raw_data')
         .eq('import_job_id', importJobId)
         .eq('validation_status', 'pending')
@@ -122,7 +122,7 @@ export async function runTransformValidate(
             })),
           ];
 
-          await fromImportRelation(supabase, stagingTable)
+          await fromImportStagingRelation(supabase, stagingTable)
             .update({
               transformed_data: enrichedData,
               validation_status: validationStatus,
@@ -132,7 +132,7 @@ export async function runTransformValidate(
         } catch (err) {
           console.error(`[etl-runner] Row-level error for ${row.id}:`, err);
           // Mark as invalid so it surfaces in error browser
-          await fromImportRelation(supabase, stagingTable)
+          await fromImportStagingRelation(supabase, stagingTable)
             .update({
               validation_status: 'invalid',
               validation_errors: [

@@ -1,7 +1,6 @@
 // app/api/holdings/[id]/link-charity/route.ts
 import { NextResponse } from 'next/server';
 import { isAccessDenied, requireHoldingAccess } from '@/lib/api/access';
-import { getOrganization, convertToCharity } from '@/lib/services/propublica';
 import { createHoldingCharityRepository } from '@/lib/api/repositories/holding-charities';
 
 function json(body: Record<string, unknown>, init?: ResponseInit) {
@@ -17,7 +16,7 @@ function json(body: Record<string, unknown>, init?: ResponseInit) {
 /**
  * POST /api/holdings/[id]/link-charity
  * Link a holding to a charity by EIN or charity_id.
- * If the charity doesn't exist locally, fetches from ProPublica and creates it.
+ * The charity must already exist in the canonical, administratively managed catalog.
  */
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id: holdingId } = await ctx.params;
@@ -38,40 +37,18 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
 
     let resolvedCharityId = charity_id;
 
-    // If EIN provided, look up or create charity
+    // Global catalog ingestion is an administrative concern. This member route
+    // may link only an existing canonical charity.
     if (ein && !charity_id) {
-      // Check local DB first
       const existingCharity = await repository.findCharityByEin(ein);
 
       if (existingCharity) {
         resolvedCharityId = existingCharity.id;
       } else {
-        // Fetch from ProPublica and create locally
-        const org = await getOrganization(ein);
-        if (!org) {
-          return json(
-            { error: `No organization found with EIN ${ein}` },
-            { status: 404 }
-          );
-        }
-
-        const charityData = convertToCharity(org);
-        if (!charityData.ein || !charityData.name) {
-          return json({ error: 'Charity record is missing EIN or name' }, { status: 422 });
-        }
-        try {
-          const newCharity = await repository.createCharity({
-            ...charityData,
-            ein: charityData.ein,
-            name: charityData.name,
-            is_active: true,
-          });
-          resolvedCharityId = newCharity.id;
-        } catch (insertError: any) {
-          if (insertError?.code !== '23505') throw insertError;
-          const existing = await repository.findCharityByEin(ein);
-          resolvedCharityId = existing?.id;
-        }
+        return json(
+          { error: `Charity ${ein} is not available in the canonical catalog` },
+          { status: 404 }
+        );
       }
     }
 
@@ -89,9 +66,13 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
       charity,
     });
   } catch (error: any) {
+    const status = error?.code === '23505' ? 409
+      : error?.code === 'P0002' ? 404
+        : error?.code === '42501' ? 403
+          : 500;
     return json(
-      { error: error.message || 'Failed to link charity' },
-      { status: 500 }
+      { error: status === 500 ? 'Failed to link charity' : error.message },
+      { status }
     );
   }
 }

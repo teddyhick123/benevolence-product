@@ -10,7 +10,8 @@ function membershipError(error: unknown, fallback: string) {
     : dbError.code === 'P0002' ? 404
       : dbError.code === '23514' || dbError.code === '22023' ? 400
         : 500;
-  return NextResponse.json({ error: dbError.message || fallback }, { status });
+  const message = status === 500 ? fallback : (dbError.message || fallback);
+  return NextResponse.json({ error: message }, { status });
 }
 
 export async function POST(req: Request, ctx: { params: Promise<{ id: string; userId: string }> }) {

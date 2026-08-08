@@ -1,8 +1,8 @@
 # Refactor Phase 6 — Client-side Data Normalization
 
-**Date:** 2026-08-08  
-**Status:** Approved for implementation by the request to plan and implement the next phase  
-**Branch:** `codex/refactor-phase6-client-data`  
+**Date:** 2026-08-08
+**Status:** Completed
+**Branch:** `codex/refactor-phase6-client-data`
 **Prerequisite:** Phase 5 schema alignment and its post-review hardening are merged into local `main` at `26e381ae`.
 
 ## Objective
@@ -168,3 +168,11 @@ Phase 6 is complete only when:
 - Non-JSON correctness: no double-reading streams, forced multipart boundaries, or JSON error blobs saved as files.
 - Authorization: no browser hint may be treated as server authority.
 - AI durability: request IDs, replay, disconnect handling, and tool idempotency are unchanged.
+
+## Completion record
+
+- Normalized all 175 baseline client files behind the shared transport contract and removed raw browser `fetch`/response JSON parsing.
+- Replaced component-local SWR fetchers with domain-owned hooks and consolidated root hooks under `lib/`.
+- Added fail-closed client-data checks to normal and Builder verification, protected the transport foundations, and synchronized the agent instructions.
+- Passed type checking, the 466-warning lint ratchet, 2,562 unit tests, the production build, a clean migration reset with generated-type drift verification, 9 smoke journeys, and 9 deeper domain journeys. One deep attachment run exceeded its cold-development-server compile timeout before receiving an API response; the isolated warmed rerun passed the complete upload/download/delete path in 20.1 seconds.
+- Reverified 28 AI chat route, repository, security, replay, and idempotency tests. Phase 3 turn/message persistence and at-most-once side effects remain unchanged.

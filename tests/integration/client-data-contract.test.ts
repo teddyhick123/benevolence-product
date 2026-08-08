@@ -63,6 +63,7 @@ describe('Phase 6 browser data boundary', () => {
 
   it('parses JSON through the shared client contract', () => {
     expect(violations(/\.json\s*\(\s*\)/)).toEqual([]);
+    expect(violations(/await\s+[\w.]+\.text\s*\(\s*\)/)).toEqual([]);
   });
 
   it('has no component-local generic SWR fetchers', () => {

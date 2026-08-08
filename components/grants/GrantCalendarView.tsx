@@ -1,6 +1,6 @@
 'use client';
 
-import { apiRequest, readJson } from "@/lib/api/client";
+import { requestJson } from "@/lib/api/client";
 
 import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
@@ -71,9 +71,9 @@ export default function GrantCalendarView({ orgId, portfolioId }: Props) {
       setLoading(true);
       setError(null);
       try {
-        const res = await apiRequest(`/api/org/${orgId}/grants/calendar?portfolio_id=${encodeURIComponent(portfolioId)}`);
-        if (!res.ok) throw new Error(await res.text());
-        const json = await readJson(res);
+        const json = await requestJson<{ events?: CalendarEvent[] }>(
+          `/api/org/${orgId}/grants/calendar?portfolio_id=${encodeURIComponent(portfolioId)}`
+        );
         setEvents(json.events ?? []);
       } catch (e: any) {
         setError(e.message);

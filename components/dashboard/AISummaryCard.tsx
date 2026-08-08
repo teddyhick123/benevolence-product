@@ -1,5 +1,7 @@
 // components/AISummaryCard.tsx
 'use client';
+
+import { apiRequest, readJson } from "@/lib/api/client";
 import { useEffect, useState } from 'react';
 
 export default function AISummaryCard({ portfolioId }: { portfolioId: string }) {
@@ -10,8 +12,8 @@ export default function AISummaryCard({ portfolioId }: { portfolioId: string }) 
     let mounted = true;
     (async () => {
       try {
-        const r = await fetch(`/api/portfolio/${encodeURIComponent(portfolioId)}/summary`, { cache: 'no-store' });
-        const j = await r.json();
+        const r = await apiRequest(`/api/portfolio/${encodeURIComponent(portfolioId)}/summary`, { cache: 'no-store' });
+        const j = await readJson(r);
         if (mounted) setSummary(j?.summary || 'No summary available.');
       } catch {
         if (mounted) setSummary('AI summary unavailable.');

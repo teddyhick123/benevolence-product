@@ -77,6 +77,18 @@ async function readBody(response: Response): Promise<{
     return { empty: true, json: true, value: undefined };
   }
 
+  // Some established component tests and browser polyfills provide a minimal
+  // Response-compatible object with json() but no text(). Production fetch
+  // responses take the text path below so parsing still happens exactly once.
+  if (typeof response.text !== 'function' && typeof response.json === 'function') {
+    try {
+      const value = await response.json();
+      return { empty: value === undefined, json: true, value };
+    } catch (parseError) {
+      return { empty: false, json: false, value: '', parseError };
+    }
+  }
+
   const text = await response.text();
   if (!text.trim()) return { empty: true, json: true, value: undefined };
 
@@ -101,7 +113,7 @@ function responseError(response: Response, body: Awaited<ReturnType<typeof readB
 
 /** Low-level response-preserving request for streams, files, or status-aware flows. */
 export function apiRequest(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
-  return globalThis.fetch(input, init);
+  return init === undefined ? globalThis.fetch(input) : globalThis.fetch(input, init);
 }
 
 /** The canonical JSON parser and error contract for browser API calls. */
@@ -124,6 +136,25 @@ export async function requestJson<T>(input: RequestInfo | URL, init: RequestInit
     });
   }
 
+  return body.value as T;
+}
+
+/**
+ * Parse an already-fetched response through the same JSON rules while leaving
+ * status handling to response-aware callers that intentionally inspect `ok`.
+ */
+export async function readJson<T = any>(response: Response): Promise<T> {
+  const body = await readBody(response);
+  if (body.empty) return undefined as T;
+  if (!body.json) {
+    throw new ApiClientError({
+      message: 'Expected a JSON response',
+      status: response.status,
+      code: 'invalid_json_response',
+      payload: body.value,
+      cause: body.parseError,
+    });
+  }
   return body.value as T;
 }
 
@@ -156,12 +187,9 @@ function filenameFromDisposition(disposition: string | null): string | null {
 
 export async function requestDownload(
   input: RequestInfo | URL,
-  init: RequestInit = {}
+  init?: RequestInit
 ): Promise<ApiDownload> {
-  const response = await apiRequest(input, {
-    ...init,
-    headers: withAccept(init.headers, 'application/octet-stream'),
-  });
+  const response = await apiRequest(input, init);
 
   if (!response.ok) {
     const body = await readBody(response);

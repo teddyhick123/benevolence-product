@@ -1,5 +1,7 @@
 'use client';
 
+import { apiRequest } from "@/lib/api/client";
+
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase-browser';
@@ -259,7 +261,7 @@ export default function DonorDetailPage() {
                 e.preventDefault();
                 setEditSaving(true);
                 try {
-                  const res = await fetch(`/api/org/${organizationId}/donors/${donorId}`, {
+                  const res = await apiRequest(`/api/org/${organizationId}/donors/${donorId}`, {
                     method: 'PATCH',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(editFields),

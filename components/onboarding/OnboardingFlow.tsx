@@ -1,5 +1,7 @@
 'use client';
 
+import { apiRequest, readJson } from "@/lib/api/client";
+
 import { useState, useEffect, useCallback } from 'react';
 import QuickIntakeForm, { QuickIntakeData } from './QuickIntakeForm';
 import OnboardingChat from './OnboardingChat';
@@ -77,8 +79,8 @@ export default function OnboardingFlow({ initialSession }: OnboardingFlowProps) 
       setIsLoading(true);
 
       // Try to get existing session
-      const getRes = await fetch('/api/onboarding/session', { signal });
-      const getData = await getRes.json();
+      const getRes = await apiRequest('/api/onboarding/session', { signal });
+      const getData = await readJson(getRes);
       if (signal?.aborted) return;
 
       if (getData.session) {
@@ -87,8 +89,8 @@ export default function OnboardingFlow({ initialSession }: OnboardingFlowProps) 
         setStep(getData.session.status || 'intake');
       } else {
         // Create new session
-        const createRes = await fetch('/api/onboarding/session', { method: 'POST', signal });
-        const createData = await createRes.json();
+        const createRes = await apiRequest('/api/onboarding/session', { method: 'POST', signal });
+        const createData = await readJson(createRes);
         if (signal?.aborted) return;
 
         if (createData.session) {
@@ -118,7 +120,7 @@ export default function OnboardingFlow({ initialSession }: OnboardingFlowProps) 
     try {
       setIsLoading(true);
 
-      const res = await fetch('/api/onboarding/intake', {
+      const res = await apiRequest('/api/onboarding/intake', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -127,7 +129,7 @@ export default function OnboardingFlow({ initialSession }: OnboardingFlowProps) 
         }),
       });
 
-      const result = await res.json();
+      const result = await readJson(res);
 
       if (res.ok) {
         // Use welcome message from API response
@@ -164,7 +166,7 @@ export default function OnboardingFlow({ initialSession }: OnboardingFlowProps) 
       setIsLoading(true);
       setProvisionError(null);
 
-      const res = await fetch('/api/onboarding/provision', {
+      const res = await apiRequest('/api/onboarding/provision', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -175,7 +177,7 @@ export default function OnboardingFlow({ initialSession }: OnboardingFlowProps) 
         }),
       });
 
-      const result = await res.json();
+      const result = await readJson(res);
 
       const moduleErrors = Array.isArray(result.module_errors) ? result.module_errors : [];
       const setupErrors = Array.isArray(result.setup_errors) ? result.setup_errors : [];

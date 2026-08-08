@@ -1,6 +1,8 @@
 // app/admin/portfolios/new/page.tsx
 'use client';
 
+import { apiRequest, readJson } from "@/lib/api/client";
+
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 
@@ -17,7 +19,7 @@ export default function NewPortfolioPage() {
     setError(null);
     setBusy(true);
     try {
-      const res = await fetch('/api/admin/portfolios', {
+      const res = await apiRequest('/api/admin/portfolios', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -26,7 +28,7 @@ export default function NewPortfolioPage() {
           owner_email: ownerEmail || undefined,
         }),
       });
-      const j = await res.json().catch(() => ({}));
+      const j = await readJson(res).catch(() => ({}));
       if (!res.ok) throw new Error(j?.error || 'Failed to create portfolio');
 
       // Navigate to Members management for the new portfolio

@@ -1,6 +1,8 @@
 // components/settings/BuilderChat.tsx
 'use client';
 
+import { requestStream } from "@/lib/api/client";
+
 import { useState, useRef, useEffect } from 'react';
 import { CheckCircle, Clock, FileCode, AlertCircle, Send } from 'lucide-react';
 import PlanCard from './builder/PlanCard';
@@ -109,19 +111,13 @@ export default function BuilderChat({ orgId, initialMessages, githubEnabled, can
     const pendingToolResults: ChatMessage[] = [];
 
     try {
-      const res = await fetch(`/api/org/${orgId}/builder/chat`, {
+      const res = await requestStream(`/api/org/${orgId}/builder/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message }),
       });
 
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || 'Request failed');
-      }
-
-      const reader = res.body?.getReader();
-      if (!reader) throw new Error('No response stream');
+      const reader = res.body!.getReader();
 
       const decoder = new TextDecoder();
       let buffer = '';

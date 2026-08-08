@@ -1,5 +1,7 @@
 'use client';
 
+import { requestDownload } from "@/lib/api/client";
+
 import { useState } from 'react';
 
 interface BoardReportButtonProps {
@@ -19,12 +21,7 @@ export default function BoardReportButton({ portfolioId, asOfDate }: BoardReport
       if (asOfDate) params.set('as_of', asOfDate);
       const year = asOfDate ? new Date(asOfDate).getFullYear() : new Date().getFullYear();
       params.set('year', String(year));
-      const res = await fetch(`/api/portfolio/${portfolioId}/board-report?${params}`);
-      if (!res.ok) {
-        const body = await res.json() as { error?: string };
-        throw new Error(body.error ?? 'Failed to generate report');
-      }
-      const blob = await res.blob();
+      const { blob } = await requestDownload(`/api/portfolio/${portfolioId}/board-report?${params}`);
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;

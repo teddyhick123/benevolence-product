@@ -1,5 +1,7 @@
 'use client';
 
+import { apiRequest, readJson } from "@/lib/api/client";
+
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 
@@ -34,13 +36,13 @@ export default function TaxOverviewCard({ portfolioId, taxYear }: TaxOverviewCar
     async function fetchOverview() {
       try {
         setLoading(true);
-        const res = await fetch(`/api/portfolio/${portfolioId}/tax/overview?year=${year}`);
+        const res = await apiRequest(`/api/portfolio/${portfolioId}/tax/overview?year=${year}`);
 
         if (!res.ok) {
           throw new Error('Failed to fetch tax overview');
         }
 
-        const json = await res.json();
+        const json = await readJson(res);
         setData(json.data);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Unknown error');

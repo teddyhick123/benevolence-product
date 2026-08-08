@@ -1,5 +1,7 @@
 'use client';
 
+import { apiRequest, readJson } from "@/lib/api/client";
+
 import { useState, useEffect } from 'react';
 import { pickActiveOrg } from '@/lib/org-cookie';
 import IRS990PFWorksheet from '@/components/compliance/IRS990PFWorksheet';
@@ -69,16 +71,16 @@ export default function CompliancePage() {
     async function fetchContext() {
       try {
         const [orgRes, meRes] = await Promise.all([
-          fetch('/api/org'),
-          fetch('/api/me'),
+          apiRequest('/api/org'),
+          apiRequest('/api/me'),
         ]);
         if (!orgRes.ok) { setContextError(true); return; }
-        const d = await orgRes.json();
+        const d = await readJson(orgRes);
         const org = pickActiveOrg((d.organizations ?? []) as Array<{ id: string; modules?: Record<string, boolean> }>);
         setOrgId(org?.id || null);
         setModuleEnabled(!!org?.modules?.compliance);
         if (meRes.ok) {
-          const d2 = await meRes.json();
+          const d2 = await readJson(meRes);
           setPortfolioId(d2.portfolio_id || d2.recommended_portfolio_id || null);
         }
       } catch {
@@ -96,9 +98,9 @@ export default function CompliancePage() {
     async function fetchFilings() {
       setFilingsLoading(true);
       try {
-        const res = await fetch(`/api/org/${orgId}/compliance/filing-calendar?days=365`);
+        const res = await apiRequest(`/api/org/${orgId}/compliance/filing-calendar?days=365`);
         if (res.ok) {
-          const d = await res.json();
+          const d = await readJson(res);
           setFilings(d.data || []);
         }
       } finally {
@@ -115,8 +117,8 @@ export default function CompliancePage() {
       setPayoutLoading(true);
       setPayoutData(null);
       try {
-        const res = await fetch(`/api/portfolio/${portfolioId}/compliance/payout?year=${payoutYear}`);
-        if (res.ok) setPayoutData(await res.json());
+        const res = await apiRequest(`/api/portfolio/${portfolioId}/compliance/payout?year=${payoutYear}`);
+        if (res.ok) setPayoutData(await readJson(res));
       } finally {
         setPayoutLoading(false);
       }
@@ -128,8 +130,8 @@ export default function CompliancePage() {
   useEffect(() => {
     if (!orgId) return;
     setStateRegsLoading(true);
-    fetch(`/api/org/${orgId}/compliance/state-registrations`)
-      .then(r => r.ok ? r.json() : { data: [] })
+    apiRequest(`/api/org/${orgId}/compliance/state-registrations`)
+      .then(r => r.ok ? readJson(r) : { data: [] })
       .then(d => setStateRegs(d.data || []))
       .finally(() => setStateRegsLoading(false));
   }, [orgId]);
@@ -138,13 +140,13 @@ export default function CompliancePage() {
     if (!orgId || !newReg.state) return;
     setAddingReg(true);
     try {
-      const res = await fetch(`/api/org/${orgId}/compliance/state-registrations`, {
+      const res = await apiRequest(`/api/org/${orgId}/compliance/state-registrations`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newReg),
       });
       if (res.ok) {
-        const d = await res.json();
+        const d = await readJson(res);
         setStateRegs(prev => {
           const idx = prev.findIndex(r => r.id === d.data.id);
           return idx >= 0 ? prev.map((r, i) => i === idx ? d.data : r) : [...prev, d.data];
@@ -170,13 +172,13 @@ export default function CompliancePage() {
       if (markFiledFields.completed_by.trim()) body.completed_by_name = markFiledFields.completed_by.trim();
       if (markFiledFields.notes.trim()) body.notes = markFiledFields.notes.trim();
 
-      const res = await fetch(`/api/org/${orgId}/compliance/filing-calendar`, {
+      const res = await apiRequest(`/api/org/${orgId}/compliance/filing-calendar`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
       if (res.ok) {
-        const d = await res.json();
+        const d = await readJson(res);
         setFilings(prev => prev.map(f => f.id === filingToMark.id ? d.data : f));
       }
     } finally {
@@ -190,13 +192,13 @@ export default function CompliancePage() {
     if (!orgId || !newFiling.filing_type || !newFiling.title || !newFiling.due_date) return;
     setAddingFiling(true);
     try {
-      const res = await fetch(`/api/org/${orgId}/compliance/filing-calendar`, {
+      const res = await apiRequest(`/api/org/${orgId}/compliance/filing-calendar`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newFiling),
       });
       if (res.ok) {
-        const d = await res.json();
+        const d = await readJson(res);
         setFilings(prev => [...prev, d.data].sort((a, b) => a.due_date.localeCompare(b.due_date)));
         setShowAddFiling(false);
         setNewFiling({ filing_type: 'form_990pf', title: '', due_date: '', description: '', jurisdiction: '' });
@@ -229,8 +231,8 @@ export default function CompliancePage() {
     setExportLoading(true);
     setExportData(null);
     try {
-      const res = await fetch(`/api/portfolio/${portfolioId}/compliance/990pf-export?year=${exportYear}`);
-      if (res.ok) setExportData(await res.json());
+      const res = await apiRequest(`/api/portfolio/${portfolioId}/compliance/990pf-export?year=${exportYear}`);
+      if (res.ok) setExportData(await readJson(res));
     } finally {
       setExportLoading(false);
     }

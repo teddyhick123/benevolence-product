@@ -1,5 +1,7 @@
 'use client';
 
+import { apiRequest, readJson } from "@/lib/api/client";
+
 import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   CONTRIBUTION_TYPE_LABELS,
@@ -71,13 +73,13 @@ export default function ContributionDetailModal({
   async function fetchContribution() {
     try {
       setLoading(true);
-      const res = await fetch(
+      const res = await apiRequest(
         `/api/portfolio/${portfolioId}/tax/contributions/${contributionId}`
       );
 
       if (!res.ok) throw new Error('Failed to fetch contribution');
 
-      const json = await res.json();
+      const json = await readJson(res);
       setContribution(json.data);
       setFormData(json.data);
     } catch (err) {
@@ -130,7 +132,7 @@ export default function ContributionDetailModal({
       setSaving(true);
       setError(null);
 
-      const res = await fetch(
+      const res = await apiRequest(
         `/api/portfolio/${portfolioId}/tax/contributions/${contributionId}`,
         {
           method: 'PUT',
@@ -140,11 +142,11 @@ export default function ContributionDetailModal({
       );
 
       if (!res.ok) {
-        const json = await res.json();
+        const json = await readJson(res);
         throw new Error(json.error || 'Failed to update contribution');
       }
 
-      const json = await res.json();
+      const json = await readJson(res);
       setContribution(json.data);
       setEditing(false);
       onUpdate();

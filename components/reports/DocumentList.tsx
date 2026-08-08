@@ -1,7 +1,10 @@
 'use client';
 
+import { apiRequest } from "@/lib/api/client";
+import { useReportsData } from "@/lib/reports/hooks";
+
 import { useState } from 'react';
-import useSWR, { mutate } from 'swr';
+import { mutate } from "swr";
 
 type GeneratedDocument = {
   id: string;
@@ -25,7 +28,6 @@ interface Props {
   onView?: (documentId: string) => void;
 }
 
-const fetcher = (url: string) => fetch(url).then(r => r.json());
 
 export default function DocumentList({ portfolioId, onView }: Props) {
   const [typeFilter, setTypeFilter] = useState('');
@@ -40,10 +42,8 @@ export default function DocumentList({ portfolioId, onView }: Props) {
   if (typeFilter) queryParams.set('type', typeFilter);
   if (formatFilter) queryParams.set('format', formatFilter);
 
-  const { data, error, isLoading } = useSWR<{ documents: GeneratedDocument[]; count: number; nextOffset: number | null }>(
-    `/api/portfolio/${portfolioId}/reports/documents?${queryParams}`,
-    fetcher
-  );
+  const { data, error, isLoading } = useReportsData<{ documents: GeneratedDocument[]; count: number; nextOffset: number | null }>(
+    `/api/portfolio/${portfolioId}/reports/documents?${queryParams}`);
 
   const documents = data?.documents ?? [];
   const totalCount = data?.count ?? 0;
@@ -87,7 +87,7 @@ export default function DocumentList({ portfolioId, onView }: Props) {
 
   const handleArchive = async (documentId: string) => {
     try {
-      await fetch(`/api/portfolio/${portfolioId}/reports/documents/${documentId}`, {
+      await apiRequest(`/api/portfolio/${portfolioId}/reports/documents/${documentId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: 'archived' }),
@@ -100,7 +100,7 @@ export default function DocumentList({ portfolioId, onView }: Props) {
 
   const handleTogglePublic = async (documentId: string, isPublic: boolean) => {
     try {
-      await fetch(`/api/portfolio/${portfolioId}/reports/documents/${documentId}`, {
+      await apiRequest(`/api/portfolio/${portfolioId}/reports/documents/${documentId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ is_public: !isPublic }),

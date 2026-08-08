@@ -1,5 +1,7 @@
 'use client';
 
+import { apiRequest, readJson } from "@/lib/api/client";
+
 // components/integrations/QuickBooksSettings.tsx
 // QuickBooks Online connection management panel.
 
@@ -55,10 +57,10 @@ export default function QuickBooksSettings({ orgId }: Props) {
   const fetchStatus = useCallback(async (): Promise<QBStatus | null> => {
     setLoading(true);
     try {
-      const res = await fetch(
+      const res = await apiRequest(
         `/api/integrations/quickbooks/status?org_id=${orgId}`
       );
-      const data = (await res.json()) as QBStatus;
+      const data = (await readJson(res)) as QBStatus;
       setStatus(data);
       return data;
     } catch {
@@ -71,9 +73,9 @@ export default function QuickBooksSettings({ orgId }: Props) {
 
   const fetchSyncLog = useCallback(async () => {
     try {
-      const res = await fetch(`/api/integrations/quickbooks/sync-log?org_id=${orgId}&limit=10`);
+      const res = await apiRequest(`/api/integrations/quickbooks/sync-log?org_id=${orgId}&limit=10`);
       if (res.ok) {
-        const d = await res.json() as { log: SyncLogEntry[] };
+        const d = await readJson(res) as { log: SyncLogEntry[] };
         setSyncLog(d.log ?? []);
       }
     } catch { /* non-critical */ }
@@ -115,7 +117,7 @@ export default function QuickBooksSettings({ orgId }: Props) {
     if (!confirm('Disconnect from QuickBooks? This will remove all synced account data.')) return;
     setActionLoading(true);
     try {
-      const res = await fetch('/api/integrations/quickbooks/disconnect', {
+      const res = await apiRequest('/api/integrations/quickbooks/disconnect', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ org_id: orgId }),
@@ -125,7 +127,7 @@ export default function QuickBooksSettings({ orgId }: Props) {
         setAccounts([]);
         await fetchStatus();
       } else {
-        const d = (await res.json()) as { error?: string };
+        const d = (await readJson(res)) as { error?: string };
         showMsg('error', d.error ?? 'Disconnect failed.');
       }
     } finally {
@@ -136,12 +138,12 @@ export default function QuickBooksSettings({ orgId }: Props) {
   async function handleSyncAccounts() {
     setActionLoading(true);
     try {
-      const res = await fetch('/api/integrations/quickbooks/sync/accounts', {
+      const res = await apiRequest('/api/integrations/quickbooks/sync/accounts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ org_id: orgId }),
       });
-      const d = (await res.json()) as { ok?: boolean; synced?: number; error?: string };
+      const d = (await readJson(res)) as { ok?: boolean; synced?: number; error?: string };
       if (d.ok) {
         showMsg('success', `Synced ${d.synced ?? 0} accounts.`);
         await fetchStatus();
@@ -159,11 +161,11 @@ export default function QuickBooksSettings({ orgId }: Props) {
 
   async function loadAccounts() {
     try {
-      const res = await fetch(
+      const res = await apiRequest(
         `/api/integrations/quickbooks/accounts?org_id=${orgId}`
       );
       if (res.ok) {
-        const d = (await res.json()) as { accounts?: QBAccount[] };
+        const d = (await readJson(res)) as { accounts?: QBAccount[] };
         setAccounts(d.accounts ?? []);
       }
     } catch {
@@ -178,7 +180,7 @@ export default function QuickBooksSettings({ orgId }: Props) {
     }
     setActionLoading(true);
     try {
-      const res = await fetch('/api/integrations/quickbooks/export/contributions', {
+      const res = await apiRequest('/api/integrations/quickbooks/export/contributions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -188,7 +190,7 @@ export default function QuickBooksSettings({ orgId }: Props) {
           bank_account_id: bankAccountId,
         }),
       });
-      const d = (await res.json()) as {
+      const d = (await readJson(res)) as {
         ok?: boolean;
         exported?: number;
         failed?: number;
@@ -215,7 +217,7 @@ export default function QuickBooksSettings({ orgId }: Props) {
     }
     setActionLoading(true);
     try {
-      const res = await fetch('/api/integrations/quickbooks/export/grants', {
+      const res = await apiRequest('/api/integrations/quickbooks/export/grants', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -224,7 +226,7 @@ export default function QuickBooksSettings({ orgId }: Props) {
           bank_account_id: bankAccountId,
         }),
       });
-      const d = (await res.json()) as {
+      const d = (await readJson(res)) as {
         ok?: boolean;
         exported?: number;
         failed?: number;

@@ -1,4 +1,6 @@
 'use client';
+
+import { apiRequest, readJson, uploadJson } from "@/lib/api/client";
 import { useEffect, useState, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 
@@ -45,9 +47,9 @@ function UploadPageContent() {
       }
       // 2) Else try /api/me
       try {
-        const res = await fetch('/api/me', { cache: 'no-store' });
+        const res = await apiRequest('/api/me', { cache: 'no-store' });
         let me: MeResponse | null = null;
-        if (res.ok) me = await res.json();
+        if (res.ok) me = await readJson(res);
         const envPid = process.env.NEXT_PUBLIC_PORTFOLIO_ID_DEFAULT || '';
         const derived = me?.portfolio_id || (envPid || null);
         if (!cancelled) setPortfolioId(derived);
@@ -64,9 +66,9 @@ function UploadPageContent() {
     (async () => {
       if (!portfolioId) { setPortfolioName(null); return; }
       try {
-        const r = await fetch(`/api/portfolio/${encodeURIComponent(portfolioId)}/meta`, { cache: 'no-store' });
+        const r = await apiRequest(`/api/portfolio/${encodeURIComponent(portfolioId)}/meta`, { cache: 'no-store' });
         if (!r.ok) throw new Error('Failed');
-        const j = await r.json();
+        const j = await readJson(r);
         if (!cancelled) setPortfolioName(j?.name ?? portfolioId);
       } catch {
         if (!cancelled) setPortfolioName(portfolioId);
@@ -81,9 +83,9 @@ function UploadPageContent() {
       if (!portfolioId) { setHoldings([]); setSelectedHoldingId(null); return; }
       setHoldingsLoading(true);
       try {
-        const r = await fetch(`/api/portfolio/${encodeURIComponent(portfolioId)}/holdings`, { cache: 'no-store' });
+        const r = await apiRequest(`/api/portfolio/${encodeURIComponent(portfolioId)}/holdings`, { cache: 'no-store' });
         if (!r.ok) throw new Error('Failed to load holdings');
-        const j = await r.json();
+        const j = await readJson(r);
         const list: HoldingLite[] = Array.isArray(j?.data)
           ? j.data.map((h: any) => ({ id: String(h.id), name: h.name ?? null }))
           : [];
@@ -109,8 +111,8 @@ function UploadPageContent() {
     if (!portfolioId || kpiLoading || kpis.length) return;
     setKpiLoading(true);
     try {
-      const r = await fetch(`/api/portfolio/${encodeURIComponent(portfolioId)}/kpis`, { cache: 'no-store' });
-      const j = await r.json();
+      const r = await apiRequest(`/api/portfolio/${encodeURIComponent(portfolioId)}/kpis`, { cache: 'no-store' });
+      const j = await readJson(r);
       if (r.ok && Array.isArray(j?.data)) {
         setKpis(j.data);
         setSelectedMetricCodes((prev) => prev.length ? prev : j.data.map((x: KpiDef) => x.metric_code));
@@ -122,9 +124,9 @@ function UploadPageContent() {
 
   async function loadStagedFacts(uploadId: string) {
     try {
-      const res = await fetch(`/api/admin/upload/${uploadId}/staged-facts`);
+      const res = await apiRequest(`/api/admin/upload/${uploadId}/staged-facts`);
       if (res.ok) {
-        const data = await res.json();
+        const data = await readJson(res);
         setStagedFacts(data.facts || []);
       }
     } catch (err) {
@@ -134,7 +136,7 @@ function UploadPageContent() {
 
   async function approveFact(factId: string) {
     try {
-      const res = await fetch(`/api/admin/staged-facts/${factId}/approve`, { method: 'POST' });
+      const res = await apiRequest(`/api/admin/staged-facts/${factId}/approve`, { method: 'POST' });
       if (res.ok) {
         // Remove from staged list
         setStagedFacts(prev => prev.filter(f => f.id !== factId));
@@ -146,7 +148,7 @@ function UploadPageContent() {
 
   async function rejectFact(factId: string) {
     try {
-      const res = await fetch(`/api/admin/staged-facts/${factId}`, { method: 'DELETE' });
+      const res = await apiRequest(`/api/admin/staged-facts/${factId}`, { method: 'DELETE' });
       if (res.ok) {
         // Remove from staged list
         setStagedFacts(prev => prev.filter(f => f.id !== factId));
@@ -168,9 +170,9 @@ function UploadPageContent() {
 
     const interval = setInterval(async () => {
       try {
-        const res = await fetch(`/api/admin/upload/${uploadId}/status`);
+        const res = await apiRequest(`/api/admin/upload/${uploadId}/status`);
         if (res.ok) {
-          const data = await res.json();
+          const data = await readJson(res);
 
           if (data.status === 'done') {
             setStatus('done');
@@ -224,10 +226,7 @@ function UploadPageContent() {
         fd.append('selected_metrics', metricsCsv);
       }
 
-      const res = await fetch('/api/admin/upload', { method: 'POST', body: fd });
-      const data = await res.json();
-
-      if (!res.ok) throw new Error(data?.error || 'Upload failed');
+      const data = await uploadJson<any>('/api/admin/upload', fd, { method: 'POST' });
 
       setUploadId(data.uploadId);
       setStatus('processing');

@@ -1,5 +1,7 @@
 'use client';
 
+import { apiRequest, readJson } from "@/lib/api/client";
+
 import { useState } from 'react';
 import { CheckCircle, AlertTriangle, XCircle, Info, ChevronDown, ChevronRight, ExternalLink, GitPullRequest } from 'lucide-react';
 import type { CodeState, FindingRow } from '@/lib/builder/proposal-state';
@@ -64,11 +66,11 @@ export default function ReviewReportCard({
     setApplying(true);
     setApplyError(null);
     try {
-      const res = await fetch(
+      const res = await apiRequest(
         `/api/org/${orgId}/builder/proposals/${proposalId}/apply`,
         { method: 'POST' }
       );
-      const data = await res.json() as { prUrl?: string; error?: string };
+      const data = await readJson(res) as { prUrl?: string; error?: string };
       if (!res.ok) throw new Error(data.error ?? 'Apply failed');
       setPrUrl(data.prUrl ?? null);
     } catch (err) {

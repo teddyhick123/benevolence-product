@@ -1,6 +1,8 @@
 // components/admin/BuilderProposalsClient.tsx
 'use client';
 
+import { apiRequest, readJson } from "@/lib/api/client";
+
 import { useEffect, useState } from 'react';
 import { CheckCircle, XCircle, CheckSquare, ChevronDown, ChevronUp, AlertCircle } from 'lucide-react';
 import { codeStateLabel, type CodeState } from '@/lib/builder/proposal-state';
@@ -37,7 +39,7 @@ function ProposalCard({ proposal, onUpdate }: { proposal: Proposal; onUpdate: (i
     setLoading(true);
     setActError(null);
     try {
-      const res = await fetch(`/api/admin/builder/proposals/${proposal.id}`, {
+      const res = await apiRequest(`/api/admin/builder/proposals/${proposal.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status, reviewer_notes: notes || undefined }),
@@ -45,7 +47,7 @@ function ProposalCard({ proposal, onUpdate }: { proposal: Proposal; onUpdate: (i
       if (res.ok) {
         onUpdate(proposal.id, status);
       } else {
-        const data = await res.json().catch(() => ({}));
+        const data = await readJson(res).catch(() => ({}));
         setActError(data.error || 'Action failed. Please try again.');
       }
     } catch {
@@ -152,10 +154,10 @@ export default function BuilderProposalsClient() {
   useEffect(() => {
     const controller = new AbortController();
     setLoading(true);
-    fetch('/api/admin/builder/proposals?' + new URLSearchParams({ status: filter }), {
+    apiRequest('/api/admin/builder/proposals?' + new URLSearchParams({ status: filter }), {
       signal: controller.signal,
     })
-      .then(r => r.json())
+      .then(r => readJson(r))
       .then(d => { setProposals(d.proposals || []); setLoading(false); })
       .catch(err => { if (err.name !== 'AbortError') setLoading(false); });
     return () => controller.abort();

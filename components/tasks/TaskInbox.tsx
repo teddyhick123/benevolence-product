@@ -1,5 +1,7 @@
 'use client';
 
+import { apiRequest, readJson } from "@/lib/api/client";
+
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import {
@@ -111,8 +113,8 @@ export default function TaskInbox({ orgId, members, currentUserId, currentRole }
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/org/${orgId}/tasks?tab=${tab}`);
-      const json = await res.json();
+      const res = await apiRequest(`/api/org/${orgId}/tasks?tab=${tab}`);
+      const json = await readJson(res);
       if (!res.ok) throw new Error(json.error || 'Failed to load tasks');
       setTasks(json.tasks || []);
     } catch (err) {
@@ -132,7 +134,7 @@ export default function TaskInbox({ orgId, members, currentUserId, currentRole }
     setError(null);
     try {
       const dueAt = form.due_at ? new Date(`${form.due_at}T12:00:00`).toISOString() : null;
-      const res = await fetch(`/api/org/${orgId}/tasks`, {
+      const res = await apiRequest(`/api/org/${orgId}/tasks`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -144,7 +146,7 @@ export default function TaskInbox({ orgId, members, currentUserId, currentRole }
           task_type: form.task_type,
         }),
       });
-      const json = await res.json();
+      const json = await readJson(res);
       if (!res.ok) throw new Error(json.error || 'Failed to create task');
       setForm({ title: '', description: '', assigned_to: '', due_at: '', priority: 'normal', task_type: 'task' });
       setShowCreate(false);
@@ -159,8 +161,8 @@ export default function TaskInbox({ orgId, members, currentUserId, currentRole }
   async function setTaskDone(task: Task, complete: boolean) {
     try {
       const endpoint = complete ? 'complete' : 'reopen';
-      const res = await fetch(`/api/org/${orgId}/tasks/${task.id}/${endpoint}`, { method: 'POST' });
-      const json = await res.json();
+      const res = await apiRequest(`/api/org/${orgId}/tasks/${task.id}/${endpoint}`, { method: 'POST' });
+      const json = await readJson(res);
       if (!res.ok) throw new Error(json.error || 'Failed to update task');
       setTasks(prev => prev.map(item => item.id === task.id ? { ...item, ...json.task } : item));
     } catch (err) {

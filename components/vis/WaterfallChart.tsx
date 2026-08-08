@@ -1,7 +1,9 @@
 'use client';
+
+import { apiRequest, readJson } from "@/lib/api/client";
 import { useEffect, useState, useMemo, useRef } from 'react';
 import * as d3 from 'd3';
-import { useWidgetDimensions } from '@/hooks/useWidgetDimensions';
+import { useWidgetDimensions } from '@/lib/hooks/useWidgetDimensions';
 
 interface WaterfallItem {
   label: string;
@@ -51,7 +53,7 @@ export default function WaterfallChart({ portfolioId, title, config }: Props) {
         if (metricCode) params.set('metric', metricCode);
         if (holdingId) params.set('holdingId', holdingId);
 
-        const res = await fetch(
+        const res = await apiRequest(
           `/api/portfolio/${encodeURIComponent(portfolioId)}/waterfall?${params.toString()}`,
           { cache: 'no-store' }
         );
@@ -60,7 +62,7 @@ export default function WaterfallChart({ portfolioId, title, config }: Props) {
           throw new Error(`Failed to fetch waterfall data: ${res.status}`);
         }
 
-        const json = await res.json();
+        const json = await readJson(res);
 
         if (mounted) {
           setData(json.data || []);

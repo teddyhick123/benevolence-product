@@ -1,5 +1,7 @@
 'use client';
 
+import { apiRequest, readJson, uploadJson } from "@/lib/api/client";
+
 import { useState, useRef, useCallback, useEffect } from 'react';
 
 interface GrantDocument {
@@ -51,9 +53,9 @@ export default function DocumentManager({ grantId, portfolioId }: Props) {
 
   const fetchDocuments = useCallback(async () => {
     try {
-      const res = await fetch(`/api/portfolio/${portfolioId}/grants/${grantId}/documents`);
+      const res = await apiRequest(`/api/portfolio/${portfolioId}/grants/${grantId}/documents`);
       if (!res.ok) throw new Error('Failed to load documents');
-      const json = await res.json();
+      const json = await readJson(res);
       setDocuments(json.data || []);
     } catch (err) {
       console.error('Error fetching documents:', err);
@@ -124,17 +126,13 @@ export default function DocumentManager({ grantId, portfolioId }: Props) {
 
       setProgress(50);
 
-      const res = await fetch(
+      await uploadJson(
         `/api/portfolio/${portfolioId}/grants/${grantId}/documents`,
-        { method: 'POST', body: formData }
+        formData,
+        { method: 'POST' }
       );
 
       setProgress(90);
-
-      if (!res.ok) {
-        const json = await res.json();
-        throw new Error(json.error || 'Upload failed');
-      }
 
       setProgress(100);
       setSelectedFile(null);
@@ -152,12 +150,12 @@ export default function DocumentManager({ grantId, portfolioId }: Props) {
     if (!confirm(`Delete "${doc.file_name}"?`)) return;
     setDeletingId(doc.id);
     try {
-      const res = await fetch(
+      const res = await apiRequest(
         `/api/portfolio/${portfolioId}/grants/${grantId}/documents?documentId=${doc.id}`,
         { method: 'DELETE' }
       );
       if (!res.ok) {
-        const json = await res.json();
+        const json = await readJson(res);
         throw new Error(json.error || 'Delete failed');
       }
       setDocuments((prev) => prev.filter((d) => d.id !== doc.id));

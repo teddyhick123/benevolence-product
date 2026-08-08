@@ -1,4 +1,6 @@
 'use client';
+
+import { uploadJson } from "@/lib/api/client";
 // components/admin/NewImportWizard.tsx
 // 3-step wizard for creating a new import job
 
@@ -84,17 +86,7 @@ export function NewImportWizard({
         formData.append(key, file as File);
       }
 
-      const res = await fetch(apiEndpoint, {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (!res.ok) {
-        const body = await res.json();
-        throw new Error(body.error ?? 'Failed to create import job');
-      }
-
-      const { job } = await res.json();
+      const { job } = await uploadJson<{ job: { id: string } }>(apiEndpoint, formData, { method: 'POST' });
       setCreatedJobId(job.id);
       setStep(3);
     } catch (err) {

@@ -1,5 +1,7 @@
 'use client';
 
+import { apiRequest, readJson } from "@/lib/api/client";
+
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Search, ChevronDown, SlidersHorizontal } from 'lucide-react';
@@ -76,7 +78,7 @@ export default function CharitiesPage() {
     }
   }, [viewMode]);
 
-  // Debounced search query for main charity fetch (avoids hitting DB on every keystroke)
+  // Debounced search query for main charity apiRequest(avoids hitting DB on every keystroke)
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const searchDebounceRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -94,9 +96,9 @@ export default function CharitiesPage() {
 
   const fetchDefaultPortfolio = async () => {
     try {
-      const response = await fetch('/api/me');
+      const response = await apiRequest('/api/me');
       if (response.ok) {
-        const data = await response.json();
+        const data = await readJson(response);
         if (data.recommended_portfolio_id) {
           setPortfolioId(data.recommended_portfolio_id);
         }
@@ -118,9 +120,9 @@ export default function CharitiesPage() {
 
     autocompleteDebounceRef.current = setTimeout(async () => {
       try {
-        const res = await fetch(`/api/charities/search/autocomplete?q=${encodeURIComponent(searchQuery)}&limit=8`);
+        const res = await apiRequest(`/api/charities/search/autocomplete?q=${encodeURIComponent(searchQuery)}&limit=8`);
         if (res.ok) {
-          const data = await res.json();
+          const data = await readJson(res);
           setSuggestions(data.suggestions || []);
           setSuggestionsVisible(true);
         }
@@ -176,10 +178,10 @@ export default function CharitiesPage() {
         params.append('portfolio_id', portfolioId);
       }
 
-      const response = await fetch(`/api/charities?${params.toString()}`);
+      const response = await apiRequest(`/api/charities?${params.toString()}`);
 
       if (response.ok) {
-        const data = await response.json();
+        const data = await readJson(response);
         setCharities(data.data.charities || []);
         setTotal(data.data.total || 0);
         setTotalPages(data.data.pages || 0);

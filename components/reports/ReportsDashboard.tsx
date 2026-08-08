@@ -1,7 +1,8 @@
 'use client';
 
+import { useReportsData } from "@/lib/reports/hooks";
+
 import { useState, useEffect } from 'react';
-import useSWR from 'swr';
 
 type ReportTemplate = {
   id: string;
@@ -45,23 +46,16 @@ interface Props {
   onViewDocument?: (documentId: string) => void;
 }
 
-const fetcher = (url: string) => fetch(url).then(r => r.json());
 
 export default function ReportsDashboard({ portfolioId, onCreateTemplate, onGenerateReport, onViewDocument }: Props) {
-  const { data: templatesData, error: templatesError } = useSWR<{ templates: ReportTemplate[] }>(
-    `/api/portfolio/${portfolioId}/reports/templates`,
-    fetcher
-  );
+  const { data: templatesData, error: templatesError } = useReportsData<{ templates: ReportTemplate[] }>(
+    `/api/portfolio/${portfolioId}/reports/templates`);
 
-  const { data: documentsData, error: documentsError } = useSWR<{ documents: GeneratedDocument[]; count: number }>(
-    `/api/portfolio/${portfolioId}/reports/documents?limit=5`,
-    fetcher
-  );
+  const { data: documentsData, error: documentsError } = useReportsData<{ documents: GeneratedDocument[]; count: number }>(
+    `/api/portfolio/${portfolioId}/reports/documents?limit=5`);
 
-  const { data: schedulesData, error: schedulesError } = useSWR<{ schedules: ReportSchedule[] }>(
-    `/api/portfolio/${portfolioId}/reports/schedules?active_only=true`,
-    fetcher
-  );
+  const { data: schedulesData, error: schedulesError } = useReportsData<{ schedules: ReportSchedule[] }>(
+    `/api/portfolio/${portfolioId}/reports/schedules?active_only=true`);
 
   const templates = templatesData?.templates ?? [];
   const documents = documentsData?.documents ?? [];

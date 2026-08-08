@@ -1,5 +1,7 @@
 "use client";
 
+import { apiRequest, readJson } from "@/lib/api/client";
+
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { OrgRole } from "@/lib/roles";
@@ -33,14 +35,14 @@ export default function OrgMembersTable({ orgId, members, isAdmin, currentRole }
     setError(null);
 
     try {
-      const res = await fetch(`/api/org/${orgId}/members`, {
+      const res = await apiRequest(`/api/org/${orgId}/members`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ user_id: userId, role: newRole }),
       });
 
       if (!res.ok) {
-        const data = await res.json();
+        const data = await readJson(res);
         throw new Error(data.error || "Failed to update role");
       }
 
@@ -59,12 +61,12 @@ export default function OrgMembersTable({ orgId, members, isAdmin, currentRole }
     setError(null);
 
     try {
-      const res = await fetch(`/api/org/${orgId}/members/${userId}`, {
+      const res = await apiRequest(`/api/org/${orgId}/members/${userId}`, {
         method: "DELETE",
       });
 
       if (!res.ok) {
-        const data = await res.json();
+        const data = await readJson(res);
         throw new Error(data.error || "Failed to remove member");
       }
 
@@ -82,13 +84,13 @@ export default function OrgMembersTable({ orgId, members, isAdmin, currentRole }
     setError(null);
 
     try {
-      const res = await fetch(`/api/org/${orgId}/members`, {
+      const res = await apiRequest(`/api/org/${orgId}/members`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: addEmail, role: addRole }),
       });
 
-      const data = await res.json();
+      const data = await readJson(res);
 
       if (!res.ok) {
         throw new Error(data.error || "Failed to add member");

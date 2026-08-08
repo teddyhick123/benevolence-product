@@ -1,4 +1,6 @@
 'use client';
+
+import { apiRequest, readJson, uploadJson } from "@/lib/api/client";
 import { useState } from 'react';
 
 type StagedFact = {
@@ -36,9 +38,9 @@ export default function ReportUploader({
 
   async function loadStagedFacts(id: string) {
     try {
-      const res = await fetch(`/api/admin/upload/${id}/staged-facts`);
+      const res = await apiRequest(`/api/admin/upload/${id}/staged-facts`);
       if (res.ok) {
-        const data = await res.json();
+        const data = await readJson(res);
         setStagedFacts(data.facts || []);
       }
     } catch {}
@@ -46,9 +48,9 @@ export default function ReportUploader({
 
   async function approveFact(factId: string) {
     try {
-      const res = await fetch(`/api/admin/staged-facts/${factId}/approve`, { method: 'POST' });
+      const res = await apiRequest(`/api/admin/staged-facts/${factId}/approve`, { method: 'POST' });
       if (!res.ok) {
-        const d = await res.json().catch(() => ({}));
+        const d = await readJson(res).catch(() => ({}));
         throw new Error(d.error || `Approve failed (${res.status})`);
       }
       setStagedFacts((prev) => prev.filter((f) => f.id !== factId));
@@ -60,9 +62,9 @@ export default function ReportUploader({
 
   async function rejectFact(factId: string) {
     try {
-      const res = await fetch(`/api/admin/staged-facts/${factId}`, { method: 'DELETE' });
+      const res = await apiRequest(`/api/admin/staged-facts/${factId}`, { method: 'DELETE' });
       if (!res.ok) {
-        const d = await res.json().catch(() => ({}));
+        const d = await readJson(res).catch(() => ({}));
         throw new Error(d.error || `Reject failed (${res.status})`);
       }
       setStagedFacts((prev) => prev.filter((f) => f.id !== factId));
@@ -109,10 +111,7 @@ export default function ReportUploader({
       fd.append('autoApprove', 'true');
       fd.append('ai_mode', aiMode ? 'true' : 'false');
 
-      const res = await fetch('/api/admin/upload', { method: 'POST', body: fd });
-      const data = await res.json();
-
-      if (!res.ok) throw new Error(data?.error || 'Upload failed');
+      const data = await uploadJson<any>('/api/admin/upload', fd, { method: 'POST' });
 
       // Processing is now synchronous - we get results directly
       setUploadId(data.uploadId);

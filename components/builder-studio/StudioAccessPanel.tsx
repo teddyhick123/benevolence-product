@@ -1,5 +1,7 @@
 'use client';
 
+import { apiRequest, readJson } from "@/lib/api/client";
+
 import { useEffect, useState } from 'react';
 import { AlertCircle, Loader2, ShieldCheck } from 'lucide-react';
 
@@ -37,8 +39,8 @@ export default function StudioAccessPanel({ orgId }: StudioAccessPanelProps) {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/org/${orgId}/capabilities/implementation-reviewers`, { cache: 'no-store' });
-      const data = await res.json() as ReviewersResponse;
+      const res = await apiRequest(`/api/org/${orgId}/capabilities/implementation-reviewers`, { cache: 'no-store' });
+      const data = await readJson(res) as ReviewersResponse;
       if (!res.ok) throw new Error(data.error || 'Failed to load access');
       setReviewers(data.reviewers || []);
       setCanManage(data.canManage === true);
@@ -57,7 +59,7 @@ export default function StudioAccessPanel({ orgId }: StudioAccessPanelProps) {
     setSavingUserId(row.user_id);
     setError(null);
     try {
-      const res = await fetch(
+      const res = await apiRequest(
         enabled
           ? `/api/org/${orgId}/capabilities/implementation-reviewers?user_id=${encodeURIComponent(row.user_id)}`
           : `/api/org/${orgId}/capabilities/implementation-reviewers`,
@@ -67,7 +69,7 @@ export default function StudioAccessPanel({ orgId }: StudioAccessPanelProps) {
           body: enabled ? undefined : JSON.stringify({ user_id: row.user_id }),
         }
       );
-      const data = await res.json() as ReviewersResponse;
+      const data = await readJson(res) as ReviewersResponse;
       if (!res.ok) throw new Error(data.error || 'Failed to update access');
       setReviewers(data.reviewers || []);
       setCanManage(data.canManage === true);

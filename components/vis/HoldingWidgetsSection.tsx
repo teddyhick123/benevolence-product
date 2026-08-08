@@ -1,7 +1,8 @@
 'use client';
 
+import { useVisualizationData } from "@/lib/visualizations/hooks";
+
 import * as React from 'react';
-import useSWR from 'swr';
 import dynamic from 'next/dynamic';
 import SectionHeader from '@/components/ui/SectionHeader';
 import VisualCarousel from '@/components/vis/VisualCarousel';
@@ -12,7 +13,6 @@ const EditWidgetsModal = dynamic(() => import('@/components/vis/EditWidgetsModal
   ssr: false,
 });
 
-const fetcher = (url: string) => fetch(url, { cache: 'no-store' }).then(r => r.json());
 
 type WidgetRow = {
   id: string;
@@ -32,10 +32,8 @@ export default function HoldingWidgetsSection({
   portfolioId: string;
   canEdit?: boolean;
 }) {
-  const { data, error, isLoading, mutate } = useSWR<{ data: WidgetRow[] }>(
-    `/api/holdings/${encodeURIComponent(holdingId)}/widgets`,
-    fetcher
-  );
+  const { data, error, isLoading, mutate } = useVisualizationData<{ data: WidgetRow[] }>(
+    `/api/holdings/${encodeURIComponent(holdingId)}/widgets`);
 
   const items = React.useMemo(() => {
     const arr = (data?.data ?? []).slice().sort((a, b) => (a.position ?? 0) - (b.position ?? 0));

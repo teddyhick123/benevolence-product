@@ -1,6 +1,8 @@
 // components/settings/InviteMemberModal.tsx
 'use client';
 
+import { apiRequest, readJson } from "@/lib/api/client";
+
 import { useState } from 'react';
 
 interface InviteMemberModalProps {
@@ -21,13 +23,13 @@ export default function InviteMemberModal({ orgId, onClose, onSuccess }: InviteM
     setError(null);
     setBusy(true);
 
-    const res = await fetch(`/api/org/${orgId}/invitations`, {
+    const res = await apiRequest(`/api/org/${orgId}/invitations`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, role, message: message || null }),
     });
 
-    const data = await res.json();
+    const data = await readJson(res);
     setBusy(false);
 
     if (!res.ok && res.status !== 200) {

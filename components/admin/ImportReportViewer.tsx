@@ -1,4 +1,6 @@
 'use client';
+
+import { apiRequest, readJson, requestDownload } from "@/lib/api/client";
 // components/admin/ImportReportViewer.tsx
 // AI-generated migration report viewer
 
@@ -18,12 +20,12 @@ export function ImportReportViewer({ importJobId }: ImportReportViewerProps) {
     setLoadingReport(true);
     setError(null);
     try {
-      const res = await fetch(`/api/admin/imports/${importJobId}/report?format=markdown`);
+      const res = await apiRequest(`/api/admin/imports/${importJobId}/report?format=markdown`);
       if (!res.ok) {
-        const body = await res.json() as { error?: string };
+        const body = await readJson(res) as { error?: string };
         throw new Error(body.error ?? 'Failed to generate report');
       }
-      const data = await res.json() as { markdown?: string };
+      const data = await readJson(res) as { markdown?: string };
       setMarkdown(data.markdown ?? '');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');
@@ -51,15 +53,9 @@ export function ImportReportViewer({ importJobId }: ImportReportViewerProps) {
     setLoadingPDF(true);
     setError(null);
     try {
-      const res = await fetch(`/api/admin/imports/${importJobId}/report?format=pdf`);
-      if (!res.ok) {
-        const body = await res.json() as { error?: string };
-        throw new Error(body.error ?? 'Failed to generate PDF');
-      }
-      const disposition = res.headers.get('Content-Disposition');
-      const match = disposition?.match(/filename="?(.+?)"?$/);
-      const filename = match?.[1] ?? `migration-report-${importJobId}.pdf`;
-      const blob = await res.blob();
+      const download = await requestDownload(`/api/admin/imports/${importJobId}/report?format=pdf`);
+      const filename = download.filename ?? `migration-report-${importJobId}.pdf`;
+      const { blob } = download;
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;

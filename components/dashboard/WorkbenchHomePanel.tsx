@@ -1,5 +1,7 @@
 'use client';
 
+import { apiRequest, readJson } from "@/lib/api/client";
+
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import {
@@ -117,8 +119,8 @@ export default function WorkbenchHomePanel({ orgId }: Props) {
     if (!orgId) return;
     let cancelled = false;
     setLoading(true);
-    fetch(`/api/org/${orgId}/dashboard`, { cache: 'no-store' })
-      .then((res) => res.ok ? res.json() : null)
+    apiRequest(`/api/org/${orgId}/dashboard`, { cache: 'no-store' })
+      .then((res) => res.ok ? readJson(res) : null)
       .then((json) => {
         if (!cancelled) setData(json);
       })

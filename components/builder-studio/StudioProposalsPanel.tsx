@@ -1,5 +1,7 @@
 'use client';
 
+import { apiRequest, readJson } from "@/lib/api/client";
+
 import { useCallback, useEffect, useState } from 'react';
 import { AlertCircle, ChevronDown, ChevronRight, Clock3, FileCode2, GitPullRequest, Loader2, Send, UserRound } from 'lucide-react';
 import { CLAIMABLE_STATES, codeStateLabel, codeStateNextStep, type CodeState, type FindingRow } from '@/lib/builder/proposal-state';
@@ -118,8 +120,8 @@ export default function StudioProposalsPanel({ orgId, canReviewImplementation }:
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/org/${orgId}/builder/proposals`, { cache: 'no-store' });
-      const data = await res.json() as { proposals?: Proposal[]; error?: string };
+      const res = await apiRequest(`/api/org/${orgId}/builder/proposals`, { cache: 'no-store' });
+      const data = await readJson(res) as { proposals?: Proposal[]; error?: string };
       if (!res.ok) throw new Error(data.error || 'Failed to load proposals');
       setProposals(data.proposals || []);
     } catch (err) {
@@ -140,8 +142,8 @@ export default function StudioProposalsPanel({ orgId, canReviewImplementation }:
     if (next && proposal.proposal_type === 'code' && !findingsById[proposal.id]) {
       setFindingsLoadingId(proposal.id);
       try {
-        const res = await fetch(`/api/org/${orgId}/builder/proposals/${proposal.id}`, { cache: 'no-store' });
-        const data = await res.json() as ProposalDetail;
+        const res = await apiRequest(`/api/org/${orgId}/builder/proposals/${proposal.id}`, { cache: 'no-store' });
+        const data = await readJson(res) as ProposalDetail;
         if (res.ok) {
           setFindingsById(prev => ({ ...prev, [proposal.id]: data.attempts?.[0]?.findings ?? [] }));
         }
@@ -157,8 +159,8 @@ export default function StudioProposalsPanel({ orgId, canReviewImplementation }:
     setStartingId(proposalId);
     setError(null);
     try {
-      const res = await fetch(`/api/org/${orgId}/builder/proposals/${proposalId}/build`, { method: 'POST' });
-      const data = await res.json().catch(() => ({})) as { error?: string };
+      const res = await apiRequest(`/api/org/${orgId}/builder/proposals/${proposalId}/build`, { method: 'POST' });
+      const data = await readJson(res).catch(() => ({})) as { error?: string };
       if (!res.ok) throw new Error(data.error || 'Failed to start implementation review');
       await loadProposals();
     } catch (err) {
@@ -172,8 +174,8 @@ export default function StudioProposalsPanel({ orgId, canReviewImplementation }:
     setOpeningId(proposalId);
     setError(null);
     try {
-      const res = await fetch(`/api/org/${orgId}/builder/proposals/${proposalId}/apply`, { method: 'POST' });
-      const data = await res.json().catch(() => ({})) as { error?: string };
+      const res = await apiRequest(`/api/org/${orgId}/builder/proposals/${proposalId}/apply`, { method: 'POST' });
+      const data = await readJson(res).catch(() => ({})) as { error?: string };
       if (!res.ok) throw new Error(data.error || 'Failed to open pull request');
       await loadProposals();
     } catch (err) {

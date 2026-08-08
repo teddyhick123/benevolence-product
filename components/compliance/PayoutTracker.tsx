@@ -1,5 +1,7 @@
 'use client';
 
+import { apiRequest, readJson } from "@/lib/api/client";
+
 import { useState, useEffect } from 'react';
 
 interface PayoutStatus {
@@ -52,12 +54,12 @@ export default function PayoutTracker({ portfolioId, taxYear }: Props) {
       setError(null);
       try {
         const [forecastRes, payoutRes] = await Promise.all([
-          fetch(`/api/portfolio/${portfolioId}/compliance/payout-forecast?year=${selectedYear}`),
-          fetch(`/api/portfolio/${portfolioId}/compliance/payout?year=${selectedYear}`),
+          apiRequest(`/api/portfolio/${portfolioId}/compliance/payout-forecast?year=${selectedYear}`),
+          apiRequest(`/api/portfolio/${portfolioId}/compliance/payout?year=${selectedYear}`),
         ]);
         if (!forecastRes.ok) throw new Error('Failed to load forecast');
-        const forecastData = await forecastRes.json();
-        const payoutData = await payoutRes.json();
+        const forecastData = await readJson(forecastRes);
+        const payoutData = await readJson(payoutRes);
         setForecast(forecastData);
         setDistributions(payoutData.qualifying_distributions || []);
       } catch (e: any) {

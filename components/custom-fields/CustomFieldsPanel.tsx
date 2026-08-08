@@ -1,5 +1,7 @@
 'use client';
 
+import { apiRequest, readJson } from "@/lib/api/client";
+
 import { useEffect, useMemo, useState } from 'react';
 
 type FieldType = 'text' | 'integer' | 'decimal' | 'boolean' | 'date' | 'enum';
@@ -34,9 +36,9 @@ export default function CustomFieldsPanel({ orgId, entityType, entityId, title =
     setLoading(true);
     setError(null);
 
-    fetch(`/api/org/${orgId}/custom-fields/values?entity_type=${entityType}&entity_id=${entityId}`)
+    apiRequest(`/api/org/${orgId}/custom-fields/values?entity_type=${entityType}&entity_id=${entityId}`)
       .then(async res => {
-        const json = await res.json().catch(() => ({}));
+        const json = await readJson(res).catch(() => ({}));
         if (!res.ok) throw new Error(json.error ?? 'Failed to load custom fields');
         return json;
       })
@@ -70,12 +72,12 @@ export default function CustomFieldsPanel({ orgId, entityType, entityId, title =
     setSaving(true);
     setError(null);
     try {
-      const res = await fetch(`/api/org/${orgId}/custom-fields/values`, {
+      const res = await apiRequest(`/api/org/${orgId}/custom-fields/values`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ entity_type: entityType, entity_id: entityId, values }),
       });
-      const json = await res.json().catch(() => ({}));
+      const json = await readJson(res).catch(() => ({}));
       if (!res.ok) throw new Error(json.error ?? 'Failed to save custom fields');
       const nextFields = (json.fields ?? []) as CustomField[];
       setFields(nextFields);

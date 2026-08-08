@@ -1,5 +1,7 @@
 'use client';
 
+import { requestDownload } from "@/lib/api/client";
+
 import { useState } from 'react';
 
 interface TaxExportPanelProps {
@@ -39,20 +41,9 @@ export default function TaxExportPanel({ portfolioId, taxYear }: TaxExportPanelP
         defaultFilename = `tax-summary-${taxYear}.${format}`;
       }
 
-      const res = await fetch(url);
-
-      if (!res.ok) {
-        const json = await res.json();
-        throw new Error(json.error || 'Export failed');
-      }
-
-      // Get filename from Content-Disposition header or use default
-      const contentDisposition = res.headers.get('Content-Disposition');
-      const filenameMatch = contentDisposition?.match(/filename="(.+)"/);
-      const filename = filenameMatch?.[1] || defaultFilename;
-
-      // Download the file
-      const blob = await res.blob();
+      const download = await requestDownload(url);
+      const filename = download.filename ?? defaultFilename;
+      const { blob } = download;
       const downloadUrl = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = downloadUrl;

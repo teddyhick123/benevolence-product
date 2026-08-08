@@ -1,7 +1,8 @@
 'use client';
 
+import { useAnalyticsData } from "@/lib/analytics/hooks";
+
 import { useState } from 'react';
-import useSWR from 'swr';
 
 type HoldingOption = {
   id: string;
@@ -55,7 +56,6 @@ interface Props {
   initialHoldingId?: string;
 }
 
-const fetcher = (url: string) => fetch(url).then(r => r.json());
 
 const BENCHMARK_TYPES = [
   { value: 'sector', label: 'By Sector' },
@@ -75,10 +75,8 @@ export default function BenchmarkComparison({ portfolioId, initialHoldingId }: P
   const [selectedMetrics, setSelectedMetrics] = useState(['PROGRAM_EXPENSE_RATIO', 'ADMIN_EXPENSE_RATIO']);
 
   // Fetch holdings for dropdown
-  const { data: holdingsData } = useSWR<{ data: HoldingOption[] }>(
-    `/api/portfolio/${portfolioId}/holdings?select=id,name,sector`,
-    fetcher
-  );
+  const { data: holdingsData } = useAnalyticsData<{ data: HoldingOption[] }>(
+    `/api/portfolio/${portfolioId}/holdings?select=id,name,sector`);
   const holdings = holdingsData?.data ?? [];
 
   // Fetch benchmark data
@@ -88,12 +86,10 @@ export default function BenchmarkComparison({ portfolioId, initialHoldingId }: P
   });
   if (selectedHoldingId) benchmarkParams.set('holding_id', selectedHoldingId);
 
-  const { data: benchmarkData, error, isLoading } = useSWR<
+  const { data: benchmarkData, error, isLoading } = useAnalyticsData<
     { benchmark: HoldingBenchmark } | { portfolio_benchmarks: PortfolioBenchmark }
   >(
-    `/api/portfolio/${portfolioId}/analytics/benchmarks?${benchmarkParams}`,
-    fetcher
-  );
+    `/api/portfolio/${portfolioId}/analytics/benchmarks?${benchmarkParams}`);
 
   const holdingBenchmark = benchmarkData && 'benchmark' in benchmarkData ? benchmarkData.benchmark : null;
   const portfolioBenchmark = benchmarkData && 'portfolio_benchmarks' in benchmarkData ? benchmarkData.portfolio_benchmarks : null;

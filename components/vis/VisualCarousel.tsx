@@ -1,6 +1,8 @@
 'use client';
+
+import { apiRequest, readJson } from "@/lib/api/client";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useHoldings } from '@/lib/hooks/useHoldings';
+import { useHoldings } from '@/lib/holdings/hooks';
 import dynamic from 'next/dynamic';
 import KpiTrend from '@/components/vis/KpiTrend';
 import SectorEmissionsBar from '@/components/vis/SectorEmissionsBar';
@@ -72,9 +74,9 @@ function PeopleGridAutoRenderer({ portfolioId, title, config }: { portfolioId: s
         setError(null);
         if (!metric) { setTotal(0); setError('Missing metric_code'); return; }
         const qs = new URLSearchParams({ metric: metric, window: windowStr });
-        const res = await fetch(`/api/portfolio/${encodeURIComponent(portfolioId)}/kpi-series?${qs.toString()}`, { cache: 'no-store' });
+        const res = await apiRequest(`/api/portfolio/${encodeURIComponent(portfolioId)}/kpi-series?${qs.toString()}`, { cache: 'no-store' });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const json = await res.json();
+        const json = await readJson(res);
         const series: Array<{ date: string; value: number }> = Array.isArray(json?.series) ? json.series : [];
         let t = 0;
         if (mode === 'latest') {
@@ -139,8 +141,8 @@ function HoldingsPieAutoRenderer({
     let alive = true;
     setCustomLoading(true);
     setCustomError(null);
-    fetch(customEndpoint, { cache: 'no-store' })
-      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+    apiRequest(customEndpoint, { cache: 'no-store' })
+      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return readJson(r); })
       .then(json => { if (alive) { setCustomRows(Array.isArray(json?.data) ? json.data : Array.isArray(json) ? json : []); } })
       .catch(err => { if (alive) setCustomError(err?.message ?? 'Failed to load'); })
       .finally(() => { if (alive) setCustomLoading(false); });

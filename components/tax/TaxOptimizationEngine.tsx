@@ -1,5 +1,7 @@
 'use client';
 
+import { apiRequest, readJson } from "@/lib/api/client";
+
 import * as React from 'react';
 
 export interface TaxOptimizationEngineProps {
@@ -22,7 +24,7 @@ export default function TaxOptimizationEngine({
     setError(null);
 
     try {
-      const res = await fetch(`/api/portfolio/${portfolioId}/tax/optimize`, {
+      const res = await apiRequest(`/api/portfolio/${portfolioId}/tax/optimize`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -32,7 +34,7 @@ export default function TaxOptimizationEngine({
         }),
       });
 
-      const json = await res.json();
+      const json = await readJson(res);
 
       if (!res.ok) {
         throw new Error(json.error || json.message || 'Failed to run optimization');

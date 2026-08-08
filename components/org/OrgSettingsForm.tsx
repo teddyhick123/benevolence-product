@@ -1,5 +1,7 @@
 "use client";
 
+import { apiRequest, readJson } from "@/lib/api/client";
+
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
@@ -39,7 +41,7 @@ export default function OrgSettingsForm({ org, isAdmin }: Props) {
     const logoUrl = formData.get("logo_url") as string;
 
     try {
-      const res = await fetch(`/api/org/${org.id}`, {
+      const res = await apiRequest(`/api/org/${org.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -51,7 +53,7 @@ export default function OrgSettingsForm({ org, isAdmin }: Props) {
         }),
       });
 
-      const data = await res.json();
+      const data = await readJson(res);
 
       if (!res.ok) {
         throw new Error(data.error || "Failed to update organization");

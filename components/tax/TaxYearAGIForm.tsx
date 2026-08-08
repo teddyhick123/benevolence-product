@@ -1,5 +1,7 @@
 'use client';
 
+import { apiRequest, readJson } from "@/lib/api/client";
+
 import * as React from 'react';
 import { DONOR_FILING_STATUS_LABELS, STANDARD_DEDUCTIONS_2024, type DonorFilingStatus } from '@/lib/schemas/tax';
 
@@ -86,13 +88,13 @@ export default function TaxYearAGIForm({
       const method = initialData ? 'PUT' : 'POST';
       const url = `/api/portfolio/${portfolioId}/tax-years`;
 
-      const res = await fetch(url, {
+      const res = await apiRequest(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
 
-      const data = await res.json();
+      const data = await readJson(res);
 
       if (!res.ok) {
         throw new Error(data.error || 'Failed to save tax year data');

@@ -1,5 +1,7 @@
 'use client';
 
+import { apiRequest, readJson, uploadJson } from "@/lib/api/client";
+
 import { useState, useEffect } from 'react';
 
 interface Filing {
@@ -83,8 +85,8 @@ export default function FilingCalendar({ orgId }: Props) {
     try {
       let url = `/api/org/${orgId}/compliance/filing-calendar?days=365`;
       if (statusFilter) url += `&status=${statusFilter}`;
-      const res = await fetch(url);
-      const json = await res.json();
+      const res = await apiRequest(url);
+      const json = await readJson(res);
       setFilings(json.data || []);
     } finally {
       setLoading(false);
@@ -96,7 +98,7 @@ export default function FilingCalendar({ orgId }: Props) {
   async function handleMarkFiled(filing: Filing) {
     setSaving(true);
     try {
-      const res = await fetch(`/api/org/${orgId}/compliance/filing-calendar`, {
+      const res = await apiRequest(`/api/org/${orgId}/compliance/filing-calendar`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -107,7 +109,7 @@ export default function FilingCalendar({ orgId }: Props) {
         }),
       });
       if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: 'Unknown error' }));
+        const err = await readJson(res).catch(() => ({ error: 'Unknown error' }));
         alert(err.error || 'Failed to mark filing as filed');
         return;
       }
@@ -121,7 +123,7 @@ export default function FilingCalendar({ orgId }: Props) {
   async function handleAddFiling() {
     setSaving(true);
     try {
-      const res = await fetch(`/api/org/${orgId}/compliance/filing-calendar`, {
+      const res = await apiRequest(`/api/org/${orgId}/compliance/filing-calendar`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -134,7 +136,7 @@ export default function FilingCalendar({ orgId }: Props) {
         }),
       });
       if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: 'Unknown error' }));
+        const err = await readJson(res).catch(() => ({ error: 'Unknown error' }));
         alert(err.error || 'Failed to add filing');
         return;
       }
@@ -146,8 +148,8 @@ export default function FilingCalendar({ orgId }: Props) {
   }
 
   async function loadAttachments(filingId: string) {
-    const res = await fetch(`/api/org/${orgId}/compliance/filing-calendar/${filingId}/attachments`);
-    const json = await res.json();
+    const res = await apiRequest(`/api/org/${orgId}/compliance/filing-calendar/${filingId}/attachments`);
+    const json = await readJson(res);
     setAttachments(prev => ({ ...prev, [filingId]: json.data || [] }));
   }
 
@@ -165,20 +167,17 @@ export default function FilingCalendar({ orgId }: Props) {
     try {
       const fd = new FormData();
       fd.append('file', file);
-      const res = await fetch(`/api/org/${orgId}/compliance/filing-calendar/${filingId}/attachments`, {
+      await uploadJson(`/api/org/${orgId}/compliance/filing-calendar/${filingId}/attachments`, fd, {
         method: 'POST',
-        body: fd,
       });
-      if (res.ok) {
-        await loadAttachments(filingId);
-      }
+      await loadAttachments(filingId);
     } finally {
       setUploading(false);
     }
   }
 
   async function handleDeleteAttachment(filingId: string, path: string) {
-    await fetch(`/api/org/${orgId}/compliance/filing-calendar/${filingId}/attachments`, {
+    await apiRequest(`/api/org/${orgId}/compliance/filing-calendar/${filingId}/attachments`, {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ path }),

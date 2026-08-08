@@ -1,7 +1,9 @@
 'use client';
 
+import { apiRequest } from "@/lib/api/client";
+import { useAnalyticsData } from "@/lib/analytics/hooks";
+
 import { useState } from 'react';
-import useSWR from 'swr';
 
 type RiskDistributionItem = {
   sector?: string;
@@ -58,23 +60,20 @@ interface Props {
   showHistory?: boolean;
 }
 
-const fetcher = (url: string) => fetch(url).then(r => r.json());
 
 export default function RiskAnalysis({ portfolioId, showHistory = true }: Props) {
   const [riskType, setRiskType] = useState<'all' | 'concentration' | 'sector' | 'geography'>('all');
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  const { data, error, isLoading, mutate } = useSWR<{ risk: RiskData }>(
-    `/api/portfolio/${portfolioId}/analytics/risk?risk_type=${riskType}&include_history=${showHistory}`,
-    fetcher
-  );
+  const { data, error, isLoading, mutate } = useAnalyticsData<{ risk: RiskData }>(
+    `/api/portfolio/${portfolioId}/analytics/risk?risk_type=${riskType}&include_history=${showHistory}`);
 
   const risk = data?.risk;
 
   const refreshSnapshot = async () => {
     setIsRefreshing(true);
     try {
-      await fetch(`/api/portfolio/${portfolioId}/analytics/risk`, { method: 'POST' });
+      await apiRequest(`/api/portfolio/${portfolioId}/analytics/risk`, { method: 'POST' });
       mutate();
     } finally {
       setIsRefreshing(false);

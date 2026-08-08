@@ -1,5 +1,7 @@
 'use client';
 
+import { apiRequest, readJson } from "@/lib/api/client";
+
 import React, { useState, useEffect } from 'react';
 import AssetTypeTabs, { AssetTypeTab } from '../holdings/AssetTypeTabs';
 import PortfolioInvestmentSummaryCard from './PortfolioInvestmentSummary';
@@ -40,7 +42,7 @@ export default function PortfolioSummarySection({ portfolioId, orgId }: Props) {
     const controller = new AbortController();
 
     const fetchSummary = (url: string) =>
-      fetch(url, { cache: 'no-store', signal: controller.signal }).catch((error) => {
+      apiRequest(url, { cache: 'no-store', signal: controller.signal }).catch((error) => {
         if (controller.signal.aborted) return null;
         throw error;
       });
@@ -61,7 +63,7 @@ export default function PortfolioSummarySection({ portfolioId, orgId }: Props) {
         // Parse investment summary
         let investmentData = null;
         if (investmentRes?.ok) {
-          investmentData = await investmentRes.json();
+          investmentData = await readJson(investmentRes);
           if (!mounted || controller.signal.aborted) return;
           setInvestmentSummary(investmentData.summary || null);
         }
@@ -69,7 +71,7 @@ export default function PortfolioSummarySection({ portfolioId, orgId }: Props) {
         // Parse grant summary
         let grantData = null;
         if (grantRes?.ok) {
-          grantData = await grantRes.json();
+          grantData = await readJson(grantRes);
           if (!mounted || controller.signal.aborted) return;
           setGrantSummary(grantData.summary || null);
         }
@@ -77,7 +79,7 @@ export default function PortfolioSummarySection({ portfolioId, orgId }: Props) {
         // Parse donation summary
         let donationData = null;
         if (donationRes?.ok) {
-          donationData = await donationRes.json();
+          donationData = await readJson(donationRes);
           if (!mounted || controller.signal.aborted) return;
           setDonationSummary(donationData.summary || null);
         }

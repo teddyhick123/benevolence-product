@@ -1,5 +1,7 @@
 'use client';
 
+import { apiRequest, readJson } from "@/lib/api/client";
+
 import { Suspense, useState, useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { requiresDecision, type LifecycleStage } from '@/lib/grants/lifecycle-shared';
@@ -113,12 +115,12 @@ function GrantsDashboardContent() {
     };
 
     try {
-      const res = await fetch(`/api/org/${orgId}/grants/bulk-transition`, {
+      const res = await apiRequest(`/api/org/${orgId}/grants/bulk-transition`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
-      const data = await res.json();
+      const data = await readJson(res);
 
       if (!res.ok) {
         setBulkPhase('idle');
@@ -186,9 +188,9 @@ function GrantsDashboardContent() {
   useEffect(() => {
     async function fetchProfile() {
       try {
-        const res = await fetch('/api/me');
+        const res = await apiRequest('/api/me');
         if (res.ok) {
-          const json = await res.json();
+          const json = await readJson(res);
           setPortfolioId(json.portfolio_id || json.recommended_portfolio_id);
           setOrgId(json.organization_id || null);
         }
@@ -222,9 +224,9 @@ function GrantsDashboardContent() {
   useEffect(() => {
     if (!orgId || searchParams.get('view')) return;
     let cancelled = false;
-    fetch(`/api/org/${orgId}/view-config?scope=module_default&scope_key=grant_module`)
+    apiRequest(`/api/org/${orgId}/view-config?scope=module_default&scope_key=grant_module`)
       .then(async res => {
-        const json = await res.json().catch(() => ({}));
+        const json = await readJson(res).catch(() => ({}));
         if (!res.ok) throw new Error(json.error ?? 'Failed to load default grant view');
         return json;
       })
@@ -251,8 +253,8 @@ function GrantsDashboardContent() {
       params.set('q', debouncedGrantSearch);
     }
     Promise.all([
-      fetch(`/api/org/${orgId}/grants?${params.toString()}`).then(r => r.json()),
-      fetch(`/api/org/${orgId}/members`).then(r => r.json()).catch(() => ({ members: [] })),
+      apiRequest(`/api/org/${orgId}/grants?${params.toString()}`).then(r => readJson(r)),
+      apiRequest(`/api/org/${orgId}/members`).then(r => readJson(r)).catch(() => ({ members: [] })),
     ]).then(([grantsJson, membersJson]) => {
       setGrants(grantsJson.data ?? []);
       // Normalize to {id: user_id, display_name} so owner filter matches grants.internal_owner_id

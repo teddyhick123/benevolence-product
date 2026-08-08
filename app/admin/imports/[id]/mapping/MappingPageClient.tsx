@@ -1,4 +1,6 @@
 'use client';
+
+import { apiRequest, readJson } from "@/lib/api/client";
 // app/admin/imports/[id]/mapping/MappingPageClient.tsx
 // Client component for the mapping review page
 
@@ -92,7 +94,7 @@ export function MappingPageClient({ job, mappingProfile, stagingPreviews }: Mapp
 
     setAiLoading((prev) => ({ ...prev, [entityType]: true }));
     try {
-      const res = await fetch('/api/admin/imports/mapping-assist', {
+      const res = await apiRequest('/api/admin/imports/mapping-assist', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -105,7 +107,7 @@ export function MappingPageClient({ job, mappingProfile, stagingPreviews }: Mapp
       });
 
       if (res.ok) {
-        const body = await res.json() as { data: MappingAssistResult };
+        const body = await readJson(res) as { data: MappingAssistResult };
         setAiSuggestions((prev) => ({ ...prev, [entityType]: body.data }));
         const high = body.data.mappings.filter((m) => m.confidence >= 0.85).length;
         setAiToast(`AI mapped ${high}/${body.data.mappings.length} fields automatically`);
@@ -129,7 +131,7 @@ export function MappingPageClient({ job, mappingProfile, stagingPreviews }: Mapp
   };
 
   const handleSaveMapping = async (mapping: EntityMappingConfig) => {
-    const res = await fetch('/api/admin/import/mapping-profiles', {
+    const res = await apiRequest('/api/admin/import/mapping-profiles', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -145,11 +147,11 @@ export function MappingPageClient({ job, mappingProfile, stagingPreviews }: Mapp
     });
 
     if (!res.ok) {
-      const body = await res.json() as { error?: string };
+      const body = await readJson(res) as { error?: string };
       throw new Error(body.error ?? 'Failed to save mapping');
     }
 
-    const { profile } = await res.json() as { profile: MappingProfile };
+    const { profile } = await readJson(res) as { profile: MappingProfile };
     setCurrentProfile(profile);
   };
 
@@ -159,17 +161,17 @@ export function MappingPageClient({ job, mappingProfile, stagingPreviews }: Mapp
     try {
       await handleSaveMapping(entityConfig);
 
-      const res = await fetch(`/api/admin/imports/${job.id}/run-validate`, {
+      const res = await apiRequest(`/api/admin/imports/${job.id}/run-validate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ entityTypes: [activeEntity] }),
       });
 
       if (!res.ok) {
-        const body = await res.json() as { error?: string };
+        const body = await readJson(res) as { error?: string };
         setValidateResult(`Error: ${body.error ?? 'Validation failed'}`);
       } else {
-        const body = await res.json() as { valid?: number; invalid?: number; warnings?: number };
+        const body = await readJson(res) as { valid?: number; invalid?: number; warnings?: number };
         setValidateResult(
           `Validation complete: ${body.valid ?? 0} valid, ${body.invalid ?? 0} invalid, ${body.warnings ?? 0} warnings`
         );

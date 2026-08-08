@@ -1,5 +1,7 @@
 'use client';
 
+import { apiRequest, readJson } from "@/lib/api/client";
+
 import { use, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Organization, OrgType, OrgRole } from '@/lib/types/org';
@@ -68,8 +70,8 @@ export default function OrgSettingsPage({ params }: { params: Promise<{ orgId: s
 
   useEffect(() => {
     setLoading(true);
-    fetch(`/api/org/${orgId}`, { cache: 'no-store' })
-      .then(r => r.json())
+    apiRequest(`/api/org/${orgId}`, { cache: 'no-store' })
+      .then(r => readJson(r))
       .then(d => {
         if (d.error) throw new Error(d.error);
         setOrg(d);
@@ -95,15 +97,15 @@ export default function OrgSettingsPage({ params }: { params: Promise<{ orgId: s
   }, [tab]);
 
   function loadMembers() {
-    fetch(`/api/org/${orgId}/members`, { cache: 'no-store' })
-      .then(r => r.json())
+    apiRequest(`/api/org/${orgId}/members`, { cache: 'no-store' })
+      .then(r => readJson(r))
       .then(d => setMembers(d.members || []))
       .catch(() => {});
   }
 
   function loadPortfolios() {
-    fetch(`/api/portfolio?org_id=${orgId}`, { cache: 'no-store' })
-      .then(r => r.json())
+    apiRequest(`/api/portfolio?org_id=${orgId}`, { cache: 'no-store' })
+      .then(r => readJson(r))
       .then(d => setPortfolios(Array.isArray(d) ? d : (d.portfolios || [])))
       .catch(() => {});
   }
@@ -117,12 +119,12 @@ export default function OrgSettingsPage({ params }: { params: Promise<{ orgId: s
     e.preventDefault();
     setSaving(true); setError(null);
     try {
-      const res = await fetch(`/api/org/${orgId}`, {
+      const res = await apiRequest(`/api/org/${orgId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, ein: ein || null, org_type: orgType || null, fiscal_year_end: fiscalYearEnd || null, state_of_incorporation: stateOfInc || null }),
       });
-      const j = await res.json().catch(() => ({}));
+      const j = await readJson(res).catch(() => ({}));
       if (!res.ok) throw new Error(j?.error || 'Failed to save');
       flash('Saved');
     } catch (e: any) { setError(e.message); }
@@ -133,12 +135,12 @@ export default function OrgSettingsPage({ params }: { params: Promise<{ orgId: s
     e.preventDefault();
     setSaving(true); setError(null);
     try {
-      const res = await fetch(`/api/org/${orgId}`, {
+      const res = await apiRequest(`/api/org/${orgId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ modules }),
       });
-      const j = await res.json().catch(() => ({}));
+      const j = await readJson(res).catch(() => ({}));
       if (!res.ok) throw new Error(j?.error || 'Failed to save');
       flash('Modules saved');
     } catch (e: any) { setError(e.message); }
@@ -149,12 +151,12 @@ export default function OrgSettingsPage({ params }: { params: Promise<{ orgId: s
     e.preventDefault();
     setSaving(true); setError(null);
     try {
-      const res = await fetch(`/api/org/${orgId}`, {
+      const res = await apiRequest(`/api/org/${orgId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ branding: { logo_url: logoUrl || undefined, primary_color: primaryColor || undefined } }),
       });
-      const j = await res.json().catch(() => ({}));
+      const j = await readJson(res).catch(() => ({}));
       if (!res.ok) throw new Error(j?.error || 'Failed to save');
       flash('Branding saved');
     } catch (e: any) { setError(e.message); }
@@ -165,12 +167,12 @@ export default function OrgSettingsPage({ params }: { params: Promise<{ orgId: s
     e.preventDefault();
     if (!newUserId.trim()) return;
     try {
-      const res = await fetch(`/api/org/${orgId}/members`, {
+      const res = await apiRequest(`/api/org/${orgId}/members`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ user_id: newUserId.trim(), role: newRole }),
       });
-      const j = await res.json().catch(() => ({}));
+      const j = await readJson(res).catch(() => ({}));
       if (!res.ok) throw new Error(j?.error || 'Failed to add member');
       setNewUserId('');
       loadMembers();
@@ -180,14 +182,14 @@ export default function OrgSettingsPage({ params }: { params: Promise<{ orgId: s
   async function removeMember(userId: string) {
     if (!confirm('Remove this member?')) return;
     try {
-      await fetch(`/api/org/${orgId}/members/${userId}`, { method: 'DELETE' });
+      await apiRequest(`/api/org/${orgId}/members/${userId}`, { method: 'DELETE' });
       loadMembers();
     } catch {}
   }
 
   async function updateMemberRole(userId: string, role: OrgRole) {
     try {
-      await fetch(`/api/org/${orgId}/members/${userId}`, {
+      await apiRequest(`/api/org/${orgId}/members/${userId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ role }),

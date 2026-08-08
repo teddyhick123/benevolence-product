@@ -1,5 +1,7 @@
 'use client';
 
+import { apiRequest, readJson } from "@/lib/api/client";
+
 import { useEffect, useState } from 'react';
 import { CheckCircle, Circle, Loader } from 'lucide-react';
 import type { CodeState, FindingRow } from '@/lib/builder/proposal-state';
@@ -63,9 +65,9 @@ export default function BuildProgressCard({ orgId, proposalId, plannedFiles, onC
           // Poll the detail route: it carries the current revision's
           // per-file progress and the latest review attempt, which the
           // (now-summary-only) list route never returned.
-          const res = await fetch(`/api/org/${orgId}/builder/proposals/${proposalId}`);
+          const res = await apiRequest(`/api/org/${orgId}/builder/proposals/${proposalId}`);
           if (!res.ok) continue;
-          const data = await res.json() as DetailResponse;
+          const data = await readJson(res) as DetailResponse;
 
           const doneFiles = new Set(
             (data.revision?.progress?.files ?? []).filter(f => f.done).map(f => f.path)

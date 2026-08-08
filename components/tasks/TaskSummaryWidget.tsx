@@ -1,5 +1,7 @@
 'use client';
 
+import { apiRequest, readJson } from "@/lib/api/client";
+
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 
@@ -31,8 +33,8 @@ export default function TaskSummaryWidget({ orgId }: Props) {
     let cancelled = false;
     setLoading(true);
     setSummary(null);
-    fetch(`/api/org/${orgId}/tasks/summary`)
-      .then(r => r.ok ? r.json() : null)
+    apiRequest(`/api/org/${orgId}/tasks/summary`)
+      .then(r => r.ok ? readJson(r) : null)
       .then(data => { if (!cancelled && data) setSummary(data); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };

@@ -1,6 +1,8 @@
 // components/admin/AdminRoleSelect.tsx
 'use client';
 
+import { apiRequest, readJson } from "@/lib/api/client";
+
 import { useState } from 'react';
 
 type Props = {
@@ -23,7 +25,7 @@ export default function AdminRoleSelect({ portfolioId, userId, initialRole }: Pr
     setSaving(true);
     setOk('idle');
     try {
-      const res = await fetch(
+      const res = await apiRequest(
         `/api/admin/portfolios/${encodeURIComponent(portfolioId)}/members/${encodeURIComponent(userId)}`,
         {
           method: 'PATCH',
@@ -31,7 +33,7 @@ export default function AdminRoleSelect({ portfolioId, userId, initialRole }: Pr
           body: JSON.stringify({ role: next }),
         }
       );
-      if (!res.ok) throw new Error((await res.json().catch(() => ({})))?.error || 'Failed to update role');
+      if (!res.ok) throw new Error((await readJson(res).catch(() => ({})))?.error || 'Failed to update role');
       setOk('saved');
       setTimeout(() => setOk('idle'), 1200);
     } catch (err) {

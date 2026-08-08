@@ -1,5 +1,7 @@
 'use client';
 
+import { apiRequest, readJson } from "@/lib/api/client";
+
 import { useState } from 'react';
 import { CheckCircle, AlertCircle, ChevronDown, ChevronRight } from 'lucide-react';
 import type { ScaffoldPlanContent } from '@/lib/builder/tools';
@@ -21,11 +23,11 @@ export default function PlanCard({ orgId, proposalId, planContent, canReviewImpl
     setApproving(true);
     setError(null);
     try {
-      const res = await fetch(
+      const res = await apiRequest(
         `/api/org/${orgId}/builder/proposals/${proposalId}/build`,
         { method: 'POST' }
       );
-      const data = await res.json();
+      const data = await readJson(res);
       if (!res.ok) throw new Error(data.error ?? 'Failed to start build');
       onApproved();
     } catch (err) {

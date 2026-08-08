@@ -1,7 +1,8 @@
 'use client';
 
+import { useAnalyticsData } from "@/lib/analytics/hooks";
+
 import { useState } from 'react';
-import useSWR from 'swr';
 
 type RiskSummary = {
   snapshot_date: string;
@@ -39,7 +40,6 @@ interface Props {
   onViewInsights?: () => void;
 }
 
-const fetcher = (url: string) => fetch(url).then(r => r.json());
 
 export default function AnalyticsDashboard({
   portfolioId,
@@ -48,15 +48,11 @@ export default function AnalyticsDashboard({
   onViewRisk,
   onViewInsights
 }: Props) {
-  const { data: riskData, error: riskError } = useSWR<{ risk: RiskSummary }>(
-    `/api/portfolio/${portfolioId}/analytics/risk?risk_type=all`,
-    fetcher
-  );
+  const { data: riskData, error: riskError } = useAnalyticsData<{ risk: RiskSummary }>(
+    `/api/portfolio/${portfolioId}/analytics/risk?risk_type=all`);
 
-  const { data: insightsData } = useSWR<{ insights: any[]; summary: InsightSummary }>(
-    `/api/portfolio/${portfolioId}/analytics/insights?limit=5`,
-    fetcher
-  );
+  const { data: insightsData } = useAnalyticsData<{ insights: any[]; summary: InsightSummary }>(
+    `/api/portfolio/${portfolioId}/analytics/insights?limit=5`);
 
   const risk = riskData?.risk;
   const summary = insightsData?.summary;

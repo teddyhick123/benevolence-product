@@ -1,7 +1,9 @@
 'use client';
 
+import { apiRequest, readJson } from "@/lib/api/client";
+import { useReportsData } from "@/lib/reports/hooks";
+
 import { useState, useEffect } from 'react';
-import useSWR from 'swr';
 
 type Holding = {
   id: string;
@@ -30,7 +32,6 @@ interface Props {
   onCancel?: () => void;
 }
 
-const fetcher = (url: string) => fetch(url).then(r => r.json());
 
 const AVAILABLE_SECTIONS = [
   { id: 'overview', label: 'Overview', description: 'Basic information and summary' },
@@ -76,10 +77,8 @@ export default function ReportTemplateEditor({ portfolioId, template, onSave, on
   const [isDefault, setIsDefault] = useState(template?.is_default || false);
 
   // Fetch available metrics
-  const { data: metricsData } = useSWR<{ data: Array<{ metric_code: string; metric_name: string }> }>(
-    `/api/portfolio/${portfolioId}/kpis`,
-    fetcher
-  );
+  const { data: metricsData } = useReportsData<{ data: Array<{ metric_code: string; metric_name: string }> }>(
+    `/api/portfolio/${portfolioId}/kpis`);
 
   const availableMetrics = metricsData?.data || [];
 
@@ -128,7 +127,7 @@ export default function ReportTemplateEditor({ portfolioId, template, onSave, on
 
       const method = template?.id ? 'PATCH' : 'POST';
 
-      const response = await fetch(url, {
+      const response = await apiRequest(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -141,11 +140,11 @@ export default function ReportTemplateEditor({ portfolioId, template, onSave, on
       });
 
       if (!response.ok) {
-        const data = await response.json();
+        const data = await readJson(response);
         throw new Error(data.error || 'Failed to save template');
       }
 
-      const { template: savedTemplate } = await response.json();
+      const { template: savedTemplate } = await readJson(response);
       onSave?.(savedTemplate);
     } catch (err: any) {
       setError(err.message);

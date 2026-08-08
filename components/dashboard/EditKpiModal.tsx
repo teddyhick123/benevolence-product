@@ -1,5 +1,7 @@
 'use client';
 
+import { apiRequest, readJson } from "@/lib/api/client";
+
 import * as React from 'react';
 import { createPortal } from 'react-dom';
 import clsx from 'clsx';
@@ -138,12 +140,12 @@ export default function EditKpiModal({ portfolioId, initial, open, onClose, onCh
         ? `/api/portfolio/${encodeURIComponent(portfolioId)}/kpis/${encodeURIComponent(initial!.id!)}`
         : `/api/portfolio/${encodeURIComponent(portfolioId)}/kpis`;
       const method = isEditing ? 'PATCH' : 'POST';
-      const res = await fetch(url, {
+      const res = await apiRequest(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
-      const j = await res.json().catch(() => ({}));
+      const j = await readJson(res).catch(() => ({}));
       if (!res.ok) throw new Error(j?.error || 'Request failed');
       onChanged?.();
       onClose();
@@ -161,8 +163,8 @@ export default function EditKpiModal({ portfolioId, initial, open, onClose, onCh
     setError(null);
     try {
       const url = `/api/portfolio/${encodeURIComponent(portfolioId)}/kpis/${encodeURIComponent(initial.id)}`;
-      const res = await fetch(url, { method: 'DELETE' });
-      const j = await res.json().catch(() => ({}));
+      const res = await apiRequest(url, { method: 'DELETE' });
+      const j = await readJson(res).catch(() => ({}));
       if (!res.ok) throw new Error(j?.error || 'Delete failed');
       onChanged?.();
       onClose();

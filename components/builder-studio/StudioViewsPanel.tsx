@@ -1,5 +1,7 @@
 'use client';
 
+import { apiRequest, readJson } from "@/lib/api/client";
+
 import { useEffect, useMemo, useState } from 'react';
 import { AlertCircle, Check, Eye, Loader2, Save } from 'lucide-react';
 import {
@@ -56,8 +58,8 @@ export default function StudioViewsPanel({ orgId }: StudioViewsPanelProps) {
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch(`/api/org/${orgId}/view-config?include_vocabulary=true`, { cache: 'no-store' });
-        const data = await res.json() as { configs?: ViewConfigRow[]; vocabulary?: Vocabulary; error?: string };
+        const res = await apiRequest(`/api/org/${orgId}/view-config?include_vocabulary=true`, { cache: 'no-store' });
+        const data = await readJson(res) as { configs?: ViewConfigRow[]; vocabulary?: Vocabulary; error?: string };
         if (!res.ok) throw new Error(data.error || 'Failed to load views');
         if (cancelled) return;
         const dashboard = data.configs?.find((row) => row.config_scope === 'dashboard' && row.scope_key === 'main');
@@ -91,12 +93,12 @@ export default function StudioViewsPanel({ orgId }: StudioViewsPanelProps) {
     setSaved(null);
     setError(null);
     try {
-      const res = await fetch(`/api/org/${orgId}/view-config`, {
+      const res = await apiRequest(`/api/org/${orgId}/view-config`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
-      const data = await res.json().catch(() => ({})) as { error?: string };
+      const data = await readJson(res).catch(() => ({})) as { error?: string };
       if (!res.ok) throw new Error(data.error || 'View update failed');
       setSaved(key);
       if (key === 'dashboard') setInitialSections(sections);

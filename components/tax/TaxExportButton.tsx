@@ -1,5 +1,7 @@
 'use client';
 
+import { requestDownload } from "@/lib/api/client";
+
 import * as React from 'react';
 
 export interface TaxExportButtonProps {
@@ -71,24 +73,9 @@ export default function TaxExportButton({
 
     try {
       const url = `/api/portfolio/${portfolioId}/tax/export?year=${year}&format=${format}`;
-      const res = await fetch(url);
-
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.error || 'Export failed');
-      }
-
-      const contentDisposition = res.headers.get('Content-Disposition');
-      let filename = `tax-export-${year}.${format}`;
-
-      if (contentDisposition) {
-        const filenameMatch = contentDisposition.match(/filename="?(.+)"?/);
-        if (filenameMatch) {
-          filename = filenameMatch[1];
-        }
-      }
-
-      const blob = await res.blob();
+      const download = await requestDownload(url);
+      const filename = download.filename ?? `tax-export-${year}.${format}`;
+      const { blob } = download;
       const downloadUrl = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = downloadUrl;

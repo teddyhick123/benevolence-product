@@ -1,5 +1,7 @@
 'use client';
 
+import { apiRequest, readJson } from "@/lib/api/client";
+
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -28,7 +30,7 @@ export default function NewOrgPage() {
     setError(null);
     setBusy(true);
     try {
-      const res = await fetch('/api/org', {
+      const res = await apiRequest('/api/org', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -37,7 +39,7 @@ export default function NewOrgPage() {
           org_type: orgType || undefined,
         }),
       });
-      const j = await res.json().catch(() => ({}));
+      const j = await readJson(res).catch(() => ({}));
       if (!res.ok) throw new Error(j?.error || 'Failed to create organization');
       router.replace(`/admin/org/${j.id}`);
     } catch (err: any) {

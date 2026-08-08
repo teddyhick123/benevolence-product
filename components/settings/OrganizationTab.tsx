@@ -1,5 +1,7 @@
 'use client';
 
+import { apiRequest, readJson } from "@/lib/api/client";
+
 import { useState } from 'react';
 
 interface OrganizationTabProps {
@@ -32,7 +34,7 @@ export default function OrganizationTab({ orgId, initialName, initialEin, orgTyp
     setError(null);
     setSaved(false);
 
-    const res = await fetch(`/api/org/${orgId}`, {
+    const res = await apiRequest(`/api/org/${orgId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: name.trim(), ein: ein.trim() || null }),
@@ -43,7 +45,7 @@ export default function OrganizationTab({ orgId, initialName, initialEin, orgTyp
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
     } else {
-      const data = await res.json();
+      const data = await readJson(res);
       setError(data.error || 'Failed to save changes.');
     }
   }

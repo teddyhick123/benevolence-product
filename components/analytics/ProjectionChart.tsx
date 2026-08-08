@@ -1,7 +1,8 @@
 'use client';
 
+import { useAnalyticsData } from "@/lib/analytics/hooks";
+
 import { useState, useEffect } from 'react';
-import useSWR from 'swr';
 
 type ProjectionPoint = {
   period_offset: number;
@@ -39,7 +40,6 @@ interface Props {
   height?: number;
 }
 
-const fetcher = (url: string) => fetch(url).then(r => r.json());
 
 const METRIC_OPTIONS = [
   { code: 'TOTAL_IMPACT', label: 'Total Impact' },
@@ -72,10 +72,8 @@ export default function ProjectionChart({
   });
   if (holdingId) queryParams.set('holding_id', holdingId);
 
-  const { data, error, isLoading } = useSWR<{ projection: Projection } | { error: string }>(
-    `/api/portfolio/${portfolioId}/analytics/projections?${queryParams}`,
-    fetcher
-  );
+  const { data, error, isLoading } = useAnalyticsData<{ projection: Projection } | { error: string }>(
+    `/api/portfolio/${portfolioId}/analytics/projections?${queryParams}`);
 
   const hasError = error || (data && 'error' in data);
   const projection = data && 'projection' in data ? data.projection : null;

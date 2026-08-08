@@ -1,5 +1,7 @@
 'use client';
 
+import { apiRequest, readJson } from "@/lib/api/client";
+
 import { useCallback, useEffect, useState } from 'react';
 import { LIFECYCLE_STAGES, type LifecycleStage } from '@/lib/grants/lifecycle-shared';
 
@@ -17,8 +19,8 @@ export function useStageLabels(orgId: string | null | undefined) {
     }
 
     let cancelled = false;
-    fetch(`/api/org/${orgId}/workflow-config/labels`)
-      .then(res => res.ok ? res.json() : { labels: {} })
+    apiRequest(`/api/org/${orgId}/workflow-config/labels`)
+      .then(res => res.ok ? readJson(res) : { labels: {} })
       .then(data => {
         if (!cancelled) setLabels(data.labels ?? {});
       })

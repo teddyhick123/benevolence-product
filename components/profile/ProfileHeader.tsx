@@ -1,5 +1,7 @@
 'use client';
 
+import { apiRequest } from "@/lib/api/client";
+
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 
@@ -39,7 +41,7 @@ export default function ProfileHeader({
   const handleSave = async () => {
     setIsSaving(true);
     try {
-      const response = await fetch('/api/profile/update', {
+      const response = await apiRequest('/api/profile/update', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData)

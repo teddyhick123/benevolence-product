@@ -1,5 +1,7 @@
 'use client';
 
+import { apiRequest, readJson } from "@/lib/api/client";
+
 import * as React from 'react';
 import { CPAShareLink, getExpirationDisplay } from '@/lib/tax/cpa-collaboration';
 
@@ -31,8 +33,8 @@ export default function CPACollaborationPortal({ portfolioId }: CPACollaboration
     setError(null);
 
     try {
-      const res = await fetch(`/api/portfolio/${portfolioId}/tax/cpa-share`);
-      const json = await res.json();
+      const res = await apiRequest(`/api/portfolio/${portfolioId}/tax/cpa-share`);
+      const json = await readJson(res);
 
       if (!res.ok) {
         throw new Error(json.error || 'Failed to load share links');
@@ -52,12 +54,12 @@ export default function CPACollaborationPortal({ portfolioId }: CPACollaboration
     }
 
     try {
-      const res = await fetch(`/api/portfolio/${portfolioId}/tax/cpa-share?share_link_id=${shareLinkId}`, {
+      const res = await apiRequest(`/api/portfolio/${portfolioId}/tax/cpa-share?share_link_id=${shareLinkId}`, {
         method: 'PATCH',
       });
 
       if (!res.ok) {
-        const json = await res.json();
+        const json = await readJson(res);
         throw new Error(json.error || 'Failed to revoke share link');
       }
 
@@ -439,13 +441,13 @@ function CreateShareLinkForm({ portfolioId, onSuccess, onCancel }: CreateShareLi
     setError(null);
 
     try {
-      const res = await fetch(`/api/portfolio/${portfolioId}/tax/cpa-share`, {
+      const res = await apiRequest(`/api/portfolio/${portfolioId}/tax/cpa-share`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData),
       });
 
-      const json = await res.json();
+      const json = await readJson(res);
 
       if (!res.ok) {
         throw new Error(json.error || 'Failed to create share link');

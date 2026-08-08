@@ -1,12 +1,13 @@
 'use client';
 
+import { apiRequest, readJson } from "@/lib/api/client";
+import { useHoldingsData } from "@/lib/holdings/hooks";
+
 import { useState, useEffect } from 'react';
-import useSWR from 'swr';
 import HoldingsTable from '@/components/holdings/HoldingsTable';
 import EditHoldingsModal, { HoldingInput } from '@/components/holdings/EditHoldingsModal';
 import { AssetType } from '@/lib/schemas/portfolio';
 
-const fetcher = (url: string) => fetch(url, { cache: 'no-store' }).then(r => r.json());
 
 export default function HoldingsPage() {
   const [portfolioId, setPortfolioId] = useState<string | null>(null);
@@ -16,8 +17,8 @@ export default function HoldingsPage() {
   const [editing, setEditing] = useState<HoldingInput | null>(null);
 
   useEffect(() => {
-    fetch('/api/me', { cache: 'no-store' })
-      .then(r => r.json())
+    apiRequest('/api/me', { cache: 'no-store' })
+      .then(r => readJson(r))
       .then(me => {
         if (me?.recommended_portfolio_id) setPortfolioId(me.recommended_portfolio_id);
         if (me?.role === 'owner' || me?.role === 'admin' || me?.role === 'member') setCanEdit(true);
@@ -25,10 +26,8 @@ export default function HoldingsPage() {
       .catch(() => {});
   }, []);
 
-  const { data, isLoading, mutate } = useSWR<{ data: any[]; count: number; nextOffset: number | null }>(
-    portfolioId ? `/api/portfolio/${encodeURIComponent(portfolioId)}/holdings?limit=200` : null,
-    fetcher
-  );
+  const { data, isLoading, mutate } = useHoldingsData<{ data: any[]; count: number; nextOffset: number | null }>(
+    portfolioId ? `/api/portfolio/${encodeURIComponent(portfolioId)}/holdings?limit=200` : null);
 
   const rows = data?.data ?? [];
 

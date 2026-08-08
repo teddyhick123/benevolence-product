@@ -1,11 +1,11 @@
 'use client';
+
+import { usePledgesData } from "@/lib/pledges/hooks";
 import { useState, useCallback } from 'react';
-import useSWR from 'swr';
 import PledgeCreateModal from './PledgeCreateModal';
 import PledgeDetailPanel from './PledgeDetailPanel';
 import { pledgeStatusBadgeClass, pledgeStatusLabel } from './pledgePalette';
 
-const fetcher = (url: string) => fetch(url).then(r => r.json());
 
 function fmt(n: number) {
   if (n >= 1_000_000) return '$' + (n / 1_000_000).toFixed(1) + 'M';
@@ -24,6 +24,19 @@ const FILTERS = [
 
 interface Props { orgId: string; }
 
+interface PledgePipelineResponse {
+  kpis: {
+    committed: number;
+    received: number;
+    outstanding: number;
+    overdue: number;
+    dueSoon: number;
+    fulfillmentRate: number;
+  };
+  pledges: any[];
+  attention: { overdue: any[]; dueSoon: any[] };
+}
+
 export default function PledgePipelineDashboard({ orgId }: Props) {
   const [filter, setFilter]         = useState('active');
   const [showCreate, setShowCreate] = useState(false);
@@ -33,9 +46,19 @@ export default function PledgePipelineDashboard({ orgId }: Props) {
     ? `/api/org/${orgId}/pledges?status=all&pipeline_status=${filter}`
     : `/api/org/${orgId}/pledges?status=${filter}`;
 
-  const { data, isLoading, mutate } = useSWR(apiUrl, fetcher, { revalidateOnFocus: false });
+  const { data, isLoading, mutate } = usePledgesData<PledgePipelineResponse>(
+    apiUrl,
+    { revalidateOnFocus: false }
+  );
 
-  const kpis = data?.kpis ?? {};
+  const kpis = data?.kpis ?? {
+    committed: 0,
+    received: 0,
+    outstanding: 0,
+    overdue: 0,
+    dueSoon: 0,
+    fulfillmentRate: 0,
+  };
   const pledges: any[] = data?.pledges ?? [];
   const attention = data?.attention ?? { overdue: [], dueSoon: [] };
 

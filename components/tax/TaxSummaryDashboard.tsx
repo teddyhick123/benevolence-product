@@ -1,5 +1,7 @@
 'use client';
 
+import { apiRequest, readJson } from "@/lib/api/client";
+
 import * as React from 'react';
 import type { PortfolioTaxSummary, TaxYearDetail, DonationCapacity } from '@/lib/schemas/tax';
 
@@ -29,8 +31,8 @@ export default function TaxSummaryDashboard({
     async function fetchData() {
       try {
         setLoading(true);
-        const res = await fetch(`/api/portfolio/${portfolioId}/tax/summary?year=${year}`);
-        const json = await res.json();
+        const res = await apiRequest(`/api/portfolio/${portfolioId}/tax/summary?year=${year}`);
+        const json = await readJson(res);
 
         if (!res.ok) {
           throw new Error(json.error || 'Failed to fetch tax summary');

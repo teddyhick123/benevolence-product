@@ -1,5 +1,7 @@
 'use client';
 
+import { apiRequest, readJson } from "@/lib/api/client";
+
 /**
  * Module Context
  *
@@ -50,8 +52,8 @@ export function ModuleProvider({ children, orgId }: ModuleProviderProps) {
     setError(null);
 
     try {
-      const res = await fetch(`/api/org/${orgId}/modules`, { cache: 'no-store' });
-      const data = await res.json();
+      const res = await apiRequest(`/api/org/${orgId}/modules`, { cache: 'no-store' });
+      const data = await readJson(res);
 
       if (!res.ok) {
         setError(data.error ?? 'Failed to load modules');
@@ -89,12 +91,12 @@ export function ModuleProvider({ children, orgId }: ModuleProviderProps) {
 
   const enableModule = useCallback(async (moduleId: ModuleId): Promise<{ success: boolean; error?: string }> => {
     try {
-      const res = await fetch(`/api/org/${orgId}/modules`, {
+      const res = await apiRequest(`/api/org/${orgId}/modules`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'enable', moduleId }),
       });
-      const data = await res.json();
+      const data = await readJson(res);
 
       if (!res.ok) {
         return { success: false, error: data.error ?? 'Failed to enable module' };
@@ -119,12 +121,12 @@ export function ModuleProvider({ children, orgId }: ModuleProviderProps) {
     }
 
     try {
-      const res = await fetch(`/api/org/${orgId}/modules`, {
+      const res = await apiRequest(`/api/org/${orgId}/modules`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'disable', moduleId }),
       });
-      const data = await res.json();
+      const data = await readJson(res);
 
       if (!res.ok) {
         return { success: false, error: data.error ?? 'Failed to disable module' };

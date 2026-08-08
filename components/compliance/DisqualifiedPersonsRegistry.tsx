@@ -1,5 +1,7 @@
 'use client';
 
+import { apiRequest, readJson } from "@/lib/api/client";
+
 import { useState, useEffect, useRef } from 'react';
 
 interface DisqualifiedPerson {
@@ -59,8 +61,8 @@ export default function DisqualifiedPersonsRegistry({ orgId }: Props) {
     setLoading(true);
     try {
       const url = `/api/org/${orgId}/compliance/disqualified-persons?active_only=${!showInactive}${search ? `&q=${encodeURIComponent(search)}` : ''}`;
-      const res = await fetch(url);
-      const json = await res.json();
+      const res = await apiRequest(url);
+      const json = await readJson(res);
       setPersons(json.data || []);
     } finally {
       setLoading(false);
@@ -72,12 +74,12 @@ export default function DisqualifiedPersonsRegistry({ orgId }: Props) {
   async function handleAdd() {
     setAdding(true);
     try {
-      const res = await fetch(`/api/org/${orgId}/compliance/disqualified-persons`, {
+      const res = await apiRequest(`/api/org/${orgId}/compliance/disqualified-persons`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form),
       });
-      if (!res.ok) throw new Error((await res.json()).error);
+      if (!res.ok) throw new Error((await readJson(res)).error);
       setShowAddModal(false);
       setForm({ full_name: '', relationship_type: 'foundation_manager', title_or_role: '', ein: '', ssn_last4: '', start_date: new Date().toISOString().split('T')[0], notes: '' });
       await load();
@@ -92,7 +94,7 @@ export default function DisqualifiedPersonsRegistry({ orgId }: Props) {
     if (!confirm('Soft-terminate this person? (Sets end date to today — record is retained for audit purposes.)')) return;
     setTerminating(id);
     try {
-      await fetch(`/api/org/${orgId}/compliance/disqualified-persons?id=${id}`, { method: 'DELETE' });
+      await apiRequest(`/api/org/${orgId}/compliance/disqualified-persons?id=${id}`, { method: 'DELETE' });
       await load();
     } finally {
       setTerminating(null);
@@ -104,8 +106,8 @@ export default function DisqualifiedPersonsRegistry({ orgId }: Props) {
     setScreening(true);
     setScreenResult(null);
     try {
-      const res = await fetch(`/api/org/${orgId}/compliance/disqualified-persons?q=${encodeURIComponent(screenName)}&active_only=true`);
-      const json = await res.json();
+      const res = await apiRequest(`/api/org/${orgId}/compliance/disqualified-persons?q=${encodeURIComponent(screenName)}&active_only=true`);
+      const json = await readJson(res);
       const persons = json.data || [];
       const matches = persons.filter((p: DisqualifiedPerson) =>
         p.full_name.toLowerCase().includes(screenName.toLowerCase())

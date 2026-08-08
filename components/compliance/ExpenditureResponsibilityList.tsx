@@ -1,5 +1,7 @@
 'use client';
 
+import { apiRequest, readJson } from "@/lib/api/client";
+
 import { useState, useEffect } from 'react';
 
 interface ERGrant {
@@ -45,8 +47,8 @@ export default function ExpenditureResponsibilityList({ portfolioId }: Props) {
     try {
       let url = `/api/portfolio/${portfolioId}/compliance/er-grants`;
       if (statusFilter) url += `?status=${statusFilter}`;
-      const res = await fetch(url);
-      const json = await res.json();
+      const res = await apiRequest(url);
+      const json = await readJson(res);
       setGrants(json.data || []);
     } finally {
       setLoading(false);
@@ -58,7 +60,7 @@ export default function ExpenditureResponsibilityList({ portfolioId }: Props) {
   async function handleRecordReport(erGrantId: string, currentCount: number) {
     setRecordingReport(erGrantId);
     try {
-      await fetch(`/api/portfolio/${portfolioId}/compliance/er-grants?id=${erGrantId}`, {
+      await apiRequest(`/api/portfolio/${portfolioId}/compliance/er-grants?id=${erGrantId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ er_reports_received_count: currentCount + 1 }),

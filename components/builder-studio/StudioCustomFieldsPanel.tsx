@@ -1,5 +1,7 @@
 'use client';
 
+import { apiRequest, readJson } from "@/lib/api/client";
+
 import { useCallback, useEffect, useState } from 'react';
 import { AlertCircle, ListPlus, Loader2, Plus } from 'lucide-react';
 import StudioChangePreview from './StudioChangePreview';
@@ -24,8 +26,8 @@ export default function StudioCustomFieldsPanel({ orgId }: StudioCustomFieldsPan
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/org/${orgId}/custom-fields`, { cache: 'no-store' });
-      const data = await res.json() as { data?: CustomField[]; error?: string };
+      const res = await apiRequest(`/api/org/${orgId}/custom-fields`, { cache: 'no-store' });
+      const data = await readJson(res) as { data?: CustomField[]; error?: string };
       if (!res.ok) throw new Error(data.error || 'Failed to load custom fields');
       setFields(data.data || []);
     } catch (err) { setError(err instanceof Error ? err.message : 'Failed to load custom fields'); }
@@ -52,8 +54,8 @@ export default function StudioCustomFieldsPanel({ orgId }: StudioCustomFieldsPan
         required_at_stage: form.entity_type === 'grant' && form.requiredAtStage ? form.requiredAtStage : null,
         is_ai_readable: form.isAiReadable,
       };
-      const res = await fetch(`/api/org/${orgId}/custom-fields`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-      const data = await res.json().catch(() => ({})) as { data?: CustomField; error?: string };
+      const res = await apiRequest(`/api/org/${orgId}/custom-fields`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+      const data = await readJson(res).catch(() => ({})) as { data?: CustomField; error?: string };
       if (!res.ok || !data.data) throw new Error(data.error || 'Failed to create custom field');
       setFields((current) => [...current, data.data!]);
       setForm(EMPTY_FORM);

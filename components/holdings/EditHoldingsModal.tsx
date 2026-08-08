@@ -1,5 +1,7 @@
 'use client';
 
+import { apiRequest, readJson } from "@/lib/api/client";
+
 import * as React from 'react';
 import { createPortal } from 'react-dom';
 import clsx from 'clsx';
@@ -174,9 +176,9 @@ export default function EditHoldingsModal({ portfolioId, initial, open, onClose,
     charityDebounceRef.current = setTimeout(async () => {
       setCharitySearching(true);
       try {
-        const res = await fetch(`/api/search-charities?q=${encodeURIComponent(charityQuery)}`);
+        const res = await apiRequest(`/api/search-charities?q=${encodeURIComponent(charityQuery)}`);
         if (res.ok) {
-          const data = await res.json();
+          const data = await readJson(res);
           setCharityResults(data.results || []);
           setShowCharityResults(true);
         }
@@ -246,18 +248,18 @@ export default function EditHoldingsModal({ portfolioId, initial, open, onClose,
         return;
       }
 
-      const res = await fetch(url, {
+      const res = await apiRequest(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
-      const j = await res.json().catch(() => ({}));
+      const j = await readJson(res).catch(() => ({}));
       if (!res.ok) throw new Error(j?.error || 'Request failed');
 
       // Link charity after creation if one was selected
       if (selectedCharity && j?.data?.id) {
         try {
-          await fetch(`/api/holdings/${j.data.id}/link-charity`, {
+          await apiRequest(`/api/holdings/${j.data.id}/link-charity`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ ein: selectedCharity.ein }),
@@ -283,8 +285,8 @@ export default function EditHoldingsModal({ portfolioId, initial, open, onClose,
     setError(null);
     try {
       const url = `/api/portfolio/${encodeURIComponent(portfolioId)}/holdings/${encodeURIComponent(initial.id)}`;
-      const res = await fetch(url, { method: 'DELETE' });
-      const j = await res.json().catch(() => ({}));
+      const res = await apiRequest(url, { method: 'DELETE' });
+      const j = await readJson(res).catch(() => ({}));
       if (!res.ok) throw new Error(j?.error || 'Delete failed');
       onChanged?.();
       onClose();

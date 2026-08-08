@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { useWidgetDimensions } from '@/hooks/useWidgetDimensions';
+import { useWidgetDimensions } from '@/lib/hooks/useWidgetDimensions';
 
 export type D3JsonWidgetProps = {
   title?: string | null;

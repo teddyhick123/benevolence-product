@@ -1,4 +1,6 @@
 'use client';
+
+import { apiRequest, readJson } from "@/lib/api/client";
 // components/admin/ReconciliationReport.tsx
 // Displays reconciliation report with entity match rates, delta analysis, and action items
 
@@ -37,9 +39,9 @@ export function ReconciliationReportView({ report, onCommit, onReviewErrors, imp
     if (!importJobId) return;
     setLoadingAi(true);
     try {
-      const res = await fetch(`/api/admin/imports/${importJobId}/ai/reconcile`, { method: 'POST' });
+      const res = await apiRequest(`/api/admin/imports/${importJobId}/ai/reconcile`, { method: 'POST' });
       if (res.ok) {
-        const data = await res.json() as { analysis: ReconciliationAnalysis };
+        const data = await readJson(res) as { analysis: ReconciliationAnalysis };
         setAiAnalysis(data.analysis);
       }
     } finally {

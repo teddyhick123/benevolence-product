@@ -1,9 +1,11 @@
 'use client';
 
+import { apiRequest, readJson } from "@/lib/api/client";
+import { useAnalyticsData } from "@/lib/analytics/hooks";
+
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import ProjectionChart from '@/components/analytics/ProjectionChart';
-import useSWR from 'swr';
 
 type Holding = {
   id: string;
@@ -11,7 +13,6 @@ type Holding = {
   sector: string | null;
 };
 
-const fetcher = (url: string) => fetch(url).then(r => r.json());
 
 const METRIC_OPTIONS = [
   { code: 'TOTAL_IMPACT', label: 'Total Impact', description: 'Overall impact score' },
@@ -34,9 +35,9 @@ export default function ProjectionsPage() {
   useEffect(() => {
     async function fetchProfile() {
       try {
-        const res = await fetch('/api/me');
+        const res = await apiRequest('/api/me');
         if (res.ok) {
-          const json = await res.json();
+          const json = await readJson(res);
           setPortfolioId(json.portfolio_id || json.recommended_portfolio_id);
         }
       } catch (err) {
@@ -49,10 +50,8 @@ export default function ProjectionsPage() {
   }, []);
 
   // Fetch holdings for dropdown
-  const { data: holdingsData } = useSWR<{ data: Holding[] }>(
-    portfolioId ? `/api/portfolio/${portfolioId}/holdings?select=id,name,sector` : null,
-    fetcher
-  );
+  const { data: holdingsData } = useAnalyticsData<{ data: Holding[] }>(
+    portfolioId ? `/api/portfolio/${portfolioId}/holdings?select=id,name,sector` : null);
   const holdings = holdingsData?.data ?? [];
 
   const toggleMetric = (code: string) => {

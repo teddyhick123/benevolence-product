@@ -1,5 +1,7 @@
 "use client";
 
+import { apiRequest, readJson } from "@/lib/api/client";
+
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import type { ModuleId } from "@/lib/modules/types";
@@ -89,11 +91,11 @@ export default function OrgDashboardClient({
   useEffect(() => {
     async function fetchDashboard() {
       try {
-        const res = await fetch(`/api/org/${orgId}/dashboard`);
+        const res = await apiRequest(`/api/org/${orgId}/dashboard`);
         if (!res.ok) {
           throw new Error("Failed to load dashboard data");
         }
-        const data = await res.json();
+        const data = await readJson(res);
         setDashboardData(data);
       } catch (err: any) {
         setError(err.message);

@@ -1,4 +1,6 @@
 'use client';
+
+import { apiRequest, readJson } from "@/lib/api/client";
 // components/admin/ImportErrorsTable.tsx
 // Browse validation errors for an import job
 
@@ -69,12 +71,12 @@ export function ImportErrorsTable({ importJobId }: ImportErrorsTableProps) {
       });
       if (severity !== 'all') params.set('severity', severity);
 
-      const res = await fetch(`/api/admin/imports/${importJobId}/errors?${params}`);
+      const res = await apiRequest(`/api/admin/imports/${importJobId}/errors?${params}`);
       if (!res.ok) {
-        const body = await res.json() as { error?: string };
+        const body = await readJson(res) as { error?: string };
         throw new Error(body.error ?? 'Failed to load errors');
       }
-      const data = await res.json() as { rows?: ErrorRow[]; total?: number };
+      const data = await readJson(res) as { rows?: ErrorRow[]; total?: number };
       setRows(data.rows ?? []);
       setTotal(data.total ?? 0);
     } catch (err) {
@@ -91,7 +93,7 @@ export function ImportErrorsTable({ importJobId }: ImportErrorsTableProps) {
   const fetchAIFix = async (row: ErrorRow) => {
     setLoadingAIFor((prev) => new Set(prev).add(row.id));
     try {
-      const res = await fetch('/api/admin/import/ai/suggest', {
+      const res = await apiRequest('/api/admin/import/ai/suggest', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -101,7 +103,7 @@ export function ImportErrorsTable({ importJobId }: ImportErrorsTableProps) {
         }),
       });
       if (res.ok) {
-        const data = await res.json() as {
+        const data = await readJson(res) as {
           suggestions: Array<{ row_id: string; suggestions: AISuggestion[] }>;
         };
         const rowSuggestions = data.suggestions.find((s) => s.row_id === row.id);
@@ -128,7 +130,7 @@ export function ImportErrorsTable({ importJobId }: ImportErrorsTableProps) {
     const key = `${row.id}:${suggestion.field}`;
     setAcceptingKey(key);
     try {
-      const res = await fetch(`/api/admin/imports/${importJobId}/errors`, {
+      const res = await apiRequest(`/api/admin/imports/${importJobId}/errors`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -181,13 +183,13 @@ export function ImportErrorsTable({ importJobId }: ImportErrorsTableProps) {
     for (const key of fixesNeeded) {
       const [field, fix] = key.split(':');
       try {
-        const res = await fetch(`/api/admin/imports/${importJobId}/bulk-fix`, {
+        const res = await apiRequest(`/api/admin/imports/${importJobId}/bulk-fix`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ entity, field, fix }),
         });
         if (res.ok) {
-          const data = await res.json() as { fixed?: number; still_failing?: number };
+          const data = await readJson(res) as { fixed?: number; still_failing?: number };
           totalFixed += data.fixed ?? 0;
           totalStillFailing += data.still_failing ?? 0;
         }

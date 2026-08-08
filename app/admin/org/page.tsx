@@ -1,5 +1,7 @@
 'use client';
 
+import { apiRequest, readJson } from "@/lib/api/client";
+
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Organization } from '@/lib/types/org';
@@ -17,8 +19,8 @@ export default function OrgListPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch('/api/org', { cache: 'no-store' })
-      .then(r => r.json())
+    apiRequest('/api/org', { cache: 'no-store' })
+      .then(r => readJson(r))
       .then(d => {
         if (d.error) throw new Error(d.error);
         setOrgs(d.organizations || []);

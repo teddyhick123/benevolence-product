@@ -1,5 +1,7 @@
 'use client';
 
+import { apiRequest, readJson } from "@/lib/api/client";
+
 import { useEffect, useState, Suspense, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import InlineWidget from '@/components/ui/InlineWidget';
@@ -80,8 +82,8 @@ function LetterPageContent() {
 
         if (!portfolioId) {
           // Fall back to /api/me
-          const res = await fetch('/api/me', { cache: 'no-store' });
-          const data = await res.json();
+          const res = await apiRequest('/api/me', { cache: 'no-store' });
+          const data = await readJson(res);
 
           if (data?.portfolio_id) {
             portfolioId = data.portfolio_id;
@@ -96,11 +98,11 @@ function LetterPageContent() {
           setPortfolio({ id: portfolioId, name: '', description: '' });
 
           // Try to fetch cached letter first (GET)
-          const cachedRes = await fetch(`/api/portfolio/${portfolioId}/letter/generate`);
+          const cachedRes = await apiRequest(`/api/portfolio/${portfolioId}/letter/generate`);
 
           if (cachedRes.ok) {
             // Use cached letter
-            const cachedData = await cachedRes.json();
+            const cachedData = await readJson(cachedRes);
             setLetterData(cachedData);
             setPortfolio({
               id: cachedData.portfolio.id,
@@ -110,10 +112,10 @@ function LetterPageContent() {
           } else {
             // No cached letter - generate new one
             setGeneratingLetter(true);
-            const letterRes = await fetch(`/api/portfolio/${portfolioId}/letter/generate`, {
+            const letterRes = await apiRequest(`/api/portfolio/${portfolioId}/letter/generate`, {
               method: 'POST',
             });
-            const letterData = await letterRes.json();
+            const letterData = await readJson(letterRes);
 
             if (letterRes.ok) {
               setLetterData(letterData);
@@ -171,7 +173,7 @@ function LetterPageContent() {
     setIsLoadingResponse(true);
 
     try {
-      const res = await fetch('/api/ai/chat', {
+      const res = await apiRequest('/api/ai/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -184,7 +186,7 @@ function LetterPageContent() {
         }),
       });
 
-      const data = await res.json();
+      const data = await readJson(res);
 
       if (!res.ok) {
         throw new Error(data.error || 'Failed to send message');
@@ -219,10 +221,10 @@ function LetterPageContent() {
 
     setGeneratingLetter(true);
     try {
-      const res = await fetch(`/api/portfolio/${portfolio.id}/letter/generate?force=true`, {
+      const res = await apiRequest(`/api/portfolio/${portfolio.id}/letter/generate?force=true`, {
         method: 'POST',
       });
-      const data = await res.json();
+      const data = await readJson(res);
 
       if (res.ok) {
         setLetterData(data);

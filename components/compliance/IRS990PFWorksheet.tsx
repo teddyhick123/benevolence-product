@@ -1,5 +1,7 @@
 'use client';
 
+import { apiRequest, readJson } from "@/lib/api/client";
+
 import { useState, useEffect } from 'react';
 
 interface GrantDetail {
@@ -55,8 +57,8 @@ export default function IRS990PFWorksheet({ portfolioId, year }: Props) {
     setLoading(true);
     setError(null);
     setData(null);
-    fetch(`/api/portfolio/${portfolioId}/compliance/990pf-export?year=${selectedYear}`)
-      .then(r => r.json())
+    apiRequest(`/api/portfolio/${portfolioId}/compliance/990pf-export?year=${selectedYear}`)
+      .then(r => readJson(r))
       .then(d => {
         if (!cancelled) setData(d);
       })

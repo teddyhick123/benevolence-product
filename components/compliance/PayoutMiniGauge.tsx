@@ -1,5 +1,7 @@
 'use client';
 
+import { apiRequest, readJson } from "@/lib/api/client";
+
 import { useState, useEffect } from 'react';
 
 interface Props {
@@ -11,8 +13,8 @@ export default function PayoutMiniGauge({ portfolioId }: Props) {
   const [data, setData] = useState<any>(null);
 
   useEffect(() => {
-    fetch(`/api/portfolio/${encodeURIComponent(portfolioId)}/compliance/payout?year=${year}`)
-      .then(r => r.ok ? r.json() : null)
+    apiRequest(`/api/portfolio/${encodeURIComponent(portfolioId)}/compliance/payout?year=${year}`)
+      .then(r => r.ok ? readJson(r) : null)
       .then(d => setData(d))
       .catch(() => {});
   }, [portfolioId, year]);

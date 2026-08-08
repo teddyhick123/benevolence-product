@@ -1,4 +1,6 @@
 'use client';
+
+import { apiRequest, readJson } from "@/lib/api/client";
 import * as d3 from 'd3';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
@@ -32,12 +34,12 @@ export default function KpiTrend({ portfolioId, title, config, metric: legacyMet
         const params = new URLSearchParams({ metric });
         if (windowParam) params.set('window', windowParam);
         const url = `/api/portfolio/${encodeURIComponent(portfolioId)}/kpi-series?${params.toString()}`;
-        const r = await fetch(url, { cache: 'no-store' });
+        const r = await apiRequest(url, { cache: 'no-store' });
         if (!r.ok) {
           if (mounted) setData([]);
           return;
         }
-        const j = await r.json();
+        const j = await readJson(r);
         const series = j.series || [];
         if (mounted) {
           setData(series);

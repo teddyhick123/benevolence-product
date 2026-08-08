@@ -1,4 +1,6 @@
 'use client';
+
+import { apiRequest, readJson } from "@/lib/api/client";
 import * as d3 from 'd3';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { getAssetTypeColor } from '@/lib/schemas/portfolio';
@@ -131,12 +133,12 @@ export default function ImpactMap({ points, mode = 'points', onPointClick, onPoi
     async function loadTopo() {
       try {
         const [worldRes, landRes] = await Promise.allSettled([
-          fetch('/world-110m.json'),
-          fetch('/land-110m.json'),
+          apiRequest('/world-110m.json'),
+          apiRequest('/land-110m.json'),
         ]);
 
         let topo: any | null = null;
-        if (worldRes.status === 'fulfilled') topo = await worldRes.value.json();
+        if (worldRes.status === 'fulfilled') topo = await readJson(worldRes.value);
         const topojson = await import('topojson-client');
 
         if (topo?.objects?.countries) {
@@ -144,7 +146,7 @@ export default function ImpactMap({ points, mode = 'points', onPointClick, onPoi
           setBorders(bordersData);
         }
         if (landRes.status === 'fulfilled') {
-          const landTopo: any = await landRes.value.json();
+          const landTopo: any = await readJson(landRes.value);
           if (landTopo?.objects?.land) {
             const landFeature = topojson.feature(landTopo, landTopo.objects.land) as any;
             setLand(landFeature);

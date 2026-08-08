@@ -1,5 +1,7 @@
 'use client';
 
+import { apiRequest, readJson } from "@/lib/api/client";
+
 import * as React from 'react';
 import { createPortal } from 'react-dom';
 import clsx from 'clsx';
@@ -382,26 +384,26 @@ function ConfigureWidget({
           ? `/api/holdings/${encodeURIComponent(holdingId)}/widgets/${encodeURIComponent(editing.id)}`
           : `/api/portfolio/${encodeURIComponent(portfolioId)}/widgets/${encodeURIComponent(editing.id)}`;
 
-        const response = await fetch(updateEndpoint, {
+        const response = await apiRequest(updateEndpoint, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ type, title, config })
         });
 
         if (!response.ok) {
-          const data = await response.json().catch(() => ({}));
+          const data = await readJson(response).catch(() => ({}));
           throw new Error(data.error || 'Failed to update widget');
         }
       } else {
         // Create new widget
-        const response = await fetch(apiEndpoint, {
+        const response = await apiRequest(apiEndpoint, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ type, title, config })
         });
 
         if (!response.ok) {
-          const data = await response.json().catch(() => ({}));
+          const data = await readJson(response).catch(() => ({}));
           throw new Error(data.error || 'Failed to create widget');
         }
       }

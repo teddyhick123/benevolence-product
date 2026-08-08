@@ -1,5 +1,7 @@
 'use client';
 
+import { requestStream } from "@/lib/api/client";
+
 import { useState, useRef, useEffect, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import TrefoilLoader from '@/components/ui/TrefoilLoader';
@@ -78,20 +80,13 @@ export default function ConstructorPanel() {
     let fullText = '';
 
     try {
-      const res = await fetch('/api/constructor/chat', {
+      const res = await requestStream('/api/constructor/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: userMsg, sessionId }),
       });
 
-      if (!res.ok || !res.body) {
-        const err = await res.json().catch(() => ({ error: 'Request failed' }));
-        setMessages(prev => [...prev, { role: 'assistant', content: `Error: ${err.error}` }]);
-        setIsStreaming(false);
-        return;
-      }
-
-      const reader = res.body.getReader();
+      const reader = res.body!.getReader();
       const decoder = new TextDecoder();
       let buffer = '';
 

@@ -1,5 +1,7 @@
 'use client';
 
+import { apiRequest, readJson } from "@/lib/api/client";
+
 import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import {
@@ -73,7 +75,7 @@ function PrintContent() {
       }
 
       try {
-        const res = await fetch(
+        const res = await apiRequest(
           `/api/portfolio/${portfolioId}/tax/export?year=${year}&format=json`
         );
 
@@ -81,7 +83,7 @@ function PrintContent() {
           throw new Error('Failed to load tax data');
         }
 
-        const json = await res.json();
+        const json = await readJson(res);
         setData(json.data);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Unknown error');

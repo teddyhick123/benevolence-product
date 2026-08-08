@@ -1,5 +1,7 @@
 'use client';
 
+import { apiRequest, readJson } from "@/lib/api/client";
+
 import { useState } from 'react';
 
 export default function LoadDemoDataButton() {
@@ -11,8 +13,8 @@ export default function LoadDemoDataButton() {
     setLoading(true);
     setResult(null);
     try {
-      const res = await fetch('/api/admin/demo/load', { method: 'POST' });
-      const json = await res.json();
+      const res = await apiRequest('/api/admin/demo/load', { method: 'POST' });
+      const json = await readJson(res);
       setResult(json);
     } catch {
       setResult({ error: 'Request failed' });

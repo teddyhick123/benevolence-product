@@ -1,5 +1,7 @@
 'use client';
 
+import { apiRequest, readJson } from "@/lib/api/client";
+
 import { useState, useEffect, useCallback } from 'react';
 
 interface BudgetItem {
@@ -39,9 +41,9 @@ export default function BudgetTracker({ grantId, portfolioId }: Props) {
 
   const fetchItems = useCallback(async () => {
     try {
-      const res = await fetch(`/api/portfolio/${portfolioId}/grants/${grantId}/budget`);
+      const res = await apiRequest(`/api/portfolio/${portfolioId}/grants/${grantId}/budget`);
       if (!res.ok) throw new Error('Failed to load budget');
-      const json = await res.json();
+      const json = await readJson(res);
       setItems(json.data || []);
     } catch (err) {
       console.error('Error fetching budget:', err);
@@ -58,7 +60,7 @@ export default function BudgetTracker({ grantId, portfolioId }: Props) {
     setSaving(true);
     setError(null);
     try {
-      const res = await fetch(
+      const res = await apiRequest(
         `/api/portfolio/${portfolioId}/grants/${grantId}/budget?itemId=${item.id}`,
         {
           method: 'PATCH',
@@ -67,10 +69,10 @@ export default function BudgetTracker({ grantId, portfolioId }: Props) {
         }
       );
       if (!res.ok) {
-        const json = await res.json();
+        const json = await readJson(res);
         throw new Error(json.error || 'Save failed');
       }
-      const json = await res.json();
+      const json = await readJson(res);
       setItems((prev) => prev.map((i) => (i.id === item.id ? json.data : i)));
       setEditingId(null);
     } catch (err) {
@@ -88,7 +90,7 @@ export default function BudgetTracker({ grantId, portfolioId }: Props) {
     setSaving(true);
     setError(null);
     try {
-      const res = await fetch(`/api/portfolio/${portfolioId}/grants/${grantId}/budget`, {
+      const res = await apiRequest(`/api/portfolio/${portfolioId}/grants/${grantId}/budget`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -98,10 +100,10 @@ export default function BudgetTracker({ grantId, portfolioId }: Props) {
         }),
       });
       if (!res.ok) {
-        const json = await res.json();
+        const json = await readJson(res);
         throw new Error(json.error || 'Failed to add item');
       }
-      const json = await res.json();
+      const json = await readJson(res);
       setItems((prev) => [...prev, json.data]);
       setNewItem({ category: 'Personnel', description: '', budgeted_amount: '' });
       setShowAddForm(false);
@@ -115,7 +117,7 @@ export default function BudgetTracker({ grantId, portfolioId }: Props) {
   const handleDelete = async (id: string) => {
     if (!confirm('Remove this budget item?')) return;
     try {
-      const res = await fetch(
+      const res = await apiRequest(
         `/api/portfolio/${portfolioId}/grants/${grantId}/budget?itemId=${id}`,
         { method: 'DELETE' }
       );

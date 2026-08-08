@@ -1,5 +1,7 @@
 'use client';
 
+import { apiRequest, readJson } from "@/lib/api/client";
+
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { pickActiveOrg } from '@/lib/org-cookie';
@@ -50,9 +52,9 @@ export default function DonorsPage() {
   useEffect(() => {
     async function fetchOrg() {
       try {
-        const res = await fetch('/api/org');
+        const res = await apiRequest('/api/org');
         if (res.ok) {
-          const data = await res.json();
+          const data = await readJson(res);
           const activeOrg = pickActiveOrg((data.organizations ?? []) as Array<{ id: string; modules?: Record<string, boolean> }>);
           if (activeOrg) {
             setOrgId(activeOrg.id);
@@ -79,9 +81,9 @@ export default function DonorsPage() {
         if (tierFilter) qs.set('donor_tier', tierFilter);
         if (recencyFilter) qs.set('recency_status', recencyFilter);
 
-        const res = await fetch(`/api/org/${orgId}/donors?${qs}`);
+        const res = await apiRequest(`/api/org/${orgId}/donors?${qs}`);
         if (!res.ok) throw new Error('Failed to load donors');
-        const data = await res.json();
+        const data = await readJson(res);
         setDonors(data.donors || []);
         setTotal(data.total ?? data.donors?.length ?? 0);
       } catch (err: any) {

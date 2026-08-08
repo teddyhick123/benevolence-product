@@ -1,5 +1,7 @@
 'use client';
 
+import { apiRequest, readJson } from "@/lib/api/client";
+
 import { Suspense, useState, useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { mutate } from 'swr';
@@ -51,9 +53,9 @@ function ReportsPageContent() {
   useEffect(() => {
     async function fetchProfile() {
       try {
-        const res = await fetch('/api/me');
+        const res = await apiRequest('/api/me');
         if (res.ok) {
-          const json = await res.json();
+          const json = await readJson(res);
           setPortfolioId(json.portfolio_id || json.recommended_portfolio_id);
         }
       } catch (err) {
@@ -120,7 +122,7 @@ function ReportsPageContent() {
     setGenerating(true);
 
     try {
-      const response = await fetch(`/api/portfolio/${portfolioId}/reports/generate`, {
+      const response = await apiRequest(`/api/portfolio/${portfolioId}/reports/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -130,7 +132,7 @@ function ReportsPageContent() {
       });
 
       if (response.ok) {
-        const { report } = await response.json();
+        const { report } = await readJson(response);
         setGeneratedReport(report);
       }
     } catch (err) {
@@ -147,7 +149,7 @@ function ReportsPageContent() {
     setGenerating(true);
 
     try {
-      const response = await fetch(`/api/portfolio/${portfolioId}/reports/generate`, {
+      const response = await apiRequest(`/api/portfolio/${portfolioId}/reports/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -159,7 +161,7 @@ function ReportsPageContent() {
       });
 
       if (response.ok) {
-        const { report } = await response.json();
+        const { report } = await readJson(response);
         setGeneratedReport(report);
       }
     } catch (err) {

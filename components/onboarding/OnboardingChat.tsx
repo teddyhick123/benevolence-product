@@ -1,5 +1,7 @@
 'use client';
 
+import { apiRequest, readJson } from "@/lib/api/client";
+
 import { useState, useRef, useEffect } from 'react';
 import { PaperAirplaneIcon, SparklesIcon } from '@heroicons/react/24/outline';
 import ReactMarkdown from 'react-markdown';
@@ -99,7 +101,7 @@ export default function OnboardingChat({
     setIsLoading(true);
 
     try {
-      const res = await fetch('/api/onboarding/chat', {
+      const res = await apiRequest('/api/onboarding/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -108,7 +110,7 @@ export default function OnboardingChat({
         }),
       });
 
-      const data = await res.json();
+      const data = await readJson(res);
       if (!res.ok) {
         throw new Error(data.error || 'Failed to send message');
       }

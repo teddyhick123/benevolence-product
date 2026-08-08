@@ -1,5 +1,7 @@
 'use client';
 
+import { apiRequest, readJson } from "@/lib/api/client";
+
 import { useState } from 'react';
 
 type Donor = {
@@ -172,7 +174,7 @@ ${organization.name}`;
     try {
       const content = selectedType === 'custom' ? customContent : generateLetterContent();
 
-      const response = await fetch(`/api/org/${organizationId}/acknowledgments`, {
+      const response = await apiRequest(`/api/org/${organizationId}/acknowledgments`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -185,7 +187,7 @@ ${organization.name}`;
       });
 
       if (!response.ok) {
-        const data = await response.json();
+        const data = await readJson(response);
         throw new Error(data.error || 'Failed to create acknowledgment');
       }
 

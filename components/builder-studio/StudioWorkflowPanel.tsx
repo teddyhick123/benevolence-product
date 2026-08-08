@@ -1,5 +1,7 @@
 'use client';
 
+import { apiRequest, readJson } from "@/lib/api/client";
+
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AlertCircle, Check, ListChecks, Loader2, Save } from 'lucide-react';
 import { LIFECYCLE_STAGES } from '@/lib/grants/lifecycle-shared';
@@ -35,8 +37,8 @@ export default function StudioWorkflowPanel({ orgId }: StudioWorkflowPanelProps)
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/org/${orgId}/workflow-config`, { cache: 'no-store' });
-      const data = await res.json() as { data?: WorkflowRow[]; error?: string };
+      const res = await apiRequest(`/api/org/${orgId}/workflow-config`, { cache: 'no-store' });
+      const data = await readJson(res) as { data?: WorkflowRow[]; error?: string };
       if (!res.ok) {
         if (res.status === 403 && data.error?.includes('not enabled')) { setModuleDisabled(true); return; }
         throw new Error(data.error || 'Failed to load workflow rules');
@@ -74,12 +76,12 @@ export default function StudioWorkflowPanel({ orgId }: StudioWorkflowPanelProps)
     setSavedStage(null);
     setError(null);
     try {
-      const res = await fetch(`/api/org/${orgId}/workflow-config`, {
+      const res = await apiRequest(`/api/org/${orgId}/workflow-config`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'set_stage_label', stage_key: stage, label: labels[stage] || '' }),
       });
-      const data = await res.json().catch(() => ({})) as { error?: string };
+      const data = await readJson(res).catch(() => ({})) as { error?: string };
       if (!res.ok) throw new Error(data.error || 'Workflow update failed');
       setSavedStage(stage);
       await load();

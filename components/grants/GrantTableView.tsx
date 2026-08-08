@@ -1,5 +1,7 @@
 'use client';
 
+import { apiRequest, readJson } from "@/lib/api/client";
+
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import Link from 'next/link';
 import { LIFECYCLE_STAGES } from '@/lib/grants/lifecycle-shared';
@@ -122,9 +124,9 @@ export default function GrantTableView({ grants, loading, members = [], onNewGra
 
     let cancelled = false;
     const ids = grants.map(g => g.id).join(',');
-    fetch(`/api/org/${orgId}/custom-fields/batch?entity_type=grant&entity_ids=${encodeURIComponent(ids)}`)
+    apiRequest(`/api/org/${orgId}/custom-fields/batch?entity_type=grant&entity_ids=${encodeURIComponent(ids)}`)
       .then(async res => {
-        const json = await res.json().catch(() => ({}));
+        const json = await readJson(res).catch(() => ({}));
         if (!res.ok) throw new Error(json.error ?? 'Failed to load custom fields');
         return json;
       })
@@ -151,9 +153,9 @@ export default function GrantTableView({ grants, loading, members = [], onNewGra
     }
 
     let cancelled = false;
-    fetch(`/api/org/${orgId}/view-config?scope=table_columns&scope_key=grants_table`)
+    apiRequest(`/api/org/${orgId}/view-config?scope=table_columns&scope_key=grants_table`)
       .then(async res => {
-        const json = await res.json().catch(() => ({}));
+        const json = await readJson(res).catch(() => ({}));
         if (!res.ok) throw new Error(json.error ?? 'Failed to load table columns');
         return json;
       })

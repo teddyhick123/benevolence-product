@@ -1,5 +1,7 @@
 'use client';
 
+import { uploadJson } from "@/lib/api/client";
+
 import { useState, useRef, useCallback } from 'react';
 import { DOCUMENT_TYPE_LABELS } from '@/lib/tax/constants';
 import type { DocumentType } from '@/lib/schemas/tax';
@@ -96,20 +98,13 @@ export default function DocumentUploader({
 
       setProgress(30);
 
-      const res = await fetch(
+      await uploadJson(
         `/api/portfolio/${portfolioId}/tax/contributions/${contributionId}/documents`,
-        {
-          method: 'POST',
-          body: formData,
-        }
+        formData,
+        { method: 'POST' }
       );
 
       setProgress(80);
-
-      if (!res.ok) {
-        const json = await res.json();
-        throw new Error(json.error || 'Upload failed');
-      }
 
       setProgress(100);
       setSelectedFile(null);

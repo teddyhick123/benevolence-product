@@ -1,5 +1,7 @@
 'use client';
 
+import { apiRequest, readJson } from "@/lib/api/client";
+
 import { useState } from 'react';
 
 interface CachedAnalysis {
@@ -23,15 +25,15 @@ export default function FinancialAnalysisNarrative({
     setGenerating(true);
     setError(null);
     try {
-      const res = await fetch(
+      const res = await apiRequest(
         `/api/holdings/${holdingId}/financial-profile/generate${force ? '?force=true' : ''}`,
         { method: 'POST' }
       );
       if (!res.ok) {
-        const data = await res.json();
+        const data = await readJson(res);
         throw new Error(data.error || 'Failed to generate analysis');
       }
-      const data = await res.json();
+      const data = await readJson(res);
       setAnalysis({
         content: data.analysis_content,
         generated_at: data.generated_at,

@@ -1,4 +1,6 @@
 'use client';
+
+import { apiRequest, readJson, requestStream } from "@/lib/api/client";
 // components/admin/ImportCopilot.tsx
 // AI Migration Copilot chat panel
 
@@ -68,17 +70,13 @@ export function ImportCopilot({ importJobId, initialStatus }: ImportCopilotProps
       ]);
 
       try {
-        const res = await fetch(`/api/admin/imports/${importJobId}/ai/chat`, {
+        const res = await requestStream(`/api/admin/imports/${importJobId}/ai/chat`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ message: text, history }),
         });
 
-        if (!res.ok || !res.body) {
-          throw new Error('Failed to connect to copilot');
-        }
-
-        const reader = res.body.getReader();
+        const reader = res.body!.getReader();
         const decoder = new TextDecoder();
         let buffer = '';
         let fullText = '';
@@ -159,7 +157,7 @@ export function ImportCopilot({ importJobId, initialStatus }: ImportCopilotProps
       try {
         switch (action.type) {
           case 'bulk_fix': {
-            const res = await fetch(`/api/admin/imports/${importJobId}/bulk-fix`, {
+            const res = await apiRequest(`/api/admin/imports/${importJobId}/bulk-fix`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
@@ -168,7 +166,7 @@ export function ImportCopilot({ importJobId, initialStatus }: ImportCopilotProps
                 fix: action.fix,
               }),
             });
-            const data = await res.json() as { fixed?: number; still_failing?: number };
+            const data = await readJson(res) as { fixed?: number; still_failing?: number };
             setActionFeedback(
               `Fixed ${data.fixed ?? 0} rows. ${data.still_failing ?? 0} still failing.`
             );
@@ -184,7 +182,7 @@ export function ImportCopilot({ importJobId, initialStatus }: ImportCopilotProps
           }
 
           case 'rollback': {
-            await fetch(`/api/admin/imports/${importJobId}/rollback`, {
+            await apiRequest(`/api/admin/imports/${importJobId}/rollback`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ scope: action.scope ?? 'full' }),
@@ -195,7 +193,7 @@ export function ImportCopilot({ importJobId, initialStatus }: ImportCopilotProps
           }
 
           case 'commit': {
-            await fetch(`/api/admin/imports/${importJobId}/commit`, {
+            await apiRequest(`/api/admin/imports/${importJobId}/commit`, {
               method: 'POST',
             });
             setActionFeedback('Import committed.');
@@ -204,10 +202,10 @@ export function ImportCopilot({ importJobId, initialStatus }: ImportCopilotProps
           }
 
           case 'skip_warnings': {
-            const res = await fetch(`/api/admin/imports/${importJobId}/skip-warnings`, {
+            const res = await apiRequest(`/api/admin/imports/${importJobId}/skip-warnings`, {
               method: 'POST',
             });
-            const data = await res.json() as { updated?: number };
+            const data = await readJson(res) as { updated?: number };
             setActionFeedback(`Marked ${data.updated ?? 0} warning rows as valid.`);
             break;
           }

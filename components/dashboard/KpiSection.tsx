@@ -1,13 +1,13 @@
 'use client';
 
+import { useDashboardData } from "@/lib/dashboard/hooks";
+
 import * as React from 'react';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import useSWR from 'swr';
 import SectionHeader from '@/components/ui/SectionHeader';
 import KpiCard from '@/components/dashboard/KpiCard';
 import EditKpiModal, { KpiInput } from '@/components/dashboard/EditKpiModal';
 
-const fetcher = (url: string) => fetch(url, { cache: 'no-store' }).then(r => r.json());
 
 export type KpiRow = {
   metric_code: string;           // Primary identifier (was id)
@@ -38,9 +38,8 @@ export default function KpiSection({ portfolioId, canEdit = false, initialSums, 
     ? `/api/portfolio/${encodeURIComponent(portfolioId)}/kpis?as_of=${asOf}`
     : `/api/portfolio/${encodeURIComponent(portfolioId)}/kpis`;
 
-  const { data, error, isLoading, mutate } = useSWR<{ data: KpiRow[]; count: number; nextOffset: number | null }>(
-    apiUrl,  // SWR key changes when asOf changes → triggers refetch
-    fetcher
+  const { data, error, isLoading, mutate } = useDashboardData<{ data: KpiRow[]; count: number; nextOffset: number | null }>(
+    apiUrl // SWR key changes when asOf changes → triggers refetch
   );
 
   // When asOf is set, ignore initialSums (they're always "latest")

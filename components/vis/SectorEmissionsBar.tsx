@@ -1,8 +1,10 @@
 // components/vis/SectorEmissionsBar.tsx
 'use client';
+
+import { apiRequest, readJson } from "@/lib/api/client";
 import * as d3 from 'd3';
 import { useEffect, useRef, useState } from 'react';
-import { useWidgetDimensions } from '@/hooks/useWidgetDimensions';
+import { useWidgetDimensions } from '@/lib/hooks/useWidgetDimensions';
 
 type Row = { sector: string; value: number };
 
@@ -21,8 +23,8 @@ export default function SectorEmissionsBar({ portfolioId, title, config }: { por
     (async () => {
       try {
         if (!metricCode) { if (mounted) setRows([]); return; }
-        const r = await fetch(`/api/portfolio/${encodeURIComponent(portfolioId)}/metrics/sector-aggregate?metric=${metricCode}`, { cache: 'no-store' });
-        const j = await r.json();
+        const r = await apiRequest(`/api/portfolio/${encodeURIComponent(portfolioId)}/metrics/sector-aggregate?metric=${metricCode}`, { cache: 'no-store' });
+        const j = await readJson(r);
         const latest: any[] = j?.latest || [];
         const filtered = latest.filter(r => r.metric_name === metricCode);
         const bySector: Record<string, number> = {};

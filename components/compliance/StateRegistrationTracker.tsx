@@ -1,5 +1,7 @@
 'use client';
 
+import { apiRequest, readJson } from "@/lib/api/client";
+
 import { useState, useEffect } from 'react';
 
 interface StateRegistration {
@@ -54,8 +56,8 @@ export default function StateRegistrationTracker({ orgId }: Props) {
   async function load() {
     setLoading(true);
     try {
-      const res = await fetch(`/api/org/${orgId}/compliance/state-registrations`);
-      const json = await res.json();
+      const res = await apiRequest(`/api/org/${orgId}/compliance/state-registrations`);
+      const json = await readJson(res);
       setRegistrations(json.data || []);
     } finally {
       setLoading(false);
@@ -88,7 +90,7 @@ export default function StateRegistrationTracker({ orgId }: Props) {
   async function handleSave() {
     setSaving(true);
     try {
-      await fetch(`/api/org/${orgId}/compliance/state-registrations`, {
+      await apiRequest(`/api/org/${orgId}/compliance/state-registrations`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

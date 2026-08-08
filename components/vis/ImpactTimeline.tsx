@@ -1,4 +1,6 @@
 'use client';
+
+import { apiRequest, readJson } from "@/lib/api/client";
 import { useEffect, useState, useMemo, useRef } from 'react';
 import * as d3 from 'd3';
 
@@ -58,7 +60,7 @@ export default function ImpactTimeline({ portfolioId, title, config }: Props) {
         if (startDate) params.set('startDate', startDate);
         if (endDate) params.set('endDate', endDate);
 
-        const res = await fetch(
+        const res = await apiRequest(
           `/api/portfolio/${encodeURIComponent(portfolioId)}/timeline?${params.toString()}`,
           { cache: 'no-store' }
         );
@@ -67,7 +69,7 @@ export default function ImpactTimeline({ portfolioId, title, config }: Props) {
           throw new Error(`Failed to fetch timeline data: ${res.status}`);
         }
 
-        const json = await res.json();
+        const json = await readJson(res);
 
         if (mounted) {
           setData(json.data || []);

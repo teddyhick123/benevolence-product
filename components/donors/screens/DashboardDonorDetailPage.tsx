@@ -1,5 +1,7 @@
 'use client';
 
+import { apiRequest, readJson } from "@/lib/api/client";
+
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
@@ -46,17 +48,17 @@ export default function DonorProfilePage() {
 
   useEffect(() => {
     async function fetchOrg() {
-      const res = await fetch('/api/org');
+      const res = await apiRequest('/api/org');
       if (res.ok) {
-        const data = await res.json();
+        const data = await readJson(res);
         const oid = data.organizations?.[0]?.id || null;
         setOrgId(oid);
         const pledgesOn = !!(data.organizations?.[0]?.modules?.pledges);
         setPledgesEnabled(pledgesOn);
         if (pledgesOn && oid && donorId) {
           setPledgesLoading(true);
-          fetch(`/api/org/${oid}/pledges?donor_id=${donorId}&status=all`)
-            .then(r => r.json())
+          apiRequest(`/api/org/${oid}/pledges?donor_id=${donorId}&status=all`)
+            .then(r => readJson(r))
             .then(d => setPledges(d.pledges ?? []))
             .catch(() => {})
             .finally(() => setPledgesLoading(false));
@@ -72,9 +74,9 @@ export default function DonorProfilePage() {
     async function fetchDonor() {
       setLoading(true);
       try {
-        const res = await fetch(`/api/org/${orgId}/donors/${donorId}`);
+        const res = await apiRequest(`/api/org/${orgId}/donors/${donorId}`);
         if (!res.ok) throw new Error('Donor not found');
-        const data = await res.json();
+        const data = await readJson(res);
         setDonor(data.donor);
         setContributions(data.contributions || []);
         setLetters(data.letters || []);
@@ -103,13 +105,13 @@ export default function DonorProfilePage() {
     if (!orgId) return;
     setSaving(true);
     try {
-      const res = await fetch(`/api/org/${orgId}/donors/${donorId}`, {
+      const res = await apiRequest(`/api/org/${orgId}/donors/${donorId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(editFields),
       });
       if (!res.ok) throw new Error('Failed to save');
-      const data = await res.json();
+      const data = await readJson(res);
       setDonor((prev: any) => ({ ...prev, ...data.donor }));
       setIsEditing(false);
     } catch {
@@ -123,8 +125,8 @@ export default function DonorProfilePage() {
     if (!orgId) return;
     setGeneratingPdf(letterId);
     try {
-      const res = await fetch(`/api/org/${orgId}/acknowledgments/${letterId}/generate-pdf`, { method: 'POST' });
-      const data = await res.json();
+      const res = await apiRequest(`/api/org/${orgId}/acknowledgments/${letterId}/generate-pdf`, { method: 'POST' });
+      const data = await readJson(res);
       if (data.pdf_url) {
         setLetters(prev => prev.map(l => l.id === letterId ? { ...l, pdf_url: data.pdf_url } : l));
         window.open(data.pdf_url, '_blank');
@@ -141,7 +143,7 @@ export default function DonorProfilePage() {
     setGiftSaving(true);
     setGiftError(null);
     try {
-      const res = await fetch(`/api/org/${orgId}/contributions`, {
+      const res = await apiRequest(`/api/org/${orgId}/contributions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -153,13 +155,13 @@ export default function DonorProfilePage() {
         }),
       });
       if (!res.ok) {
-        const data = await res.json();
+        const data = await readJson(res);
         throw new Error(data.error || 'Failed to log gift');
       }
       // Refetch donor to update lifetime giving stats
-      const donorRes = await fetch(`/api/org/${orgId}/donors/${donorId}`);
+      const donorRes = await apiRequest(`/api/org/${orgId}/donors/${donorId}`);
       if (donorRes.ok) {
-        const data = await donorRes.json();
+        const data = await readJson(donorRes);
         setDonor(data.donor);
         setContributions(data.contributions || []);
       }
@@ -464,8 +466,8 @@ export default function DonorProfilePage() {
             onClose={() => setShowPledgeCreate(false)}
             onCreated={() => {
               setShowPledgeCreate(false);
-              fetch(`/api/org/${orgId}/pledges?donor_id=${donorId}&status=all`)
-                .then(r => r.json()).then(d => setPledges(d.pledges ?? [])).catch(() => {});
+              apiRequest(`/api/org/${orgId}/pledges?donor_id=${donorId}&status=all`)
+                .then(r => readJson(r)).then(d => setPledges(d.pledges ?? [])).catch(() => {});
             }}
           />
         )}
@@ -475,8 +477,8 @@ export default function DonorProfilePage() {
             pledgeId={selectedPledgeId}
             onClose={() => setSelectedPledgeId(null)}
             onChanged={() => {
-              fetch(`/api/org/${orgId}/pledges?donor_id=${donorId}&status=all`)
-                .then(r => r.json()).then(d => setPledges(d.pledges ?? [])).catch(() => {});
+              apiRequest(`/api/org/${orgId}/pledges?donor_id=${donorId}&status=all`)
+                .then(r => readJson(r)).then(d => setPledges(d.pledges ?? [])).catch(() => {});
             }}
           />
         )}

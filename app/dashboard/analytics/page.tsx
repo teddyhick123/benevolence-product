@@ -1,5 +1,7 @@
 'use client';
 
+import { apiRequest, readJson } from "@/lib/api/client";
+
 import { Suspense, useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import AnalyticsDashboard from '@/components/analytics/AnalyticsDashboard';
@@ -42,9 +44,9 @@ function AnalyticsPageContent() {
           return;
         }
 
-        const res = await fetch('/api/me');
+        const res = await apiRequest('/api/me');
         if (res.ok) {
-          const json = await res.json();
+          const json = await readJson(res);
           setPortfolioId(json.portfolio_id || json.recommended_portfolio_id);
         }
       } catch (err) {

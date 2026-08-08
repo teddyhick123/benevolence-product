@@ -7,7 +7,7 @@ import SectionHeader from '@/components/ui/SectionHeader';
 import HoldingsTable from '@/components/holdings/HoldingsTable';
 import EditHoldingsModal, { HoldingInput } from '@/components/holdings/EditHoldingsModal';
 import { AssetType } from '@/lib/schemas/portfolio';
-import { useHoldings } from '@/lib/hooks/useHoldings';
+import { useHoldings } from '@/lib/holdings/hooks';
 
 export type HoldingRow = any;
 

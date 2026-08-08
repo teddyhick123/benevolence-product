@@ -1,5 +1,7 @@
 'use client';
 
+import { apiRequest, readJson } from "@/lib/api/client";
+
 import { useState } from 'react';
 import {
   CONTRIBUTION_TYPE_LABELS,
@@ -67,14 +69,14 @@ export default function ContributionTaxWizard({
         notes: notes || null,
       };
 
-      const res = await fetch(`/api/portfolio/${portfolioId}/tax/contributions`, {
+      const res = await apiRequest(`/api/portfolio/${portfolioId}/tax/contributions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
 
       if (!res.ok) {
-        const json = await res.json();
+        const json = await readJson(res);
         throw new Error(json.error || 'Failed to save contribution');
       }
 

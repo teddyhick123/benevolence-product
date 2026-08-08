@@ -1,7 +1,10 @@
 'use client';
 
+import { apiRequest } from "@/lib/api/client";
+import { useReportsData } from "@/lib/reports/hooks";
+
 import { useState } from 'react';
-import useSWR, { mutate } from 'swr';
+import { mutate } from "swr";
 
 type ReportTemplate = {
   id: string;
@@ -26,13 +29,10 @@ interface Props {
   onSchedule?: (template: ReportTemplate) => void;
 }
 
-const fetcher = (url: string) => fetch(url).then(r => r.json());
 
 export default function ReportTemplateList({ portfolioId, onEdit, onGenerate, onSchedule }: Props) {
-  const { data, error, isLoading } = useSWR<{ templates: ReportTemplate[] }>(
-    `/api/portfolio/${portfolioId}/reports/templates`,
-    fetcher
-  );
+  const { data, error, isLoading } = useReportsData<{ templates: ReportTemplate[] }>(
+    `/api/portfolio/${portfolioId}/reports/templates`);
 
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -70,7 +70,7 @@ export default function ReportTemplateList({ portfolioId, onEdit, onGenerate, on
   const handleDelete = async (templateId: string) => {
     setDeleting(true);
     try {
-      const response = await fetch(`/api/portfolio/${portfolioId}/reports/templates/${templateId}`, {
+      const response = await apiRequest(`/api/portfolio/${portfolioId}/reports/templates/${templateId}`, {
         method: 'DELETE',
       });
 
@@ -87,7 +87,7 @@ export default function ReportTemplateList({ portfolioId, onEdit, onGenerate, on
 
   const handleSetDefault = async (templateId: string) => {
     try {
-      const response = await fetch(`/api/portfolio/${portfolioId}/reports/templates/${templateId}`, {
+      const response = await apiRequest(`/api/portfolio/${portfolioId}/reports/templates/${templateId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ is_default: true }),

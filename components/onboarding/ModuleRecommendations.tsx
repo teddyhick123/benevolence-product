@@ -1,5 +1,7 @@
 'use client';
 
+import { apiRequest, readJson } from "@/lib/api/client";
+
 import { useState, useEffect, useCallback } from 'react';
 import ModuleCard from './ModuleCard';
 import FoundationSetupPreview from './FoundationSetupPreview';
@@ -56,8 +58,8 @@ export default function ModuleRecommendations({
       setIsLoading(true);
       setError(null);
 
-      const res = await fetch(`/api/onboarding/recommendations?sessionId=${sessionId}`);
-      const data = await res.json();
+      const res = await apiRequest(`/api/onboarding/recommendations?sessionId=${sessionId}`);
+      const data = await readJson(res);
 
       if (!res.ok) {
         throw new Error(data.error || 'Failed to fetch recommendations');
@@ -99,7 +101,7 @@ export default function ModuleRecommendations({
   const handleComplete = async () => {
     try {
       // Save selections
-      await fetch('/api/onboarding/recommendations', {
+      await apiRequest('/api/onboarding/recommendations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

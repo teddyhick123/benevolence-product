@@ -1,5 +1,7 @@
 'use client';
 
+import { apiRequest, readJson } from "@/lib/api/client";
+
 import { useState, useEffect, useRef } from 'react';
 import { X, DollarSign, AlertCircle, CheckCircle } from 'lucide-react';
 
@@ -72,9 +74,9 @@ export default function AddToPortfolioModal({
 
   const fetchPortfolios = async () => {
     try {
-      const response = await fetch('/api/portfolios');
+      const response = await apiRequest('/api/portfolios');
       if (response.ok) {
-        const data = await response.json();
+        const data = await readJson(response);
         setPortfolios(data.data || []);
         if (data.data && data.data.length > 0) {
           setSelectedPortfolioId(data.data[0].id);
@@ -91,7 +93,7 @@ export default function AddToPortfolioModal({
     setError(null);
 
     try {
-      const response = await fetch(`/api/charities/${charityEin}/add-to-portfolio`, {
+      const response = await apiRequest(`/api/charities/${charityEin}/add-to-portfolio`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -104,7 +106,7 @@ export default function AddToPortfolioModal({
         }),
       });
 
-      const data = await response.json();
+      const data = await readJson(response);
 
       if (response.ok) {
         setSuccess(true);

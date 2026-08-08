@@ -1,5 +1,7 @@
 'use client';
 
+import { apiRequest, readJson } from "@/lib/api/client";
+
 import { useState, useEffect } from 'react';
 
 type Milestone = {
@@ -35,8 +37,8 @@ export default function GrantMilestonesWidget({ portfolioId, holdingId }: Props)
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch(`/api/portfolio/${encodeURIComponent(portfolioId)}/holdings/${encodeURIComponent(holdingId)}/milestones`)
-      .then(r => r.ok ? r.json() : { data: [] })
+    apiRequest(`/api/portfolio/${encodeURIComponent(portfolioId)}/holdings/${encodeURIComponent(holdingId)}/milestones`)
+      .then(r => r.ok ? readJson(r) : { data: [] })
       .then(d => setMilestones(d.data ?? []))
       .catch(() => {})
       .finally(() => setLoading(false));

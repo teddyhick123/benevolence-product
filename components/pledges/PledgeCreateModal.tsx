@@ -1,4 +1,6 @@
 'use client';
+
+import { apiRequest, readJson } from "@/lib/api/client";
 import { useState, useEffect } from 'react';
 import { generateSchedule, type Frequency, type ScheduledInstallment } from '@/lib/pledges/schedule';
 
@@ -42,9 +44,9 @@ export default function PledgeCreateModal({ orgId, prefillDonorId, prefillDonorN
     if (prefillDonorId) return;
     if (!donorQuery || donorQuery.length < 2) { setDonorOptions([]); return; }
     const t = setTimeout(async () => {
-      const res = await fetch(`/api/org/${orgId}/donors?name=${encodeURIComponent(donorQuery)}&limit=10`);
+      const res = await apiRequest(`/api/org/${orgId}/donors?name=${encodeURIComponent(donorQuery)}&limit=10`);
       if (res.ok) {
-        const data = await res.json();
+        const data = await readJson(res);
         setDonorOptions((data.donors ?? []).map((d: any) => ({
           id: d.id,
           display_name: d.display_name || [d.first_name, d.last_name].filter(Boolean).join(' ') || d.organization_name || d.id,
@@ -88,7 +90,7 @@ export default function PledgeCreateModal({ orgId, prefillDonorId, prefillDonorN
     if (!donorId || !totalAmount || !startDate || installments.length === 0 || !sumOk) return;
     setSaving(true); setError(null);
     try {
-      const res = await fetch(`/api/org/${orgId}/pledges`, {
+      const res = await apiRequest(`/api/org/${orgId}/pledges`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -100,7 +102,7 @@ export default function PledgeCreateModal({ orgId, prefillDonorId, prefillDonorN
           installments,
         }),
       });
-      const data = await res.json();
+      const data = await readJson(res);
       if (!res.ok) throw new Error(data.error?.[0]?.message ?? data.error ?? 'Failed to create pledge');
       onCreated();
     } catch (e: any) {

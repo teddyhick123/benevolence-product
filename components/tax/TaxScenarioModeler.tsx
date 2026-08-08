@@ -1,5 +1,7 @@
 'use client';
 
+import { apiRequest, readJson } from "@/lib/api/client";
+
 import * as React from 'react';
 
 export interface TaxScenarioModelerProps {
@@ -113,13 +115,13 @@ export default function TaxScenarioModeler({
         body.years = bunchingYears;
       }
 
-      const res = await fetch(`/api/portfolio/${portfolioId}/tax/scenarios`, {
+      const res = await apiRequest(`/api/portfolio/${portfolioId}/tax/scenarios`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
 
-      const json = await res.json();
+      const json = await readJson(res);
 
       if (!res.ok) {
         throw new Error(json.error || json.message || 'Failed to calculate scenarios');

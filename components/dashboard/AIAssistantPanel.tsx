@@ -1,8 +1,10 @@
 'use client';
 
+import { apiRequest, readJson, requestStream, uploadJson } from "@/lib/api/client";
+
 import { useState, useRef, useEffect } from 'react';
 import { ArrowPathIcon, ChatBubbleLeftRightIcon, XMarkIcon, MicrophoneIcon, StopIcon } from '@heroicons/react/24/outline';
-import { useAudioRecorder } from '@/hooks/useAudioRecorder';
+import { useAudioRecorder } from '@/lib/hooks/useAudioRecorder';
 import TrefoilLoader from '@/components/ui/TrefoilLoader';
 import InlineWidget from '@/components/ui/InlineWidget';
 import ReactMarkdown from 'react-markdown';
@@ -54,7 +56,7 @@ function SaveWidgetButton({ portfolioId, widget }: { portfolioId: string; widget
   const save = async () => {
     setSaving(true);
     try {
-      const res = await fetch(`/api/portfolio/${encodeURIComponent(portfolioId)}/widgets/save-preview`, {
+      const res = await apiRequest(`/api/portfolio/${encodeURIComponent(portfolioId)}/widgets/save-preview`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ type: widget.type, title: widget.title, config: widget.config }),
@@ -136,8 +138,8 @@ Just ask me anything, and I'll help you out! If you don't like a change I make, 
 
   const loadHistory = async () => {
     try {
-      const res = await fetch(`/api/ai/chat?portfolioId=${portfolioId}`);
-      const data = await res.json();
+      const res = await apiRequest(`/api/ai/chat?portfolioId=${portfolioId}`);
+      const data = await readJson(res);
       if (data.session) {
         setSessionId(data.session.id);
         setMessages(data.messages || []);
@@ -149,8 +151,8 @@ Just ask me anything, and I'll help you out! If you don't like a change I make, 
 
   const loadActions = async () => {
     try {
-      const res = await fetch(`/api/ai/undo?portfolioId=${portfolioId}&limit=10`);
-      const data = await res.json();
+      const res = await apiRequest(`/api/ai/undo?portfolioId=${portfolioId}&limit=10`);
+      const data = await readJson(res);
       setRecentActions(data.actions || []);
     } catch (err) {
       // Failed to load actions
@@ -193,7 +195,7 @@ Just ask me anything, and I'll help you out! If you don't like a change I make, 
     } as any]);
 
     try {
-      const res = await fetch('/api/ai/chat/stream', {
+      const res = await requestStream('/api/ai/chat/stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -209,11 +211,7 @@ Just ask me anything, and I'll help you out! If you don't like a change I make, 
         signal: ac.signal,
       });
 
-      if (!res.ok || !res.body) {
-        throw new Error('Stream request failed');
-      }
-
-      const reader = res.body.getReader();
+      const reader = res.body!.getReader();
       const decoder = new TextDecoder();
       let accumulatedText = '';
 
@@ -286,7 +284,7 @@ Just ask me anything, and I'll help you out! If you don't like a change I make, 
 
   const undoAction = async (actionId: string) => {
     try {
-      const res = await fetch('/api/ai/undo', {
+      const res = await apiRequest('/api/ai/undo', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ actionId }),
@@ -310,7 +308,7 @@ Just ask me anything, and I'll help you out! If you don't like a change I make, 
 
   const redoAction = async (actionId: string) => {
     try {
-      const res = await fetch('/api/ai/redo', {
+      const res = await apiRequest('/api/ai/redo', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ actionId }),
@@ -343,12 +341,7 @@ Just ask me anything, and I'll help you out! If you don't like a change I make, 
         const formData = new FormData();
         formData.append('audio', audioBlob, 'recording.webm');
 
-        const res = await fetch('/api/ai/transcribe', {
-          method: 'POST',
-          body: formData,
-        });
-
-        const data = await res.json();
+        const data = await uploadJson<{ text?: string }>('/api/ai/transcribe', formData, { method: 'POST' });
 
         if (data.text) {
           setInput(data.text);

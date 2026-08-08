@@ -1,5 +1,7 @@
 'use client';
 
+import { apiRequest, readJson } from "@/lib/api/client";
+
 import { useState, useEffect } from 'react';
 import { DOCUMENT_TYPE_LABELS } from '@/lib/tax/constants';
 
@@ -36,13 +38,13 @@ export default function DocumentsList({
     async function fetchDocuments() {
       try {
         setLoading(true);
-        const res = await fetch(
+        const res = await apiRequest(
           `/api/portfolio/${portfolioId}/tax/contributions/${contributionId}/documents`
         );
 
         if (!res.ok) throw new Error('Failed to fetch documents');
 
-        const json = await res.json();
+        const json = await readJson(res);
         setDocuments(json.data || []);
         onDocumentsChange?.(json.data || []);
       } catch (err) {
@@ -60,13 +62,13 @@ export default function DocumentsList({
 
     try {
       setDeleting(docId);
-      const res = await fetch(
+      const res = await apiRequest(
         `/api/portfolio/${portfolioId}/tax/contributions/${contributionId}/documents/${docId}`,
         { method: 'DELETE' }
       );
 
       if (!res.ok) {
-        const json = await res.json();
+        const json = await readJson(res);
         throw new Error(json.error || 'Failed to delete');
       }
 
@@ -83,13 +85,13 @@ export default function DocumentsList({
   async function handleView(doc: TaxDocument) {
     try {
       // Get a signed URL for viewing
-      const res = await fetch(
+      const res = await apiRequest(
         `/api/portfolio/${portfolioId}/tax/contributions/${contributionId}/documents/${doc.id}`
       );
 
       if (!res.ok) throw new Error('Failed to get document URL');
 
-      const json = await res.json();
+      const json = await readJson(res);
       const url = json.data?.signed_url;
 
       if (url) {

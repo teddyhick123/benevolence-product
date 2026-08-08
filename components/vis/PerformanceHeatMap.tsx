@@ -1,7 +1,9 @@
 'use client';
+
+import { apiRequest, readJson } from "@/lib/api/client";
 import { useEffect, useState, useMemo, useRef } from 'react';
 import * as d3 from 'd3';
-import { useWidgetDimensions } from '@/hooks/useWidgetDimensions';
+import { useWidgetDimensions } from '@/lib/hooks/useWidgetDimensions';
 
 interface HeatMapCell {
   holding: string;
@@ -76,7 +78,7 @@ export default function PerformanceHeatMap({ portfolioId, title, config }: Props
           params.set('metrics', metricsString);
         }
 
-        const res = await fetch(
+        const res = await apiRequest(
           `/api/portfolio/${encodeURIComponent(portfolioId)}/heat-map?${params.toString()}`,
           { cache: 'no-store' }
         );
@@ -85,7 +87,7 @@ export default function PerformanceHeatMap({ portfolioId, title, config }: Props
           throw new Error(`Failed to fetch heat map data: ${res.status}`);
         }
 
-        const json = await res.json();
+        const json = await readJson(res);
 
         if (mounted) {
           setData(json.data || []);

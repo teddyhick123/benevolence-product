@@ -1,5 +1,7 @@
 'use client';
 
+import { apiRequest, readJson } from "@/lib/api/client";
+
 import { useCallback, useEffect, useState } from 'react';
 import { AlertCircle, Brain, Loader2, Plus } from 'lucide-react';
 import StudioChangePreview from './StudioChangePreview';
@@ -32,8 +34,8 @@ export default function StudioFoundationMemoryPanel({ orgId }: StudioFoundationM
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/org/${orgId}/ai-context`, { cache: 'no-store' });
-      const data = await res.json() as { data?: ContextEntry[]; error?: string };
+      const res = await apiRequest(`/api/org/${orgId}/ai-context`, { cache: 'no-store' });
+      const data = await readJson(res) as { data?: ContextEntry[]; error?: string };
       if (!res.ok) throw new Error(data.error || 'Failed to load Foundation Memory');
       setEntries(data.data || []);
     } catch (err) {
@@ -47,8 +49,8 @@ export default function StudioFoundationMemoryPanel({ orgId }: StudioFoundationM
     event.preventDefault();
     setSaving(true); setError(null);
     try {
-      const res = await fetch(`/api/org/${orgId}/ai-context`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) });
-      const data = await res.json().catch(() => ({})) as { data?: ContextEntry; error?: string };
+      const res = await apiRequest(`/api/org/${orgId}/ai-context`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) });
+      const data = await readJson(res).catch(() => ({})) as { data?: ContextEntry; error?: string };
       if (!res.ok || !data.data) throw new Error(data.error || 'Failed to save Foundation Memory');
       setEntries((current) => [data.data!, ...current]);
       setForm({ context_type: 'operating_norm', context_key: '', context_value: '' });
@@ -59,8 +61,8 @@ export default function StudioFoundationMemoryPanel({ orgId }: StudioFoundationM
   async function toggleEntry(entry: ContextEntry) {
     setSaving(true); setError(null);
     try {
-      const res = await fetch(`/api/org/${orgId}/ai-context`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: entry.id, is_active: !entry.is_active }) });
-      const data = await res.json().catch(() => ({})) as { data?: ContextEntry; error?: string };
+      const res = await apiRequest(`/api/org/${orgId}/ai-context`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: entry.id, is_active: !entry.is_active }) });
+      const data = await readJson(res).catch(() => ({})) as { data?: ContextEntry; error?: string };
       if (!res.ok || !data.data) throw new Error(data.error || 'Failed to update Foundation Memory');
       setEntries((current) => current.map((item) => item.id === entry.id ? data.data! : item));
     } catch (err) { setError(err instanceof Error ? err.message : 'Failed to update Foundation Memory'); }

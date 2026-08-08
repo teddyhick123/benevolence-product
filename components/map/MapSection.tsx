@@ -1,20 +1,13 @@
 'use client';
 
+import { useMapData } from "@/lib/map/hooks";
+
 import * as React from 'react';
-import useSWR from 'swr';
 import SectionHeader from '@/components/ui/SectionHeader';
 import ImpactMap from '@/components/map/ImpactMap';
 import MapModeSelector, { MapMode } from '@/components/map/MapModeSelector';
 import { useRouter } from 'next/navigation';
 
-const fetcher = async (url: string) => {
-  const res = await fetch(url, { cache: 'no-store' });
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(text || res.statusText);
-  }
-  return res.json();
-};
 
 // Shape returned by /api/portfolio/[id]/map
 export type MapApiPoint = {
@@ -41,10 +34,8 @@ export type MapApiPoint = {
 };
 
 export default function MapSection({ portfolioId }: { portfolioId: string }) {
-  const { data, error, isLoading } = useSWR<{ points: MapApiPoint[] }>(
-    `/api/portfolio/${encodeURIComponent(portfolioId)}/map`,
-    fetcher
-  );
+  const { data, error, isLoading } = useMapData<{ points: MapApiPoint[] }>(
+    `/api/portfolio/${encodeURIComponent(portfolioId)}/map`);
   const router = useRouter();
 
   // Two-way highlighting state

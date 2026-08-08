@@ -1,5 +1,7 @@
 "use client";
 
+import { uploadJson } from "@/lib/api/client";
+
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
@@ -45,10 +47,7 @@ export default function OrgReportUploader({ orgId, holdings }: Props) {
       fd.append("holding_id", holdingId);
       fd.append("ai_mode", aiMode ? "true" : "false");
 
-      const res = await fetch(`/api/org/${orgId}/upload`, { method: "POST", body: fd });
-      const data = await res.json();
-
-      if (!res.ok) throw new Error(data?.error || "Upload failed");
+      const data = await uploadJson<any>(`/api/org/${orgId}/upload`, fd, { method: "POST" });
 
       setFactsCount(data.factsExtracted || 0);
       setStatus("done");

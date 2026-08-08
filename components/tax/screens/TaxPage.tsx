@@ -1,5 +1,7 @@
 'use client';
 
+import { apiRequest, readJson } from "@/lib/api/client";
+
 import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { TAX_DISCLAIMER_SHORT } from '@/lib/tax/constants';
@@ -43,15 +45,15 @@ function TaxDashboard() {
     async function fetchProfile() {
       try {
         const [meRes, orgRes] = await Promise.all([
-          fetch('/api/me', { signal: controller.signal }),
-          fetch('/api/org', { signal: controller.signal }),
+          apiRequest('/api/me', { signal: controller.signal }),
+          apiRequest('/api/org', { signal: controller.signal }),
         ]);
         if (meRes.ok) {
-          const json = await meRes.json();
+          const json = await readJson(meRes);
           setPortfolioId(json.portfolio_id || json.recommended_portfolio_id);
         }
         if (orgRes.ok) {
-          const json = await orgRes.json();
+          const json = await readJson(orgRes);
           const activeOrg = pickActiveOrg((json.organizations ?? []) as Array<{ id: string; modules?: Record<string, boolean> }>);
           setModuleEnabled(activeOrg ? !!activeOrg.modules?.tax : true);
         }
@@ -74,11 +76,11 @@ function TaxDashboard() {
 
     async function fetchTaxOverview() {
       try {
-        const res = await fetch(`/api/portfolio/${portfolioId}/tax/overview?year=${selectedYear}`, {
+        const res = await apiRequest(`/api/portfolio/${portfolioId}/tax/overview?year=${selectedYear}`, {
           signal: controller.signal,
         });
         if (res.ok) {
-          const json = await res.json();
+          const json = await readJson(res);
           if (controller.signal.aborted) return;
           setTaxOverview(json.data);
 

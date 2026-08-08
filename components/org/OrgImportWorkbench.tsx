@@ -1,5 +1,7 @@
 'use client';
 
+import { apiRequest, readJson } from "@/lib/api/client";
+
 import { useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, CheckCircle2, DatabaseZap, FileUp, Loader2, RotateCcw, Rows3, ShieldCheck } from 'lucide-react';
 import { ImportStatusBadge } from '@/components/admin/ImportStatusBadge';
@@ -99,16 +101,16 @@ export default function OrgImportWorkbench({ orgId, canManageImports, initialJob
       setReviewLoading(true);
       try {
         const [summaryRes, errorsRes] = await Promise.all([
-          fetch(`/api/org/${orgId}/imports/${reviewJobId}`, { cache: 'no-store' }),
-          fetch(`/api/org/${orgId}/imports/${reviewJobId}/errors?entity=${reviewEntity}&limit=25`, { cache: 'no-store' }),
+          apiRequest(`/api/org/${orgId}/imports/${reviewJobId}`, { cache: 'no-store' }),
+          apiRequest(`/api/org/${orgId}/imports/${reviewJobId}/errors?entity=${reviewEntity}&limit=25`, { cache: 'no-store' }),
         ]);
         if (cancelled) return;
         if (summaryRes.ok) {
-          const summary = await summaryRes.json() as { staging_counts?: StagingCounts };
+          const summary = await readJson(summaryRes) as { staging_counts?: StagingCounts };
           setStagingCounts(summary.staging_counts || null);
         }
         if (errorsRes.ok) {
-          const errors = await errorsRes.json() as { rows?: ErrorRow[]; total?: number };
+          const errors = await readJson(errorsRes) as { rows?: ErrorRow[]; total?: number };
           setErrorRows(errors.rows || []);
           setErrorTotal(errors.total || 0);
         }
@@ -123,19 +125,19 @@ export default function OrgImportWorkbench({ orgId, canManageImports, initialJob
   }, [orgId, reviewJobId, reviewEntity]);
 
   async function refreshJobs() {
-    const res = await fetch(`/api/org/${orgId}/imports`, { cache: 'no-store' });
+    const res = await apiRequest(`/api/org/${orgId}/imports`, { cache: 'no-store' });
     if (!res.ok) return;
-    const data = await res.json() as { jobs?: ImportJob[] };
+    const data = await readJson(res) as { jobs?: ImportJob[] };
     setJobs(data.jobs || []);
   }
 
   async function handleResume(jobId: string) {
     setActionId(jobId);
     try {
-      const res = await fetch(`/api/org/${orgId}/imports/${jobId}/resume`, { method: 'POST' });
+      const res = await apiRequest(`/api/org/${orgId}/imports/${jobId}/resume`, { method: 'POST' });
       if (res.ok) await refreshJobs();
       else {
-        const body = await res.json().catch(() => ({}));
+        const body = await readJson(res).catch(() => ({}));
         alert(body.error || 'Could not resume import');
       }
     } finally {
@@ -147,14 +149,14 @@ export default function OrgImportWorkbench({ orgId, canManageImports, initialJob
     if (!confirm('Roll back all data loaded by this import? This cannot be undone.')) return;
     setActionId(jobId);
     try {
-      const res = await fetch(`/api/org/${orgId}/imports/${jobId}/rollback`, {
+      const res = await apiRequest(`/api/org/${orgId}/imports/${jobId}/rollback`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ scope: 'full' }),
       });
       if (res.ok) await refreshJobs();
       else {
-        const body = await res.json().catch(() => ({}));
+        const body = await readJson(res).catch(() => ({}));
         alert(body.error || 'Could not roll back import');
       }
     } finally {
@@ -171,7 +173,7 @@ export default function OrgImportWorkbench({ orgId, canManageImports, initialJob
     if (proposedValue === undefined || proposedValue === '') return;
     setFixingKey(key);
     try {
-      const res = await fetch(`/api/org/${orgId}/imports/${reviewJobId}/errors`, {
+      const res = await apiRequest(`/api/org/${orgId}/imports/${reviewJobId}/errors`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -182,7 +184,7 @@ export default function OrgImportWorkbench({ orgId, canManageImports, initialJob
         }),
       });
       if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
+        const body = await readJson(res).catch(() => ({}));
         alert(body.error || 'Could not apply fix');
         return;
       }
@@ -191,15 +193,15 @@ export default function OrgImportWorkbench({ orgId, canManageImports, initialJob
         delete next[key];
         return next;
       });
-      const errorsRes = await fetch(`/api/org/${orgId}/imports/${reviewJobId}/errors?entity=${reviewEntity}&limit=25`, { cache: 'no-store' });
+      const errorsRes = await apiRequest(`/api/org/${orgId}/imports/${reviewJobId}/errors?entity=${reviewEntity}&limit=25`, { cache: 'no-store' });
       if (errorsRes.ok) {
-        const errors = await errorsRes.json() as { rows?: ErrorRow[]; total?: number };
+        const errors = await readJson(errorsRes) as { rows?: ErrorRow[]; total?: number };
         setErrorRows(errors.rows || []);
         setErrorTotal(errors.total || 0);
       }
-      const summaryRes = await fetch(`/api/org/${orgId}/imports/${reviewJobId}`, { cache: 'no-store' });
+      const summaryRes = await apiRequest(`/api/org/${orgId}/imports/${reviewJobId}`, { cache: 'no-store' });
       if (summaryRes.ok) {
-        const summary = await summaryRes.json() as { staging_counts?: StagingCounts };
+        const summary = await readJson(summaryRes) as { staging_counts?: StagingCounts };
         setStagingCounts(summary.staging_counts || null);
       }
     } finally {

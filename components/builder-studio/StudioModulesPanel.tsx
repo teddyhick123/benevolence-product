@@ -1,5 +1,7 @@
 'use client';
 
+import { apiRequest, readJson } from "@/lib/api/client";
+
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AlertCircle, CheckCircle2, Loader2, Puzzle } from 'lucide-react';
 import type { ModuleId } from '@/lib/modules/types';
@@ -27,8 +29,8 @@ export default function StudioModulesPanel({ orgId }: StudioModulesPanelProps) {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/org/${orgId}/modules`, { cache: 'no-store' });
-      const data = await res.json() as ModulesResponse;
+      const res = await apiRequest(`/api/org/${orgId}/modules`, { cache: 'no-store' });
+      const data = await readJson(res) as ModulesResponse;
       if (!res.ok) throw new Error(data.error || 'Failed to load modules');
       setEnabledModules(data.enabledModules || []);
     } catch (err) {
@@ -46,12 +48,12 @@ export default function StudioModulesPanel({ orgId }: StudioModulesPanelProps) {
     setSavingModule(moduleId);
     setError(null);
     try {
-      const res = await fetch(`/api/org/${orgId}/modules`, {
+      const res = await apiRequest(`/api/org/${orgId}/modules`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: enabled ? 'disable' : 'enable', moduleId }),
       });
-      const data = await res.json().catch(() => ({})) as ModulesResponse;
+      const data = await readJson(res).catch(() => ({})) as ModulesResponse;
       if (!res.ok) throw new Error(data.error || 'Module update failed');
       await loadModules();
       setPendingChange(null);

@@ -1,6 +1,8 @@
 // components/settings/NotificationsTab.tsx
 'use client';
 
+import { apiRequest, readJson } from "@/lib/api/client";
+
 import { useState } from 'react';
 import { NOTIFICATION_ALERT_KEYS, NotificationAlertKey, NotificationPrefs, DEFAULT_NOTIFICATION_PREFS } from '@/lib/notifications/types';
 
@@ -58,7 +60,7 @@ export default function NotificationsTab({ orgId, userId, initialPrefs }: Props)
     setSaving(true);
     setError(null);
 
-    const res = await fetch(`/api/org/${orgId}/members/${userId}/notifications`, {
+    const res = await apiRequest(`/api/org/${orgId}/members/${userId}/notifications`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(prefs),
@@ -69,7 +71,7 @@ export default function NotificationsTab({ orgId, userId, initialPrefs }: Props)
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
     } else {
-      const data = await res.json();
+      const data = await readJson(res);
       setError(data.error || 'Failed to save preferences.');
     }
   }

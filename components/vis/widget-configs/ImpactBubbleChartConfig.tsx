@@ -1,5 +1,7 @@
 'use client';
 
+import { apiRequest, readJson } from "@/lib/api/client";
+
 import * as React from 'react';
 
 export type ImpactBubbleChartConfigProps = {
@@ -30,8 +32,8 @@ export default function ImpactBubbleChartConfig({ initialConfig, onSave, onCance
     if (!portfolioId) return;
     (async () => {
       try {
-        const res = await fetch(`/api/portfolio/${encodeURIComponent(portfolioId)}/kpis?has_data=true`, { cache: 'no-store' });
-        const json = await res.json();
+        const res = await apiRequest(`/api/portfolio/${encodeURIComponent(portfolioId)}/kpis?has_data=true`, { cache: 'no-store' });
+        const json = await readJson(res);
         if (json.data) {
           setAvailableMetrics(json.data.map((kpi: any) => ({
             metric_code: kpi.metric_code,

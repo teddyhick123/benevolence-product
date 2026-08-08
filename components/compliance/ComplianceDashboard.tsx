@@ -1,5 +1,7 @@
 'use client';
 
+import { apiRequest, readJson } from "@/lib/api/client";
+
 import { useState, useEffect } from 'react';
 import PayoutTracker from './PayoutTracker';
 import DisqualifiedPersonsRegistry from './DisqualifiedPersonsRegistry';
@@ -85,9 +87,9 @@ export default function ComplianceDashboard({ orgId, portfolioId }: Props) {
   useEffect(() => {
     async function load() {
       try {
-        const res = await fetch(`/api/org/${orgId}/compliance/dashboard`);
+        const res = await apiRequest(`/api/org/${orgId}/compliance/dashboard`);
         if (res.ok) {
-          setData(await res.json());
+          setData(await readJson(res));
         }
       } finally {
         setLoading(false);

@@ -1,4 +1,6 @@
 'use client';
+
+import { apiRequest, readJson } from "@/lib/api/client";
 import { useEffect, useMemo, useState, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { createBrowserClient } from '@/lib/supabase-browser';
@@ -23,25 +25,25 @@ async function postAuthDestination(fallback: string, isNewUser: boolean = false)
 
   try {
     // Check if admin
-    const adminRes = await fetch('/api/admin/is_admin', { cache: 'no-store' });
+    const adminRes = await apiRequest('/api/admin/is_admin', { cache: 'no-store' });
     if (adminRes.ok) {
-      const adminData = await adminRes.json();
+      const adminData = await readJson(adminRes);
       if (adminData?.is_admin) return '/admin/console';
     }
 
     // Check onboarding status for existing users
-    const onboardingRes = await fetch('/api/onboarding/session', { cache: 'no-store' });
+    const onboardingRes = await apiRequest('/api/onboarding/session', { cache: 'no-store' });
     if (onboardingRes.ok) {
-      const onboardingData = await onboardingRes.json();
+      const onboardingData = await readJson(onboardingRes);
       // If no session or session not completed, go to onboarding
       if (!onboardingData.session || onboardingData.session.status !== 'completed') {
         return '/onboarding';
       }
     }
 
-    const meRes = await fetch('/api/me', { cache: 'no-store' });
+    const meRes = await apiRequest('/api/me', { cache: 'no-store' });
     if (meRes.ok) {
-      const me = await meRes.json();
+      const me = await readJson(meRes);
       if (me?.recommended_portfolio_id) {
         return `/dashboard?portfolio_id=${encodeURIComponent(me.recommended_portfolio_id)}`;
       }
@@ -98,7 +100,7 @@ function LoginPageContent() {
       refresh_token = session.refresh_token;
     }
 
-    const res = await fetch('/api/auth/session', {
+    const res = await apiRequest('/api/auth/session', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'same-origin',
@@ -115,7 +117,7 @@ function LoginPageContent() {
     try {
       // Clear client and server cookies so Server Components/middleware agree
       await supabase.auth.signOut({ scope: 'local' });
-      await fetch('/api/auth/session', { method: 'DELETE' });
+      await apiRequest('/api/auth/session', { method: 'DELETE' });
       setExistingUserEmail(null);
     } finally {
       setBusy(false);

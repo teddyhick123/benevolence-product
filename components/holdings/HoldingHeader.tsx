@@ -1,5 +1,7 @@
 'use client';
 
+import { uploadJson } from "@/lib/api/client";
+
 import InlineEdit from '@/components/ui/InlineEdit';
 import AddToTaxTrackerButton from '@/components/tax/AddToTaxTrackerButton';
 import Link from 'next/link';
@@ -48,14 +50,7 @@ export default function HoldingHeader({
     formData.append('holding_id', holdingId);
     formData.append(fieldName, value);
 
-    const response = await fetch(`/api/holdings/${holdingId}/update-basic`, {
-      method: 'POST',
-      body: formData,
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to update');
-    }
+    await uploadJson(`/api/holdings/${holdingId}/update-basic`, formData, { method: 'POST' });
 
     router.refresh();
   };

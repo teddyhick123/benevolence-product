@@ -1,7 +1,9 @@
 'use client';
 
+import { apiRequest } from "@/lib/api/client";
+import { useAnalyticsData } from "@/lib/analytics/hooks";
+
 import { useState } from 'react';
-import useSWR from 'swr';
 
 type Insight = {
   id: string;
@@ -41,7 +43,6 @@ interface Props {
   onInsightAction?: (insightId: string, action: 'dismiss' | 'action_taken' | 'reactivate') => void;
 }
 
-const fetcher = (url: string) => fetch(url).then(r => r.json());
 
 const SEVERITY_CONFIG: Record<string, { bg: string; text: string; icon: string }> = {
   critical: { bg: 'bg-red-100', text: 'text-red-800', icon: '!' },
@@ -80,10 +81,8 @@ export default function InsightsPanel({
   if (selectedCategory) queryParams.set('category', selectedCategory);
   if (selectedSeverity) queryParams.set('severity', selectedSeverity);
 
-  const { data, error, isLoading, mutate } = useSWR<{ insights: Insight[]; summary: InsightsSummary }>(
-    `/api/portfolio/${portfolioId}/analytics/insights?${queryParams}`,
-    fetcher
-  );
+  const { data, error, isLoading, mutate } = useAnalyticsData<{ insights: Insight[]; summary: InsightsSummary }>(
+    `/api/portfolio/${portfolioId}/analytics/insights?${queryParams}`);
 
   const insights = data?.insights ?? [];
   const summary = data?.summary;
@@ -91,7 +90,7 @@ export default function InsightsPanel({
   const handleAction = async (insightId: string, action: 'dismiss' | 'action_taken' | 'reactivate') => {
     setActionLoading(insightId);
     try {
-      const res = await fetch(`/api/portfolio/${portfolioId}/analytics/insights`, {
+      const res = await apiRequest(`/api/portfolio/${portfolioId}/analytics/insights`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ insight_id: insightId, action }),

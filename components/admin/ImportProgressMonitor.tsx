@@ -1,4 +1,6 @@
 'use client';
+
+import { apiRequest, readJson } from "@/lib/api/client";
 // components/admin/ImportProgressMonitor.tsx
 // Real-time progress display for an import job via SSE
 
@@ -45,9 +47,9 @@ export function ImportProgressMonitor({ importJobId, initialJob }: ImportProgres
   // Poll for job status as fallback
   const pollJobStatus = async () => {
     try {
-      const res = await fetch(`/api/admin/imports/${importJobId}`);
+      const res = await apiRequest(`/api/admin/imports/${importJobId}`);
       if (res.ok) {
-        const data = await res.json() as { job?: ImportJob };
+        const data = await readJson(res) as { job?: ImportJob };
         if (data.job) setJob(data.job);
       }
     } catch {
@@ -123,7 +125,7 @@ export function ImportProgressMonitor({ importJobId, initialJob }: ImportProgres
   const entityTypes = ['donors', 'holdings', 'investees', 'contributions', 'metrics'] as const;
 
   const handlePause = async () => {
-    await fetch(`/api/admin/imports/${importJobId}`, {
+    await apiRequest(`/api/admin/imports/${importJobId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'pause' }),
@@ -132,7 +134,7 @@ export function ImportProgressMonitor({ importJobId, initialJob }: ImportProgres
   };
 
   const handleResume = async () => {
-    await fetch(`/api/admin/imports/${importJobId}/resume`, {
+    await apiRequest(`/api/admin/imports/${importJobId}/resume`, {
       method: 'POST',
     });
     pollJobStatus();
@@ -145,12 +147,12 @@ export function ImportProgressMonitor({ importJobId, initialJob }: ImportProgres
     setRollbackInProgress(true);
     setRollbackMessage(`Rolling back ${scopeLabel}…`);
     try {
-      const res = await fetch(`/api/admin/imports/${importJobId}/rollback`, {
+      const res = await apiRequest(`/api/admin/imports/${importJobId}/rollback`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ scope }),
       });
-      const data = await res.json() as { result?: { recordsReverted: number }; error?: string };
+      const data = await readJson(res) as { result?: { recordsReverted: number }; error?: string };
       if (res.ok && data.result) {
         setRollbackMessage(`Rollback complete. ${data.result.recordsReverted} records reverted.`);
       } else {

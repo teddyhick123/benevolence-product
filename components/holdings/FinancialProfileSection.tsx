@@ -1,5 +1,7 @@
 'use client';
 
+import { apiRequest, readJson } from "@/lib/api/client";
+
 import { useState, useEffect, useCallback } from 'react';
 import CharityLinkSearch from './CharityLinkSearch';
 import FinancialStatsGrid from './FinancialStatsGrid';
@@ -64,7 +66,7 @@ export default function FinancialProfileSection({
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/holdings/${holdingId}/financial-profile`);
+      const res = await apiRequest(`/api/holdings/${holdingId}/financial-profile`);
       if (res.status === 404) {
         // No charity linked
         setProfile(null);
@@ -72,10 +74,10 @@ export default function FinancialProfileSection({
         return;
       }
       if (!res.ok) {
-        const data = await res.json();
+        const data = await readJson(res);
         throw new Error(data.error || 'Failed to load financial profile');
       }
-      const data = await res.json();
+      const data = await readJson(res);
       setProfile(data);
       if (data.charity) {
         setCurrentLinkedCharity({

@@ -1,5 +1,7 @@
 'use client';
 
+import { uploadJson } from "@/lib/api/client";
+
 import { useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 
@@ -38,23 +40,7 @@ export default function ContactPhotoUpload({ holdingId, currentPhoto, contactNam
       const formData = new FormData();
       formData.append('photo', file);
 
-      const response = await fetch(`/api/holdings/${holdingId}/upload-contact-photo`, {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (!response.ok) {
-        let errorMessage = 'Failed to upload';
-        try {
-          const data = await response.json();
-          errorMessage = data.error || errorMessage;
-        } catch {
-          // If JSON parsing fails, use default message
-        }
-        throw new Error(errorMessage);
-      }
-
-      const result = await response.json();
+      await uploadJson(`/api/holdings/${holdingId}/upload-contact-photo`, formData, { method: 'POST' });
 
       router.refresh();
     } catch (err) {

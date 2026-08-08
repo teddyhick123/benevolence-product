@@ -1,4 +1,6 @@
 'use client';
+
+import { apiRequest, readJson } from "@/lib/api/client";
 import { useState, useEffect } from 'react';
 
 interface Props {
@@ -30,9 +32,9 @@ export default function PledgeDetailPanel({ orgId, pledgeId, onClose, onChanged 
   async function load() {
     setLoading(true);
     try {
-      const res = await fetch(`/api/org/${orgId}/pledges/${pledgeId}`);
+      const res = await apiRequest(`/api/org/${orgId}/pledges/${pledgeId}`);
       if (!res.ok) throw new Error('Not found');
-      setData(await res.json());
+      setData(await readJson(res));
     } catch (e: any) { setError(e.message); }
     finally { setLoading(false); }
   }
@@ -42,12 +44,12 @@ export default function PledgeDetailPanel({ orgId, pledgeId, onClose, onChanged 
   async function doAction(installmentId: string, action: string, extra: Record<string, any> = {}) {
     setActing(installmentId + action);
     try {
-      const res = await fetch(`/api/org/${orgId}/pledges/${pledgeId}/installments/${installmentId}`, {
+      const res = await apiRequest(`/api/org/${orgId}/pledges/${pledgeId}/installments/${installmentId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action, ...extra }),
       });
-      const json = await res.json();
+      const json = await readJson(res);
       if (!res.ok) throw new Error(json.error ?? 'Failed');
       await load();
       onChanged();

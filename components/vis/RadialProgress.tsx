@@ -1,7 +1,9 @@
 'use client';
+
+import { apiRequest, readJson } from "@/lib/api/client";
 import * as d3 from 'd3';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { useWidgetDimensions } from '@/hooks/useWidgetDimensions';
+import { useWidgetDimensions } from '@/lib/hooks/useWidgetDimensions';
 
 type SeriesPoint = { date: string; value: number };
 
@@ -75,9 +77,9 @@ export default function RadialProgress({ portfolioId, holdingId, title, config }
               ? `/api/holdings/${encodeURIComponent(holdingId)}/kpi-series`
               : `/api/portfolio/${encodeURIComponent(portfolioId)}/kpi-series`;
             const url = `${baseUrl}?${params.toString()}`;
-            const res = await fetch(url, { cache: 'no-store' });
+            const res = await apiRequest(url, { cache: 'no-store' });
             if (!res.ok) return;
-            const json = await res.json();
+            const json = await readJson(res);
             const series = (json.series || []) as SeriesPoint[];
             if (series.length) {
               const sorted = [...series].sort((a, b) => +new Date(a.date) - +new Date(b.date));

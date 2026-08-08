@@ -1,5 +1,7 @@
 'use client';
 
+import { apiRequest, readJson } from "@/lib/api/client";
+
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -62,10 +64,10 @@ export default function CharityDetailPage() {
     setIsLoading(true);
     setError(null);
     try {
-      const response = await fetch(`/api/charities/${ein}`);
+      const response = await apiRequest(`/api/charities/${ein}`);
 
       if (response.ok) {
-        const data = await response.json();
+        const data = await readJson(response);
         setCharity(data.data);
       } else if (response.status === 404) {
         setError('Charity not found');

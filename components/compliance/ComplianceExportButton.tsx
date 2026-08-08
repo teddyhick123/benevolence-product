@@ -1,5 +1,7 @@
 'use client';
 
+import { requestDownload } from "@/lib/api/client";
+
 import * as React from 'react';
 
 interface Props {
@@ -41,10 +43,7 @@ export default function ComplianceExportButton({ portfolioId, taxYear }: Props) 
     setExporting(option.id);
     setError(null);
     try {
-      const res = await fetch(option.url(portfolioId, taxYear));
-      if (!res.ok) throw new Error((await res.json()).error || 'Export failed');
-
-      const blob = await res.blob();
+      const { blob } = await requestDownload(option.url(portfolioId, taxYear));
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;

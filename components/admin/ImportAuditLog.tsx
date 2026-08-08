@@ -1,4 +1,6 @@
 'use client';
+
+import { apiRequest, readJson } from "@/lib/api/client";
 // components/admin/ImportAuditLog.tsx
 // Audit log viewer for import jobs with before/after snapshot diffs
 
@@ -49,9 +51,9 @@ export function ImportAuditLog({ importJobId }: ImportAuditLogProps) {
       if (tableFilter) params.set('table_name', tableFilter);
       if (opFilter) params.set('operation', opFilter);
 
-      const res = await fetch(`/api/admin/imports/${importJobId}/audit?${params}`);
+      const res = await apiRequest(`/api/admin/imports/${importJobId}/audit?${params}`);
       if (res.ok) {
-        const data = await res.json() as { entries: AuditLogEntry[]; total: number };
+        const data = await readJson(res) as { entries: AuditLogEntry[]; total: number };
         setEntries(data.entries);
         setTotal(data.total);
       }

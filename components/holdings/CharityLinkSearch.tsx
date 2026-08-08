@@ -1,5 +1,7 @@
 'use client';
 
+import { apiRequest, readJson } from "@/lib/api/client";
+
 import { useState, useEffect, useRef } from 'react';
 
 interface CharityResult {
@@ -54,9 +56,9 @@ export default function CharityLinkSearch({
     debounceRef.current = setTimeout(async () => {
       setSearching(true);
       try {
-        const res = await fetch(`/api/holdings/${holdingId}/search-charity?q=${encodeURIComponent(query)}`);
+        const res = await apiRequest(`/api/holdings/${holdingId}/search-charity?q=${encodeURIComponent(query)}`);
         if (res.ok) {
-          const data = await res.json();
+          const data = await readJson(res);
           setResults(data.results || []);
           setShowResults(true);
         }
@@ -87,13 +89,13 @@ export default function CharityLinkSearch({
     setLinking(true);
     setActionError(null);
     try {
-      const res = await fetch(`/api/holdings/${holdingId}/link-charity`, {
+      const res = await apiRequest(`/api/holdings/${holdingId}/link-charity`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ein }),
       });
       if (!res.ok) {
-        const d = await res.json().catch(() => ({}));
+        const d = await readJson(res).catch(() => ({}));
         throw new Error(d.error || `Link failed (${res.status})`);
       }
       setQuery('');
@@ -111,11 +113,11 @@ export default function CharityLinkSearch({
     setUnlinking(true);
     setActionError(null);
     try {
-      const res = await fetch(`/api/holdings/${holdingId}/link-charity`, {
+      const res = await apiRequest(`/api/holdings/${holdingId}/link-charity`, {
         method: 'DELETE',
       });
       if (!res.ok) {
-        const d = await res.json().catch(() => ({}));
+        const d = await readJson(res).catch(() => ({}));
         throw new Error(d.error || `Unlink failed (${res.status})`);
       }
       onLinked?.();

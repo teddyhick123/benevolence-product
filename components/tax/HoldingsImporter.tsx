@@ -1,5 +1,7 @@
 'use client';
 
+import { apiRequest, readJson } from "@/lib/api/client";
+
 import { useState, useEffect } from 'react';
 import { CONTRIBUTION_TYPE_LABELS } from '@/lib/tax/constants';
 import { suggestContributionType } from '@/lib/helpers/tax-holding-link';
@@ -38,11 +40,11 @@ export default function HoldingsImporter({
     async function fetchHoldings() {
       try {
         setLoading(true);
-        const res = await fetch(`/api/portfolio/${portfolioId}/holdings`);
+        const res = await apiRequest(`/api/portfolio/${portfolioId}/holdings`);
 
         if (!res.ok) throw new Error('Failed to fetch holdings');
 
-        const json = await res.json();
+        const json = await readJson(res);
         setHoldings(json.data || []);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Unknown error');
@@ -102,14 +104,14 @@ export default function HoldingsImporter({
         body.qcd_qualified = true;
       }
 
-      const res = await fetch(`/api/portfolio/${portfolioId}/tax/contributions`, {
+      const res = await apiRequest(`/api/portfolio/${portfolioId}/tax/contributions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
 
       if (!res.ok) {
-        const json = await res.json();
+        const json = await readJson(res);
         throw new Error(json.error || 'Failed to import holding');
       }
 

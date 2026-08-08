@@ -1,4 +1,6 @@
 'use client';
+
+import { apiRequest, readJson } from "@/lib/api/client";
 import { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 
@@ -60,7 +62,7 @@ export default function HoldingsComparisonTable({ portfolioId, title, config }: 
           metrics: metrics.join(',')
         });
 
-        const res = await fetch(
+        const res = await apiRequest(
           `/api/portfolio/${encodeURIComponent(portfolioId)}/comparison-table?${params.toString()}`,
           { cache: 'no-store' }
         );
@@ -69,7 +71,7 @@ export default function HoldingsComparisonTable({ portfolioId, title, config }: 
           throw new Error(`Failed to fetch comparison data: ${res.status}`);
         }
 
-        const json = await res.json();
+        const json = await readJson(res);
 
         if (mounted) {
           setData(json.data || []);

@@ -1,6 +1,8 @@
 // components/settings/AuditLogTab.tsx
 'use client';
 
+import { apiRequest, readJson } from "@/lib/api/client";
+
 import { useState, useEffect } from 'react';
 
 const ACTION_LABELS: Record<string, string> = {
@@ -22,8 +24,8 @@ export default function AuditLogTab({ orgId }: AuditLogTabProps) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch(`/api/org/${orgId}/audit?limit=50`)
-      .then((r) => r.json())
+    apiRequest(`/api/org/${orgId}/audit?limit=50`)
+      .then((r) => readJson(r))
       .then((d) => { setEntries(d.entries || []); setLoading(false); });
   }, [orgId]);
 

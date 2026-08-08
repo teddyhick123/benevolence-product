@@ -1,5 +1,7 @@
 'use client';
 
+import { apiRequest, readJson } from "@/lib/api/client";
+
 import { useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 
@@ -65,18 +67,18 @@ export default function NewDonorPage() {
     setLoading(true);
 
     try {
-      const response = await fetch(`/api/org/${organizationId}/donors`, {
+      const response = await apiRequest(`/api/org/${organizationId}/donors`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData),
       });
 
       if (!response.ok) {
-        const data = await response.json();
+        const data = await readJson(response);
         throw new Error(data.error || 'Failed to create donor');
       }
 
-      const { donor } = await response.json();
+      const { donor } = await readJson(response);
       router.push(`/org/${organizationId}/donors/${donor.id}`);
     } catch (err: any) {
       setError(err.message);

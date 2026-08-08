@@ -1,6 +1,8 @@
 
 
 'use client';
+
+import { apiRequest, readJson } from "@/lib/api/client";
 import { useEffect, useMemo, useState, use } from 'react';
 import Link from 'next/link';
 
@@ -32,15 +34,15 @@ export default function PortfolioSettingsPage({ params }: { params: Promise<{ id
       try {
         // Fetch portfolio info and settings in parallel
         const [portfolioRes, settingsRes] = await Promise.all([
-          fetch(`/api/portfolio/${encodeURIComponent(portfolioId)}`, { cache: 'no-store' }),
-          fetch(`/api/portfolio/${encodeURIComponent(portfolioId)}/settings`, { cache: 'no-store' })
+          apiRequest(`/api/portfolio/${encodeURIComponent(portfolioId)}`, { cache: 'no-store' }),
+          apiRequest(`/api/portfolio/${encodeURIComponent(portfolioId)}/settings`, { cache: 'no-store' })
         ]);
 
         if (!mounted) return;
 
         // Handle portfolio info
         if (portfolioRes.ok) {
-          const portfolioData = await portfolioRes.json();
+          const portfolioData = await readJson(portfolioRes);
           if (mounted && portfolioData?.name) {
             setPortfolioName(portfolioData.name);
           }
@@ -48,7 +50,7 @@ export default function PortfolioSettingsPage({ params }: { params: Promise<{ id
 
         // Handle settings
         if (settingsRes.ok) {
-          const settingsData = await settingsRes.json();
+          const settingsData = await readJson(settingsRes);
           if (mounted) {
             setShowMap(Boolean(settingsData?.show_map ?? true));
             if (Array.isArray(settingsData?.widgets) && settingsData.widgets.length) {
@@ -73,12 +75,12 @@ export default function PortfolioSettingsPage({ params }: { params: Promise<{ id
     e.preventDefault();
     setSaving(true); setError(null); setOk(null);
     try {
-      const res = await fetch(`/api/admin/portfolios/${encodeURIComponent(portfolioId)}/settings`, {
+      const res = await apiRequest(`/api/admin/portfolios/${encodeURIComponent(portfolioId)}/settings`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: portfolioName, show_map: showMap, widgets }),
       });
-      const j = await res.json().catch(() => ({}));
+      const j = await readJson(res).catch(() => ({}));
       if (!res.ok) throw new Error(j?.error || 'Failed to save');
       setOk('Settings saved');
       setTimeout(() => setOk(null), 3000);

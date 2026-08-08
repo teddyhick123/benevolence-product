@@ -1,7 +1,9 @@
 'use client';
 
+import { apiRequest, readJson } from "@/lib/api/client";
+import { useReportsData } from "@/lib/reports/hooks";
+
 import { useState } from 'react';
-import useSWR from 'swr';
 
 type Holding = {
   id: string;
@@ -14,7 +16,6 @@ interface Props {
   onSuccess?: (exportData: any) => void;
 }
 
-const fetcher = (url: string) => fetch(url).then(r => r.json());
 
 const DATA_TYPES = [
   { value: 'holdings', label: 'Holdings', description: 'All holdings with their details' },
@@ -43,10 +44,8 @@ export default function ExportDataModal({ portfolioId, onClose, onSuccess }: Pro
   const [saveDocument, setSaveDocument] = useState(false);
 
   // Fetch holdings for filter
-  const { data: holdingsData } = useSWR<{ data: Holding[] }>(
-    `/api/portfolio/${portfolioId}/holdings`,
-    fetcher
-  );
+  const { data: holdingsData } = useReportsData<{ data: Holding[] }>(
+    `/api/portfolio/${portfolioId}/holdings`);
 
   const holdings = holdingsData?.data || [];
 
@@ -56,7 +55,7 @@ export default function ExportDataModal({ portfolioId, onClose, onSuccess }: Pro
     setExportResult(null);
 
     try {
-      const response = await fetch(`/api/portfolio/${portfolioId}/reports/export`, {
+      const response = await apiRequest(`/api/portfolio/${portfolioId}/reports/export`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -70,11 +69,11 @@ export default function ExportDataModal({ portfolioId, onClose, onSuccess }: Pro
       });
 
       if (!response.ok) {
-        const data = await response.json();
+        const data = await readJson(response);
         throw new Error(data.error || 'Export failed');
       }
 
-      const result = await response.json();
+      const result = await readJson(response);
       setExportResult(result.export);
       onSuccess?.(result);
     } catch (err: any) {

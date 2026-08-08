@@ -1,5 +1,7 @@
 "use client";
 
+import { apiRequest, readJson } from "@/lib/api/client";
+
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
@@ -31,12 +33,12 @@ export default function OrgSubmittedMetrics({ holdingId, pendingFacts, linkedOrg
     setError(null);
 
     try {
-      const res = await fetch(`/api/admin/staged-facts/${factId}/approve`, {
+      const res = await apiRequest(`/api/admin/staged-facts/${factId}/approve`, {
         method: "POST",
       });
 
       if (!res.ok) {
-        const data = await res.json();
+        const data = await readJson(res);
         throw new Error(data.error || "Failed to approve");
       }
 
@@ -55,12 +57,12 @@ export default function OrgSubmittedMetrics({ holdingId, pendingFacts, linkedOrg
     setError(null);
 
     try {
-      const res = await fetch(`/api/admin/staged-facts/${factId}`, {
+      const res = await apiRequest(`/api/admin/staged-facts/${factId}`, {
         method: "DELETE",
       });
 
       if (!res.ok) {
-        const data = await res.json();
+        const data = await readJson(res);
         throw new Error(data.error || "Failed to reject");
       }
 

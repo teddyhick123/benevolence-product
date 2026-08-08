@@ -1,5 +1,7 @@
 'use client';
 
+import { apiRequest, readJson } from "@/lib/api/client";
+
 import { useState } from 'react';
 import { useEntityVocabulary } from '@/lib/hooks/use-entity-vocabulary';
 
@@ -111,18 +113,18 @@ export default function CreateGrantWizard({ orgId, portfolioId, onSuccess, onClo
         };
       }
 
-      const res = await fetch(`/api/org/${orgId}/grants`, {
+      const res = await apiRequest(`/api/org/${orgId}/grants`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
 
       if (!res.ok) {
-        const json = await res.json().catch(() => ({}));
+        const json = await readJson(res).catch(() => ({}));
         throw new Error(json.error ?? `Request failed (${res.status})`);
       }
 
-      const json = await res.json();
+      const json = await readJson(res);
       onSuccess(json.grant.id);
     } catch (err: any) {
       setError(err?.message ?? 'Failed to create grant');

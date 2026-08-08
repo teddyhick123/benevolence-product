@@ -1,5 +1,7 @@
 'use client';
 
+import { apiRequest, readJson } from "@/lib/api/client";
+
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 
@@ -20,11 +22,11 @@ export default function AddToTaxTrackerButton({ holdingId, holdingName, portfoli
       setLoading(true);
       setError(null);
 
-      const res = await fetch(`/api/holdings/${holdingId}/create-tax-record`, {
+      const res = await apiRequest(`/api/holdings/${holdingId}/create-tax-record`, {
         method: 'POST',
       });
 
-      const data = await res.json();
+      const data = await readJson(res);
 
       if (!res.ok) {
         // If already has a tax record, that's okay - show success message

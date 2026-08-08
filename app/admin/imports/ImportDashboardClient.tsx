@@ -1,4 +1,6 @@
 'use client';
+
+import { apiRequest, readJson } from "@/lib/api/client";
 // app/admin/imports/ImportDashboardClient.tsx
 
 import { useState } from 'react';
@@ -22,13 +24,13 @@ export function ImportDashboardClient({ initialJobs, portfolios }: Props) {
   async function handleResume(jobId: string) {
     setActionInProgress(jobId);
     try {
-      const res = await fetch(`/api/admin/imports/${jobId}/resume`, { method: 'POST' });
+      const res = await apiRequest(`/api/admin/imports/${jobId}/resume`, { method: 'POST' });
       if (!res.ok) {
-        const err = await res.json();
+        const err = await readJson(res);
         alert(`Resume failed: ${err.error}`);
         return;
       }
-      const { job } = await res.json();
+      const { job } = await readJson(res);
       setJobs((prev) => prev.map((j) => (j.id === jobId ? job : j)));
     } finally {
       setActionInProgress(null);
@@ -39,9 +41,9 @@ export function ImportDashboardClient({ initialJobs, portfolios }: Props) {
     if (!confirm('This will permanently delete all data loaded by this import. Continue?')) return;
     setActionInProgress(jobId);
     try {
-      const res = await fetch(`/api/admin/imports/${jobId}/rollback`, { method: 'POST' });
+      const res = await apiRequest(`/api/admin/imports/${jobId}/rollback`, { method: 'POST' });
       if (!res.ok) {
-        const err = await res.json();
+        const err = await readJson(res);
         alert(`Rollback failed: ${err.error}`);
         return;
       }

@@ -1,4 +1,6 @@
 "use client";
+
+import { apiRequest, readJson } from "@/lib/api/client";
 import Link from "next/link";
 import { useEffect, useState, useRef, Suspense } from "react";
 import { useSearchParams, usePathname } from "next/navigation";
@@ -37,9 +39,9 @@ function HeaderContent() {
   useEffect(() => {
     async function fetchPortfolio() {
       try {
-        const res = await fetch('/api/me', { cache: 'no-store' });
+        const res = await apiRequest('/api/me', { cache: 'no-store' });
         if (res.ok) {
-          const data = await res.json();
+          const data = await readJson(res);
           if (data?.portfolio_id) {
             setPortfolioId(data.portfolio_id);
           }
@@ -58,9 +60,9 @@ function HeaderContent() {
   useEffect(() => {
     async function fetchOrg() {
       try {
-        const res = await fetch('/api/org', { cache: 'no-store' });
+        const res = await apiRequest('/api/org', { cache: 'no-store' });
         if (res.ok) {
-          const data = await res.json();
+          const data = await readJson(res);
           const orgs: Array<{ id: string; name: string; role?: string; modules?: Record<string, boolean> }> = data?.organizations ?? [];
           setAllOrgs(orgs);
           const activeOrg = pickActiveOrg(orgs);

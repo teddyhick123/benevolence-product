@@ -1,5 +1,7 @@
 'use client';
 
+import { apiRequest, readJson } from "@/lib/api/client";
+
 import { useState } from 'react';
 
 type AccountSettingsProps = {
@@ -34,7 +36,7 @@ export default function AccountSettings({ userId, email }: AccountSettingsProps)
 
     setIsChangingPassword(true);
     try {
-      const response = await fetch('/api/profile/change-password', {
+      const response = await apiRequest('/api/profile/change-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -44,7 +46,7 @@ export default function AccountSettings({ userId, email }: AccountSettingsProps)
       });
 
       if (!response.ok) {
-        const error = await response.json();
+        const error = await readJson(response);
         throw new Error(error.message || 'Failed to change password');
       }
 

@@ -1,9 +1,9 @@
 'use client';
 
-import * as React from 'react';
-import useSWR from 'swr';
+import { useDashboardData } from "@/lib/dashboard/hooks";
 
-const fetcher = (url: string) => fetch(url, { cache: 'no-store' }).then(r => r.json());
+import * as React from 'react';
+
 
 type NewsArticle = {
   id: string;
@@ -19,10 +19,8 @@ type NewsArticle = {
 };
 
 export default function NewsSection({ holdingId }: { holdingId: string }) {
-  const { data, error, isLoading } = useSWR<{ data: NewsArticle[] }>(
-    `/api/holdings/${encodeURIComponent(holdingId)}/news`,
-    fetcher
-  );
+  const { data, error, isLoading } = useDashboardData<{ data: NewsArticle[] }>(
+    `/api/holdings/${encodeURIComponent(holdingId)}/news`);
 
   const articles = data?.data ?? [];
 

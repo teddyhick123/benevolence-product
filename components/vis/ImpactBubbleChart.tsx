@@ -1,8 +1,10 @@
 'use client';
+
+import { apiRequest, readJson } from "@/lib/api/client";
 import { useEffect, useState, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import * as d3 from 'd3';
-import { useWidgetDimensions } from '@/hooks/useWidgetDimensions';
+import { useWidgetDimensions } from '@/lib/hooks/useWidgetDimensions';
 import { ASSET_TYPE_COLORS } from '@/lib/schemas/portfolio';
 
 interface BubbleData {
@@ -71,7 +73,7 @@ export default function ImpactBubbleChart({ portfolioId, title, config }: Props)
         });
         if (colorMetric) params.set('colorMetric', colorMetric);
 
-        const res = await fetch(
+        const res = await apiRequest(
           `/api/portfolio/${encodeURIComponent(portfolioId)}/bubble-chart?${params.toString()}`,
           { cache: 'no-store' }
         );
@@ -80,7 +82,7 @@ export default function ImpactBubbleChart({ portfolioId, title, config }: Props)
           throw new Error(`Failed to fetch bubble chart data: ${res.status}`);
         }
 
-        const json = await res.json();
+        const json = await readJson(res);
 
         if (mounted) {
           setData(json.data || []);

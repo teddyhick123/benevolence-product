@@ -1,5 +1,7 @@
 'use client';
 
+import { apiRequest, readJson } from "@/lib/api/client";
+
 import { useEffect, useState } from 'react';
 import {
   DEFAULT_ENTITY_VOCABULARY,
@@ -17,9 +19,9 @@ export function useEntityVocabulary(orgId?: string | null) {
     }
 
     let cancelled = false;
-    fetch(`/api/org/${orgId}/view-config?include_vocabulary=true`)
+    apiRequest(`/api/org/${orgId}/view-config?include_vocabulary=true`)
       .then(async res => {
-        const json = await res.json().catch(() => ({}));
+        const json = await readJson(res).catch(() => ({}));
         if (!res.ok) throw new Error(json.error ?? 'Failed to load vocabulary');
         return json;
       })

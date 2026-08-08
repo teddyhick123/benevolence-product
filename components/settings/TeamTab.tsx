@@ -1,6 +1,8 @@
 // components/settings/TeamTab.tsx
 'use client';
 
+import { apiRequest, readJson } from "@/lib/api/client";
+
 import { useState, useEffect, useCallback } from 'react';
 import MemberRow from './MemberRow';
 import PendingInviteRow from './PendingInviteRow';
@@ -31,10 +33,10 @@ export default function TeamTab({ orgId }: TeamTabProps) {
   const fetchData = useCallback(async () => {
     setLoading(true);
     const [membersRes, invitesRes] = await Promise.all([
-      fetch(`/api/org/${orgId}/members`),
-      fetch(`/api/org/${orgId}/invitations`),
+      apiRequest(`/api/org/${orgId}/members`),
+      apiRequest(`/api/org/${orgId}/invitations`),
     ]);
-    const [membersData, invitesData] = await Promise.all([membersRes.json(), invitesRes.json()]);
+    const [membersData, invitesData] = await Promise.all([readJson(membersRes), readJson(invitesRes)]);
     setMembers(membersData.members || []);
     setCurrentRole(membersData.currentRole || 'viewer');
     setInvitations(invitesData.invitations || []);
@@ -44,7 +46,7 @@ export default function TeamTab({ orgId }: TeamTabProps) {
   useEffect(() => { fetchData(); }, [fetchData]);
 
   async function handleRoleChange(userId: string, newRole: string) {
-    await fetch(`/api/org/${orgId}/members/${userId}`, {
+    await apiRequest(`/api/org/${orgId}/members/${userId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ role: newRole }),
@@ -54,17 +56,17 @@ export default function TeamTab({ orgId }: TeamTabProps) {
 
   async function handleRemove(userId: string) {
     if (!confirm('Remove this member from your organization?')) return;
-    await fetch(`/api/org/${orgId}/members/${userId}`, { method: 'DELETE' });
+    await apiRequest(`/api/org/${orgId}/members/${userId}`, { method: 'DELETE' });
     fetchData();
   }
 
   async function handleResend(inviteId: string) {
-    await fetch(`/api/org/${orgId}/invitations/${inviteId}/resend`, { method: 'POST' });
+    await apiRequest(`/api/org/${orgId}/invitations/${inviteId}/resend`, { method: 'POST' });
   }
 
   async function handleCancel(inviteId: string) {
     if (!confirm('Cancel this invitation?')) return;
-    await fetch(`/api/org/${orgId}/invitations/${inviteId}`, { method: 'DELETE' });
+    await apiRequest(`/api/org/${orgId}/invitations/${inviteId}`, { method: 'DELETE' });
     fetchData();
   }
 

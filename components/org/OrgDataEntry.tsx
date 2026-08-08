@@ -1,5 +1,7 @@
 "use client";
 
+import { apiRequest, readJson } from "@/lib/api/client";
+
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
@@ -48,7 +50,7 @@ export default function OrgDataEntry({ orgId, holdings, metrics }: Props) {
     }
 
     try {
-      const res = await fetch(`/api/org/${orgId}/metrics`, {
+      const res = await apiRequest(`/api/org/${orgId}/metrics`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -61,7 +63,7 @@ export default function OrgDataEntry({ orgId, holdings, metrics }: Props) {
         }),
       });
 
-      const data = await res.json();
+      const data = await readJson(res);
 
       if (!res.ok) {
         throw new Error(data.error || "Failed to submit metric");

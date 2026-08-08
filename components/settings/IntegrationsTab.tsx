@@ -1,5 +1,7 @@
 'use client';
 
+import { apiRequest } from "@/lib/api/client";
+
 interface IntegrationCardProps {
   name: string;
   description: string;
@@ -48,7 +50,7 @@ interface IntegrationsTabProps {
 
 export default function IntegrationsTab({ qbConnected, qbTokenExpired, qbNeedsReconnect, orgId }: IntegrationsTabProps) {
   async function handleQbDisconnect() {
-    await fetch(`/api/integrations/quickbooks/disconnect`, {
+    await apiRequest(`/api/integrations/quickbooks/disconnect`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ org_id: orgId }),

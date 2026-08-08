@@ -1,5 +1,7 @@
 'use client';
 
+import { apiRequest, readJson } from "@/lib/api/client";
+
 import { useState } from 'react';
 
 type Contribution = {
@@ -82,14 +84,14 @@ ${organization.name}`;
     setLoading(true);
 
     try {
-      const response = await fetch(`/api/org/${organizationId}/contributions/${contribution.id}/receipt`, {
+      const response = await apiRequest(`/api/org/${organizationId}/contributions/${contribution.id}/receipt`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ send_immediately: sendImmediately }),
       });
 
       if (!response.ok) {
-        const data = await response.json();
+        const data = await readJson(response);
         throw new Error(data.error || 'Failed to generate receipt');
       }
 

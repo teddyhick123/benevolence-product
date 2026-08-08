@@ -1,5 +1,7 @@
 'use client';
 
+import { apiRequest, readJson } from "@/lib/api/client";
+
 import { Suspense, lazy, useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 
@@ -37,9 +39,9 @@ function PeopleGridAutoRenderer({ portfolioId, title, config }: { portfolioId: s
         setError(null);
         if (!metric) { setTotal(0); setError('Missing metric_code'); return; }
         const qs = new URLSearchParams({ metric: metric, window: windowStr });
-        const res = await fetch(`/api/portfolio/${encodeURIComponent(portfolioId)}/kpi-series?${qs.toString()}`, { cache: 'no-store' });
+        const res = await apiRequest(`/api/portfolio/${encodeURIComponent(portfolioId)}/kpi-series?${qs.toString()}`, { cache: 'no-store' });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const json = await res.json();
+        const json = await readJson(res);
         const series: Array<{ date: string; value: number }> = Array.isArray(json?.series) ? json.series : [];
         let t = 0;
         if (mode === 'latest') {
@@ -86,9 +88,9 @@ function HoldingsPieAutoRenderer({ portfolioId, title, config }: { portfolioId: 
     (async () => {
       try {
         setError(null);
-        const res = await fetch(endpoint, { cache: 'no-store' });
+        const res = await apiRequest(endpoint, { cache: 'no-store' });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const json = await res.json();
+        const json = await readJson(res);
         const items = Array.isArray(json?.data) ? json.data : Array.isArray(json) ? json : [];
 
         const aggregated: Record<string, number> = {};
@@ -167,7 +169,7 @@ export default function InlineWidget({ widget, portfolioId, compact: _compact = 
   const handleSaveToDashboard = async () => {
     setSaving(true);
     try {
-      const res = await fetch(`/api/portfolio/${portfolioId}/widgets/save-preview`, {
+      const res = await apiRequest(`/api/portfolio/${portfolioId}/widgets/save-preview`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

@@ -1,11 +1,11 @@
 'use client';
 
-import useSWR from 'swr';
+import { useGrantsData } from "@/lib/grants/hooks";
+
 import GrantSummaryCard, { type Grant } from '@/components/grants/GrantSummaryCard';
 import SectionHeader from '@/components/ui/SectionHeader';
 import { useEntityVocabulary } from '@/lib/hooks/use-entity-vocabulary';
 
-const fetcher = (url: string) => fetch(url, { cache: 'no-store' }).then(r => r.json());
 
 interface GrantsResponse {
   data: Grant[];
@@ -31,10 +31,8 @@ export default function GrantsList({ portfolioId, orgId }: { portfolioId: string
   const vocabulary = useEntityVocabulary(orgId);
   const grantLabel = vocabulary.grant.singular;
   const grantPlural = vocabulary.grant.plural;
-  const { data, error, isLoading } = useSWR<GrantsResponse>(
-    `/api/portfolio/${encodeURIComponent(portfolioId)}/grants?limit=50`,
-    fetcher
-  );
+  const { data, error, isLoading } = useGrantsData<GrantsResponse>(
+    `/api/portfolio/${encodeURIComponent(portfolioId)}/grants?limit=50`);
 
   const grants = data?.data ?? [];
 

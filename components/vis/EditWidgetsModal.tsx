@@ -1,12 +1,13 @@
 'use client';
 
+import { apiRequest, readJson } from "@/lib/api/client";
+import { useVisualizationData } from "@/lib/visualizations/hooks";
+
 import * as React from 'react';
-import useSWR from 'swr';
 import clsx from 'clsx';
 import { createPortal } from 'react-dom';
 import CreateWidgetModal from './CreateWidgetModal';
 
-const fetcher = (url: string) => fetch(url, { cache: 'no-store' }).then(r => r.json());
 
 export type WidgetRow = {
   id: string;
@@ -93,10 +94,8 @@ export default function EditWidgetsModal({ portfolioId, holdingId, open, onClose
     ? `/api/holdings/${encodeURIComponent(holdingId)}/widgets`
     : `/api/portfolio/${encodeURIComponent(portfolioId)}/widgets`;
 
-  const { data, error: fetchError, isLoading, mutate } = useSWR<{ data: WidgetRow[] }>(
-    open ? apiEndpoint : null,
-    fetcher
-  );
+  const { data, error: fetchError, isLoading, mutate } = useVisualizationData<{ data: WidgetRow[] }>(
+    open ? apiEndpoint : null);
 
   const widgets = React.useMemo(() => (data?.data ?? []).slice().sort((a, b) => a.position - b.position), [data]);
 
@@ -119,9 +118,9 @@ export default function EditWidgetsModal({ portfolioId, holdingId, open, onClose
         ? `/api/holdings/${encodeURIComponent(holdingId)}/widgets/${encodeURIComponent(id)}`
         : `/api/portfolio/${encodeURIComponent(portfolioId)}/widgets/${encodeURIComponent(id)}`;
 
-      const res = await fetch(deleteUrl, { method: 'DELETE' });
+      const res = await apiRequest(deleteUrl, { method: 'DELETE' });
       if (!res.ok) {
-        const json = await res.json().catch(() => ({}));
+        const json = await readJson(res).catch(() => ({}));
         throw new Error(json?.error || 'Delete failed');
       }
       await mutate();
@@ -148,38 +147,38 @@ export default function EditWidgetsModal({ portfolioId, holdingId, open, onClose
     const tempPosition = 999999;
 
     // Step 1: Move widget A to temp position
-    const res1 = await fetch(`${baseUrl}/${encodeURIComponent(widgetA.id)}`, {
+    const res1 = await apiRequest(`${baseUrl}/${encodeURIComponent(widgetA.id)}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ position: tempPosition })
     });
 
     if (!res1.ok) {
-      const error1 = await res1.json().catch(() => ({}));
+      const error1 = await readJson(res1).catch(() => ({}));
       throw new Error(error1?.error || 'Failed to reorder widgets');
     }
 
     // Step 2: Move widget B to A's original position
-    const res2 = await fetch(`${baseUrl}/${encodeURIComponent(widgetB.id)}`, {
+    const res2 = await apiRequest(`${baseUrl}/${encodeURIComponent(widgetB.id)}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ position: widgetA.position })
     });
 
     if (!res2.ok) {
-      const error2 = await res2.json().catch(() => ({}));
+      const error2 = await readJson(res2).catch(() => ({}));
       throw new Error(error2?.error || 'Failed to reorder widgets');
     }
 
     // Step 3: Move widget A to B's original position
-    const res3 = await fetch(`${baseUrl}/${encodeURIComponent(widgetA.id)}`, {
+    const res3 = await apiRequest(`${baseUrl}/${encodeURIComponent(widgetA.id)}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ position: widgetB.position })
     });
 
     if (!res3.ok) {
-      const error3 = await res3.json().catch(() => ({}));
+      const error3 = await readJson(res3).catch(() => ({}));
       throw new Error(error3?.error || 'Failed to reorder widgets');
     }
   }
@@ -267,7 +266,7 @@ export default function EditWidgetsModal({ portfolioId, holdingId, open, onClose
 
     try {
       // Step 1: Park dragged widget at temp position to free its slot
-      const r0 = await fetch(`${baseUrl}/${encodeURIComponent(dragged.id)}`, {
+      const r0 = await apiRequest(`${baseUrl}/${encodeURIComponent(dragged.id)}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ position: tempPosition }),
@@ -277,7 +276,7 @@ export default function EditWidgetsModal({ portfolioId, holdingId, open, onClose
       if (fromIdx < toIdx) {
         // Drag DOWN: shift [fromIdx+1..toIdx] each one position toward fromIdx
         for (let i = fromIdx + 1; i <= toIdx; i++) {
-          const r = await fetch(`${baseUrl}/${encodeURIComponent(widgets[i].id)}`, {
+          const r = await apiRequest(`${baseUrl}/${encodeURIComponent(widgets[i].id)}`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ position: widgets[i - 1].position }),
@@ -287,7 +286,7 @@ export default function EditWidgetsModal({ portfolioId, holdingId, open, onClose
       } else {
         // Drag UP: shift [toIdx..fromIdx-1] each one position toward fromIdx
         for (let i = fromIdx - 1; i >= toIdx; i--) {
-          const r = await fetch(`${baseUrl}/${encodeURIComponent(widgets[i].id)}`, {
+          const r = await apiRequest(`${baseUrl}/${encodeURIComponent(widgets[i].id)}`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ position: widgets[i + 1].position }),
@@ -297,7 +296,7 @@ export default function EditWidgetsModal({ portfolioId, holdingId, open, onClose
       }
 
       // Step final: Place dragged at target position
-      const rFinal = await fetch(`${baseUrl}/${encodeURIComponent(dragged.id)}`, {
+      const rFinal = await apiRequest(`${baseUrl}/${encodeURIComponent(dragged.id)}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ position: widgets[toIdx].position }),

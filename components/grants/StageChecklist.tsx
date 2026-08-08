@@ -1,5 +1,7 @@
 'use client';
 
+import { apiRequest, readJson } from "@/lib/api/client";
+
 import { useEffect, useMemo, useState } from 'react';
 import type { LifecycleStage } from '@/lib/grants/lifecycle-shared';
 
@@ -33,9 +35,9 @@ export default function StageChecklist({ orgId, grantId, currentStage }: Props) 
     setLoading(true);
     setError(null);
 
-    fetch(`/api/org/${orgId}/grants/${grantId}/checklist`)
+    apiRequest(`/api/org/${orgId}/grants/${grantId}/checklist`)
       .then(async res => {
-        const json = await res.json().catch(() => ({}));
+        const json = await readJson(res).catch(() => ({}));
         if (!res.ok) throw new Error(json.error ?? 'Failed to load checklist');
         return json.data ?? {};
       })
@@ -72,12 +74,12 @@ export default function StageChecklist({ orgId, grantId, currentStage }: Props) 
     }));
 
     try {
-      const res = await fetch(`/api/org/${orgId}/grants/${grantId}/checklist`, {
+      const res = await apiRequest(`/api/org/${orgId}/grants/${grantId}/checklist`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ stage_key: currentStage, item_key: itemKey, completed }),
       });
-      const json = await res.json().catch(() => ({}));
+      const json = await readJson(res).catch(() => ({}));
       if (!res.ok) throw new Error(json.error ?? 'Failed to update checklist');
     } catch (err: any) {
       setData(previous);

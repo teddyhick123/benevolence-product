@@ -1,6 +1,8 @@
 // app/dashboard/notifications/page.tsx
 'use client';
 
+import { apiRequest, readJson } from "@/lib/api/client";
+
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 
@@ -55,9 +57,9 @@ export default function NotificationsPage() {
     setLoading(true);
     const cursorParam = !reset && nextCursorRef.current ? `&cursor=${nextCursorRef.current}` : '';
     try {
-      const res = await fetch(`/api/org/${orgId}/notifications?status=${statusFilter}&limit=30${cursorParam}`);
+      const res = await apiRequest(`/api/org/${orgId}/notifications?status=${statusFilter}&limit=30${cursorParam}`);
       if (!res.ok) return;
-      const data = await res.json();
+      const data = await readJson(res);
       setNotifications(prev => reset ? data.data : [...prev, ...data.data]);
       setUnreadCount(data.unread_count ?? 0);
       setHasMore(!!data.next_cursor);
@@ -76,7 +78,7 @@ export default function NotificationsPage() {
 
   async function markRead(n: NotificationItem) {
     if (n.read_at || !orgId) return;
-    await fetch(`/api/org/${orgId}/notifications/${n.id}/read`, { method: 'PATCH' });
+    await apiRequest(`/api/org/${orgId}/notifications/${n.id}/read`, { method: 'PATCH' });
     setNotifications(prev => prev.map(x => x.id === n.id ? { ...x, read_at: new Date().toISOString() } : x));
     setUnreadCount(prev => Math.max(0, prev - 1));
   }
@@ -88,7 +90,7 @@ export default function NotificationsPage() {
 
   async function handleMarkAll() {
     if (!orgId) return;
-    await fetch(`/api/org/${orgId}/notifications/mark-all-read`, { method: 'POST' });
+    await apiRequest(`/api/org/${orgId}/notifications/mark-all-read`, { method: 'POST' });
     setNotifications(prev => prev.map(n => ({ ...n, read_at: n.read_at ?? new Date().toISOString() })));
     setUnreadCount(0);
   }

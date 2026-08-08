@@ -5,6 +5,7 @@ import {
   ApiClientError,
   apiRequest,
   requestDownload,
+  readJson,
   requestJson,
   requestStream,
   uploadJson,
@@ -71,6 +72,13 @@ describe('requestJson', () => {
       code: 'invalid_json_response',
       status: 200,
     });
+  });
+});
+
+describe('readJson', () => {
+  it('uses the shared parser without taking over status-aware error handling', async () => {
+    const response = Response.json({ error: 'Conflict' }, { status: 409 });
+    await expect(readJson<{ error: string }>(response)).resolves.toEqual({ error: 'Conflict' });
   });
 });
 

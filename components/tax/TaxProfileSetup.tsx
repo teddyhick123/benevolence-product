@@ -1,5 +1,7 @@
 'use client';
 
+import { apiRequest, readJson } from "@/lib/api/client";
+
 import { useState, useEffect } from 'react';
 import { FILING_STATUS_LABELS, getStandardDeduction, AGI_LIMIT_PERCENTAGES } from '@/lib/tax/constants';
 import type { FilingStatus } from '@/lib/schemas/tax';
@@ -36,11 +38,11 @@ export default function TaxProfileSetup({ portfolioId, taxYear, onSave }: TaxPro
     async function fetchProfile() {
       try {
         setLoading(true);
-        const res = await fetch(`/api/portfolio/${portfolioId}/tax/profile?year=${taxYear}`);
+        const res = await apiRequest(`/api/portfolio/${portfolioId}/tax/profile?year=${taxYear}`);
 
         if (!res.ok) throw new Error('Failed to fetch tax profile');
 
-        const json = await res.json();
+        const json = await readJson(res);
 
         if (json.data) {
           setProfile(json.data);
@@ -96,18 +98,18 @@ export default function TaxProfileSetup({ portfolioId, taxYear, onSave }: TaxPro
         ? `/api/portfolio/${portfolioId}/tax/profile?year=${taxYear}`
         : `/api/portfolio/${portfolioId}/tax/profile`;
 
-      const res = await fetch(url, {
+      const res = await apiRequest(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
 
       if (!res.ok) {
-        const json = await res.json();
+        const json = await readJson(res);
         throw new Error(json.error || 'Failed to save tax profile');
       }
 
-      const json = await res.json();
+      const json = await readJson(res);
       setProfile(json.data);
       setIsEditing(false);
 

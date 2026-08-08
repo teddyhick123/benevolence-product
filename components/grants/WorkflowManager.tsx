@@ -1,5 +1,7 @@
 'use client';
 
+import { apiRequest, readJson } from "@/lib/api/client";
+
 import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase-browser';
 import { grantStatusBadgeClass } from './grantPalette';
@@ -76,8 +78,8 @@ export default function WorkflowManager({ portfolioId, orgId }: Props) {
       try {
         const supabase = createClient();
 
-        const workflowRes = await fetch(`/api/org/${orgId}/workflows?portfolio_id=${portfolioId}&status=all`);
-        const workflowJson = await workflowRes.json();
+        const workflowRes = await apiRequest(`/api/org/${orgId}/workflows?portfolio_id=${portfolioId}&status=all`);
+        const workflowJson = await readJson(workflowRes);
         if (!workflowRes.ok) throw new Error(workflowJson.error || 'Failed to load workflows');
 
         const processedWorkflows = (workflowJson.workflows || []).map((wf: any) => ({
@@ -97,8 +99,8 @@ export default function WorkflowManager({ portfolioId, orgId }: Props) {
 
         setWorkflows(processedWorkflows);
 
-        const templateRes = await fetch(`/api/org/${orgId}/workflow-templates`);
-        const templateJson = await templateRes.json();
+        const templateRes = await apiRequest(`/api/org/${orgId}/workflow-templates`);
+        const templateJson = await readJson(templateRes);
         if (!templateRes.ok) throw new Error(templateJson.error || 'Failed to load workflow templates');
         setTemplates(templateJson.templates || []);
 
@@ -155,7 +157,7 @@ export default function WorkflowManager({ portfolioId, orgId }: Props) {
       const template = templates.find(t => t.id === newWorkflowData.templateId);
       const holding = holdings.find(h => h.id === newWorkflowData.holdingId);
 
-      const res = await fetch(`/api/org/${orgId}/workflows`, {
+      const res = await apiRequest(`/api/org/${orgId}/workflows`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -166,7 +168,7 @@ export default function WorkflowManager({ portfolioId, orgId }: Props) {
           due_date: newWorkflowData.dueDate || null,
         }),
       });
-      const json = await res.json();
+      const json = await readJson(res);
       if (!res.ok) throw new Error(json.error || 'Failed to start workflow');
 
       // Refresh data
@@ -179,7 +181,7 @@ export default function WorkflowManager({ portfolioId, orgId }: Props) {
 
   const handleCompleteTask = async (workflowId: string, taskId: string, outcome: string) => {
     try {
-      const res = await fetch(`/api/org/${orgId}/workflows/${workflowId}/tasks/${taskId}`, {
+      const res = await apiRequest(`/api/org/${orgId}/workflows/${workflowId}/tasks/${taskId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -187,7 +189,7 @@ export default function WorkflowManager({ portfolioId, orgId }: Props) {
           outcome,
         }),
       });
-      const json = await res.json();
+      const json = await readJson(res);
       if (!res.ok) throw new Error(json.error || 'Failed to complete task');
 
       // Refresh data

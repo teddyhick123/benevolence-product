@@ -1,5 +1,7 @@
 'use client';
 
+import { apiRequest, readJson } from "@/lib/api/client";
+
 import { useEffect, useState, use } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -232,15 +234,15 @@ export default function KpisPage({ params }: { params: Promise<{ id: string }> }
     setError(null);
     try {
       const [kpisRes, metricsRes] = await Promise.all([
-        fetch(`/api/admin/portfolios/${portfolioId}/kpis`, { cache: 'no-store' }),
-        fetch(`/api/metrics`, { cache: 'no-store' }),
+        apiRequest(`/api/admin/portfolios/${portfolioId}/kpis`, { cache: 'no-store' }),
+        apiRequest(`/api/metrics`, { cache: 'no-store' }),
       ]);
 
       if (!kpisRes.ok) throw new Error('Failed to load KPIs');
       if (!metricsRes.ok) throw new Error('Failed to load metrics');
 
-      const kpisData = await kpisRes.json();
-      const metricsData = await metricsRes.json();
+      const kpisData = await readJson(kpisRes);
+      const metricsData = await readJson(metricsRes);
 
       setKpis(kpisData.data || []);
       setMetrics(metricsData.data || []);
@@ -260,7 +262,7 @@ export default function KpisPage({ params }: { params: Promise<{ id: string }> }
     setSuccess(null);
 
     try {
-      const res = await fetch(`/api/admin/portfolios/${portfolioId}/kpis`, {
+      const res = await apiRequest(`/api/admin/portfolios/${portfolioId}/kpis`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -273,7 +275,7 @@ export default function KpisPage({ params }: { params: Promise<{ id: string }> }
       });
 
       if (!res.ok) {
-        const data = await res.json();
+        const data = await readJson(res);
         throw new Error(data.error || 'Failed to create KPI');
       }
 
@@ -297,14 +299,14 @@ export default function KpisPage({ params }: { params: Promise<{ id: string }> }
     setSuccess(null);
 
     try {
-      const res = await fetch(`/api/admin/kpis/${id}`, {
+      const res = await apiRequest(`/api/admin/kpis/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
       });
 
       if (!res.ok) {
-        const resData = await res.json();
+        const resData = await readJson(res);
         throw new Error(resData.error || 'Failed to update KPI');
       }
 
@@ -321,12 +323,12 @@ export default function KpisPage({ params }: { params: Promise<{ id: string }> }
     setSuccess(null);
 
     try {
-      const res = await fetch(`/api/admin/kpis/${id}`, {
+      const res = await apiRequest(`/api/admin/kpis/${id}`, {
         method: 'DELETE',
       });
 
       if (!res.ok) {
-        const data = await res.json();
+        const data = await readJson(res);
         throw new Error(data.error || 'Failed to delete KPI');
       }
 

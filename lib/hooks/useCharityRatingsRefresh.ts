@@ -1,3 +1,4 @@
+import { apiRequest } from "@/lib/api/client";
 import { useEffect, useRef } from 'react';
 import { shouldRefreshRatings } from '@/lib/services/charity-ratings';
 
@@ -70,7 +71,7 @@ export function useCharityRatingsRefresh(recommendations: Recommendation[]) {
       refreshingRef.current.add(recommendationId);
       lastRefreshTimeRef.current = now;
 
-      const res = await fetch(
+      const res = await apiRequest(
         `/api/recommendations/${recommendationId}/ratings?forceRefresh=true`,
         {
           method: 'GET',

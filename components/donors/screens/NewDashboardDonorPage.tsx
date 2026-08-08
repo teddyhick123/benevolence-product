@@ -1,5 +1,7 @@
 'use client';
 
+import { apiRequest, readJson } from "@/lib/api/client";
+
 import { Suspense, useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
@@ -50,8 +52,8 @@ function NewDonorPageContent() {
 
   useEffect(() => {
     if (!orgId) {
-      fetch('/api/org', { cache: 'no-store' })
-        .then(r => r.json())
+      apiRequest('/api/org', { cache: 'no-store' })
+        .then(r => readJson(r))
         .then(d => {
           const first = d.organizations?.[0];
           if (first) setOrgId(first.id);
@@ -71,14 +73,14 @@ function NewDonorPageContent() {
     setError(null);
 
     try {
-      const res = await fetch(`/api/org/${orgId}/donors`, {
+      const res = await apiRequest(`/api/org/${orgId}/donors`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...form, is_organization: isOrg }),
       });
 
       if (!res.ok) {
-        const body = await res.json();
+        const body = await readJson(res);
         throw new Error(body.error || 'Failed to create donor');
       }
 

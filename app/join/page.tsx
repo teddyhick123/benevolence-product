@@ -1,6 +1,8 @@
 // app/join/page.tsx
 'use client';
 
+import { apiRequest, readJson } from "@/lib/api/client";
+
 import { useEffect, useState, Suspense } from 'react';
 import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
@@ -29,8 +31,8 @@ function JoinContent() {
     }
 
     async function validateAndMaybeAccept() {
-      const res = await fetch(`/api/invitations/${token}`);
-      const data = await res.json();
+      const res = await apiRequest(`/api/invitations/${token}`);
+      const data = await readJson(res);
 
       if (!data.valid) {
         const messages: Record<string, string> = {
@@ -59,8 +61,8 @@ function JoinContent() {
     if (!token) return;
     setState({ status: 'accepting' });
 
-    const res = await fetch(`/api/invitations/${token}/accept`, { method: 'POST' });
-    const data = await res.json();
+    const res = await apiRequest(`/api/invitations/${token}/accept`, { method: 'POST' });
+    const data = await readJson(res);
 
     if (res.ok && data.success) {
       if (data.orgId) {

@@ -1,5 +1,7 @@
 'use client';
 
+import { apiRequest, readJson } from "@/lib/api/client";
+
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -50,23 +52,23 @@ export default function GrantDetailPage() {
 
   const load = useCallback(async (oid: string) => {
     try {
-      const mainRes = await fetch(`/api/org/${oid}/grants/${grantId}`);
+      const mainRes = await apiRequest(`/api/org/${oid}/grants/${grantId}`);
       if (!mainRes.ok) return;
-      const mainData = await mainRes.json();
+      const mainData = await readJson(mainRes);
       setData(mainData);
 
       const holdingId = mainData?.grant?.holding_id;
       const [decisionsRes, contactsRes, milestonesRes] = await Promise.all([
-        fetch(`/api/org/${oid}/grants/${grantId}/decisions`),
-        fetch(`/api/org/${oid}/grants/${grantId}/contacts`).catch(() => ({ ok: false, json: async () => ({ data: [] }) })),
+        apiRequest(`/api/org/${oid}/grants/${grantId}/decisions`),
+        apiRequest(`/api/org/${oid}/grants/${grantId}/contacts`).catch(() => ({ ok: false, json: async () => ({ data: [] }) })),
         holdingId && portfolioId
-          ? fetch(`/api/portfolio/${portfolioId}/holdings/${holdingId}/milestones`).catch(() => ({ ok: false, json: async () => ({ data: [] }) }))
+          ? apiRequest(`/api/portfolio/${portfolioId}/holdings/${holdingId}/milestones`).catch(() => ({ ok: false, json: async () => ({ data: [] }) }))
           : Promise.resolve({ ok: true, json: async () => ({ data: [] }) }),
       ]);
 
-      if (decisionsRes.ok) setDecisions((await decisionsRes.json()).data ?? []);
-      if ((contactsRes as any).ok) setContacts((await (contactsRes as any).json()).data ?? []);
-      if ((milestonesRes as any).ok) setMilestones((await (milestonesRes as any).json()).data ?? []);
+      if (decisionsRes.ok) setDecisions((await readJson(decisionsRes)).data ?? []);
+      if ((contactsRes as any).ok) setContacts((await readJson(contactsRes as Response)).data ?? []);
+      if ((milestonesRes as any).ok) setMilestones((await readJson(milestonesRes as Response)).data ?? []);
     } catch {
       // ignore
     }
@@ -76,29 +78,29 @@ export default function GrantDetailPage() {
     async function init() {
       setLoading(true);
       try {
-        const meRes = await fetch('/api/me');
+        const meRes = await apiRequest('/api/me');
         if (!meRes.ok) return;
-        const me = await meRes.json();
+        const me = await readJson(meRes);
         const oid = me.organization_id ?? null;
         if (!oid) return;
         setOrgId(oid);
 
-        const mainRes = await fetch(`/api/org/${oid}/grants/${grantId}`);
+        const mainRes = await apiRequest(`/api/org/${oid}/grants/${grantId}`);
         if (!mainRes.ok) return;
-        const mainData = await mainRes.json();
+        const mainData = await readJson(mainRes);
         setData(mainData);
 
         const holdingId = mainData?.grant?.holding_id;
         const [decisionsRes, contactsRes, milestonesRes] = await Promise.all([
-          fetch(`/api/org/${oid}/grants/${grantId}/decisions`),
-          fetch(`/api/org/${oid}/grants/${grantId}/contacts`).catch(() => ({ ok: false, json: async () => ({ data: [] }) })),
+          apiRequest(`/api/org/${oid}/grants/${grantId}/decisions`),
+          apiRequest(`/api/org/${oid}/grants/${grantId}/contacts`).catch(() => ({ ok: false, json: async () => ({ data: [] }) })),
           holdingId && portfolioId
-            ? fetch(`/api/portfolio/${portfolioId}/holdings/${holdingId}/milestones`).catch(() => ({ ok: false, json: async () => ({ data: [] }) }))
+            ? apiRequest(`/api/portfolio/${portfolioId}/holdings/${holdingId}/milestones`).catch(() => ({ ok: false, json: async () => ({ data: [] }) }))
             : Promise.resolve({ ok: true, json: async () => ({ data: [] }) }),
         ]);
-        if (decisionsRes.ok) setDecisions((await decisionsRes.json()).data ?? []);
-        if ((contactsRes as any).ok) setContacts((await (contactsRes as any).json()).data ?? []);
-        if ((milestonesRes as any).ok) setMilestones((await (milestonesRes as any).json()).data ?? []);
+        if (decisionsRes.ok) setDecisions((await readJson(decisionsRes)).data ?? []);
+        if ((contactsRes as any).ok) setContacts((await readJson(contactsRes as Response)).data ?? []);
+        if ((milestonesRes as any).ok) setMilestones((await readJson(milestonesRes as Response)).data ?? []);
       } catch {
         // ignore
       } finally {
@@ -113,13 +115,13 @@ export default function GrantDetailPage() {
     setTransitioning(true);
     setTransitionError(null);
     try {
-      const res = await fetch(`/api/org/${orgId}/grants/${grantId}/transition`, {
+      const res = await apiRequest(`/api/org/${orgId}/grants/${grantId}/transition`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ to_stage: transitionTo, reason: transitionReason || undefined }),
       });
       if (!res.ok) {
-        const j = await res.json().catch(() => ({}));
+        const j = await readJson(res).catch(() => ({}));
         const blockingItems = Array.isArray(j.blocking_items) ? j.blocking_items : [];
         throw new Error(blockingItems.length > 0
           ? `Complete these items before advancing: ${blockingItems.join('; ')}`

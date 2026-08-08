@@ -1,5 +1,7 @@
 'use client';
 
+import { requestDownload } from "@/lib/api/client";
+
 import * as React from 'react';
 
 export interface GrantExportButtonProps {
@@ -34,21 +36,10 @@ export default function GrantExportButton({ portfolioId, grantId }: GrantExportB
       let url = `/api/portfolio/${portfolioId}/grants/export?format=${format}`;
       if (grantId) url += `&grantId=${grantId}`;
 
-      const res = await fetch(url);
-      if (!res.ok) {
-        const json = await res.json();
-        throw new Error(json.error || 'Export failed');
-      }
-
       const dateStr = new Date().toISOString().split('T')[0];
-      const contentDisposition = res.headers.get('Content-Disposition');
-      let filename = `grants-export-${dateStr}.${format}`;
-      if (contentDisposition) {
-        const match = contentDisposition.match(/filename="?([^"]+)"?/);
-        if (match) filename = match[1];
-      }
-
-      const blob = await res.blob();
+      const download = await requestDownload(url);
+      const filename = download.filename ?? `grants-export-${dateStr}.${format}`;
+      const { blob } = download;
       const downloadUrl = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = downloadUrl;

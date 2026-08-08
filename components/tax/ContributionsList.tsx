@@ -1,5 +1,7 @@
 'use client';
 
+import { apiRequest, readJson } from "@/lib/api/client";
+
 import { useState, useEffect } from 'react';
 import { CONTRIBUTION_TYPE_LABELS } from '@/lib/tax/constants';
 import ContributionDetailModal from './ContributionDetailModal';
@@ -35,11 +37,11 @@ export default function ContributionsList({
   async function fetchContributions() {
     try {
       setLoading(true);
-      const res = await fetch(`/api/portfolio/${portfolioId}/tax/contributions?year=${taxYear}`);
+      const res = await apiRequest(`/api/portfolio/${portfolioId}/tax/contributions?year=${taxYear}`);
 
       if (!res.ok) throw new Error('Failed to fetch contributions');
 
-      const json = await res.json();
+      const json = await readJson(res);
       setContributions(json.data || []);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');

@@ -1,6 +1,8 @@
 // components/admin/EmailLookupAdd.tsx
 'use client';
 
+import { apiRequest, readJson } from "@/lib/api/client";
+
 import { useState } from 'react';
 
 type Props = {
@@ -20,20 +22,20 @@ export default function EmailLookupAdd({ portfolioId }: Props) {
 
     try {
       // 1) Lookup user by email (admin endpoint)
-      const res = await fetch(`/api/admin/users/lookup?email=${encodeURIComponent(email)}`, { cache: 'no-store' });
-      const j = await res.json();
+      const res = await apiRequest(`/api/admin/users/lookup?email=${encodeURIComponent(email)}`, { cache: 'no-store' });
+      const j = await readJson(res);
       if (!res.ok) throw new Error(j?.error || 'Lookup failed');
       if (!j?.data?.id) throw new Error('No user found for that email');
 
       const userId = j.data.id as string;
 
       // 2) Add membership
-      const addRes = await fetch(`/api/admin/portfolios/${encodeURIComponent(portfolioId)}/members`, {
+      const addRes = await apiRequest(`/api/admin/portfolios/${encodeURIComponent(portfolioId)}/members`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ user_id: userId, role }),
       });
-      const addJ = await addRes.json().catch(() => ({}));
+      const addJ = await readJson(addRes).catch(() => ({}));
       if (!addRes.ok) throw new Error(addJ?.error || 'Failed to add member');
 
       setMsg({ kind: 'ok', text: `Added ${email} as ${role}.` });

@@ -133,6 +133,13 @@ describe('builder migration type drift gate', () => {
     expect(scaffoldContext).toContain('genuine platform product increment');
   });
 
+  it('keeps shared browser transport protected and browser proposals on the client-data contract', () => {
+    expect(pathPolicy).toContain("'lib/api/client.ts'");
+    expect(pathPolicy).toContain("'lib/api/client-hooks.ts'");
+    expect(checkMatrix).toContain("const CLIENT_DATA_CONTRACT_SUITE = 'tests/integration/client-data-contract.test.ts'");
+    expect(checkMatrix).toContain('extraSuiteGlobs.add(CLIENT_DATA_CONTRACT_SUITE)');
+  });
+
   it('runs the clean migration and generated-type gate in repository CI', () => {
     expect(ciWorkflow).toContain('npx supabase start');
     expect(ciWorkflow).toContain('npm run verify:migrations');

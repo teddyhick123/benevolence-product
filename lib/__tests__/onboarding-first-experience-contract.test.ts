@@ -27,7 +27,7 @@ describe('Foundation Setup first experience', () => {
     const provisioner = source('lib/api/repositories/onboarding-provisioning.ts');
 
     expect(assistant).toContain("private_foundation: 'private foundation managing grants'");
-    expect(flow).toContain("fetch('/api/onboarding/provision'");
+    expect(flow).toContain("apiRequest('/api/onboarding/provision'");
     expect(flow).toContain('module_ids: selectedModules');
     expect(provisioner).toContain('p_owner_user_id: userId');
     expect(provisionRoute).toContain('module_ids?: string[]');

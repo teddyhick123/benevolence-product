@@ -563,3 +563,27 @@ was corrected.
 names—relations, columns, views, RPCs, and argument keys. Value types, RPC return
 values, and write-requiredness are deliberately relaxed because validated domain
 boundaries own coercion. Tests and documentation now state that narrower promise.
+
+### 2026-08-08 — Phase 6 — browser data access had no shared failure or transport boundary
+
+**What happened:** Browser reads, mutations, uploads, downloads, and streams were
+implemented across 175 client files with direct `fetch` calls. SWR consumers
+also repeated local fetchers, generic hooks lived in two roots, and callers
+handled response parsing and errors inconsistently. This made it easy for new AI
+work to bypass a domain cache, save an API error as a downloaded file, or invent
+browser-provided tenant authority.
+
+**Resolution (Phase 6):** Added one response-preserving browser request primitive,
+one JSON parser/error contract, named upload/download/stream helpers, and
+domain-owned SWR hooks. All client components, contexts, and client pages now use
+that boundary; root `hooks/` was consolidated under `lib/`; and a fail-closed
+source contract rejects raw browser `fetch`, direct response JSON parsing, local
+SWR fetchers, legacy hook imports, and authoritative organization headers.
+Builder runs the same contract when proposals touch browser transport or domain
+hooks, and the protected-path policy covers the shared transport foundations.
+
+**Preserved boundaries:** No migration, database type, route, API response shape,
+or server-side repository/access rule changed. Server-only upstream requests stay
+outside the browser contract. AI chat continues to send stable request IDs through
+the named stream helper, while the Phase 3 transactional turn/message persistence,
+deterministic replay, and at-most-once side-effect boundary remain authoritative.

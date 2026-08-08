@@ -3,24 +3,26 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 
-const START = '<!-- schema-change-protocol:start -->';
-const END = '<!-- schema-change-protocol:end -->';
+const SCHEMA_START = '<!-- schema-change-protocol:start -->';
+const SCHEMA_END = '<!-- schema-change-protocol:end -->';
+const CLIENT_START = '<!-- client-data-protocol:start -->';
+const CLIENT_END = '<!-- client-data-protocol:end -->';
 
-function protocol(file: string): string {
+function markedSection(file: string, startMarker: string, endMarker: string): string {
   const source = readFileSync(file, 'utf8');
-  const start = source.indexOf(START);
-  const end = source.indexOf(END);
+  const start = source.indexOf(startMarker);
+  const end = source.indexOf(endMarker);
 
   if (start === -1 || end === -1 || end <= start) {
     throw new Error(`${file} is missing the marked schema change protocol`);
   }
 
-  return source.slice(start, end + END.length);
+  return source.slice(start, end + endMarker.length);
 }
 
 describe('agent schema-change instructions', () => {
-  const agents = protocol('AGENTS.md');
-  const claude = protocol('CLAUDE.md');
+  const agents = markedSection('AGENTS.md', SCHEMA_START, SCHEMA_END);
+  const claude = markedSection('CLAUDE.md', SCHEMA_START, SCHEMA_END);
 
   it('keeps the shared protocol identical across agent entrypoints', () => {
     expect(claude).toBe(agents);
@@ -45,6 +47,31 @@ describe('agent schema-change instructions', () => {
     'fail_ai_turn',
     'at-most-once',
   ])('retains required schema guardrail: %s', (rule) => {
+    expect(agents).toContain(rule);
+  });
+});
+
+describe('agent client-data instructions', () => {
+  const agents = markedSection('AGENTS.md', CLIENT_START, CLIENT_END);
+  const claude = markedSection('CLAUDE.md', CLIENT_START, CLIENT_END);
+
+  it('keeps the shared client-data protocol identical across agent entrypoints', () => {
+    expect(claude).toBe(agents);
+  });
+
+  it.each([
+    'lib/api/client.ts',
+    'requestJson',
+    'uploadJson',
+    'requestDownload',
+    'requestStream',
+    'lib/<domain>/hooks.ts',
+    'must not define local SWR fetchers or call raw `fetch`',
+    'must not be recreated',
+    'never authority',
+    'requestId',
+    'at-most-once tool side effects',
+  ])('retains required client-data guardrail: %s', (rule) => {
     expect(agents).toContain(rule);
   });
 });

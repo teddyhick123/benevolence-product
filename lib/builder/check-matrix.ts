@@ -34,6 +34,7 @@ const BUILD_EXACT = ['middleware.ts', 'package.json'];
 const BUILD_PATTERNS = [/^next\.config\.[a-z]+$/, /^tailwind\.config\.[a-z]+$/, /^postcss\.config\.[a-z]+$/, /^tsconfig(\..+)?\.json$/];
 
 const SCHEMA_CONTRACT_SUITE = 'tests/integration/builder-schema-contract.test.ts';
+const CLIENT_DATA_CONTRACT_SUITE = 'tests/integration/client-data-contract.test.ts';
 // A glob pattern, not a literal file path. Vitest does NOT expand a '*' it is
 // handed as a `related` argument (verified against Vitest 4.0.12: it silently
 // treats the literal '*' string as a non-matching filter), and CHECK_COMMANDS
@@ -61,6 +62,12 @@ function isBuildRelevant(p: string): boolean {
   return false;
 }
 
+function isClientDataRelevant(p: string): boolean {
+  if (p.startsWith('components/') || p.startsWith('contexts/') || p.startsWith('lib/hooks/')) return true;
+  if (/^app\/(?!api\/).+\.[jt]sx?$/.test(p)) return true;
+  return /^lib\/[^/]+\/hooks\.[jt]sx?$/.test(p);
+}
+
 /** Change-class matrix. types/lint/unit always; migrations iff db/migrations/**; build iff app|components|contexts|config. */
 export function requiredCheckKeys(paths: string[]): CheckKey[] {
   const required = new Set<CheckKey>(['verify:types', 'verify:lint', 'verify:unit']);
@@ -84,6 +91,9 @@ export function unitTestTargets(paths: string[]): { relatedFiles: string[]; extr
   }
   if (paths.some((p) => p.startsWith(API_PREFIX) || p.startsWith(INTEGRATION_TEST_PREFIX))) {
     extraSuiteGlobs.add(API_CONTRACT_SUITE_GLOB);
+  }
+  if (paths.some(isClientDataRelevant)) {
+    extraSuiteGlobs.add(CLIENT_DATA_CONTRACT_SUITE);
   }
 
   return { relatedFiles, extraSuiteGlobs: Array.from(extraSuiteGlobs).sort() };

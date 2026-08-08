@@ -4,7 +4,7 @@
 
 This is a white-label platform for philanthropic portfolio management — foundations, family offices, and DAF sponsors. Each deployment is a cloned instance with its own database, auth, and branding.
 
-Organizations configure their experience by enabling feature modules (grants, tax, donors, compliance, analytics, etc.) and using the AI assistant and Builder to work within those modules. Deeper customization — new schemas, workflows, or views specific to one org — currently requires developer involvement via the Builder's proposal-and-deploy flow.
+Organizations configure their experience by enabling feature modules (grants, tax, donors, compliance, analytics, etc.) and using the AI assistant and Builder to work within those modules. Organization-specific fields, KPIs, layouts, workflows, automations, and module choices live in the sanctioned data/configuration extension points. Builder may propose a schema migration only for a genuine shared platform product increment, never as per-client DDL.
 
 **Note**: This is a golden template. Clone for each client and customize branding via `/lib/config/branding.ts`.
 
@@ -39,6 +39,19 @@ Organizations configure their experience by enabling feature modules (grants, ta
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
+## Client Data Boundary
+
+Server components should provide initial data when it is naturally available during page composition. Browser refresh and mutation revalidation are owned by domain hooks under `lib/<domain>/hooks.ts`; those hooks share SWR and the canonical JSON/error behavior in `lib/api/client-hooks.ts`.
+
+All browser requests pass through `lib/api/client.ts`:
+
+- `requestJson` is the ordinary JSON request/parser and throws a typed `ApiClientError`.
+- `readJson` supports the narrower case where a caller intentionally inspects status or headers before parsing.
+- `uploadJson`, `requestDownload`, and `requestStream` preserve multipart, file, and streaming semantics.
+- `apiRequest` is the response-preserving low-level primitive and is not a tenant authorization mechanism.
+
+Components and client pages do not call raw `fetch` or define local SWR fetchers. Client org/portfolio IDs remain routing inputs; server guards and tenant-scoped repositories authorize every request. Server-only upstream integrations and Builder's verifier/GitHub transports retain their own bounded HTTP clients.
+
 ## Directory Structure
 
 ```
@@ -64,6 +77,7 @@ Organizations configure their experience by enabling feature modules (grants, ta
 │   └── 00XX_*.sql           # Sequential migrations
 │
 ├── lib/                      # Core libraries
+│   ├── api/                 # Access guards, repositories, responses, browser transport
 │   ├── ai/                  # AI assistant components
 │   │   ├── types.ts         # Shared types
 │   │   ├── validators.ts    # Input validation
@@ -73,7 +87,8 @@ Organizations configure their experience by enabling feature modules (grants, ta
 │   │   ├── client-info.ts   # Client-safe module data
 │   │   ├── registry.ts      # Full module definitions
 │   │   └── tool-filter.ts   # Tool filtering logic
-│   └── supabase.ts          # Database client
+│   ├── hooks/               # Generic browser/UI hooks (no data-domain ownership)
+│   └── {domain}/hooks.ts    # Domain-owned interactive data hooks
 │
 ├── templates/                # Module development templates
 │   └── module/              # Template files
@@ -105,7 +120,7 @@ Each module is defined in the registry with:
 ### Module Lifecycle
 
 1. **Registration**: Add to `MODULE_REGISTRY` in `registry.ts`
-2. **Database**: Create migration in `db/`
+2. **Database**: Apply the schema decision protocol: use configuration/custom fields for org variability; create a migration only for a genuine shared platform concept
 3. **Tools**: Define provider-neutral schemas in `lib/ai/assistant/tool-definitions.ts` and executors in `lib/ai/assistant/executor.ts` or `lib/ai/assistant/executors/`
 4. **API**: Create routes under the owning scope, usually `app/api/org/[orgId]/...` for org-scoped operations or `app/api/portfolio/[id]/...` for portfolio-scoped reads
 5. **UI**: Add components and pages

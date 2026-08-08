@@ -103,6 +103,21 @@ describe('unitTestTargets', () => {
     const t = unitTestTargets(['tests/integration/tax-contributions.auth.test.ts']);
     expect(t.extraSuiteGlobs).toContain('tests/integration/*.test.ts');
   });
+
+  it('adds the client-data contract for browser and domain-hook changes', () => {
+    for (const changed of [
+      'components/tax/Card.tsx',
+      'contexts/ModuleContext.tsx',
+      'app/dashboard/page.tsx',
+      'lib/holdings/hooks.ts',
+      'lib/hooks/useWidgetDimensions.ts',
+    ]) {
+      expect(unitTestTargets([changed]).extraSuiteGlobs)
+        .toContain('tests/integration/client-data-contract.test.ts');
+    }
+    expect(unitTestTargets(['app/api/org/[orgId]/x/route.ts']).extraSuiteGlobs)
+      .not.toContain('tests/integration/client-data-contract.test.ts');
+  });
 });
 
 describe('package.json verify scripts contract', () => {

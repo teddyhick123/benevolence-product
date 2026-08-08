@@ -45,6 +45,8 @@ const PROTECTED_EXACT_PATHS = new Set([
   'app/middleware.ts',
   'lib/supabase.ts',
   'lib/org-capabilities.ts',
+  'lib/api/client.ts',
+  'lib/api/client-hooks.ts',
   'next.config.js',
   'next.config.mjs',
   'next.config.ts',

@@ -60,6 +60,11 @@ describe('evaluatePathPolicy', () => {
     expect(rules(['scripts/deploy.sh'])).toContain('protected-directory');
   });
 
+  it('denies changes to shared browser transport infrastructure', () => {
+    expect(rules(['lib/api/client.ts'])).toContain('protected-file');
+    expect(rules(['lib/api/client-hooks.ts'])).toContain('protected-file');
+  });
+
   it('denies rewriting an existing migration', () => {
     // 0001 exists on disk in this repo.
     expect(rules(['db/migrations/0001_extensions_and_shared_infra.sql'])).toContain('migration-rewrite');

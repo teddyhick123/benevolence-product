@@ -475,6 +475,18 @@ Tax views must use `WITH (security_invoker = true)`. All Tax Center routes must 
 
 ## Key Patterns
 
+<!-- client-data-protocol:start -->
+### Client Data Transport Canon
+
+- Browser API traffic uses `lib/api/client.ts`. Use `requestJson` for ordinary JSON, `readJson` only when intentionally inspecting a raw response, and the named `uploadJson`, `requestDownload`, or `requestStream` helpers for non-JSON transports.
+- Interactive GET state belongs in a domain hook under `lib/<domain>/hooks.ts`, backed by `lib/api/client-hooks.ts`. Components must not define local SWR fetchers or call raw `fetch`.
+- Prefer server-component initial data when it is already available; use domain hooks for browser refresh and mutation revalidation. Do not introduce a second client cache.
+- Generic browser/UI hooks live in `lib/hooks/`. The root `/hooks` directory must not be recreated.
+- Client-provided org or portfolio identifiers are routing inputs, never authority. Do not add an authoritative `x-org-id` header; server guards and scoped repositories remain mandatory.
+- AI streaming must use `requestStream` while preserving the stable client `requestId`, durable turn lifecycle, deterministic replay, and at-most-once tool side effects.
+- Server-only upstream HTTP integrations and Builder verifier/GitHub transports are separate boundaries; do not force them through the browser client.
+<!-- client-data-protocol:end -->
+
 ### Authentication & Authorization
 
 ```typescript

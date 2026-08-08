@@ -29,7 +29,7 @@
     "db:types:generate": "node scripts/verify/database-types.mjs write",
     "db:types:check": "node scripts/verify/database-types.mjs check",
     "verify:types": "node --max-old-space-size=8192 node_modules/typescript/bin/tsc --noEmit",
-    "verify:lint": "eslint . --ext .js,.jsx,.ts,.tsx --max-warnings=467",
+    "verify:lint": "eslint . --ext .js,.jsx,.ts,.tsx --max-warnings=466",
     "verify:unit": "vitest run",
     "verify:migrations": "supabase db reset && bash scripts/verify/migrations-assert.sh",
     "verify:build": "next build"

@@ -60,13 +60,21 @@ function extractAgentInstructionsExcerpt(): string {
   const instructionsPath = fs.existsSync(AGENTS_MD_PATH) ? AGENTS_MD_PATH : LEGACY_CLAUDE_MD_PATH;
   if (!fs.existsSync(instructionsPath)) return '(agent instructions not found)';
   const full = fs.readFileSync(instructionsPath, 'utf-8');
-  const startMarker = '## Key Patterns';
-  const endMarker = '## Getting Help';
-  const start = full.indexOf(startMarker);
-  const end = full.indexOf(endMarker);
-  if (start === -1) return full.slice(0, 2000);
-  const excerpt = end === -1 ? full.slice(start) : full.slice(start, end);
-  return excerpt.slice(0, 3000);
+
+  const extractSection = (startMarker: string, endMarker: string, maxLength: number): string => {
+    const start = full.indexOf(startMarker);
+    if (start === -1) return '';
+    const end = full.indexOf(endMarker, start + startMarker.length);
+    return (end === -1 ? full.slice(start) : full.slice(start, end)).slice(0, maxLength);
+  };
+
+  // Builder must receive the schema decision rules before it is offered a
+  // migration number. Keep the operational patterns too, but never omit the
+  // canon/extensibility section in favor of generic scaffolding guidance.
+  const schemaCanon = extractSection('## Database Schema Canon', '## Documentation', 12_000);
+  const keyPatterns = extractSection('## Key Patterns', '## Getting Help', 4_000);
+  const excerpt = [schemaCanon, keyPatterns].filter(Boolean).join('\n\n');
+  return excerpt || full.slice(0, 6000);
 }
 
 export function getNextMigrationNumber(): string {
@@ -94,7 +102,8 @@ export function formatScaffoldContextForPrompt(ctx: ScaffoldContext): string {
   out += ctx.agentInstructionsExcerpt;
 
   out += `\n\n### Next available migration number: ${ctx.nextMigrationNumber}\n`;
-  out += `Use this exact number (zero-padded to 4 digits) for the migration filename.\n`;
+  out += 'Use this number only for a genuine platform product increment after applying the Schema Change Decision Protocol. ';
+  out += 'Do not create DDL for client-variable configuration or a new patch migration for a prerelease correction.\n';
 
   out += '\n### Current codebase index\n';
   out += ctx.codebaseIndex;

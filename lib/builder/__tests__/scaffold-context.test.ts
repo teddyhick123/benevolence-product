@@ -39,6 +39,15 @@ describe('buildScaffoldContext', () => {
     expect(ctx).toHaveProperty('agentInstructionsExcerpt');
     expect(ctx).not.toHaveProperty('claudeMdExcerpt');
   });
+
+  it('includes the schema decision and AI durability rules', async () => {
+    const { buildScaffoldContext } = await import('../scaffold-context');
+    const ctx = buildScaffoldContext('test-index');
+    expect(ctx.agentInstructionsExcerpt).toContain('Schema Change Decision Protocol');
+    expect(ctx.agentInstructionsExcerpt).toContain('never per-client DDL');
+    expect(ctx.agentInstructionsExcerpt).toContain('ai_turns');
+    expect(ctx.agentInstructionsExcerpt).toContain('(user_id, request_id)');
+  });
 });
 
 describe('formatScaffoldContextForPrompt', () => {
@@ -49,5 +58,7 @@ describe('formatScaffoldContextForPrompt', () => {
     expect(typeof prompt).toBe('string');
     expect(prompt).toContain('my-codebase-index');
     expect(prompt).toContain('Module Scaffold Context');
+    expect(prompt).toContain('Use this number only for a genuine platform product increment');
+    expect(prompt).toContain('Do not create DDL for client-variable configuration');
   });
 });

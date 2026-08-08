@@ -107,6 +107,8 @@ describe('builder migration type drift gate', () => {
   const checkMatrix = readFileSync(path.join(process.cwd(), 'lib/builder/check-matrix.ts'), 'utf8');
   const migrationAssert = readFileSync(path.join(process.cwd(), 'scripts/verify/migrations-assert.sh'), 'utf8');
   const pathPolicy = readFileSync(path.join(process.cwd(), 'lib/builder/path-policy.ts'), 'utf8');
+  const scaffoldContext = readFileSync(path.join(process.cwd(), 'lib/builder/scaffold-context.ts'), 'utf8');
+  const ciWorkflow = readFileSync(path.join(process.cwd(), '.github/workflows/ci.yml'), 'utf8');
   const pkg = JSON.parse(readFileSync(path.join(process.cwd(), 'package.json'), 'utf8'));
 
   it('routes every migration proposal through reset verification and this schema suite', () => {
@@ -122,6 +124,18 @@ describe('builder migration type drift gate', () => {
   it('requires migration proposals to carry regenerated types', () => {
     expect(pathPolicy).toContain("rule: 'migration-types'");
     expect(pathPolicy).toContain("normalizedPaths.includes('lib/database.types.ts')");
+  });
+
+  it('keeps agent policy protected and visible to Builder', () => {
+    expect(pathPolicy).toContain("'agents.md'");
+    expect(pathPolicy).toContain("'claude.md'");
+    expect(scaffoldContext).toContain("extractSection('## Database Schema Canon'");
+    expect(scaffoldContext).toContain('genuine platform product increment');
+  });
+
+  it('runs the clean migration and generated-type gate in repository CI', () => {
+    expect(ciWorkflow).toContain('npx supabase start');
+    expect(ciWorkflow).toContain('npm run verify:migrations');
   });
 });
 

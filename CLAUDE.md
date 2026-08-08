@@ -10,6 +10,27 @@ A modular, white-label platform for philanthropic organizations. Clone this temp
 
 **The database is still prerelease.** No production/customer instances have run these migrations yet, so optimize the active migration set for the best long-term schema rather than preserving migration archaeology. Prefer consolidating duplicate tables, folding patch migrations into the canonical table definition, removing unused legacy schemas, and updating tests/docs to protect the new canon. Do not keep compatibility shims unless product code actively needs them or the user explicitly asks for backwards compatibility.
 
+<!-- schema-change-protocol:start -->
+### Schema Change Decision Protocol
+
+Follow this protocol before changing a migration, generated database type, repository query, or any product shape that appears to need new storage.
+
+1. **Inspect the canon first.** Read the owning files in `db/migrations`, then inspect `lib/database.types.ts` and the relevant repository. Do not infer schema from UI types, mocks, archived SQL, error messages, or documentation alone.
+2. **Classify the requested field or behavior before writing DDL.**
+   - A stable concept that the platform itself consumes across organizations — including reports, AI context, canonical views, shared workflows, or cross-org features — belongs in the owning canonical table.
+   - Organization-specific, client-variable, or optional semantics belong in sanctioned data-driven extension points, never per-client DDL. Use `org_custom_field_definitions`/`org_custom_field_values`, `kpi_definitions`/`metric_facts`, `widgets`, `org_view_config`, `configurable_automations`, `workflow_config`, `organizations.modules`, or validated JSONB configuration as appropriate.
+   - Schema-variable imports may exist only in the validated import-staging allowlist. Staging variability must be normalized into the platform canon or a sanctioned extension point before product code consumes it.
+3. **Choose the migration shape deliberately.**
+   - A prerelease correction to an existing concept must be folded into that concept's owning migration. Do not add an `ALTER TABLE ... ADD COLUMN` patch merely to repair the active prerelease migration set.
+   - A genuine product increment with a newly introduced canonical concept gets a new numbered migration.
+   - Builder may propose only new migration files, so Builder schema work is valid only for genuine product increments. Prerelease corrections that require editing an owning migration must be handled outside Builder.
+4. **Preserve the typed access and repository boundaries.** Application code uses the generated `Database` type through `lib/database-client.ts` and repository modules. Do not restore feature-local Supabase structural casts, hand-maintained schema mirrors, or direct data access that bypasses the established repository boundary.
+5. **Regenerate and verify.** Every migration change must be followed by `npm run db:types:generate`, and the resulting `lib/database.types.ts` must be committed with the migration. Run `npm run verify:migrations`; add or update behavioral assertions for affected constraints, RLS policies, grants, views, RPCs, concurrency, and idempotency. TypeScript compilation alone is not schema verification.
+6. **Preserve durable AI conversation semantics.** `ai_sessions`, `ai_turns`, and `ai_messages` are the canonical assistant state. `ai_turns` provides the `(user_id, request_id)` idempotency boundary and `ai_messages` stores normalized append-only messages. Keep `begin_ai_turn`, `complete_ai_turn`, and `fail_ai_turn` as the atomic, retry-safe lifecycle; never replace it with session JSONB blobs, duplicate message writes, or check-then-insert logic that weakens at-most-once behavior.
+
+`AGENTS.md` is canonical for this shared protocol. `CLAUDE.md` carries an identical marked copy for tools that read only that file; `tests/integration/agent-instructions-contract.test.ts` prevents the copies from diverging.
+<!-- schema-change-protocol:end -->
+
 Key invariants that differ from older patterns or documentation you may encounter elsewhere:
 - All org-scoped tables use **`org_id`** (not `organization_id`) as the FK column name.
 - The `organization_members` table uses **`org_id`** (not `organization_id`).
@@ -155,7 +176,7 @@ You can help with new module functionality. Available actions include:
 
 ### Step 2: Create Database Migration
 
-Create `/db/migrations/NNNN_new_module.sql`:
+First apply the Schema Change Decision Protocol above. Prefer the existing data-driven extension points when the module is organization-variable. Only a genuine platform-level product increment should create `/db/migrations/NNNN_new_module.sql`; a prerelease correction must update its owning migration instead.
 
 ```sql
 -- Migration: New Module Name
@@ -677,7 +698,10 @@ CREATE POLICY "table_service" ON public.table_name
 When creating a new module, verify:
 
 - [ ] Module added to `MODULE_REGISTRY` in registry.ts
-- [ ] Migration runs without errors
+- [ ] Any new storage passed the Schema Change Decision Protocol (platform canon vs. data-driven extension)
+- [ ] Migration placement is correct (owner migration for prerelease correction; new file for product increment)
+- [ ] `lib/database.types.ts` was regenerated and committed for every migration change
+- [ ] `npm run verify:migrations` passes from a clean local Supabase reset
 - [ ] RLS policies correctly restrict access
 - [ ] AI tools appear when module is enabled
 - [ ] AI tools are filtered when module is disabled

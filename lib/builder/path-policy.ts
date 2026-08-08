@@ -37,6 +37,8 @@ const DEPLOYMENT_FILE_NAMES = new Set([
 ]);
 
 const PROTECTED_EXACT_PATHS = new Set([
+  'agents.md',
+  'claude.md',
   'package.json',
   'tsconfig.json',
   'middleware.ts',
@@ -115,7 +117,7 @@ export function evaluatePathPolicy(paths: string[]): PathPolicyResult {
       violations.push({ path: raw, rule: 'deployment-config', detail: 'Deployment configuration cannot be proposed.' });
     }
     if (PROTECTED_EXACT_PATHS.has(lower)) {
-      violations.push({ path: raw, rule: 'protected-file', detail: 'Security- and build-critical files cannot be proposed.' });
+      violations.push({ path: raw, rule: 'protected-file', detail: 'Agent-policy, security-, and build-critical files cannot be proposed.' });
     }
     const migration = migrationDetail(path);
     if (migration) {

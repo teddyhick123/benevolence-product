@@ -13,6 +13,23 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  schema:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: npm
+
+      - run: npm ci
+      - name: Start isolated local database
+        run: npx supabase start
+      - name: Verify canonical migrations, behavior, and generated types
+        run: npm run verify:migrations
+
   verify:
     runs-on: ubuntu-latest
     timeout-minutes: 30

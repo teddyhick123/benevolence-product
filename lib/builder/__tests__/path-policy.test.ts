@@ -42,6 +42,11 @@ describe('evaluatePathPolicy', () => {
     expect(rules(['package.json'])).toContain('protected-file');
   });
 
+  it('denies changes to repository agent policy', () => {
+    expect(rules(['AGENTS.md'])).toContain('protected-file');
+    expect(rules(['CLAUDE.md'])).toContain('protected-file');
+  });
+
   it('denies deployment configuration', () => {
     expect(rules(['vercel.json'])).toContain('deployment-config');
     expect(rules(['Dockerfile'])).toContain('deployment-config');

@@ -587,6 +587,8 @@ DECLARE
   v_all_done    boolean;
   v_event_type  pledge_event_type_enum;
   v_new_status  text;
+  v_task_status text;
+  v_task_reason text;
 BEGIN
   v_actor := auth.uid();
   IF v_actor IS NULL                          THEN RAISE EXCEPTION 'Not authenticated'; END IF;
@@ -695,6 +697,64 @@ BEGIN
     UPDATE pledges SET status = 'active', updated_at = now() WHERE id = p_pledge_id;
     INSERT INTO pledge_events (org_id, pledge_id, event_type, actor_id)
     VALUES (p_org_id, p_pledge_id, 'updated', v_actor);
+  END IF;
+
+  -- Keep the installment mutation, pledge events, generated-task settlement,
+  -- and task events in this same RPC transaction. Reopened installments leave
+  -- task creation to the idempotent producer, matching the existing behavior.
+  IF p_action IN ('mark_paid', 'waive', 'write_off') THEN
+    v_task_status := CASE
+      WHEN p_action = 'mark_paid' THEN 'completed'
+      ELSE 'cancelled'
+    END;
+    v_task_reason := CASE p_action
+      WHEN 'mark_paid' THEN 'Installment paid'
+      WHEN 'waive' THEN 'Installment waived'
+      ELSE 'Installment written off'
+    END;
+
+    WITH settled_tasks AS (
+      UPDATE public.tasks
+      SET
+        status = v_task_status,
+        completed_at = CASE
+          WHEN v_task_status = 'completed' THEN now()
+          ELSE completed_at
+        END,
+        metadata = metadata || CASE
+          WHEN v_task_status = 'completed' THEN jsonb_build_object(
+            'completed_by_automation', true,
+            'completion_reason', v_task_reason
+          )
+          ELSE jsonb_build_object('cancel_reason', v_task_reason)
+        END
+      WHERE org_id = p_org_id
+        AND source = 'automation'
+        AND status IN ('open', 'in_progress', 'blocked', 'waiting')
+        AND deleted_at IS NULL
+        AND source_key LIKE ('pledge_installment:' || p_installment_id::text || ':%')
+      RETURNING id
+    )
+    INSERT INTO public.task_events (
+      task_id,
+      org_id,
+      actor_id,
+      event_type,
+      after_values
+    )
+    SELECT
+      id,
+      p_org_id,
+      v_actor,
+      v_task_status,
+      CASE
+        WHEN v_task_status = 'completed' THEN jsonb_build_object(
+          'reason', v_task_reason,
+          'completed_by_automation', true
+        )
+        ELSE jsonb_build_object('cancel_reason', v_task_reason)
+      END
+    FROM settled_tasks;
   END IF;
 
   RETURN jsonb_build_object('success', true, 'pledge_id', p_pledge_id, 'installment_id', p_installment_id);

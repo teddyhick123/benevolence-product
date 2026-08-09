@@ -2,6 +2,11 @@
 
 BEGIN;
 SELECT set_config('request.jwt.claim.role', 'service_role', true);
+SELECT set_config(
+  'request.jwt.claim.sub',
+  '10000000-0000-0000-0000-000000000001',
+  true
+);
 
 INSERT INTO auth.users (
   id, instance_id, aud, role, email, encrypted_password, email_confirmed_at,
@@ -15,6 +20,18 @@ INSERT INTO auth.users (
 
 INSERT INTO public.organizations (id, name)
 VALUES ('20000000-0000-0000-0000-000000000001', 'Schema behavior check');
+
+UPDATE public.organizations
+SET modules = '{"portfolio":true,"donors":true,"pledges":true}'::jsonb
+WHERE id = '20000000-0000-0000-0000-000000000001';
+
+INSERT INTO public.organization_members (org_id, user_id, role, accepted_at)
+VALUES (
+  '20000000-0000-0000-0000-000000000001',
+  '10000000-0000-0000-0000-000000000001',
+  'owner',
+  now()
+);
 
 INSERT INTO public.portfolios (id, org_id, owner_id, name) VALUES
   ('30000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', 'With donations'),
@@ -77,6 +94,159 @@ BEGIN
   END IF;
 END;
 $$;
+
+-- Pledge installment status, pledge events, generated tasks, and task events
+-- must commit or roll back together inside update_pledge_installment_status.
+INSERT INTO public.donors (
+  id, org_id, first_name, last_name
+) VALUES (
+  '81000000-0000-0000-0000-000000000001',
+  '20000000-0000-0000-0000-000000000001',
+  'Schema',
+  'Donor'
+);
+
+INSERT INTO public.pledges (
+  id, org_id, donor_id, total_amount, start_date, status
+) VALUES (
+  '82000000-0000-0000-0000-000000000001',
+  '20000000-0000-0000-0000-000000000001',
+  '81000000-0000-0000-0000-000000000001',
+  200,
+  CURRENT_DATE,
+  'active'
+);
+
+INSERT INTO public.pledge_installments (
+  id, org_id, pledge_id, due_date, amount, status
+) VALUES
+  (
+    '83000000-0000-0000-0000-000000000001',
+    '20000000-0000-0000-0000-000000000001',
+    '82000000-0000-0000-0000-000000000001',
+    CURRENT_DATE,
+    100,
+    'pending'
+  ),
+  (
+    '83000000-0000-0000-0000-000000000002',
+    '20000000-0000-0000-0000-000000000001',
+    '82000000-0000-0000-0000-000000000001',
+    CURRENT_DATE + 1,
+    100,
+    'pending'
+  );
+
+INSERT INTO public.tasks (
+  id, org_id, title, status, source, source_key
+) VALUES
+  (
+    '84000000-0000-0000-0000-000000000001',
+    '20000000-0000-0000-0000-000000000001',
+    'Installment success task',
+    'open',
+    'automation',
+    'pledge_installment:83000000-0000-0000-0000-000000000001:due_soon'
+  ),
+  (
+    '84000000-0000-0000-0000-000000000002',
+    '20000000-0000-0000-0000-000000000001',
+    'Installment rollback task',
+    'open',
+    'automation',
+    'pledge_installment:83000000-0000-0000-0000-000000000002:due_soon'
+  );
+
+SELECT public.update_pledge_installment_status(
+  '20000000-0000-0000-0000-000000000001',
+  '82000000-0000-0000-0000-000000000001',
+  '83000000-0000-0000-0000-000000000001',
+  'waive',
+  NULL,
+  NULL,
+  NULL,
+  false,
+  'Schema behavior check'
+);
+
+DO $$
+BEGIN
+  IF (SELECT status FROM public.pledge_installments
+      WHERE id = '83000000-0000-0000-0000-000000000001') <> 'waived'
+     OR (SELECT status FROM public.tasks
+         WHERE id = '84000000-0000-0000-0000-000000000001') <> 'cancelled'
+     OR NOT EXISTS (
+       SELECT 1 FROM public.pledge_events
+       WHERE installment_id = '83000000-0000-0000-0000-000000000001'
+         AND event_type = 'installment_waived'
+     )
+     OR NOT EXISTS (
+       SELECT 1 FROM public.task_events
+       WHERE task_id = '84000000-0000-0000-0000-000000000001'
+         AND event_type = 'cancelled'
+     ) THEN
+    RAISE EXCEPTION 'pledge installment/task/event atomic success contract failed';
+  END IF;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.schema_check_reject_task_event()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  IF NEW.task_id = '84000000-0000-0000-0000-000000000002'::uuid THEN
+    RAISE EXCEPTION 'forced task event failure';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER schema_check_reject_task_event
+  BEFORE INSERT ON public.task_events
+  FOR EACH ROW EXECUTE FUNCTION public.schema_check_reject_task_event();
+
+DO $$
+BEGIN
+  BEGIN
+    PERFORM public.update_pledge_installment_status(
+      '20000000-0000-0000-0000-000000000001',
+      '82000000-0000-0000-0000-000000000001',
+      '83000000-0000-0000-0000-000000000002',
+      'write_off',
+      NULL,
+      NULL,
+      NULL,
+      false,
+      'Forced rollback'
+    );
+    RAISE EXCEPTION 'expected forced task event failure';
+  EXCEPTION
+    WHEN raise_exception THEN
+      IF SQLERRM <> 'forced task event failure' THEN
+        RAISE;
+      END IF;
+  END;
+
+  IF (SELECT status FROM public.pledge_installments
+      WHERE id = '83000000-0000-0000-0000-000000000002') <> 'pending'
+     OR (SELECT status FROM public.tasks
+         WHERE id = '84000000-0000-0000-0000-000000000002') <> 'open'
+     OR EXISTS (
+       SELECT 1 FROM public.pledge_events
+       WHERE installment_id = '83000000-0000-0000-0000-000000000002'
+     )
+     OR EXISTS (
+       SELECT 1 FROM public.task_events
+       WHERE task_id = '84000000-0000-0000-0000-000000000002'
+     ) THEN
+    RAISE EXCEPTION 'pledge installment/task/event rollback contract failed';
+  END IF;
+END;
+$$;
+
+DROP TRIGGER schema_check_reject_task_event ON public.task_events;
+DROP FUNCTION public.schema_check_reject_task_event();
 
 -- A milestone terminal transition, generated-task settlement, and task event
 -- must commit together through the scoped service-only RPC.

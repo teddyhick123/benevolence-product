@@ -332,7 +332,8 @@ describe('org-scoped route auth contracts', () => {
     );
     expect(installmentRoute).toContain('requireOrgAccess');
     expect(installmentRoute).toContain('jsonOk');
-    expect(installmentRoute).toContain('await repository.syncInstallmentTasks');
+    expect(installmentRoute).toContain("rpc('update_pledge_installment_status'");
+    expect(installmentRoute).not.toContain('syncInstallmentTasks');
     expect(installmentRoute).not.toContain('createAdminClient');
     expect(installmentRoute).not.toContain('createServerClient');
     expect(installmentRoute).not.toContain('Fire-and-forget');

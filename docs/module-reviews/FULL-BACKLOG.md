@@ -24,7 +24,7 @@ Status guide:
 
 | Source | Consolidation result |
 |---|---|
-| [Refactor findings](../superpowers/specs/2026-07-26-refactor-findings.md) | 14 unresolved findings are tracked below; Phase 3/5/6/7 resolutions and the seven closed on 2026-08-09 were not copied. |
+| [Refactor findings](../superpowers/specs/2026-07-26-refactor-findings.md) | 13 unresolved findings are tracked below; Phase 3/5/6/7 resolutions and the eight closed on 2026-08-09 were not copied. |
 | [Reliability audit](2026-06-27-reliability-audit.md) | RA-01 through RA-24 are fixed; RX-01/RX-02 are retired. No open items copied. |
 | [Role and permission audit](../ROLE_PERMISSION_AUDIT.md) | All audited P0-P2 boundaries are resolved. No open items copied. |
 | [Builder orchestration audit](../BUILDER_REVIEW_ORCHESTRATION_AUDIT.md) | Durable review and local verification shipped; production isolation and delivery evidence remain below. |
@@ -47,7 +47,6 @@ RF IDs follow discovery order after resolved findings were excluded.
 
 | ID | Status | Area | Open work |
 |---|---|---|---|
-| RF-03 | Verified open | Pledges | Make installment changes and generated-task synchronization transactional or outbox-backed. |
 | RF-04 | Verified open | Workflows | Move workflow-task, linked-task, workflow-instance, and task-event changes into one transactional boundary. |
 | RF-06 | Verified open | Tasks | Make task, link, comment, audit, milestone-sync, and automation side effects transactional or outbox-backed. |
 | RF-07 | Verified open | Acknowledgments | Replace PDFs through versioned/staged object paths so database and storage state cannot diverge. |
@@ -276,14 +275,14 @@ spot-checked against the tree but not exhaustively re-verified.
 | Priority | Verified/decision findings | Product carry-forwards | Total |
 |---|---:|---:|---:|
 | P0 | 1 | 0 | 1 |
-| P1 | 11 | 2 | 13 |
+| P1 | 10 | 2 | 12 |
 | P2 | 5 | 40 | 45 |
 | P3 | 1 | 10 | 11 |
-| **Total** | **18** | **52** | **70** |
+| **Total** | **17** | **52** | **69** |
 
 ## Recommended execution order
 
 1. Ship BLD-01 before enabling production Builder workers; address BLD-02 in the same Builder hardening increment.
-2. Reuse the RF-01 transactional orchestration pattern for RF-03, RF-04, RF-06, and RF-08 through RF-13 in bounded domain slices; introduce an outbox where an external side effect cannot share the database transaction.
+2. Reuse the RF-01/RF-03 transactional orchestration pattern for RF-04, RF-06, and RF-08 through RF-13 in bounded domain slices; introduce an outbox where an external side effect cannot share the database transaction.
 3. Resolve the remaining product decision RF-21 before implementation.
 4. Select product roadmap candidates based on customer discovery, revalidate them, and promote only chosen items from carry-forward status.

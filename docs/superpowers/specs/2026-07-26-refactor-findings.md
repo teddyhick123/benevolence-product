@@ -587,3 +587,35 @@ or server-side repository/access rule changed. Server-only upstream requests sta
 outside the browser contract. AI chat continues to send stable request IDs through
 the named stream helper, while the Phase 3 transactional turn/message persistence,
 deterministic replay, and at-most-once side-effect boundary remain authoritative.
+
+### 2026-08-08 — Phase 7 — stale code, templates, and SQL remained available to future agents
+
+**What happened:** The repository had no reproducible dead-file/dependency gate,
+78 superseded SQL files remained under `db/legacy`, and current module templates
+still taught inline authentication, feature-local elevated clients, direct
+browser data access, and monolithic AI executor patterns. Retired contexts,
+dashboards, helpers, compatibility exports, and packages were still discoverable
+even though no runtime, test, script, or framework entry point consumed them.
+
+**Resolution (Phase 7):** Pinned Knip and depcheck now enforce objective dead
+files, direct dependency drift, unresolved imports, and duplicate exports in CI;
+narrow build/command-loader exceptions are documented. Removed 27 confirmed dead
+source files, five unused direct packages, compatibility aliases/barrels, and all
+78 legacy SQL files. Git history is the retired SQL archive, while a contract
+prevents `db/legacy` from returning. Placeholder templates now have their own
+source contract and demonstrate guarded org routes, tenant-scoped repositories,
+shared browser transport/domain hooks, scoped AI capabilities, module checks,
+and the schema decision protocol.
+
+**Agent hardening:** `AGENTS.md` and `CLAUDE.md` share the same tested module
+workflow. Both explicitly reject recreating `ModuleContext`/generic
+`ModuleGate`, raw browser `fetch`, feature-local service clients, per-client DDL,
+or elevated clients inside AI executors. They retain request-ID idempotency in
+`ai_turns`, append-only `ai_messages`, persisted `ai_actions`, and atomic
+begin/complete/fail turn semantics.
+
+**Verification:** Hygiene, types, the 446-warning lint ratchet, 2,582 unit tests,
+production build, all 54 canonical migrations (135 public tables), generated
+database type drift, focused boundary contracts, and 9 browser smoke tests pass.
+No active migration, generated database type, product URL, or intended behavior
+changed.

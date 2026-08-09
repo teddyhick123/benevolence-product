@@ -1,7 +1,7 @@
 # Refactor Phase 7 — Final Hygiene
 
 **Date:** 2026-08-08
-**Status:** Approved for implementation by the request to proceed
+**Status:** Complete
 **Branch:** `codex/refactor-phase7-final-hygiene`
 **Prerequisite:** Phase 6 is merged into local `main` at `8ebf55cd`.
 
@@ -131,3 +131,47 @@ Phase 7 is complete only when:
 - Schema safety: no stale SQL remains available to future AI agents, and no active migration changes occur.
 - Boundary integrity: examples and templates must not teach retired auth, direct database, client-fetch, or AI execution patterns.
 - Audit durability: CI must catch future dead dependencies and exports without depending on globally installed tools.
+
+## Final audit record
+
+- Removed 27 confirmed dead source files, including retired root contexts,
+  compatibility barrels, unreachable dashboards, unused map/tax helpers, and
+  the obsolete CPA compatibility wrapper.
+- Removed all 78 files under `db/legacy`; Git history is now the only retired
+  SQL archive. `db/migrations` and the `supabase/migrations → ../db/migrations`
+  symlink were unchanged.
+- Removed five unused direct packages: `@supabase/auth-helpers-nextjs`,
+  `claude`, `ioredis`, `world-atlas`, and `@eslint/eslintrc`. Declared the
+  repository-owned `@next/env` and `vite` imports directly and pinned Knip and
+  depcheck.
+- Removed confirmed compatibility exports and duplicate aliases from the org,
+  role, Supabase, browser-client, and tax-schema surfaces. The remaining Knip
+  export/type report is classified as deliberate domain-library API, generated
+  database surface, tests, or worker/public composition; CI blocks objective
+  dead files/dependencies/unresolved imports/duplicates without privatizing
+  those libraries based only on current importer count.
+- Configured entry points cover Next/Playwright/Vitest/Tailwind configs,
+  repository scripts, Supabase functions, and compile-only type contracts.
+- Narrow analyzer exceptions cover Tailwind/PostCSS configuration loading and
+  the `tsconfig-paths` command-line loader. Placeholder templates are excluded
+  from generic parsing and enforced by a dedicated source contract.
+- Rewrote module templates and current agent/docs guidance around schema
+  classification, org-scoped guards, tenant-scoped repositories, shared browser
+  transport, scoped AI capabilities, durable `ai_turns`/`ai_messages`, and
+  request-idempotent assistant execution.
+
+## Final verification
+
+- `npm run verify:hygiene`: pass (Knip and depcheck clean for enforced issue classes)
+- `npm run verify:types`: pass
+- `npm run verify:lint`: pass at the ratcheted 446-warning ceiling (0 errors)
+- `npm run verify:unit`: 231 files passed, 2,582 tests passed, 6 intentionally skipped
+- `npm run verify:build`: pass; existing Supabase Edge-runtime and lint warnings remain non-blocking
+- `npm run verify:migrations`: pass; 54 migrations, 135 public tables, behavior assertions, and generated-type drift check
+- Focused agent/Builder/schema/client/template/AI boundary contracts: pass
+- `npm run walkthrough:smoke`: 9 Playwright smoke tests passed
+
+During walkthrough preparation, the local Supabase CLI returned a transient 502
+while restarting containers after applying migrations. The stack passed the
+doctor immediately afterward; direct local seeding succeeded, and the smoke
+suite passed. This did not affect the dedicated clean migration verification.

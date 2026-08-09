@@ -284,6 +284,16 @@ irrelevant, but it makes schema correctness the higher-value prerequisite.
 
 **Exit:** knip/depcheck clean or exceptions documented; docs match reality.
 
+**Resolution (Phase 7):** Added pinned Knip/depcheck gates to CI, removed 27
+confirmed dead source files and five unused direct packages, retired all 78
+`db/legacy` files, and removed confirmed compatibility aliases/barrels. Module
+templates, both agent entrypoints, and current architecture/setup/database docs
+now preserve the schema-extensibility decision, shared access/repository and
+browser boundaries, scoped AI capabilities, and the durable request-idempotent
+`ai_turns`/append-only `ai_messages` lifecycle. Clean types, lint, 2,582 unit
+tests, production build, 54-migration reset/type drift checks, and 9 browser
+smoke tests pass.
+
 ## Cross-phase rules
 
 - Every phase lands as reviewable commits on green tests; user reviews at phase

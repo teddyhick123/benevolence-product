@@ -3,8 +3,7 @@ import type { OrgAccessContext } from '@/lib/api/principals';
 import type { z } from 'zod';
 import { createTaskSchema, updateTaskSchema } from '@/lib/schemas/task';
 import { isWorkspaceManager } from '@/lib/roles';
-import { runAutomationRulesForEvent } from '@/lib/tasks/automation/dynamic-rules';
-import { TASK_ENTITY_TYPES } from '@/lib/tasks/automation/types';
+import { drainTaskAutomationOutbox } from '@/lib/tasks/automation/outbox';
 
 type TaskRepositoryScope = Pick<OrgAccessContext, 'orgId' | 'role'> & {
   actorId: string;
@@ -40,57 +39,15 @@ function normalizeTask(task: any, profilesById: Map<string, any>) {
   };
 }
 
-function editableFieldsForAssignee(input: Record<string, any>) {
-  const allowed = new Set(['status', 'metadata']);
-  return Object.fromEntries(Object.entries(input).filter(([key]) => allowed.has(key)));
-}
-
-function withCompletionFields(updates: Record<string, any>, actorId: string) {
-  if (updates.status === 'completed') {
-    return { ...updates, completed_at: new Date().toISOString(), completed_by: actorId };
-  }
-  if (updates.status && updates.status !== 'completed') {
-    return { ...updates, completed_at: null, completed_by: null };
-  }
-  return updates;
-}
-
-function eventTypeForUpdates(updates: Record<string, any>) {
-  if (updates.status === 'completed') return 'completed';
-  if (updates.status === 'cancelled') return 'cancelled';
-  if (updates.assigned_to) return 'assigned';
-  if (updates.due_at || updates.starts_at) return 'due_date_changed';
-  return 'status_changed';
-}
+type TaskMutationResult = {
+  task: any;
+  idempotent?: boolean;
+  outbox_event_id?: string | null;
+};
 
 /** Elevated task operations constrained to one authorized org, role, and actor. */
 export function createOrgTaskRepository(scope: TaskRepositoryScope) {
   const db = createElevatedClient();
-
-  function directEntityQuery(entityType: string) {
-    switch (entityType) {
-      case 'filing': return db.from('filing_calendar');
-      case 'state_registration': return db.from('state_registrations');
-      case 'pledge_installment': return db.from('pledge_installments');
-      case 'pledge': return db.from('pledges');
-      case 'donor': return db.from('donors');
-      case 'grant': return db.from('grants');
-      case 'holding': return db.from('holdings');
-      case 'portfolio': return db.from('portfolios');
-      case 'import_job': return db.from('import_jobs');
-      case 'workflow_instance': return db.from('workflow_instances');
-      default: return null;
-    }
-  }
-
-  function grantChildEntityQuery(entityType: string) {
-    switch (entityType) {
-      case 'grant_milestone': return db.from('grant_milestones');
-      case 'grant_report': return db.from('grant_reports');
-      case 'grant_payment': return db.from('grant_payments');
-      default: return null;
-    }
-  }
 
   async function loadTask(taskId: string, selection = '*') {
     const { data, error } = await db
@@ -104,120 +61,28 @@ export function createOrgTaskRepository(scope: TaskRepositoryScope) {
     return data as any;
   }
 
-  async function assertPortfolio(portfolioId: string | null | undefined) {
-    if (!portfolioId) return true;
-    const { data, error } = await db
-      .from('portfolios')
-      .select('id')
-      .eq('id', portfolioId)
-      .eq('org_id', scope.orgId)
-      .is('deleted_at', null)
-      .maybeSingle();
-    if (error) throw error;
-    return !!data;
-  }
-
-  async function assertAssignee(userId: string | null | undefined) {
-    if (!userId) return true;
-    const { data, error } = await db
-      .from('organization_members')
-      .select('id')
-      .eq('org_id', scope.orgId)
-      .eq('user_id', userId)
-      .is('deleted_at', null)
-      .maybeSingle();
-    if (error) throw error;
-    return !!data;
-  }
-
-  async function assertEntityLink(link: { entity_type: string; entity_id: string }) {
-    if (!TASK_ENTITY_TYPES.includes(link.entity_type as any)) return false;
-
-    const directQuery = directEntityQuery(link.entity_type);
-    if (directQuery) {
-      const { data, error } = await directQuery
-        .select('id')
-        .eq('id', link.entity_id)
-        .eq('org_id', scope.orgId)
-        .maybeSingle();
-      if (error) throw error;
-      return !!data;
+  function throwMutationError(
+    error: { code?: string; message?: string },
+    authorizationMessage: string
+  ): never {
+    if (error.code === 'P0002') throw new TaskRepositoryError('Task not found', 404);
+    if (error.code === '42501') throw new TaskRepositoryError(authorizationMessage, 403);
+    if (error.code === '22023') {
+      throw new TaskRepositoryError(error.message || 'Invalid task mutation', 400);
     }
-
-    const grantChildQuery = grantChildEntityQuery(link.entity_type);
-    if (grantChildQuery) {
-      const { data, error } = await grantChildQuery
-        .select('id, grants!inner(org_id)')
-        .eq('id', link.entity_id)
-        .eq('grants.org_id', scope.orgId)
-        .maybeSingle();
-      if (error) throw error;
-      return !!data;
-    }
-
-    return false;
+    throw error;
   }
 
-  async function rollbackCompletion(taskId: string, existing: any) {
-    await db
-      .from('tasks')
-      .update({
-        status: existing.status,
-        completed_at: existing.completed_at,
-        completed_by: existing.completed_by,
-      })
-      .eq('id', taskId)
-      .eq('org_id', scope.orgId);
-  }
-
-  async function syncGrantMilestoneCompletion(
-    taskId: string,
-    taskMetadata: Record<string, unknown> | null
-  ) {
-    if (!taskMetadata || taskMetadata.producer !== 'grant_obligations') return;
-
-    const { data: links } = await db
-      .from('task_entity_links')
-      .select('entity_id')
-      .eq('org_id', scope.orgId)
-      .eq('task_id', taskId)
-      .eq('entity_type', 'grant_milestone');
-    if (!links || links.length === 0) return;
-
-    const milestoneId = links[0].entity_id as string;
-    const { data: milestone, error: milestoneError } = await db
-      .from('grant_milestones')
-      .select('id, grants!inner(org_id)')
-      .eq('id', milestoneId)
-      .eq('grants.org_id', scope.orgId)
-      .maybeSingle();
-    if (milestoneError) throw milestoneError;
-    if (!milestone) {
-      throw new Error('Linked grant milestone was not found in this organization');
-    }
-
-    const { error } = await db
-      .from('grant_milestones')
-      .update({ status: 'completed', completed_date: new Date().toISOString().slice(0, 10) })
-      .eq('id', milestoneId);
-    if (error) throw error;
-  }
-
-  async function runCompletionAutomation(taskId: string, task: any) {
+  async function dispatchCompletionAutomation(outboxEventId?: string | null) {
+    if (!outboxEventId) return;
     try {
-      await runAutomationRulesForEvent(db, {
+      await drainTaskAutomationOutbox(db, {
         orgId: scope.orgId,
-        triggerType: 'task_completed',
-        entityType: 'task',
-        entityId: taskId,
-        payload: {
-          task_type: task.task_type,
-          assigned_to: task.assigned_to,
-          actor_id: scope.actorId,
-        },
+        eventId: outboxEventId,
+        limit: 1,
       });
     } catch (automationError) {
-      console.error('Task completion automation failed:', automationError);
+      console.error('Task completion automation deferred for retry:', automationError);
     }
   }
 
@@ -321,123 +186,29 @@ export function createOrgTaskRepository(scope: TaskRepositoryScope) {
     },
 
     async create(input: CreateTaskInput) {
-      if (!(await assertPortfolio(input.portfolio_id))) {
-        throw new TaskRepositoryError('Portfolio does not belong to this organization', 400);
-      }
-      if (!(await assertAssignee(input.assigned_to))) {
-        throw new TaskRepositoryError('Assignee is not a member of this organization', 400);
-      }
-
       const { entity_links: entityLinks = [], ...taskFields } = input;
-      for (const link of entityLinks) {
-        if (!(await assertEntityLink(link))) {
-          throw new TaskRepositoryError(
-            `Linked ${link.entity_type} does not belong to this organization`,
-            400
-          );
-        }
-      }
-
-      const { data: task, error } = await db
-        .from('tasks')
-        .insert({ ...taskFields, org_id: scope.orgId, created_by: scope.actorId })
-        .select()
-        .single();
-      if (error) throw error;
-
-      if (entityLinks.length > 0) {
-        const { error: linkError } = await db.from('task_entity_links').insert(
-          entityLinks.map(link => ({
-            task_id: task.id,
-            org_id: scope.orgId,
-            entity_type: link.entity_type,
-            entity_id: link.entity_id,
-            relationship: link.relationship || 'primary',
-          }))
-        );
-        if (linkError) {
-          await db.from('tasks').delete().eq('id', task.id).eq('org_id', scope.orgId);
-          throw linkError;
-        }
-      }
-
-      const { error: eventError } = await db.from('task_events').insert({
-        task_id: task.id,
-        org_id: scope.orgId,
-        actor_id: scope.actorId,
-        event_type: 'created',
-        after_values: task,
+      const { data: task, error } = await db.rpc('create_task_with_relations', {
+        p_expected_org_id: scope.orgId,
+        p_actor_id: scope.actorId,
+        p_task: taskFields,
+        p_entity_links: entityLinks,
       });
-      if (eventError) {
-        await db.from('tasks').delete().eq('id', task.id).eq('org_id', scope.orgId);
-        throw eventError;
-      }
+      if (error) throwMutationError(error, 'Not authorized to create this task');
       return task;
     },
 
     async update(taskId: string, input: UpdateTaskInput) {
-      const existing = await loadTask(taskId);
-      if (!existing) throw new TaskRepositoryError('Task not found', 404);
-
-      const isManager = isWorkspaceManager(scope.role);
-      if (!isManager && existing.assigned_to !== scope.actorId) {
-        throw new TaskRepositoryError('Not authorized to update this task', 403);
-      }
-
-      let updates = input as Record<string, any>;
-      if (!isManager) updates = editableFieldsForAssignee(updates);
-      if (Object.keys(updates).length === 0) {
-        throw new TaskRepositoryError('No valid fields to update', 400);
-      }
-      if (!(await assertPortfolio(updates.portfolio_id))) {
-        throw new TaskRepositoryError('Portfolio does not belong to this organization', 400);
-      }
-      if (!(await assertAssignee(updates.assigned_to))) {
-        throw new TaskRepositoryError('Assignee is not a member of this organization', 400);
-      }
-      updates = withCompletionFields(updates, scope.actorId);
-
-      const { data: task, error } = await db
-        .from('tasks')
-        .update(updates)
-        .eq('id', taskId)
-        .eq('org_id', scope.orgId)
-        .select()
-        .single();
-      if (error) throw error;
-
-      const { error: eventError } = await db.from('task_events').insert({
-        task_id: taskId,
-        org_id: scope.orgId,
-        actor_id: scope.actorId,
-        event_type: eventTypeForUpdates(updates),
-        before_values: existing,
-        after_values: task,
+      const { data, error } = await db.rpc('update_task_with_event', {
+        p_expected_org_id: scope.orgId,
+        p_task_id: taskId,
+        p_actor_id: scope.actorId,
+        p_is_workspace_manager: isWorkspaceManager(scope.role),
+        p_updates: input,
       });
-      if (eventError) {
-        await db
-          .from('tasks')
-          .update({
-            title: existing.title,
-            description: existing.description,
-            status: existing.status,
-            priority: existing.priority,
-            task_type: existing.task_type,
-            portfolio_id: existing.portfolio_id,
-            starts_at: existing.starts_at,
-            due_at: existing.due_at,
-            assigned_to: existing.assigned_to,
-            metadata: existing.metadata,
-            completed_at: existing.completed_at,
-            completed_by: existing.completed_by,
-          })
-          .eq('id', taskId)
-          .eq('org_id', scope.orgId);
-        throw eventError;
-      }
-
-      if (updates.status === 'completed') await runCompletionAutomation(taskId, task);
-      return task;
+      if (error) throwMutationError(error, 'Not authorized to update this task');
+      const result = data as TaskMutationResult;
+      await dispatchCompletionAutomation(result.outbox_event_id);
+      return result.task;
     },
 
     async remove(taskId: string) {
@@ -460,113 +231,41 @@ export function createOrgTaskRepository(scope: TaskRepositoryScope) {
     },
 
     async addComment(taskId: string, body: string) {
-      const task = await loadTask(taskId, 'id');
-      if (!task) throw new TaskRepositoryError('Task not found', 404);
-
-      const { data: comment, error } = await db
-        .from('task_comments')
-        .insert({
-          task_id: taskId,
-          org_id: scope.orgId,
-          author_id: scope.actorId,
-          body,
-        })
-        .select()
-        .single();
-      if (error) throw error;
-
-      const { error: eventError } = await db.from('task_events').insert({
-        task_id: taskId,
-        org_id: scope.orgId,
-        actor_id: scope.actorId,
-        event_type: 'commented',
-        after_values: comment,
+      const { data: comment, error } = await db.rpc('add_task_comment_with_event', {
+        p_expected_org_id: scope.orgId,
+        p_task_id: taskId,
+        p_actor_id: scope.actorId,
+        p_body: body,
       });
-      if (eventError) {
-        await db.from('task_comments').delete().eq('id', comment.id).eq('org_id', scope.orgId);
-        throw eventError;
-      }
+      if (error) throwMutationError(error, 'Not authorized to comment on this task');
       return comment;
     },
 
     async complete(taskId: string) {
-      const existing = await loadTask(taskId);
-      if (!existing) throw new TaskRepositoryError('Task not found', 404);
-      if (!isWorkspaceManager(scope.role) && existing.assigned_to !== scope.actorId) {
-        throw new TaskRepositoryError('Not authorized to complete this task', 403);
-      }
-      if (existing.status === 'completed') return { task: existing, idempotent: true };
-
-      const { data: task, error } = await db
-        .from('tasks')
-        .update({
-          status: 'completed',
-          completed_at: new Date().toISOString(),
-          completed_by: scope.actorId,
-        })
-        .eq('id', taskId)
-        .eq('org_id', scope.orgId)
-        .select()
-        .single();
-      if (error) throw error;
-
-      try {
-        await syncGrantMilestoneCompletion(
-          taskId,
-          (task?.metadata as Record<string, unknown> | null) ?? null
-        );
-      } catch (syncError) {
-        await rollbackCompletion(taskId, existing);
-        throw syncError;
-      }
-
-      const { error: eventError } = await db.from('task_events').insert({
-        task_id: taskId,
-        org_id: scope.orgId,
-        actor_id: scope.actorId,
-        event_type: 'completed',
-        before_values: existing,
-        after_values: task,
+      const { data, error } = await db.rpc('set_task_completion_state', {
+        p_expected_org_id: scope.orgId,
+        p_task_id: taskId,
+        p_actor_id: scope.actorId,
+        p_is_workspace_manager: isWorkspaceManager(scope.role),
+        p_action: 'complete',
       });
-      if (eventError) {
-        await rollbackCompletion(taskId, existing);
-        throw eventError;
-      }
-
-      await runCompletionAutomation(taskId, task);
-      return { task, idempotent: false };
+      if (error) throwMutationError(error, 'Not authorized to complete this task');
+      const result = data as TaskMutationResult;
+      await dispatchCompletionAutomation(result.outbox_event_id);
+      return { task: result.task, idempotent: result.idempotent === true };
     },
 
     async reopen(taskId: string) {
-      const existing = await loadTask(taskId);
-      if (!existing) throw new TaskRepositoryError('Task not found', 404);
-      if (!isWorkspaceManager(scope.role) && existing.assigned_to !== scope.actorId) {
-        throw new TaskRepositoryError('Not authorized to reopen this task', 403);
-      }
-      if (existing.status === 'open') return { task: existing, idempotent: true };
-
-      const { data: task, error } = await db
-        .from('tasks')
-        .update({ status: 'open', completed_at: null, completed_by: null })
-        .eq('id', taskId)
-        .eq('org_id', scope.orgId)
-        .select()
-        .single();
-      if (error) throw error;
-
-      const { error: eventError } = await db.from('task_events').insert({
-        task_id: taskId,
-        org_id: scope.orgId,
-        actor_id: scope.actorId,
-        event_type: 'status_changed',
-        before_values: existing,
-        after_values: task,
+      const { data, error } = await db.rpc('set_task_completion_state', {
+        p_expected_org_id: scope.orgId,
+        p_task_id: taskId,
+        p_actor_id: scope.actorId,
+        p_is_workspace_manager: isWorkspaceManager(scope.role),
+        p_action: 'reopen',
       });
-      if (eventError) {
-        await rollbackCompletion(taskId, existing);
-        throw eventError;
-      }
-      return { task, idempotent: false };
+      if (error) throwMutationError(error, 'Not authorized to reopen this task');
+      const result = data as TaskMutationResult;
+      return { task: result.task, idempotent: result.idempotent === true };
     },
   };
 }

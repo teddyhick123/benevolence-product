@@ -101,14 +101,21 @@ async function logAutomationRun(
   status: 'completed' | 'failed' | 'skipped',
   result: Record<string, unknown>
 ) {
-  const { error } = await db.from('org_automation_runs').insert({
+  const outboxEventId = typeof event.payload.outbox_event_id === 'string'
+    ? event.payload.outbox_event_id
+    : null;
+  const row = {
     org_id: event.orgId,
     rule_id: ruleId,
     trigger_entity_type: event.entityType,
     trigger_entity_id: event.entityId,
+    idempotency_key: outboxEventId ? `${outboxEventId}:${ruleId}` : null,
     status,
     result,
-  });
+  };
+  const { error } = outboxEventId
+    ? await db.from('org_automation_runs').upsert(row, { onConflict: 'idempotency_key' })
+    : await db.from('org_automation_runs').insert(row);
   if (error) throw error;
 }
 
@@ -344,7 +351,10 @@ export async function runAutomationRulesForEvent(
   }
   let task: TaskAutomationRow | null = null;
   if (event.entityType === 'task') {
-    task = await loadTaskContext(db, event.orgId, event.entityId);
+    const snapshot = event.payload.task_snapshot;
+    task = snapshot && typeof snapshot === 'object' && !Array.isArray(snapshot)
+      ? snapshot as TaskAutomationRow
+      : await loadTaskContext(db, event.orgId, event.entityId);
   }
 
   for (const rule of (rules ?? []) as AutomationRule[]) {

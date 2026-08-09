@@ -105,28 +105,31 @@ describe('org-scoped route auth contracts', () => {
     expect(tasksRoute).toContain('Number.isFinite(requestedLimit)');
   });
 
-  it('manual task creation validates entity links and rolls back partial writes', () => {
-    const src = readFileSync('lib/api/repositories/tasks.ts', 'utf8');
+  it('manual task creation validates links and writes rows in one scoped transaction', () => {
+    const repository = readFileSync('lib/api/repositories/tasks.ts', 'utf8');
+    const migration = readFileSync('db/migrations/0041_task_workflow_foundation.sql', 'utf8');
 
-    expect(src).toContain('TASK_ENTITY_TYPES');
-    expect(src).toContain('assertEntityLink');
-    expect(src).toContain('directEntityQuery');
-    expect(src).toContain('grantChildEntityQuery');
-    expect(src).not.toMatch(/\.from\((directTable|grantChildTable)\)/);
-    expect(src).toContain("await db.from('tasks').delete()");
-    expect(src).toContain('linkError');
-    expect(src).toContain('eventError');
+    expect(repository).toContain("'create_task_with_relations'");
+    expect(repository).toContain('p_expected_org_id: scope.orgId');
+    expect(migration).toContain('CREATE OR REPLACE FUNCTION public.task_entity_belongs_to_org');
+    expect(migration).toContain('CREATE OR REPLACE FUNCTION public.create_task_with_relations');
+    expect(migration).toContain('INSERT INTO public.task_entity_links');
+    expect(migration).toContain("'created', to_jsonb(v_task)");
+    expect(repository).not.toContain("await db.from('tasks').delete()");
   });
 
-  it('task status/comment mutations check audit writes and scope grant milestone sync', () => {
+  it('task status/comment mutations use atomic audit, milestone, and outbox boundaries', () => {
     const repository = readFileSync('lib/api/repositories/tasks.ts', 'utf8');
-    expect(repository).toContain('eventError');
-    expect(repository).toContain("from('task_comments').delete()");
-    expect(repository).toContain('before_values: existing');
-    expect(repository).toContain('syncGrantMilestoneCompletion');
-    expect(repository).toContain(".eq('org_id', scope.orgId)");
-    expect(repository).toContain(".eq('grants.org_id', scope.orgId)");
-    expect(repository).toContain('status: existing.status');
+    const migration = readFileSync('db/migrations/0041_task_workflow_foundation.sql', 'utf8');
+    expect(repository).toContain("'update_task_with_event'");
+    expect(repository).toContain("'add_task_comment_with_event'");
+    expect(repository).toContain("'set_task_completion_state'");
+    expect(repository).toContain('drainTaskAutomationOutbox');
+    expect(migration).toContain('CREATE TABLE IF NOT EXISTS public.task_automation_outbox');
+    expect(migration).toContain('UPDATE public.grant_milestones');
+    expect(migration).toContain('INSERT INTO public.task_events');
+    expect(migration).toContain('public.enqueue_task_completion_automation');
+    expect(repository).not.toContain('rollbackCompletion');
   });
 
   it('donor routes protect PII, disable caching, and preserve contribution history on delete', () => {

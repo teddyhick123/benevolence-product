@@ -95,6 +95,7 @@ CREATE TABLE IF NOT EXISTS public.org_automation_runs (
   rule_id             uuid REFERENCES public.org_automation_rules(id) ON DELETE SET NULL,
   trigger_entity_type text NOT NULL,
   trigger_entity_id   uuid NOT NULL,
+  idempotency_key     text UNIQUE,
   status              text NOT NULL CHECK (status IN ('queued', 'completed', 'failed', 'skipped')),
   result              jsonb NOT NULL DEFAULT '{}'::jsonb,
   ran_at              timestamptz NOT NULL DEFAULT now()

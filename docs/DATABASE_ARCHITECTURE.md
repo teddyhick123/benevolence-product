@@ -72,6 +72,14 @@ This document is a current, human-readable map of the active database. The schem
 | `task_entity_links` | Links from tasks to grants, filings, imports, etc. |
 | `workflow_templates`, `workflow_instances`, `workflow_tasks` | Reusable workflow system |
 | `task_automation_runs` | Automation run logs and summaries |
+| `task_automation_outbox` | Durable, retryable handoff for post-commit task-completion automation |
+
+Task creation, updates, comments, completion, generated-task upserts, audit
+events, and grant-milestone reverse synchronization enter through service-only
+transaction functions in migration `0041`. Completion commits an immutable task
+snapshot to `task_automation_outbox`; the task job drains that outbox with
+idempotent per-rule run keys, including on a later cron run after a request or
+worker failure.
 
 ### Tax Center
 

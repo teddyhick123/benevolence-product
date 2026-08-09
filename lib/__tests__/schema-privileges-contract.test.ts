@@ -114,5 +114,22 @@ describe('canonical migration privilege contracts', () => {
       expectGrant(sql, view, 'SELECT', ['authenticated', 'service_role']);
       expectSecurityInvokerView(sql, view);
     }
+
+    expectServicePolicy(sql, 'task_automation_outbox');
+    expectGrant(sql, 'task_automation_outbox', 'SELECT', ['authenticated']);
+    expectGrant(sql, 'task_automation_outbox', 'ALL', ['service_role']);
+
+    for (const signature of [
+      'create_task_with_relations\\(\\s*uuid,\\s*uuid,\\s*jsonb,\\s*jsonb\\s*\\)',
+      'update_task_with_event\\(\\s*uuid,\\s*uuid,\\s*uuid,\\s*boolean,\\s*jsonb\\s*\\)',
+      'add_task_comment_with_event\\(\\s*uuid,\\s*uuid,\\s*uuid,\\s*text\\s*\\)',
+      'set_task_completion_state\\(\\s*uuid,\\s*uuid,\\s*uuid,\\s*boolean,\\s*text\\s*\\)',
+      'upsert_generated_task\\(\\s*uuid,\\s*jsonb,\\s*jsonb,\\s*boolean\\s*\\)',
+      'settle_generated_tasks\\(\\s*uuid,\\s*text,\\s*boolean,\\s*text,\\s*text,\\s*uuid\\s*\\)',
+      'claim_task_automation_outbox\\(\\s*int,\\s*uuid,\\s*uuid\\s*\\)',
+      'finish_task_automation_outbox\\(\\s*uuid,\\s*boolean,\\s*text\\s*\\)',
+    ]) {
+      expectExecuteGrant(sql, signature, ['service_role']);
+    }
   });
 });

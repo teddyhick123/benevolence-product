@@ -6944,6 +6944,7 @@ export type Database = {
       org_automation_runs: {
         Row: {
           id: string
+          idempotency_key: string | null
           org_id: string
           ran_at: string
           result: Json
@@ -6954,6 +6955,7 @@ export type Database = {
         }
         Insert: {
           id?: string
+          idempotency_key?: string | null
           org_id: string
           ran_at?: string
           result?: Json
@@ -6964,6 +6966,7 @@ export type Database = {
         }
         Update: {
           id?: string
+          idempotency_key?: string | null
           org_id?: string
           ran_at?: string
           result?: Json
@@ -10405,6 +10408,103 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_org_modules"
             referencedColumns: ["org_id"]
+          },
+        ]
+      }
+      task_automation_outbox: {
+        Row: {
+          actor_id: string | null
+          attempts: number
+          available_at: string
+          claimed_at: string | null
+          completed_at: string | null
+          created_at: string
+          event_type: string
+          id: string
+          last_error: string | null
+          org_id: string
+          payload: Json
+          status: string
+          task_event_id: string
+          task_id: string
+          updated_at: string
+        }
+        Insert: {
+          actor_id?: string | null
+          attempts?: number
+          available_at?: string
+          claimed_at?: string | null
+          completed_at?: string | null
+          created_at?: string
+          event_type: string
+          id?: string
+          last_error?: string | null
+          org_id: string
+          payload?: Json
+          status?: string
+          task_event_id: string
+          task_id: string
+          updated_at?: string
+        }
+        Update: {
+          actor_id?: string | null
+          attempts?: number
+          available_at?: string
+          claimed_at?: string | null
+          completed_at?: string | null
+          created_at?: string
+          event_type?: string
+          id?: string
+          last_error?: string | null
+          org_id?: string
+          payload?: Json
+          status?: string
+          task_event_id?: string
+          task_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_automation_outbox_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "my_organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "task_automation_outbox_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "task_automation_outbox_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "v_compliance_dashboard"
+            referencedColumns: ["org_id"]
+          },
+          {
+            foreignKeyName: "task_automation_outbox_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "v_org_modules"
+            referencedColumns: ["org_id"]
+          },
+          {
+            foreignKeyName: "task_automation_outbox_task_event_id_fkey"
+            columns: ["task_event_id"]
+            isOneToOne: true
+            referencedRelation: "task_events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "task_automation_outbox_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -14079,6 +14179,15 @@ export type Database = {
       }
     }
     Functions: {
+      add_task_comment_with_event: {
+        Args: {
+          p_actor_id: string
+          p_body: string
+          p_expected_org_id: string
+          p_task_id: string
+        }
+        Returns: Json
+      }
       begin_ai_turn: {
         Args: {
           p_content: Json
@@ -14119,6 +14228,32 @@ export type Database = {
           p_waive_pending?: boolean
         }
         Returns: Json
+      }
+      claim_task_automation_outbox: {
+        Args: { p_event_id?: string; p_limit?: number; p_org_id?: string }
+        Returns: {
+          actor_id: string | null
+          attempts: number
+          available_at: string
+          claimed_at: string | null
+          completed_at: string | null
+          created_at: string
+          event_type: string
+          id: string
+          last_error: string | null
+          org_id: string
+          payload: Json
+          status: string
+          task_event_id: string
+          task_id: string
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "task_automation_outbox"
+          isOneToOne: false
+          isSetofReturn: true
+        }
       }
       clean_expired_geocode_cache: { Args: never; Returns: number }
       cleanup_staging_pii: {
@@ -14203,6 +14338,15 @@ export type Database = {
         }
         Returns: Json
       }
+      create_task_with_relations: {
+        Args: {
+          p_actor_id: string
+          p_entity_links?: Json
+          p_expected_org_id: string
+          p_task: Json
+        }
+        Returns: Json
+      }
       custom_field_entity_org: {
         Args: { p_entity_id: string; p_entity_type: string }
         Returns: string
@@ -14212,6 +14356,14 @@ export type Database = {
         Returns: Json
       }
       earth: { Args: never; Returns: number }
+      enqueue_task_completion_automation: {
+        Args: {
+          p_actor_id: string
+          p_task: Database["public"]["Tables"]["tasks"]["Row"]
+          p_task_event_id: string
+        }
+        Returns: string
+      }
       fail_ai_turn: {
         Args: {
           p_failure_code: string
@@ -14221,6 +14373,10 @@ export type Database = {
           p_user_id: string
         }
         Returns: boolean
+      }
+      finish_task_automation_outbox: {
+        Args: { p_error?: string; p_event_id: string; p_succeeded: boolean }
+        Returns: undefined
       }
       generate_receipt_number: { Args: { p_org_id: string }; Returns: string }
       generate_risk_snapshot: {
@@ -14368,8 +14524,33 @@ export type Database = {
         Args: { p_share_link_id: string }
         Returns: undefined
       }
+      set_task_completion_state: {
+        Args: {
+          p_action: string
+          p_actor_id: string
+          p_expected_org_id: string
+          p_is_workspace_manager: boolean
+          p_task_id: string
+        }
+        Returns: Json
+      }
+      settle_generated_tasks: {
+        Args: {
+          p_actor_id?: string
+          p_match_prefix: boolean
+          p_org_id: string
+          p_reason: string
+          p_source_key: string
+          p_status: string
+        }
+        Returns: number
+      }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
+      task_entity_belongs_to_org: {
+        Args: { p_entity_id: string; p_entity_type: string; p_org_id: string }
+        Returns: boolean
+      }
       transition_grant_lifecycle: {
         Args: {
           p_actor_id?: string
@@ -14457,6 +14638,16 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      update_task_with_event: {
+        Args: {
+          p_actor_id: string
+          p_expected_org_id: string
+          p_is_workspace_manager: boolean
+          p_task_id: string
+          p_updates: Json
+        }
+        Returns: Json
+      }
       update_workflow_task_with_linked_task: {
         Args: {
           p_actor_id: string
@@ -14467,6 +14658,15 @@ export type Database = {
           p_workflow_task_id: string
         }
         Returns: Json
+      }
+      upsert_generated_task: {
+        Args: {
+          p_entity_links?: Json
+          p_org_id: string
+          p_reopen_resolved?: boolean
+          p_task: Json
+        }
+        Returns: string
       }
       user_has_org_capability: {
         Args: { p_capability: string; p_org_id: string }

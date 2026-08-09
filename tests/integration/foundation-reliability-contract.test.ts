@@ -170,15 +170,15 @@ describe('foundation reliability contracts', () => {
     expect(repository).toContain('PortfolioWidgetHoldingNotFoundError');
   });
 
-  it('generated task automation checks task and event writes', () => {
+  it('generated task automation uses atomic task/link/event RPCs', () => {
     const writer = src('lib/tasks/automation/task-writer.ts');
-    expect(writer).toContain('taskFetchError');
-    expect(writer).toContain('existingError');
-    expect(writer).toContain('linkError');
-    expect(writer).toContain('updateError');
-    expect(writer).toContain('eventError');
-    expect(writer).toContain('if (eventError) throw eventError');
-    expect(writer).toContain("from('tasks').delete().eq('id', task.id).eq('org_id', input.orgId)");
+    const migration = src('db/migrations/0041_task_workflow_foundation.sql');
+    expect(writer).toContain("rpc('upsert_generated_task'");
+    expect(writer).toContain("rpc('settle_generated_tasks'");
+    expect(writer).not.toContain("from('tasks')");
+    expect(migration).toContain('CREATE OR REPLACE FUNCTION public.upsert_generated_task');
+    expect(migration).toContain('CREATE OR REPLACE FUNCTION public.settle_generated_tasks');
+    expect(migration).toContain('PERFORM public.enqueue_task_completion_automation');
   });
 
   it('tax profile mutations roll back when canonical tax year sync fails', () => {

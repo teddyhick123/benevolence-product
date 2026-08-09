@@ -12,6 +12,10 @@ vi.mock('@/lib/supabase', () => ({
 
 function buildMockDb() {
   return {
+    rpc: vi.fn(async (name: string) => ({
+      data: name === 'upsert_generated_task' ? 'created' : 0,
+      error: null,
+    })),
     from: vi.fn((table: string) => {
       if (table === 'import_jobs') {
         return {

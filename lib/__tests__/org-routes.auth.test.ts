@@ -392,10 +392,21 @@ describe('org-scoped route auth contracts', () => {
     expect(workflowTaskRoute).toContain('jsonOk');
     expect(workflowTaskRoute).not.toContain('createAdminClient');
     expect(workflowTaskRoute).not.toContain('createServerClient');
-    expect(workflowRepository).toContain('taskUpdateError');
-    expect(workflowRepository).toContain('eventError');
-    expect(workflowRepository).toContain('syncError');
-    expect(workflowRepository).toContain('maybeCompleteWorkflow(input.workflowId)');
+    expect(workflowRepository).toContain("'update_workflow_task_with_linked_task'");
+    expect(workflowRepository).toContain('p_expected_org_id: scope.orgId');
+    expect(workflowRepository).toContain('p_is_workspace_manager: isWorkspaceManager(scope.role)');
+    expect(workflowRepository).not.toContain('maybeCompleteWorkflow(input.workflowId)');
+
+    const taskWorkflowMigration = readFileSync(
+      'db/migrations/0041_task_workflow_foundation.sql',
+      'utf8'
+    );
+    expect(taskWorkflowMigration).toContain(
+      'CREATE OR REPLACE FUNCTION public.update_workflow_task_with_linked_task'
+    );
+    expect(taskWorkflowMigration).toContain(
+      'REVOKE ALL ON FUNCTION public.update_workflow_task_with_linked_task'
+    );
   });
 
   it('invitation routes no-store admin data and roll back failed sends/audits', () => {

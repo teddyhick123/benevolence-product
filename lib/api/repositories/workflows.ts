@@ -362,37 +362,9 @@ export class WorkflowTaskMutationError extends Error {
   }
 }
 
-function taskStatusForWorkflowStatus(status?: string) {
-  if (status === 'completed') return 'completed';
-  if (status === 'skipped') return 'cancelled';
-  if (status === 'blocked') return 'blocked';
-  if (status === 'in_progress') return 'in_progress';
-  return 'open';
-}
-
 /** Elevated workflow-task synchronization constrained through its parent workflow org. */
 export function createWorkflowTaskRepository(scope: WorkflowTaskRepositoryScope) {
   const db = createElevatedClient();
-
-  async function maybeCompleteWorkflow(workflowId: string) {
-    const { data: remaining, error: remainingError } = await db
-      .from('workflow_tasks')
-      .select('id')
-      .eq('workflow_id', workflowId)
-      .eq('is_required', true)
-      .not('status', 'in', '(completed,skipped)')
-      .limit(1);
-    if (remainingError) throw remainingError;
-
-    if ((remaining || []).length === 0) {
-      const { error } = await db
-        .from('workflow_instances')
-        .update({ status: 'completed', completed_at: new Date().toISOString() })
-        .eq('id', workflowId)
-        .eq('org_id', scope.orgId);
-      if (error) throw error;
-    }
-  }
 
   return {
     async updateWorkflowTask(input: {
@@ -400,110 +372,29 @@ export function createWorkflowTaskRepository(scope: WorkflowTaskRepositoryScope)
       workflowTaskId: string;
       updates: UpdateWorkflowTaskInput;
     }) {
-      const { data: existing, error: loadError } = await db
-        .from('workflow_tasks')
-        .select('*, tasks(id, assigned_to, status, completed_at, completed_by), workflow_instances!inner(id, org_id, status, completed_at)')
-        .eq('id', input.workflowTaskId)
-        .eq('workflow_id', input.workflowId)
-        .eq('workflow_instances.org_id', scope.orgId)
-        .maybeSingle();
-      if (loadError) throw loadError;
-      if (!existing) throw new WorkflowTaskMutationError('Workflow task not found', 404);
-
-      const linkedTask = Array.isArray(existing.tasks) ? existing.tasks[0] : existing.tasks;
-      if (!isWorkspaceManager(scope.role) && linkedTask?.assigned_to !== scope.actorId) {
+      const { data: workflowTask, error } = await db.rpc(
+        'update_workflow_task_with_linked_task',
+        {
+          p_expected_org_id: scope.orgId,
+          p_workflow_id: input.workflowId,
+          p_workflow_task_id: input.workflowTaskId,
+          p_actor_id: scope.actorId,
+          p_is_workspace_manager: isWorkspaceManager(scope.role),
+          p_updates: input.updates,
+        }
+      );
+      if (error?.code === 'P0002') {
+        throw new WorkflowTaskMutationError('Workflow task not found', 404);
+      }
+      if (error?.code === '42501') {
         throw new WorkflowTaskMutationError(
           'Not authorized to update this workflow task',
           403
         );
       }
-
-      const updates: Record<string, any> = { ...input.updates };
-      if (updates.status === 'completed') {
-        updates.completed_at = new Date().toISOString();
-        updates.completed_by = scope.actorId;
-      } else if (updates.status && updates.status !== 'completed') {
-        updates.completed_at = null;
-        updates.completed_by = null;
-      }
-
-      const { data: workflowTask, error: updateError } = await db
-        .from('workflow_tasks')
-        .update(updates)
-        .eq('id', input.workflowTaskId)
-        .eq('workflow_id', input.workflowId)
-        .select()
-        .single();
-      if (updateError) throw updateError;
-
-      try {
-        if (workflowTask.task_id && updates.status) {
-          const taskUpdates: Record<string, any> = {
-            status: taskStatusForWorkflowStatus(updates.status),
-          };
-          if (updates.status === 'completed') {
-            taskUpdates.completed_at = updates.completed_at;
-            taskUpdates.completed_by = scope.actorId;
-          } else {
-            taskUpdates.completed_at = null;
-            taskUpdates.completed_by = null;
-          }
-
-          const { data: task, error: taskUpdateError } = await db
-            .from('tasks')
-            .update(taskUpdates)
-            .eq('id', workflowTask.task_id)
-            .eq('org_id', scope.orgId)
-            .select()
-            .single();
-          if (taskUpdateError) throw taskUpdateError;
-
-          const { error: eventError } = await db.from('task_events').insert({
-            task_id: workflowTask.task_id,
-            org_id: scope.orgId,
-            actor_id: scope.actorId,
-            event_type: updates.status === 'completed' ? 'completed' : 'status_changed',
-            before_values: linkedTask || null,
-            after_values: task || null,
-          });
-          if (eventError) throw eventError;
-        }
-
-        if (updates.status === 'completed' || updates.status === 'skipped') {
-          await maybeCompleteWorkflow(input.workflowId);
-        }
-      } catch (syncError) {
-        await db
-          .from('workflow_tasks')
-          .update({
-            status: existing.status,
-            completed_at: existing.completed_at,
-            completed_by: existing.completed_by,
-            outcome: existing.outcome,
-            outcome_notes: existing.outcome_notes,
-          })
-          .eq('id', input.workflowTaskId)
-          .eq('workflow_id', input.workflowId);
-        if (workflowTask.task_id && linkedTask) {
-          await db
-            .from('tasks')
-            .update({
-              status: linkedTask.status,
-              completed_at: linkedTask.completed_at,
-              completed_by: linkedTask.completed_by,
-            })
-            .eq('id', workflowTask.task_id)
-            .eq('org_id', scope.orgId);
-        }
-        await db
-          .from('workflow_instances')
-          .update({
-            status: existing.workflow_instances.status,
-            completed_at: existing.workflow_instances.completed_at,
-          })
-          .eq('id', input.workflowId)
-          .eq('org_id', scope.orgId);
-        throw syncError;
+      if (error) throw error;
+      if (!workflowTask) {
+        throw new WorkflowTaskMutationError('Workflow task not found', 404);
       }
 
       return workflowTask;

@@ -251,6 +251,29 @@ describe('foundation reliability contracts', () => {
     expect(route).toContain('jsonOk');
   });
 
+  it('workflow-task mutations use one scoped service-only transaction', () => {
+    const route = src('app/api/org/[orgId]/workflows/[workflowId]/tasks/[workflowTaskId]/route.ts');
+    const repository = src('lib/api/repositories/workflows.ts');
+    const migration = src('db/migrations/0041_task_workflow_foundation.sql');
+
+    expect(route).toContain('requireOrgAccess(orgId)');
+    expect(route).toContain('createWorkflowTaskRepository');
+    expect(repository).toContain("'update_workflow_task_with_linked_task'");
+    expect(repository).toContain('p_expected_org_id: scope.orgId');
+    expect(repository).toContain('p_is_workspace_manager: isWorkspaceManager(scope.role)');
+    expect(migration).toContain(
+      'CREATE OR REPLACE FUNCTION public.update_workflow_task_with_linked_task'
+    );
+    expect(migration).toContain('UPDATE public.workflow_tasks');
+    expect(migration).toContain('UPDATE public.tasks');
+    expect(migration).toContain('INSERT INTO public.task_events');
+    expect(migration).toContain('UPDATE public.workflow_instances');
+    expect(migration).toContain(
+      'REVOKE ALL ON FUNCTION public.update_workflow_task_with_linked_task'
+    );
+    expect(repository).not.toContain('async function maybeCompleteWorkflow');
+  });
+
   it('grant milestone overdue state is computed from dates instead of stored as workflow status', () => {
     const migration = src('db/migrations/0041_task_workflow_foundation.sql');
     const schema = src('lib/schemas/grant.ts');

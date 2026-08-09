@@ -753,6 +753,209 @@ CREATE TRIGGER trg_workflow_tasks_updated_at
   BEFORE UPDATE ON public.workflow_tasks
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 
+-- Atomically synchronize one workflow step with its linked platform task,
+-- audit event, and parent workflow completion state. The function remains
+-- service-only: callers must enter through the scoped workflow repository.
+CREATE OR REPLACE FUNCTION public.update_workflow_task_with_linked_task(
+  p_expected_org_id uuid,
+  p_workflow_id uuid,
+  p_workflow_task_id uuid,
+  p_actor_id uuid,
+  p_is_workspace_manager boolean,
+  p_updates jsonb
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_workflow public.workflow_instances%ROWTYPE;
+  v_workflow_task public.workflow_tasks%ROWTYPE;
+  v_linked_task public.tasks%ROWTYPE;
+  v_has_linked_task boolean := false;
+  v_now timestamptz := now();
+  v_task_status text;
+  v_before_task jsonb;
+BEGIN
+  IF p_actor_id IS NULL THEN
+    RAISE EXCEPTION 'Workflow task actor is required'
+      USING ERRCODE = '22023';
+  END IF;
+
+  IF p_updates IS NULL OR jsonb_typeof(p_updates) <> 'object' THEN
+    RAISE EXCEPTION 'Workflow task updates must be a JSON object'
+      USING ERRCODE = '22023';
+  END IF;
+
+  IF p_updates - ARRAY['status', 'outcome', 'outcome_notes'] <> '{}'::jsonb THEN
+    RAISE EXCEPTION 'Workflow task updates contain unsupported fields'
+      USING ERRCODE = '22023';
+  END IF;
+
+  IF p_updates ? 'status'
+     AND (jsonb_typeof(p_updates -> 'status') <> 'string'
+       OR p_updates ->> 'status' NOT IN ('pending', 'in_progress', 'completed', 'skipped', 'blocked')) THEN
+    RAISE EXCEPTION 'Invalid workflow task status'
+      USING ERRCODE = '22023';
+  END IF;
+
+  IF p_updates ? 'outcome'
+     AND jsonb_typeof(p_updates -> 'outcome') <> 'null'
+     AND (jsonb_typeof(p_updates -> 'outcome') <> 'string'
+       OR p_updates ->> 'outcome' NOT IN ('pass', 'fail', 'conditional', 'n/a')) THEN
+    RAISE EXCEPTION 'Invalid workflow task outcome'
+      USING ERRCODE = '22023';
+  END IF;
+
+  IF p_updates ? 'outcome_notes'
+     AND jsonb_typeof(p_updates -> 'outcome_notes') NOT IN ('null', 'string') THEN
+    RAISE EXCEPTION 'Invalid workflow task outcome notes'
+      USING ERRCODE = '22023';
+  END IF;
+
+  IF length(p_updates ->> 'outcome_notes') > 4000 THEN
+    RAISE EXCEPTION 'Workflow task outcome notes are too long'
+      USING ERRCODE = '22023';
+  END IF;
+
+  -- Lock the parent first so concurrent last-step completions serialize and
+  -- cannot both observe another required step as unfinished.
+  SELECT wi.*
+  INTO v_workflow
+  FROM public.workflow_instances wi
+  WHERE wi.id = p_workflow_id
+    AND wi.org_id = p_expected_org_id
+  FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Workflow task not found in the expected organization'
+      USING ERRCODE = 'P0002';
+  END IF;
+
+  SELECT wt.*
+  INTO v_workflow_task
+  FROM public.workflow_tasks wt
+  WHERE wt.id = p_workflow_task_id
+    AND wt.workflow_id = p_workflow_id
+  FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Workflow task not found in the expected workflow'
+      USING ERRCODE = 'P0002';
+  END IF;
+
+  IF v_workflow_task.task_id IS NOT NULL THEN
+    SELECT t.*
+    INTO v_linked_task
+    FROM public.tasks t
+    WHERE t.id = v_workflow_task.task_id
+      AND t.org_id = p_expected_org_id
+      AND t.deleted_at IS NULL
+    FOR UPDATE;
+    v_has_linked_task := FOUND;
+
+    IF NOT v_has_linked_task THEN
+      RAISE EXCEPTION 'Linked task not found in the expected organization'
+        USING ERRCODE = 'P0002';
+    END IF;
+  END IF;
+
+  IF NOT COALESCE(p_is_workspace_manager, false)
+     AND (NOT v_has_linked_task OR v_linked_task.assigned_to IS DISTINCT FROM p_actor_id) THEN
+    RAISE EXCEPTION 'Not authorized to update this workflow task'
+      USING ERRCODE = '42501';
+  END IF;
+
+  UPDATE public.workflow_tasks
+  SET
+    status = CASE
+      WHEN p_updates ? 'status' THEN p_updates ->> 'status'
+      ELSE status
+    END,
+    outcome = CASE
+      WHEN p_updates ? 'outcome' THEN p_updates ->> 'outcome'
+      ELSE outcome
+    END,
+    outcome_notes = CASE
+      WHEN p_updates ? 'outcome_notes' THEN p_updates ->> 'outcome_notes'
+      ELSE outcome_notes
+    END,
+    completed_at = CASE
+      WHEN p_updates ->> 'status' = 'completed' THEN v_now
+      WHEN p_updates ? 'status' THEN NULL
+      ELSE completed_at
+    END,
+    completed_by = CASE
+      WHEN p_updates ->> 'status' = 'completed' THEN p_actor_id
+      WHEN p_updates ? 'status' THEN NULL
+      ELSE completed_by
+    END
+  WHERE id = p_workflow_task_id
+  RETURNING * INTO v_workflow_task;
+
+  IF v_has_linked_task AND p_updates ? 'status' THEN
+    v_before_task := to_jsonb(v_linked_task);
+    v_task_status := CASE p_updates ->> 'status'
+      WHEN 'completed' THEN 'completed'
+      WHEN 'skipped' THEN 'cancelled'
+      WHEN 'blocked' THEN 'blocked'
+      WHEN 'in_progress' THEN 'in_progress'
+      ELSE 'open'
+    END;
+
+    UPDATE public.tasks
+    SET
+      status = v_task_status,
+      completed_at = CASE WHEN v_task_status = 'completed' THEN v_now ELSE NULL END,
+      completed_by = CASE WHEN v_task_status = 'completed' THEN p_actor_id ELSE NULL END
+    WHERE id = v_workflow_task.task_id
+      AND org_id = p_expected_org_id
+      AND deleted_at IS NULL
+    RETURNING * INTO v_linked_task;
+
+    INSERT INTO public.task_events (
+      task_id,
+      org_id,
+      actor_id,
+      event_type,
+      before_values,
+      after_values
+    ) VALUES (
+      v_linked_task.id,
+      p_expected_org_id,
+      p_actor_id,
+      CASE WHEN v_task_status = 'completed' THEN 'completed' ELSE 'status_changed' END,
+      v_before_task,
+      to_jsonb(v_linked_task)
+    );
+  END IF;
+
+  IF p_updates ->> 'status' IN ('completed', 'skipped')
+     AND NOT EXISTS (
+       SELECT 1
+       FROM public.workflow_tasks wt
+       WHERE wt.workflow_id = p_workflow_id
+         AND wt.is_required = true
+         AND wt.status NOT IN ('completed', 'skipped')
+     ) THEN
+    UPDATE public.workflow_instances
+    SET status = 'completed', completed_at = v_now
+    WHERE id = p_workflow_id
+      AND org_id = p_expected_org_id;
+  END IF;
+
+  RETURN to_jsonb(v_workflow_task);
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.update_workflow_task_with_linked_task(
+  uuid, uuid, uuid, uuid, boolean, jsonb
+) FROM PUBLIC, authenticated;
+GRANT EXECUTE ON FUNCTION public.update_workflow_task_with_linked_task(
+  uuid, uuid, uuid, uuid, boolean, jsonb
+) TO service_role;
+
 CREATE TABLE IF NOT EXISTS public.notification_events (
   id                   uuid        PRIMARY KEY DEFAULT uuid_generate_v4(),
   org_id               uuid        NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,

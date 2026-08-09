@@ -1,7 +1,8 @@
 // app/settings/notifications/page.tsx
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
-import { createServerClient, createAdminClient } from '@/lib/supabase';
+import { isAccessDenied, requireOrgAccess } from '@/lib/api/access';
+import { createNotificationPreferenceRepository } from '@/lib/api/repositories/notifications';
 import NotificationsTab from '@/components/settings/NotificationsTab';
 
 export default async function NotificationsPage() {
@@ -9,25 +10,16 @@ export default async function NotificationsPage() {
   const orgId = cookieStore.get('x-org-id')?.value;
   if (!orgId) redirect('/onboarding');
 
-  const supabase = await createServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect('/login');
-
-  const adminClient = createAdminClient();
-  const { data: membership } = await adminClient
-    .from('organization_members')
-    .select('notification_prefs')
-    .eq('org_id', orgId)
-    .eq('user_id', user.id)
-    .single();
-
-  const prefs = membership?.notification_prefs || { digest: 'weekly', alerts: ['member_joined', 'module_changed'] };
+  const access = await requireOrgAccess(orgId, 'viewer');
+  if (isAccessDenied(access)) redirect('/dashboard');
+  const prefs = await createNotificationPreferenceRepository(access.context)
+    .getOwnPreferences();
 
   return (
     <NotificationsTab
       orgId={orgId}
-      userId={user.id}
-      initialPrefs={prefs}
+      userId={access.context.principal.userId}
+      initialPrefs={prefs ?? { digest: 'weekly', alerts: ['member_joined', 'module_changed'] }}
     />
   );
 }

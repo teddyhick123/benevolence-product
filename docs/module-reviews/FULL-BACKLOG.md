@@ -35,7 +35,6 @@ Status guide:
 
 | ID | Priority | Status | Area | Open work |
 |---|---|---|---|---|
-| SEC-01 | P0 | Verified open | Tenant access | Replace the five server-page `createAdminClient()` call sites with explicit access guards and tenant-scoped repositories. Fix `/settings/integrations` first: it trusts the client-writable `x-org-id` cookie and reads QuickBooks connection state with service-role access without proving membership. Extend the elevated-access source contract from `app/api/**` to server pages. |
 | BLD-01 | P0 | Verified open | Builder | Ship the container/Docker-isolated verification runner before enabling Builder code execution for production organizations. The current local worktree runner executes proposal-modified code on the worker host. |
 
 ## Data integrity and reliability findings
@@ -293,16 +292,15 @@ before planning implementation.
 
 | Priority | Verified/decision findings | Product carry-forwards | Total |
 |---|---:|---:|---:|
-| P0 | 2 | 0 | 2 |
+| P0 | 1 | 0 | 1 |
 | P1 | 14 | 2 | 16 |
 | P2 | 9 | 46 | 55 |
 | P3 | 1 | 10 | 11 |
-| **Total** | **26** | **58** | **84** |
+| **Total** | **25** | **58** | **83** |
 
 ## Recommended execution order
 
-1. Close SEC-01 and add the server-page elevated-access contract.
-2. Ship BLD-01 before enabling production Builder workers; address BLD-02 in the same Builder hardening increment.
-3. Design one reusable transaction/outbox pattern, then apply it to RF-01, RF-03, RF-04, RF-06, and RF-08 through RF-13 in bounded domain slices.
-4. Resolve the five product decisions RF-15, RF-16, RF-17, RF-19, and RF-21 before implementation.
-5. Select product roadmap candidates based on customer discovery, revalidate them, and promote only chosen items from carry-forward status.
+1. Ship BLD-01 before enabling production Builder workers; address BLD-02 in the same Builder hardening increment.
+2. Design one reusable transaction/outbox pattern, then apply it to RF-01, RF-03, RF-04, RF-06, and RF-08 through RF-13 in bounded domain slices.
+3. Resolve the five product decisions RF-15, RF-16, RF-17, RF-19, and RF-21 before implementation.
+4. Select product roadmap candidates based on customer discovery, revalidate them, and promote only chosen items from carry-forward status.

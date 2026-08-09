@@ -19,6 +19,29 @@ beforeEach(() => {
 });
 
 describe('createNotificationPreferenceRepository', () => {
+  it('loads preferences only for the active authorized member row', async () => {
+    const readQuery = stubQuery(
+      { data: null, error: null },
+      {
+        maybeSingle: {
+          data: { notification_prefs: { digest: 'daily' } },
+          error: null,
+        },
+      }
+    );
+    mockFrom.mockReturnValue(readQuery);
+
+    const preferences = await createNotificationPreferenceRepository({
+      orgId: 'org-1',
+      principal: { kind: 'user', userId: 'member-1' },
+    }).getOwnPreferences();
+
+    expect(readQuery.calls).toContainEqual({ method: 'eq', args: ['org_id', 'org-1'] });
+    expect(readQuery.calls).toContainEqual({ method: 'eq', args: ['user_id', 'member-1'] });
+    expect(readQuery.calls).toContainEqual({ method: 'is', args: ['deleted_at', null] });
+    expect(preferences).toEqual({ digest: 'daily' });
+  });
+
   it('reads and writes only the authorized member row', async () => {
     const readQuery = stubQuery(
       { data: null, error: null },

@@ -1,6 +1,6 @@
 import Link from 'next/link';
-import { redirect } from 'next/navigation';
-import { createAdminClient, createSupabaseServerClient } from '@/lib/supabase';
+import { isAccessDenied, requireOrgAccess } from '@/lib/api/access';
+import { createOrgTaskRepository } from '@/lib/api/repositories/tasks';
 import TaskInbox from '@/components/tasks/TaskInbox';
 
 export const dynamic = 'force-dynamic';
@@ -11,49 +11,30 @@ interface Props {
 }
 
 async function loadTaskPageData(orgId: string) {
-  const supabase = await createSupabaseServerClient();
-
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect('/login');
-
-  const { data: role } = await supabase.rpc('user_org_role', { p_org_id: orgId });
-  if (!role) {
-    return { error: 'Not authorized', user, role: null, org: null, members: [] };
+  const access = await requireOrgAccess(orgId, 'viewer');
+  if (isAccessDenied(access)) {
+    return { error: 'Not authorized', user: null, role: null, org: null, members: [] };
   }
 
-  const adminClient = createAdminClient();
-  const [{ data: org }, { data: rawMembers, error: membersError }] = await Promise.all([
-    adminClient.from('organizations').select('id, name').eq('id', orgId).single(),
-    adminClient
-      .from('organization_members')
-      .select('user_id, role')
-      .eq('org_id', orgId)
-      .is('deleted_at', null)
-      .order('role', { ascending: true }),
-  ]);
-
-  if (membersError) {
-    return { error: membersError.message, user, role, org, members: [] };
-  }
-
-  const userIds = (rawMembers || []).map((member: any) => member.user_id);
-  const { data: profiles } = userIds.length > 0
-    ? await adminClient.from('profiles').select('id, full_name, email').in('id', userIds)
-    : { data: [] };
-  const profilesById = new Map((profiles || []).map((profile: any) => [profile.id, profile]));
-  const members = (rawMembers || []).map((member: any) => ({
-    ...member,
-    profiles: profilesById.get(member.user_id) || null,
-  }));
-
-  return { error: null, user, role, org, members: members || [] };
+  const { org, members } = await createOrgTaskRepository({
+    orgId,
+    role: access.context.role,
+    actorId: access.context.principal.userId,
+  }).getPageContext();
+  return {
+    error: null,
+    user: access.context.user,
+    role: access.context.role,
+    org,
+    members,
+  };
 }
 
 export default async function OrgTasksPage({ params }: Props) {
   const { orgId } = await params;
   const { error, user, role, org, members } = await loadTaskPageData(orgId);
 
-  if (error || !role) {
+  if (error || !role || !user) {
     return (
       <div className="card p-6">
         <h2 className="mb-2 text-xl font-semibold text-red-600">Error</h2>

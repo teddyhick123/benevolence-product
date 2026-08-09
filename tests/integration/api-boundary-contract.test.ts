@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 
 const REPO_ROOT = process.cwd();
 const API_ROOT = path.join(REPO_ROOT, 'app', 'api');
+const APP_ROOT = path.join(REPO_ROOT, 'app');
 const ACTIVE_FIXTURE_PATH = path.join(REPO_ROOT, 'tests', 'fixtures', 'legacy-service-role-routes.txt');
 const BASELINE_FIXTURE_PATH = path.join(REPO_ROOT, 'tests', 'fixtures', 'legacy-service-role-baseline.txt');
 const FORBIDDEN_TOKENS = ['createAdminClient(', 'SUPABASE_SERVICE_ROLE'] as const;
@@ -18,6 +19,16 @@ function routeFiles(dir: string): string[] {
       return routeFiles(absolute);
     }
     return entry.name === 'route.ts'
+      ? [path.relative(REPO_ROOT, absolute).split(path.sep).join('/')]
+      : [];
+  });
+}
+
+function pageFiles(dir: string): string[] {
+  return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const absolute = path.join(dir, entry.name);
+    if (entry.isDirectory()) return pageFiles(absolute);
+    return entry.name === 'page.tsx'
       ? [path.relative(REPO_ROOT, absolute).split(path.sep).join('/')]
       : [];
   });
@@ -46,6 +57,17 @@ function fixture(file: string): string[] {
 }
 
 describe('API elevated-access boundary', () => {
+  it('keeps elevated client construction out of server pages', () => {
+    const offenders = pageFiles(APP_ROOT)
+      .filter((file) => {
+        const source = withoutComments(fs.readFileSync(path.join(REPO_ROOT, file), 'utf8'));
+        return FORBIDDEN_TOKENS.some((token) => source.includes(token));
+      })
+      .sort();
+
+    expect(offenders).toEqual([]);
+  });
+
   it('matches the explicit legacy route fixture exactly', () => {
     expect(routesWithDirectElevatedAccess()).toEqual(fixture(ACTIVE_FIXTURE_PATH));
   });

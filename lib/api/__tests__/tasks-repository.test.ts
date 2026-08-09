@@ -28,6 +28,39 @@ beforeEach(() => {
 });
 
 describe('createOrgTaskRepository', () => {
+  it('loads task-page organization and member context through the bound organization', async () => {
+    const orgQuery = stubQuery(
+      { data: null, error: null },
+      { maybeSingle: { data: { id: 'org-1', name: 'Org One' }, error: null } }
+    );
+    const membersQuery = stubQuery({
+      data: [{ user_id: 'user-1', role: 'admin' }],
+      error: null,
+    });
+    const profilesQuery = stubQuery({
+      data: [{ id: 'user-1', full_name: 'Admin User', email: 'admin@example.test' }],
+      error: null,
+    });
+    mockFrom
+      .mockReturnValueOnce(orgQuery)
+      .mockReturnValueOnce(membersQuery)
+      .mockReturnValueOnce(profilesQuery);
+
+    const context = await createOrgTaskRepository(adminScope).getPageContext();
+
+    expect(orgQuery.calls).toContainEqual({ method: 'eq', args: ['id', 'org-1'] });
+    expect(membersQuery.calls).toContainEqual({ method: 'eq', args: ['org_id', 'org-1'] });
+    expect(membersQuery.calls).toContainEqual({ method: 'is', args: ['deleted_at', null] });
+    expect(context).toEqual({
+      org: { id: 'org-1', name: 'Org One' },
+      members: [{
+        user_id: 'user-1',
+        role: 'admin',
+        profiles: { id: 'user-1', full_name: 'Admin User', email: 'admin@example.test' },
+      }],
+    });
+  });
+
   it('forces organization and actor filters on task listing', async () => {
     const query = stubQuery({ data: [], error: null });
     mockFrom.mockReturnValue(query);

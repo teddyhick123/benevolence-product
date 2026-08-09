@@ -1,6 +1,7 @@
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
-import { createAdminClient } from '@/lib/supabase';
+import { isAccessDenied, requireOrgAccess } from '@/lib/api/access';
+import { createQuickBooksRepository } from '@/lib/api/repositories/quickbooks';
 import IntegrationsTab from '@/components/settings/IntegrationsTab';
 
 export default async function IntegrationsPage() {
@@ -8,16 +9,19 @@ export default async function IntegrationsPage() {
   const orgId = cookieStore.get('x-org-id')?.value;
   if (!orgId) redirect('/onboarding');
 
-  const adminClient = createAdminClient();
-  const { data: qbConn } = await adminClient
-    .from('quickbooks_connections')
-    .select('id, expires_at, refresh_expires_at')
-    .eq('org_id', orgId)
-    .maybeSingle();
+  const access = await requireOrgAccess(orgId, 'viewer');
+  if (isAccessDenied(access)) redirect('/dashboard');
+  const status = await createQuickBooksRepository({
+    orgId,
+    actorId: access.context.principal.userId,
+  }).getConnectionStatus();
 
-  const now = new Date();
-  const qbTokenExpired = qbConn?.expires_at ? new Date(qbConn.expires_at) <= now : false;
-  const qbNeedsReconnect = qbConn?.refresh_expires_at ? new Date(qbConn.refresh_expires_at) <= now : false;
-
-  return <IntegrationsTab qbConnected={!!qbConn} qbTokenExpired={qbTokenExpired} qbNeedsReconnect={qbNeedsReconnect} orgId={orgId} />;
+  return (
+    <IntegrationsTab
+      qbConnected={status.connected}
+      qbTokenExpired={status.tokenExpired}
+      qbNeedsReconnect={status.needsReconnect}
+      orgId={orgId}
+    />
+  );
 }

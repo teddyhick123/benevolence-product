@@ -1,9 +1,7 @@
-import { createServerClient } from "@/lib/api/server-client";
-import { redirect } from "next/navigation";
 import Link from "next/link";
-import { getOrgEnabledModules } from "@/lib/modules";
+import { isAccessDenied, requireOrgAccess } from "@/lib/api/access";
+import { createOrganizationDashboardRepository } from "@/lib/api/repositories/organization-dashboard";
 import { MODULE_REGISTRY } from "@/lib/modules/registry";
-import { createAdminClient } from "@/lib/supabase";
 import OrgDashboardClient from "./OrgDashboardClient";
 
 export const dynamic = "force-dynamic";
@@ -24,26 +22,8 @@ const MODULE_ROUTES: Record<string, string> = {
 
 export default async function OrgDashboardPage({ params }: Props) {
   const { orgId } = await params;
-
-  // Auth check
-  const supabase = await createServerClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    redirect("/login");
-  }
-
-  // Prove membership before using the service-role client for the dashboard.
-  const { data: membership } = await supabase
-    .from("organization_members")
-    .select("role")
-    .eq("org_id", orgId)
-    .eq("user_id", user.id)
-    .maybeSingle();
-
-  if (!membership) {
+  const access = await requireOrgAccess(orgId, "viewer");
+  if (isAccessDenied(access)) {
     return (
       <div className="max-w-4xl mx-auto py-12 px-6">
         <div className="bg-red-50 border border-red-200 rounded-xl p-6 text-center">
@@ -64,14 +44,8 @@ export default async function OrgDashboardPage({ params }: Props) {
     );
   }
 
-  const adminClient = createAdminClient();
-  const { data: org } = await adminClient
-    .from("organizations")
-    .select("id, name, branding, org_type_config, ein, org_type, website, created_at")
-    .eq("id", orgId)
-    .single();
-
-  if (!org) {
+  const overview = await createOrganizationDashboardRepository(access.context).load();
+  if (!overview) {
     return (
       <div className="max-w-4xl mx-auto py-12 px-6">
         <div className="bg-red-50 border border-red-200 rounded-xl p-6 text-center">
@@ -88,11 +62,7 @@ export default async function OrgDashboardPage({ params }: Props) {
       </div>
     );
   }
-
-  const userRole = membership.role;
-
-  // Get enabled modules
-  const enabledModules = await getOrgEnabledModules(adminClient, orgId);
+  const { org, enabledModules } = overview;
   const nonCoreModules = enabledModules.filter((m) => m !== "core");
 
   // Build module data for client
@@ -117,7 +87,7 @@ export default async function OrgDashboardPage({ params }: Props) {
       }}
       enabledModules={enabledModules}
       moduleData={moduleData}
-      userRole={userRole}
+      userRole={access.context.role}
     />
   );
 }

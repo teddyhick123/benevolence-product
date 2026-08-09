@@ -222,6 +222,39 @@ export function createOrgTaskRepository(scope: TaskRepositoryScope) {
   }
 
   return {
+    async getPageContext() {
+      const [{ data: org, error: orgError }, { data: rawMembers, error: membersError }] =
+        await Promise.all([
+          db
+            .from('organizations')
+            .select('id, name')
+            .eq('id', scope.orgId)
+            .maybeSingle(),
+          db
+            .from('organization_members')
+            .select('user_id, role')
+            .eq('org_id', scope.orgId)
+            .is('deleted_at', null)
+            .order('role', { ascending: true }),
+        ]);
+      if (orgError) throw orgError;
+      if (membersError) throw membersError;
+
+      const userIds = (rawMembers ?? []).map((member: any) => member.user_id);
+      const { data: profiles, error: profilesError } = userIds.length > 0
+        ? await db.from('profiles').select('id, full_name, email').in('id', userIds)
+        : { data: [], error: null };
+      if (profilesError) throw profilesError;
+
+      const profilesById = new Map((profiles ?? []).map((profile: any) => [profile.id, profile]));
+      const members = (rawMembers ?? []).map((member: any) => ({
+        ...member,
+        profiles: profilesById.get(member.user_id) ?? null,
+      }));
+
+      return { org, members };
+    },
+
     async list(input: TaskListInput) {
       let query = db
         .from('tasks')

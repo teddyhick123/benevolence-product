@@ -40,11 +40,20 @@ export function createTaskJobRepository(context: JobAccessContext) {
       const now = input.now ? new Date(input.now) : new Date();
       const runId = crypto.randomUUID();
 
-      // The migration documents this lock as best-effort. The run row below is
-      // the durable concurrency signal across pooled database connections.
-      await db.rpc('try_task_automation_lock', {
+      // The migration documents this lock as best-effort: it is transaction
+      // scoped, so it is already released here and its boolean cannot gate the
+      // run. The run row below is the durable concurrency signal. An RPC error
+      // is different from a lost race and must not start unguarded work.
+      const { error: lockError } = await db.rpc('try_task_automation_lock', {
         lock_key: `task_automation:${input.producer ?? 'all'}:${input.orgId ?? 'all'}`,
       });
+      if (lockError) {
+        return {
+          ok: false as const,
+          status: 500,
+          error: `Task automation lock unavailable: ${lockError.message}`,
+        };
+      }
 
       let inflightQuery = db
         .from('task_automation_runs')
@@ -53,7 +62,16 @@ export function createTaskJobRepository(context: JobAccessContext) {
         .gte('created_at', new Date(Date.now() - 30 * 60 * 1000).toISOString());
       if (input.producer) inflightQuery = inflightQuery.eq('producer', input.producer);
       if (input.orgId) inflightQuery = inflightQuery.eq('org_id', input.orgId);
-      const { data: inflightRun } = await inflightQuery.maybeSingle();
+      const { data: inflightRun, error: inflightError } = await inflightQuery.maybeSingle();
+
+      // An unreadable scan is not an idle queue; running now could double-write.
+      if (inflightError) {
+        return {
+          ok: false as const,
+          status: 500,
+          error: `Concurrency check failed: ${inflightError.message}`,
+        };
+      }
 
       if (inflightRun) {
         return {
@@ -65,13 +83,22 @@ export function createTaskJobRepository(context: JobAccessContext) {
       }
 
       if (!input.dryRun) {
-        await db.from('task_automation_runs').insert({
+        // This row is both the execution history and the concurrency guard, so
+        // work must not start when it cannot be written.
+        const { error: runRecordError } = await db.from('task_automation_runs').insert({
           id: runId,
           producer: input.producer ?? null,
           org_id: input.orgId ?? null,
           dry_run: false,
           status: 'running',
         });
+        if (runRecordError) {
+          return {
+            ok: false as const,
+            status: 500,
+            error: `Task run could not be recorded: ${runRecordError.message}`,
+          };
+        }
       }
 
       try {
@@ -97,7 +124,7 @@ export function createTaskJobRepository(context: JobAccessContext) {
         );
 
         if (!input.dryRun) {
-          await db
+          const { error: completionError } = await db
             .from('task_automation_runs')
             .update({
               status: 'completed',
@@ -111,6 +138,18 @@ export function createTaskJobRepository(context: JobAccessContext) {
               metadata: { results },
             })
             .eq('id', runId);
+
+          // The producers already ran, but the row is still `running` and will
+          // block later runs for the in-flight window, so this needs an alert
+          // and manual reconciliation rather than a silent success.
+          if (completionError) {
+            return {
+              ok: false as const,
+              status: 500,
+              run_id: runId,
+              error: `Task run completed but its history could not be persisted: ${completionError.message}`,
+            };
+          }
         }
 
         return {
@@ -120,8 +159,10 @@ export function createTaskJobRepository(context: JobAccessContext) {
           results,
         };
       } catch (error: any) {
+        let message = error.message;
+
         if (!input.dryRun) {
-          await db
+          const { error: failureRecordError } = await db
             .from('task_automation_runs')
             .update({
               status: 'failed',
@@ -129,9 +170,20 @@ export function createTaskJobRepository(context: JobAccessContext) {
               metadata: { error: error.message },
             })
             .eq('id', runId);
+
+          // Report the producer failure as the cause; a bookkeeping failure is
+          // additional context and must not mask it.
+          if (failureRecordError) {
+            message = `${message} (run status could not be recorded: ${failureRecordError.message})`;
+          }
         }
 
-        return { ok: false as const, status: 500, error: error.message };
+        return {
+          ok: false as const,
+          status: 500,
+          run_id: input.dryRun ? null : runId,
+          error: message,
+        };
       }
     },
 

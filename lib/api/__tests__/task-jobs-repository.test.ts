@@ -136,6 +136,121 @@ describe('createTaskJobRepository', () => {
     }));
   });
 
+  it('does not start work when the advisory lock check errors', async () => {
+    mockRpc.mockResolvedValue({ data: null, error: { message: 'rpc unavailable' } });
+
+    const result = await createTaskJobRepository(context).generate({ dryRun: false });
+
+    expect(mockFrom).not.toHaveBeenCalled();
+    expect(mockRunProducers).not.toHaveBeenCalled();
+    expect(result).toEqual({
+      ok: false,
+      status: 500,
+      error: 'Task automation lock unavailable: rpc unavailable',
+    });
+  });
+
+  it('does not treat an unreadable concurrency scan as an idle queue', async () => {
+    const inflightQuery = stubQuery(
+      { data: null, error: null },
+      { maybeSingle: { data: null, error: { message: 'scan failed' } } }
+    );
+    mockFrom.mockReturnValue(inflightQuery);
+
+    const result = await createTaskJobRepository(context).generate({ dryRun: false });
+
+    expect(mockRunProducers).not.toHaveBeenCalled();
+    expect(result).toEqual({
+      ok: false,
+      status: 500,
+      error: 'Concurrency check failed: scan failed',
+    });
+  });
+
+  it('does not start work when the run row cannot be recorded', async () => {
+    const inflightQuery = stubQuery(
+      { data: null, error: null },
+      { maybeSingle: { data: null, error: null } }
+    );
+    const insertQuery = stubQuery({ data: null, error: { message: 'insert failed' } });
+    mockFrom.mockReturnValueOnce(inflightQuery).mockReturnValueOnce(insertQuery);
+
+    const result = await createTaskJobRepository(context).generate({ dryRun: false });
+
+    expect(mockRunProducers).not.toHaveBeenCalled();
+    expect(result).toEqual({
+      ok: false,
+      status: 500,
+      error: 'Task run could not be recorded: insert failed',
+    });
+  });
+
+  it('reports an alertable failure when completed-run history cannot be persisted', async () => {
+    const inflightQuery = stubQuery(
+      { data: null, error: null },
+      { maybeSingle: { data: null, error: null } }
+    );
+    const insertQuery = stubQuery({ data: null, error: null });
+    const updateQuery = stubQuery({ data: null, error: { message: 'update failed' } });
+    mockFrom
+      .mockReturnValueOnce(inflightQuery)
+      .mockReturnValueOnce(insertQuery)
+      .mockReturnValueOnce(updateQuery);
+    mockRunProducers.mockResolvedValue([]);
+
+    const result = await createTaskJobRepository(context).generate({ dryRun: false });
+
+    expect(mockRunProducers).toHaveBeenCalled();
+    expect(result).toEqual({
+      ok: false,
+      status: 500,
+      run_id: 'run-1',
+      error: 'Task run completed but its history could not be persisted: update failed',
+    });
+  });
+
+  it('keeps the producer failure as the cause when the failed-run write also fails', async () => {
+    const inflightQuery = stubQuery(
+      { data: null, error: null },
+      { maybeSingle: { data: null, error: null } }
+    );
+    const insertQuery = stubQuery({ data: null, error: null });
+    const updateQuery = stubQuery({ data: null, error: { message: 'update failed' } });
+    mockFrom
+      .mockReturnValueOnce(inflightQuery)
+      .mockReturnValueOnce(insertQuery)
+      .mockReturnValueOnce(updateQuery);
+    mockRunProducers.mockRejectedValue(new Error('producer exploded'));
+
+    const result = await createTaskJobRepository(context).generate({ dryRun: false });
+
+    expect(result).toEqual({
+      ok: false,
+      status: 500,
+      run_id: 'run-1',
+      error: 'producer exploded (run status could not be recorded: update failed)',
+    });
+  });
+
+  it('skips run-history writes entirely on a dry run', async () => {
+    const inflightQuery = stubQuery(
+      { data: null, error: null },
+      { maybeSingle: { data: null, error: null } }
+    );
+    mockFrom.mockReturnValue(inflightQuery);
+    mockRunProducers.mockResolvedValue([]);
+
+    const result = await createTaskJobRepository(context).generate({ dryRun: true });
+
+    expect(mockFrom).toHaveBeenCalledTimes(1);
+    expect(result).toEqual({
+      ok: true,
+      status: 200,
+      run_id: null,
+      results: [],
+    });
+  });
+
   it('applies optional filters to global run history', async () => {
     const query = stubQuery({ data: [], error: null });
     mockFrom.mockReturnValue(query);

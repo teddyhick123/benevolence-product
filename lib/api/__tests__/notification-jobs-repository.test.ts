@@ -98,6 +98,27 @@ describe('createNotificationJobRepository', () => {
     });
   });
 
+  it('fails the run rather than re-fanning-out when the completed-event scan errors', async () => {
+    const eventQuery = stubQuery({ data: [{ id: 'event-1' }], error: null });
+    const completedQuery = stubQuery({
+      data: null,
+      error: { message: 'completed scan failed' },
+    });
+    mockFrom.mockReturnValueOnce(eventQuery).mockReturnValueOnce(completedQuery);
+
+    const result = await createNotificationJobRepository(context).fanout({ dryRun: false });
+
+    expect(mockFanOutTaskEvent).not.toHaveBeenCalled();
+    expect(result).toEqual({
+      ok: false,
+      error: 'completed scan failed',
+      scanned: 1,
+      created: 0,
+      suppressed: 0,
+      errors: [],
+    });
+  });
+
   it('delivers only scheduled email notifications in pending or retry state', async () => {
     const pendingQuery = stubQuery({ data: [{ id: 'notification-1' }], error: null });
     const retryQuery = stubQuery({ data: [{ id: 'notification-2' }], error: null });
@@ -130,6 +151,80 @@ describe('createNotificationJobRepository', () => {
         notificationId: 'notification-2',
         message: 'delivery failed — see logs',
       }],
+    });
+  });
+
+  it('fails the run without delivering when the pending scan errors', async () => {
+    const pendingQuery = stubQuery({ data: null, error: { message: 'pending scan failed' } });
+    const retryQuery = stubQuery({ data: [{ id: 'notification-2' }], error: null });
+    mockFrom.mockReturnValueOnce(pendingQuery).mockReturnValueOnce(retryQuery);
+
+    const result = await createNotificationJobRepository(context).deliver({ dryRun: false });
+
+    expect(mockDeliverEmailNotification).not.toHaveBeenCalled();
+    expect(result).toEqual({
+      ok: false,
+      error: 'pending scan failed',
+      scanned: 0,
+      sent: 0,
+      suppressed: 0,
+      failed: 0,
+      errors: [],
+    });
+  });
+
+  it('fails the run without delivering when the retry scan errors', async () => {
+    const pendingQuery = stubQuery({ data: [{ id: 'notification-1' }], error: null });
+    const retryQuery = stubQuery({ data: null, error: { message: 'retry scan failed' } });
+    mockFrom.mockReturnValueOnce(pendingQuery).mockReturnValueOnce(retryQuery);
+
+    const result = await createNotificationJobRepository(context).deliver({ dryRun: false });
+
+    expect(mockDeliverEmailNotification).not.toHaveBeenCalled();
+    expect(result).toEqual({
+      ok: false,
+      error: 'retry scan failed',
+      scanned: 0,
+      sent: 0,
+      suppressed: 0,
+      failed: 0,
+      errors: [],
+    });
+  });
+
+  it('reports a successful empty scan rather than a failure', async () => {
+    const pendingQuery = stubQuery({ data: [], error: null });
+    const retryQuery = stubQuery({ data: [], error: null });
+    mockFrom.mockReturnValueOnce(pendingQuery).mockReturnValueOnce(retryQuery);
+
+    const result = await createNotificationJobRepository(context).deliver({ dryRun: false });
+
+    expect(mockDeliverEmailNotification).not.toHaveBeenCalled();
+    expect(result).toEqual({
+      ok: true,
+      scanned: 0,
+      sent: 0,
+      suppressed: 0,
+      failed: 0,
+      errors: [],
+    });
+  });
+
+  it('suppresses rather than delivers scanned notifications on a dry run', async () => {
+    const pendingQuery = stubQuery({ data: [{ id: 'notification-1' }], error: null });
+    const retryQuery = stubQuery({ data: [{ id: 'notification-2' }], error: null });
+    mockFrom.mockReturnValueOnce(pendingQuery).mockReturnValueOnce(retryQuery);
+
+    const result = await createNotificationJobRepository(context).deliver({ dryRun: true });
+
+    expect(mockDeliverEmailNotification).not.toHaveBeenCalled();
+    expect(result).toEqual({
+      ok: true,
+      scanned: 2,
+      sent: 0,
+      suppressed: 2,
+      failed: 0,
+      errors: [],
     });
   });
 

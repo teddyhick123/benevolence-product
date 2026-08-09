@@ -113,6 +113,31 @@ describe('notification job routes', () => {
     }));
   });
 
+  it('surfaces a delivery scan failure as a 500 with no counted work', async () => {
+    mockDeliver.mockResolvedValueOnce({
+      ok: false,
+      error: 'pending scan failed',
+      scanned: 0,
+      sent: 0,
+      suppressed: 0,
+      failed: 0,
+      errors: [],
+    });
+
+    const response = await deliver(new NextRequest(
+      'http://localhost/api/jobs/notifications/send',
+      { method: 'POST', body: '{}' }
+    ));
+
+    expect(response.status).toBe(500);
+    expect(await response.json()).toEqual(expect.objectContaining({
+      ok: false,
+      error: 'pending scan failed',
+      scanned: 0,
+      sent: 0,
+    }));
+  });
+
   it('accepts the digest cron GET through the same job guard', async () => {
     const request = new NextRequest('http://localhost/api/jobs/notifications/digest', {
       headers: { authorization: 'Bearer cron-secret' },

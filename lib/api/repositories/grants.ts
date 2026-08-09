@@ -4,10 +4,6 @@ import type { DecisionPayload, LifecycleStage } from '@/lib/grants/lifecycle-sha
 import { ORG_AUDIT_ACTIONS, writeOrgAuditEvent } from '@/lib/audit/org-audit';
 import { checkWorkflowGate } from '@/lib/grants/workflow-config';
 import { runAutomationRulesForEvent } from '@/lib/tasks/automation/dynamic-rules';
-import {
-  cancelGeneratedTasks,
-  completeGeneratedTasks,
-} from '@/lib/tasks/automation/task-writer';
 
 type GrantRepositoryScope = Pick<OrgAccessContext, 'orgId'> & {
   actorId: string;
@@ -295,34 +291,33 @@ export function createGrantRepository(scope: GrantRepositoryScope) {
       });
     },
 
-    async syncMilestoneTasks(input: {
+    async updateMilestoneWithTaskSync(input: {
+      portfolioId: string;
+      holdingId: string;
       milestoneId: string;
-      status: 'completed' | 'cancelled';
+      patch: {
+        milestone_name?: string;
+        description?: string | null;
+        due_date?: string | null;
+        completed_date?: string | null;
+        status?: 'pending' | 'in_progress' | 'completed' | 'cancelled';
+        notes?: string | null;
+      };
     }) {
-      const { data: milestone, error } = await db
-        .from('grant_milestones')
-        .select('id, grants!inner(org_id)')
-        .eq('id', input.milestoneId)
-        .eq('grants.org_id', scope.orgId)
-        .maybeSingle();
+      const { data: milestone, error } = await db.rpc(
+        'update_grant_milestone_with_task_sync',
+        {
+          p_expected_org_id: scope.orgId,
+          p_expected_portfolio_id: input.portfolioId,
+          p_expected_holding_id: input.holdingId,
+          p_milestone_id: input.milestoneId,
+          p_actor_id: scope.actorId,
+          p_patch: input.patch,
+        }
+      );
       if (error) throw error;
       if (!milestone) throw new GrantMilestoneNotFoundError();
-
-      const sourcePrefix = `grant_milestone:${input.milestoneId}:`;
-      if (input.status === 'completed') {
-        return completeGeneratedTasks(
-          db,
-          scope.orgId,
-          sourcePrefix,
-          'Milestone marked completed'
-        );
-      }
-      return cancelGeneratedTasks(
-        db,
-        scope.orgId,
-        sourcePrefix,
-        'Milestone cancelled'
-      );
+      return milestone;
     },
   };
 }

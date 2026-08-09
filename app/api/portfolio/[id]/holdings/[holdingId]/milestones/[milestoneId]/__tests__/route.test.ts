@@ -8,12 +8,12 @@ const {
   mockRequirePortfolioAccess,
   mockFrom,
   mockCreateGrantRepository,
-  mockSyncMilestoneTasks,
+  mockUpdateMilestoneWithTaskSync,
 } = vi.hoisted(() => ({
   mockRequirePortfolioAccess: vi.fn(),
   mockFrom: vi.fn(),
   mockCreateGrantRepository: vi.fn(),
-  mockSyncMilestoneTasks: vi.fn(),
+  mockUpdateMilestoneWithTaskSync: vi.fn(),
 }));
 
 vi.mock('@/lib/api/access', () => ({
@@ -54,8 +54,15 @@ beforeEach(() => {
       db: { from: mockFrom },
     },
   });
-  mockCreateGrantRepository.mockReturnValue({ syncMilestoneTasks: mockSyncMilestoneTasks });
-  mockSyncMilestoneTasks.mockResolvedValue(undefined);
+  mockCreateGrantRepository.mockReturnValue({
+    updateMilestoneWithTaskSync: mockUpdateMilestoneWithTaskSync,
+  });
+  mockUpdateMilestoneWithTaskSync.mockResolvedValue({
+    id: 'milestone-1',
+    milestone_name: 'Final report',
+    status: 'completed',
+    due_date: '2026-09-01',
+  });
 });
 
 describe('portfolio milestone detail route', () => {
@@ -93,10 +100,10 @@ describe('portfolio milestone detail route', () => {
     expect(await response.json()).toEqual({
       error: 'Milestone does not belong to this holding',
     });
-    expect(mockSyncMilestoneTasks).not.toHaveBeenCalled();
+    expect(mockUpdateMilestoneWithTaskSync).not.toHaveBeenCalled();
   });
 
-  it('updates through the session and scopes generated-task sync to the authorized org', async () => {
+  it('scopes the atomic milestone and generated-task update to the authorized grant', async () => {
     const lookup = stubQuery(
       { data: null, error: null },
       {
@@ -110,21 +117,7 @@ describe('portfolio milestone detail route', () => {
         },
       }
     );
-    const update = stubQuery(
-      { data: null, error: null },
-      {
-        single: {
-          data: {
-            id: 'milestone-1',
-            milestone_name: 'Final report',
-            status: 'completed',
-            due_date: '2026-09-01',
-          },
-          error: null,
-        },
-      }
-    );
-    mockFrom.mockReturnValueOnce(lookup).mockReturnValueOnce(update);
+    mockFrom.mockReturnValueOnce(lookup);
 
     const response = await PATCH(request({ status: 'completed' }), params);
 
@@ -133,9 +126,11 @@ describe('portfolio milestone detail route', () => {
       orgId: 'org-1',
       actorId: 'member-1',
     });
-    expect(mockSyncMilestoneTasks).toHaveBeenCalledWith({
+    expect(mockUpdateMilestoneWithTaskSync).toHaveBeenCalledWith({
+      portfolioId: 'portfolio-1',
+      holdingId: 'holding-1',
       milestoneId: 'milestone-1',
-      status: 'completed',
+      patch: { status: 'completed' },
     });
     expect(response.status).toBe(200);
     expect(response.headers.get('cache-control')).toBe('no-store');

@@ -14393,6 +14393,17 @@ export type Database = {
       try_task_automation_lock: { Args: { lock_key: string }; Returns: boolean }
       unaccent: { Args: { "": string }; Returns: string }
       undo_ai_action: { Args: { p_action_id: string }; Returns: Json }
+      update_grant_milestone_with_task_sync: {
+        Args: {
+          p_actor_id: string
+          p_expected_holding_id: string
+          p_expected_org_id: string
+          p_expected_portfolio_id: string
+          p_milestone_id: string
+          p_patch: Json
+        }
+        Returns: Json
+      }
       update_pledge_installment_status: {
         Args: {
           p_action: string

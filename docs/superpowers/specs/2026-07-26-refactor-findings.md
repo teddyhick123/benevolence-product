@@ -137,6 +137,14 @@ requires a database orchestration boundary beyond this route migration.
 state transition into one database function or persist an outbox event for
 retryable synchronization.
 
+**Resolution (2026-08-09):** `update_grant_milestone_with_task_sync` now applies
+the scoped milestone patch, settles every open automation task under the
+milestone source-key prefix, and inserts the corresponding task events in one
+service-only database transaction. The portfolio route retains its session
+ownership check and reaches the RPC only through the organization-scoped grant
+repository. Post-reset behavior assertions cover both successful commit and a
+forced task-event failure that rolls the milestone and task changes back.
+
 ### 2026-08-01 — Phase 2, notification family — nested preferences merge shallowly
 
 **What happened:** The notification preference endpoint accepts partial

@@ -231,6 +231,152 @@ CREATE TRIGGER trg_grant_milestones_updated_at
   BEFORE UPDATE ON public.grant_milestones
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 
+-- Atomically apply a milestone patch and settle any generated tasks that use
+-- the milestone source-key prefix. This is service-only so product callers
+-- must enter through the scoped grant repository after proving portfolio
+-- access; no browser/session caller can invoke the elevated task-event write.
+CREATE OR REPLACE FUNCTION public.update_grant_milestone_with_task_sync(
+  p_expected_org_id uuid,
+  p_expected_portfolio_id uuid,
+  p_expected_holding_id uuid,
+  p_milestone_id uuid,
+  p_actor_id uuid,
+  p_patch jsonb
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_milestone public.grant_milestones%ROWTYPE;
+  v_now timestamptz := now();
+  v_task_status text;
+  v_reason text;
+BEGIN
+  IF p_patch IS NULL OR jsonb_typeof(p_patch) <> 'object' THEN
+    RAISE EXCEPTION 'Milestone patch must be a JSON object'
+      USING ERRCODE = '22023';
+  END IF;
+
+  IF p_patch - ARRAY[
+    'milestone_name', 'description', 'due_date', 'completed_date', 'status', 'notes'
+  ] <> '{}'::jsonb THEN
+    RAISE EXCEPTION 'Milestone patch contains unsupported fields'
+      USING ERRCODE = '22023';
+  END IF;
+
+  SELECT gm.*
+  INTO v_milestone
+  FROM public.grant_milestones gm
+  JOIN public.grants g ON g.id = gm.grant_id
+  WHERE gm.id = p_milestone_id
+    AND g.org_id = p_expected_org_id
+    AND g.portfolio_id = p_expected_portfolio_id
+    AND g.holding_id = p_expected_holding_id
+    AND g.deleted_at IS NULL
+  FOR UPDATE OF gm;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Milestone not found in the expected grant scope'
+      USING ERRCODE = 'P0002';
+  END IF;
+
+  UPDATE public.grant_milestones
+  SET
+    milestone_name = CASE
+      WHEN p_patch ? 'milestone_name' THEN p_patch ->> 'milestone_name'
+      ELSE milestone_name
+    END,
+    description = CASE
+      WHEN p_patch ? 'description' THEN p_patch ->> 'description'
+      ELSE description
+    END,
+    due_date = CASE
+      WHEN p_patch ? 'due_date' THEN (p_patch ->> 'due_date')::date
+      ELSE due_date
+    END,
+    status = CASE
+      WHEN p_patch ? 'status' THEN p_patch ->> 'status'
+      ELSE status
+    END,
+    completed_date = CASE
+      WHEN p_patch ? 'completed_date' THEN (p_patch ->> 'completed_date')::date
+      WHEN p_patch ->> 'status' = 'completed' AND completed_date IS NULL THEN v_now::date
+      ELSE completed_date
+    END,
+    notes = CASE
+      WHEN p_patch ? 'notes' THEN p_patch ->> 'notes'
+      ELSE notes
+    END
+  WHERE id = p_milestone_id
+  RETURNING * INTO v_milestone;
+
+  IF p_patch ->> 'status' IN ('completed', 'cancelled') THEN
+    v_task_status := CASE
+      WHEN p_patch ->> 'status' = 'completed' THEN 'completed'
+      ELSE 'cancelled'
+    END;
+    v_reason := CASE
+      WHEN v_task_status = 'completed' THEN 'Milestone marked completed'
+      ELSE 'Milestone cancelled'
+    END;
+
+    WITH settled_tasks AS (
+      UPDATE public.tasks
+      SET
+        status = v_task_status,
+        completed_at = CASE
+          WHEN v_task_status = 'completed' THEN v_now
+          ELSE completed_at
+        END,
+        metadata = metadata || CASE
+          WHEN v_task_status = 'completed' THEN jsonb_build_object(
+            'completed_by_automation', true,
+            'completion_reason', v_reason
+          )
+          ELSE jsonb_build_object('cancel_reason', v_reason)
+        END
+      WHERE org_id = p_expected_org_id
+        AND source = 'automation'
+        AND status IN ('open', 'in_progress', 'blocked', 'waiting')
+        AND deleted_at IS NULL
+        AND source_key LIKE ('grant_milestone:' || p_milestone_id::text || ':%')
+      RETURNING id
+    )
+    INSERT INTO public.task_events (
+      task_id,
+      org_id,
+      actor_id,
+      event_type,
+      after_values
+    )
+    SELECT
+      id,
+      p_expected_org_id,
+      p_actor_id,
+      v_task_status,
+      CASE
+        WHEN v_task_status = 'completed' THEN jsonb_build_object(
+          'reason', v_reason,
+          'completed_by_automation', true
+        )
+        ELSE jsonb_build_object('cancel_reason', v_reason)
+      END
+    FROM settled_tasks;
+  END IF;
+
+  RETURN to_jsonb(v_milestone);
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.update_grant_milestone_with_task_sync(
+  uuid, uuid, uuid, uuid, uuid, jsonb
+) FROM PUBLIC, authenticated;
+GRANT EXECUTE ON FUNCTION public.update_grant_milestone_with_task_sync(
+  uuid, uuid, uuid, uuid, uuid, jsonb
+) TO service_role;
+
 CREATE TABLE IF NOT EXISTS public.grant_payments (
   id                uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
   created_at        timestamptz NOT NULL DEFAULT now(),

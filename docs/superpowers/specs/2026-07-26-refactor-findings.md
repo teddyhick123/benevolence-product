@@ -275,6 +275,22 @@ function or transactional outbox, beyond the API authorization refactor.
 milestone synchronization into transactional database functions, and dispatch
 automation from a durable outbox after commit.
 
+**Resolution (2026-08-09):** Resolved. Migration `0041` now owns service-only
+transaction functions for manual task creation, updates, comments,
+completion/reopen, generated-task upserts, and generated-task settlement. Those
+functions validate canonical organization ownership and commit task rows,
+entity links, audit events, and grant-milestone reverse synchronization as one
+unit. Task completion commits an immutable task snapshot to the new
+`task_automation_outbox`; the task worker claims it with retry/backoff and the
+request path may opportunistically drain the exact event without making
+automation success part of the database transaction. Configurable automation
+run logs use a unique outbox-event/rule idempotency key, while task,
+notification, and custom-field actions retain stable upsert keys. The scoped
+task repository and generated-task writer no longer perform direct multi-write
+or compensation orchestration. Clean-schema behavior tests force failures at
+task-event and outbox boundaries and prove full rollback, repeat completion
+idempotency, generated-task upsert uniqueness, and outbox claim/settlement.
+
 ### 2026-08-01 — Phase 2, acknowledgments — PDF replacement is not atomic
 
 **What happened:** The acknowledgment PDF flow uploads with `upsert: true`, then

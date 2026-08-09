@@ -539,6 +539,530 @@ $$;
 DROP TRIGGER schema_check_reject_workflow_task_event ON public.task_events;
 DROP FUNCTION public.schema_check_reject_workflow_task_event();
 
+-- RF-06: task rows, entity links, comments, audit events, milestone reverse
+-- synchronization, and completion outbox handoff use database transactions.
+SELECT public.create_task_with_relations(
+  '20000000-0000-0000-0000-000000000001',
+  '10000000-0000-0000-0000-000000000001',
+  '{"title":"RF-06 atomic task","source_key":"rf06-create-success"}'::jsonb,
+  '[{"entity_type":"donor","entity_id":"81000000-0000-0000-0000-000000000001","relationship":"primary"}]'::jsonb
+);
+
+DO $$
+DECLARE
+  v_task_id uuid;
+BEGIN
+  SELECT id INTO v_task_id FROM public.tasks
+  WHERE org_id = '20000000-0000-0000-0000-000000000001'
+    AND source_key = 'rf06-create-success';
+
+  IF v_task_id IS NULL
+     OR NOT EXISTS (
+       SELECT 1 FROM public.task_entity_links
+       WHERE task_id = v_task_id
+         AND org_id = '20000000-0000-0000-0000-000000000001'
+         AND entity_type = 'donor'
+         AND entity_id = '81000000-0000-0000-0000-000000000001'
+     )
+     OR NOT EXISTS (
+       SELECT 1 FROM public.task_events
+       WHERE task_id = v_task_id AND event_type = 'created'
+     ) THEN
+    RAISE EXCEPTION 'atomic task creation contract failed';
+  END IF;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.schema_check_reject_rf06_create_event()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  IF NEW.event_type = 'created'
+     AND NEW.after_values ->> 'source_key' = 'rf06-create-rollback' THEN
+    RAISE EXCEPTION 'forced RF-06 create event failure';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER schema_check_reject_rf06_create_event
+  BEFORE INSERT ON public.task_events
+  FOR EACH ROW EXECUTE FUNCTION public.schema_check_reject_rf06_create_event();
+
+DO $$
+BEGIN
+  BEGIN
+    PERFORM public.create_task_with_relations(
+      '20000000-0000-0000-0000-000000000001',
+      '10000000-0000-0000-0000-000000000001',
+      '{"title":"Must roll back","source_key":"rf06-create-rollback"}'::jsonb,
+      '[{"entity_type":"donor","entity_id":"81000000-0000-0000-0000-000000000001"}]'::jsonb
+    );
+    RAISE EXCEPTION 'expected RF-06 create event failure';
+  EXCEPTION
+    WHEN raise_exception THEN
+      IF SQLERRM <> 'forced RF-06 create event failure' THEN RAISE; END IF;
+  END;
+
+  IF EXISTS (
+    SELECT 1 FROM public.tasks WHERE source_key = 'rf06-create-rollback'
+  ) THEN
+    RAISE EXCEPTION 'task create rollback left a task or dependent row';
+  END IF;
+END;
+$$;
+
+DROP TRIGGER schema_check_reject_rf06_create_event ON public.task_events;
+DROP FUNCTION public.schema_check_reject_rf06_create_event();
+
+CREATE OR REPLACE FUNCTION public.schema_check_reject_rf06_update_event()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  IF NEW.task_id = (
+    SELECT id FROM public.tasks WHERE source_key = 'rf06-create-success'
+  ) AND NEW.event_type = 'status_changed' THEN
+    RAISE EXCEPTION 'forced RF-06 update event failure';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER schema_check_reject_rf06_update_event
+  BEFORE INSERT ON public.task_events
+  FOR EACH ROW EXECUTE FUNCTION public.schema_check_reject_rf06_update_event();
+
+DO $$
+DECLARE
+  v_task_id uuid;
+BEGIN
+  SELECT id INTO v_task_id FROM public.tasks WHERE source_key = 'rf06-create-success';
+  BEGIN
+    PERFORM public.update_task_with_event(
+      '20000000-0000-0000-0000-000000000001',
+      v_task_id,
+      '10000000-0000-0000-0000-000000000001',
+      true,
+      '{"title":"Changed despite failure"}'::jsonb
+    );
+    RAISE EXCEPTION 'expected RF-06 update event failure';
+  EXCEPTION
+    WHEN raise_exception THEN
+      IF SQLERRM <> 'forced RF-06 update event failure' THEN RAISE; END IF;
+  END;
+
+  IF (SELECT title FROM public.tasks WHERE id = v_task_id) <> 'RF-06 atomic task'
+     OR (SELECT COUNT(*) FROM public.task_events WHERE task_id = v_task_id) <> 1 THEN
+    RAISE EXCEPTION 'task update/event rollback contract failed';
+  END IF;
+END;
+$$;
+
+DROP TRIGGER schema_check_reject_rf06_update_event ON public.task_events;
+DROP FUNCTION public.schema_check_reject_rf06_update_event();
+
+CREATE OR REPLACE FUNCTION public.schema_check_reject_rf06_comment_event()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  IF NEW.task_id = (
+    SELECT id FROM public.tasks WHERE source_key = 'rf06-create-success'
+  ) AND NEW.event_type = 'commented' THEN
+    RAISE EXCEPTION 'forced RF-06 comment event failure';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER schema_check_reject_rf06_comment_event
+  BEFORE INSERT ON public.task_events
+  FOR EACH ROW EXECUTE FUNCTION public.schema_check_reject_rf06_comment_event();
+
+DO $$
+DECLARE
+  v_task_id uuid;
+BEGIN
+  SELECT id INTO v_task_id FROM public.tasks WHERE source_key = 'rf06-create-success';
+  BEGIN
+    PERFORM public.add_task_comment_with_event(
+      '20000000-0000-0000-0000-000000000001',
+      v_task_id,
+      '10000000-0000-0000-0000-000000000001',
+      'Must roll back'
+    );
+    RAISE EXCEPTION 'expected RF-06 comment event failure';
+  EXCEPTION
+    WHEN raise_exception THEN
+      IF SQLERRM <> 'forced RF-06 comment event failure' THEN RAISE; END IF;
+  END;
+
+  IF EXISTS (SELECT 1 FROM public.task_comments WHERE task_id = v_task_id)
+     OR (SELECT COUNT(*) FROM public.task_events WHERE task_id = v_task_id) <> 1 THEN
+    RAISE EXCEPTION 'task comment/event rollback contract failed';
+  END IF;
+END;
+$$;
+
+DROP TRIGGER schema_check_reject_rf06_comment_event ON public.task_events;
+DROP FUNCTION public.schema_check_reject_rf06_comment_event();
+
+-- Generated tasks use the same atomicity contract rather than compensating
+-- task/link/event writes in the worker process.
+DO $$
+DECLARE
+  v_result text;
+  v_task_id uuid;
+BEGIN
+  v_result := public.upsert_generated_task(
+    '20000000-0000-0000-0000-000000000001',
+    '{
+      "title":"RF-06 generated task",
+      "description":"Initial description",
+      "priority":"normal",
+      "task_type":"follow_up",
+      "source_key":"rf06-generated-success",
+      "due_at":"2026-09-01T00:00:00Z",
+      "metadata":{"producer":"schema_check","reason":"initial","source_status":"open"}
+    }'::jsonb,
+    '[{"entity_type":"donor","entity_id":"81000000-0000-0000-0000-000000000001"}]'::jsonb,
+    false
+  );
+  IF v_result <> 'created' THEN
+    RAISE EXCEPTION 'generated task create returned %', v_result;
+  END IF;
+
+  v_result := public.upsert_generated_task(
+    '20000000-0000-0000-0000-000000000001',
+    '{
+      "title":"RF-06 generated task refreshed",
+      "description":"Updated description",
+      "priority":"high",
+      "task_type":"follow_up",
+      "source_key":"rf06-generated-success",
+      "due_at":"2026-09-02T00:00:00Z",
+      "assigned_to":"10000000-0000-0000-0000-000000000001",
+      "metadata":{"producer":"schema_check","reason":"refresh","source_status":"open"}
+    }'::jsonb,
+    '[
+      {"entity_type":"donor","entity_id":"81000000-0000-0000-0000-000000000001"},
+      {"entity_type":"portfolio","entity_id":"30000000-0000-0000-0000-000000000001","relationship":"context"}
+    ]'::jsonb,
+    false
+  );
+  SELECT id INTO v_task_id FROM public.tasks
+  WHERE org_id = '20000000-0000-0000-0000-000000000001'
+    AND source_key = 'rf06-generated-success';
+
+  IF v_result <> 'updated'
+     OR (SELECT COUNT(*) FROM public.tasks
+         WHERE org_id = '20000000-0000-0000-0000-000000000001'
+           AND source_key = 'rf06-generated-success') <> 1
+     OR (SELECT title FROM public.tasks WHERE id = v_task_id)
+        <> 'RF-06 generated task refreshed'
+     OR (SELECT COUNT(*) FROM public.task_entity_links WHERE task_id = v_task_id) <> 2
+     OR (SELECT COUNT(*) FROM public.task_events
+         WHERE task_id = v_task_id AND event_type = 'created') <> 1
+     OR (SELECT COUNT(*) FROM public.task_events
+         WHERE task_id = v_task_id AND event_type = 'due_date_changed') <> 1
+     OR (SELECT COUNT(*) FROM public.task_events
+         WHERE task_id = v_task_id AND event_type = 'assigned') <> 1 THEN
+    RAISE EXCEPTION 'generated task atomic upsert/idempotency contract failed';
+  END IF;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.schema_check_reject_rf06_generated_event()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  IF NEW.event_type = 'created'
+     AND NEW.after_values ->> 'source_key' = 'rf06-generated-rollback' THEN
+    RAISE EXCEPTION 'forced RF-06 generated event failure';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER schema_check_reject_rf06_generated_event
+  BEFORE INSERT ON public.task_events
+  FOR EACH ROW EXECUTE FUNCTION public.schema_check_reject_rf06_generated_event();
+
+DO $$
+BEGIN
+  BEGIN
+    PERFORM public.upsert_generated_task(
+      '20000000-0000-0000-0000-000000000001',
+      '{
+        "title":"Generated task must roll back",
+        "priority":"normal",
+        "task_type":"task",
+        "source_key":"rf06-generated-rollback",
+        "metadata":{"producer":"schema_check","reason":"rollback","source_status":"open"}
+      }'::jsonb,
+      '[{"entity_type":"donor","entity_id":"81000000-0000-0000-0000-000000000001"}]'::jsonb,
+      false
+    );
+    RAISE EXCEPTION 'expected RF-06 generated event failure';
+  EXCEPTION
+    WHEN raise_exception THEN
+      IF SQLERRM <> 'forced RF-06 generated event failure' THEN RAISE; END IF;
+  END;
+
+  IF EXISTS (
+    SELECT 1 FROM public.tasks WHERE source_key = 'rf06-generated-rollback'
+  ) THEN
+    RAISE EXCEPTION 'generated task event failure left partial state';
+  END IF;
+END;
+$$;
+
+DROP TRIGGER schema_check_reject_rf06_generated_event ON public.task_events;
+DROP FUNCTION public.schema_check_reject_rf06_generated_event();
+
+SELECT public.settle_generated_tasks(
+  '20000000-0000-0000-0000-000000000001',
+  'rf06-generated-success',
+  false,
+  'completed',
+  'Schema behavior verified',
+  '10000000-0000-0000-0000-000000000001'
+);
+
+DO $$
+DECLARE
+  v_task_id uuid;
+BEGIN
+  SELECT id INTO v_task_id FROM public.tasks
+  WHERE source_key = 'rf06-generated-success';
+  IF (SELECT status FROM public.tasks WHERE id = v_task_id) <> 'completed'
+     OR (SELECT COUNT(*) FROM public.task_events
+         WHERE task_id = v_task_id AND event_type = 'completed') <> 1
+     OR (SELECT COUNT(*) FROM public.task_automation_outbox
+         WHERE task_id = v_task_id) <> 1 THEN
+    RAISE EXCEPTION 'generated task settlement/event/outbox atomicity contract failed';
+  END IF;
+END;
+$$;
+
+INSERT INTO public.grant_milestones (
+  id, grant_id, milestone_name, status
+) VALUES
+  (
+    '88000000-0000-0000-0000-000000000001',
+    '71000000-0000-0000-0000-000000000001',
+    'RF-06 completion success',
+    'pending'
+  ),
+  (
+    '88000000-0000-0000-0000-000000000002',
+    '71000000-0000-0000-0000-000000000001',
+    'RF-06 completion rollback',
+    'pending'
+  ),
+  (
+    '88000000-0000-0000-0000-000000000003',
+    '71000000-0000-0000-0000-000000000001',
+    'RF-06 PATCH completion success',
+    'pending'
+  );
+
+INSERT INTO public.tasks (
+  id, org_id, title, status, source, source_key, assigned_to, created_by, metadata
+) VALUES
+  (
+    '89000000-0000-0000-0000-000000000001',
+    '20000000-0000-0000-0000-000000000001',
+    'RF-06 completion success',
+    'open',
+    'automation',
+    'rf06-complete-success',
+    '10000000-0000-0000-0000-000000000001',
+    '10000000-0000-0000-0000-000000000001',
+    '{"producer":"grant_obligations"}'::jsonb
+  ),
+  (
+    '89000000-0000-0000-0000-000000000002',
+    '20000000-0000-0000-0000-000000000001',
+    'RF-06 completion rollback',
+    'open',
+    'automation',
+    'rf06-complete-rollback',
+    '10000000-0000-0000-0000-000000000001',
+    '10000000-0000-0000-0000-000000000001',
+    '{"producer":"grant_obligations"}'::jsonb
+  ),
+  (
+    '89000000-0000-0000-0000-000000000003',
+    '20000000-0000-0000-0000-000000000001',
+    'RF-06 PATCH completion success',
+    'open',
+    'automation',
+    'rf06-update-complete-success',
+    '10000000-0000-0000-0000-000000000001',
+    '10000000-0000-0000-0000-000000000001',
+    '{"producer":"grant_obligations"}'::jsonb
+  );
+
+INSERT INTO public.task_entity_links (
+  task_id, org_id, entity_type, entity_id, relationship
+) VALUES
+  (
+    '89000000-0000-0000-0000-000000000001',
+    '20000000-0000-0000-0000-000000000001',
+    'grant_milestone',
+    '88000000-0000-0000-0000-000000000001',
+    'primary'
+  ),
+  (
+    '89000000-0000-0000-0000-000000000002',
+    '20000000-0000-0000-0000-000000000001',
+    'grant_milestone',
+    '88000000-0000-0000-0000-000000000002',
+    'primary'
+  ),
+  (
+    '89000000-0000-0000-0000-000000000003',
+    '20000000-0000-0000-0000-000000000001',
+    'grant_milestone',
+    '88000000-0000-0000-0000-000000000003',
+    'primary'
+  );
+
+SELECT public.update_task_with_event(
+  '20000000-0000-0000-0000-000000000001',
+  '89000000-0000-0000-0000-000000000003',
+  '10000000-0000-0000-0000-000000000001',
+  true,
+  '{"status":"completed"}'::jsonb
+);
+
+DO $$
+BEGIN
+  IF (SELECT status FROM public.tasks
+      WHERE id = '89000000-0000-0000-0000-000000000003') <> 'completed'
+     OR (SELECT status FROM public.grant_milestones
+         WHERE id = '88000000-0000-0000-0000-000000000003') <> 'completed'
+     OR (SELECT COUNT(*) FROM public.task_events
+         WHERE task_id = '89000000-0000-0000-0000-000000000003'
+           AND event_type = 'completed') <> 1
+     OR (SELECT COUNT(*) FROM public.task_automation_outbox
+         WHERE task_id = '89000000-0000-0000-0000-000000000003') <> 1 THEN
+    RAISE EXCEPTION 'task PATCH completion/milestone/outbox contract failed';
+  END IF;
+END;
+$$;
+
+SELECT public.set_task_completion_state(
+  '20000000-0000-0000-0000-000000000001',
+  '89000000-0000-0000-0000-000000000001',
+  '10000000-0000-0000-0000-000000000001',
+  false,
+  'complete'
+);
+SELECT public.set_task_completion_state(
+  '20000000-0000-0000-0000-000000000001',
+  '89000000-0000-0000-0000-000000000001',
+  '10000000-0000-0000-0000-000000000001',
+  false,
+  'complete'
+);
+
+DO $$
+DECLARE
+  v_outbox_id uuid;
+  v_claimed int;
+BEGIN
+  IF (SELECT status FROM public.tasks
+      WHERE id = '89000000-0000-0000-0000-000000000001') <> 'completed'
+     OR (SELECT status FROM public.grant_milestones
+         WHERE id = '88000000-0000-0000-0000-000000000001') <> 'completed'
+     OR (SELECT COUNT(*) FROM public.task_events
+         WHERE task_id = '89000000-0000-0000-0000-000000000001'
+           AND event_type = 'completed') <> 1
+     OR (SELECT COUNT(*) FROM public.task_automation_outbox
+         WHERE task_id = '89000000-0000-0000-0000-000000000001') <> 1 THEN
+    RAISE EXCEPTION 'task completion/milestone/outbox success or idempotency contract failed';
+  END IF;
+
+  SELECT id INTO v_outbox_id FROM public.task_automation_outbox
+  WHERE task_id = '89000000-0000-0000-0000-000000000001';
+  SELECT COUNT(*) INTO v_claimed FROM public.claim_task_automation_outbox(
+    1,
+    '20000000-0000-0000-0000-000000000001',
+    v_outbox_id
+  );
+  IF v_claimed <> 1 THEN
+    RAISE EXCEPTION 'task automation outbox event was not claimable';
+  END IF;
+  PERFORM public.finish_task_automation_outbox(v_outbox_id, true, NULL);
+  IF (SELECT status FROM public.task_automation_outbox WHERE id = v_outbox_id) <> 'completed'
+     OR (SELECT attempts FROM public.task_automation_outbox WHERE id = v_outbox_id) <> 1
+     OR (SELECT COUNT(*) FROM public.claim_task_automation_outbox(
+       1,
+       '20000000-0000-0000-0000-000000000001',
+       v_outbox_id
+     )) <> 0 THEN
+    RAISE EXCEPTION 'task automation outbox completion/idempotency contract failed';
+  END IF;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.schema_check_reject_rf06_outbox()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  IF NEW.task_id = '89000000-0000-0000-0000-000000000002'::uuid THEN
+    RAISE EXCEPTION 'forced RF-06 outbox failure';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER schema_check_reject_rf06_outbox
+  BEFORE INSERT ON public.task_automation_outbox
+  FOR EACH ROW EXECUTE FUNCTION public.schema_check_reject_rf06_outbox();
+
+DO $$
+BEGIN
+  BEGIN
+    PERFORM public.set_task_completion_state(
+      '20000000-0000-0000-0000-000000000001',
+      '89000000-0000-0000-0000-000000000002',
+      '10000000-0000-0000-0000-000000000001',
+      true,
+      'complete'
+    );
+    RAISE EXCEPTION 'expected RF-06 outbox failure';
+  EXCEPTION
+    WHEN raise_exception THEN
+      IF SQLERRM <> 'forced RF-06 outbox failure' THEN RAISE; END IF;
+  END;
+
+  IF (SELECT status FROM public.tasks
+      WHERE id = '89000000-0000-0000-0000-000000000002') <> 'open'
+     OR (SELECT status FROM public.grant_milestones
+         WHERE id = '88000000-0000-0000-0000-000000000002') <> 'pending'
+     OR EXISTS (
+       SELECT 1 FROM public.task_events
+       WHERE task_id = '89000000-0000-0000-0000-000000000002'
+     )
+     OR EXISTS (
+       SELECT 1 FROM public.task_automation_outbox
+       WHERE task_id = '89000000-0000-0000-0000-000000000002'
+     ) THEN
+    RAISE EXCEPTION 'task completion/milestone/event/outbox rollback contract failed';
+  END IF;
+END;
+$$;
+
+DROP TRIGGER schema_check_reject_rf06_outbox ON public.task_automation_outbox;
+DROP FUNCTION public.schema_check_reject_rf06_outbox();
+
 SELECT * FROM public.create_generated_letter(
   '30000000-0000-0000-0000-000000000001',
   '10000000-0000-0000-0000-000000000001',

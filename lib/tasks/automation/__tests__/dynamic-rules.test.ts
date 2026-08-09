@@ -56,6 +56,14 @@ function makeDb() {
             _runRows.push(row);
             return { error: null };
           }),
+          upsert: vi.fn(async (row: any) => {
+            const index = _runRows.findIndex(existing =>
+              existing.idempotency_key === row.idempotency_key
+            );
+            if (index >= 0) _runRows[index] = row;
+            else _runRows.push(row);
+            return { error: null };
+          }),
         };
       }
       if (table === 'notification_events') {
@@ -232,6 +240,52 @@ describe('runAutomationRulesForEvent', () => {
       channel: 'in_app',
     });
     expect(_notificationRows[0].payload.body).toContain('Review report');
+  });
+
+  it('uses the durable completion snapshot and idempotent run key on retries', async () => {
+    _rules = [{
+      id: 'rule-outbox',
+      org_id: 'org-1',
+      name: 'Notify completed review',
+      trigger_type: 'task_completed',
+      trigger_config: { task_type: 'review' },
+      conditions: [],
+      action_type: 'notify_member',
+      action_config: {
+        message_template: 'Task {{task_title}} was completed',
+        recipient_field: 'assigned_to',
+      },
+    }];
+    const event = {
+      orgId: 'org-1',
+      triggerType: 'task_completed' as const,
+      entityType: 'task' as const,
+      entityId: 'task-1',
+      payload: {
+        actor_id: 'user-1',
+        outbox_event_id: 'outbox-1',
+        task_snapshot: {
+          id: 'task-1',
+          org_id: 'org-1',
+          portfolio_id: 'portfolio-1',
+          title: 'Durable review',
+          task_type: 'review',
+          assigned_to: 'user-2',
+          status: 'completed',
+          metadata: {},
+        },
+      },
+    };
+
+    await runAutomationRulesForEvent(makeDb(), event);
+    await runAutomationRulesForEvent(makeDb(), event);
+
+    expect(_runRows).toHaveLength(1);
+    expect(_runRows[0]).toMatchObject({
+      idempotency_key: 'outbox-1:rule-outbox',
+      status: 'completed',
+    });
+    expect(_notificationRows[0].payload.body).toContain('Durable review');
   });
 
   it('sets a custom field for a matching custom_field_set rule', async () => {

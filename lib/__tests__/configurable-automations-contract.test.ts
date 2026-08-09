@@ -53,6 +53,7 @@ describe('Phase 3 configurable automations contract', () => {
     const automationRun = readFileSync('lib/tasks/automation/run.ts', 'utf8');
     const customFieldRepository = readFileSync('lib/api/repositories/custom-fields.ts', 'utf8');
     const taskRepository = readFileSync('lib/api/repositories/tasks.ts', 'utf8');
+    const taskOutbox = readFileSync('lib/tasks/automation/outbox.ts', 'utf8');
 
     expect(dynamicRules).toMatch(/dateRelativeAutomationProducer/);
     expect(dynamicRules).toMatch(/notification_events/);
@@ -62,7 +63,9 @@ describe('Phase 3 configurable automations contract', () => {
     expect(automationRun).toMatch(/dateRelativeAutomationProducer/);
     expect(customFieldRepository).toMatch(/custom_field_set/);
     expect(customFieldRepository).toMatch(/runAutomationRulesForEvent/);
-    expect(taskRepository).toMatch(/task_completed/);
+    expect(taskRepository).toMatch(/drainTaskAutomationOutbox/);
+    expect(taskOutbox).toMatch(/task_completed/);
+    expect(automationRun).toMatch(/task_automation_outbox/);
   });
 
   it('captures automation preferences during onboarding discovery', () => {

@@ -331,12 +331,14 @@ describe('Compliance escalation state naming', () => {
 });
 
 // ---------------------------------------------------------------------------
-// 12. Assignment validation in task-writer
+// 12. Assignment validation in the atomic generated-task boundary
 // ---------------------------------------------------------------------------
 describe('Assignment validation', () => {
-  it('task writer validates assignee against org membership', () => {
-    expect(writerSrc).toContain('organization_members');
-    expect(writerSrc).toMatch(/await validateAssignee\(db,/);
+  it('generated-task RPC validates assignee against accepted org membership', () => {
+    expect(writerSrc).toContain("rpc('upsert_generated_task'");
+    expect(migrations).toMatch(
+      /CREATE OR REPLACE FUNCTION public\.upsert_generated_task[\s\S]*FROM public\.organization_members[\s\S]*accepted_at IS NOT NULL/
+    );
   });
 });
 

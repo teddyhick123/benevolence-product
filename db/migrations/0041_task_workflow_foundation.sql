@@ -753,6 +753,56 @@ CREATE TRIGGER trg_workflow_tasks_updated_at
   BEFORE UPDATE ON public.workflow_tasks
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 
+-- Durable handoff for completion-triggered configurable automations. The task
+-- mutation and this row commit together; a worker may safely retry the event
+-- after a process crash because each event is keyed to one task audit row.
+CREATE TABLE IF NOT EXISTS public.task_automation_outbox (
+  id              uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  created_at      timestamptz NOT NULL DEFAULT now(),
+  updated_at      timestamptz NOT NULL DEFAULT now(),
+  available_at    timestamptz NOT NULL DEFAULT now(),
+  claimed_at      timestamptz,
+  completed_at    timestamptz,
+  org_id          uuid NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
+  task_id         uuid NOT NULL REFERENCES public.tasks(id) ON DELETE CASCADE,
+  task_event_id   uuid NOT NULL UNIQUE REFERENCES public.task_events(id) ON DELETE CASCADE,
+  actor_id        uuid REFERENCES auth.users(id) ON DELETE SET NULL,
+  event_type      text NOT NULL CHECK (event_type IN ('task_completed')),
+  payload         jsonb NOT NULL DEFAULT '{}'::jsonb,
+  status          text NOT NULL DEFAULT 'pending'
+                  CHECK (status IN ('pending', 'processing', 'completed', 'failed')),
+  attempts        int NOT NULL DEFAULT 0 CHECK (attempts >= 0),
+  last_error      text
+);
+
+CREATE INDEX IF NOT EXISTS idx_task_automation_outbox_ready
+  ON public.task_automation_outbox (available_at, created_at)
+  WHERE status IN ('pending', 'failed');
+CREATE INDEX IF NOT EXISTS idx_task_automation_outbox_stale
+  ON public.task_automation_outbox (claimed_at)
+  WHERE status = 'processing';
+CREATE INDEX IF NOT EXISTS idx_task_automation_outbox_org_created
+  ON public.task_automation_outbox (org_id, created_at DESC);
+
+DROP TRIGGER IF EXISTS trg_task_automation_outbox_updated_at
+  ON public.task_automation_outbox;
+CREATE TRIGGER trg_task_automation_outbox_updated_at
+  BEFORE UPDATE ON public.task_automation_outbox
+  FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+
+ALTER TABLE public.task_automation_outbox ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "task_automation_outbox: org admins read"
+  ON public.task_automation_outbox FOR SELECT TO authenticated
+  USING (public.is_org_admin(org_id));
+
+CREATE POLICY "task_automation_outbox: service role"
+  ON public.task_automation_outbox FOR ALL TO service_role
+  USING (true) WITH CHECK (true);
+
+GRANT SELECT ON public.task_automation_outbox TO authenticated;
+GRANT ALL ON public.task_automation_outbox TO service_role;
+
 -- Atomically synchronize one workflow step with its linked platform task,
 -- audit event, and parent workflow completion state. The function remains
 -- service-only: callers must enter through the scoped workflow repository.
@@ -955,6 +1005,973 @@ REVOKE ALL ON FUNCTION public.update_workflow_task_with_linked_task(
 GRANT EXECUTE ON FUNCTION public.update_workflow_task_with_linked_task(
   uuid, uuid, uuid, uuid, boolean, jsonb
 ) TO service_role;
+
+-- Resolve every sanctioned task link type against the canonical organization
+-- key. Kept private so only the task transaction functions can use it.
+CREATE OR REPLACE FUNCTION public.task_entity_belongs_to_org(
+  p_org_id uuid,
+  p_entity_type text,
+  p_entity_id uuid
+)
+RETURNS boolean
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  RETURN CASE p_entity_type
+    WHEN 'filing' THEN EXISTS (
+      SELECT 1 FROM public.filing_calendar WHERE id = p_entity_id AND org_id = p_org_id
+    )
+    WHEN 'state_registration' THEN EXISTS (
+      SELECT 1 FROM public.state_registrations WHERE id = p_entity_id AND org_id = p_org_id
+    )
+    WHEN 'pledge_installment' THEN EXISTS (
+      SELECT 1 FROM public.pledge_installments WHERE id = p_entity_id AND org_id = p_org_id
+    )
+    WHEN 'pledge' THEN EXISTS (
+      SELECT 1 FROM public.pledges WHERE id = p_entity_id AND org_id = p_org_id
+    )
+    WHEN 'donor' THEN EXISTS (
+      SELECT 1 FROM public.donors WHERE id = p_entity_id AND org_id = p_org_id
+    )
+    WHEN 'grant_milestone' THEN EXISTS (
+      SELECT 1
+      FROM public.grant_milestones gm
+      JOIN public.grants g ON g.id = gm.grant_id
+      WHERE gm.id = p_entity_id AND g.org_id = p_org_id
+    )
+    WHEN 'grant_report' THEN EXISTS (
+      SELECT 1
+      FROM public.grant_reports gr
+      JOIN public.grants g ON g.id = gr.grant_id
+      WHERE gr.id = p_entity_id AND g.org_id = p_org_id
+    )
+    WHEN 'grant_payment' THEN EXISTS (
+      SELECT 1
+      FROM public.grant_payments gp
+      JOIN public.grants g ON g.id = gp.grant_id
+      WHERE gp.id = p_entity_id AND g.org_id = p_org_id
+    )
+    WHEN 'grant' THEN EXISTS (
+      SELECT 1 FROM public.grants WHERE id = p_entity_id AND org_id = p_org_id
+    )
+    WHEN 'holding' THEN EXISTS (
+      SELECT 1 FROM public.holdings WHERE id = p_entity_id AND org_id = p_org_id
+    )
+    WHEN 'portfolio' THEN EXISTS (
+      SELECT 1 FROM public.portfolios WHERE id = p_entity_id AND org_id = p_org_id
+    )
+    WHEN 'import_job' THEN EXISTS (
+      SELECT 1 FROM public.import_jobs WHERE id = p_entity_id AND org_id = p_org_id
+    )
+    WHEN 'workflow_instance' THEN EXISTS (
+      SELECT 1 FROM public.workflow_instances WHERE id = p_entity_id AND org_id = p_org_id
+    )
+    ELSE false
+  END;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.task_entity_belongs_to_org(uuid, text, uuid)
+  FROM PUBLIC, authenticated;
+
+CREATE OR REPLACE FUNCTION public.enqueue_task_completion_automation(
+  p_task public.tasks,
+  p_task_event_id uuid,
+  p_actor_id uuid
+)
+RETURNS uuid
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_outbox_id uuid;
+BEGIN
+  INSERT INTO public.task_automation_outbox (
+    org_id,
+    task_id,
+    task_event_id,
+    actor_id,
+    event_type,
+    payload
+  ) VALUES (
+    p_task.org_id,
+    p_task.id,
+    p_task_event_id,
+    p_actor_id,
+    'task_completed',
+    jsonb_build_object(
+      'actor_id', p_actor_id,
+      'task_type', p_task.task_type,
+      'assigned_to', p_task.assigned_to,
+      'task_snapshot', to_jsonb(p_task)
+    )
+  )
+  RETURNING id INTO v_outbox_id;
+
+  RETURN v_outbox_id;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.enqueue_task_completion_automation(
+  public.tasks, uuid, uuid
+) FROM PUBLIC, authenticated;
+
+-- Create or refresh one automation-owned task, its links, and its audit events
+-- atomically. The advisory lock closes the absent-row race on (org, source_key).
+CREATE OR REPLACE FUNCTION public.upsert_generated_task(
+  p_org_id uuid,
+  p_task jsonb,
+  p_entity_links jsonb DEFAULT '[]'::jsonb,
+  p_reopen_resolved boolean DEFAULT false
+)
+RETURNS text
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_existing public.tasks%ROWTYPE;
+  v_task public.tasks%ROWTYPE;
+  v_link jsonb;
+  v_source_key text;
+  v_portfolio_id uuid;
+  v_assigned_to uuid;
+  v_entity_type text;
+  v_entity_id uuid;
+  v_metadata jsonb;
+  v_now timestamptz := now();
+BEGIN
+  IF p_org_id IS NULL OR p_task IS NULL OR jsonb_typeof(p_task) <> 'object' THEN
+    RAISE EXCEPTION 'Generated task organization and task are required'
+      USING ERRCODE = '22023';
+  END IF;
+  IF p_task - ARRAY[
+    'title', 'description', 'priority', 'task_type', 'source_key',
+    'portfolio_id', 'due_at', 'assigned_to', 'metadata'
+  ] <> '{}'::jsonb THEN
+    RAISE EXCEPTION 'Generated task contains unsupported fields'
+      USING ERRCODE = '22023';
+  END IF;
+  IF p_entity_links IS NULL OR jsonb_typeof(p_entity_links) <> 'array'
+     OR jsonb_array_length(p_entity_links) > 8 THEN
+    RAISE EXCEPTION 'Generated task entity links must be an array of at most 8 items'
+      USING ERRCODE = '22023';
+  END IF;
+
+  v_source_key := nullif(btrim(p_task ->> 'source_key'), '');
+  IF v_source_key IS NULL OR nullif(btrim(p_task ->> 'title'), '') IS NULL THEN
+    RAISE EXCEPTION 'Generated task source key and title are required'
+      USING ERRCODE = '22023';
+  END IF;
+
+  v_portfolio_id := (p_task ->> 'portfolio_id')::uuid;
+  IF v_portfolio_id IS NOT NULL AND NOT EXISTS (
+    SELECT 1 FROM public.portfolios
+    WHERE id = v_portfolio_id AND org_id = p_org_id AND deleted_at IS NULL
+  ) THEN
+    RAISE EXCEPTION 'Portfolio does not belong to this organization'
+      USING ERRCODE = '22023';
+  END IF;
+
+  v_assigned_to := (p_task ->> 'assigned_to')::uuid;
+  IF v_assigned_to IS NOT NULL AND NOT EXISTS (
+    SELECT 1 FROM public.organization_members
+    WHERE org_id = p_org_id
+      AND user_id = v_assigned_to
+      AND deleted_at IS NULL
+      AND accepted_at IS NOT NULL
+  ) THEN
+    v_assigned_to := NULL;
+  END IF;
+
+  FOR v_link IN SELECT value FROM jsonb_array_elements(p_entity_links)
+  LOOP
+    IF jsonb_typeof(v_link) <> 'object'
+       OR NOT (v_link ? 'entity_type')
+       OR NOT (v_link ? 'entity_id') THEN
+      RAISE EXCEPTION 'Invalid generated task entity link' USING ERRCODE = '22023';
+    END IF;
+    v_entity_type := v_link ->> 'entity_type';
+    v_entity_id := (v_link ->> 'entity_id')::uuid;
+    IF NOT public.task_entity_belongs_to_org(p_org_id, v_entity_type, v_entity_id) THEN
+      RAISE EXCEPTION 'Linked % does not belong to this organization', v_entity_type
+        USING ERRCODE = '22023';
+    END IF;
+  END LOOP;
+
+  PERFORM pg_advisory_xact_lock(
+    hashtextextended(p_org_id::text || ':' || v_source_key, 0)
+  );
+
+  SELECT * INTO v_existing
+  FROM public.tasks
+  WHERE org_id = p_org_id
+    AND source_key = v_source_key
+    AND deleted_at IS NULL
+  FOR UPDATE;
+
+  v_metadata := COALESCE(p_task -> 'metadata', '{}'::jsonb)
+    || jsonb_build_object('generated_at', v_now);
+
+  IF v_existing.id IS NULL THEN
+    INSERT INTO public.tasks (
+      org_id, portfolio_id, title, description, status, priority, task_type,
+      source, source_key, due_at, assigned_to, metadata
+    ) VALUES (
+      p_org_id,
+      v_portfolio_id,
+      p_task ->> 'title',
+      p_task ->> 'description',
+      'open',
+      COALESCE(p_task ->> 'priority', 'normal'),
+      COALESCE(p_task ->> 'task_type', 'task'),
+      'automation',
+      v_source_key,
+      (p_task ->> 'due_at')::timestamptz,
+      v_assigned_to,
+      v_metadata
+    )
+    RETURNING * INTO v_task;
+
+    INSERT INTO public.task_entity_links (
+      task_id, org_id, entity_type, entity_id, relationship
+    )
+    SELECT
+      v_task.id,
+      p_org_id,
+      value ->> 'entity_type',
+      (value ->> 'entity_id')::uuid,
+      COALESCE(value ->> 'relationship', 'primary')
+    FROM jsonb_array_elements(p_entity_links);
+
+    INSERT INTO public.task_events (
+      task_id, org_id, event_type, after_values
+    ) VALUES (
+      v_task.id,
+      p_org_id,
+      'created',
+      jsonb_build_object(
+        'source_key', v_source_key,
+        'producer', v_metadata ->> 'producer'
+      )
+    );
+
+    RETURN 'created';
+  END IF;
+
+  IF v_existing.status IN ('completed', 'cancelled')
+     AND NOT COALESCE(p_reopen_resolved, false) THEN
+    RETURN 'skipped';
+  END IF;
+
+  UPDATE public.tasks
+  SET
+    portfolio_id = v_portfolio_id,
+    title = p_task ->> 'title',
+    description = p_task ->> 'description',
+    priority = COALESCE(p_task ->> 'priority', priority),
+    task_type = COALESCE(p_task ->> 'task_type', task_type),
+    due_at = (p_task ->> 'due_at')::timestamptz,
+    assigned_to = v_assigned_to,
+    metadata = COALESCE(v_existing.metadata, '{}'::jsonb) || v_metadata
+  WHERE id = v_existing.id
+  RETURNING * INTO v_task;
+
+  IF v_existing.due_at IS DISTINCT FROM v_task.due_at THEN
+    INSERT INTO public.task_events (
+      task_id, org_id, event_type, before_values, after_values
+    ) VALUES (
+      v_task.id,
+      p_org_id,
+      'due_date_changed',
+      jsonb_build_object('due_at', v_existing.due_at),
+      jsonb_build_object('due_at', v_task.due_at)
+    );
+  END IF;
+
+  IF v_existing.assigned_to IS DISTINCT FROM v_task.assigned_to THEN
+    INSERT INTO public.task_events (
+      task_id, org_id, event_type, before_values, after_values
+    ) VALUES (
+      v_task.id,
+      p_org_id,
+      'assigned',
+      jsonb_build_object('assigned_to', v_existing.assigned_to),
+      jsonb_build_object('assigned_to', v_task.assigned_to)
+    );
+  END IF;
+
+  INSERT INTO public.task_entity_links (
+    task_id, org_id, entity_type, entity_id, relationship
+  )
+  SELECT
+    v_task.id,
+    p_org_id,
+    value ->> 'entity_type',
+    (value ->> 'entity_id')::uuid,
+    COALESCE(value ->> 'relationship', 'primary')
+  FROM jsonb_array_elements(p_entity_links) requested
+  WHERE NOT EXISTS (
+    SELECT 1 FROM public.task_entity_links existing_link
+    WHERE existing_link.task_id = v_task.id
+      AND existing_link.org_id = p_org_id
+      AND existing_link.entity_type = requested.value ->> 'entity_type'
+      AND existing_link.entity_id = (requested.value ->> 'entity_id')::uuid
+  );
+
+  RETURN 'updated';
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.upsert_generated_task(uuid, jsonb, jsonb, boolean)
+  FROM PUBLIC, authenticated;
+GRANT EXECUTE ON FUNCTION public.upsert_generated_task(uuid, jsonb, jsonb, boolean)
+  TO service_role;
+
+-- Settle all generated tasks selected by one source key in a single database
+-- transaction. Completion audit events and their automation outbox entries are
+-- committed with the task updates, never as best-effort follow-up writes.
+CREATE OR REPLACE FUNCTION public.settle_generated_tasks(
+  p_org_id uuid,
+  p_source_key text,
+  p_match_prefix boolean,
+  p_status text,
+  p_reason text,
+  p_actor_id uuid DEFAULT NULL
+)
+RETURNS integer
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_existing public.tasks%ROWTYPE;
+  v_task public.tasks%ROWTYPE;
+  v_event_id uuid;
+  v_count integer := 0;
+  v_now timestamptz := now();
+BEGIN
+  IF p_org_id IS NULL OR nullif(btrim(p_source_key), '') IS NULL
+     OR p_status NOT IN ('completed', 'cancelled') THEN
+    RAISE EXCEPTION 'Valid generated task settlement inputs are required'
+      USING ERRCODE = '22023';
+  END IF;
+  IF COALESCE(p_match_prefix, false)
+     AND length(p_source_key) - length(replace(p_source_key, ':', '')) < 2 THEN
+    RAISE EXCEPTION 'Generated task source prefix must contain at least 2 colons'
+      USING ERRCODE = '22023';
+  END IF;
+
+  FOR v_existing IN
+    SELECT *
+    FROM public.tasks
+    WHERE org_id = p_org_id
+      AND source = 'automation'
+      AND status IN ('open', 'in_progress', 'blocked', 'waiting')
+      AND deleted_at IS NULL
+      AND (
+        (COALESCE(p_match_prefix, false) AND source_key LIKE p_source_key || '%')
+        OR (NOT COALESCE(p_match_prefix, false) AND source_key = p_source_key)
+      )
+    ORDER BY id
+    FOR UPDATE
+  LOOP
+    UPDATE public.tasks
+    SET
+      status = p_status,
+      completed_at = CASE WHEN p_status = 'completed' THEN v_now ELSE NULL END,
+      completed_by = CASE WHEN p_status = 'completed' THEN p_actor_id ELSE NULL END,
+      metadata = COALESCE(v_existing.metadata, '{}'::jsonb) || CASE
+        WHEN p_status = 'completed' THEN jsonb_build_object(
+          'completed_by_automation', true,
+          'completion_reason', p_reason
+        )
+        ELSE jsonb_build_object('cancel_reason', p_reason)
+      END
+    WHERE id = v_existing.id
+    RETURNING * INTO v_task;
+
+    INSERT INTO public.task_events (
+      task_id, org_id, actor_id, event_type, before_values, after_values
+    ) VALUES (
+      v_task.id,
+      p_org_id,
+      p_actor_id,
+      p_status,
+      to_jsonb(v_existing),
+      to_jsonb(v_task)
+    ) RETURNING id INTO v_event_id;
+
+    IF p_status = 'completed' THEN
+      PERFORM public.enqueue_task_completion_automation(
+        v_task, v_event_id, p_actor_id
+      );
+    END IF;
+
+    v_count := v_count + 1;
+  END LOOP;
+
+  RETURN v_count;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.settle_generated_tasks(
+  uuid, text, boolean, text, text, uuid
+) FROM PUBLIC, authenticated;
+GRANT EXECUTE ON FUNCTION public.settle_generated_tasks(
+  uuid, text, boolean, text, text, uuid
+) TO service_role;
+
+-- Create the task, its validated entity links, and its audit event atomically.
+CREATE OR REPLACE FUNCTION public.create_task_with_relations(
+  p_expected_org_id uuid,
+  p_actor_id uuid,
+  p_task jsonb,
+  p_entity_links jsonb DEFAULT '[]'::jsonb
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_task public.tasks%ROWTYPE;
+  v_link jsonb;
+  v_portfolio_id uuid;
+  v_assigned_to uuid;
+  v_entity_type text;
+  v_entity_id uuid;
+BEGIN
+  IF p_actor_id IS NULL THEN
+    RAISE EXCEPTION 'Task actor is required' USING ERRCODE = '22023';
+  END IF;
+  IF p_task IS NULL OR jsonb_typeof(p_task) <> 'object' THEN
+    RAISE EXCEPTION 'Task must be a JSON object' USING ERRCODE = '22023';
+  END IF;
+  IF p_task - ARRAY[
+    'title', 'description', 'status', 'priority', 'task_type', 'source',
+    'source_key', 'portfolio_id', 'starts_at', 'due_at', 'assigned_to', 'metadata'
+  ] <> '{}'::jsonb THEN
+    RAISE EXCEPTION 'Task contains unsupported fields' USING ERRCODE = '22023';
+  END IF;
+  IF p_entity_links IS NULL OR jsonb_typeof(p_entity_links) <> 'array'
+     OR jsonb_array_length(p_entity_links) > 8 THEN
+    RAISE EXCEPTION 'Task entity links must be an array of at most 8 items'
+      USING ERRCODE = '22023';
+  END IF;
+
+  v_portfolio_id := (p_task ->> 'portfolio_id')::uuid;
+  IF v_portfolio_id IS NOT NULL AND NOT EXISTS (
+    SELECT 1 FROM public.portfolios
+    WHERE id = v_portfolio_id AND org_id = p_expected_org_id AND deleted_at IS NULL
+  ) THEN
+    RAISE EXCEPTION 'Portfolio does not belong to this organization'
+      USING ERRCODE = '22023';
+  END IF;
+
+  v_assigned_to := (p_task ->> 'assigned_to')::uuid;
+  IF v_assigned_to IS NOT NULL AND NOT EXISTS (
+    SELECT 1 FROM public.organization_members
+    WHERE org_id = p_expected_org_id
+      AND user_id = v_assigned_to
+      AND deleted_at IS NULL
+      AND accepted_at IS NOT NULL
+  ) THEN
+    RAISE EXCEPTION 'Assignee is not a member of this organization'
+      USING ERRCODE = '22023';
+  END IF;
+
+  FOR v_link IN SELECT value FROM jsonb_array_elements(p_entity_links)
+  LOOP
+    IF jsonb_typeof(v_link) <> 'object'
+       OR NOT (v_link ? 'entity_type')
+       OR NOT (v_link ? 'entity_id') THEN
+      RAISE EXCEPTION 'Invalid task entity link' USING ERRCODE = '22023';
+    END IF;
+    v_entity_type := v_link ->> 'entity_type';
+    v_entity_id := (v_link ->> 'entity_id')::uuid;
+    IF NOT public.task_entity_belongs_to_org(
+      p_expected_org_id, v_entity_type, v_entity_id
+    ) THEN
+      RAISE EXCEPTION 'Linked % does not belong to this organization', v_entity_type
+        USING ERRCODE = '22023';
+    END IF;
+  END LOOP;
+
+  INSERT INTO public.tasks (
+    org_id, portfolio_id, title, description, status, priority, task_type,
+    source, source_key, starts_at, due_at, assigned_to, created_by, metadata
+  ) VALUES (
+    p_expected_org_id,
+    v_portfolio_id,
+    p_task ->> 'title',
+    p_task ->> 'description',
+    COALESCE(p_task ->> 'status', 'open'),
+    COALESCE(p_task ->> 'priority', 'normal'),
+    COALESCE(p_task ->> 'task_type', 'task'),
+    COALESCE(p_task ->> 'source', 'manual'),
+    p_task ->> 'source_key',
+    (p_task ->> 'starts_at')::timestamptz,
+    (p_task ->> 'due_at')::timestamptz,
+    v_assigned_to,
+    p_actor_id,
+    COALESCE(p_task -> 'metadata', '{}'::jsonb)
+  )
+  RETURNING * INTO v_task;
+
+  INSERT INTO public.task_entity_links (
+    task_id, org_id, entity_type, entity_id, relationship
+  )
+  SELECT
+    v_task.id,
+    p_expected_org_id,
+    value ->> 'entity_type',
+    (value ->> 'entity_id')::uuid,
+    COALESCE(value ->> 'relationship', 'primary')
+  FROM jsonb_array_elements(p_entity_links);
+
+  INSERT INTO public.task_events (
+    task_id, org_id, actor_id, event_type, after_values
+  ) VALUES (
+    v_task.id, p_expected_org_id, p_actor_id, 'created', to_jsonb(v_task)
+  );
+
+  RETURN to_jsonb(v_task);
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.create_task_with_relations(
+  uuid, uuid, jsonb, jsonb
+) FROM PUBLIC, authenticated;
+GRANT EXECUTE ON FUNCTION public.create_task_with_relations(
+  uuid, uuid, jsonb, jsonb
+) TO service_role;
+
+-- Apply an allowlisted task patch and its audit event in one transaction. The
+-- role flag is derived by the scoped repository; assignee authorization and
+-- organization ownership are re-checked while the row is locked.
+CREATE OR REPLACE FUNCTION public.update_task_with_event(
+  p_expected_org_id uuid,
+  p_task_id uuid,
+  p_actor_id uuid,
+  p_is_workspace_manager boolean,
+  p_updates jsonb
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_existing public.tasks%ROWTYPE;
+  v_task public.tasks%ROWTYPE;
+  v_patch jsonb;
+  v_event_id uuid;
+  v_outbox_id uuid;
+  v_event_type text;
+  v_now timestamptz := now();
+  v_portfolio_id uuid;
+  v_assigned_to uuid;
+  v_milestone_id uuid;
+BEGIN
+  IF p_actor_id IS NULL THEN
+    RAISE EXCEPTION 'Task actor is required' USING ERRCODE = '22023';
+  END IF;
+  IF p_updates IS NULL OR jsonb_typeof(p_updates) <> 'object' THEN
+    RAISE EXCEPTION 'Task updates must be a JSON object' USING ERRCODE = '22023';
+  END IF;
+  IF p_updates - ARRAY[
+    'title', 'description', 'status', 'priority', 'task_type', 'portfolio_id',
+    'starts_at', 'due_at', 'assigned_to', 'metadata'
+  ] <> '{}'::jsonb THEN
+    RAISE EXCEPTION 'Task updates contain unsupported fields' USING ERRCODE = '22023';
+  END IF;
+
+  SELECT * INTO v_existing
+  FROM public.tasks
+  WHERE id = p_task_id
+    AND org_id = p_expected_org_id
+    AND deleted_at IS NULL
+  FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Task not found' USING ERRCODE = 'P0002';
+  END IF;
+  IF NOT COALESCE(p_is_workspace_manager, false)
+     AND v_existing.assigned_to IS DISTINCT FROM p_actor_id THEN
+    RAISE EXCEPTION 'Not authorized to update this task' USING ERRCODE = '42501';
+  END IF;
+
+  IF COALESCE(p_is_workspace_manager, false) THEN
+    v_patch := p_updates;
+  ELSE
+    v_patch := '{}'::jsonb;
+    IF p_updates ? 'status' THEN
+      v_patch := v_patch || jsonb_build_object('status', p_updates -> 'status');
+    END IF;
+    IF p_updates ? 'metadata' THEN
+      v_patch := v_patch || jsonb_build_object('metadata', p_updates -> 'metadata');
+    END IF;
+  END IF;
+
+  IF v_patch = '{}'::jsonb THEN
+    RAISE EXCEPTION 'No valid fields to update' USING ERRCODE = '22023';
+  END IF;
+
+  IF v_patch ? 'portfolio_id' THEN
+    v_portfolio_id := (v_patch ->> 'portfolio_id')::uuid;
+    IF v_portfolio_id IS NOT NULL AND NOT EXISTS (
+      SELECT 1 FROM public.portfolios
+      WHERE id = v_portfolio_id AND org_id = p_expected_org_id AND deleted_at IS NULL
+    ) THEN
+      RAISE EXCEPTION 'Portfolio does not belong to this organization'
+        USING ERRCODE = '22023';
+    END IF;
+  END IF;
+
+  IF v_patch ? 'assigned_to' THEN
+    v_assigned_to := (v_patch ->> 'assigned_to')::uuid;
+    IF v_assigned_to IS NOT NULL AND NOT EXISTS (
+      SELECT 1 FROM public.organization_members
+      WHERE org_id = p_expected_org_id
+        AND user_id = v_assigned_to
+        AND deleted_at IS NULL
+        AND accepted_at IS NOT NULL
+    ) THEN
+      RAISE EXCEPTION 'Assignee is not a member of this organization'
+        USING ERRCODE = '22023';
+    END IF;
+  END IF;
+
+  UPDATE public.tasks
+  SET
+    title = CASE WHEN v_patch ? 'title' THEN v_patch ->> 'title' ELSE title END,
+    description = CASE WHEN v_patch ? 'description' THEN v_patch ->> 'description' ELSE description END,
+    status = CASE WHEN v_patch ? 'status' THEN v_patch ->> 'status' ELSE status END,
+    priority = CASE WHEN v_patch ? 'priority' THEN v_patch ->> 'priority' ELSE priority END,
+    task_type = CASE WHEN v_patch ? 'task_type' THEN v_patch ->> 'task_type' ELSE task_type END,
+    portfolio_id = CASE WHEN v_patch ? 'portfolio_id' THEN v_portfolio_id ELSE portfolio_id END,
+    starts_at = CASE WHEN v_patch ? 'starts_at' THEN (v_patch ->> 'starts_at')::timestamptz ELSE starts_at END,
+    due_at = CASE WHEN v_patch ? 'due_at' THEN (v_patch ->> 'due_at')::timestamptz ELSE due_at END,
+    assigned_to = CASE WHEN v_patch ? 'assigned_to' THEN v_assigned_to ELSE assigned_to END,
+    metadata = CASE WHEN v_patch ? 'metadata' THEN v_patch -> 'metadata' ELSE metadata END,
+    completed_at = CASE
+      WHEN v_patch ->> 'status' = 'completed' AND v_existing.status <> 'completed' THEN v_now
+      WHEN v_patch ->> 'status' = 'completed' THEN completed_at
+      WHEN v_patch ? 'status' THEN NULL
+      ELSE completed_at
+    END,
+    completed_by = CASE
+      WHEN v_patch ->> 'status' = 'completed' AND v_existing.status <> 'completed' THEN p_actor_id
+      WHEN v_patch ->> 'status' = 'completed' THEN completed_by
+      WHEN v_patch ? 'status' THEN NULL
+      ELSE completed_by
+    END
+  WHERE id = p_task_id
+  RETURNING * INTO v_task;
+
+  IF v_patch ->> 'status' = 'completed'
+     AND v_existing.status <> 'completed'
+     AND v_task.metadata ->> 'producer' = 'grant_obligations' THEN
+    SELECT gm.id INTO v_milestone_id
+    FROM public.task_entity_links tel
+    JOIN public.grant_milestones gm ON gm.id = tel.entity_id
+    JOIN public.grants g ON g.id = gm.grant_id
+    WHERE tel.task_id = p_task_id
+      AND tel.org_id = p_expected_org_id
+      AND tel.entity_type = 'grant_milestone'
+      AND g.org_id = p_expected_org_id
+    LIMIT 1
+    FOR UPDATE OF gm;
+
+    IF v_milestone_id IS NULL AND EXISTS (
+      SELECT 1 FROM public.task_entity_links
+      WHERE task_id = p_task_id
+        AND org_id = p_expected_org_id
+        AND entity_type = 'grant_milestone'
+    ) THEN
+      RAISE EXCEPTION 'Linked grant milestone was not found in this organization';
+    END IF;
+
+    IF v_milestone_id IS NOT NULL THEN
+      UPDATE public.grant_milestones
+      SET status = 'completed', completed_date = v_now::date
+      WHERE id = v_milestone_id;
+    END IF;
+  END IF;
+
+  v_event_type := CASE
+    WHEN v_patch ->> 'status' = 'completed' AND v_existing.status <> 'completed' THEN 'completed'
+    WHEN v_patch ->> 'status' = 'cancelled' THEN 'cancelled'
+    WHEN v_patch ? 'assigned_to' AND v_assigned_to IS NOT NULL THEN 'assigned'
+    WHEN (v_patch ? 'due_at' AND v_patch ->> 'due_at' IS NOT NULL)
+      OR (v_patch ? 'starts_at' AND v_patch ->> 'starts_at' IS NOT NULL)
+      THEN 'due_date_changed'
+    ELSE 'status_changed'
+  END;
+
+  INSERT INTO public.task_events (
+    task_id, org_id, actor_id, event_type, before_values, after_values
+  ) VALUES (
+    p_task_id, p_expected_org_id, p_actor_id, v_event_type,
+    to_jsonb(v_existing), to_jsonb(v_task)
+  ) RETURNING id INTO v_event_id;
+
+  IF v_patch ->> 'status' = 'completed' AND v_existing.status <> 'completed' THEN
+    v_outbox_id := public.enqueue_task_completion_automation(
+      v_task, v_event_id, p_actor_id
+    );
+  END IF;
+
+  RETURN jsonb_build_object('task', to_jsonb(v_task), 'outbox_event_id', v_outbox_id);
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.update_task_with_event(
+  uuid, uuid, uuid, boolean, jsonb
+) FROM PUBLIC, authenticated;
+GRANT EXECUTE ON FUNCTION public.update_task_with_event(
+  uuid, uuid, uuid, boolean, jsonb
+) TO service_role;
+
+CREATE OR REPLACE FUNCTION public.add_task_comment_with_event(
+  p_expected_org_id uuid,
+  p_task_id uuid,
+  p_actor_id uuid,
+  p_body text
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_comment public.task_comments%ROWTYPE;
+BEGIN
+  IF p_actor_id IS NULL OR p_body IS NULL OR length(p_body) NOT BETWEEN 1 AND 4000 THEN
+    RAISE EXCEPTION 'Valid task comment actor and body are required'
+      USING ERRCODE = '22023';
+  END IF;
+
+  PERFORM 1 FROM public.tasks
+  WHERE id = p_task_id AND org_id = p_expected_org_id AND deleted_at IS NULL
+  FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Task not found' USING ERRCODE = 'P0002';
+  END IF;
+
+  INSERT INTO public.task_comments (task_id, org_id, author_id, body)
+  VALUES (p_task_id, p_expected_org_id, p_actor_id, p_body)
+  RETURNING * INTO v_comment;
+
+  INSERT INTO public.task_events (
+    task_id, org_id, actor_id, event_type, after_values
+  ) VALUES (
+    p_task_id, p_expected_org_id, p_actor_id, 'commented', to_jsonb(v_comment)
+  );
+
+  RETURN to_jsonb(v_comment);
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.add_task_comment_with_event(
+  uuid, uuid, uuid, text
+) FROM PUBLIC, authenticated;
+GRANT EXECUTE ON FUNCTION public.add_task_comment_with_event(
+  uuid, uuid, uuid, text
+) TO service_role;
+
+CREATE OR REPLACE FUNCTION public.set_task_completion_state(
+  p_expected_org_id uuid,
+  p_task_id uuid,
+  p_actor_id uuid,
+  p_is_workspace_manager boolean,
+  p_action text
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_existing public.tasks%ROWTYPE;
+  v_task public.tasks%ROWTYPE;
+  v_milestone_id uuid;
+  v_event_id uuid;
+  v_outbox_id uuid;
+  v_now timestamptz := now();
+BEGIN
+  IF p_actor_id IS NULL OR p_action NOT IN ('complete', 'reopen') THEN
+    RAISE EXCEPTION 'Valid task action and actor are required' USING ERRCODE = '22023';
+  END IF;
+
+  SELECT * INTO v_existing
+  FROM public.tasks
+  WHERE id = p_task_id
+    AND org_id = p_expected_org_id
+    AND deleted_at IS NULL
+  FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Task not found' USING ERRCODE = 'P0002';
+  END IF;
+  IF NOT COALESCE(p_is_workspace_manager, false)
+     AND v_existing.assigned_to IS DISTINCT FROM p_actor_id THEN
+    RAISE EXCEPTION 'Not authorized to change this task' USING ERRCODE = '42501';
+  END IF;
+
+  IF (p_action = 'complete' AND v_existing.status = 'completed')
+     OR (p_action = 'reopen' AND v_existing.status = 'open') THEN
+    RETURN jsonb_build_object(
+      'task', to_jsonb(v_existing),
+      'idempotent', true,
+      'outbox_event_id', NULL
+    );
+  END IF;
+
+  UPDATE public.tasks
+  SET
+    status = CASE WHEN p_action = 'complete' THEN 'completed' ELSE 'open' END,
+    completed_at = CASE WHEN p_action = 'complete' THEN v_now ELSE NULL END,
+    completed_by = CASE WHEN p_action = 'complete' THEN p_actor_id ELSE NULL END
+  WHERE id = p_task_id
+  RETURNING * INTO v_task;
+
+  IF p_action = 'complete'
+     AND v_task.metadata ->> 'producer' = 'grant_obligations' THEN
+    SELECT gm.id INTO v_milestone_id
+    FROM public.task_entity_links tel
+    JOIN public.grant_milestones gm ON gm.id = tel.entity_id
+    JOIN public.grants g ON g.id = gm.grant_id
+    WHERE tel.task_id = p_task_id
+      AND tel.org_id = p_expected_org_id
+      AND tel.entity_type = 'grant_milestone'
+      AND g.org_id = p_expected_org_id
+    LIMIT 1
+    FOR UPDATE OF gm;
+
+    IF v_milestone_id IS NULL AND EXISTS (
+      SELECT 1 FROM public.task_entity_links
+      WHERE task_id = p_task_id
+        AND org_id = p_expected_org_id
+        AND entity_type = 'grant_milestone'
+    ) THEN
+      RAISE EXCEPTION 'Linked grant milestone was not found in this organization';
+    END IF;
+
+    IF v_milestone_id IS NOT NULL THEN
+      UPDATE public.grant_milestones
+      SET status = 'completed', completed_date = v_now::date
+      WHERE id = v_milestone_id;
+    END IF;
+  END IF;
+
+  INSERT INTO public.task_events (
+    task_id, org_id, actor_id, event_type, before_values, after_values
+  ) VALUES (
+    p_task_id,
+    p_expected_org_id,
+    p_actor_id,
+    CASE WHEN p_action = 'complete' THEN 'completed' ELSE 'status_changed' END,
+    to_jsonb(v_existing),
+    to_jsonb(v_task)
+  ) RETURNING id INTO v_event_id;
+
+  IF p_action = 'complete' THEN
+    v_outbox_id := public.enqueue_task_completion_automation(
+      v_task, v_event_id, p_actor_id
+    );
+  END IF;
+
+  RETURN jsonb_build_object(
+    'task', to_jsonb(v_task),
+    'idempotent', false,
+    'outbox_event_id', v_outbox_id
+  );
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.set_task_completion_state(
+  uuid, uuid, uuid, boolean, text
+) FROM PUBLIC, authenticated;
+GRANT EXECUTE ON FUNCTION public.set_task_completion_state(
+  uuid, uuid, uuid, boolean, text
+) TO service_role;
+
+-- Claim and settle outbox rows through service-only worker capabilities.
+CREATE OR REPLACE FUNCTION public.claim_task_automation_outbox(
+  p_limit int DEFAULT 50,
+  p_org_id uuid DEFAULT NULL,
+  p_event_id uuid DEFAULT NULL
+)
+RETURNS SETOF public.task_automation_outbox
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  WITH candidates AS (
+    SELECT id
+    FROM public.task_automation_outbox
+    WHERE (p_org_id IS NULL OR org_id = p_org_id)
+      AND (p_event_id IS NULL OR id = p_event_id)
+      AND attempts < 10
+      AND (
+        (status IN ('pending', 'failed') AND available_at <= now())
+        OR (status = 'processing' AND claimed_at < now() - interval '15 minutes')
+      )
+    ORDER BY created_at
+    FOR UPDATE SKIP LOCKED
+    LIMIT GREATEST(LEAST(COALESCE(p_limit, 50), 100), 1)
+  )
+  UPDATE public.task_automation_outbox outbox
+  SET status = 'processing', claimed_at = now(), attempts = attempts + 1, last_error = NULL
+  FROM candidates
+  WHERE outbox.id = candidates.id
+  RETURNING outbox.*;
+$$;
+
+REVOKE ALL ON FUNCTION public.claim_task_automation_outbox(int, uuid, uuid)
+  FROM PUBLIC, authenticated;
+GRANT EXECUTE ON FUNCTION public.claim_task_automation_outbox(int, uuid, uuid)
+  TO service_role;
+
+CREATE OR REPLACE FUNCTION public.finish_task_automation_outbox(
+  p_event_id uuid,
+  p_succeeded boolean,
+  p_error text DEFAULT NULL
+)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  UPDATE public.task_automation_outbox
+  SET
+    status = CASE WHEN p_succeeded THEN 'completed' ELSE 'failed' END,
+    completed_at = CASE WHEN p_succeeded THEN now() ELSE NULL END,
+    claimed_at = NULL,
+    last_error = CASE WHEN p_succeeded THEN NULL ELSE left(COALESCE(p_error, 'Unknown automation failure'), 4000) END,
+    available_at = CASE
+      WHEN p_succeeded THEN available_at
+      ELSE now() + make_interval(mins => LEAST(60, (2 ^ LEAST(attempts, 6))::int))
+    END
+  WHERE id = p_event_id AND status = 'processing';
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Claimed task automation event not found' USING ERRCODE = 'P0002';
+  END IF;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.finish_task_automation_outbox(uuid, boolean, text)
+  FROM PUBLIC, authenticated;
+GRANT EXECUTE ON FUNCTION public.finish_task_automation_outbox(uuid, boolean, text)
+  TO service_role;
 
 CREATE TABLE IF NOT EXISTS public.notification_events (
   id                   uuid        PRIMARY KEY DEFAULT uuid_generate_v4(),

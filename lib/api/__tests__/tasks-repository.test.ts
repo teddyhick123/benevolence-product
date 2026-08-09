@@ -4,27 +4,29 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createOrgTaskRepository } from '@/lib/api/repositories/tasks';
 import { stubQuery } from '@/tests/helpers/supabase-mock';
 
-const { mockCreateElevatedClient, mockFrom, mockRunAutomationRulesForEvent } = vi.hoisted(() => ({
+const { mockCreateElevatedClient, mockFrom, mockRpc, mockDrainOutbox } = vi.hoisted(() => ({
   mockCreateElevatedClient: vi.fn(),
   mockFrom: vi.fn(),
-  mockRunAutomationRulesForEvent: vi.fn(),
+  mockRpc: vi.fn(),
+  mockDrainOutbox: vi.fn(),
 }));
 
 vi.mock('@/lib/api/admin-client', () => ({
   createElevatedClient: mockCreateElevatedClient,
 }));
 
-vi.mock('@/lib/tasks/automation/dynamic-rules', () => ({
-  runAutomationRulesForEvent: mockRunAutomationRulesForEvent,
+vi.mock('@/lib/tasks/automation/outbox', () => ({
+  drainTaskAutomationOutbox: mockDrainOutbox,
 }));
 
-const db = { from: mockFrom };
+const db = { from: mockFrom, rpc: mockRpc };
 const adminScope = { orgId: 'org-1', role: 'admin' as const, actorId: 'user-1' };
 
 beforeEach(() => {
   vi.clearAllMocks();
   mockCreateElevatedClient.mockReturnValue(db);
-  mockRunAutomationRulesForEvent.mockResolvedValue([]);
+  mockRpc.mockResolvedValue({ data: null, error: null });
+  mockDrainOutbox.mockResolvedValue({ errors: [] });
 });
 
 describe('createOrgTaskRepository', () => {
@@ -88,12 +90,8 @@ describe('createOrgTaskRepository', () => {
     expect(query.calls).toContainEqual({ method: 'eq', args: ['org_id', 'org-1'] });
   });
 
-  it('prevents a member from updating another assignee task before writing', async () => {
-    const query = stubQuery(
-      { data: null, error: null },
-      { maybeSingle: { data: { id: 'task-1', assigned_to: 'user-2' }, error: null } }
-    );
-    mockFrom.mockReturnValue(query);
+  it('maps transactional assignee authorization failures before any direct write', async () => {
+    mockRpc.mockResolvedValue({ data: null, error: { code: '42501' } });
 
     await expect(createOrgTaskRepository({
       orgId: 'org-1',
@@ -105,25 +103,21 @@ describe('createOrgTaskRepository', () => {
         status: 403,
       })
     );
-    expect(mockFrom).toHaveBeenCalledTimes(1);
+    expect(mockRpc).toHaveBeenCalledWith('update_task_with_event', {
+      p_expected_org_id: 'org-1',
+      p_task_id: 'task-1',
+      p_actor_id: 'user-1',
+      p_is_workspace_manager: false,
+      p_updates: { status: 'completed' },
+    });
+    expect(mockFrom).not.toHaveBeenCalled();
   });
 
-  it('validates a linked entity in the same org before creating scoped rows', async () => {
-    const donorQuery = stubQuery(
-      { data: null, error: null },
-      { maybeSingle: { data: { id: 'donor-1' }, error: null } }
-    );
-    const taskQuery = stubQuery(
-      { data: null, error: null },
-      { single: { data: { id: 'task-1', title: 'Follow up' }, error: null } }
-    );
-    const linksQuery = stubQuery({ data: null, error: null });
-    const eventsQuery = stubQuery({ data: null, error: null });
-    mockFrom
-      .mockReturnValueOnce(donorQuery)
-      .mockReturnValueOnce(taskQuery)
-      .mockReturnValueOnce(linksQuery)
-      .mockReturnValueOnce(eventsQuery);
+  it('passes task creation and entity links to one scoped transaction', async () => {
+    mockRpc.mockResolvedValue({
+      data: { id: 'task-1', title: 'Follow up', org_id: 'org-1' },
+      error: null,
+    });
 
     await createOrgTaskRepository(adminScope).create({
       title: 'Follow up',
@@ -133,27 +127,23 @@ describe('createOrgTaskRepository', () => {
       }],
     });
 
-    expect(donorQuery.calls).toContainEqual({ method: 'eq', args: ['org_id', 'org-1'] });
-    expect(taskQuery.calls).toContainEqual({
-      method: 'insert',
-      args: [{ title: 'Follow up', org_id: 'org-1', created_by: 'user-1' }],
+    expect(mockRpc).toHaveBeenCalledWith('create_task_with_relations', {
+      p_expected_org_id: 'org-1',
+      p_actor_id: 'user-1',
+      p_task: { title: 'Follow up' },
+      p_entity_links: [{
+        entity_type: 'donor',
+        entity_id: '11111111-1111-1111-1111-111111111111',
+      }],
     });
-    expect(linksQuery.calls).toContainEqual({
-      method: 'insert',
-      args: [[expect.objectContaining({ task_id: 'task-1', org_id: 'org-1' })]],
-    });
-    expect(eventsQuery.calls).toContainEqual({
-      method: 'insert',
-      args: [expect.objectContaining({ task_id: 'task-1', org_id: 'org-1', actor_id: 'user-1' })],
-    });
+    expect(mockFrom).not.toHaveBeenCalled();
   });
 
   it('rejects an entity link not found in the scoped organization', async () => {
-    const donorQuery = stubQuery(
-      { data: null, error: null },
-      { maybeSingle: { data: null, error: null } }
-    );
-    mockFrom.mockReturnValue(donorQuery);
+    mockRpc.mockResolvedValue({
+      data: null,
+      error: { code: '22023', message: 'Linked donor does not belong to this organization' },
+    });
 
     await expect(createOrgTaskRepository(adminScope).create({
       title: 'Follow up',
@@ -165,7 +155,34 @@ describe('createOrgTaskRepository', () => {
       message: 'Linked donor does not belong to this organization',
       status: 400,
     }));
-    expect(mockFrom).toHaveBeenCalledTimes(1);
+    expect(mockFrom).not.toHaveBeenCalled();
+  });
+
+  it('completes a task transactionally and dispatches only its durable outbox event', async () => {
+    mockRpc.mockResolvedValue({
+      data: {
+        task: { id: 'task-1', status: 'completed' },
+        idempotent: false,
+        outbox_event_id: 'outbox-1',
+      },
+      error: null,
+    });
+
+    const result = await createOrgTaskRepository(adminScope).complete('task-1');
+
+    expect(mockRpc).toHaveBeenCalledWith('set_task_completion_state', {
+      p_expected_org_id: 'org-1',
+      p_task_id: 'task-1',
+      p_actor_id: 'user-1',
+      p_is_workspace_manager: true,
+      p_action: 'complete',
+    });
+    expect(mockDrainOutbox).toHaveBeenCalledWith(db, {
+      orgId: 'org-1',
+      eventId: 'outbox-1',
+      limit: 1,
+    });
+    expect(result).toEqual({ task: { id: 'task-1', status: 'completed' }, idempotent: false });
   });
 
   it('does not expose the elevated client or generic table access', () => {

@@ -242,6 +242,7 @@ org_automation_rules (
 org_automation_runs (
   id, org_id, rule_id uuid REFERENCES org_automation_rules(id),
   trigger_entity_id uuid, trigger_entity_type text,
+  idempotency_key text UNIQUE,
   status text CHECK (status IN ('queued', 'completed', 'failed', 'skipped')),
   result jsonb,
   ran_at timestamptz
@@ -257,7 +258,7 @@ org_automation_runs (
 
 ### Key Infrastructure Change
 
-The existing task automation producer framework (`lib/tasks/automation/task-writer.ts`) currently has hardcoded producers. This phase adds a dynamic producer that evaluates `org_automation_rules` on applicable events. Hardcoded producers remain for canonical behaviors (grant stage → default task types); org rules layer on top.
+The task automation producer framework (`lib/tasks/automation/task-writer.ts`) has hardcoded producers. This phase adds a dynamic producer that evaluates `org_automation_rules` on applicable events. Hardcoded producers remain for canonical behaviors (grant stage → default task types); org rules layer on top. Task-completed rules consume durable `task_automation_outbox` events, and `org_automation_runs.idempotency_key` makes retrying one event/rule pair safe.
 
 ### Acceptance Criteria
 

@@ -24,7 +24,7 @@ Status guide:
 
 | Source | Consolidation result |
 |---|---|
-| [Refactor findings](../superpowers/specs/2026-07-26-refactor-findings.md) | 21 unresolved findings are tracked below; Phase 3/5/6/7 resolutions were not copied. |
+| [Refactor findings](../superpowers/specs/2026-07-26-refactor-findings.md) | 15 unresolved findings are tracked below; Phase 3/5/6/7 resolutions and the six closed on 2026-08-09 were not copied. |
 | [Reliability audit](2026-06-27-reliability-audit.md) | RA-01 through RA-24 are fixed; RX-01/RX-02 are retired. No open items copied. |
 | [Role and permission audit](../ROLE_PERMISSION_AUDIT.md) | All audited P0-P2 boundaries are resolved. No open items copied. |
 | [Builder orchestration audit](../BUILDER_REVIEW_ORCHESTRATION_AUDIT.md) | Durable review and local verification shipped; production isolation and delivery evidence remain below. |
@@ -48,10 +48,8 @@ RF IDs follow discovery order after resolved findings were excluded.
 | ID | Status | Area | Open work |
 |---|---|---|---|
 | RF-01 | Verified open | Grant milestones | Make milestone status changes and generated-task synchronization atomic, or commit a durable outbox event in the same transaction. |
-| RF-02 | Verified open | Notification jobs | Treat queue-read errors as worker failures and distinguish a failed scan from an empty queue in monitoring. |
 | RF-03 | Verified open | Pledges | Make installment changes and generated-task synchronization transactional or outbox-backed. |
 | RF-04 | Verified open | Workflows | Move workflow-task, linked-task, workflow-instance, and task-event changes into one transactional boundary. |
-| RF-05 | Verified open | Task jobs | Check advisory-lock and run-log results; define retry/alert behavior when execution history cannot be persisted. |
 | RF-06 | Verified open | Tasks | Make task, link, comment, audit, milestone-sync, and automation side effects transactional or outbox-backed. |
 | RF-07 | Verified open | Acknowledgments | Replace PDFs through versioned/staged object paths so database and storage state cannot diverge. |
 | RF-08 | Verified open | Memberships | Move membership changes, last-owner protection, and audit insertion into transactional database functions. |
@@ -67,11 +65,7 @@ RF IDs follow discovery order after resolved findings were excluded.
 | ID | Status | Area | Open work |
 |---|---|---|---|
 | RF-14 | Verified open | Walkthrough CI | Split or parallelize the journey suite, or raise the timeout after measuring the intermittent runtime ceiling. |
-| RF-15 | Decision needed | Admin upload | Remove the ignored `autoApprove` option or define a role-gated audited bulk-approval workflow. |
-| RF-16 | Decision needed | Holding uploads | Define AI-off semantics and either add a configured-KPI selector or make the path document-only. |
-| RF-17 | Decision needed | Dashboard | Represent failed statistics as unavailable instead of silently converting query failures to zero. |
-| RF-18 | Verified open | Widgets | Allocate widget positions atomically or enforce uniqueness with retry/rebalancing. |
-| RF-19 | Decision needed | Notifications | Define nested preferences as patch or replacement semantics, then align payloads and persistence. |
+| RF-18 | Verified open | Widgets | Allocate widget positions atomically or enforce uniqueness with retry/rebalancing. Needs a unique constraint to detect the collision, so it cannot ship schema-free. |
 | RF-20 | Verified open | Onboarding | Distinguish not-found from infrastructure failure and make session/telemetry updates transactional or event-backed. |
 | RF-21 | Decision needed | Onboarding | Define the canonical organization-type-to-module recommendation matrix and align prompts, defaults, exclusions, and tests. |
 | BLD-03 | Verified open | Builder delivery | Replace manually tracked merge/deploy state with provider-verified delivery facts before presenting those states as authoritative. |
@@ -90,6 +84,11 @@ The following module items are carry-forwards from the June product review.
 They are intentionally lower-confidence than the verified findings above: when
 an item is selected, revalidate it against current code and update its status
 before planning implementation.
+
+Revalidated 2026-08-09: six already-shipped items were removed (compliance
+reminders, the overdue-filing job, the 990-PF Part XIII worksheet, Donor CRM and
+Tax Center assistant tools, and holdings CSV import). The remaining entries were
+spot-checked against the tree but not exhaustively re-verified.
 
 ---
 
@@ -112,7 +111,6 @@ before planning implementation.
 |---|-------|
 | H-U5 | Add bulk edit / bulk status change |
 | H-F5 | Add impact KPI trend chart on holding detail |
-| H-F6 | Add bulk import of holdings from CSV |
 | H-F7 | Add holding export to PDF / board report inclusion |
 
 ---
@@ -129,18 +127,6 @@ before planning implementation.
 | T-F4 | Add short-term / long-term holding period split in deduction estimates |
 | T-F7 | Add state tax deduction limits, including California and New York non-conformity rules |
 | T-F8 | Add AMT impact estimate |
-
----
-
-## Compliance
-
-### P2
-
-| # | Issue |
-|---|-------|
-| Cm-U2 | Add email / in-app reminder system |
-| Cm-U5 | Add IRS 990-PF Part XIII worksheet view |
-| Cm-F3 | Add nightly job to auto-mark overdue filings and send reminders |
 
 ---
 
@@ -178,7 +164,7 @@ before planning implementation.
 |---|-------|
 | Ch-U1 | Add side-by-side charity comparison view |
 | Ch-U8 | Add "similar charities" / related discovery |
-| Ch-U9 | Add map view using indexed `latitude` / `longitude` data |
+| Ch-U9 | Add map view using indexed `latitude` / `longitude` data. Partially covered: `components/map/MapSection.tsx` already plots coordinates on the dashboard, but keyed by holding, not from the charity directory. Scope what a charity-side map adds before building. |
 | Ch-F8 | Add multi-year financial trend from ProPublica filings |
 
 ---
@@ -190,9 +176,7 @@ before planning implementation.
 | # | Issue |
 |---|-------|
 | AI-F4 | Add portfolio-aware contextual suggested prompts |
-| AI-F5 | Add Donor CRM tool coverage: `find_donor`, `log_gift`, `generate_acknowledgment` |
-| AI-F6 | Add Tax Center tool coverage: `estimate_deduction`, `run_optimization` |
-| AI-F8 | Add admin usage dashboard for `ai_usage_log` and Redis monthly usage counters |
+| AI-F8 | Add admin usage dashboard for `ai_usage_log` and Redis monthly usage counters. Blocked until the organization AI runtime lands, since that increment reshapes `ai_usage_log` into the canonical invocation record. |
 
 ---
 
@@ -293,14 +277,14 @@ before planning implementation.
 | Priority | Verified/decision findings | Product carry-forwards | Total |
 |---|---:|---:|---:|
 | P0 | 1 | 0 | 1 |
-| P1 | 14 | 2 | 16 |
-| P2 | 9 | 46 | 55 |
+| P1 | 12 | 2 | 14 |
+| P2 | 5 | 40 | 45 |
 | P3 | 1 | 10 | 11 |
-| **Total** | **25** | **58** | **83** |
+| **Total** | **19** | **52** | **71** |
 
 ## Recommended execution order
 
 1. Ship BLD-01 before enabling production Builder workers; address BLD-02 in the same Builder hardening increment.
 2. Design one reusable transaction/outbox pattern, then apply it to RF-01, RF-03, RF-04, RF-06, and RF-08 through RF-13 in bounded domain slices.
-3. Resolve the five product decisions RF-15, RF-16, RF-17, RF-19, and RF-21 before implementation.
+3. Resolve the remaining product decision RF-21 before implementation.
 4. Select product roadmap candidates based on customer discovery, revalidate them, and promote only chosen items from carry-forward status.

@@ -2,6 +2,7 @@
 
 **Date:** 2026-08-08
 **Status:** Phase 0 execution boundary complete; Phase 1 organization routing pending
+**Last reviewed:** 2026-08-09
 
 ## Purpose
 
@@ -76,7 +77,7 @@ These items do not ship in Phase 1, but Phase 1 storage and contracts must not p
 
 ```text
 AI workload request
-  { orgId?, workloadId, actor, input profile }
+  { scope: AIExecutionScope, workloadId: AIWorkloadId, request }
         │
         ▼
 AIExecutionGateway
@@ -143,7 +144,7 @@ The registry is the source of workload requirements. Components and routes do no
 
 ### 2. Capability-focused operation contracts
 
-Replace the current lowest-common-denominator `AIProvider.createMessage/createStream` boundary with provider-neutral operation contracts. The internal message format must support:
+Phase 0 replaced product-surface use of the lowest-common-denominator `AIProvider.createMessage/createStream` boundary with provider-neutral operation contracts. Phase 1 extends these shipped contracts rather than introducing a competing connector shape. The internal message format must support:
 
 - `system`, `developer`, `user`, `assistant`, and `tool` roles where applicable
 - text, image, document, audio, tool-call, and tool-result parts
@@ -155,33 +156,35 @@ Replace the current lowest-common-denominator `AIProvider.createMessage/createSt
 
 Provider-specific extensions are permitted only through validated connection, deployment, or route configuration. Product surfaces may not pass arbitrary provider payloads.
 
-The operation ports remain separate so a connector implements only what it actually supports:
+The shipped connector surface is flat and operation-specific, so a connector implements only the optional methods it actually supports. The plan is passed separately and contains only resolved, non-secret execution metadata:
 
 ```typescript
 interface AIConnector {
-  id: AIConnectorId;
-  capabilities: AICapability[];
-  text?: TextGenerationPort;
-  structured?: StructuredGenerationPort;
-  tools?: ToolConversationPort;
-  transcription?: TranscriptionPort;
-}
-
-interface TextGenerationPort {
-  generateText(request: TextGenerationRequest): Promise<TextGenerationResult>;
-}
-
-interface StructuredGenerationPort {
-  generateObject<T>(request: StructuredGenerationRequest<T>): Promise<StructuredGenerationResult<T>>;
-}
-
-interface ToolConversationPort {
-  runToolConversation(request: ToolConversationRequest): Promise<ToolConversationResult>;
-  streamToolConversation(request: ToolConversationRequest): AsyncIterable<ToolConversationEvent>;
+  readonly id: AIConnectorId;
+  readonly capabilities: readonly AICapability[];
+  generateText?(plan: AIExecutionPlan, request: AIGenerationRequest): Promise<AITextResult>;
+  streamText?(plan: AIExecutionPlan, request: AIGenerationRequest): AsyncIterable<AIStreamChunk>;
+  generateStructured?<T>(
+    plan: AIExecutionPlan,
+    request: AIGenerationRequest,
+    parse: (text: string) => T,
+  ): Promise<AIStructuredResult<T>>;
+  runToolConversation?(
+    plan: AIExecutionPlan,
+    request: AIToolConversationRequest,
+  ): Promise<AIResponse>;
+  streamToolConversation?(
+    plan: AIExecutionPlan,
+    request: AIToolConversationRequest,
+  ): AsyncIterable<AIStreamChunk>;
+  transcribe?(
+    plan: AIExecutionPlan,
+    request: AITranscriptionRequest,
+  ): Promise<AITranscriptionResult>;
 }
 ```
 
-Connectors implement only the operations they support and declare those capabilities. A future audio connector can add the transcription operation without forcing every text connector to implement it.
+Phase 1 may enrich these request, result, plan, and capability types for strict JSON Schema and resolved route metadata, but it must preserve the flat operation boundary and the product-facing gateway entrypoint. A future audio connector can implement transcription without forcing every text connector to implement it.
 
 ### 3. Connector registry
 
@@ -249,9 +252,9 @@ Phase 1 settings offer curated OpenRouter templates. The canonical deployment mo
 
 Model verification and tool authorization are separate controls.
 
-- Verified deployments may use the tool risk level allowed by the organization route and the authenticated user's capabilities.
-- Experimental or unverified deployments default to read-only tools.
-- Enabling mutation tools for an experimental deployment requires an explicit organization-admin policy decision and audit event.
+- A deployment with current passing evidence for the assistant workload may use the tool risk level allowed by the organization route and the authenticated user's capabilities.
+- A deployment without current passing verification evidence for the assistant workload defaults to read-only tools.
+- Enabling mutation tools for a deployment without current passing assistant evidence requires an explicit organization-admin route-policy decision and audit event.
 - Tools with external or irreversible side effects may require confirmation regardless of model tier.
 - Undo/redo is useful recovery behavior but is not treated as an authorization or safety boundary.
 
@@ -259,12 +262,12 @@ The existing authenticated, tenant-scoped `AssistantToolCapabilities` boundary r
 
 ### 6. Route resolution and fallback
 
-`resolveAIExecution({ orgId, workloadId, actor, inputProfile })` returns an immutable execution plan. It does not expose decrypted credential material to the caller.
+The shipped call shape is `gateway.resolve(workloadId)`, backed in Phase 0 by `resolveAIExecution(scope, workloadId)`. Phase 1 preserves that scope-plus-workload boundary and makes resolution asynchronous when it introduces the tenant-scoped route repository. It does not add caller-supplied provider, raw-model, or unconstrained `inputProfile` arguments, and it never exposes decrypted credential material to the caller.
 
 Resolution order:
 
-1. An enabled organization route for the exact workload
-2. The platform default declared by that workload
+1. The organization route row for the exact workload; if present, it must be enabled and valid
+2. The platform default declared by that workload, only when no organization route row exists
 
 There is no implicit organization-wide model fallback because one deployment may not satisfy every workload. The settings UI may offer “assign to all compatible workloads,” which creates or updates explicit workload routes.
 
@@ -275,9 +278,11 @@ Fallback rules:
 - Model or endpoint unavailable: follow only the route's explicit fallback chain.
 - Platform-funded fallback is disabled unless the organization route explicitly opts into it.
 - A fallback candidate must pass the same capability and data-policy checks as the primary deployment.
-- Removing a credential or connection must either be rejected while routes reference it or atomically reset those routes after explicit admin confirmation. It may not silently orphan routes.
+- Removing a credential, connection, or deployment must either be rejected while a route references it or atomically reset the affected routes after explicit admin confirmation. It may not silently orphan routes.
 
-For the assistant, one execution plan is resolved and snapshotted for the entire durable turn, including all multi-tool model iterations. A settings change applies to the next turn, never halfway through a turn. Retry and replay behavior uses the stored execution snapshot and preserves the `(user_id, request_id)` idempotency boundary.
+The ordered fallback chain and policy are part of the immutable execution-plan snapshot. A stateless non-streaming workload may advance to the next explicit target only before a result is returned to product code. A streaming workload may advance only before the first provider event is accepted or any output reaches the client. Once streaming output begins, a failure terminates that invocation; the gateway never splices output from another deployment into the same stream.
+
+For the assistant, one execution plan is resolved and snapshotted for the entire durable turn, including the ordered target chain and all multi-tool model iterations. Fallback is allowed only while establishing the first provider response, before any content/tool event is accepted and before any tool executes. After the first provider event is accepted, the selected target is pinned for the remainder of the turn; a later or mid-stream failure follows `fail_ai_turn` and never silently changes models. A settings change applies to the next turn, never halfway through a turn. Retry and replay use the stored snapshot and preserve the `(user_id, request_id)` idempotency boundary. Every attempted target is a separate invocation record with its fallback position and outcome.
 
 ### 7. Central execution gateway
 
@@ -301,6 +306,8 @@ The increment ships in one new numbered migration. Any changes to the existing `
 
 The current `onboarding_sessions.organization_id` name conflicts with the platform's `org_id` canon. Because that is a prerelease correction to an existing concept, it is normalized to `onboarding_sessions.org_id` in the owning `0034_onboarding.sql` migration rather than patched in the new AI-routing migration. Product code, tests, and generated database types are updated with it.
 
+Actor references must not make organization configuration or audit history dependent on an auth user continuing to exist. Phase 1 therefore also corrects the prerelease `org_audit_log` definition in its owning `0024_settings_ops_hub.sql` migration: `actor_id UUID REFERENCES auth.users(id) ON DELETE SET NULL` becomes the nullable link to a current user, while `actor_subject_id UUID NOT NULL` is a non-FK snapshot of the UUID that performed the action. Existing rows are backfilled from `actor_id` before the new non-null constraint is applied, and every subsequent audit insert writes both fields. New AI configuration `created_by`/`updated_by` fields follow the same nullable `ON DELETE SET NULL` rule. They are convenience links, not the durable audit record.
+
 ### `org_ai_connections`
 
 One organization may have multiple connections, including multiple connections using the same connector.
@@ -317,8 +324,8 @@ config           JSONB NOT NULL DEFAULT '{}', -- validated, non-secret connector
 status           TEXT NOT NULL CHECK (status IN ('active', 'invalid', 'disabled')),
 last_tested_at   TIMESTAMPTZ,
 last_test_status TEXT,
-created_by       UUID NOT NULL REFERENCES auth.users(id),
-updated_by       UUID NOT NULL REFERENCES auth.users(id),
+created_by       UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+updated_by       UUID REFERENCES auth.users(id) ON DELETE SET NULL,
 created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 updated_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 UNIQUE (org_id, name),
@@ -336,8 +343,9 @@ connection_id       UUID NOT NULL,
 encrypted_payload   TEXT NOT NULL,
 encryption_key_id   TEXT NOT NULL,
 secret_fingerprint  TEXT NOT NULL,
+fingerprint_key_id  TEXT NOT NULL,
 display_hint        TEXT,
-created_by          UUID NOT NULL REFERENCES auth.users(id),
+created_by          UUID REFERENCES auth.users(id) ON DELETE SET NULL,
 rotated_at          TIMESTAMPTZ,
 created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -350,6 +358,7 @@ FOREIGN KEY (connection_id, org_id)
 - Service-role-only access through a dedicated credential repository.
 - `encrypted_payload` may contain an API key or another validated credential shape; it is not assumed to be one string key forever.
 - AES-256-GCM payloads are versioned by `encryption_key_id` so secrets can be rotated. A deployment-provided KMS or secret manager is preferred where available.
+- `secret_fingerprint` is `HMAC-SHA-256` over the canonical credential payload using a server-held fingerprint key that is distinct from encryption keys. `fingerprint_key_id` identifies that key version. The fingerprint exists only to detect credential reuse or an unchanged rotation without exposing a brute-forceable bare hash; it is never used for authentication or decryption and is never returned to the browser.
 - The raw credential is accepted only on create/rotate and never returned afterward.
 
 ### `org_ai_deployments`
@@ -362,12 +371,10 @@ name               TEXT NOT NULL,
 catalog_template_id TEXT,
 provider_model_id  TEXT NOT NULL,
 config             JSONB NOT NULL DEFAULT '{}',
-verification_tier  TEXT NOT NULL
-                     CHECK (verification_tier IN ('verified', 'experimental', 'unverified')),
 verified_workloads JSONB NOT NULL DEFAULT '{}',
 status             TEXT NOT NULL CHECK (status IN ('active', 'invalid', 'disabled')),
-created_by         UUID NOT NULL REFERENCES auth.users(id),
-updated_by         UUID NOT NULL REFERENCES auth.users(id),
+created_by         UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+updated_by         UUID REFERENCES auth.users(id) ON DELETE SET NULL,
 created_at         TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 updated_at         TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 UNIQUE (org_id, name),
@@ -376,7 +383,7 @@ FOREIGN KEY (connection_id, org_id)
   REFERENCES org_ai_connections(id, org_id) ON DELETE CASCADE
 ```
 
-Capabilities and verification metadata are server-validated. An organization cannot self-assert that an untested deployment is Benevolence-verified.
+`verified_workloads` is the sole persisted verification authority and contains server-authored evaluation evidence by workload. An overall verification badge is derived: current passing evidence for a workload means verified for that workload; conditional evidence means conditional; missing or stale evidence means unverified. There is no independently writable `verification_tier` column that can contradict the evidence. Experimental use is a route-policy/admin-acceptance decision, not a second deployment truth. Capabilities and verification metadata are server-validated, and an organization cannot self-assert that an untested deployment is Benevolence-verified.
 
 ### `org_ai_routes` and `org_ai_route_targets`
 
@@ -386,8 +393,8 @@ org_id         UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
 workload_id    TEXT NOT NULL,
 policy         JSONB NOT NULL DEFAULT '{}', -- validated privacy, cost, and tool policy
 is_enabled     BOOLEAN NOT NULL DEFAULT TRUE,
-created_by     UUID NOT NULL REFERENCES auth.users(id),
-updated_by     UUID NOT NULL REFERENCES auth.users(id),
+created_by     UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+updated_by     UUID REFERENCES auth.users(id) ON DELETE SET NULL,
 created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 updated_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 UNIQUE (org_id, workload_id),
@@ -405,6 +412,7 @@ target_kind    TEXT NOT NULL CHECK (target_kind IN ('deployment', 'platform_defa
 deployment_id  UUID,
 created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 UNIQUE (route_id, position),
+UNIQUE (route_id, deployment_id),
 FOREIGN KEY (route_id, org_id)
   REFERENCES org_ai_routes(id, org_id) ON DELETE CASCADE,
 FOREIGN KEY (deployment_id, org_id)
@@ -415,13 +423,25 @@ CHECK (
 )
 ```
 
-Position `0` is the primary target; higher positions are explicit fallbacks. A route may include the platform workload default only through a `platform_default` target created by an explicit admin choice. Unknown workloads and invalid policy shapes are rejected by the tenant-scoped settings repository. With no route row, the platform default is resolved directly from the code-owned workload definition.
+The migration also adds a partial unique index, allowing at most one platform-default target:
+
+```sql
+CREATE UNIQUE INDEX org_ai_route_targets_one_platform_default
+  ON org_ai_route_targets(route_id)
+  WHERE target_kind = 'platform_default';
+```
+
+`UNIQUE (route_id, deployment_id)` prevents a deployment from appearing twice while still permitting the one nullable platform-default row governed by that partial index.
+
+Every persisted route has at least one target, exactly one position `0`, and contiguous positions `0..n-1`; an enabled empty route is never valid. Position `0` is the primary target and higher positions are explicit fallbacks. A route may include the platform workload default only through the single `platform_default` target created by an explicit admin choice. These cross-row invariants, unknown workloads, target/deployment compatibility, and policy shapes are validated by the only write path: the tenant-scoped settings repository.
+
+`PUT .../routes` does not reorder rows in place. Inside one database transaction it locks the route, validates the complete proposed target list in memory, deletes the old targets, bulk-inserts the complete replacement with final positions, updates the route, writes its audit event, and commits. Readers see either the old valid list or the new valid list; the temporary empty state is not externally visible, and unique-position conflicts cannot occur mid-reorder.
 
 ### Invocation and durable-turn records
 
 Expand the existing `ai_usage_log` rather than creating a second competing usage history. It becomes the centralized invocation record for every AI workload and includes at least:
 
-- `org_id`, nullable `user_id`, nullable `portfolio_id`, session and turn linkage
+- `org_id`, nullable `user_id REFERENCES auth.users(id) ON DELETE SET NULL`, nullable `portfolio_id`, session and turn linkage
 - `workload_id`, connection and deployment ids
 - connector/transport, model vendor, requested model, resolved model, and resolved inference provider
 - provider request id
@@ -438,6 +458,7 @@ Add an execution-plan snapshot to `ai_turns`. `begin_ai_turn`, `complete_ai_turn
 
 - Connections, deployments, routes, and route targets: organization admins may read their non-secret settings; authenticated roles receive no direct mutation grants because connector, workload, and policy validity depends on server registries.
 - Credentials: service-role-only with no authenticated access.
+- `ai_usage_log`: service-role-only writes. Authenticated users retain self-read for rows whose `user_id = auth.uid()`; organization admins may read rows with a matching non-null `org_id` through `is_org_admin(org_id)`; app admins may read all rows through `is_app_admin()`. Platform rows with no user or organization remain invisible to ordinary authenticated users and are available only to app-admin/elevated reporting repositories. No authenticated role receives insert, update, or delete privileges.
 - Cross-table composite foreign keys enforce matching `org_id` values.
 - API routes call shared organization access guards first and construct tenant-scoped repositories from the proven access context.
 - All settings mutations plus elevated credential and invocation access live behind repository capabilities. Routes and product surfaces do not construct feature-local service clients.
@@ -450,7 +471,7 @@ Add an execution-plan snapshot to `ai_turns`. `begin_ai_turn`, `complete_ai_turn
 The page has three sections:
 
 1. **Connections** — add, test, rotate, disable, or remove an AI connection; show connector, status, region, last test, and a non-secret credential hint.
-2. **Deployments** — add a curated deployment template in Phase 1; show connector, model vendor, verification tier, compatible workloads, and evaluation freshness.
+2. **Deployments** — add a curated deployment template in Phase 1; show connector, model vendor, the verification state derived for each workload, compatible workloads, and evaluation freshness.
 3. **Workload routing** — assign deployments and explicit fallback/privacy/cost/tool policy to each workload. Offer “assign to all compatible workloads” as a bulk action rather than a hidden global fallback.
 
 Phase 1 routes:
@@ -460,12 +481,15 @@ Phase 1 routes:
 - `PATCH /api/org/[orgId]/ai-settings/connections/[connectionId]` — update or disable metadata
 - `DELETE /api/org/[orgId]/ai-settings/connections/[connectionId]` — remove only when unreferenced, or reset routes with explicit confirmation
 - `PUT /api/org/[orgId]/ai-settings/connections/[connectionId]/credential` — set or rotate credential
-- `POST /api/org/[orgId]/ai-settings/connections/[connectionId]/test` — validate authentication and endpoint access
+- `POST /api/org/[orgId]/ai-settings/connections/[connectionId]/test` — validate authentication and endpoint access; apply a strict authenticated limiter keyed by organization, actor, and connection, reject concurrent probes for the same connection, and emit usage/audit metadata because the probe may consume provider credit
 - `POST /api/org/[orgId]/ai-settings/deployments` — create from a verified catalog template
+- `DELETE /api/org/[orgId]/ai-settings/deployments/[deploymentId]` — remove only when no route references it, or atomically replace/reset affected routes after explicit confirmation
 - `POST /api/org/[orgId]/ai-settings/deployments/[deploymentId]/evaluate` — run compatible workload smoke evaluations
 - `PUT /api/org/[orgId]/ai-settings/routes` — atomically validate and update workload routes and ordered targets
 
 All routes use shared access guards, `jsonOk`/`jsonError`, and a tenant-scoped repository. Browser state belongs in `lib/ai/hooks.ts`, backed by `lib/api/client-hooks.ts`; mutations use `requestJson`. Assistant streaming continues through `requestStream` with its stable request id.
+
+Provider-backed deployment evaluation is rate-limited separately from ordinary product AI and connection tests because it can be substantially more expensive. Limits are enforced server-side after access is proven and before credentials are loaded.
 
 ## Error Model
 
@@ -504,13 +528,13 @@ A moving model alias losing a required capability automatically makes its route 
 - **Connector contract suite:** the same text, structured-output, tool, streaming, error, cancellation, and usage cases run against every connector implementation.
 - **OpenRouter contract tests:** request mapping, structured output, multi-tool streaming, provider policy fields, usage, resolved-provider metadata, and normalized errors.
 - **Gateway tests:** workload resolution, capability enforcement, secret isolation, timeout behavior, centralized invocation recording, and no caller-supplied raw model bypass.
-- **Resolver tests:** organization route precedence, platform defaults, explicit fallback chains, policy preservation, disabled connections, missing credentials, and no silent fallback.
-- **Durable assistant tests:** one execution snapshot per turn, unchanged request-id idempotency, deterministic multi-tool routing, completion/failure lifecycle, and settings changes applying only to subsequent turns.
-- **Settings API tests:** member/admin/cross-org access, composite tenant scoping, route/deployment compatibility, referenced-connection deletion, credential non-disclosure, and audit events.
-- **Migration assertions:** RLS, grants, composite foreign keys, uniqueness, credential isolation, nullable non-user invocation actors, and idempotent migration behavior.
+- **Resolver tests:** organization route precedence, platform defaults, complete snapshotted fallback chains, policy preservation, disabled connections, missing credentials, and no silent fallback.
+- **Durable assistant tests:** one execution snapshot per turn, unchanged request-id idempotency, deterministic multi-tool routing, fallback only before the first accepted provider event, no mid-stream or later-iteration model switch, completion/failure lifecycle, and settings changes applying only to subsequent turns.
+- **Settings API tests:** member/admin/cross-org access, composite tenant scoping, route/deployment compatibility, atomic replace-all reordering, contiguous target positions, primary/platform-default/deployment uniqueness, nonempty routes, referenced-connection/deployment deletion, credential non-disclosure, rate-limited probes, and audit events.
+- **Migration assertions:** RLS and grants for all new tables and expanded `ai_usage_log`, composite foreign keys, route-target uniqueness, credential isolation, nullable actor links with durable audit subjects, nullable non-user invocation actors, and idempotent migration behavior.
 - **Credential tests:** authenticated encryption, tamper detection, key-version rotation, redaction, and no secret serialization.
 - **Provider-neutral surface tests:** every client-facing surface supplies an explicit workload and organization scope when available and imports no provider SDK.
-- **Tool safety tests:** user capabilities remain authoritative; experimental deployments default read-only; irreversible tools require their configured confirmation boundary.
+- **Tool safety tests:** user capabilities remain authoritative; deployments without current passing assistant evidence default read-only; irreversible tools require their configured confirmation boundary.
 - **Telemetry tests:** every invocation path records normalized success or failure metadata without prompts, responses, or secrets.
 
 Every migration change is followed by `npm run db:types:generate` and `npm run verify:migrations`. Focused repository, RLS, durable-turn, and provider-neutrality contracts run alongside the normal verification suite.
@@ -529,7 +553,10 @@ provider-neutral invocation event and projects the fields representable by the
 current `ai_usage_log`; the Phase 1 product increment remains the single
 canonical migration that expands invocation/turn storage and adds connection,
 deployment, and route tables. This avoids a temporary schema that would be
-immediately replaced.
+immediately replaced. Because the Phase 0 table requires `user_id`, its
+compatibility recorder deliberately skips actor-less platform invocations.
+Phase 1 removes that projection limit by making `user_id` nullable and persists
+those invocations with an explicit platform scope.
 
 ### Phase 1 — organization-managed OpenRouter
 
@@ -557,8 +584,8 @@ No Phase 2 connector requires new route, deployment, or credential tables.
 - Adding another connector does not change product surfaces or canonical schema.
 - OpenRouter routing cannot select a disallowed inference provider, fallback, retention policy, or region.
 - Configured organization routes never silently consume the platform credential.
-- Experimental deployments do not receive mutation tools by default.
-- Every invocation is attributable to workload, organization, connection, deployment, connector, and resolved provider when available.
+- Deployments without current passing verification evidence for the assistant workload do not receive mutation tools by default.
+- Every Phase 1 invocation emits a normalized, content-free record attributable to its workload and explicit organization or platform scope; actor, connection, deployment, and resolved provider are recorded when they exist rather than fabricated for platform-only work. The Phase 1 sink accepts actor-less records, and persistence failures remain observable without replacing a successful model result.
 - Every durable assistant turn snapshots one execution plan while preserving atomic `begin_ai_turn`, `complete_ai_turn`, and `fail_ai_turn` semantics.
 - Pre-organization onboarding and platform-only workloads have explicit, tested default behavior.
 - Credentials remain unreadable to authenticated users, absent from logs and responses, rotatable, and auditable.

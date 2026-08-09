@@ -1,7 +1,7 @@
 # Organization-Controlled AI Runtime — Phase 1 Implementation Plan
 
 **Date:** 2026-08-09
-**Status:** In progress
+**Status:** Complete
 **Branch:** `codex/org-ai-runtime-phase1`
 **Design:** [Organization-Controlled AI Runtime](../specs/2026-08-08-org-model-selection-design.md)
 **Prerequisite:** Phase 0 and the 2026-08-09 design-review corrections are merged into local `main`.
@@ -130,3 +130,23 @@ Official references:
 - Provider-backed tests/evaluations are rate-limited and audited.
 - Builder behavior is unchanged.
 - Migrations, generated types, focused contracts, full unit suite, lint, hygiene, and production build pass with a clean worktree.
+
+## Completion record
+
+Completed on 2026-08-09 on `codex/org-ai-runtime-phase1`.
+
+- Organization-managed OpenRouter credentials use tenant-bound AES-256-GCM envelopes and independent versioned HMAC fingerprints. Credential storage remains service-only and browser responses expose only a display hint.
+- Organization admins can create, test, rotate, disable, and remove connections; create and evaluate curated deployments; configure ordered per-workload routes; explicitly opt into platform-funded fallback; and inspect a 30-day metadata-only usage summary.
+- The gateway resolves asynchronously, snapshots complete ordered targets and policy, binds the snapshot once to durable assistant turns, records every target attempt, and permits fallback only before a result or first stream event is accepted.
+- Assistant deployments without current passing assistant evidence receive read-only tools unless an administrator explicitly accepts experimental mutation-tool use. The shipped catalog intentionally makes no passing verification claims until live evaluation artifacts exist.
+- OpenRouter request/response, strict structured output, tool calls, SSE streaming, provider preferences, usage, cancellation, and error normalization are covered by provider-neutral contracts.
+
+Validation completed:
+
+- clean local migration reset and behavior assertions;
+- generated database type drift check;
+- 2,694-test full suite (2,688 passing and 6 expected live-test skips after the one surfaced brand check was corrected and rerun);
+- TypeScript and lint gates (441 existing warnings under the 442-warning ratchet); and
+- optimized production build.
+
+The worktree contained concurrent notification, dashboard, upload, and backlog edits during implementation. Those changes were preserved and excluded from the Phase 1 commits, so a literally clean worktree was not used as a completion signal.

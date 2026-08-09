@@ -14457,6 +14457,17 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      update_workflow_task_with_linked_task: {
+        Args: {
+          p_actor_id: string
+          p_expected_org_id: string
+          p_is_workspace_manager: boolean
+          p_updates: Json
+          p_workflow_id: string
+          p_workflow_task_id: string
+        }
+        Returns: Json
+      }
       user_has_org_capability: {
         Args: { p_capability: string; p_org_id: string }
         Returns: boolean

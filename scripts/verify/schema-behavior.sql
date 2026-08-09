@@ -356,6 +356,189 @@ BEGIN
 END;
 $$;
 
+-- A workflow step, its linked platform task, its audit event, and the parent
+-- workflow completion state must commit or roll back as one operation.
+INSERT INTO public.workflow_instances (
+  id, org_id, name, workflow_type, status, created_by
+) VALUES
+  (
+    '85000000-0000-0000-0000-000000000001',
+    '20000000-0000-0000-0000-000000000001',
+    'Workflow atomic success',
+    'custom',
+    'active',
+    '10000000-0000-0000-0000-000000000001'
+  ),
+  (
+    '85000000-0000-0000-0000-000000000002',
+    '20000000-0000-0000-0000-000000000001',
+    'Workflow atomic rollback',
+    'custom',
+    'active',
+    '10000000-0000-0000-0000-000000000001'
+  );
+
+INSERT INTO public.tasks (
+  id, org_id, title, status, source, assigned_to, created_by
+) VALUES
+  (
+    '86000000-0000-0000-0000-000000000001',
+    '20000000-0000-0000-0000-000000000001',
+    'Workflow success task',
+    'open',
+    'template',
+    '10000000-0000-0000-0000-000000000001',
+    '10000000-0000-0000-0000-000000000001'
+  ),
+  (
+    '86000000-0000-0000-0000-000000000002',
+    '20000000-0000-0000-0000-000000000001',
+    'Workflow rollback task',
+    'open',
+    'template',
+    '10000000-0000-0000-0000-000000000001',
+    '10000000-0000-0000-0000-000000000001'
+  );
+
+INSERT INTO public.workflow_tasks (
+  id, workflow_id, task_id, step_id, name, status, is_required
+) VALUES
+  (
+    '87000000-0000-0000-0000-000000000001',
+    '85000000-0000-0000-0000-000000000001',
+    '86000000-0000-0000-0000-000000000001',
+    'success',
+    'Atomic success',
+    'pending',
+    true
+  ),
+  (
+    '87000000-0000-0000-0000-000000000002',
+    '85000000-0000-0000-0000-000000000002',
+    '86000000-0000-0000-0000-000000000002',
+    'rollback',
+    'Atomic rollback',
+    'pending',
+    true
+  );
+
+SELECT public.update_workflow_task_with_linked_task(
+  '20000000-0000-0000-0000-000000000001',
+  '85000000-0000-0000-0000-000000000001',
+  '87000000-0000-0000-0000-000000000001',
+  '10000000-0000-0000-0000-000000000001',
+  false,
+  '{"status":"completed","outcome":"pass","outcome_notes":"Verified"}'::jsonb
+);
+
+DO $$
+BEGIN
+  IF (SELECT status FROM public.workflow_tasks
+      WHERE id = '87000000-0000-0000-0000-000000000001') <> 'completed'
+     OR (SELECT completed_by FROM public.workflow_tasks
+         WHERE id = '87000000-0000-0000-0000-000000000001')
+        IS DISTINCT FROM '10000000-0000-0000-0000-000000000001'::uuid
+     OR (SELECT status FROM public.tasks
+         WHERE id = '86000000-0000-0000-0000-000000000001') <> 'completed'
+     OR (SELECT status FROM public.workflow_instances
+         WHERE id = '85000000-0000-0000-0000-000000000001') <> 'completed'
+     OR NOT EXISTS (
+       SELECT 1 FROM public.task_events
+       WHERE task_id = '86000000-0000-0000-0000-000000000001'
+         AND actor_id = '10000000-0000-0000-0000-000000000001'
+         AND event_type = 'completed'
+     ) THEN
+    RAISE EXCEPTION 'workflow task synchronization atomic success contract failed';
+  END IF;
+END;
+$$;
+
+DO $$
+BEGIN
+  BEGIN
+    PERFORM public.update_workflow_task_with_linked_task(
+      '20000000-0000-0000-0000-000000000001',
+      '85000000-0000-0000-0000-000000000002',
+      '87000000-0000-0000-0000-000000000002',
+      'ffffffff-ffff-4fff-8fff-ffffffffffff',
+      false,
+      '{"status":"in_progress"}'::jsonb
+    );
+    RAISE EXCEPTION 'expected workflow task authorization failure';
+  EXCEPTION
+    WHEN insufficient_privilege THEN NULL;
+  END;
+
+  IF (SELECT status FROM public.workflow_tasks
+      WHERE id = '87000000-0000-0000-0000-000000000002') <> 'pending'
+     OR (SELECT status FROM public.tasks
+         WHERE id = '86000000-0000-0000-0000-000000000002') <> 'open'
+     OR EXISTS (
+       SELECT 1 FROM public.task_events
+       WHERE task_id = '86000000-0000-0000-0000-000000000002'
+     ) THEN
+    RAISE EXCEPTION 'workflow task authorization failure changed state';
+  END IF;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.schema_check_reject_workflow_task_event()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  IF NEW.task_id = '86000000-0000-0000-0000-000000000002'::uuid THEN
+    RAISE EXCEPTION 'forced workflow task event failure';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER schema_check_reject_workflow_task_event
+  BEFORE INSERT ON public.task_events
+  FOR EACH ROW EXECUTE FUNCTION public.schema_check_reject_workflow_task_event();
+
+DO $$
+BEGIN
+  BEGIN
+    PERFORM public.update_workflow_task_with_linked_task(
+      '20000000-0000-0000-0000-000000000001',
+      '85000000-0000-0000-0000-000000000002',
+      '87000000-0000-0000-0000-000000000002',
+      '10000000-0000-0000-0000-000000000001',
+      true,
+      '{"status":"completed","outcome":"pass"}'::jsonb
+    );
+    RAISE EXCEPTION 'expected forced workflow task event failure';
+  EXCEPTION
+    WHEN raise_exception THEN
+      IF SQLERRM <> 'forced workflow task event failure' THEN
+        RAISE;
+      END IF;
+  END;
+
+  IF (SELECT status FROM public.workflow_tasks
+      WHERE id = '87000000-0000-0000-0000-000000000002') <> 'pending'
+     OR (SELECT completed_at FROM public.workflow_tasks
+         WHERE id = '87000000-0000-0000-0000-000000000002') IS NOT NULL
+     OR (SELECT outcome FROM public.workflow_tasks
+         WHERE id = '87000000-0000-0000-0000-000000000002') IS NOT NULL
+     OR (SELECT status FROM public.tasks
+         WHERE id = '86000000-0000-0000-0000-000000000002') <> 'open'
+     OR (SELECT status FROM public.workflow_instances
+         WHERE id = '85000000-0000-0000-0000-000000000002') <> 'active'
+     OR EXISTS (
+       SELECT 1 FROM public.task_events
+       WHERE task_id = '86000000-0000-0000-0000-000000000002'
+     ) THEN
+    RAISE EXCEPTION 'workflow task synchronization rollback contract failed';
+  END IF;
+END;
+$$;
+
+DROP TRIGGER schema_check_reject_workflow_task_event ON public.task_events;
+DROP FUNCTION public.schema_check_reject_workflow_task_event();
+
 SELECT * FROM public.create_generated_letter(
   '30000000-0000-0000-0000-000000000001',
   '10000000-0000-0000-0000-000000000001',

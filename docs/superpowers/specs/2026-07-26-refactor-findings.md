@@ -225,6 +225,15 @@ which is beyond an API authorization boundary change.
 **Suggested follow-up (not scheduled):** Move the workflow-task, linked-task,
 workflow-instance, and task-event changes into one transactional database RPC.
 
+**Resolution (2026-08-09):** `update_workflow_task_with_linked_task` now locks
+the organization-scoped parent workflow, re-checks manager-or-assignee
+authorization, updates the workflow task and its linked platform task, records
+the task event, and completes the parent when its required steps are settled in
+one service-only database transaction. The scoped repository no longer performs
+direct writes or best-effort compensation. Clean-schema behavior assertions
+cover a successful assigned-member completion and a forced task-event failure
+that rolls the workflow task, linked task, audit history, and parent status back.
+
 ### 2026-08-01 — Phase 2, task jobs — run-log write failures are ignored
 
 **What happened:** `lib/api/repositories/task-jobs.ts` preserves the worker's

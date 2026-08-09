@@ -38,7 +38,9 @@ Do not create DDL just because one organization needs another field.
    parse responses themselves.
 6. Add provider-neutral tool definitions, a small executor under
    `lib/ai/assistant/executors/tools/`, and any elevated behavior to the
-   authenticated `AssistantToolCapabilities` repository boundary.
+   authenticated `AssistantToolCapabilities` repository boundary. Any new AI
+   invocation must use a stable workload and `lib/ai/runtime.ts`; module code
+   must not choose a provider, model, or credential.
 7. Preserve assistant durability: the chat route owns `ai_turns` request-ID
    idempotency, normalized `ai_messages`, and action persistence. A module tool
    must not create a parallel conversation store or bypass turn finalization.

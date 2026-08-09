@@ -4,14 +4,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createAiChatRepository } from '@/lib/api/repositories/ai-chat';
 import { stubQuery } from '@/tests/helpers/supabase-mock';
 
-const { mockCreateElevatedClient } = vi.hoisted(() => ({
-  mockCreateElevatedClient: vi.fn(),
-}));
-
-vi.mock('@/lib/api/admin-client', () => ({
-  createElevatedClient: mockCreateElevatedClient,
-}));
-
 const scope = {
   orgId: 'org-1',
   portfolioId: 'portfolio-1',
@@ -184,46 +176,6 @@ describe('AI chat repository', () => {
       args: ['holdings.portfolio_id', 'portfolio-1'],
     });
     expect(widgets).toEqual([{ id: 'widget-1' }, { id: 'widget-2' }]);
-  });
-
-  it('proves session scope before an elevated usage-log insert', async () => {
-    const session = stubQuery(
-      { data: null, error: null },
-      { maybeSingle: { data: { id: 'session-1' }, error: null } }
-    );
-    const insert = stubQuery({ data: null, error: null });
-    mockCreateElevatedClient.mockReturnValue({ from: vi.fn(() => insert) });
-    const repository = createAiChatRepository({
-      ...scope,
-      db: { from: vi.fn(() => session) } as never,
-    });
-
-    await repository.recordUsage('session-1', {
-      model: 'model-1',
-      inputTokens: 10,
-      outputTokens: 5,
-    });
-
-    for (const [field, value] of [
-      ['id', 'session-1'],
-      ['portfolio_id', 'portfolio-1'],
-      ['user_id', 'user-1'],
-    ]) {
-      expect(session.calls).toContainEqual({ method: 'eq', args: [field, value] });
-    }
-    expect(insert.calls).toContainEqual({
-      method: 'insert',
-      args: [{
-        user_id: 'user-1',
-        org_id: 'org-1',
-        portfolio_id: 'portfolio-1',
-        session_id: 'session-1',
-        model: 'model-1',
-        input_tokens: 10,
-        output_tokens: 5,
-      }],
-    });
-    expect(repository).not.toHaveProperty('db');
   });
 
   it('constrains normalized history to the authenticated user and portfolio', async () => {

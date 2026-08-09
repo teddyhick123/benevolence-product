@@ -1,8 +1,7 @@
 // app/api/portfolio/[id]/letter/generate/route.ts
 import { NextResponse } from 'next/server';
 import { aiAuthRequired } from '@/lib/rate-limit-response';
-import { AI_MODELS } from '@/lib/ai/models';
-import { generateText } from '@/lib/ai/text';
+import { generateTextForWorkload } from '@/lib/ai/runtime';
 import { isAccessDenied, requirePortfolioAccess } from '@/lib/api/access';
 import { createGeneratedDocumentsRepository } from '@/lib/api/repositories/generated-documents';
 
@@ -183,10 +182,17 @@ ${totalHoldings > 10 ? `... and ${totalHoldings - 10} more holdings` : ''}
 `;
 
     // 6. Generate letter content using the configured AI provider
-    const generatedLetter = await generateText({
-      model: AI_MODELS.assistant,
-      maxTokens: 2000,
-      system: `You are a portfolio manager who crafts compelling letters on the state of impact investments and charitable contributions from portfolio data.
+    const { text: generatedLetter } = await generateTextForWorkload({
+      workloadId: 'letters',
+      scope: {
+        kind: 'organization',
+        orgId: access.context.orgId,
+        actorId: access.context.principal.userId,
+        portfolioId: portfolio_id,
+      },
+      request: {
+        maxOutputTokens: 2000,
+        system: `You are a portfolio manager who crafts compelling letters on the state of impact investments and charitable contributions from portfolio data.
 
 WRITING STYLE:
 - Balance clear communication of information with a compelling style
@@ -208,7 +214,11 @@ INTEGRATION OF VISUALIZATIONS:
 - Reference that "the dashboard shows" or "as illustrated in the portfolio overview" when mentioning data trends
 - Mention that specific metrics "can be explored in detail on the holdings pages"
 - Suggest that stakeholders "review the visualization tools to track progress over time"`,
-      prompt: `Generate a portfolio letter based on the following data:\n\n${portfolioContext}`,
+        messages: [{
+          role: 'user',
+          content: `Generate a portfolio letter based on the following data:\n\n${portfolioContext}`,
+        }],
+      },
     });
 
     const generatedAt = new Date().toISOString();

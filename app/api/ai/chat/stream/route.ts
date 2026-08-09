@@ -150,11 +150,6 @@ export async function POST(req: NextRequest) {
         });
         let finalMessage = '';
         let finalActions: any[] = [];
-        let finalUsage: {
-          model: string;
-          inputTokens: number;
-          outputTokens: number;
-        } | null = null;
         let terminalChunk: string | null = null;
 
         for await (const chunk of streamGenerator) {
@@ -163,7 +158,6 @@ export async function POST(req: NextRequest) {
             if (parsed.type === 'done') {
               finalMessage = parsed.message;
               finalActions = parsed.actions ?? [];
-              finalUsage = parsed.usage ?? null;
               terminalChunk = chunk;
               continue;
             }
@@ -176,15 +170,6 @@ export async function POST(req: NextRequest) {
         if (orgId) {
           const month = new Date().toISOString().slice(0, 7);
           redis.incr(`usage:ai:${orgId}:${month}`).catch(() => {});
-        }
-
-        if (
-          finalUsage &&
-          (finalUsage.inputTokens > 0 || finalUsage.outputTokens > 0)
-        ) {
-          repository.recordUsage(sessionId, finalUsage).catch((error) => {
-            console.error('[ai/chat/stream] usage log insert failed:', error);
-          });
         }
 
         const widgetActions = finalActions.filter(

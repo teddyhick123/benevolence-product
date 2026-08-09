@@ -3,8 +3,7 @@ import { NextResponse } from 'next/server';
 import { isAccessDenied, requireHoldingAccess } from '@/lib/api/access';
 import { getOrganization } from '@/lib/services/propublica';
 import { aiAuthRequired } from '@/lib/rate-limit-response';
-import { AI_MODELS } from '@/lib/ai/models';
-import { generateText } from '@/lib/ai/text';
+import { generateTextForWorkload } from '@/lib/ai/runtime';
 import { aiLimiter } from '@/lib/rate-limit';
 import { rateLimitExceeded } from '@/lib/rate-limit-response';
 import { getHoldingCharityLink, toCharityResponseAliases } from '@/lib/holdings/charities';
@@ -137,11 +136,22 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     const financialContext = buildFinancialContext(charityView, filings);
 
     // Generate analysis using the configured AI provider
-    const analysisContent = await generateText({
-      model: AI_MODELS.assistant,
-      maxTokens: 1500,
-      system: FINANCIAL_ANALYSIS_SYSTEM_PROMPT,
-      prompt: `Analyze the financial health of the following nonprofit organization:\n\n${financialContext}`,
+    const { text: analysisContent } = await generateTextForWorkload({
+      workloadId: 'financial_profile',
+      scope: {
+        kind: 'organization',
+        orgId: access.context.orgId,
+        actorId: access.context.principal.userId,
+        portfolioId: access.context.portfolioId,
+      },
+      request: {
+        maxOutputTokens: 1500,
+        system: FINANCIAL_ANALYSIS_SYSTEM_PROMPT,
+        messages: [{
+          role: 'user',
+          content: `Analyze the financial health of the following nonprofit organization:\n\n${financialContext}`,
+        }],
+      },
     });
 
     const generatedAt = new Date().toISOString();

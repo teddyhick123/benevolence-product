@@ -3,6 +3,7 @@
 
 import { callAI } from './client';
 import type { ReconciliationReport } from '../reconciler';
+import type { AIExecutionScope } from '@/lib/ai/execution';
 
 const RECONCILE_SYSTEM = `You are a data integrity analyst specializing in philanthropic software migrations.
 
@@ -70,7 +71,8 @@ interface RawAnalysis {
 
 export async function analyzeReconciliation(
   report: ReconciliationReport,
-  sampleMismatches?: Array<{ staging: Record<string, unknown>; production: Record<string, unknown> }>
+  sampleMismatches: Array<{ staging: Record<string, unknown>; production: Record<string, unknown> }> | undefined,
+  scope: AIExecutionScope,
 ): Promise<ReconciliationAnalysis> {
   const userPrompt = JSON.stringify(
     {
@@ -82,6 +84,7 @@ export async function analyzeReconciliation(
   );
 
   const raw = await callAI(RECONCILE_SYSTEM, userPrompt, {
+    scope,
     maxTokens: 2048,
     temperature: 0.1,
   });

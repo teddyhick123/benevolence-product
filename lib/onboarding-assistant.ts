@@ -12,11 +12,9 @@ import type { SupabaseClient } from '@/lib/database-client';
 import type { ModuleId } from './modules/registry';
 import { MODULE_REGISTRY } from './modules/registry';
 import { branding } from './config';
-import { createAIProvider } from '@/lib/ai/factory';
-import { AI_MODELS } from '@/lib/ai/models';
 import type { AIContentBlock, AIMessage, ToolDefinition } from '@/lib/ai/types';
-import type { AIProvider } from '@/lib/ai/provider';
 import { extractText } from '@/lib/ai/text';
+import { createAIExecutionGateway } from '@/lib/ai/runtime';
 import type { OrgType } from '@/lib/types/org';
 
 // Types for onboarding data structures
@@ -348,11 +346,9 @@ When you detect pain points, map them to relevant modules:
  * OnboardingAssistant class for handling onboarding conversations
  */
 export class OnboardingAssistant {
-  private provider: AIProvider;
   private supabase: SupabaseClient;
 
   constructor(supabase: SupabaseClient) {
-    this.provider = createAIProvider();
     this.supabase = supabase;
   }
 
@@ -362,6 +358,7 @@ export class OnboardingAssistant {
   async chat(params: {
     sessionId: string;
     userId: string;
+    orgId?: string;
     message: string;
     quickIntake: QuickIntake;
     conversationHistory?: Array<{ role: 'user' | 'assistant'; content: string }>;
@@ -369,7 +366,8 @@ export class OnboardingAssistant {
   }) {
     const {
       sessionId,
-      userId: _userId,
+      userId,
+      orgId,
       message,
       quickIntake,
       conversationHistory = [],
@@ -408,13 +406,19 @@ export class OnboardingAssistant {
 
     let textContent = '';
     const MAX_TOOL_TURNS = 4;
+    const gateway = createAIExecutionGateway({
+      kind: orgId ? 'organization' : 'platform',
+      orgId,
+      actorId: userId,
+      sessionId,
+    });
+    const executionPlan = gateway.resolve('onboarding');
 
     // A model may need more than one tool round before it has enough persisted
     // context to give the user a useful reply. Keep its full tool transcript.
     for (let turn = 0; turn < MAX_TOOL_TURNS; turn++) {
-      const response = await this.provider.createMessage({
-        model: AI_MODELS.assistant,
-        maxTokens: 2048,
+      const response = await gateway.runToolConversation(executionPlan, {
+        maxOutputTokens: 2048,
         system: systemPrompt,
         tools: ONBOARDING_TOOLS,
         messages: currentMessages,

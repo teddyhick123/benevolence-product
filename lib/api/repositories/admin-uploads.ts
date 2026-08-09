@@ -337,6 +337,12 @@ function createScopedUploadIngestionRepository(scope: {
       const parsed = await parseDocument(buffer, fileName);
       if (!parsed.text.trim()) throw new Error('No text content extracted from document');
       const extraction = await extractFactsFromText(parsed.text, {
+        scope: {
+          kind: 'organization',
+          orgId: upload.org_id,
+          actorId: scope.actorId,
+          portfolioId: upload.portfolio_id,
+        },
         restrictedMetrics: upload.ai_mode ? undefined : upload.selected_metrics ?? undefined,
         holdingId: upload.holding_id,
       });
@@ -365,6 +371,12 @@ function createScopedUploadIngestionRepository(scope: {
       if (!chunk.text.trim()) continue;
       try {
         const extraction = await extractFactsFromText(chunk.text, {
+          scope: {
+            kind: 'organization',
+            orgId: upload.org_id,
+            actorId: scope.actorId,
+            portfolioId: upload.portfolio_id,
+          },
           restrictedMetrics: upload.ai_mode ? undefined : upload.selected_metrics ?? undefined,
           holdingId: upload.holding_id,
         });

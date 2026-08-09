@@ -118,6 +118,12 @@ export async function GET(
     .not('matched_charity_id', 'is', null);
 
   const reportParams: ReportParams = {
+    scope: {
+      kind: 'organization',
+      orgId: String(jobData.org_id),
+      actorId: access.context.user.id,
+      portfolioId: (jobData.portfolio_id as string | null) ?? undefined,
+    },
     jobName: (jobData.name as string) ?? 'Untitled Import',
     portfolioName: (jobData.portfolio_id as string) ?? 'Your Organization',
     sourceSystem: (jobData.source_type as string) ?? 'Legacy System',

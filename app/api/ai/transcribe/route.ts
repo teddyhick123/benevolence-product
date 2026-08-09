@@ -26,7 +26,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'No audio file provided' }, { status: 400 });
     }
 
-    const text = await transcribeAudio(audioFile);
+    const text = await transcribeAudio(audioFile, {
+      kind: 'platform',
+      actorId: access.context.user.id,
+    });
 
     return NextResponse.json({
       text,

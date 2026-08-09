@@ -2,6 +2,7 @@
 // AI-powered fix suggestions for individual rows with validation errors
 
 import { callAI } from './client';
+import type { AIExecutionScope } from '@/lib/ai/execution';
 
 const VALIDATE_ROW_SYSTEM = `You are a data quality specialist for philanthropic software. Analyze a single row that failed validation and suggest intelligent fixes.
 
@@ -47,6 +48,7 @@ export interface AISuggestion {
 }
 
 export async function suggestRowFixes(params: {
+  scope: AIExecutionScope;
   entityType: string;
   rawData: Record<string, string>;
   transformedData: Record<string, unknown> | null;
@@ -65,7 +67,10 @@ ${JSON.stringify(params.validationErrors, null, 2)}
 
 Suggest fixes for each validation error above.`;
 
-  const raw = await callAI(VALIDATE_ROW_SYSTEM, userPrompt, { maxTokens: 1024 });
+  const raw = await callAI(VALIDATE_ROW_SYSTEM, userPrompt, {
+    scope: params.scope,
+    maxTokens: 1024,
+  });
 
   try {
     const cleaned = raw.replace(/^```json\n?/, '').replace(/\n?```$/, '').trim();

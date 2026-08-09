@@ -1,26 +1,14 @@
-import OpenAI from 'openai';
+import type { AIExecutionScope } from '@/lib/ai/execution';
+import { createAIExecutionGateway } from '@/lib/ai/runtime';
 
-export async function transcribeAudio(file: File): Promise<string> {
-  const provider = process.env.TRANSCRIPTION_PROVIDER ?? 'openai';
-
-  switch (provider) {
-    case 'openai': {
-      const apiKey = process.env.OPENAI_API_KEY;
-      if (!apiKey) {
-        throw new Error('Transcription provider is not configured');
-      }
-
-      const openai = new OpenAI({ apiKey });
-      const transcription = await openai.audio.transcriptions.create({
-        file,
-        model: process.env.TRANSCRIPTION_MODEL ?? 'whisper-1',
-        language: 'en',
-        response_format: 'json',
-      });
-
-      return transcription.text;
-    }
-    default:
-      throw new Error(`Unsupported transcription provider: ${provider}`);
-  }
+export async function transcribeAudio(
+  file: File,
+  scope: AIExecutionScope,
+): Promise<string> {
+  const gateway = createAIExecutionGateway(scope);
+  const result = await gateway.transcribe(gateway.resolve('transcription'), {
+    file,
+    language: 'en',
+  });
+  return result.text;
 }

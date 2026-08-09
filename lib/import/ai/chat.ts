@@ -3,6 +3,7 @@
 
 import { branding } from '@/lib/config';
 import { callAIStreaming } from './client';
+import type { AIExecutionScope } from '@/lib/ai/execution';
 
 const CHAT_SYSTEM = `You are the ${branding.appName} Migration Copilot — an expert AI assistant helping clients migrate their philanthropic data from Blackbaud, Salesforce NPSP, or DonorPerfect to ${branding.appName}.
 
@@ -50,6 +51,7 @@ export interface ChatAction {
 }
 
 export interface StreamMigrationChatParams {
+  scope: AIExecutionScope;
   importJobId: string;
   message: string;
   history: ChatMessage[];
@@ -65,7 +67,7 @@ export interface StreamMigrationChatParams {
 
 export async function streamMigrationChat(
   params: StreamMigrationChatParams,
-  onChunk: (text: string) => void
+  onChunk: (_text: string) => void
 ): Promise<{ fullResponse: string; actions: ChatAction[] }> {
   const { importJobId, message, history, jobContext } = params;
 
@@ -117,7 +119,7 @@ ${historyText}User: ${message}`;
       // Strip action blocks from streamed text so UI doesn't show raw JSON
       onChunk(chunk);
     },
-    { maxTokens: 1024 }
+    { scope: params.scope, maxTokens: 1024 }
   );
 
   // Parse [ACTIONS]...[/ACTIONS] block

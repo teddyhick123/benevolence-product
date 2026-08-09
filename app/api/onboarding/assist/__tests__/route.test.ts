@@ -5,14 +5,15 @@ const { mockRequireUserAccess } = vi.hoisted(() => ({
   mockRequireUserAccess: vi.fn(),
 }));
 
-vi.mock('@/lib/ai/factory', () => ({
-  createAIProvider: vi.fn(() => ({
-    createMessage: vi.fn().mockResolvedValue({
+vi.mock('@/lib/ai/runtime', () => ({
+  generateOnboardingText: vi.fn().mockResolvedValue({
+    text: 'This is a helpful explanation.',
+    response: {
       content: [{ type: 'text', text: 'This is a helpful explanation.' }],
       stopReason: null,
       model: 'test-model',
-    }),
-  })),
+    },
+  }),
 }));
 
 vi.mock('@/lib/api/access', () => ({
@@ -22,7 +23,6 @@ vi.mock('@/lib/api/access', () => ({
 
 beforeEach(() => {
   vi.clearAllMocks();
-  process.env.AI_PROVIDER = 'test';
   mockRequireUserAccess.mockResolvedValue({
     ok: true,
     context: {

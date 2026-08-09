@@ -32,7 +32,7 @@
     "audit:deps": "depcheck --config .depcheckrc.json",
     "verify:hygiene": "npm run audit:dead && npm run audit:deps",
     "verify:types": "node --max-old-space-size=8192 node_modules/typescript/bin/tsc --noEmit",
-    "verify:lint": "eslint . --ext .js,.jsx,.ts,.tsx --max-warnings=446",
+    "verify:lint": "eslint . --ext .js,.jsx,.ts,.tsx --max-warnings=442",
     "verify:unit": "vitest run",
     "verify:migrations": "supabase db reset && bash scripts/verify/migrations-assert.sh",
     "verify:build": "next build"

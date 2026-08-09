@@ -59,7 +59,11 @@ export async function POST(
     production: { note: 'No matching record found in contributions_received' },
   }));
 
-  const analysis = await analyzeReconciliation(report, sampleMismatches);
+  const analysis = await analyzeReconciliation(report, sampleMismatches, {
+    kind: 'organization',
+    orgId: job.org_id,
+    actorId: access.context.user.id,
+  });
 
   // Store AI analysis in reconciliation_data
   const updatedReconciliation = {

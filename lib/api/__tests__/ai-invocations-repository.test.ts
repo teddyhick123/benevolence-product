@@ -14,8 +14,8 @@ vi.mock('@/lib/api/admin-client', () => ({
 
 beforeEach(() => vi.clearAllMocks());
 
-describe('AI invocation recorder Phase 0 projection', () => {
-  it('writes only compatible non-content usage metadata', async () => {
+describe('AI invocation recorder', () => {
+  it('writes the complete content-free provider-neutral record', async () => {
     const query = stubQuery({ data: null, error: null });
     mockCreateElevatedClient.mockReturnValue({ from: vi.fn(() => query) });
     await createAIInvocationRecorder()({
@@ -38,23 +38,41 @@ describe('AI invocation recorder Phase 0 projection', () => {
       completedAt: '2026-08-08T00:00:01.000Z',
       latencyMs: 1000,
       status: 'succeeded',
+      targetPosition: 0,
+      policy: {},
+      policyHash: 'policy-hash',
     });
 
     expect(query.calls).toContainEqual({
       method: 'insert',
-      args: [{
+      args: [expect.objectContaining({
+        id: 'invocation-1',
         user_id: 'user-1',
         org_id: 'org-1',
         portfolio_id: 'portfolio-1',
         session_id: 'session-1',
-        model: 'resolved-model',
+        turn_id: 'turn-1',
+        scope_kind: 'organization',
+        workload_id: 'assistant',
+        operation: 'tool_conversation',
+        connector: 'anthropic',
+        requested_model: 'requested-model',
+        resolved_model: 'resolved-model',
         input_tokens: 10,
         output_tokens: 5,
-      }],
+        target_position: 0,
+        policy_snapshot: {},
+        policy_hash: 'policy-hash',
+        status: 'succeeded',
+      })],
     });
+    expect(JSON.stringify(query.calls)).not.toContain('prompt');
+    expect(JSON.stringify(query.calls)).not.toContain('response');
   });
 
-  it('does not construct elevated access for an unrepresentable actor', async () => {
+  it('persists actor-less platform invocations', async () => {
+    const query = stubQuery({ data: null, error: null });
+    mockCreateElevatedClient.mockReturnValue({ from: vi.fn(() => query) });
     await createAIInvocationRecorder()({
       id: 'invocation-1',
       workloadId: 'transcription',
@@ -66,7 +84,19 @@ describe('AI invocation recorder Phase 0 projection', () => {
       completedAt: '2026-08-08T00:00:01.000Z',
       latencyMs: 1000,
       status: 'succeeded',
+      targetPosition: 0,
+      policy: {},
+      policyHash: 'policy-hash',
     });
-    expect(mockCreateElevatedClient).not.toHaveBeenCalled();
+    expect(mockCreateElevatedClient).toHaveBeenCalledOnce();
+    expect(query.calls).toContainEqual({
+      method: 'insert',
+      args: [expect.objectContaining({
+        user_id: null,
+        org_id: null,
+        scope_kind: 'platform',
+        connector: 'transcription_platform',
+      })],
+    });
   });
 });

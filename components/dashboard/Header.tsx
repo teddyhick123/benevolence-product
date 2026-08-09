@@ -233,6 +233,13 @@ function HeaderContent() {
               >
                 Integrations
               </Link>
+              <Link
+                href="/dashboard/settings/ai"
+                aria-current={pathname.startsWith('/dashboard/settings/ai') ? 'page' : undefined}
+                className={navLinkClass}
+              >
+                AI Models
+              </Link>
               {canAccessBuilderStudio && (
                 <Link
                   href="/builder-studio"
@@ -352,6 +359,13 @@ function HeaderContent() {
               className={mobileNavLinkClass}
             >
               Integrations
+            </Link>
+            <Link
+              href="/dashboard/settings/ai"
+              aria-current={pathname.startsWith('/dashboard/settings/ai') ? 'page' : undefined}
+              className={mobileNavLinkClass}
+            >
+              AI Models
             </Link>
             {canAccessBuilderStudio && (
               <Link

@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { AIConnector, AIInvocationRecord } from '@/lib/ai/execution';
 import { AIExecutionError } from '@/lib/ai/execution';
 import { AIExecutionGateway } from '@/lib/ai/gateway';
+import { resolveAIExecution } from '@/lib/ai/resolver';
 
 const scope = {
   kind: 'organization' as const,
@@ -34,6 +35,7 @@ function gateway(aiConnector: AIConnector, records: AIInvocationRecord[]) {
   return new AIExecutionGateway(scope, {
     connector: () => aiConnector,
     recorder: async (record) => { records.push(record); },
+    resolver: async (executionScope, workloadId) => resolveAIExecution(executionScope, workloadId),
     now: vi.fn().mockReturnValueOnce(1_000).mockReturnValueOnce(1_125),
   });
 }
@@ -42,7 +44,7 @@ describe('AI execution gateway', () => {
   it('records normalized metadata without request or response content', async () => {
     const records: AIInvocationRecord[] = [];
     const runtime = gateway(connector(), records);
-    const result = await runtime.generateText(runtime.resolve('summaries'), {
+    const result = await runtime.generateText(await runtime.resolve('summaries'), {
       messages: [{ role: 'user', content: 'private prompt' }],
     });
 
@@ -72,7 +74,7 @@ describe('AI execution gateway', () => {
     );
 
     await expect(
-      runtime.generateText(runtime.resolve('summaries'), {
+      runtime.generateText(await runtime.resolve('summaries'), {
         messages: [{ role: 'user', content: 'hello' }],
       }),
     ).rejects.toMatchObject({ code: 'rate_limited' });
@@ -89,11 +91,12 @@ describe('AI execution gateway', () => {
     const runtime = new AIExecutionGateway(scope, {
       connector: () => connector(),
       recorder: vi.fn().mockRejectedValue(new Error('telemetry unavailable')),
+      resolver: async (executionScope, workloadId) => resolveAIExecution(executionScope, workloadId),
       onRecorderError,
     });
 
     await expect(
-      runtime.generateText(runtime.resolve('summaries'), {
+      runtime.generateText(await runtime.resolve('summaries'), {
         messages: [{ role: 'user', content: 'hello' }],
       }),
     ).resolves.toMatchObject({ text: 'answer' });
@@ -111,7 +114,7 @@ describe('AI execution gateway', () => {
     const runtime = gateway(connector({ generateText }), records);
 
     await expect(
-      runtime.generateText(runtime.resolve('summaries'), {
+      runtime.generateText(await runtime.resolve('summaries'), {
         messages: [{ role: 'user', content: 'hello' }],
         signal: controller.signal,
       }),
@@ -130,7 +133,7 @@ describe('AI execution gateway', () => {
       );
     }));
     const runtime = gateway(connector({ generateText }), records);
-    const plan = { ...runtime.resolve('summaries'), timeoutMs: 1 };
+    const plan = { ...await runtime.resolve('summaries'), timeoutMs: 1 };
 
     await expect(
       runtime.generateText(plan, { messages: [{ role: 'user', content: 'hello' }] }),
@@ -160,7 +163,7 @@ describe('AI execution gateway', () => {
     );
     const chunks = [];
     for await (const chunk of runtime.streamToolConversation(
-      runtime.resolve('assistant'),
+      await runtime.resolve('assistant'),
       { messages: [{ role: 'user', content: 'hello' }], tools: [] },
     )) {
       chunks.push(chunk);
@@ -175,11 +178,80 @@ describe('AI execution gateway', () => {
     });
   });
 
-  it('rejects organization execution without an organization id', () => {
+  it('falls back only for an eligible failure and records each target', async () => {
+    const records: AIInvocationRecord[] = [];
+    const primary = connector({
+      generateText: vi.fn().mockRejectedValue(
+        new AIExecutionError('deployment_unavailable', 'unavailable'),
+      ),
+    });
+    const fallback = connector();
+    const runtime = new AIExecutionGateway(scope, {
+      connector: plan => plan.targetPosition === 0 ? primary : fallback,
+      recorder: async record => { records.push(record); },
+      resolver: async (executionScope, workloadId) => {
+        const base = resolveAIExecution(executionScope, workloadId);
+        return {
+          ...base,
+          policy: { fallbackOn: ['deployment_unavailable'] },
+          targets: [
+            base.targets[0],
+            { ...base.targets[0], position: 1 },
+          ],
+        };
+      },
+    });
+    const plan = await runtime.resolve('summaries');
+    await expect(runtime.generateText(plan, {
+      messages: [{ role: 'user', content: 'hello' }],
+    })).resolves.toMatchObject({ text: 'answer' });
+    expect(records.map(record => [record.targetPosition, record.status])).toEqual([
+      [0, 'failed'],
+      [1, 'succeeded'],
+    ]);
+  });
+
+  it('never falls back after the first stream event is accepted', async () => {
+    const records: AIInvocationRecord[] = [];
+    async function* partialFailure() {
+      yield { type: 'message_start' as const, model: 'primary' };
+      throw new AIExecutionError('deployment_unavailable', 'mid-stream');
+    }
+    const fallbackStream = vi.fn(async function* () {
+      yield { type: 'message_start' as const, model: 'fallback' };
+      yield { type: 'message_stop' as const, stopReason: 'end_turn' };
+    });
+    const runtime = new AIExecutionGateway(scope, {
+      connector: plan => connector({
+        streamToolConversation: plan.targetPosition === 0 ? partialFailure : fallbackStream,
+      }),
+      recorder: async record => { records.push(record); },
+      resolver: async (executionScope, workloadId) => {
+        const base = resolveAIExecution(executionScope, workloadId);
+        return {
+          ...base,
+          policy: { fallbackOn: ['deployment_unavailable'] },
+          targets: [base.targets[0], { ...base.targets[0], position: 1 }],
+        };
+      },
+    });
+    const plan = await runtime.resolve('assistant');
+    const consume = async () => {
+      for await (const _chunk of runtime.streamToolConversation(plan, {
+        messages: [{ role: 'user', content: 'hello' }],
+        tools: [],
+      })) { /* consume */ }
+    };
+    await expect(consume()).rejects.toMatchObject({ code: 'deployment_unavailable' });
+    expect(fallbackStream).not.toHaveBeenCalled();
+    expect(records).toHaveLength(1);
+  });
+
+  it('rejects organization execution without an organization id', async () => {
     const runtime = new AIExecutionGateway(
       { kind: 'organization', actorId: 'user-1' },
       { connector: () => connector(), recorder: async () => {} },
     );
-    expect(() => runtime.resolve('assistant')).toThrowError(AIExecutionError);
+    await expect(runtime.resolve('assistant')).rejects.toBeInstanceOf(AIExecutionError);
   });
 });

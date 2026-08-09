@@ -7,6 +7,13 @@ export const ORG_AUDIT_ACTIONS = {
   GRANT_PAYMENT_RECORDED: 'grant.payment_recorded',
   CONTRIBUTION_RECEIPT_GENERATED: 'contribution.receipt_generated',
   COMPLIANCE_990PF_EXPORTED: 'compliance.990pf_exported',
+  AI_CONNECTION_CREATED: 'ai.connection_created',
+  AI_CONNECTION_UPDATED: 'ai.connection_updated',
+  AI_CONNECTION_DELETED: 'ai.connection_deleted',
+  AI_CREDENTIAL_ROTATED: 'ai.credential_rotated',
+  AI_DEPLOYMENT_CREATED: 'ai.deployment_created',
+  AI_DEPLOYMENT_DELETED: 'ai.deployment_deleted',
+  AI_ROUTE_REPLACED: 'ai.route_replaced',
 } as const;
 
 export type OrgAuditAction = typeof ORG_AUDIT_ACTIONS[keyof typeof ORG_AUDIT_ACTIONS];

@@ -412,7 +412,7 @@ export class OnboardingAssistant {
       actorId: userId,
       sessionId,
     });
-    const executionPlan = gateway.resolve('onboarding');
+    const executionPlan = await gateway.resolve('onboarding');
 
     // A model may need more than one tool round before it has enough persisted
     // context to give the user a useful reply. Keep its full tool transcript.

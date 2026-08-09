@@ -136,6 +136,148 @@ CREATE TRIGGER set_org_ai_routes_updated_at
   BEFORE UPDATE ON public.org_ai_routes
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 
+-- Replace an entire ordered route in one transaction. The application validates
+-- workload, catalog, capability, and policy semantics before calling this RPC;
+-- this database boundary protects cross-row tenant and ordering invariants.
+CREATE OR REPLACE FUNCTION public.replace_org_ai_route(
+  p_org_id      uuid,
+  p_actor_id    uuid,
+  p_workload_id text,
+  p_policy      jsonb,
+  p_is_enabled  boolean,
+  p_targets     jsonb
+)
+RETURNS uuid
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_route_id uuid;
+  v_target_count integer;
+BEGIN
+  IF auth.role() IS DISTINCT FROM 'service_role' THEN
+    RAISE EXCEPTION 'Service role required' USING ERRCODE = '42501';
+  END IF;
+  IF p_workload_id IS NULL OR btrim(p_workload_id) = '' THEN
+    RAISE EXCEPTION 'Workload is required' USING ERRCODE = '22023';
+  END IF;
+  IF p_policy IS NULL OR jsonb_typeof(p_policy) IS DISTINCT FROM 'object' THEN
+    RAISE EXCEPTION 'Route policy must be an object' USING ERRCODE = '22023';
+  END IF;
+  IF p_targets IS NULL OR jsonb_typeof(p_targets) IS DISTINCT FROM 'array' THEN
+    RAISE EXCEPTION 'Route targets must be an array' USING ERRCODE = '22023';
+  END IF;
+
+  v_target_count := jsonb_array_length(p_targets);
+  IF v_target_count < 1 OR v_target_count > 10 THEN
+    RAISE EXCEPTION 'Route requires between one and ten targets' USING ERRCODE = '22023';
+  END IF;
+  IF EXISTS (
+    SELECT 1
+    FROM jsonb_array_elements(p_targets) AS target
+    WHERE target->>'kind' NOT IN ('deployment', 'platform_default')
+      OR (target->>'kind' = 'deployment' AND target->>'deploymentId' IS NULL)
+      OR (target->>'kind' = 'platform_default' AND target ? 'deploymentId')
+  ) THEN
+    RAISE EXCEPTION 'Route target shape is invalid' USING ERRCODE = '22023';
+  END IF;
+  IF (
+    SELECT count(*) FROM jsonb_array_elements(p_targets) AS target
+    WHERE target->>'kind' = 'platform_default'
+  ) > 1 THEN
+    RAISE EXCEPTION 'Platform default may appear only once' USING ERRCODE = '23505';
+  END IF;
+  IF EXISTS (
+    SELECT target->>'deploymentId'
+    FROM jsonb_array_elements(p_targets) AS target
+    WHERE target->>'kind' = 'deployment'
+    GROUP BY target->>'deploymentId'
+    HAVING count(*) > 1
+  ) THEN
+    RAISE EXCEPTION 'Deployment targets must be unique' USING ERRCODE = '23505';
+  END IF;
+  IF EXISTS (
+    SELECT 1
+    FROM jsonb_array_elements(p_targets) AS target
+    LEFT JOIN public.org_ai_deployments deployment
+      ON deployment.id = (target->>'deploymentId')::uuid
+     AND deployment.org_id = p_org_id
+    LEFT JOIN public.org_ai_connections connection
+      ON connection.id = deployment.connection_id
+     AND connection.org_id = p_org_id
+    WHERE target->>'kind' = 'deployment'
+      AND (
+        deployment.id IS NULL
+        OR deployment.status IS DISTINCT FROM 'active'
+        OR connection.status IS DISTINCT FROM 'active'
+      )
+  ) THEN
+    RAISE EXCEPTION 'Route contains an unavailable deployment' USING ERRCODE = '23503';
+  END IF;
+
+  SELECT id INTO v_route_id
+  FROM public.org_ai_routes
+  WHERE org_id = p_org_id AND workload_id = p_workload_id
+  FOR UPDATE;
+
+  IF v_route_id IS NULL THEN
+    INSERT INTO public.org_ai_routes (
+      org_id, workload_id, policy, is_enabled, created_by, updated_by
+    ) VALUES (
+      p_org_id, p_workload_id, p_policy, p_is_enabled, p_actor_id, p_actor_id
+    )
+    RETURNING id INTO v_route_id;
+  ELSE
+    UPDATE public.org_ai_routes
+    SET policy = p_policy,
+        is_enabled = p_is_enabled,
+        updated_by = p_actor_id
+    WHERE id = v_route_id AND org_id = p_org_id;
+  END IF;
+
+  DELETE FROM public.org_ai_route_targets
+  WHERE route_id = v_route_id AND org_id = p_org_id;
+
+  INSERT INTO public.org_ai_route_targets (
+    org_id, route_id, position, target_kind, deployment_id
+  )
+  SELECT
+    p_org_id,
+    v_route_id,
+    target.ordinality - 1,
+    target.value->>'kind',
+    CASE
+      WHEN target.value->>'kind' = 'deployment'
+        THEN (target.value->>'deploymentId')::uuid
+      ELSE NULL
+    END
+  FROM jsonb_array_elements(p_targets) WITH ORDINALITY AS target(value, ordinality);
+
+  INSERT INTO public.org_audit_log (
+    org_id, actor_id, actor_subject_id, action, target_id, metadata
+  ) VALUES (
+    p_org_id,
+    p_actor_id,
+    p_actor_id,
+    'ai.route_replaced',
+    v_route_id,
+    jsonb_build_object(
+      'workload_id', p_workload_id,
+      'target_count', v_target_count,
+      'is_enabled', p_is_enabled
+    )
+  );
+
+  RETURN v_route_id;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.replace_org_ai_route(uuid, uuid, text, jsonb, boolean, jsonb)
+  FROM public;
+GRANT EXECUTE ON FUNCTION public.replace_org_ai_route(uuid, uuid, text, jsonb, boolean, jsonb)
+  TO service_role;
+
 -- ---------------------------------------------------------------------------
 -- Durable assistant execution-plan snapshot
 -- ---------------------------------------------------------------------------

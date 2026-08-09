@@ -89,6 +89,13 @@ describe('organization AI runtime schema', () => {
     expect(targets).toMatch(
       /target_kind = 'deployment' AND deployment_id IS NOT NULL[\s\S]*target_kind = 'platform_default' AND deployment_id IS NULL/,
     );
+    expect(runtimeSql).toContain('replace_org_ai_route');
+    expect(runtimeSql).toMatch(
+      /DELETE FROM public\.org_ai_route_targets[\s\S]*INSERT INTO public\.org_ai_route_targets/,
+    );
+    expect(runtimeSql).toMatch(
+      /GRANT EXECUTE ON FUNCTION public\.replace_org_ai_route[\s\S]*TO service_role/,
+    );
   });
 
   it('makes the execution plan one-time bindable and immutable', () => {

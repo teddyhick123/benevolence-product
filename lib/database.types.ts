@@ -14344,6 +14344,17 @@ export type Database = {
         Returns: Json
       }
       redo_ai_action: { Args: { p_action_id: string }; Returns: Json }
+      replace_org_ai_route: {
+        Args: {
+          p_actor_id: string
+          p_is_enabled: boolean
+          p_org_id: string
+          p_policy: Json
+          p_targets: Json
+          p_workload_id: string
+        }
+        Returns: string
+      }
       replace_tax_carryforward_applications: {
         Args: {
           p_actor_id?: string

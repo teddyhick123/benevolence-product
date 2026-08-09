@@ -15,7 +15,7 @@ import type {
 } from '@/lib/ai/types';
 import type { AssistantToolCapabilities } from '@/lib/api/repositories/ai-tools';
 import { getPortfolioContext } from './context';
-import { executeAssistantTool } from './executor';
+import { executeAssistantTool, WRITE_TOOLS } from './executor';
 import { buildSystemPrompt } from './prompts';
 import { PORTFOLIO_TOOLS } from './tool-definitions';
 
@@ -96,7 +96,7 @@ export class PortfolioAssistant {
     }
 
     // Get filtered tools based on enabled modules
-    const tools = this.getFilteredTools();
+    let tools = this.getFilteredTools();
 
     // Get portfolio context
     const context = await getPortfolioContext(this.supabase, portfolioId);
@@ -138,7 +138,8 @@ export class PortfolioAssistant {
       sessionId,
       turnId,
     });
-    const executionPlan = gateway.resolve('assistant');
+    const executionPlan = await gateway.resolve('assistant');
+    if (executionPlan.toolMode === 'read_only') tools = tools.filter(tool => !WRITE_TOOLS.has(tool.name));
     let lastModel = executionPlan.requestedModel;
 
     for (let turn = 0; turn < MAX_TURNS; turn++) {
@@ -281,7 +282,7 @@ export class PortfolioAssistant {
     } = params;
 
     if (orgId) await this.initializeForOrg(orgId);
-    const tools = this.getFilteredTools();
+    let tools = this.getFilteredTools();
     const context = await getPortfolioContext(this.supabase, portfolioId);
     const systemPrompt = buildSystemPrompt(context, {
       moduleSystemPrompt: this.moduleSystemPrompt,
@@ -311,7 +312,8 @@ export class PortfolioAssistant {
       sessionId,
       turnId,
     });
-    const executionPlan = gateway.resolve('assistant');
+    const executionPlan = await gateway.resolve('assistant');
+    if (executionPlan.toolMode === 'read_only') tools = tools.filter(tool => !WRITE_TOOLS.has(tool.name));
     let lastModel = executionPlan.requestedModel;
 
     for (let turn = 0; turn < MAX_TURNS; turn++) {

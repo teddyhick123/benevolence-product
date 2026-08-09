@@ -1,5 +1,4 @@
 export const ORG_ROLES = ['viewer', 'member', 'admin', 'owner'] as const;
-export const OPERATOR_ROLES = ['member', 'admin', 'owner'] as const;
 export const WORKSPACE_MANAGER_ROLES = ['admin', 'owner'] as const;
 
 export type OrgRole = typeof ORG_ROLES[number];
@@ -18,10 +17,6 @@ export function isOrgRole(value: unknown): value is OrgRole {
 
 export function hasOrgRole(role: OrgRole | null | undefined, minimum: OrgRole): boolean {
   return !!role && ROLE_RANK[role] >= ROLE_RANK[minimum];
-}
-
-export function canViewOrg(role: OrgRole | null | undefined): boolean {
-  return hasOrgRole(role, 'viewer');
 }
 
 export function canOperateOrg(role: OrgRole | null | undefined): boolean {
@@ -48,9 +43,6 @@ export function isOrgOwner(role: unknown): role is OrgRole {
   return isOrgRole(role) && canManageOwnership(role);
 }
 
-// Compatibility exports for older portfolio and org surfaces. New callers should
-// use the more explicit predicates above.
+// Portfolio role responses retain their established `can_edit` behavior.
 export const canEdit = (role?: PortfolioRole, explicit?: boolean) =>
   !!explicit || canOperateOrg(role);
-export const canEditOrg = canOperateOrg;
-export const isOrgAdmin = canManageWorkspace;

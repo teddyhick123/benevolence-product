@@ -49,9 +49,10 @@ describe('CPA public portal contract', () => {
   });
 
   it('keeps elevated construction inside the principal-scoped repository', () => {
-    const compatibilitySrc = readFileSync('lib/tax/cpa-public-access.ts', 'utf8');
     expect(publicAccessSrc).toContain('createElevatedClient()');
-    expect(compatibilitySrc).not.toContain('createElevatedClient');
+    expect(publicRouteSrc).not.toContain('createElevatedClient');
+    expect(downloadRouteSrc).not.toContain('createElevatedClient');
+    expect(pageSrc).not.toContain('createElevatedClient');
   });
 
   it('public page fetches the public API route', () => {

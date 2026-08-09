@@ -59,7 +59,6 @@ const PROTECTED_PREFIXES = [
   '.git/',
   'scripts/',
   'supabase/',
-  'db/legacy/',
   'lib/auth/',
 ];
 

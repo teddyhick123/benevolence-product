@@ -3,7 +3,7 @@
 This folder contains current references, active backlogs, walkthrough missions, and archived historical material. When sources disagree, use this order of authority:
 
 1. `db/migrations/` for database schema, table names, functions, RLS, and storage buckets.
-2. `CLAUDE.md` (project root) for implementation invariants and AI-agent guidance.
+2. `AGENTS.md` (project root) for implementation invariants and AI-agent guidance; `CLAUDE.md` mirrors the protected schema protocol.
 3. Current reference docs in this directory.
 4. Historical plans, reviews, and archived notes as background only.
 
@@ -18,6 +18,7 @@ This folder contains current references, active backlogs, walkthrough missions, 
 | `MODULES.md` | Module registry and module lifecycle |
 | `DATABASE_ARCHITECTURE.md` | Database map summarized from active migrations |
 | `GETTING_STARTED.md` | Local setup |
+| `HYGIENE.md` | Dead-code/dependency checks, analyzer exceptions, and documentation authority |
 | `PROVISIONING.md` | New client setup |
 | `MIGRATION_GUIDE.md` | Import and migration workflow for customer data |
 | `USER_GUIDE.md` | Product user guide for end users |
@@ -52,3 +53,5 @@ This folder contains current references, active backlogs, walkthrough missions, 
 - The canonical grant lifecycle table is `grants`; do not recreate `grant_details`.
 - Holdings belong to organizations through `holdings.org_id`; there is no `organization_holdings` table.
 - Tax Center canonical tables: `tax_years`, `tax_contributions`, `tax_carryforwards`, `tax_documents`; `owner_tax_profiles` is not active.
+- Assistant state uses request-idempotent `ai_turns` and append-only `ai_messages`; do not replace it with session history blobs.
+- Organization variability belongs in sanctioned data/configuration extension points, not per-client DDL.

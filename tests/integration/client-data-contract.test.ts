@@ -1,7 +1,7 @@
 // @vitest-environment node
 
 import { describe, expect, it } from 'vitest';
-import { readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 
 const ROOT = process.cwd();
@@ -11,6 +11,8 @@ const TEST_FILE = /(?:^|\/)(?:__tests__\/|[^/]+\.(?:test|spec)\.)/;
 function walk(relativeRoot: string): string[] {
   const absoluteRoot = path.join(ROOT, relativeRoot);
   const files: string[] = [];
+
+  if (!existsSync(absoluteRoot)) return files;
 
   for (const entry of readdirSync(absoluteRoot, { withFileTypes: true })) {
     const relative = path.join(relativeRoot, entry.name);

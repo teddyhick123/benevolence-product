@@ -144,7 +144,7 @@ This document is a current, human-readable map of the active database. The schem
 
 | Table | Purpose |
 |---|---|
-| `ai_sessions`, `ai_actions`, `ai_usage_log` | Assistant sessions, undo/redo actions, usage accounting |
+| `ai_sessions`, `ai_turns`, `ai_messages`, `ai_actions`, `ai_usage_log` | Sessions, request-idempotent turns, append-only messages, undo/redo actions, usage accounting |
 | `portfolio_recommendations`, `recommendation_*` | AI recommendations and interaction metadata |
 | `onboarding_sessions`, `onboarding_profiles`, `onboarding_recommendations`, `onboarding_analytics` | Onboarding flow |
 | `builder_*` | Builder proposals, artifacts, events, and application history |
@@ -177,5 +177,5 @@ This document is a current, human-readable map of the active database. The schem
 ## Migration Notes
 
 - Apply active migrations from `db/migrations` in filename order.
-- Historical files under `db/legacy` are reference-only and must not be run for a new deployment.
+- Git history is the archive for retired SQL; do not recreate a parallel migration history.
 - Demo data is separate from migrations and should never become schema canon.

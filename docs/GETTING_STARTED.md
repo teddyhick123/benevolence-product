@@ -7,7 +7,7 @@ This guide provides instructions for developers on how to set up and deploy Bene
 Before you begin, ensure you have the following installed and configured:
 
 *   **Node.js:** Version 18 or higher.
-*   **pnpm:** A fast, reliable, and disk-efficient package manager. Install with `npm install -g pnpm`.
+*   **npm:** Use the lockfile-managed npm version bundled with your supported Node.js release.
 *   **Supabase Account:** A Supabase project is required for the database, authentication, and storage.
 *   **AI Provider API Key:** Required for AI assistant features. The default provider is Anthropic, configured with `ANTHROPIC_API_KEY`; provider selection is controlled by `AI_PROVIDER`.
 *   **QuickBooks Developer Account (Optional):** If you plan to use the QuickBooks integration, you'll need a developer account to register your application and obtain client ID and secret.
@@ -22,7 +22,7 @@ Before you begin, ensure you have the following installed and configured:
 
 2.  **Install dependencies:**
     ```bash
-    pnpm install
+    npm ci
     ```
 
 ## Environment Variables
@@ -57,8 +57,9 @@ Create a `.env` file in the root of the `benevolence-product` directory and popu
     ./scripts/run-migrations.sh
     ```
     Alternatively, run each SQL file from `db/migrations/` in order in the
-    Supabase SQL editor. Files in `db/legacy/` and `db/scripts/` are not part
-    of the migration sequence.
+    Supabase SQL editor. Files in `db/scripts/`, `db/demo/`, and `db/seeds/`
+    are not a second migration history. Git history is the archive for retired
+    SQL; do not recreate a `db/legacy/` tree.
 
 ## Load Demo Data
 
@@ -71,7 +72,7 @@ To populate your database with sample data for testing and demonstration purpose
 
 Start the development server:
 ```bash
-pnpm dev
+npm run dev
 ```
 Access the application at `http://localhost:3000`.
 
@@ -108,10 +109,10 @@ Use the provisioning script to set up a new client deployment in minutes:
 
 ```bash
 # Demo environment (uses your current Supabase project)
-pnpm provision --org-name "Ashford Foundation" --admin-email admin@ashford.org --mode demo
+npm run provision -- --org-name "Ashford Foundation" --admin-email admin@ashford.org --mode demo
 
 # Production environment (creates a new Supabase project)
-SUPABASE_ACCESS_TOKEN=your_token pnpm provision \
+SUPABASE_ACCESS_TOKEN=your_token npm run provision -- \
   --org-name "Ashford Foundation" \
   --admin-email admin@ashford.org \
   --mode production \
@@ -127,7 +128,7 @@ This generates:
 After deployment, package the codebase for client handoff:
 
 ```bash
-pnpm handoff --org-name "Ashford Foundation" --slug ashford-foundation
+npm run handoff -- --org-name "Ashford Foundation" --slug ashford-foundation
 ```
 
 This creates `handoff-ashford-foundation.zip` with full source code, migrations, and docs.
@@ -138,5 +139,5 @@ When new migrations are available, apply them to a client deployment:
 
 ```bash
 SUPABASE_URL=https://xxx.supabase.co SUPABASE_SERVICE_KEY=xxx \
-pnpm migrate-client --from 0062 --to latest
+npm run migrate-client -- --from 0062 --to latest
 ```

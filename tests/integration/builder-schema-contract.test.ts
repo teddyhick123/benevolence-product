@@ -88,6 +88,11 @@ describe('0025 canonical builder schema', () => {
 });
 
 describe('migration set hygiene', () => {
+  it('keeps db/migrations as the only active schema history', () => {
+    expect(existsSync(path.join(process.cwd(), 'db', 'legacy'))).toBe(false);
+    expect(existsSync(path.join(process.cwd(), 'supabase', 'migrations'))).toBe(true);
+  });
+
   it('0026 is deleted and no migration re-adds transitional columns', () => {
     expect(existsSync(path.join(MIGRATIONS_DIR, '0026_builder_enhancement.sql'))).toBe(false);
     const all = readdirSync(MIGRATIONS_DIR).filter((f) => /^\d{4}_.*\.sql$/.test(f));

@@ -386,7 +386,7 @@ export const DONOR_FILING_STATUS_LABELS: Record<DonorFilingStatus, string> = {
 /**
  * Tax Year Schema (with AGI tracking)
  */
-export const taxYearDetailSchema = z.object({
+const taxYearDetailSchema = z.object({
   tax_year: z.number().int().min(1900).max(2100),
   adjusted_gross_income: z.number().nonnegative().optional().nullable(),
   filing_status: donorFilingStatusSchema.optional().nullable(),

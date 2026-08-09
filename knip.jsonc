@@ -1,0 +1,33 @@
+{
+  "$schema": "./node_modules/knip/schema.json",
+  "entry": [
+    "middleware.ts",
+    "next.config.js",
+    "postcss.config.js",
+    "tailwind.config.js",
+    "vitest.config.mts",
+    "vitest.setup.ts",
+    "playwright.config.ts",
+    "scripts/**/*.{ts,mjs}",
+    "supabase/functions/**/index.ts",
+    "lib/__tests__/database-client-types.contract.ts"
+  ],
+  "project": [
+    "**/*.{ts,tsx,js,mjs,cjs}",
+    "!templates/**",
+    "!docs/**",
+    "!db/**",
+    "!.next*/**",
+    "!test-results/**"
+  ],
+  "ignore": [
+    "lib/database.types.ts",
+    "templates/module/**"
+  ],
+  "ignoreDependencies": [
+    "@tailwindcss/postcss",
+    "postcss",
+    "tailwindcss",
+    "tsconfig-paths"
+  ]
+}

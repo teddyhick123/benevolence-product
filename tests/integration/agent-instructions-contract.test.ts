@@ -75,3 +75,44 @@ describe('agent client-data instructions', () => {
     expect(agents).toContain(rule);
   });
 });
+
+describe('agent module-extension instructions', () => {
+  const agents = readFileSync('AGENTS.md', 'utf8');
+  const claude = readFileSync('CLAUDE.md', 'utf8');
+
+  function moduleSection(source: string): string {
+    const start = source.indexOf('## Creating a New Module');
+    const end = source.indexOf('## Tax Center Module');
+    if (start === -1 || end === -1 || end <= start) {
+      throw new Error('Agent instructions are missing the current module section');
+    }
+    return source.slice(start, end);
+  }
+
+  it('keeps the module workflow identical across agent entrypoints', () => {
+    expect(moduleSection(claude)).toBe(moduleSection(agents));
+  });
+
+  it.each([
+    'templates/module/README.md',
+    'tenant-scoped repository',
+    'requireOrgAccess',
+    'lib/api/client.ts',
+    'AssistantToolCapabilities',
+    'request-ID idempotency in `ai_turns`',
+    'normalized append-only `ai_messages`',
+    'npm run verify:hygiene',
+  ])('retains required module boundary: %s', (rule) => {
+    expect(moduleSection(agents)).toContain(rule);
+  });
+
+  it.each([
+    "@supabase/auth-helpers-nextjs",
+    "from '@/contexts/ModuleContext'",
+    'Create `/app/api/new_module/route.ts`',
+    'Create `/db/00XX_new_module.sql`',
+  ])('does not reintroduce retired module guidance: %s', (rule) => {
+    expect(agents).not.toContain(rule);
+    expect(claude).not.toContain(rule);
+  });
+});

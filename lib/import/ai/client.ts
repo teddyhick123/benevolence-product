@@ -1,12 +1,11 @@
 // lib/import/ai/client.ts
 // Provider-neutral client wrapper for import AI services.
 
-import { AI_MODELS } from '@/lib/ai/models';
-import { createAIProvider } from '@/lib/ai/factory';
-import { extractText } from '@/lib/ai/text';
+import type { AIExecutionScope } from '@/lib/ai/execution';
+import { createAIExecutionGateway } from '@/lib/ai/runtime';
 
 export interface AICallOptions {
-  model?: string;
+  scope: AIExecutionScope;
   maxTokens?: number;
   temperature?: number;
 }
@@ -14,18 +13,18 @@ export interface AICallOptions {
 export async function callAI(
   systemPrompt: string,
   userPrompt: string,
-  options?: AICallOptions
+  options: AICallOptions
 ): Promise<string> {
-  const provider = createAIProvider();
-  const response = await provider.createMessage({
-    model: options?.model ?? AI_MODELS.assistant,
-    maxTokens: options?.maxTokens ?? 4096,
-    temperature: options?.temperature ?? 0.1,
+  if (!options.scope) throw new Error('AI execution scope is required');
+  const gateway = createAIExecutionGateway(options.scope);
+  const response = await gateway.generateText(gateway.resolve('import'), {
+    maxOutputTokens: options.maxTokens ?? 4096,
+    temperature: options.temperature ?? 0.1,
     system: systemPrompt,
     messages: [{ role: 'user', content: userPrompt }],
   });
 
-  const content = extractText(response);
+  const content = response.text;
   if (!content) throw new Error('Unexpected empty response from AI provider');
   return content;
 }
@@ -33,14 +32,14 @@ export async function callAI(
 export async function callAIStreaming(
   systemPrompt: string,
   userPrompt: string,
-  onChunk: (text: string) => void,
-  options?: AICallOptions
+  onChunk: (_text: string) => void,
+  options: AICallOptions
 ): Promise<void> {
-  const provider = createAIProvider();
-  const stream = provider.createStream({
-    model: options?.model ?? AI_MODELS.assistant,
-    maxTokens: options?.maxTokens ?? 4096,
-    temperature: options?.temperature ?? 0.1,
+  if (!options.scope) throw new Error('AI execution scope is required');
+  const gateway = createAIExecutionGateway(options.scope);
+  const stream = gateway.streamText(gateway.resolve('import_chat'), {
+    maxOutputTokens: options.maxTokens ?? 4096,
+    temperature: options.temperature ?? 0.1,
     system: systemPrompt,
     messages: [{ role: 'user', content: userPrompt }],
   });

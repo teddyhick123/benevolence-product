@@ -2,8 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { aiLimiter } from '@/lib/rate-limit';
 import { aiAuthRequired, rateLimitExceeded } from '@/lib/rate-limit-response';
-import { AI_MODELS } from '@/lib/ai/models';
-import { generateText } from '@/lib/ai/text';
+import { generateTextForWorkload } from '@/lib/ai/runtime';
 import { isAccessDenied, requirePortfolioAccess } from '@/lib/api/access';
 
 function json(body: Record<string, unknown>, init?: ResponseInit) {
@@ -66,11 +65,19 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
   const systemPrompt = `You are a concise portfolio analyst. Produce a short, plain-English summary (<120 words) of this portfolio's recent activity and progress vs. targets. Be specific but neutral, and include 1–2 concrete highlights and any material gaps vs. goals.`;
 
   try {
-    const content = await generateText({
-      model: AI_MODELS.assistant,
-      maxTokens: 256,
-      system: systemPrompt,
-      prompt: lines.join('\n'),
+    const { text: content } = await generateTextForWorkload({
+      workloadId: 'summaries',
+      scope: {
+        kind: 'organization',
+        orgId: access.context.orgId,
+        actorId: authUser.id,
+        portfolioId: portfolio_id,
+      },
+      request: {
+        maxOutputTokens: 256,
+        system: systemPrompt,
+        messages: [{ role: 'user', content: lines.join('\n') }],
+      },
     });
     return json({ summary: content || 'No summary available.' });
   } catch (err) {

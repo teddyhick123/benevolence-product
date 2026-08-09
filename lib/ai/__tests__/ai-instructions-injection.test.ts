@@ -4,12 +4,12 @@ import { readFileSync } from 'fs';
 describe('provider-neutral portfolio assistant instructions', () => {
   const src = readFileSync('lib/ai/assistant/portfolio-assistant.ts', 'utf8');
 
-  it('imports createAIProvider from lib/ai/factory', () => {
-    expect(src).toMatch(/from ['"]@\/lib\/ai\/factory['"]/);
+  it('imports the organization-aware runtime gateway', () => {
+    expect(src).toMatch(/from ['"]@\/lib\/ai\/runtime['"]/);
   });
 
-  it('imports AI_MODELS from lib/ai/models', () => {
-    expect(src).toMatch(/from ['"]@\/lib\/ai\/models['"]/);
+  it('does not import raw model or provider selection', () => {
+    expect(src).not.toMatch(/from ['"]@\/lib\/ai\/(?:models|factory)['"]/);
   });
 
   it('no longer directly instantiates Anthropic client in constructor', () => {
@@ -20,8 +20,10 @@ describe('provider-neutral portfolio assistant instructions', () => {
     expect(src).toMatch(/export class PortfolioAssistant/);
   });
 
-  it('uses AI_MODELS.assistant for the model string', () => {
-    expect(src).toMatch(/AI_MODELS\.assistant/);
+  it('resolves the assistant workload once for each chat execution', () => {
+    expect(src.match(/gateway\.resolve\('assistant'\)/g)).toHaveLength(2);
+    expect(src).toMatch(/gateway\.runToolConversation\(executionPlan/);
+    expect(src).toMatch(/gateway\.streamToolConversation\(executionPlan/);
   });
 
   it('fetches ai_instructions in initializeForOrg', () => {

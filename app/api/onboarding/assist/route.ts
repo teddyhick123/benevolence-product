@@ -1,8 +1,7 @@
 import { NextRequest } from 'next/server';
 import { isAccessDenied, requireUserAccess } from '@/lib/api/access';
 import { jsonError, jsonOk } from '@/lib/api/responses';
-import { AI_MODELS } from '@/lib/ai/models';
-import { generateText } from '@/lib/ai/text';
+import { generateOnboardingText } from '@/lib/ai/runtime';
 import { branding } from '@/lib/config';
 
 export const dynamic = 'force-dynamic';
@@ -52,10 +51,12 @@ export async function POST(req: NextRequest) {
     }
 
     const prompt = buildPrompt(question as QuestionType, context ?? {});
-    const answer = await generateText({
-      model: AI_MODELS.assistant,
-      maxTokens: 150,
-      prompt,
+    const { text: answer } = await generateOnboardingText({
+      scope: { kind: 'platform', actorId: access.context.user.id },
+      request: {
+        maxOutputTokens: 150,
+        messages: [{ role: 'user', content: prompt }],
+      },
     });
 
     return jsonOk({ answer });

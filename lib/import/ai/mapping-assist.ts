@@ -2,6 +2,7 @@
 // Orchestrates AI-powered field mapping suggestions
 
 import { callAI } from './client';
+import type { AIExecutionScope } from '@/lib/ai/execution';
 import { MAPPING_ASSIST_SYSTEM, buildMappingAssistPrompt } from './prompts/mapping-assist';
 
 export interface MappingSuggestion {
@@ -24,6 +25,7 @@ export interface MappingAssistResult {
 }
 
 export async function suggestMappings(params: {
+  scope: AIExecutionScope;
   sourceSystem: string;
   entityType: string;
   sourceFields: string[];
@@ -31,7 +33,10 @@ export async function suggestMappings(params: {
   existingMapping?: Record<string, unknown>;
 }): Promise<MappingAssistResult> {
   const userPrompt = buildMappingAssistPrompt(params);
-  const raw = await callAI(MAPPING_ASSIST_SYSTEM, userPrompt, { maxTokens: 2048 });
+  const raw = await callAI(MAPPING_ASSIST_SYSTEM, userPrompt, {
+    scope: params.scope,
+    maxTokens: 2048,
+  });
 
   // Parse JSON response, with error handling
   try {

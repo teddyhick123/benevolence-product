@@ -42,6 +42,13 @@ export async function POST(req: Request) {
     if (!parsed.success) return jsonError('Validation failed', 400, { details: parsed.error.format() });
     const { import_job_id, staging_table, staging_row_ids } = parsed.data;
     const { db } = access.context;
+    const { data: job, error: jobError } = await db
+      .from('import_jobs')
+      .select('org_id, portfolio_id')
+      .eq('id', import_job_id)
+      .maybeSingle();
+    if (jobError) return jsonError(jobError.message, 500);
+    if (!job) return jsonError('Import job not found', 404);
 
     // Fetch the requested rows
     const { data: rows, error: fetchError } = await fromImportStagingRelation(db, staging_table)
@@ -71,6 +78,12 @@ export async function POST(req: Request) {
       let suggestions: AISuggestion[] = [];
       try {
         suggestions = await suggestRowFixes({
+          scope: {
+            kind: 'organization',
+            orgId: job.org_id,
+            actorId: access.context.user.id,
+            portfolioId: job.portfolio_id ?? undefined,
+          },
           entityType,
           rawData: row.raw_data,
           transformedData: row.transformed_data,

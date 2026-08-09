@@ -1,5 +1,5 @@
-import { AI_MODELS } from '@/lib/ai/models';
-import { generateText } from '@/lib/ai/text';
+import type { AIExecutionScope } from '@/lib/ai/execution';
+import { generateStructuredForWorkload } from '@/lib/ai/runtime';
 
 export type ExtractedFact = {
   metric_code: string;
@@ -135,43 +135,44 @@ Be conservative and only extract information that is clearly stated in the docum
  */
 export async function extractFactsFromText(
   text: string,
-  options?: {
+  options: {
+    scope: AIExecutionScope;
     restrictedMetrics?: string[];
     holdingId?: string;
     holdingName?: string;
   }
 ): Promise<ExtractionResult> {
   // Build the system prompt based on mode
-  const systemPrompt = buildSystemPrompt(options?.restrictedMetrics);
+  const systemPrompt = buildSystemPrompt(options.restrictedMetrics);
 
   // Build the user prompt
   let userPrompt = `Extract KPI facts from the following document text.\n\n`;
 
-  if (options?.holdingId || options?.holdingName) {
+  if (options.holdingId || options.holdingName) {
     userPrompt += `Context: This document is for holding "${options.holdingName || options.holdingId}"\n\n`;
   }
 
   userPrompt += `Document text:\n${text.slice(0, 15000)}`; // Limit to ~15k chars to stay within token limits
 
   try {
-    const content = await generateText({
-      model: AI_MODELS.assistant,
-      system: systemPrompt,
-      prompt: userPrompt,
-      temperature: 0,
-      maxTokens: 4096,
+    const { value: result } = await generateStructuredForWorkload({
+      workloadId: 'extraction',
+      scope: options.scope,
+      request: {
+        system: systemPrompt,
+        messages: [{ role: 'user', content: userPrompt }],
+        temperature: 0,
+        maxOutputTokens: 4096,
+      },
+      parse: (content) => {
+        if (!content) throw new Error('AI provider returned empty response');
+        try {
+          return JSON.parse(content) as any;
+        } catch {
+          throw new Error(`AI provider did not return valid JSON: ${content}`);
+        }
+      },
     });
-
-    if (!content) {
-      throw new Error('AI provider returned empty response');
-    }
-
-    let result: any;
-    try {
-      result = JSON.parse(content);
-    } catch (e) {
-      throw new Error(`AI provider did not return valid JSON: ${content}`);
-    }
 
     if (!result || !Array.isArray(result.facts)) {
       throw new Error('AI provider response missing "facts" array');
@@ -190,7 +191,7 @@ export async function extractFactsFromText(
         }
 
         // If restricted metrics specified, filter
-        if (options?.restrictedMetrics && options.restrictedMetrics.length > 0) {
+        if (options.restrictedMetrics && options.restrictedMetrics.length > 0) {
           if (!options.restrictedMetrics.includes(fact.metric_code)) return false;
         }
 
@@ -202,8 +203,8 @@ export async function extractFactsFromText(
         unit: fact.unit || null,
         period_start: fact.period_start || null,
         period_end: fact.period_end || null,
-        holding_id: options?.holdingId || fact.holding_id || null,
-        holding_name: options?.holdingName || fact.holding_name || null,
+        holding_id: options.holdingId || fact.holding_id || null,
+        holding_name: options.holdingName || fact.holding_name || null,
         sector: fact.sector || null,
         country: fact.country || null,
         source: fact.source || 'Document',

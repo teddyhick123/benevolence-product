@@ -125,15 +125,6 @@ export async function POST(req: NextRequest) {
       redis.incr(`usage:ai:${orgId}:${month}`).catch(() => {});
     }
 
-    if (
-      result.usage &&
-      (result.usage.inputTokens > 0 || result.usage.outputTokens > 0)
-    ) {
-      repository.recordUsage(sessionId, result.usage).catch((error) => {
-        console.error('[ai/chat] usage log insert failed:', error);
-      });
-    }
-
     const widgetActions = result.actions.filter(
       (action: any) =>
         action.entity_type === 'widget' &&

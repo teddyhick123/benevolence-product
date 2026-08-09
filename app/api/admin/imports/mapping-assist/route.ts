@@ -34,6 +34,7 @@ export async function POST(req: NextRequest) {
     const { source_type, entity_type, source_fields, sample_records, existing_mapping } = parsed.data;
 
     const result = await suggestMappings({
+      scope: { kind: 'platform', actorId: access.context.user.id },
       sourceSystem: source_type,
       entityType: entity_type,
       sourceFields: source_fields,

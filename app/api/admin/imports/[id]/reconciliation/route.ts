@@ -101,7 +101,11 @@ export async function POST(
         production: { note: 'No matching record found in contributions_received' },
       }));
 
-      const aiAnalysis = await analyzeReconciliation(report, sampleMismatches);
+      const aiAnalysis = await analyzeReconciliation(report, sampleMismatches, {
+        kind: 'organization',
+        orgId: job.org_id,
+        actorId: access.context.user.id,
+      });
       reconciliationData = { ...reconciliationData, ai_analysis: aiAnalysis };
     } catch (aiErr) {
       console.error('[reconciliation] AI analysis failed:', aiErr);

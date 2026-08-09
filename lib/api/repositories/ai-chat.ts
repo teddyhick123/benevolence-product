@@ -1,4 +1,3 @@
-import { createElevatedClient } from '@/lib/api/admin-client';
 import type { PortfolioAccessContext } from '@/lib/api/principals';
 
 type AiChatScope = Pick<
@@ -45,12 +44,6 @@ export type BeginAiTurnResult =
       failureCode?: string;
       failureMessage?: string;
     };
-
-type UsageRecord = {
-  model: string;
-  inputTokens: number;
-  outputTokens: number;
-};
 
 type BeginTurnRpcResult = {
   started?: boolean;
@@ -245,28 +238,5 @@ export function createAiChatRepository(scope: AiChatScope) {
       return [...(portfolioWidgets.data || []), ...holdingRows];
     },
 
-    async recordUsage(sessionId: string, usage: UsageRecord) {
-      const { data: session, error: sessionError } = await db
-        .from('ai_sessions')
-        .select('id')
-        .eq('id', sessionId)
-        .eq('portfolio_id', scope.portfolioId)
-        .eq('user_id', userId)
-        .maybeSingle();
-      if (sessionError) throw sessionError;
-      if (!session) throw new Error('AI session not found');
-
-      const elevated = createElevatedClient();
-      const { error } = await elevated.from('ai_usage_log').insert({
-        user_id: userId,
-        org_id: scope.orgId,
-        portfolio_id: scope.portfolioId,
-        session_id: session.id,
-        model: usage.model,
-        input_tokens: usage.inputTokens,
-        output_tokens: usage.outputTokens,
-      });
-      if (error) throw error;
-    },
   };
 }

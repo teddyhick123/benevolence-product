@@ -3,6 +3,7 @@
 
 import { branding } from '@/lib/config';
 import { callAI } from './client';
+import type { AIExecutionScope } from '@/lib/ai/execution';
 
 const REPORT_SYSTEM = `You are a professional consultant writing a migration summary report for a philanthropic organization.
 
@@ -48,6 +49,7 @@ export interface EntityStats {
 }
 
 export interface ReportParams {
+  scope: AIExecutionScope;
   jobName: string;
   portfolioName: string;
   sourceSystem: string;
@@ -125,6 +127,7 @@ ${actionItems.length > 0 ? actionItems.map((item) => `- ${item}`).join('\n') : '
 Please write the full report now.`;
 
   const markdown = await callAI(REPORT_SYSTEM, userPrompt, {
+    scope: params.scope,
     maxTokens: 2048,
     temperature: 0.3,
   });

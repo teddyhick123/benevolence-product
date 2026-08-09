@@ -5,9 +5,7 @@ import {
   getOrgEnabledModules,
   getSystemPromptForModules,
 } from '@/lib/modules';
-import { createAIProvider } from '@/lib/ai/factory';
-import { AI_MODELS } from '@/lib/ai/models';
-import type { AIProvider } from '@/lib/ai/provider';
+import { createAIExecutionGateway } from '@/lib/ai/runtime';
 import type {
   AIAction,
   AIContentBlock,
@@ -21,15 +19,7 @@ import { executeAssistantTool } from './executor';
 import { buildSystemPrompt } from './prompts';
 import { PORTFOLIO_TOOLS } from './tool-definitions';
 
-/**
- * AI Assistant for portfolio management
- * Uses the configured provider/model for conversation and function calling
- *
- * Supports modular tool filtering - only tools from enabled modules are available.
- * When orgId is provided, tools are filtered based on the organization's enabled modules.
- */
 export class PortfolioAssistant {
-  private provider: AIProvider;
   private aiInstructions: string | null = null;
   private supabase: SupabaseClient;
   private enabledModules: ModuleId[] = ['core'];
@@ -43,7 +33,6 @@ export class PortfolioAssistant {
     },
     _apiKey?: string,
   ) {
-    this.provider = createAIProvider();
     this.supabase = services.db;
     this.capabilities = services.capabilities;
   }
@@ -68,27 +57,15 @@ export class PortfolioAssistant {
         ?.ai_instructions ?? null;
   }
 
-  /**
-   * Get tools filtered by enabled modules
-   */
   private getFilteredTools(): ToolDefinition[] {
     return filterToolsForOrg(PORTFOLIO_TOOLS, this.enabledModules);
   }
 
-  /**
-   * Reset to default (all tools) - useful for admin or portfolio-only context
-   */
   resetToDefault(): void {
     this.enabledModules = ['core'];
     this.moduleSystemPrompt = '';
   }
 
-  /**
-   * Process a user message and generate AI response with actions
-   *
-   * @param params.orgId - Optional organization ID for module-based tool filtering
-   *                       If provided, tools will be filtered based on enabled modules
-   */
   async chat(params: {
     portfolioId: string;
     userId: string;
@@ -153,12 +130,20 @@ export class PortfolioAssistant {
     const MAX_TURNS = 5;
     let totalInputTokens = 0;
     let totalOutputTokens = 0;
-    let lastModel = AI_MODELS.assistant;
+    const gateway = createAIExecutionGateway({
+      kind: orgId ? 'organization' : 'platform',
+      orgId,
+      actorId: userId,
+      portfolioId,
+      sessionId,
+      turnId,
+    });
+    const executionPlan = gateway.resolve('assistant');
+    let lastModel = executionPlan.requestedModel;
 
     for (let turn = 0; turn < MAX_TURNS; turn++) {
-      const response = await this.provider.createMessage({
-        model: AI_MODELS.assistant,
-        maxTokens: 4096,
+      const response = await gateway.runToolConversation(executionPlan, {
+        maxOutputTokens: 4096,
         system: systemPrompt,
         tools: tools as unknown as ToolDefinition[],
         messages: currentMessages,
@@ -318,7 +303,16 @@ export class PortfolioAssistant {
     const MAX_TURNS = 5;
     let totalInputTokens = 0;
     let totalOutputTokens = 0;
-    let lastModel = AI_MODELS.assistant;
+    const gateway = createAIExecutionGateway({
+      kind: orgId ? 'organization' : 'platform',
+      orgId,
+      actorId: userId,
+      portfolioId,
+      sessionId,
+      turnId,
+    });
+    const executionPlan = gateway.resolve('assistant');
+    let lastModel = executionPlan.requestedModel;
 
     for (let turn = 0; turn < MAX_TURNS; turn++) {
       let turnTextContent = '';
@@ -330,9 +324,8 @@ export class PortfolioAssistant {
       let stopReason: string | null = null;
 
       // Use createStream so text tokens arrive as they're generated
-      const stream = this.provider.createStream({
-        model: AI_MODELS.assistant,
-        maxTokens: 4096,
+      const stream = gateway.streamToolConversation(executionPlan, {
+        maxOutputTokens: 4096,
         system: systemPrompt,
         tools: tools as unknown as ToolDefinition[],
         messages: currentMessages,
@@ -343,7 +336,11 @@ export class PortfolioAssistant {
       let currentToolInputJson = '';
 
       for await (const chunk of stream) {
-        if (chunk.type === 'content_block_start') {
+        if (chunk.type === 'message_start') {
+          lastModel = chunk.model;
+          totalInputTokens += chunk.usage?.inputTokens ?? 0;
+          totalOutputTokens += chunk.usage?.outputTokens ?? 0;
+        } else if (chunk.type === 'content_block_start') {
           if (chunk.blockType === 'tool_use') {
             currentToolId = chunk.id ?? null;
             currentToolName = chunk.name ?? null;
@@ -377,6 +374,8 @@ export class PortfolioAssistant {
           }
         } else if (chunk.type === 'message_stop') {
           stopReason = chunk.stopReason;
+          if (chunk.model) lastModel = chunk.model;
+          totalOutputTokens += chunk.usage?.outputTokens ?? 0;
         }
       }
 

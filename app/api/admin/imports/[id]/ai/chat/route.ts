@@ -89,6 +89,12 @@ export async function POST(
       try {
         const { actions } = await streamMigrationChat(
           {
+            scope: {
+              kind: 'organization',
+              orgId: (job as Record<string, unknown>).org_id as string,
+              actorId: access.context.user.id,
+              portfolioId: ((job as Record<string, unknown>).portfolio_id as string | null) ?? undefined,
+            },
             importJobId,
             message,
             history,

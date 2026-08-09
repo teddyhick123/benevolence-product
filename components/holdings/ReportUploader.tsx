@@ -50,7 +50,7 @@ export default function ReportUploader({
     if (!portfolioId || kpiLoading || kpis.length) return;
     setKpiLoading(true);
     try {
-      const res = await apiRequest(`/api/portfolio/${encodeURIComponent(portfolioId)}/kpis`, {
+      const res = await apiRequest(`/api/portfolio/${encodeURIComponent(portfolioId)}/kpis?definitions=true`, {
         cache: 'no-store',
       });
       if (res.ok) {

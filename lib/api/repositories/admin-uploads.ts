@@ -38,6 +38,13 @@ export class AdminUploadHoldingMismatchError extends Error {
   }
 }
 
+export class AdminUploadMetricsRequiredError extends Error {
+  constructor() {
+    super('Select at least one KPI when AI mode is disabled');
+    this.name = 'AdminUploadMetricsRequiredError';
+  }
+}
+
 type UploadRecord = {
   id: string;
   org_id: string;
@@ -399,6 +406,9 @@ function createScopedUploadIngestionRepository(scope: {
       aiMode: boolean;
       selectedMetrics: string[];
     }) {
+      if (!params.aiMode && params.selectedMetrics.length === 0) {
+        throw new AdminUploadMetricsRequiredError();
+      }
       const holding = await requireHolding(params.portfolioId, params.holdingId);
       const uploadId = crypto.randomUUID();
       const fileName = safeFileName(params.fileName);

@@ -41,10 +41,11 @@ export function createTaskJobRepository(context: JobAccessContext) {
       const runId = crypto.randomUUID();
 
       // The migration documents this lock as best-effort: it is transaction
-      // scoped, so it is already released here and its boolean cannot gate the
-      // run. The run row below is the durable concurrency signal. An RPC error
-      // is different from a lost race and must not start unguarded work.
-      const { error: lockError } = await db.rpc('try_task_automation_lock', {
+      // scoped and releases with the RPC. A negative result can still reject a
+      // directly overlapping probe; the run row below remains the durable
+      // concurrency signal. Neither an RPC error nor a lost probe may start
+      // unguarded work.
+      const { data: lockAcquired, error: lockError } = await db.rpc('try_task_automation_lock', {
         lock_key: `task_automation:${input.producer ?? 'all'}:${input.orgId ?? 'all'}`,
       });
       if (lockError) {
@@ -52,6 +53,13 @@ export function createTaskJobRepository(context: JobAccessContext) {
           ok: false as const,
           status: 500,
           error: `Task automation lock unavailable: ${lockError.message}`,
+        };
+      }
+      if (lockAcquired === false) {
+        return {
+          ok: false as const,
+          status: 409,
+          error: 'Concurrent task automation lock probe in progress',
         };
       }
 

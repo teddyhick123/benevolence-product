@@ -150,6 +150,20 @@ describe('createTaskJobRepository', () => {
     });
   });
 
+  it('does not start work when the advisory lock probe loses', async () => {
+    mockRpc.mockResolvedValue({ data: false, error: null });
+
+    const result = await createTaskJobRepository(context).generate({ dryRun: false });
+
+    expect(mockFrom).not.toHaveBeenCalled();
+    expect(mockRunProducers).not.toHaveBeenCalled();
+    expect(result).toEqual({
+      ok: false,
+      status: 409,
+      error: 'Concurrent task automation lock probe in progress',
+    });
+  });
+
   it('does not treat an unreadable concurrency scan as an idle queue', async () => {
     const inflightQuery = stubQuery(
       { data: null, error: null },

@@ -151,7 +151,7 @@ describe('onboarding provisioning repository', () => {
           data: {
             id: 'session-1',
             user_id: 'user-1',
-            organization_id: null,
+            org_id: null,
             started_at: '2026-08-03T00:00:00.000Z',
           },
           error: null,
@@ -228,7 +228,7 @@ describe('onboarding provisioning repository', () => {
           data: {
             id: 'session-1',
             user_id: 'user-1',
-            organization_id: 'org-1',
+            org_id: 'org-1',
             started_at: null,
           },
           error: null,

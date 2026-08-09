@@ -24,6 +24,7 @@ export async function writeOrgAuditEvent(
   const { error } = await db.from('org_audit_log').insert({
     org_id: input.orgId,
     actor_id: input.actorId,
+    actor_subject_id: input.actorId,
     action: input.action,
     target_id: input.targetId ?? null,
     metadata: input.metadata ?? null,

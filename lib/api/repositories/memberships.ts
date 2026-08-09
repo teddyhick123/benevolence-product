@@ -76,6 +76,7 @@ export function createMembershipRepository(scope: MembershipScope) {
     const { error: auditError } = await db.from('org_audit_log').insert({
       org_id: scope.orgId,
       actor_id: scope.actorId,
+      actor_subject_id: scope.actorId,
       action: 'role_changed',
       target_id: userId,
       metadata: { before_role: existing.role, after_role: role },
@@ -168,6 +169,7 @@ export function createMembershipRepository(scope: MembershipScope) {
       const { error: auditError } = await db.from('org_audit_log').insert({
         org_id: scope.orgId,
         actor_id: scope.actorId,
+        actor_subject_id: scope.actorId,
         action: 'member_added',
         target_id: targetUserId,
         metadata: { role: input.role },
@@ -205,6 +207,7 @@ export function createMembershipRepository(scope: MembershipScope) {
       const { error: auditError } = await db.from('org_audit_log').insert({
         org_id: scope.orgId,
         actor_id: scope.actorId,
+        actor_subject_id: scope.actorId,
         action: 'member_removed',
         target_id: userId,
         metadata: { removed_at: removedAt, previous_role: existing.role },

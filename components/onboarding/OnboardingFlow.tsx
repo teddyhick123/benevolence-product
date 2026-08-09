@@ -33,7 +33,7 @@ interface Session {
     ready_for_recommendations: boolean;
   };
   onboarding_profiles?: OnboardingProfile | OnboardingProfile[];
-  organization_id?: string;
+  org_id?: string;
 }
 
 interface OnboardingProfile {
@@ -186,14 +186,14 @@ export default function OnboardingFlow({ initialSession }: OnboardingFlowProps) 
         setSession({
           ...session,
           status: 'complete',
-          organization_id: result.org_id,
+          org_id: result.org_id,
         });
         setStep('complete');
       } else if (res.ok && (moduleErrors.length > 0 || setupErrors.length > 0)) {
         setEnabledModules(result.enabled_modules || []);
         setSession({
           ...session,
-          organization_id: result.org_id,
+          org_id: result.org_id,
           status: 'recommendations',
         });
         setProvisionError({
@@ -318,7 +318,7 @@ export default function OnboardingFlow({ initialSession }: OnboardingFlowProps) 
 
         {step === 'complete' && (
           <OnboardingComplete
-            organizationId={session?.organization_id}
+            organizationId={session?.org_id}
             enabledModules={enabledModules}
           />
         )}

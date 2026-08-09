@@ -51,7 +51,7 @@ export default async function OnboardingPage() {
         messages: existingSession.messages,
         conversation_state: existingSession.conversation_state,
         onboarding_profiles: existingSession.onboarding_profiles,
-        organization_id: existingSession.organization_id,
+        org_id: existingSession.org_id,
       } : undefined}
     />
   );

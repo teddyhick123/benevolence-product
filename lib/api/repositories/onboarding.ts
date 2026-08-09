@@ -258,7 +258,7 @@ export function createOnboardingRepository(userId: string) {
     async resolveSession(sessionId: string): Promise<OnboardingSessionRepository | null> {
       const { data } = await db
         .from('onboarding_sessions')
-        .select('id, user_id, organization_id, status, quick_intake, conversation_state, messages, started_at, intake_completed_at')
+        .select('id, user_id, org_id, status, quick_intake, conversation_state, messages, started_at, intake_completed_at')
         .eq('id', sessionId)
         .eq('user_id', userId)
         .maybeSingle();
@@ -267,7 +267,7 @@ export function createOnboardingRepository(userId: string) {
       return createSessionRepository(db, {
         sessionId: data.id,
         userId: data.user_id,
-        orgId: data.organization_id ?? undefined,
+        orgId: data.org_id ?? undefined,
         status: data.status,
         quickIntake: data.quick_intake || {},
         conversationState: data.conversation_state || undefined,

@@ -105,6 +105,7 @@ export function createInvitationRepository(scope: InvitationScope) {
       const { error: auditError } = await db.from('org_audit_log').insert({
         org_id: scope.orgId,
         actor_id: scope.actorId,
+        actor_subject_id: scope.actorId,
         action: 'invite_sent',
         target_id: null,
         metadata: { email: input.email, role: input.role },
@@ -144,6 +145,7 @@ export function createInvitationRepository(scope: InvitationScope) {
       const { error: auditError } = await db.from('org_audit_log').insert({
         org_id: scope.orgId,
         actor_id: scope.actorId,
+        actor_subject_id: scope.actorId,
         action: 'invite_cancelled',
         metadata: { email: invite.email },
       });
@@ -171,6 +173,7 @@ export function createInvitationRepository(scope: InvitationScope) {
       const { error: auditError } = await db.from('org_audit_log').insert({
         org_id: scope.orgId,
         actor_id: scope.actorId,
+        actor_subject_id: scope.actorId,
         action: 'invite_resent',
         target_id: inviteId,
         metadata: { email: invite.email, role: invite.role },

@@ -15,6 +15,18 @@ export type AIExecutionScope = {
   turnId?: string;
 };
 
+export type AIExecutionTarget = Readonly<{
+  position: number;
+  kind: 'deployment' | 'platform_default';
+  connector: AIConnectorId;
+  requestedModel: string;
+  modelVendor?: string;
+  connectionId?: string;
+  deploymentId?: string;
+  providerPreferences?: Readonly<Record<string, unknown>>;
+  toolMode: 'full' | 'read_only';
+}>;
+
 export type AIExecutionPlan = Readonly<{
   workloadId: AIWorkloadId;
   operation: AIOperation;
@@ -23,8 +35,17 @@ export type AIExecutionPlan = Readonly<{
   requiredCapabilities: readonly AICapability[];
   maxOutputTokens: number;
   timeoutMs: number;
-  source: 'platform_default';
-  policy: Readonly<Record<string, never>>;
+  source: 'platform_default' | 'organization_route';
+  routeId?: string;
+  connectionId?: string;
+  deploymentId?: string;
+  modelVendor?: string;
+  targetPosition: number;
+  targets: readonly AIExecutionTarget[];
+  policy: Readonly<Record<string, unknown>>;
+  policyHash: string;
+  providerPreferences?: Readonly<Record<string, unknown>>;
+  toolMode: 'full' | 'read_only';
 }>;
 
 export type AIGenerationRequest = {
@@ -33,6 +54,10 @@ export type AIGenerationRequest = {
   maxOutputTokens?: number;
   temperature?: number;
   signal?: AbortSignal;
+  responseFormat?: {
+    name: string;
+    schema: Record<string, unknown>;
+  };
 };
 
 export type AIToolConversationRequest = AIGenerationRequest & {
@@ -76,8 +101,14 @@ export type AIInvocationRecord = {
   operation: AIOperation;
   scope: AIExecutionScope;
   connector: AIConnectorId;
+  routeId?: string;
+  connectionId?: string;
+  deploymentId?: string;
+  turnId?: string;
+  modelVendor?: string;
   requestedModel: string;
   resolvedModel?: string;
+  resolvedProvider?: string;
   providerRequestId?: string;
   usage?: AIUsage;
   startedAt: string;
@@ -85,6 +116,11 @@ export type AIInvocationRecord = {
   latencyMs: number;
   status: AIInvocationStatus;
   errorCode?: AIErrorCode;
+  targetPosition: number;
+  policy: Readonly<Record<string, unknown>>;
+  policyHash: string;
+  reportedCost?: number;
+  costCurrency?: string;
 };
 
 export type AIErrorCode =
@@ -94,6 +130,7 @@ export type AIErrorCode =
   | 'deployment_unavailable'
   | 'capability_mismatch'
   | 'policy_unsatisfied'
+  | 'credential_decryption_failed'
   | 'timeout'
   | 'aborted'
   | 'provider_error';

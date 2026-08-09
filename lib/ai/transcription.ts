@@ -6,7 +6,7 @@ export async function transcribeAudio(
   scope: AIExecutionScope,
 ): Promise<string> {
   const gateway = createAIExecutionGateway(scope);
-  const result = await gateway.transcribe(gateway.resolve('transcription'), {
+  const result = await gateway.transcribe(await gateway.resolve('transcription'), {
     file,
     language: 'en',
   });

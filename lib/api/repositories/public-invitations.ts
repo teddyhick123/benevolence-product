@@ -94,6 +94,7 @@ function createScopedInvitationRepository(db: ElevatedClient, scope: InvitationS
       await db.from('org_audit_log').insert({
         org_id: scope.orgId,
         actor_id: userId,
+        actor_subject_id: userId,
         action: 'invite_accepted',
         metadata: { role: scope.role, email: scope.email },
       });

@@ -50,14 +50,14 @@ export function createOnboardingProvisioner(userId: string) {
       let session: {
         id: string;
         user_id: string;
-        organization_id?: string | null;
+        org_id?: string | null;
         started_at?: string | null;
       } | null = null;
 
       if (input.sessionId) {
         const { data } = await db
           .from('onboarding_sessions')
-          .select('id, user_id, organization_id, started_at')
+          .select('id, user_id, org_id, started_at')
           .eq('id', input.sessionId)
           .eq('user_id', userId)
           .maybeSingle();
@@ -71,7 +71,7 @@ export function createOnboardingProvisioner(userId: string) {
         .eq('user_id', userId);
       const existingOrgId = memberships?.[0]?.org_id as string | undefined;
       const retryingExistingSetup = Boolean(
-        existingOrgId && session?.organization_id === existingOrgId
+        existingOrgId && session?.org_id === existingOrgId
       );
       if (existingOrgId && !retryingExistingSetup) {
         fail('User already belongs to an organization', 409);
@@ -219,9 +219,9 @@ export function createOnboardingProvisioner(userId: string) {
         const { error } = await db
           .from('onboarding_sessions')
           .update(provisioningHasErrors
-            ? { organization_id: orgId, status: 'recommendations', completed_at: null }
+            ? { org_id: orgId, status: 'recommendations', completed_at: null }
             : {
-                organization_id: orgId,
+                org_id: orgId,
                 status: 'completed',
                 completed_at: new Date().toISOString(),
               })

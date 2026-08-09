@@ -348,6 +348,7 @@ export type Database = {
         Row: {
           completed_at: string | null
           created_at: string
+          execution_plan: Json | null
           failed_at: string | null
           failure_code: string | null
           failure_message: string | null
@@ -364,6 +365,7 @@ export type Database = {
         Insert: {
           completed_at?: string | null
           created_at?: string
+          execution_plan?: Json | null
           failed_at?: string | null
           failure_code?: string | null
           failure_message?: string | null
@@ -380,6 +382,7 @@ export type Database = {
         Update: {
           completed_at?: string | null
           created_at?: string
+          execution_plan?: Json | null
           failed_at?: string | null
           failure_code?: string | null
           failure_message?: string | null
@@ -405,42 +408,134 @@ export type Database = {
       }
       ai_usage_log: {
         Row: {
+          audio_input_tokens: number
+          audio_output_tokens: number
+          cached_input_tokens: number
+          completed_at: string
+          connection_id: string | null
+          connector: string
+          cost_currency: string | null
           created_at: string
+          deployment_id: string | null
+          error_code: string | null
           id: string
           input_tokens: number
-          model: string
+          latency_ms: number
+          model_vendor: string | null
+          operation: string
           org_id: string | null
           output_tokens: number
+          policy_hash: string | null
+          policy_snapshot: Json
           portfolio_id: string | null
+          provider_request_id: string | null
+          reasoning_tokens: number
+          reported_cost: number | null
+          requested_model: string
+          resolved_model: string | null
+          resolved_provider: string | null
+          route_id: string | null
+          scope_kind: string
           session_id: string | null
+          started_at: string
+          status: string
+          target_position: number
           total_tokens: number | null
-          user_id: string
+          turn_id: string | null
+          user_id: string | null
+          workload_id: string
         }
         Insert: {
+          audio_input_tokens?: number
+          audio_output_tokens?: number
+          cached_input_tokens?: number
+          completed_at?: string
+          connection_id?: string | null
+          connector?: string
+          cost_currency?: string | null
           created_at?: string
+          deployment_id?: string | null
+          error_code?: string | null
           id?: string
           input_tokens?: number
-          model: string
+          latency_ms?: number
+          model_vendor?: string | null
+          operation?: string
           org_id?: string | null
           output_tokens?: number
+          policy_hash?: string | null
+          policy_snapshot?: Json
           portfolio_id?: string | null
+          provider_request_id?: string | null
+          reasoning_tokens?: number
+          reported_cost?: number | null
+          requested_model: string
+          resolved_model?: string | null
+          resolved_provider?: string | null
+          route_id?: string | null
+          scope_kind?: string
           session_id?: string | null
+          started_at?: string
+          status?: string
+          target_position?: number
           total_tokens?: number | null
-          user_id: string
+          turn_id?: string | null
+          user_id?: string | null
+          workload_id?: string
         }
         Update: {
+          audio_input_tokens?: number
+          audio_output_tokens?: number
+          cached_input_tokens?: number
+          completed_at?: string
+          connection_id?: string | null
+          connector?: string
+          cost_currency?: string | null
           created_at?: string
+          deployment_id?: string | null
+          error_code?: string | null
           id?: string
           input_tokens?: number
-          model?: string
+          latency_ms?: number
+          model_vendor?: string | null
+          operation?: string
           org_id?: string | null
           output_tokens?: number
+          policy_hash?: string | null
+          policy_snapshot?: Json
           portfolio_id?: string | null
+          provider_request_id?: string | null
+          reasoning_tokens?: number
+          reported_cost?: number | null
+          requested_model?: string
+          resolved_model?: string | null
+          resolved_provider?: string | null
+          route_id?: string | null
+          scope_kind?: string
           session_id?: string | null
+          started_at?: string
+          status?: string
+          target_position?: number
           total_tokens?: number | null
-          user_id?: string
+          turn_id?: string | null
+          user_id?: string | null
+          workload_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "ai_usage_log_connection_id_fkey"
+            columns: ["connection_id"]
+            isOneToOne: false
+            referencedRelation: "org_ai_connections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_usage_log_deployment_id_fkey"
+            columns: ["deployment_id"]
+            isOneToOne: false
+            referencedRelation: "org_ai_deployments"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "ai_usage_log_org_id_fkey"
             columns: ["org_id"]
@@ -482,6 +577,20 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_portfolio_summary"
             referencedColumns: ["portfolio_id"]
+          },
+          {
+            foreignKeyName: "ai_usage_log_route_id_fkey"
+            columns: ["route_id"]
+            isOneToOne: false
+            referencedRelation: "org_ai_routes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_usage_log_turn_id_fkey"
+            columns: ["turn_id"]
+            isOneToOne: false
+            referencedRelation: "ai_turns"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -6234,7 +6343,7 @@ export type Database = {
           id: string
           intake_completed_at: string | null
           messages: Json
-          organization_id: string | null
+          org_id: string | null
           quick_intake: Json
           started_at: string
           status: string
@@ -6249,7 +6358,7 @@ export type Database = {
           id?: string
           intake_completed_at?: string | null
           messages?: Json
-          organization_id?: string | null
+          org_id?: string | null
           quick_intake?: Json
           started_at?: string
           status?: string
@@ -6264,7 +6373,7 @@ export type Database = {
           id?: string
           intake_completed_at?: string | null
           messages?: Json
-          organization_id?: string | null
+          org_id?: string | null
           quick_intake?: Json
           started_at?: string
           status?: string
@@ -6273,29 +6382,112 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "onboarding_sessions_organization_id_fkey"
-            columns: ["organization_id"]
+            foreignKeyName: "onboarding_sessions_org_id_fkey"
+            columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "my_organizations"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "onboarding_sessions_organization_id_fkey"
-            columns: ["organization_id"]
+            foreignKeyName: "onboarding_sessions_org_id_fkey"
+            columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "onboarding_sessions_organization_id_fkey"
-            columns: ["organization_id"]
+            foreignKeyName: "onboarding_sessions_org_id_fkey"
+            columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "v_compliance_dashboard"
             referencedColumns: ["org_id"]
           },
           {
-            foreignKeyName: "onboarding_sessions_organization_id_fkey"
-            columns: ["organization_id"]
+            foreignKeyName: "onboarding_sessions_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "v_org_modules"
+            referencedColumns: ["org_id"]
+          },
+        ]
+      }
+      org_ai_connections: {
+        Row: {
+          auth_type: string
+          config: Json
+          connector: string
+          created_at: string
+          created_by: string | null
+          endpoint_url: string | null
+          id: string
+          last_test_status: string | null
+          last_tested_at: string | null
+          name: string
+          org_id: string
+          region: string | null
+          status: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          auth_type: string
+          config?: Json
+          connector: string
+          created_at?: string
+          created_by?: string | null
+          endpoint_url?: string | null
+          id?: string
+          last_test_status?: string | null
+          last_tested_at?: string | null
+          name: string
+          org_id: string
+          region?: string | null
+          status?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          auth_type?: string
+          config?: Json
+          connector?: string
+          created_at?: string
+          created_by?: string | null
+          endpoint_url?: string | null
+          id?: string
+          last_test_status?: string | null
+          last_tested_at?: string | null
+          name?: string
+          org_id?: string
+          region?: string | null
+          status?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "org_ai_connections_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "my_organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "org_ai_connections_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "org_ai_connections_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "v_compliance_dashboard"
+            referencedColumns: ["org_id"]
+          },
+          {
+            foreignKeyName: "org_ai_connections_org_id_fkey"
+            columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "v_org_modules"
             referencedColumns: ["org_id"]
@@ -6377,10 +6569,230 @@ export type Database = {
           },
         ]
       }
+      org_ai_credentials: {
+        Row: {
+          connection_id: string
+          created_at: string
+          created_by: string | null
+          display_hint: string | null
+          encrypted_payload: string
+          encryption_key_id: string
+          fingerprint_key_id: string
+          id: string
+          org_id: string
+          rotated_at: string | null
+          secret_fingerprint: string
+          updated_at: string
+        }
+        Insert: {
+          connection_id: string
+          created_at?: string
+          created_by?: string | null
+          display_hint?: string | null
+          encrypted_payload: string
+          encryption_key_id: string
+          fingerprint_key_id: string
+          id?: string
+          org_id: string
+          rotated_at?: string | null
+          secret_fingerprint: string
+          updated_at?: string
+        }
+        Update: {
+          connection_id?: string
+          created_at?: string
+          created_by?: string | null
+          display_hint?: string | null
+          encrypted_payload?: string
+          encryption_key_id?: string
+          fingerprint_key_id?: string
+          id?: string
+          org_id?: string
+          rotated_at?: string | null
+          secret_fingerprint?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "org_ai_credentials_connection_id_org_id_fkey"
+            columns: ["connection_id", "org_id"]
+            isOneToOne: false
+            referencedRelation: "org_ai_connections"
+            referencedColumns: ["id", "org_id"]
+          },
+        ]
+      }
+      org_ai_deployments: {
+        Row: {
+          catalog_template_id: string | null
+          config: Json
+          connection_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          name: string
+          org_id: string
+          provider_model_id: string
+          status: string
+          updated_at: string
+          updated_by: string | null
+          verified_workloads: Json
+        }
+        Insert: {
+          catalog_template_id?: string | null
+          config?: Json
+          connection_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name: string
+          org_id: string
+          provider_model_id: string
+          status?: string
+          updated_at?: string
+          updated_by?: string | null
+          verified_workloads?: Json
+        }
+        Update: {
+          catalog_template_id?: string | null
+          config?: Json
+          connection_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name?: string
+          org_id?: string
+          provider_model_id?: string
+          status?: string
+          updated_at?: string
+          updated_by?: string | null
+          verified_workloads?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "org_ai_deployments_connection_id_org_id_fkey"
+            columns: ["connection_id", "org_id"]
+            isOneToOne: false
+            referencedRelation: "org_ai_connections"
+            referencedColumns: ["id", "org_id"]
+          },
+        ]
+      }
+      org_ai_route_targets: {
+        Row: {
+          created_at: string
+          deployment_id: string | null
+          id: string
+          org_id: string
+          position: number
+          route_id: string
+          target_kind: string
+        }
+        Insert: {
+          created_at?: string
+          deployment_id?: string | null
+          id?: string
+          org_id: string
+          position: number
+          route_id: string
+          target_kind: string
+        }
+        Update: {
+          created_at?: string
+          deployment_id?: string | null
+          id?: string
+          org_id?: string
+          position?: number
+          route_id?: string
+          target_kind?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "org_ai_route_targets_deployment_id_org_id_fkey"
+            columns: ["deployment_id", "org_id"]
+            isOneToOne: false
+            referencedRelation: "org_ai_deployments"
+            referencedColumns: ["id", "org_id"]
+          },
+          {
+            foreignKeyName: "org_ai_route_targets_route_id_org_id_fkey"
+            columns: ["route_id", "org_id"]
+            isOneToOne: false
+            referencedRelation: "org_ai_routes"
+            referencedColumns: ["id", "org_id"]
+          },
+        ]
+      }
+      org_ai_routes: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          is_enabled: boolean
+          org_id: string
+          policy: Json
+          updated_at: string
+          updated_by: string | null
+          workload_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_enabled?: boolean
+          org_id: string
+          policy?: Json
+          updated_at?: string
+          updated_by?: string | null
+          workload_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_enabled?: boolean
+          org_id?: string
+          policy?: Json
+          updated_at?: string
+          updated_by?: string | null
+          workload_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "org_ai_routes_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "my_organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "org_ai_routes_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "org_ai_routes_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "v_compliance_dashboard"
+            referencedColumns: ["org_id"]
+          },
+          {
+            foreignKeyName: "org_ai_routes_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "v_org_modules"
+            referencedColumns: ["org_id"]
+          },
+        ]
+      }
       org_audit_log: {
         Row: {
           action: string
-          actor_id: string
+          actor_id: string | null
+          actor_subject_id: string
           created_at: string
           id: string
           metadata: Json | null
@@ -6389,7 +6801,8 @@ export type Database = {
         }
         Insert: {
           action: string
-          actor_id: string
+          actor_id?: string | null
+          actor_subject_id?: string
           created_at?: string
           id?: string
           metadata?: Json | null
@@ -6398,7 +6811,8 @@ export type Database = {
         }
         Update: {
           action?: string
-          actor_id?: string
+          actor_id?: string | null
+          actor_subject_id?: string
           created_at?: string
           id?: string
           metadata?: Json | null
@@ -13674,6 +14088,15 @@ export type Database = {
         }
         Returns: Json
       }
+      bind_ai_turn_execution_plan: {
+        Args: {
+          p_execution_plan: Json
+          p_portfolio_id: string
+          p_turn_id: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
       bootstrap_app_admin: { Args: never; Returns: boolean }
       builder_claim_code_run: {
         Args: { p_actor: string; p_org_id: string; p_proposal_id: string }
@@ -13921,6 +14344,17 @@ export type Database = {
         Returns: Json
       }
       redo_ai_action: { Args: { p_action_id: string }; Returns: Json }
+      replace_org_ai_route: {
+        Args: {
+          p_actor_id: string
+          p_is_enabled: boolean
+          p_org_id: string
+          p_policy: Json
+          p_targets: Json
+          p_workload_id: string
+        }
+        Returns: string
+      }
       replace_tax_carryforward_applications: {
         Args: {
           p_actor_id?: string

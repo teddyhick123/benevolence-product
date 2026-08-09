@@ -9,7 +9,7 @@ type RateLimitResult = {
 };
 
 type RateLimiter = {
-  limit(identifier: string): Promise<RateLimitResult>;
+  limit(_identifier: string): Promise<RateLimitResult>;
 };
 
 const redisUrl = process.env.UPSTASH_REDIS_REST_URL;
@@ -45,6 +45,11 @@ export const authLimiter = createLimiter(10, '15m', 'ratelimit:auth');
 // Prevents runaway API spend from a single user/org
 // 30 requests per hour for expensive AI provider routes
 export const aiLimiter = createLimiter(30, '1h', 'ratelimit:ai');
+
+// Organization AI administration can make provider-backed calls. These limits
+// are intentionally separate from ordinary product usage.
+export const aiConnectionTestLimiter = createLimiter(6, '1h', 'ratelimit:ai-connection-test');
+export const aiDeploymentEvaluationLimiter = createLimiter(3, '1d', 'ratelimit:ai-deployment-evaluation');
 
 // Rate limiter for charity search — keyed per IP
 // 120 requests per minute protects the 2M-row charities table from scraping

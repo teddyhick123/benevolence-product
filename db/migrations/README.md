@@ -1,6 +1,6 @@
 # Database Migrations
 
-Single source of truth for the schema. 54 ordered migrations replace the ad-hoc
+Single source of truth for the schema. 55 ordered migrations replace the ad-hoc
 legacy files and the stale consolidated module files. Late prerelease patches
 have been folded into the canonical owning migrations.
 
@@ -75,6 +75,7 @@ psql $DATABASE_URL -f db/demo/seed_demo_org.sql
 | 0054_org_member_capabilities | Access | Additive org-member capabilities for implementation review |
 | 0055_role_permission_alignment | Access | Align canonical role and ownership enforcement |
 | 0056_onboarding_provisioning_recovery | Onboarding | Retry-safe onboarding automation seeding |
+| 0057_org_ai_runtime | AI | Organization connections, deployments, workload routes, invocation metadata, and durable execution snapshots |
 
 ## Architecture decisions
 
@@ -116,6 +117,12 @@ canonical assistant state tables. Sessions hold metadata, turns provide a
 request-id idempotency boundary, and messages are normalized append-only rows.
 The earlier `ai_conversations` and `ai_action_log` schema is intentionally not
 created in active migrations.
+
+Organization-managed AI configuration lives in `org_ai_connections`,
+`org_ai_credentials`, `org_ai_deployments`, `org_ai_routes`, and
+`org_ai_route_targets` (0057). Credentials are service-only; authenticated
+organization admins may read only non-secret configuration. `ai_usage_log` is
+the canonical content-free invocation history for every AI workload.
 
 ### Seeds are migrations (0036)
 Module definitions and presets live in 0036_seeds.sql so they run in the same

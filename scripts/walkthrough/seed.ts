@@ -222,7 +222,7 @@ async function main() {
   await insert(sb, 'onboarding_sessions', completedPersonas.map((name, index) => ({
     id: `dddddddd-0000-4000-8000-${String(index + 1).padStart(12, '0')}`,
     user_id: users[name],
-    organization_id: name === 'outsider'
+    org_id: name === 'outsider'
       ? fixtureIds.orgs.gamma
       : name === 'multiOrgMember'
         ? fixtureIds.orgs.beta

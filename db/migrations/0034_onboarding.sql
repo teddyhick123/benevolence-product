@@ -11,7 +11,7 @@
 CREATE TABLE IF NOT EXISTS public.onboarding_sessions (
   id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id          UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  organization_id  UUID REFERENCES public.organizations(id) ON DELETE SET NULL,
+  org_id            UUID REFERENCES public.organizations(id) ON DELETE SET NULL,
 
   status           TEXT NOT NULL DEFAULT 'intake'
                    CHECK (status IN ('intake', 'conversation', 'recommendations', 'completed', 'abandoned')),
@@ -30,7 +30,7 @@ CREATE TABLE IF NOT EXISTS public.onboarding_sessions (
 );
 
 CREATE INDEX IF NOT EXISTS idx_onboarding_sessions_user_id    ON public.onboarding_sessions(user_id);
-CREATE INDEX IF NOT EXISTS idx_onboarding_sessions_org_id     ON public.onboarding_sessions(organization_id);
+CREATE INDEX IF NOT EXISTS idx_onboarding_sessions_org_id     ON public.onboarding_sessions(org_id);
 CREATE INDEX IF NOT EXISTS idx_onboarding_sessions_status     ON public.onboarding_sessions(status);
 CREATE INDEX IF NOT EXISTS idx_onboarding_sessions_created_at ON public.onboarding_sessions(created_at DESC);
 

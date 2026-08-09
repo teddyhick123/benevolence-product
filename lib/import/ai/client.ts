@@ -17,7 +17,7 @@ export async function callAI(
 ): Promise<string> {
   if (!options.scope) throw new Error('AI execution scope is required');
   const gateway = createAIExecutionGateway(options.scope);
-  const response = await gateway.generateText(gateway.resolve('import'), {
+  const response = await gateway.generateText(await gateway.resolve('import'), {
     maxOutputTokens: options.maxTokens ?? 4096,
     temperature: options.temperature ?? 0.1,
     system: systemPrompt,
@@ -37,7 +37,7 @@ export async function callAIStreaming(
 ): Promise<void> {
   if (!options.scope) throw new Error('AI execution scope is required');
   const gateway = createAIExecutionGateway(options.scope);
-  const stream = gateway.streamText(gateway.resolve('import_chat'), {
+  const stream = gateway.streamText(await gateway.resolve('import_chat'), {
     maxOutputTokens: options.maxTokens ?? 4096,
     temperature: options.temperature ?? 0.1,
     system: systemPrompt,

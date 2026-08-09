@@ -25,7 +25,7 @@ export type AIWorkloadId =
   | 'financial_profile'
   | 'transcription';
 
-export type AIConnectorId = 'anthropic' | 'transcription_platform';
+export type AIConnectorId = 'anthropic' | 'openrouter' | 'transcription_platform';
 
 export interface AIWorkloadDefinition {
   id: AIWorkloadId;

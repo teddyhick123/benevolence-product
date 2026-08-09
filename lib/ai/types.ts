@@ -125,7 +125,15 @@ export interface AIResponse {
   stopReason: string | null;
   model: string;
   providerRequestId?: string;
-  usage?: { inputTokens: number; outputTokens: number };
+  resolvedProvider?: string;
+  usage?: {
+    inputTokens: number;
+    outputTokens: number;
+    cachedInputTokens?: number;
+    reasoningTokens?: number;
+    audioInputTokens?: number;
+    audioOutputTokens?: number;
+  };
 }
 
 /**
@@ -136,7 +144,15 @@ export type AIStreamChunk =
       type: 'message_start';
       model: string;
       providerRequestId?: string;
-      usage?: { inputTokens: number; outputTokens: number };
+      usage?: {
+        inputTokens: number;
+        outputTokens: number;
+        cachedInputTokens?: number;
+        reasoningTokens?: number;
+        audioInputTokens?: number;
+        audioOutputTokens?: number;
+      };
+      resolvedProvider?: string;
     }
   | { type: 'content_block_start'; blockType: 'text' | 'tool_use'; id?: string; name?: string }
   | { type: 'text_delta'; text: string }
@@ -147,5 +163,13 @@ export type AIStreamChunk =
       stopReason: string | null;
       model?: string;
       providerRequestId?: string;
-      usage?: { inputTokens: number; outputTokens: number };
+      usage?: {
+        inputTokens: number;
+        outputTokens: number;
+        cachedInputTokens?: number;
+        reasoningTokens?: number;
+        audioInputTokens?: number;
+        audioOutputTokens?: number;
+      };
+      resolvedProvider?: string;
     };

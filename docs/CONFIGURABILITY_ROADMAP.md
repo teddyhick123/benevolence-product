@@ -409,7 +409,7 @@ The platform feels like a coherent "dream OS" from first login. Onboarding captu
 - Configurable board report templates: logo, section selection, content ordering, custom field inclusion
 - Builder configuration history: admins can see what was changed, when, and by whom
 - Builder can give a full configuration summary: "Here's how your org is currently set up" across all six layers
-- P2 backlog items from `FULL-BACKLOG.md` batched and resolved
+- Selected P2 items from `docs/module-reviews/FULL-BACKLOG.md` are revalidated, batched, and resolved
 - End-to-end walkthrough tests covering the full configured-org experience
 
 **Out:**

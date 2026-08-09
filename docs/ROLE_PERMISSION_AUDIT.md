@@ -1,5 +1,10 @@
 # Role And Permission Consistency Audit
 
+> **Consolidation note (2026-08-08):** The audited role and permission findings
+> are resolved. This document is retained as design and verification history;
+> new open work belongs in the
+> [consolidated backlog](module-reviews/FULL-BACKLOG.md).
+
 Date: 2026-07-09
 
 ## Goal

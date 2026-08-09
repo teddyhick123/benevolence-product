@@ -1,5 +1,9 @@
 # Reliability Audit — Boringly Reliable When It Counts
 
+> **Consolidation note (2026-08-08):** RA-01 through RA-24 are fixed and RX-01
+> and RX-02 are retired. This document is retained as verification history; new
+> open work belongs in the [consolidated backlog](FULL-BACKLOG.md).
+
 > Reviewed: 2026-06-27
 > Revised against current working tree: 2026-06-27
 > Scope: financial transactions, tax records, board materials/compliance, and grantee obligations

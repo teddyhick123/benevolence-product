@@ -124,6 +124,7 @@ export interface AIResponse {
   content: AIContentBlock[];
   stopReason: string | null;
   model: string;
+  providerRequestId?: string;
   usage?: { inputTokens: number; outputTokens: number };
 }
 
@@ -131,8 +132,20 @@ export interface AIResponse {
  * Stream chunk from an AI provider streaming response
  */
 export type AIStreamChunk =
+  | {
+      type: 'message_start';
+      model: string;
+      providerRequestId?: string;
+      usage?: { inputTokens: number; outputTokens: number };
+    }
   | { type: 'content_block_start'; blockType: 'text' | 'tool_use'; id?: string; name?: string }
   | { type: 'text_delta'; text: string }
   | { type: 'tool_input_delta'; partialJson: string }
   | { type: 'content_block_stop' }
-  | { type: 'message_stop'; stopReason: string | null };
+  | {
+      type: 'message_stop';
+      stopReason: string | null;
+      model?: string;
+      providerRequestId?: string;
+      usage?: { inputTokens: number; outputTokens: number };
+    };

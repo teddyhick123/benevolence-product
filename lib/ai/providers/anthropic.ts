@@ -15,24 +15,27 @@ export class AnthropicProvider implements AIProvider {
   }
 
   async createMessage(config: AIRequestConfig): Promise<AIResponse> {
-    const response = await this.client.messages.create({
-      model: config.model,
-      max_tokens: config.maxTokens ?? 4096,
-      temperature: config.temperature,
-      system: config.system,
-      messages: config.messages.map(m => ({
-        role: m.role,
-        content: typeof m.content === 'string'
-          ? m.content
-          : (m.content as AIContentBlock[]).map(block => {
-              if (block.type === 'text') return { type: 'text' as const, text: block.text };
-              if (block.type === 'tool_use') return { type: 'tool_use' as const, id: block.id, name: block.name, input: block.input };
-              // tool_result
-              return { type: 'tool_result' as const, tool_use_id: block.tool_use_id, content: block.content };
-            }),
-      })),
-      ...(config.tools?.length ? { tools: config.tools as unknown as Anthropic.Tool[] } : {}),
-    });
+    const response = await this.client.messages.create(
+      {
+        model: config.model,
+        max_tokens: config.maxTokens ?? 4096,
+        temperature: config.temperature,
+        system: config.system,
+        messages: config.messages.map(m => ({
+          role: m.role,
+          content: typeof m.content === 'string'
+            ? m.content
+            : (m.content as AIContentBlock[]).map(block => {
+                if (block.type === 'text') return { type: 'text' as const, text: block.text };
+                if (block.type === 'tool_use') return { type: 'tool_use' as const, id: block.id, name: block.name, input: block.input };
+                // tool_result
+                return { type: 'tool_result' as const, tool_use_id: block.tool_use_id, content: block.content };
+              }),
+        })),
+        ...(config.tools?.length ? { tools: config.tools as unknown as Anthropic.Tool[] } : {}),
+      },
+      { signal: config.signal },
+    );
 
     const content: AIContentBlock[] = response.content.map(block => {
       if (block.type === 'text') return { type: 'text', text: block.text };
@@ -44,32 +47,46 @@ export class AnthropicProvider implements AIProvider {
       content,
       stopReason: response.stop_reason ?? null,
       model: response.model,
+      providerRequestId: response.id,
       usage: { inputTokens: response.usage.input_tokens, outputTokens: response.usage.output_tokens },
     };
   }
 
   async *createStream(config: AIRequestConfig): AsyncIterable<AIStreamChunk> {
-    const stream = this.client.messages.stream({
-      model: config.model,
-      max_tokens: config.maxTokens ?? 4096,
-      temperature: config.temperature,
-      system: config.system,
-      messages: config.messages.map(m => ({
-        role: m.role,
-        content: typeof m.content === 'string'
-          ? m.content
-          : (m.content as AIContentBlock[]).map(block => {
-              if (block.type === 'text') return { type: 'text' as const, text: block.text };
-              if (block.type === 'tool_use') return { type: 'tool_use' as const, id: block.id, name: block.name, input: block.input };
-              return { type: 'tool_result' as const, tool_use_id: block.tool_use_id, content: block.content };
-            }),
-      })),
-      ...(config.tools?.length ? { tools: config.tools as unknown as Anthropic.Tool[] } : {}),
-    });
+    const stream = this.client.messages.stream(
+      {
+        model: config.model,
+        max_tokens: config.maxTokens ?? 4096,
+        temperature: config.temperature,
+        system: config.system,
+        messages: config.messages.map(m => ({
+          role: m.role,
+          content: typeof m.content === 'string'
+            ? m.content
+            : (m.content as AIContentBlock[]).map(block => {
+                if (block.type === 'text') return { type: 'text' as const, text: block.text };
+                if (block.type === 'tool_use') return { type: 'tool_use' as const, id: block.id, name: block.name, input: block.input };
+                return { type: 'tool_result' as const, tool_use_id: block.tool_use_id, content: block.content };
+              }),
+        })),
+        ...(config.tools?.length ? { tools: config.tools as unknown as Anthropic.Tool[] } : {}),
+      },
+      { signal: config.signal },
+    );
 
     try {
       for await (const event of stream) {
-        if (event.type === 'content_block_start') {
+        if (event.type === 'message_start') {
+          yield {
+            type: 'message_start',
+            model: event.message.model,
+            providerRequestId: event.message.id,
+            usage: {
+              inputTokens: event.message.usage.input_tokens,
+              outputTokens: event.message.usage.output_tokens,
+            },
+          };
+        } else if (event.type === 'content_block_start') {
           if (event.content_block.type === 'tool_use') {
             yield { type: 'content_block_start', blockType: 'tool_use', id: event.content_block.id, name: event.content_block.name };
           } else if (event.content_block.type === 'text') {
@@ -84,7 +101,14 @@ export class AnthropicProvider implements AIProvider {
         } else if (event.type === 'content_block_stop') {
           yield { type: 'content_block_stop' };
         } else if (event.type === 'message_delta') {
-          yield { type: 'message_stop', stopReason: event.delta.stop_reason ?? null };
+          yield {
+            type: 'message_stop',
+            stopReason: event.delta.stop_reason ?? null,
+            usage: {
+              inputTokens: 0,
+              outputTokens: event.usage.output_tokens,
+            },
+          };
         }
       }
     } finally {

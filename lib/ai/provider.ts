@@ -16,6 +16,7 @@ export interface AIRequestConfig {
   tools?: ToolDefinition[];
   maxTokens?: number;
   temperature?: number;
+  signal?: AbortSignal;
 }
 
 /**
@@ -25,10 +26,10 @@ export interface AIProvider {
   /**
    * Create a non-streaming message
    */
-  createMessage(config: AIRequestConfig): Promise<AIResponse>;
+  createMessage(_config: AIRequestConfig): Promise<AIResponse>;
 
   /**
    * Create a streaming message
    */
-  createStream(config: AIRequestConfig): AsyncIterable<AIStreamChunk>;
+  createStream(_config: AIRequestConfig): AsyncIterable<AIStreamChunk>;
 }

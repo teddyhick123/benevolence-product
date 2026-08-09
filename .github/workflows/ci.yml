@@ -46,6 +46,7 @@ jobs:
           cache: npm
 
       - run: npm ci
+      - run: npm run verify:hygiene
       - run: npm run verify:types
       - run: npm run verify:lint
       - run: npm run verify:unit

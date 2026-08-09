@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { createClient } from '@/lib/supabase-browser';
+import { createBrowserClient as createClient } from '@/lib/supabase-browser';
 
 type DonorSummary = {
   donor_id: string;

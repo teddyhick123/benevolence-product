@@ -10,8 +10,9 @@ const migrationsSrc = readdirSync('db/migrations')
 
 const grantWorkflowSrc = [
   'components/grants/WorkflowManager.tsx',
-  'components/grants/GrantHealthDashboard.tsx',
+  'components/grants/detail/GrantDetailPage.tsx',
   'app/dashboard/grants/[grantId]/page.tsx',
+  'app/api/org/[orgId]/grants/[grantId]/route.ts',
   'app/api/portfolio/[id]/grants/route.ts',
   'app/api/portfolio/[id]/grants/export/route.ts',
 ]

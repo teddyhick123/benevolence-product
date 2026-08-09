@@ -70,7 +70,7 @@ Key invariants that differ from older patterns or documentation you may encounte
 | Database Migrations | `/db/migrations/NNNN_description.sql` |
 | API Routes | `/app/api/**/*.ts` |
 | Components | `/components/**/*.tsx` |
-| Module Context | `/contexts/ModuleContext.tsx` |
+| Browser Data Hooks | `/lib/<domain>/hooks.ts`, `/lib/api/client-hooks.ts` |
 | Templates | `/templates/module/` |
 
 ## Architecture Overview
@@ -137,297 +137,28 @@ interface ModuleDefinition {
 
 1. **Database**: `organizations.modules` JSONB tracks which modules are enabled per org
 2. **Backend**: `filterToolsForOrg()` filters AI tools based on enabled modules
-3. **Frontend**: `ModuleGate` component conditionally renders based on modules
+3. **Frontend**: Registered module metadata and authorized server/API data drive route and component visibility
 4. **AI**: System prompt includes only enabled module instructions
 
 ---
 
 ## Creating a New Module
 
-### Step 1: Define the Module
+Use `/templates/module/README.md` and its tested templates as the implementation guide. The required sequence is:
 
-Add to `/lib/modules/registry.ts`:
+1. Apply the Schema Change Decision Protocol. Organization-specific fields, KPIs, views, workflows, automations, and module choices stay in sanctioned data/configuration extension points. Only a genuine shared platform concept justifies canonical DDL.
+2. Register the app-facing module ID and its database-slug mapping in `lib/modules/types.ts`, `lib/modules/client-info.ts`, and `lib/modules/registry.ts`.
+3. If DDL is justified, use `db/migrations/NNNN_name.sql` for a product increment or edit the owning migration for a prerelease correction. Regenerate `lib/database.types.ts`.
+4. Put elevated operations behind a tenant-scoped repository. Construct it only after `requireOrgAccess`, `requirePortfolioAccess`, or the appropriate public/job guard proves the principal and scope.
+5. Put org-scoped mutations under `app/api/org/[orgId]/**`. Routes use shared access guards and `jsonOk`/`jsonError`; they do not construct feature-local service clients.
+6. Put browser data ownership in `lib/<domain>/hooks.ts` and use `lib/api/client.ts` plus `lib/api/client-hooks.ts`. Components and client pages do not call raw `fetch`, parse JSON, or query Supabase directly for domain data.
+7. Add provider-neutral AI definitions and small executors under `lib/ai/assistant/executors/tools/`. Elevated behavior enters through authenticated, tenant-scoped `AssistantToolCapabilities`, never an elevated client passed into the executor.
+8. Preserve the assistant route's durable lifecycle: request-ID idempotency in `ai_turns`, normalized append-only `ai_messages`, persisted `ai_actions`, and atomic `begin_ai_turn`/`complete_ai_turn`/`fail_ai_turn` behavior.
+9. Run `npm run verify:hygiene`, the focused boundary contracts, and the normal verification suite.
 
-```typescript
-new_module: {
-  id: 'new_module',
-  name: 'New Module',
-  description: 'What this module does',
-  isCore: false,
-  icon: 'icon-name',
-  tools: [
-    'tool_name_1',
-    'tool_name_2',
-  ],
-  tables: [
-    'new_module_table',
-  ],
-  routes: [
-    '/dashboard/new-module',
-  ],
-  dependencies: [], // or ['impact_tracking'] if needed
-  systemPromptAddition: `
-You can help with new module functionality. Available actions include:
-- Action 1
-- Action 2
-`,
-},
-```
-
-### Step 2: Create Database Migration
-
-First apply the Schema Change Decision Protocol above. Prefer the existing data-driven extension points when the module is organization-variable. Only a genuine platform-level product increment should create `/db/migrations/NNNN_new_module.sql`; a prerelease correction must update its owning migration instead.
-
-```sql
--- Migration: New Module Name
--- Description: Brief description
--- Date: YYYY-MM-DD
-
--- 1. CREATE TABLES
-CREATE TABLE IF NOT EXISTS public.new_module_table (
-  id         UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-  org_id     UUID        NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
-  -- Fields here
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
--- 2. CREATE INDEXES
-CREATE INDEX IF NOT EXISTS idx_new_module_table_org_id
-  ON public.new_module_table(org_id);
-
--- 3. ENABLE RLS
-ALTER TABLE public.new_module_table ENABLE ROW LEVEL SECURITY;
-
--- 4. CREATE RLS POLICIES
--- Use can_view_org (member read) and is_org_admin (write). NOT is_org_member — that function does not exist.
-CREATE POLICY "new_module_table_read" ON public.new_module_table
-  FOR SELECT TO authenticated
-  USING (public.can_view_org(org_id));
-
-CREATE POLICY "new_module_table_write" ON public.new_module_table
-  FOR ALL TO authenticated
-  USING (public.is_org_admin(org_id))
-  WITH CHECK (public.is_org_admin(org_id));
-
-CREATE POLICY "new_module_table_service" ON public.new_module_table
-  FOR ALL TO service_role
-  USING (true) WITH CHECK (true);
-
--- 5. GRANT PERMISSIONS
-GRANT SELECT, INSERT, UPDATE, DELETE ON public.new_module_table TO authenticated;
-GRANT ALL ON public.new_module_table TO service_role;
-
--- 6. ADD updated_at TRIGGER
-CREATE TRIGGER set_new_module_table_updated_at
-  BEFORE UPDATE ON public.new_module_table
-  FOR EACH ROW
-  EXECUTE FUNCTION public.set_updated_at();
-```
-
-### Step 3: Add AI Tools
-
-Add provider-neutral tool definitions to `/lib/ai/assistant/tool-definitions.ts`:
-
-```typescript
-// ==================== NEW MODULE ====================
-{
-  name: 'tool_name_1',
-  description: 'Clear description of what this tool does',
-  input_schema: {
-    type: 'object',
-    properties: {
-      required_field: {
-        type: 'string',
-        description: 'Description for the AI'
-      },
-      optional_field: {
-        type: 'number',
-        description: 'Optional parameter (default: 10)'
-      },
-    },
-    required: ['required_field'],
-  },
-},
-```
-
-Add the tool executor case in `executeAssistantTool()` in `/lib/ai/assistant/executor.ts`:
-
-```typescript
-case 'tool_name_1': {
-  // Validate inputs
-  InputValidator.validateUUID(args.required_field, 'required_field');
-
-  // Execute operation
-  const { data, error } = await supabase
-    .from('new_module_table')
-    .insert({ org_id: args.org_id, ... })
-    .select()
-    .single();
-
-  if (error) throw error;
-
-  // Return result (with optional action for undo/redo)
-  return {
-    action: {
-      id: crypto.randomUUID(),
-      sessionId,
-      portfolioId,
-      userId,
-      actionType: 'create',
-      entityType: 'new_entity_type', // Add to AIAction type if needed
-      entityId: data.id,
-      operationData: { table: 'new_module_table', after: data },
-      aiReasoning: 'Created new item',
-      userPrompt,
-      status: 'applied',
-      batchId,
-      sequenceOrder,
-    },
-    output: { success: true, item: data },
-  };
-}
-```
-
-### Step 4: Create API Routes
-
-Create `/app/api/org/[orgId]/new-module/route.ts`:
-
-```typescript
-import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-import { cookies } from 'next/headers';
-import { createServerClient } from '@supabase/ssr';
-
-export const runtime = 'nodejs';
-
-function supabaseService() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE!,
-    { auth: { persistSession: false } }
-  );
-}
-
-export async function GET(
-  req: NextRequest,
-  { params }: { params: Promise<{ orgId: string }> }
-) {
-  try {
-    const { orgId } = await params;
-
-    // Auth check
-    const cookieStore = await cookies();
-    const supabase = createServerClient(/* ... */);
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    // Module check (optional but recommended)
-    const sb = supabaseService();
-    const { data: hasModule } = await sb.rpc('org_has_module', {
-      p_org_id: orgId,
-      p_module: 'new_module',   // parameter is p_module, NOT p_module_id
-    });
-    if (!hasModule) {
-      return NextResponse.json({ error: 'Module not enabled' }, { status: 403 });
-    }
-
-    // Fetch data
-    const { data, error } = await sb
-      .from('new_module_table')
-      .select('*')
-      .eq('org_id', orgId);
-
-    if (error) throw error;
-
-    return NextResponse.json({ data });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-}
-```
-
-### Step 5: Create Components
-
-Create `/components/new-module/NewModuleList.tsx`:
-
-```typescript
-'use client';
-
-import { useState, useEffect } from 'react';
-import { useModules } from '@/contexts/ModuleContext';
-
-interface Props {
-  orgId: string;
-}
-
-export default function NewModuleList({ orgId }: Props) {
-  const { hasModule } = useModules();
-  const [data, setData] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    if (!hasModule('new_module')) return;
-
-    fetch(`/api/org/${orgId}/new-module`)
-      .then(res => res.json())
-      .then(data => setData(data.data || []))
-      .finally(() => setLoading(false));
-  }, [orgId, hasModule]);
-
-  if (!hasModule('new_module')) {
-    return null; // Or upgrade prompt
-  }
-
-  if (loading) return <div>Loading...</div>;
-
-  return (
-    <div className="space-y-4">
-      {/* Render data */}
-    </div>
-  );
-}
-```
-
-### Step 6: Create Page
-
-Create `/app/dashboard/new-module/page.tsx`:
-
-```typescript
-import { cookies } from 'next/headers';
-import { createServerClient } from '@supabase/ssr';
-import { redirect } from 'next/navigation';
-import NewModuleList from '@/components/new-module/NewModuleList';
-
-export default async function NewModulePage() {
-  const cookieStore = await cookies();
-  const supabase = createServerClient(/* ... */);
-
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect('/login');
-
-  // Get user's org
-  const { data: membership } = await supabase
-    .from('organization_members')
-    .select('org_id')
-    .eq('user_id', user.id)
-    .single();
-
-  if (!membership) redirect('/welcome');
-
-  return (
-    <div className="p-6">
-      <h1 className="text-2xl font-semibold mb-6">New Module</h1>
-      <NewModuleList orgId={membership.org_id} />
-    </div>
-  );
-}
-```
+Do not recreate `contexts/ModuleContext.tsx` or a generic `ModuleGate`. Current module visibility is derived from registered module metadata and authorized server/API data, with explicit UI state passed to the relevant component.
 
 ---
-
 ## Tax Center Module
 
 ### Canonical Tax Center tables
@@ -688,6 +419,7 @@ CREATE POLICY "table_service" ON public.table_name
   /vis              # Visualization/widget components
 
 /lib
+  /api              # Access guards, scoped repositories, responses, browser transport
   /modules          # Module system
     registry.ts     # Module definitions
     tool-filter.ts  # Tool filtering logic
@@ -697,10 +429,7 @@ CREATE POLICY "table_service" ON public.table_name
   /services         # External service integrations
   /schemas          # Zod validation schemas
 
-/db                 # Database migrations (NNNN_name.sql)
-
-/contexts           # React contexts
-  ModuleContext.tsx # Module state management
+/db/migrations      # Canonical database migrations (NNNN_name.sql)
 ```
 
 ---

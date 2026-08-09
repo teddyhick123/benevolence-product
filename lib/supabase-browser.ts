@@ -19,9 +19,3 @@ export function createBrowserClient() {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
 }
-
-// Alias for components using 'createClient' pattern
-export const createClient = createBrowserClient;
-
-// Default export for convenience
-export default createBrowserClient;

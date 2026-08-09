@@ -35,6 +35,7 @@ const BUILD_PATTERNS = [/^next\.config\.[a-z]+$/, /^tailwind\.config\.[a-z]+$/, 
 
 const SCHEMA_CONTRACT_SUITE = 'tests/integration/builder-schema-contract.test.ts';
 const CLIENT_DATA_CONTRACT_SUITE = 'tests/integration/client-data-contract.test.ts';
+const MODULE_TEMPLATE_CONTRACT_SUITE = 'tests/integration/module-template-contract.test.ts';
 // A glob pattern, not a literal file path. Vitest does NOT expand a '*' it is
 // handed as a `related` argument (verified against Vitest 4.0.12: it silently
 // treats the literal '*' string as a non-matching filter), and CHECK_COMMANDS
@@ -94,6 +95,9 @@ export function unitTestTargets(paths: string[]): { relatedFiles: string[]; extr
   }
   if (paths.some(isClientDataRelevant)) {
     extraSuiteGlobs.add(CLIENT_DATA_CONTRACT_SUITE);
+  }
+  if (paths.some((p) => p.startsWith('templates/module/'))) {
+    extraSuiteGlobs.add(MODULE_TEMPLATE_CONTRACT_SUITE);
   }
 
   return { relatedFiles, extraSuiteGlobs: Array.from(extraSuiteGlobs).sort() };

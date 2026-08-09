@@ -16,7 +16,7 @@ Benevolence is a purpose-built platform that replaces legacy tools like Blackbau
 - **QuickBooks Online integration** — OAuth 2.0 connect, chart of accounts sync, journal entry export
 - **AI portfolio assistant** — Ask questions about your portfolio in natural language
 - **Charity discovery** — Search nonprofits with ratings from Charity Navigator, GiveWell, and ProPublica
-- **Role-based access control** — Portfolio members, editors, and admins with per-tenant configuration
+- **Role-based access control** — Organization and portfolio viewers, members, admins, and owners with tenant-scoped repositories and RLS
 
 ---
 
@@ -27,7 +27,7 @@ Benevolence is a purpose-built platform that replaces legacy tools like Blackbau
 | Frontend | Next.js 15 (App Router), TypeScript, Tailwind CSS, shadcn/ui |
 | Database | Supabase (PostgreSQL, Auth, Row Level Security, Storage) |
 | Visualizations | D3.js |
-| AI | Anthropic Claude API |
+| AI | Provider-neutral assistant with OpenAI and Anthropic adapters |
 | Integrations | QuickBooks Online OAuth 2.0 |
 | PDF generation | jsPDF, jspdf-autotable |
 
@@ -36,6 +36,9 @@ Benevolence is a purpose-built platform that replaces legacy tools like Blackbau
 ## Documentation
 
 - [Getting Started](docs/GETTING_STARTED.md) — Setup and deployment guide for developers
+- [Architecture](docs/ARCHITECTURE.md) — Access, repository, browser, AI durability, and schema boundaries
+- [Module System](docs/MODULES.md) — Current module extension workflow
+- [Repository Hygiene](docs/HYGIENE.md) — Dead-code/dependency policy and verification commands
 - [User Guide](docs/USER_GUIDE.md) — Day-to-day usage guide for foundation staff
 - [Data Migration Guide](docs/MIGRATION_GUIDE.md) — Importing from Blackbaud RE NXT
 - [AI Importer Blueprint](docs/AI_IMPORTER_BLUEPRINT.md) — Technical architecture of the import pipeline

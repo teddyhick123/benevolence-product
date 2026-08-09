@@ -8,7 +8,6 @@
 // '@/lib/api'. The exports in this file remain as migration compatibility for
 // existing server components, services, and unmigrated route families.
 
-import { createBrowserClient } from './supabase-browser';
 import { createServerClient } from './api/server-client';
 import { createElevatedClient } from './api/admin-client';
 
@@ -60,15 +59,3 @@ export const supabasePublic = createServerClient;
  * Legacy export from lib/supabase-server.ts
  */
 export const createSupabaseServerClient = createServerClient;
-
-/**
- * @deprecated Use createAdminClient() instead
- * Legacy export from lib/supabaseServer.ts
- */
-export const supabaseServer = createAdminClient;
-
-/**
- * @deprecated Use createBrowserClient() instead
- * Legacy export from lib/supabaseClient.ts
- */
-export const supabase = createBrowserClient;

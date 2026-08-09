@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
-import { createClient } from '@/lib/supabase-browser';
+import { createBrowserClient as createClient } from '@/lib/supabase-browser';
 import ContributionForm from '@/components/donors/ContributionForm';
 import ReceiptGenerator from '@/components/donors/ReceiptGenerator';
 

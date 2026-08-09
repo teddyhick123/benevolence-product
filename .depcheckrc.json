@@ -1,0 +1,16 @@
+{
+  "ignorePatterns": [
+    "templates",
+    "docs",
+    "db",
+    ".next",
+    ".next-walkthrough",
+    "test-results"
+  ],
+  "ignores": [
+    "@tailwindcss/postcss",
+    "postcss",
+    "tailwindcss",
+    "tsconfig-paths"
+  ]
+}

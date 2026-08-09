@@ -10,12 +10,12 @@ describe('requiredCheckKeys', () => {
   });
   it('adds verify:migrations for db/migrations paths', () => {
     expect(requiredCheckKeys(['db/migrations/0057_x.sql'])).toContain('verify:migrations');
-    expect(requiredCheckKeys(['db/legacy/old.sql'])).not.toContain('verify:migrations');
+    expect(requiredCheckKeys(['db/scripts/manual.sql'])).not.toContain('verify:migrations');
   });
   it.each([
     ['app/api/org/[orgId]/x/route.ts', true],
     ['components/tax/Card.tsx', true],
-    ['contexts/ModuleContext.tsx', true],
+    ['components/dashboard/AIAssistantPanel.tsx', true],
     ['middleware.ts', true],
     ['next.config.js', true],
     ['tsconfig.scripts.json', true],
@@ -107,7 +107,7 @@ describe('unitTestTargets', () => {
   it('adds the client-data contract for browser and domain-hook changes', () => {
     for (const changed of [
       'components/tax/Card.tsx',
-      'contexts/ModuleContext.tsx',
+      'components/dashboard/AIAssistantPanel.tsx',
       'app/dashboard/page.tsx',
       'lib/holdings/hooks.ts',
       'lib/hooks/useWidgetDimensions.ts',
@@ -117,6 +117,11 @@ describe('unitTestTargets', () => {
     }
     expect(unitTestTargets(['app/api/org/[orgId]/x/route.ts']).extraSuiteGlobs)
       .not.toContain('tests/integration/client-data-contract.test.ts');
+  });
+
+  it('adds the module-template contract for template changes', () => {
+    expect(unitTestTargets(['templates/module/api/route.ts']).extraSuiteGlobs)
+      .toContain('tests/integration/module-template-contract.test.ts');
   });
 });
 

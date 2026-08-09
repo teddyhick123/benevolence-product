@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { createClient } from '@/lib/supabase-browser';
+import { createBrowserClient as createClient } from '@/lib/supabase-browser';
 import { useEntityVocabulary } from '@/lib/hooks/use-entity-vocabulary';
 
 type Communication = {

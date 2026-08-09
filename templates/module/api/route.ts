@@ -1,141 +1,52 @@
-/**
- * {ModuleName} API Route
- *
- * Handles CRUD operations for {module_name} items.
- * Place at: /app/api/{module_name}/route.ts
- */
+/** Place at app/api/org/[orgId]/{module_name}/route.ts. */
+import { NextRequest } from 'next/server';
+import { requireOrgAccess } from '@/lib/api/access';
+import { jsonError, jsonOk } from '@/lib/api/responses';
+import { create{ModuleName}Repository } from '@/lib/{module_name}/repository';
 
-import { NextRequest, NextResponse } from 'next/server';
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
-import { cookies } from 'next/headers';
-
-// Standard response helpers
-function jsonResponse(data: unknown, status = 200) {
-  return NextResponse.json(data, { status });
+interface RouteParams {
+  params: Promise<{ orgId: string }>;
 }
 
-function errorResponse(message: string, status = 400) {
-  return NextResponse.json({ error: message }, { status });
+export async function GET(request: NextRequest, { params }: RouteParams) {
+  const { orgId } = await params;
+  const access = await requireOrgAccess(orgId, 'viewer');
+  if (!access.ok) return access.response;
+  const { data: enabled } = await access.context.db.rpc('org_has_module', {
+    p_org_id: orgId,
+    p_module: '{module_slug}',
+  });
+  if (!enabled) return jsonError('Module not enabled', 403);
+
+  const repository = create{ModuleName}Repository({
+    orgId: access.context.orgId,
+    actorId: access.context.user.id,
+  });
+  const items = await repository.list({
+    status: request.nextUrl.searchParams.get('status'),
+  });
+  return jsonOk({ items });
 }
 
-/**
- * GET /api/{module_name}
- * List items with optional filtering
- */
-export async function GET(request: NextRequest) {
-  try {
-    const supabase = createRouteHandlerClient({ cookies });
+export async function POST(request: NextRequest, { params }: RouteParams) {
+  const { orgId } = await params;
+  const access = await requireOrgAccess(orgId, 'member');
+  if (!access.ok) return access.response;
+  const { data: enabled } = await access.context.db.rpc('org_has_module', {
+    p_org_id: orgId,
+    p_module: '{module_slug}',
+  });
+  if (!enabled) return jsonError('Module not enabled', 403);
 
-    // Verify authentication
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) {
-      return errorResponse('Unauthorized', 401);
-    }
-
-    // Get query parameters
-    const searchParams = request.nextUrl.searchParams;
-    const orgId = searchParams.get('org_id');
-    const status = searchParams.get('status');
-    const search = searchParams.get('search');
-    const limit = parseInt(searchParams.get('limit') || '50');
-
-    if (!orgId) {
-      return errorResponse('org_id is required');
-    }
-
-    // Build query
-    let query = supabase
-      .from('{module_name}_items')
-      .select('*')
-      .eq('org_id', orgId)
-      .order('created_at', { ascending: false })
-      .limit(Math.min(limit, 100));
-
-    // Apply filters
-    if (status && status !== 'all') {
-      query = query.eq('status', status);
-    }
-
-    if (search) {
-      query = query.ilike('name', `%${search}%`);
-    }
-
-    const { data, error } = await query;
-
-    if (error) {
-      console.error('[{module_name}/GET]', error);
-      return errorResponse(error.message, 500);
-    }
-
-    return jsonResponse({
-      items: data || [],
-      count: data?.length || 0,
-    });
-  } catch (err) {
-    console.error('[{module_name}/GET] Unexpected error:', err);
-    return errorResponse('Internal server error', 500);
+  const body = await request.json();
+  if (typeof body?.name !== 'string' || !body.name.trim()) {
+    return jsonError('name is required', 400);
   }
-}
 
-/**
- * POST /api/{module_name}
- * Create a new item
- */
-export async function POST(request: NextRequest) {
-  try {
-    const supabase = createRouteHandlerClient({ cookies });
-
-    // Verify authentication
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) {
-      return errorResponse('Unauthorized', 401);
-    }
-
-    // Parse body
-    const body = await request.json();
-    const { org_id, name, description } = body;
-
-    // Validate required fields
-    if (!org_id) {
-      return errorResponse('org_id is required');
-    }
-    if (!name || typeof name !== 'string' || name.trim().length === 0) {
-      return errorResponse('name is required');
-    }
-
-    // Verify org membership (RLS will also check this)
-    const { data: membership } = await supabase
-      .from('organization_members')
-      .select('role')
-      .eq('org_id', org_id)
-      .eq('user_id', user.id)
-      .maybeSingle();
-
-    if (!membership) {
-      return errorResponse('Not a member of this organization', 403);
-    }
-
-    // Create item
-    const { data, error } = await supabase
-      .from('{module_name}_items')
-      .insert({
-        org_id,
-        name: name.trim(),
-        description: description?.trim() || null,
-        created_by: user.id,
-        updated_by: user.id,
-      })
-      .select()
-      .single();
-
-    if (error) {
-      console.error('[{module_name}/POST]', error);
-      return errorResponse(error.message, 500);
-    }
-
-    return jsonResponse({ item: data }, 201);
-  } catch (err) {
-    console.error('[{module_name}/POST] Unexpected error:', err);
-    return errorResponse('Internal server error', 500);
-  }
+  const repository = create{ModuleName}Repository({
+    orgId: access.context.orgId,
+    actorId: access.context.user.id,
+  });
+  const item = await repository.create({ name: body.name.trim() });
+  return jsonOk({ item }, { status: 201 });
 }

@@ -1,55 +1,20 @@
-/**
- * {ModuleName} Dashboard Page
- *
- * Main page for the {module_name} module.
- * Place at: /app/dashboard/{module_name}/page.tsx
- */
-
-import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
-import { cookies } from 'next/headers';
-import { redirect } from 'next/navigation';
+/** Place at app/org/[orgId]/{module_name}/page.tsx. */
 import {ModuleName}PageContent from './{ModuleName}PageContent';
 import { getPageTitle } from '@/lib/config';
 
 export const metadata = {
   title: getPageTitle('{ModuleName}'),
-  description: 'Manage your {module_name} items',
+  description: 'Manage {ModuleName}',
 };
 
-export default async function {ModuleName}Page() {
-  const supabase = createServerComponentClient({ cookies });
+interface PageParams {
+  params: Promise<{ orgId: string }>;
+}
 
-  // Verify authentication
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
+export default async function {ModuleName}Page({ params }: PageParams) {
+  const { orgId } = await params;
 
-  if (authError || !user) {
-    redirect('/login?redirect=/dashboard/{module_name}');
-  }
-
-  // Get user's organization
-  const { data: membership } = await supabase
-    .from('organization_members')
-    .select('org_id, role')
-    .eq('user_id', user.id)
-    .single();
-
-  if (!membership) {
-    redirect('/onboarding');
-  }
-
-  // Check if module is enabled for this org
-  const { data: moduleEnabled } = await supabase
-    .rpc('org_has_module', { p_org_id: membership.org_id, p_module: '{module_name}' });
-
-  if (!moduleEnabled) {
-    // Module not enabled - show upsell or redirect
-    redirect('/dashboard?module_required={module_name}');
-  }
-
-  return (
-    <{ModuleName}PageContent
-      orgId={membership.org_id}
-      userRole={membership.role}
-    />
-  );
+  // The page carries routing context only. Its domain hook calls an org-scoped
+  // API route, where requireOrgAccess remains the authorization boundary.
+  return <{ModuleName}PageContent orgId={orgId} />;
 }

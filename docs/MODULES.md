@@ -271,102 +271,40 @@ enableModule(supabase, orgId, moduleId, userId): Promise<{success, enabledModule
 disableModule(supabase, orgId, moduleId): Promise<{success, error}>
 ```
 
-### Client-Side
+### UI visibility
 
-```typescript
-// Hook for module context
-useModules(): {
-  enabledModules: ModuleId[],
-  isModuleEnabled: (moduleId) => boolean,
-  canAccessRoute: (route) => boolean,
-  enableModule: (moduleId) => Promise<{success}>,
-  disableModule: (moduleId) => Promise<{success}>
-}
-
-// Conditional rendering
-<ModuleGate module="analytics" fallback={<Upsell />}>
-  <AnalyticsComponent />
-</ModuleGate>
-```
+There is no global `ModuleContext` or generic `ModuleGate`. Authorized server
+loads and org-scoped APIs return the enabled module state needed by a page.
+Navigation and components derive visibility from registered module metadata and
+receive explicit state from their owner.
 
 ## Creating a New Module
 
-### Step 1: Define Types
+The tested guide is `templates/module/README.md`. In summary:
 
-Add to `/lib/modules/types.ts`:
-
-```typescript
-export type ModuleId =
-  | ...
-  | 'new_module';
-```
-
-### Step 2: Add Client Info
-
-Add to `/lib/modules/client-info.ts`:
-
-```typescript
-new_module: {
-  id: 'new_module',
-  name: 'New Module',
-  description: 'What it does',
-  icon: 'icon-name',
-  routes: ['/dashboard/new-module'],
-  isCore: false,
-  dependencies: [],
-},
-```
-
-### Step 3: Add Full Registry
-
-Add to `/lib/modules/registry.ts`:
-
-```typescript
-new_module: {
-  id: 'new_module',
-  name: 'New Module',
-  description: 'What it does',
-  isCore: false,
-  icon: 'icon-name',
-  tools: ['list_items', 'create_item'],
-  tables: ['new_module_items'],
-  routes: ['/dashboard/new-module'],
-  dependencies: [],
-  systemPromptAddition: `
-You can help with New Module. Available actions include:
-- List items
-- Create items
-`,
-},
-```
-
-### Step 4: Create Database Migration
-
-Create `/db/00XX_new_module.sql` using the template.
-
-### Step 5: Create AI Tools
-
-Create `/lib/ai/tools/new_module.ts` using the template.
-
-### Step 6: Create API Routes
-
-Create `/app/api/new_module/route.ts` and `[id]/route.ts`.
-
-### Step 7: Create Components
-
-Create components in `/components/new_module/`.
-
-### Step 8: Create Pages
-
-Create pages in `/app/dashboard/new-module/`.
-
-### Step 9: Test
-
-- Enable module via API or onboarding
-- Verify tools appear in AI
-- Test all CRUD operations
-- Verify RLS policies
-
+1. Apply the schema decision protocol. A cross-organization platform concept may
+   become canonical schema; organization-specific fields and behavior use
+   `custom_fields`, metric facts, widgets, view/workflow/automation config, or
+   `organizations.modules`.
+2. Register the app-facing ID and database-slug mapping in
+   `lib/modules/types.ts`, `lib/modules/client-info.ts`, and
+   `lib/modules/registry.ts`.
+3. If canonical DDL is justified, add `db/migrations/NNNN_name.sql` for a
+   product increment (or fold a prerelease correction into its owning
+   migration) and regenerate `lib/database.types.ts`.
+4. Implement elevated data access in a tenant-scoped repository. The route must
+   prove access before constructing it.
+5. Put org-scoped mutations under `app/api/org/[orgId]/...` and use the shared
+   access and response helpers.
+6. Put interactive browser data in `lib/<domain>/hooks.ts`, backed by
+   `lib/api/client.ts` and `lib/api/client-hooks.ts`.
+7. Add provider-neutral AI definitions and small tool executors. Elevated
+   behavior enters through scoped `AssistantToolCapabilities`.
+8. Keep assistant persistence in the established chat lifecycle:
+   request-idempotent `ai_turns`, append-only `ai_messages`, and persisted
+   `ai_actions`.
+9. Run `npm run verify:hygiene`, focused boundary contracts, and the normal
+   verification suite.
 ## Module Presets
 
 Organizations can apply presets to quickly enable module sets:
@@ -384,22 +322,24 @@ Organizations can apply presets to quickly enable module sets:
 
 - Each module should be cohesive
 - Minimize cross-module dependencies
-- Use events/hooks for loose coupling
+- Use scoped repositories and explicit capabilities for data access
 
 ### Tool Design
 
 - Tools should be atomic operations
 - Include validation in tool executors
 - Track actions for undo capability
+- Keep turn/message persistence and request idempotency in the assistant route
 
 ### Database Design
 
-- Module tables should reference org, not user
+- Use sanctioned data/configuration extension points for organization variability
+- Canonical module tables use `org_id` and the generated `Database` type
 - Use consistent naming: `{module}_items`
 - Always include RLS policies
 
 ### UI Patterns
 
-- Use ModuleGate for conditional rendering
-- Check module availability before navigation
+- Pass authorized module state explicitly from the owning server/API boundary
+- Use domain hooks and the shared browser transport for interactive data
 - Show upsell for disabled modules

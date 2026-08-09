@@ -4,7 +4,7 @@ import { apiRequest } from "@/lib/api/client";
 
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { createClient } from '@/lib/supabase-browser';
+import { createBrowserClient as createClient } from '@/lib/supabase-browser';
 import DonorDetail from '@/components/donors/DonorDetail';
 import ContributionForm from '@/components/donors/ContributionForm';
 import ReceiptGenerator from '@/components/donors/ReceiptGenerator';

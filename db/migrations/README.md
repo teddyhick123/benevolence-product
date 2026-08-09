@@ -1,6 +1,6 @@
 # Database Migrations
 
-Single source of truth for the schema. 55 ordered migrations replace the ad-hoc
+Single source of truth for the schema. 54 ordered migrations replace the ad-hoc
 legacy files and the stale consolidated module files. Late prerelease patches
 have been folded into the canonical owning migrations.
 
@@ -126,6 +126,7 @@ idempotency.
 Never committed to `db/migrations/`. Lives in `db/demo/`. The migration runner
 explicitly skips the `demo/` directory.
 
-## Legacy files
-The original 74 migration files are preserved in `db/legacy/` for reference.
-They must not be run against any new deployment.
+## Retired SQL
+
+Git history is the only archive for superseded migrations. Do not recreate a
+`db/legacy/` tree or use old SQL as implementation authority.

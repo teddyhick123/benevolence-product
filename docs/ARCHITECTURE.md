@@ -70,11 +70,9 @@ Components and client pages do not call raw `fetch` or define local SWR fetchers
 │   ├── onboarding/          # Onboarding-specific
 │   └── {module}/            # Module-specific components
 │
-├── contexts/                 # React contexts
-│   └── ModuleContext.tsx    # Module state management
-│
-├── db/                       # Database migrations (SQL)
-│   └── 00XX_*.sql           # Sequential migrations
+├── db/
+│   ├── migrations/          # Sole schema canon (ordered SQL)
+│   └── demo/                # Non-canonical local demo data
 │
 ├── lib/                      # Core libraries
 │   ├── api/                 # Access guards, repositories, responses, browser transport
@@ -121,10 +119,11 @@ Each module is defined in the registry with:
 
 1. **Registration**: Add to `MODULE_REGISTRY` in `registry.ts`
 2. **Database**: Apply the schema decision protocol: use configuration/custom fields for org variability; create a migration only for a genuine shared platform concept
-3. **Tools**: Define provider-neutral schemas in `lib/ai/assistant/tool-definitions.ts` and executors in `lib/ai/assistant/executor.ts` or `lib/ai/assistant/executors/`
-4. **API**: Create routes under the owning scope, usually `app/api/org/[orgId]/...` for org-scoped operations or `app/api/portfolio/[id]/...` for portfolio-scoped reads
-5. **UI**: Add components and pages
-6. **Enable**: Organization enables via settings or onboarding
+3. **Repository**: Put elevated behavior in a tenant-scoped repository created only after access is proved
+4. **Tools**: Define provider-neutral schemas and small executors; inject elevated behavior through scoped capabilities
+5. **API**: Create guarded routes under the owning org/portfolio scope and use shared responses
+6. **UI**: Put browser data ownership in domain hooks using the shared transport
+7. **Enable**: Organization enables via settings or onboarding
 
 ### Available Modules
 
@@ -156,80 +155,43 @@ The main AI assistant class provides:
 
 A separate AI layer (`app/api/org/[orgId]/builder/`) gives org admins a configuration interface. It reads the org's current module state and codebase scaffold context, then generates proposals for enabling/disabling modules, creating KPI structures, or scaffolding new data shapes. Proposals are reviewed and applied via a PR-based flow. See `lib/builder/` for implementation.
 
-### Tool Pattern
+### Tool and persistence pattern
 
-```typescript
-// Tool definition (provider-neutral format)
-const tool: ToolDefinition = {
-  name: 'tool_name',
-  description: 'What the tool does',
-  input_schema: {
-    type: 'object',
-    properties: { /* ... */ },
-    required: ['field1']
-  }
-};
+Tool definitions are provider-neutral. Each registered executor receives an
+authenticated runtime and scoped `AssistantToolCapabilities`; an elevated
+client is never passed into a tool executor. Mutation tools return an
+`ai_actions` record so undo/redo remains durable.
 
-// Tool executor
-async function executeTool(
-  input: InputType,
-  context: ToolExecutorContext
-): Promise<ToolResult> {
-  // Validate input
-  InputValidator.validateRequired(input.field1, 'field1');
+The chat route owns conversation persistence:
 
-  // Execute business logic
-  const { data, error } = await context.supabase
-    .from('table')
-    .insert({ /* ... */ });
+1. `begin_ai_turn` claims the `(user_id, request_id)` idempotency boundary.
+2. The normalized user message is appended to `ai_messages` once.
+3. The provider streams and invokes only module-enabled tools.
+4. Tool actions are persisted with the turn.
+5. The assistant message is appended and `complete_ai_turn` records the
+   terminal response. Failures use `fail_ai_turn`.
+6. A retry with the same request ID reuses the durable turn instead of
+   duplicating messages or mutations.
 
-  // Return with action tracking
-  return {
-    action: { /* AIAction for undo */ },
-    output: { success: true, data }
-  };
-}
+Module executors must not create a parallel conversation store, write session
+history blobs, or implement check-then-insert retry logic.
+
+### Request flow
+
+```text
+browser domain hook
+  → shared browser transport
+  → scoped API route
+  → access guard
+  → tenant-scoped repository/capabilities
+  → RLS-backed database
+
+AI chat request
+  → durable turn claim
+  → module-filtered provider tools
+  → scoped capabilities + action persistence
+  → durable assistant message + terminal turn
 ```
-
-### Context Flow
-
-```
-User Message
-    │
-    ▼
-┌──────────────────┐
-│ Get Org Context  │
-│ (modules, role)  │
-└────────┬─────────┘
-         │
-         ▼
-┌──────────────────┐
-│ Filter Tools     │
-│ (by modules)     │
-└────────┬─────────┘
-         │
-         ▼
-┌──────────────────┐
-│ AI Provider      │
-│ (with tools)     │
-└────────┬─────────┘
-         │
-         ▼
-┌──────────────────┐
-│ Execute Tools    │
-│ (with context)   │
-└────────┬─────────┘
-         │
-         ▼
-┌──────────────────┐
-│ Track Actions    │
-│ (for undo)       │
-└────────┬─────────┘
-         │
-         ▼
-Response to User
-```
-
 ## Database Architecture
 
 ### Multi-Tenancy Model
@@ -253,7 +215,8 @@ portfolios → holdings → metric_facts
                      → grants
 
 -- AI system
-ai_sessions → ai_actions (undo/redo history)
+ai_sessions → ai_turns → ai_messages
+                    ↘ ai_actions (undo/redo history)
 ```
 
 ### RLS Pattern
@@ -273,9 +236,10 @@ CREATE POLICY "table_select" ON table_name
 1. User visits /login
 2. Supabase Auth (email/password or OAuth)
 3. Session tokens stored in cookies
-4. Server components validate via createServerComponentClient
-5. API routes validate via createRouteHandlerClient
-6. RLS enforces data access
+4. Server code validates the cookie session through `lib/api/server-client.ts`
+5. API routes use `requireUserAccess`, `requireOrgAccess`, `requirePortfolioAccess`, or a purpose-built public/job guard
+6. Authorized elevated work is constrained inside a tenant-scoped repository
+7. RLS remains the database backstop
 ```
 
 ## Onboarding System
@@ -325,11 +289,8 @@ Quick Intake (30s)          AI Conversation (3-5min)     Module Selection
 ### API Routes
 
 ```typescript
-// Standard error response
-return NextResponse.json(
-  { error: 'Human readable message' },
-  { status: 400 }
-);
+return jsonError('Human readable message', 400);
+return jsonOk({ data });
 ```
 
 ### AI Tools
@@ -349,7 +310,7 @@ throw error; // Caught by assistant, returned to user
 ### Database
 
 - Indexes on foreign keys and common query patterns
-- JSONB for flexible metadata storage
+- Validated JSONB only for sanctioned configuration and metadata
 - RPC functions for complex operations
 
 ### Frontend
@@ -377,19 +338,20 @@ All AI tool inputs validated using:
 ### Authorization Layers
 
 1. **Authentication**: Supabase Auth
-2. **Route Protection**: Server component checks
-3. **RLS**: Database-level enforcement
-4. **Module Gating**: Feature availability
+2. **Route Protection**: Shared access guards establish principal and tenant scope
+3. **Repository Scope**: Elevated operations cannot widen the authorized tenant
+4. **RLS**: Database-level enforcement
+5. **Module Gating**: Feature availability
 
 ## Development Workflow
 
 ### Adding a Feature
 
-1. Check if existing module covers it
-2. If new module needed, use templates
-3. Create migration, tools, API, components
-4. Add to registry
-5. Test with onboarding flow
+1. Check whether an existing module or sanctioned configuration point covers it
+2. Apply the schema decision protocol before proposing DDL
+3. If a new module is needed, use the tested module templates
+4. Add scoped repository, guarded route, domain hook/UI, and scoped AI capability as needed
+5. Register the module and verify hygiene, boundaries, migrations, and onboarding
 
 ### Testing Checklist
 

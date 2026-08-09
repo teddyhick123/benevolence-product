@@ -17,6 +17,70 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
 
   const sb = await createSb();
 
+  if (url.searchParams.get('definitions') === 'true') {
+    const { data: canView, error: canViewError } = await sb.rpc('can_view_portfolio', {
+      p_portfolio_id: portfolio_id,
+    });
+    if (canViewError) {
+      return NextResponse.json(
+        { error: canViewError.message },
+        { status: 500, headers: cacheHeaders() }
+      );
+    }
+    if (!canView) {
+      return NextResponse.json(
+        { error: 'not authorized' },
+        { status: 403, headers: cacheHeaders() }
+      );
+    }
+
+    const { data: portfolio, error: portfolioError } = await sb
+      .from('portfolios')
+      .select('org_id')
+      .eq('id', portfolio_id)
+      .maybeSingle();
+    if (portfolioError) {
+      return NextResponse.json(
+        { error: portfolioError.message },
+        { status: 500, headers: cacheHeaders() }
+      );
+    }
+    if (!portfolio) {
+      return NextResponse.json(
+        { error: 'Portfolio not found' },
+        { status: 404, headers: cacheHeaders() }
+      );
+    }
+
+    const { data: definitions, error: definitionsError } = await sb
+      .from('kpi_definitions')
+      .select('slug, name, target_value, display_order')
+      .eq('org_id', portfolio.org_id)
+      .eq('is_active', true)
+      .order('display_order', { ascending: true })
+      .order('name', { ascending: true });
+    if (definitionsError) {
+      return NextResponse.json(
+        { error: definitionsError.message },
+        { status: 500, headers: cacheHeaders() }
+      );
+    }
+
+    return NextResponse.json(
+      {
+        data: (definitions ?? []).map((definition) => ({
+          metric_code: definition.slug,
+          display_name: definition.name,
+          target_value: definition.target_value,
+          order_index: definition.display_order,
+        })),
+        count: definitions?.length ?? 0,
+        nextOffset: null,
+      },
+      { headers: cacheHeaders() }
+    );
+  }
+
   let metrics: any[] | null = null;
   let error: any = null;
   let count: number | null = null;

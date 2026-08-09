@@ -13,6 +13,12 @@ type StagedFact = {
   verification_level?: string;
 };
 
+type KpiDef = {
+  metric_code: string;
+  display_name: string | null;
+  target_value: number | null;
+};
+
 export default function ReportUploader({
   holdingId,
   portfolioId,
@@ -32,9 +38,34 @@ export default function ReportUploader({
   const [showReview, setShowReview] = useState(false);
   const [aiMode, setAiMode] = useState(true);
   const [factError, setFactError] = useState<string | null>(null);
+  const [kpis, setKpis] = useState<KpiDef[]>([]);
+  const [kpiLoading, setKpiLoading] = useState(false);
+  const [selectedMetricCodes, setSelectedMetricCodes] = useState<string[]>([]);
 
   // 200MB limit (handled in chunks on server)
   const MAX_FILE_SIZE = 200 * 1024 * 1024;
+
+  /** Loaded only when AI mode is switched off, since that is the only mode that restricts extraction. */
+  async function ensureKpis() {
+    if (!portfolioId || kpiLoading || kpis.length) return;
+    setKpiLoading(true);
+    try {
+      const res = await apiRequest(`/api/portfolio/${encodeURIComponent(portfolioId)}/kpis?definitions=true`, {
+        cache: 'no-store',
+      });
+      if (res.ok) {
+        const data = await readJson(res);
+        if (Array.isArray(data.data)) {
+          setKpis(data.data);
+          setSelectedMetricCodes((prev) =>
+            prev.length ? prev : data.data.map((kpi: KpiDef) => kpi.metric_code)
+          );
+        }
+      }
+    } catch {} finally {
+      setKpiLoading(false);
+    }
+  }
 
   async function loadStagedFacts(id: string) {
     try {
@@ -98,6 +129,14 @@ export default function ReportUploader({
       return;
     }
 
+    // With AI mode off and no KPIs chosen the server has nothing to restrict
+    // extraction to, so it would silently fall back to extracting anything.
+    if (!aiMode && selectedMetricCodes.length === 0) {
+      setStatus('error');
+      setMsg('Select at least one KPI, or turn AI mode on to extract any KPI found.');
+      return;
+    }
+
     setStatus('uploading');
     setMsg('Processing document... This may take a moment for large files.');
     setFactsCount(0);
@@ -108,8 +147,10 @@ export default function ReportUploader({
       fd.append('file', file);
       fd.append('portfolio_id', portfolioId);
       fd.append('holding_id', holdingId);
-      fd.append('autoApprove', 'true');
       fd.append('ai_mode', aiMode ? 'true' : 'false');
+      if (!aiMode) {
+        fd.append('selected_metrics', selectedMetricCodes.join(','));
+      }
 
       const data = await uploadJson<any>('/api/admin/upload', fd, { method: 'POST' });
 
@@ -154,7 +195,8 @@ export default function ReportUploader({
         <div>
           <div className="text-sm font-medium text-neutral-800">AI Mode</div>
           <div className="text-xs text-neutral-600">
-            Extract <em>any</em> KPIs found in the document
+            If enabled, extracts <em>any</em> KPIs found in the document. If disabled, it
+            limits extraction to the selected KPIs below.
           </div>
         </div>
         <label className="inline-flex items-center gap-2 cursor-pointer select-none">
@@ -162,12 +204,74 @@ export default function ReportUploader({
           <input
             type="checkbox"
             checked={aiMode}
-            onChange={(e) => setAiMode(e.target.checked)}
+            onChange={async (e) => {
+              const enabled = e.target.checked;
+              setAiMode(enabled);
+              if (!enabled) await ensureKpis();
+            }}
             className="h-5 w-9 appearance-none bg-neutral-200 rounded-full relative transition outline-none before:content-[''] before:absolute before:top-0.5 before:left-0.5 before:h-4 before:w-4 before:rounded-full before:bg-white before:shadow before:transition checked:bg-azure checked:before:translate-x-4"
           />
           <span className="text-sm text-neutral-700">On</span>
         </label>
       </div>
+
+      {!aiMode && (
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <div className="text-sm text-neutral-700">Selected KPIs</div>
+            <div className="flex gap-2 text-xs">
+              <button
+                type="button"
+                className="underline"
+                onClick={() => setSelectedMetricCodes(kpis.map((kpi) => kpi.metric_code))}
+              >
+                Select all
+              </button>
+              <button
+                type="button"
+                className="underline"
+                onClick={() => setSelectedMetricCodes([])}
+              >
+                Clear
+              </button>
+            </div>
+          </div>
+          {kpiLoading ? (
+            <div className="text-sm text-neutral-600">Loading KPIs…</div>
+          ) : kpis.length === 0 ? (
+            <div className="text-sm text-neutral-600">
+              No KPIs configured for this portfolio yet. Turn AI mode on to extract any KPI
+              found.
+            </div>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {kpis.map((kpi) => {
+                const checked = selectedMetricCodes.includes(kpi.metric_code);
+                return (
+                  <label
+                    key={kpi.metric_code}
+                    className={`inline-flex items-center gap-1.5 px-2 py-[2px] rounded-full text-xs border cursor-pointer ${checked ? 'bg-azure/10 text-azure border-azure/20' : 'bg-white text-neutral-700 border-black/10'}`}
+                  >
+                    <input
+                      type="checkbox"
+                      className="sr-only"
+                      checked={checked}
+                      onChange={(e) =>
+                        setSelectedMetricCodes((prev) =>
+                          e.target.checked
+                            ? [...prev, kpi.metric_code]
+                            : prev.filter((code) => code !== kpi.metric_code)
+                        )
+                      }
+                    />
+                    {kpi.display_name || kpi.metric_code}
+                  </label>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       <form onSubmit={onSubmit} className="space-y-3">
         <div

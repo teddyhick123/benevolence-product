@@ -194,6 +194,26 @@ describe('createAppAdminUploadIngestionRepository', () => {
     expect(mockCreateElevatedClient).not.toHaveBeenCalled();
   });
 
+  it('rejects unrestricted AI-off extraction before touching storage or data', async () => {
+    const ingestion = createAppAdminUploadIngestionRepository({
+      isAppAdmin: true,
+      actorId: 'admin-1',
+    });
+
+    await expect(ingestion.createAndIngest({
+      fileName: 'report.pdf',
+      mimeType: 'application/pdf',
+      buffer: Buffer.from('report'),
+      portfolioId: 'portfolio-1',
+      holdingId: 'holding-1',
+      aiMode: false,
+      selectedMetrics: [],
+    })).rejects.toThrow('Select at least one KPI when AI mode is disabled');
+
+    expect(mockFrom).not.toHaveBeenCalled();
+    expect(mockStorageUpload).not.toHaveBeenCalled();
+  });
+
   it('verifies the holding scope, stores the file, and inserts the canonical upload record', async () => {
     const holdingQuery = stubQuery(
       { data: null, error: null },

@@ -35,6 +35,9 @@ export async function POST(req: NextRequest) {
       .filter(Boolean);
     if (!portfolioId) return jsonError('portfolio_id required', 400);
     if (!holdingId) return jsonError('holding_id required', 400);
+    if (!aiMode && selectedMetrics.length === 0) {
+      return jsonError('Select at least one KPI when AI mode is disabled', 400);
+    }
 
     const result = await createAppAdminUploadIngestionRepository({
       isAppAdmin: access.context.isAppAdmin,

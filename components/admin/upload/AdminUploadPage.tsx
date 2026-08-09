@@ -111,7 +111,7 @@ function UploadPageContent() {
     if (!portfolioId || kpiLoading || kpis.length) return;
     setKpiLoading(true);
     try {
-      const r = await apiRequest(`/api/portfolio/${encodeURIComponent(portfolioId)}/kpis`, { cache: 'no-store' });
+      const r = await apiRequest(`/api/portfolio/${encodeURIComponent(portfolioId)}/kpis?definitions=true`, { cache: 'no-store' });
       const j = await readJson(r);
       if (r.ok && Array.isArray(j?.data)) {
         setKpis(j.data);
@@ -218,7 +218,6 @@ function UploadPageContent() {
       const fd = new FormData();
       fd.append('file', file);
       fd.append('portfolio_id', portfolioId);
-      fd.append('autoApprove', 'true');
       fd.append('holding_id', selectedHoldingId);
       fd.append('ai_mode', aiMode ? 'true' : 'false');
       if (!aiMode) {

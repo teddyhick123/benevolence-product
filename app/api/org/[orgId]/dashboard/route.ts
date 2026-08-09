@@ -70,12 +70,16 @@ interface RecentImport {
   created_at: string;
 }
 
-async function safeCount(
+/**
+ * Returns null when the count cannot be read. A failed query is not the same
+ * fact as a zero count, and callers must not render or reason over it as one.
+ */
+async function countOrNull(
   query: PromiseLike<{ count: number | null; error: any }>
-): Promise<number> {
+): Promise<number | null> {
   const { count, error } = await query;
-  if (error) return 0;
-  return count || 0;
+  if (error) return null;
+  return count ?? 0;
 }
 
 function countDuplicateLabels(labels: Array<string | null | undefined>) {
@@ -338,41 +342,41 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
         .eq("org_id", orgId)
         .order("created_at", { ascending: false })
         .limit(5),
-      safeCount(
+      countOrNull(
         adminClient
           .from("builder_proposals")
           .select("*", { count: "exact", head: true })
           .eq("org_id", orgId)
           .eq("status", "pending")
       ),
-      safeCount(
+      countOrNull(
         adminClient
           .from("org_workflow_config")
           .select("*", { count: "exact", head: true })
           .eq("org_id", orgId)
       ),
-      safeCount(
+      countOrNull(
         adminClient
           .from("org_custom_field_definitions")
           .select("*", { count: "exact", head: true })
           .eq("org_id", orgId)
           .eq("is_active", true)
       ),
-      safeCount(
+      countOrNull(
         adminClient
           .from("org_automation_rules")
           .select("*", { count: "exact", head: true })
           .eq("org_id", orgId)
           .eq("is_active", true)
       ),
-      safeCount(
+      countOrNull(
         adminClient
           .from("org_ai_context")
           .select("*", { count: "exact", head: true })
           .eq("org_id", orgId)
           .eq("is_active", true)
       ),
-      safeCount(
+      countOrNull(
         adminClient
           .from("org_view_config")
           .select("*", { count: "exact", head: true })
@@ -474,7 +478,7 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
         priority: "high",
       });
     }
-    if (pendingProposalCount > 0) {
+    if (pendingProposalCount !== null && pendingProposalCount > 0) {
       nextActions.push({
         id: "review_builder_proposals",
         label: "Review Builder proposals",
@@ -483,7 +487,22 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
         priority: "medium",
       });
     }
-    if (workflowConfigCount + customFieldCount + automationRuleCount + aiContextCount + viewConfigCount === 0) {
+
+    // Only claim the workspace is unconfigured when every layer was actually
+    // readable; an unreadable count would otherwise nag a configured org.
+    const configuredLayerCounts = [
+      workflowConfigCount,
+      customFieldCount,
+      automationRuleCount,
+      aiContextCount,
+      viewConfigCount,
+    ];
+    const configuredLayersReadable = configuredLayerCounts.every((count) => count !== null);
+    const configuredLayerTotal = configuredLayerCounts.reduce(
+      (sum: number, count) => sum + (count ?? 0),
+      0
+    );
+    if (configuredLayersReadable && configuredLayerTotal === 0) {
       nextActions.push({
         id: "configure_workspace",
         label: "Configure the workspace",

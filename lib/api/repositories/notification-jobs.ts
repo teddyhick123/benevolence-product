@@ -64,10 +64,13 @@ export function createNotificationJobRepository(context: JobAccessContext) {
           return { ok: true as const, scanned, created, suppressed, errors };
         }
 
-        const { data: alreadyFannedOut } = await db
+        const { data: alreadyFannedOut, error: alreadyFannedOutError } = await db
           .from('notification_events')
           .select('task_event_id')
           .in('task_event_id', eventIds);
+        // Without this set the run would re-fan-out every scanned event.
+        if (alreadyFannedOutError) throw alreadyFannedOutError;
+
         const completedIds = new Set(
           (alreadyFannedOut ?? []).map((event: any) => event.task_event_id as string)
         );
@@ -125,6 +128,10 @@ export function createNotificationJobRepository(context: JobAccessContext) {
             .lte('next_attempt_at', now)
             .limit(200),
         ]);
+        // Both scans must succeed; a partial scan would silently skip due work.
+        if (pendingResult.error) throw pendingResult.error;
+        if (retryResult.error) throw retryResult.error;
+
         const ids = [
           ...((pendingResult.data ?? []).map((event: any) => event.id as string)),
           ...((retryResult.data ?? []).map((event: any) => event.id as string)),

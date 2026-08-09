@@ -130,6 +130,22 @@ describe('admin upload ingestion routes', () => {
     });
   });
 
+  it('rejects AI-off extraction without a KPI restriction', async () => {
+    const request = uploadRequest();
+    const form = await request.formData();
+    form.delete('selected_metrics');
+    const response = await upload(new NextRequest('http://localhost/api/admin/upload', {
+      method: 'POST',
+      body: form,
+    }));
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+      error: 'Select at least one KPI when AI mode is disabled',
+    });
+    expect(mockCreateAndIngest).not.toHaveBeenCalled();
+  });
+
   it('maps a mismatched holding and portfolio to a 400 response', async () => {
     mockCreateAndIngest.mockRejectedValueOnce(new AdminUploadHoldingMismatchError());
 

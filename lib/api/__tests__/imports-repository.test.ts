@@ -45,6 +45,7 @@ vi.mock('@/lib/tasks/automation/task-writer', () => ({
 }));
 
 import {
+  createAppAdminImportReviewRepository,
   createImportRollbackRepository,
   createAppAdminImportMaintenanceRepository,
   createImportOrchestrationRepository,
@@ -101,6 +102,59 @@ describe('app-admin import maintenance repository', () => {
     await repository.cleanupStagingPii(30);
 
     expect(mockRpc).toHaveBeenCalledWith('cleanup_staging_pii', { retention_days: 30 });
+  });
+});
+
+describe('app-admin import review repository', () => {
+  it('binds mapping profiles and staging previews to the selected job organization', async () => {
+    const jobQuery = stubQuery(
+      { data: null, error: null },
+      {
+        maybeSingle: {
+          data: {
+            id: JOB_ID,
+            org_id: ORG_ID,
+            mapping_profile_id: 'profile-1',
+          },
+          error: null,
+        },
+      }
+    );
+    const profileQuery = stubQuery(
+      { data: null, error: null },
+      {
+        maybeSingle: {
+          data: { id: 'profile-1', org_id: ORG_ID, name: 'Default mapping' },
+          error: null,
+        },
+      }
+    );
+    const stagingQueries: ReturnType<typeof stubQuery>[] = [];
+    mockFrom.mockImplementation((table: string) => {
+      if (table === 'import_jobs') return jobQuery;
+      if (table === 'import_mapping_profiles') return profileQuery;
+      const isCount = stagingQueries.length % 2 === 1;
+      const query = stubQuery(
+        (isCount
+          ? { data: null, error: null, count: 1 }
+          : { data: [{ raw_data: { source_id: 'row-1' } }], error: null }) as any
+      );
+      stagingQueries.push(query);
+      return query;
+    });
+
+    const result = await createAppAdminImportReviewRepository({
+      isAppAdmin: true,
+      actorId: 'app-admin-1',
+    }).loadMappingReview(JOB_ID);
+
+    expect(profileQuery.calls).toContainEqual({ method: 'eq', args: ['org_id', ORG_ID] });
+    expect(stagingQueries).toHaveLength(10);
+    for (const query of stagingQueries) {
+      expect(query.calls).toContainEqual({ method: 'eq', args: ['import_job_id', JOB_ID] });
+    }
+    expect(result?.mappingProfile).toEqual(expect.objectContaining({ id: 'profile-1', org_id: ORG_ID }));
+    expect(result?.stagingPreviews).toHaveLength(5);
   });
 });
 

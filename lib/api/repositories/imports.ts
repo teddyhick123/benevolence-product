@@ -3,7 +3,12 @@ import type { AppAdminAccessContext, OrgAccessContext } from '@/lib/api/principa
 import { loadStagingToProduction } from '@/lib/import/loader';
 import { generateReconciliationReport } from '@/lib/import/reconciler';
 import { rollbackImport, type RollbackScope } from '@/lib/import/rollback';
-import type { ImportJob } from '@/lib/import/types';
+import { fromImportStagingRelation } from '@/lib/import/database';
+import {
+  STAGING_TABLE_MAP,
+  type ImportJob,
+  type MappingProfile,
+} from '@/lib/import/types';
 import { completeGeneratedTasks } from '@/lib/tasks/automation/task-writer';
 
 type ImportRollbackScope = Pick<OrgAccessContext, 'orgId'> & {
@@ -205,6 +210,77 @@ export function createAppAdminImportMaintenanceRepository(scope: ImportMaintenan
     async cleanupStagingPii(retentionDays: number) {
       if (!scope.isAppAdmin) throw new Error('App admin access required');
       return db.rpc('cleanup_staging_pii', { retention_days: retentionDays });
+    },
+  };
+}
+
+/** App-admin import mapping review data constrained to the selected job's organization. */
+export function createAppAdminImportReviewRepository(scope: ImportMaintenanceScope) {
+  const db = createElevatedClient();
+
+  return {
+    async loadMappingReview(jobId: string) {
+      if (!scope.isAppAdmin) throw new Error('App admin access required');
+
+      const { data: job, error: jobError } = await db
+        .from('import_jobs')
+        .select('*')
+        .eq('id', jobId)
+        .maybeSingle();
+      if (jobError) throw jobError;
+      if (!job) return null;
+
+      const importJob = job as ImportJob;
+      let mappingProfile: MappingProfile | null = null;
+      if (importJob.mapping_profile_id) {
+        const { data: profile, error: profileError } = await db
+          .from('import_mapping_profiles')
+          .select('*')
+          .eq('id', importJob.mapping_profile_id)
+          .eq('org_id', importJob.org_id)
+          .maybeSingle();
+        if (profileError) throw profileError;
+        mappingProfile = profile as MappingProfile | null;
+      }
+
+      if (!mappingProfile) {
+        const { data: defaultProfile, error: defaultError } = await db
+          .from('import_mapping_profiles')
+          .select('*')
+          .eq('org_id', importJob.org_id)
+          .eq('is_default', true)
+          .limit(1)
+          .maybeSingle();
+        if (defaultError) throw defaultError;
+        mappingProfile = defaultProfile as MappingProfile | null;
+      }
+
+      const entityTypes = Object.keys(STAGING_TABLE_MAP) as Array<keyof typeof STAGING_TABLE_MAP>;
+      const stagingPreviews = await Promise.all(
+        entityTypes.map(async (entity) => {
+          const table = STAGING_TABLE_MAP[entity];
+          const { data: sampleRows, error: sampleError } = await fromImportStagingRelation(db, table)
+            .select('raw_data')
+            .eq('import_job_id', jobId)
+            .limit(5);
+          if (sampleError) throw sampleError;
+
+          const { count, error: countError } = await fromImportStagingRelation(db, table)
+            .select('*', { count: 'exact', head: true })
+            .eq('import_job_id', jobId);
+          if (countError) throw countError;
+
+          const sourceFields = sampleRows?.[0]?.raw_data
+            ? Object.keys(sampleRows[0].raw_data as Record<string, unknown>)
+            : [];
+          const sampleRecords = (sampleRows ?? []).map(
+            (row: any) => row.raw_data as Record<string, unknown>
+          );
+          return { entity, sourceFields, sampleRecords, rowCount: count ?? 0 };
+        })
+      );
+
+      return { importJob, mappingProfile, stagingPreviews };
     },
   };
 }

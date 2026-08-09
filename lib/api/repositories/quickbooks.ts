@@ -54,6 +54,24 @@ export function createQuickBooksRepository(scope: QuickBooksScope) {
   };
 
   return {
+    async getConnectionStatus() {
+      const { data, error } = await db
+        .from('quickbooks_connections')
+        .select('id, expires_at, refresh_expires_at')
+        .eq('org_id', scope.orgId)
+        .maybeSingle();
+      if (error) throw error;
+
+      const now = new Date();
+      return {
+        connected: !!data,
+        tokenExpired: data?.expires_at ? new Date(data.expires_at) <= now : false,
+        needsReconnect: data?.refresh_expires_at
+          ? new Date(data.refresh_expires_at) <= now
+          : false,
+      };
+    },
+
     async getAuthenticatedClient() {
       return getAuthenticatedQBClientForStore(connectionStore);
     },

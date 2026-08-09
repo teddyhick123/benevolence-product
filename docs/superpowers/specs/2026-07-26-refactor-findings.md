@@ -624,3 +624,25 @@ production build, all 54 canonical migrations (135 public tables), generated
 database type drift, focused boundary contracts, and 9 browser smoke tests pass.
 No active migration, generated database type, product URL, or intended behavior
 changed.
+
+### 2026-08-08 — Refactor closeout — server pages constructed elevated clients
+
+**What happened:** Five server-rendered pages created service-role clients
+directly. Four combined those clients with local access checks, but
+`/settings/integrations` accepted the client-writeable `x-org-id` cookie as
+tenant authority and used elevated access to read QuickBooks connection state
+without proving that the current user belonged to that organization.
+
+**Expected vs. actual:** Server pages should establish identity and organization
+access through the shared access layer, then request data through a scoped
+repository. An elevated client may be an implementation detail of a narrow
+repository capability, but it must never be constructed by the page or returned
+to it.
+
+**Resolution:** All five pages now use explicit viewer or app-admin guards and
+scoped repositories for organization dashboard, task, notification, QuickBooks,
+and import-review data. Mapping profiles are additionally constrained to the
+import job's organization. The API-boundary contract now scans every server
+`page.tsx` and fails if a page constructs an admin client or references the
+service-role credential. This closes consolidated backlog item SEC-01 and fixes
+the integrations cross-tenant metadata disclosure.

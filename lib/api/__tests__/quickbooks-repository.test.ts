@@ -50,6 +50,31 @@ beforeEach(() => {
 });
 
 describe('createQuickBooksRepository', () => {
+  it('reads connection status only within the authorized organization', async () => {
+    const connectionQuery = stubQuery(
+      { data: null, error: null },
+      {
+        maybeSingle: {
+          data: {
+            id: 'connection-1',
+            expires_at: '2000-01-01T00:00:00.000Z',
+            refresh_expires_at: '2999-01-01T00:00:00.000Z',
+          },
+          error: null,
+        },
+      }
+    );
+    mockFrom.mockReturnValue(connectionQuery);
+
+    const status = await createQuickBooksRepository({
+      orgId: 'org-1',
+      actorId: 'user-1',
+    }).getConnectionStatus();
+
+    expect(connectionQuery.calls).toContainEqual({ method: 'eq', args: ['org_id', 'org-1'] });
+    expect(status).toEqual({ connected: true, tokenExpired: true, needsReconnect: false });
+  });
+
   it('forces the authorized org and required connection into account rows', async () => {
     const accountQuery = stubQuery({ data: null, error: null });
     const connectionQuery = stubQuery({ data: null, error: null });

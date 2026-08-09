@@ -65,6 +65,7 @@ Key invariants that differ from older patterns or documentation you may encounte
 | AI Tool Definitions | `/lib/ai/assistant/tool-definitions.ts` |
 | AI Tool Executors | `/lib/ai/assistant/executor.ts` |
 | AI Prompts/Context | `/lib/ai/assistant/prompts.ts`, `/lib/ai/assistant/context.ts` |
+| AI Workloads/Gateway | `/lib/ai/workloads.ts`, `/lib/ai/runtime.ts`, `/lib/ai/gateway.ts` |
 | AI Validators | `/lib/ai/validators.ts` |
 | AI Types | `/lib/ai/types.ts` |
 | Database Migrations | `/db/migrations/NNNN_description.sql` |
@@ -359,6 +360,17 @@ CREATE POLICY "table_service" ON public.table_name
 ---
 
 ## AI Tool Development
+
+All client-facing AI execution starts with a stable workload from
+`lib/ai/workloads.ts` and enters through `lib/ai/runtime.ts` or an injected
+`AIExecutionGateway`. Product routes, repositories, assistants, and module code
+must not import `createAIProvider`, `AI_MODELS`, provider SDKs, or provider API
+keys. Pass the organization and actor scope proven by the access/repository
+boundary. Resolve one execution plan after `begin_ai_turn` and reuse it for the
+entire durable assistant turn; replayed completed turns never invoke a model.
+
+Builder, constructor, and scaffold workers are separate development tooling and
+retain their dedicated provider/model configuration.
 
 ### Tool Definition Best Practices
 

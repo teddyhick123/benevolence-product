@@ -142,6 +142,21 @@ Each module is defined in the registry with:
 
 ## AI System Architecture
 
+### Workload execution gateway
+
+Client-facing AI code names a stable workload from `lib/ai/workloads.ts` and
+uses the neutral execution boundary in `lib/ai/runtime.ts` and
+`lib/ai/gateway.ts`. The gateway resolves the platform or organization plan,
+validates connector capabilities, applies limits/cancellation, normalizes
+errors and usage, and records content-free invocation metadata. Product code
+does not import provider SDKs, credentials, `createAIProvider`, `AI_MODELS`, or
+raw provider model identifiers. Builder/constructor/scaffold execution is a
+separate development-tooling runtime.
+
+Phase 0 keeps the existing platform Anthropic and transcription defaults. The
+same workload/scope contracts are the entry point for organization-managed
+routing in Phase 1.
+
 ### PortfolioAssistant
 
 The main AI assistant class provides:
@@ -166,7 +181,8 @@ The chat route owns conversation persistence:
 
 1. `begin_ai_turn` claims the `(user_id, request_id)` idempotency boundary.
 2. The normalized user message is appended to `ai_messages` once.
-3. The provider streams and invokes only module-enabled tools.
+3. One workload execution plan is reused while the gateway streams and invokes
+   only module-enabled tools.
 4. Tool actions are persisted with the turn.
 5. The assistant message is appended and `complete_ai_turn` records the
    terminal response. Failures use `fail_ai_turn`.
@@ -188,6 +204,7 @@ browser domain hook
 
 AI chat request
   → durable turn claim
+  → workload gateway + one snapshotted execution plan
   → module-filtered provider tools
   → scoped capabilities + action persistence
   → durable assistant message + terminal turn

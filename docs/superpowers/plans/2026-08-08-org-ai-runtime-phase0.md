@@ -1,7 +1,7 @@
 # Organization-Controlled AI Runtime — Phase 0 Neutral Execution Boundary
 
 **Date:** 2026-08-08
-**Status:** In progress
+**Status:** Complete
 **Branch:** `codex/org-ai-runtime-phase0`
 **Design:** [Organization-Controlled AI Runtime](../specs/2026-08-08-org-model-selection-design.md)
 **Prerequisite:** The full refactor and server-page access closeout are merged into local `main`.
@@ -40,6 +40,7 @@ Add a code-owned registry with stable workload ids, operation, required capabili
 - `assistant` — streaming/non-streaming tool conversation;
 - `extraction` — structured generation from text;
 - `import` — structured generation from migration data;
+- `import_chat` — streaming conversational import guidance;
 - `onboarding` — non-streaming tool conversation;
 - `letters`, `summaries`, and `financial_profile` — text generation;
 - `transcription` — platform transcription.
@@ -139,3 +140,12 @@ Phase 0 is complete only when:
 - Invocation records contain metadata only and cannot leak content or credentials.
 - Gateway telemetry does not weaken the durable assistant transaction/idempotency boundary.
 - Phase 0 abstractions are sufficient for Phase 1 route resolution without speculative provider branches in product code.
+
+## Completion record
+
+- Added the workload registry, immutable execution plan, provider-neutral operation contracts, connector registry, execution gateway, normalized error taxonomy, and content-free invocation recorder.
+- Routed assistant, onboarding, extraction, import, letters, summaries, financial profiles, and transcription through the common gateway with explicit organization or platform scope.
+- Preserved durable assistant turn ownership, append-only message persistence, action persistence, deterministic replay, request-id idempotency, and one-plan-per-turn behavior.
+- Kept Builder, constructor, and scaffold workloads on their separate development-infrastructure provider path.
+- Confirmed there are no changes under `db/migrations` or to `lib/database.types.ts`; the Phase 0 recorder projects only the compatible subset into the existing `ai_usage_log` schema.
+- Verification passed for hygiene, TypeScript, lint at the reduced 442-warning ceiling, production build, focused AI/access/import/agent contracts, and the complete unit suite: 237 files, 2,618 passing tests, and 6 intentionally skipped live-database tests.

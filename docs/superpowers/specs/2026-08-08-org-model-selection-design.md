@@ -1,7 +1,7 @@
 # Organization-Controlled AI Runtime — Design
 
 **Date:** 2026-08-08
-**Status:** Revised design, pending implementation plan
+**Status:** Phase 0 execution boundary complete; Phase 1 organization routing pending
 
 ## Purpose
 
@@ -132,6 +132,7 @@ Initial registry:
 | `assistant` | tool conversation | tools, streaming, parallel tool results | Yes |
 | `extraction` | structured generation | JSON Schema | Yes; text input only |
 | `import` | structured generation | JSON Schema | Yes |
+| `import_chat` | text generation | text, streaming | Yes |
 | `onboarding` | tool conversation | tools | After organization association |
 | `letters` | text generation | text | Yes |
 | `summaries` | text generation | text | Yes |
@@ -522,6 +523,13 @@ Every migration change is followed by `npm run db:types:generate` and `npm run v
 - Route current platform Anthropic and transcription calls through the gateway adapters.
 - Preserve current model choices and behavior.
 - Resolve organization scope for every post-organization surface and make pre-organization onboarding behavior explicit.
+
+Phase 0 deliberately keeps the database unchanged. It emits a complete
+provider-neutral invocation event and projects the fields representable by the
+current `ai_usage_log`; the Phase 1 product increment remains the single
+canonical migration that expands invocation/turn storage and adds connection,
+deployment, and route tables. This avoids a temporary schema that would be
+immediately replaced.
 
 ### Phase 1 — organization-managed OpenRouter
 

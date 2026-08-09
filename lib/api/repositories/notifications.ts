@@ -12,6 +12,23 @@ export type NotificationPreferences = {
   alerts?: Record<string, boolean>;
 };
 
+/**
+ * PATCH semantics: an omitted key keeps its stored value at every level, so a
+ * partial `channels`/`alerts` payload cannot silently clear its siblings. Only
+ * the keys actually present in the patch are overwritten.
+ */
+function mergePreferences(
+  current: NotificationPreferences,
+  patch: NotificationPreferences
+): NotificationPreferences {
+  return {
+    ...current,
+    ...patch,
+    ...(patch.channels ? { channels: { ...current.channels, ...patch.channels } } : {}),
+    ...(patch.alerts ? { alerts: { ...current.alerts, ...patch.alerts } } : {}),
+  };
+}
+
 /** Elevated self-service preference writes constrained to one authorized member. */
 export function createNotificationPreferenceRepository(
   scope: NotificationPreferenceScope
@@ -43,10 +60,10 @@ export function createNotificationPreferenceRepository(
 
       if (readError) throw readError;
 
-      const merged = {
-        ...(current?.notification_prefs || {}),
-        ...patch,
-      };
+      const merged = mergePreferences(
+        (current?.notification_prefs as NotificationPreferences | null) ?? {},
+        patch
+      );
       const { error: updateError } = await db
         .from('organization_members')
         .update({ notification_prefs: merged })

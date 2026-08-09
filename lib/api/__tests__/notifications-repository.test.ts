@@ -82,6 +82,117 @@ describe('createNotificationPreferenceRepository', () => {
     });
   });
 
+  it('keeps sibling channel keys when the patch touches only one', async () => {
+    const readQuery = stubQuery(
+      { data: null, error: null },
+      {
+        maybeSingle: {
+          data: {
+            notification_prefs: {
+              digest: 'weekly',
+              channels: { in_app: true, email: true },
+              alerts: { task_assigned: true, grant_due: false },
+            },
+          },
+          error: null,
+        },
+      }
+    );
+    const updateQuery = stubQuery({ data: null, error: null });
+    mockFrom.mockReturnValueOnce(readQuery).mockReturnValueOnce(updateQuery);
+
+    const result = await createNotificationPreferenceRepository({
+      orgId: 'org-1',
+      principal: { kind: 'user', userId: 'member-1' },
+    }).updateOwnPreferences({ channels: { email: false } });
+
+    expect(result).toEqual({
+      digest: 'weekly',
+      channels: { in_app: true, email: false },
+      alerts: { task_assigned: true, grant_due: false },
+    });
+  });
+
+  it('keeps sibling alert keys when the patch touches only one', async () => {
+    const readQuery = stubQuery(
+      { data: null, error: null },
+      {
+        maybeSingle: {
+          data: {
+            notification_prefs: {
+              channels: { in_app: true, email: true },
+              alerts: { task_assigned: true, grant_due: true },
+            },
+          },
+          error: null,
+        },
+      }
+    );
+    const updateQuery = stubQuery({ data: null, error: null });
+    mockFrom.mockReturnValueOnce(readQuery).mockReturnValueOnce(updateQuery);
+
+    const result = await createNotificationPreferenceRepository({
+      orgId: 'org-1',
+      principal: { kind: 'user', userId: 'member-1' },
+    }).updateOwnPreferences({ alerts: { grant_due: false } });
+
+    expect(result).toEqual({
+      channels: { in_app: true, email: true },
+      alerts: { task_assigned: true, grant_due: false },
+    });
+  });
+
+  it('still accepts a full replacement payload from the settings form', async () => {
+    const readQuery = stubQuery(
+      { data: null, error: null },
+      {
+        maybeSingle: {
+          data: {
+            notification_prefs: {
+              digest: 'weekly',
+              channels: { in_app: true, email: true },
+              alerts: { task_assigned: true },
+            },
+          },
+          error: null,
+        },
+      }
+    );
+    const updateQuery = stubQuery({ data: null, error: null });
+    mockFrom.mockReturnValueOnce(readQuery).mockReturnValueOnce(updateQuery);
+
+    const result = await createNotificationPreferenceRepository({
+      orgId: 'org-1',
+      principal: { kind: 'user', userId: 'member-1' },
+    }).updateOwnPreferences({
+      digest: 'never',
+      channels: { in_app: false, email: false },
+      alerts: { task_assigned: false },
+    });
+
+    expect(result).toEqual({
+      digest: 'never',
+      channels: { in_app: false, email: false },
+      alerts: { task_assigned: false },
+    });
+  });
+
+  it('writes the first preferences for a member with none stored', async () => {
+    const readQuery = stubQuery(
+      { data: null, error: null },
+      { maybeSingle: { data: { notification_prefs: null }, error: null } }
+    );
+    const updateQuery = stubQuery({ data: null, error: null });
+    mockFrom.mockReturnValueOnce(readQuery).mockReturnValueOnce(updateQuery);
+
+    const result = await createNotificationPreferenceRepository({
+      orgId: 'org-1',
+      principal: { kind: 'user', userId: 'member-1' },
+    }).updateOwnPreferences({ channels: { email: true } });
+
+    expect(result).toEqual({ channels: { email: true } });
+  });
+
   it('does not expose the elevated client or generic table access', () => {
     const repository = createNotificationPreferenceRepository({
       orgId: 'org-1',

@@ -1,5 +1,11 @@
 # Builder Implementation Orchestration: Audit and Best-in-Class Delivery Plan
 
+> **Consolidation note (2026-08-08):** The durable review contract and local
+> deterministic verifier have shipped. Remaining production isolation, diff,
+> and delivery-evidence work is tracked in the
+> [consolidated backlog](module-reviews/FULL-BACKLOG.md) as BLD-01 through BLD-03.
+> This document remains the detailed design history.
+
 Date: 2026-07-10  
 Status: proposed execution plan  
 Audience: product, platform, security, and implementation teams

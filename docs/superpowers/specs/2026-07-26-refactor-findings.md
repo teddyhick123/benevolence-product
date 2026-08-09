@@ -6,6 +6,11 @@ Non-security behavior quirks discovered during the refactor are logged here
 instead of fixed. Security bugs are fixed in dedicated commits with regression
 coverage — see the spec's bug policy.
 
+This file is the historical discovery and evidence log. Continue recording new
+findings here, but triage every still-open action into the
+[consolidated backlog](../../module-reviews/FULL-BACKLOG.md) and maintain its
+priority/status there.
+
 Each entry: date, phase/task, `file:line`, what the code actually does versus
 what was expected, and why it was left alone.
 

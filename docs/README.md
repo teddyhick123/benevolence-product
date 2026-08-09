@@ -29,8 +29,8 @@ This folder contains current references, active backlogs, walkthrough missions, 
 
 | Path | Use For |
 |---|---|
-| `module-reviews/FULL-BACKLOG.md` | Canonical open product/module backlog (P1/P2/P3) |
-| `module-reviews/2026-06-27-reliability-audit.md` | Current reliability audit — 8 critical issues across financial data, compliance, and RLS |
+| `module-reviews/FULL-BACKLOG.md` | Canonical consolidated backlog for product, reliability, security, Builder, and test-infrastructure work |
+| `module-reviews/2026-06-27-reliability-audit.md` | Closed reliability-audit history; all RA-01 through RA-24 findings are fixed |
 | `walkthroughs/` | Simulated walkthrough missions and coverage notes |
 
 ## Historical Material

@@ -1,5 +1,11 @@
 # Agentic Walkthrough Coverage Plan
 
+> **Consolidation note (2026-08-08):** The reports, analytics, and compliance
+> document journeys listed below have shipped in
+> `deep-reporting-analytics-compliance.spec.ts`. Remaining actionable work is
+> tracked in the [consolidated backlog](../module-reviews/FULL-BACKLOG.md); this
+> document is retained as coverage history.
+
 Date: 2026-06-25
 
 ## Current Local Status
@@ -174,30 +180,12 @@ Implemented cleanup:
 - `tests/walkthrough/fixtures.ts` attaches `walkthrough-triage.json` on console, page, request, or HTTP 5xx failures with current URL, active org cookie, request failures, HTTP failures, console errors, and `/api/me` context.
 - `walkthrough-triage.json` also includes the active persona and a compact tail of the Next dev-server log.
 
-## Remaining High-Value Improvements
+## Consolidated status
 
-### P2 — Continue UI-Level Mission Tests
-
-Current journey specs now include the critical visible UI missions called out in the previous plan. Continue adding product-specific UI journeys where the visible controls are stable enough to be useful.
-
-Remaining suggested UI paths:
-
-- Reports template/document generation flows from visible controls.
-- Analytics drill-down paths from visible controls.
-- Compliance document upload/download flows from visible controls.
-- Convert future exploratory-agent findings into focused regression tests.
-
-### P3 — Continue Artifact And Runtime Triage
-
-Failure artifacts now include a concise JSON summary. Continue improving triage and runtime stability.
-
-Remaining ideas:
-
-- Reduce occasional local `Fast Refresh` and `MaxListenersExceededWarning` noise during long dev-server runs.
-
-## Recommended Next Implementation Order
-
-1. Add reports and analytics deep journeys with API/database assertions.
-2. Add compliance document upload/download coverage.
-3. Run the combined deep product journeys regularly and convert new exploratory findings into focused regressions.
-4. Reduce remaining local dev-server warning noise during long runs.
+The reports, analytics, and compliance document paths formerly listed as
+remaining now have UI/API/database coverage in
+`tests/walkthrough/journeys/deep-reporting-analytics-compliance.spec.ts`.
+Continue converting new exploratory findings into focused regressions as part
+of normal delivery. The only discrete open infrastructure item from this plan
+is long-run Fast Refresh/`MaxListenersExceededWarning` noise, tracked as WT-01
+in the [consolidated backlog](../module-reviews/FULL-BACKLOG.md).

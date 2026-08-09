@@ -1,10 +1,96 @@
-# Impact Platform - Open Backlog
+# Impact Platform — Consolidated Open Backlog
 
-Last cleaned: 2026-06-27.
+Last consolidated: 2026-08-08.
 
-This document tracks open work only. Completed items and historical notes should be recovered from git history when needed.
+This is the single current backlog for open product, reliability, security,
+Builder, and test-infrastructure work. Discovery logs remain as historical
+evidence, but an item is actionable only when it appears here. Completed items
+stay in their source audit or Git history and are not duplicated here.
 
-Severity guide: P1 = significant functional gap, P2 = UX / quality-of-life, P3 = future parity.
+Priority guide:
+
+- **P0** — release or security blocker; do not enable the affected production path.
+- **P1** — data integrity, authorization, money/obligation, or major functional risk.
+- **P2** — reliability contract, operator workflow, or important product improvement.
+- **P3** — future parity, coverage expansion, or low-risk operational polish.
+
+Status guide:
+
+- **Verified open** — confirmed against the current tree during consolidation.
+- **Decision needed** — current behavior is known; product semantics must be chosen before implementation.
+- **Carry-forward** — retained from the prior product backlog and should be revalidated when selected.
+
+## Consolidated sources
+
+| Source | Consolidation result |
+|---|---|
+| [Refactor findings](../superpowers/specs/2026-07-26-refactor-findings.md) | 21 unresolved findings are tracked below; Phase 3/5/6/7 resolutions were not copied. |
+| [Reliability audit](2026-06-27-reliability-audit.md) | RA-01 through RA-24 are fixed; RX-01/RX-02 are retired. No open items copied. |
+| [Role and permission audit](../ROLE_PERMISSION_AUDIT.md) | All audited P0-P2 boundaries are resolved. No open items copied. |
+| [Builder orchestration audit](../BUILDER_REVIEW_ORCHESTRATION_AUDIT.md) | Durable review and local verification shipped; production isolation and delivery evidence remain below. |
+| [Agentic walkthrough backlog](../walkthroughs/agentic-testing-backlog.md) | Reports, analytics, and compliance-document journeys shipped; only runtime-noise polish remains. |
+| April module reviews under `docs/archive/module-reviews/` | Historical only; their still-relevant product candidates were already carried into this backlog. |
+
+## Release and security blockers
+
+| ID | Priority | Status | Area | Open work |
+|---|---|---|---|---|
+| SEC-01 | P0 | Verified open | Tenant access | Replace the five server-page `createAdminClient()` call sites with explicit access guards and tenant-scoped repositories. Fix `/settings/integrations` first: it trusts the client-writable `x-org-id` cookie and reads QuickBooks connection state with service-role access without proving membership. Extend the elevated-access source contract from `app/api/**` to server pages. |
+| BLD-01 | P0 | Verified open | Builder | Ship the container/Docker-isolated verification runner before enabling Builder code execution for production organizations. The current local worktree runner executes proposal-modified code on the worker host. |
+
+## Data integrity and reliability findings
+
+These entries preserve intentionally deferred behavior from the refactor. The
+source log contains the full evidence and expected-versus-actual discussion.
+RF IDs follow discovery order after resolved findings were excluded.
+
+### P1
+
+| ID | Status | Area | Open work |
+|---|---|---|---|
+| RF-01 | Verified open | Grant milestones | Make milestone status changes and generated-task synchronization atomic, or commit a durable outbox event in the same transaction. |
+| RF-02 | Verified open | Notification jobs | Treat queue-read errors as worker failures and distinguish a failed scan from an empty queue in monitoring. |
+| RF-03 | Verified open | Pledges | Make installment changes and generated-task synchronization transactional or outbox-backed. |
+| RF-04 | Verified open | Workflows | Move workflow-task, linked-task, workflow-instance, and task-event changes into one transactional boundary. |
+| RF-05 | Verified open | Task jobs | Check advisory-lock and run-log results; define retry/alert behavior when execution history cannot be persisted. |
+| RF-06 | Verified open | Tasks | Make task, link, comment, audit, milestone-sync, and automation side effects transactional or outbox-backed. |
+| RF-07 | Verified open | Acknowledgments | Replace PDFs through versioned/staged object paths so database and storage state cannot diverge. |
+| RF-08 | Verified open | Memberships | Move membership changes, last-owner protection, and audit insertion into transactional database functions. |
+| RF-09 | Verified open | Invitations | Commit invitation state and an email-outbox record transactionally; deliver with idempotent retries and explicit status. |
+| RF-10 | Verified open | Custom fields | Validate the full request, commit all field values atomically, and dispatch automation through a durable outbox. |
+| RF-11 | Verified open | Public invitations | Accept the invitation, activate membership, and write the audit event in one idempotent transaction. |
+| RF-12 | Verified open | Onboarding assistant | Give onboarding chat the durable, idempotent turn/state/recommendation boundary already used by the portfolio assistant. |
+| RF-13 | Verified open | Onboarding provisioning | Use `session_id` as the idempotency key for transactional create-or-resume provisioning and final session linkage. |
+| BLD-02 | Verified open | Builder evidence | Promote the verifier's `diff.authoritative.patch` to canonical review/apply evidence: persist and hash it fail-closed, expose it to reviewers, and stop treating the earlier adds-only `diff.patch`/hash as authoritative for modified files. |
+
+### P2
+
+| ID | Status | Area | Open work |
+|---|---|---|---|
+| RF-14 | Verified open | Walkthrough CI | Split or parallelize the journey suite, or raise the timeout after measuring the intermittent runtime ceiling. |
+| RF-15 | Decision needed | Admin upload | Remove the ignored `autoApprove` option or define a role-gated audited bulk-approval workflow. |
+| RF-16 | Decision needed | Holding uploads | Define AI-off semantics and either add a configured-KPI selector or make the path document-only. |
+| RF-17 | Decision needed | Dashboard | Represent failed statistics as unavailable instead of silently converting query failures to zero. |
+| RF-18 | Verified open | Widgets | Allocate widget positions atomically or enforce uniqueness with retry/rebalancing. |
+| RF-19 | Decision needed | Notifications | Define nested preferences as patch or replacement semantics, then align payloads and persistence. |
+| RF-20 | Verified open | Onboarding | Distinguish not-found from infrastructure failure and make session/telemetry updates transactional or event-backed. |
+| RF-21 | Decision needed | Onboarding | Define the canonical organization-type-to-module recommendation matrix and align prompts, defaults, exclusions, and tests. |
+| BLD-03 | Verified open | Builder delivery | Replace manually tracked merge/deploy state with provider-verified delivery facts before presenting those states as authoritative. |
+
+## Test infrastructure
+
+### P3
+
+| ID | Status | Area | Open work |
+|---|---|---|---|
+| WT-01 | Verified open | Walkthrough runtime | Reduce occasional Fast Refresh and `MaxListenersExceededWarning` noise during long local journey runs. |
+
+## Product roadmap candidates
+
+The following module items are carry-forwards from the June product review.
+They are intentionally lower-confidence than the verified findings above: when
+an item is selected, revalidate it against current code and update its status
+before planning implementation.
 
 ---
 
@@ -56,7 +142,6 @@ Severity guide: P1 = significant functional gap, P2 = UX / quality-of-life, P3 =
 | Cm-U2 | Add email / in-app reminder system |
 | Cm-U5 | Add IRS 990-PF Part XIII worksheet view |
 | Cm-F3 | Add nightly job to auto-mark overdue filings and send reminders |
-| Cm-F5 | Add document attachment support for filings |
 
 ---
 
@@ -105,7 +190,6 @@ Severity guide: P1 = significant functional gap, P2 = UX / quality-of-life, P3 =
 
 | # | Issue |
 |---|-------|
-| AI-F3 | Persist conversation history across page reloads and sessions |
 | AI-F4 | Add portfolio-aware contextual suggested prompts |
 | AI-F5 | Add Donor CRM tool coverage: `find_donor`, `log_gift`, `generate_acknowledgment` |
 | AI-F6 | Add Tax Center tool coverage: `estimate_deduction`, `run_optimization` |
@@ -205,11 +289,20 @@ Severity guide: P1 = significant functional gap, P2 = UX / quality-of-life, P3 =
 
 ---
 
-## Open Count Summary
+## Open count summary
 
-| Priority | Count |
-|----------|------:|
-| P1 | 2 |
-| P2 | 48 |
-| P3 | 10 |
-| Total | 60 |
+| Priority | Verified/decision findings | Product carry-forwards | Total |
+|---|---:|---:|---:|
+| P0 | 2 | 0 | 2 |
+| P1 | 14 | 2 | 16 |
+| P2 | 9 | 46 | 55 |
+| P3 | 1 | 10 | 11 |
+| **Total** | **26** | **58** | **84** |
+
+## Recommended execution order
+
+1. Close SEC-01 and add the server-page elevated-access contract.
+2. Ship BLD-01 before enabling production Builder workers; address BLD-02 in the same Builder hardening increment.
+3. Design one reusable transaction/outbox pattern, then apply it to RF-01, RF-03, RF-04, RF-06, and RF-08 through RF-13 in bounded domain slices.
+4. Resolve the five product decisions RF-15, RF-16, RF-17, RF-19, and RF-21 before implementation.
+5. Select product roadmap candidates based on customer discovery, revalidate them, and promote only chosen items from carry-forward status.

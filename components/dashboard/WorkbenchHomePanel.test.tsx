@@ -91,4 +91,48 @@ describe('WorkbenchHomePanel', () => {
       '/org/org-1/data'
     );
   });
+
+  it('reports unreadable builder counts as unavailable rather than zero', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        org: { id: 'org-1', name: 'Example Foundation' },
+        setup_progress: { completed_count: 1, total_count: 3, tasks: [] },
+        workbench: {
+          next_actions: [],
+          data_health: { score: 100, records_checked: 0, issues: [] },
+          imports: { total_recent: 0, recent: [] },
+          builder: {
+            pending_proposals: null,
+            configured_layers: {
+              workflow_items: 3,
+              custom_fields: null,
+              automation_rules: 1,
+              ai_context_items: 2,
+              view_preferences: 4,
+            },
+          },
+          usage: {
+            plan: 'starter',
+            imports_used: 0,
+            imports_limit: 5,
+            ai_calls_used: null,
+            ai_calls_limit: null,
+          },
+        },
+      }),
+    })));
+
+    render(<WorkbenchHomePanel orgId="org-1" />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Pending proposals')).toBeInTheDocument();
+    });
+
+    // The failed pending-proposal count, the failed layer chip, and the total
+    // that depends on it must all read as unavailable rather than as a number.
+    expect(screen.getAllByText('Unavailable')).toHaveLength(2);
+    expect(screen.getByText('custom fields: Unavailable')).toBeInTheDocument();
+    expect(screen.queryByText('0')).not.toBeInTheDocument();
+  });
 });

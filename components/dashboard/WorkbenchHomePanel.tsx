@@ -72,13 +72,14 @@ type DashboardResponse = {
       total_recent: number;
     };
     builder: {
-      pending_proposals: number;
+      // null means the count could not be read, which is not the same as zero.
+      pending_proposals: number | null;
       configured_layers: {
-        workflow_items: number;
-        custom_fields: number;
-        automation_rules: number;
-        ai_context_items: number;
-        view_preferences: number;
+        workflow_items: number | null;
+        custom_fields: number | null;
+        automation_rules: number | null;
+        ai_context_items: number | null;
+        view_preferences: number | null;
       };
     };
     usage: {
@@ -103,6 +104,17 @@ function formatDate(value: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '';
   return new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).format(date);
+}
+
+/** A count that could not be read reads as unavailable, never as a number. */
+function formatCount(count: number | null) {
+  return count === null ? 'Unavailable' : count;
+}
+
+function statClasses(count: number | null) {
+  return count === null
+    ? 'text-sm font-medium text-neutral-400'
+    : 'text-2xl font-semibold tabular-nums text-neutral-900';
 }
 
 function severityClasses(severity: HealthIssue['severity']) {
@@ -138,10 +150,14 @@ export default function WorkbenchHomePanel({ orgId }: Props) {
     ? Math.round((setup.completed_count / setup.total_count) * 100)
     : 100;
 
+  // A partial sum would read as a real total, so an unreadable count makes the
+  // whole figure unavailable rather than silently smaller.
   const layerTotal = useMemo(() => {
     const layers = workbench?.builder.configured_layers;
-    if (!layers) return 0;
-    return Object.values(layers).reduce((sum, count) => sum + count, 0);
+    if (!layers) return null;
+    const counts = Object.values(layers);
+    if (counts.some((count) => count === null)) return null;
+    return counts.reduce((sum: number, count) => sum + (count ?? 0), 0);
   }, [workbench]);
 
   if (!orgId) return null;
@@ -267,12 +283,12 @@ export default function WorkbenchHomePanel({ orgId }: Props) {
           </div>
           <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
             <div className="rounded-md bg-neutral-50 p-3">
-              <div className="text-2xl font-semibold tabular-nums text-neutral-900">{layerTotal}</div>
+              <div className={statClasses(layerTotal)}>{formatCount(layerTotal)}</div>
               <div className="text-xs text-neutral-500">Configured items</div>
             </div>
             <div className="rounded-md bg-neutral-50 p-3">
-              <div className="text-2xl font-semibold tabular-nums text-neutral-900">
-                {workbench.builder.pending_proposals}
+              <div className={statClasses(workbench.builder.pending_proposals)}>
+                {formatCount(workbench.builder.pending_proposals)}
               </div>
               <div className="text-xs text-neutral-500">Pending proposals</div>
             </div>
@@ -280,7 +296,7 @@ export default function WorkbenchHomePanel({ orgId }: Props) {
           <div className="mt-3 flex flex-wrap gap-2">
             {Object.entries(workbench.builder.configured_layers).map(([key, count]) => (
               <span key={key} className="rounded-full bg-neutral-100 px-2.5 py-1 text-xs text-neutral-600">
-                {key.replace(/_/g, ' ')}: {count}
+                {key.replace(/_/g, ' ')}: {formatCount(count)}
               </span>
             ))}
           </div>

@@ -45,38 +45,17 @@ export async function PATCH(
       return jsonError('Milestone does not belong to this holding', 403);
     }
 
-    // Update milestone
-    const updateData: any = {};
-    if (validated.milestone_name !== undefined) updateData.milestone_name = validated.milestone_name;
-    if (validated.description !== undefined) updateData.description = validated.description;
-    if (validated.due_date !== undefined) updateData.due_date = validated.due_date;
-    if (validated.completed_date !== undefined) updateData.completed_date = validated.completed_date;
-    if (validated.status !== undefined) updateData.status = validated.status;
-    if (validated.notes !== undefined) updateData.notes = validated.notes;
-    if (validated.status === 'completed' && updateData.completed_date === undefined) {
-      updateData.completed_date = new Date().toISOString().slice(0, 10);
-    }
-    updateData.updated_at = new Date().toISOString();
-
-    const { data: milestone, error } = await supabase
-      .from('grant_milestones')
-      .update(updateData)
-      .eq('id', milestoneId)
-      .select()
-      .single();
-
-    if (error) {
-      console.error('Error updating milestone:', error);
-      return jsonError('Failed to update milestone', 500);
-    }
-
-    const newStatus = validated.status;
-    if (newStatus === 'completed' || newStatus === 'cancelled') {
-      await createGrantRepository({
-        orgId: access.context.orgId,
-        actorId: access.context.user.id,
-      }).syncMilestoneTasks({ milestoneId, status: newStatus });
-    }
+    // The repository RPC applies the milestone patch, generated-task state,
+    // and task events in one database transaction.
+    const milestone = await createGrantRepository({
+      orgId: access.context.orgId,
+      actorId: access.context.user.id,
+    }).updateMilestoneWithTaskSync({
+      portfolioId,
+      holdingId,
+      milestoneId,
+      patch: validated,
+    });
 
     return jsonOk({ data: withMilestoneDisplayStatus(milestone) });
   } catch (error: unknown) {

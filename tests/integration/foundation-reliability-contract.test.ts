@@ -227,17 +227,26 @@ describe('foundation reliability contracts', () => {
     expect(route).toContain('}).strict()');
   });
 
-  it('portfolio milestone mutations scope joined grants and await task sync', () => {
+  it('portfolio milestone mutations scope joined grants and use one atomic task-sync RPC', () => {
     const route = src('app/api/portfolio/[id]/holdings/[holdingId]/milestones/[milestoneId]/route.ts');
     const repository = src('lib/api/repositories/grants.ts');
+    const migration = src('db/migrations/0041_task_workflow_foundation.sql');
     expect(route).toContain('grants!inner(holding_id, portfolio_id)');
     expect(route).toContain('grantDetails.portfolio_id !== portfolioId');
     expect(route).toContain("requirePortfolioAccess(portfolioId, 'member')");
-    expect(route).toContain('syncMilestoneTasks');
+    expect(route).toContain('updateMilestoneWithTaskSync');
     expect(route).not.toContain('createAdminClient');
-    expect(repository).toContain(".eq('grants.org_id', scope.orgId)");
-    expect(repository).toContain('return completeGeneratedTasks');
-    expect(repository).toContain('return cancelGeneratedTasks');
+    expect(repository).toContain("'update_grant_milestone_with_task_sync'");
+    expect(repository).toContain('p_expected_org_id: scope.orgId');
+    expect(migration).toContain(
+      'CREATE OR REPLACE FUNCTION public.update_grant_milestone_with_task_sync'
+    );
+    expect(migration).toContain('WITH settled_tasks AS');
+    expect(migration).toContain('UPDATE public.tasks');
+    expect(migration).toContain('INSERT INTO public.task_events');
+    expect(migration).toContain(
+      'REVOKE ALL ON FUNCTION public.update_grant_milestone_with_task_sync'
+    );
     expect(route).not.toContain('fire-and-forget');
     expect(route).toContain('jsonOk');
   });

@@ -196,14 +196,15 @@ describe('Task writer prefix safety in producers', () => {
     expect(importsSrc).toMatch(/cancelGeneratedTasks[^`]*`import_job:\${[^}]+}:`/);
   });
 
-  it('milestone route uses prefix form for completeGeneratedTasks on milestone complete', () => {
-    expect(milestoneRouteSrc).toContain('syncMilestoneTasks');
-    expect(grantRepositorySrc).toMatch(/completeGeneratedTasks[\s\S]{0,180}sourcePrefix/);
-    expect(grantRepositorySrc).toMatch(/`grant_milestone:\${input\.milestoneId}:`/);
-  });
-
-  it('milestone route uses prefix form for cancelGeneratedTasks on milestone cancel', () => {
-    expect(grantRepositorySrc).toMatch(/cancelGeneratedTasks[\s\S]{0,180}sourcePrefix/);
+  it('milestone updates and generated-task settlement share one RPC transaction', () => {
+    expect(milestoneRouteSrc).toContain('updateMilestoneWithTaskSync');
+    expect(grantRepositorySrc).toContain("'update_grant_milestone_with_task_sync'");
+    expect(migrations).toMatch(
+      /CREATE OR REPLACE FUNCTION public\.update_grant_milestone_with_task_sync[\s\S]*UPDATE public\.grant_milestones[\s\S]*WITH settled_tasks AS[\s\S]*UPDATE public\.tasks[\s\S]*INSERT INTO public\.task_events/
+    );
+    expect(migrations).toMatch(
+      /source_key LIKE \('grant_milestone:' \|\| p_milestone_id::text \|\| ':%'\)/
+    );
   });
 
   it('import commit orchestration completes import_job approval task on commit', () => {

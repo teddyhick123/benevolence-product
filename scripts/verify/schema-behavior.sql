@@ -78,6 +78,114 @@ BEGIN
 END;
 $$;
 
+-- A milestone terminal transition, generated-task settlement, and task event
+-- must commit together through the scoped service-only RPC.
+INSERT INTO public.grants (
+  id, org_id, portfolio_id, holding_id, lifecycle_stage
+) VALUES (
+  '71000000-0000-0000-0000-000000000001',
+  '20000000-0000-0000-0000-000000000001',
+  '30000000-0000-0000-0000-000000000001',
+  '40000000-0000-0000-0000-000000000003',
+  'active'
+);
+
+INSERT INTO public.grant_milestones (
+  id, grant_id, milestone_name, status
+) VALUES
+  (
+    '72000000-0000-0000-0000-000000000001',
+    '71000000-0000-0000-0000-000000000001',
+    'Atomic success',
+    'pending'
+  ),
+  (
+    '72000000-0000-0000-0000-000000000002',
+    '71000000-0000-0000-0000-000000000001',
+    'Atomic rollback',
+    'pending'
+  );
+
+INSERT INTO public.tasks (
+  id, org_id, portfolio_id, title, status, source, source_key
+) VALUES
+  (
+    '73000000-0000-0000-0000-000000000001',
+    '20000000-0000-0000-0000-000000000001',
+    '30000000-0000-0000-0000-000000000001',
+    'Milestone success task',
+    'open',
+    'automation',
+    'grant_milestone:72000000-0000-0000-0000-000000000001:due'
+  ),
+  (
+    '73000000-0000-0000-0000-000000000002',
+    '20000000-0000-0000-0000-000000000001',
+    '30000000-0000-0000-0000-000000000001',
+    'Milestone rollback task',
+    'open',
+    'automation',
+    'grant_milestone:72000000-0000-0000-0000-000000000002:due'
+  );
+
+SELECT public.update_grant_milestone_with_task_sync(
+  '20000000-0000-0000-0000-000000000001',
+  '30000000-0000-0000-0000-000000000001',
+  '40000000-0000-0000-0000-000000000003',
+  '72000000-0000-0000-0000-000000000001',
+  '10000000-0000-0000-0000-000000000001',
+  '{"status":"completed"}'::jsonb
+);
+
+DO $$
+BEGIN
+  IF (SELECT status FROM public.grant_milestones
+      WHERE id = '72000000-0000-0000-0000-000000000001') <> 'completed'
+     OR (SELECT completed_date FROM public.grant_milestones
+         WHERE id = '72000000-0000-0000-0000-000000000001') IS NULL
+     OR (SELECT status FROM public.tasks
+         WHERE id = '73000000-0000-0000-0000-000000000001') <> 'completed'
+     OR NOT EXISTS (
+       SELECT 1 FROM public.task_events
+       WHERE task_id = '73000000-0000-0000-0000-000000000001'
+         AND event_type = 'completed'
+     ) THEN
+    RAISE EXCEPTION 'milestone/task/event atomic success contract failed';
+  END IF;
+END;
+$$;
+
+DO $$
+BEGIN
+  BEGIN
+    PERFORM public.update_grant_milestone_with_task_sync(
+      '20000000-0000-0000-0000-000000000001',
+      '30000000-0000-0000-0000-000000000001',
+      '40000000-0000-0000-0000-000000000003',
+      '72000000-0000-0000-0000-000000000002',
+      'ffffffff-ffff-4fff-8fff-ffffffffffff',
+      '{"status":"completed"}'::jsonb
+    );
+    RAISE EXCEPTION 'expected task-event actor FK failure';
+  EXCEPTION
+    WHEN foreign_key_violation THEN NULL;
+  END;
+
+  IF (SELECT status FROM public.grant_milestones
+      WHERE id = '72000000-0000-0000-0000-000000000002') <> 'pending'
+     OR (SELECT completed_date FROM public.grant_milestones
+         WHERE id = '72000000-0000-0000-0000-000000000002') IS NOT NULL
+     OR (SELECT status FROM public.tasks
+         WHERE id = '73000000-0000-0000-0000-000000000002') <> 'open'
+     OR EXISTS (
+       SELECT 1 FROM public.task_events
+       WHERE task_id = '73000000-0000-0000-0000-000000000002'
+     ) THEN
+    RAISE EXCEPTION 'milestone/task/event rollback contract failed';
+  END IF;
+END;
+$$;
+
 SELECT * FROM public.create_generated_letter(
   '30000000-0000-0000-0000-000000000001',
   '10000000-0000-0000-0000-000000000001',

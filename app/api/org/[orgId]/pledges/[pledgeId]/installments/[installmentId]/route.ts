@@ -1,6 +1,5 @@
 import { NextRequest } from 'next/server';
 import { isAccessDenied, requireOrgAccess } from '@/lib/api/access';
-import { createPledgeRepository } from '@/lib/api/repositories/pledges';
 import { jsonError, jsonOk } from '@/lib/api/responses';
 import { PatchInstallmentSchema } from '@/lib/schemas/pledge';
 
@@ -36,13 +35,6 @@ export async function PATCH(
       p_notes:               d.notes ?? null,
     });
     if (error) return jsonError(error.message, 500);
-
-    const repository = createPledgeRepository({
-      orgId,
-      actorId: access.context.principal.userId,
-    });
-    await repository.syncInstallmentTasks(installmentId, d.action);
-    // 'reopen' intentionally does not close tasks — the producer will regenerate if due
 
     const { data: pledge } = await access.context.db
       .from('v_pledge_pipeline')

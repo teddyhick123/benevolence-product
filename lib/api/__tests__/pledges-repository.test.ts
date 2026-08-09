@@ -6,22 +6,13 @@ import { createPledgeRepository } from '@/lib/api/repositories/pledges';
 const {
   mockCreateElevatedClient,
   mockRpc,
-  mockCompleteGeneratedTasks,
-  mockCancelGeneratedTasks,
 } = vi.hoisted(() => ({
   mockCreateElevatedClient: vi.fn(),
   mockRpc: vi.fn(),
-  mockCompleteGeneratedTasks: vi.fn(),
-  mockCancelGeneratedTasks: vi.fn(),
 }));
 
 vi.mock('@/lib/api/admin-client', () => ({
   createElevatedClient: mockCreateElevatedClient,
-}));
-
-vi.mock('@/lib/tasks/automation/task-writer', () => ({
-  completeGeneratedTasks: mockCompleteGeneratedTasks,
-  cancelGeneratedTasks: mockCancelGeneratedTasks,
 }));
 
 const db = { rpc: mockRpc };
@@ -49,38 +40,6 @@ describe('createPledgeRepository', () => {
       p_cancellation_reason: 'Donor request',
       p_waive_pending: true,
     });
-  });
-
-  it('synchronizes terminal installment tasks inside the repository org', async () => {
-    const repository = createPledgeRepository({ orgId: 'org-1', actorId: 'member-1' });
-
-    await repository.syncInstallmentTasks('installment-1', 'mark_paid');
-    await repository.syncInstallmentTasks('installment-2', 'waive');
-    await repository.syncInstallmentTasks('installment-3', 'write_off');
-    await repository.syncInstallmentTasks('installment-4', 'reopen');
-
-    expect(mockCompleteGeneratedTasks).toHaveBeenCalledWith(
-      db,
-      'org-1',
-      'pledge_installment:installment-1:',
-      'Installment paid'
-    );
-    expect(mockCancelGeneratedTasks).toHaveBeenNthCalledWith(
-      1,
-      db,
-      'org-1',
-      'pledge_installment:installment-2:',
-      'Installment waived'
-    );
-    expect(mockCancelGeneratedTasks).toHaveBeenNthCalledWith(
-      2,
-      db,
-      'org-1',
-      'pledge_installment:installment-3:',
-      'Installment written off'
-    );
-    expect(mockCompleteGeneratedTasks).toHaveBeenCalledTimes(1);
-    expect(mockCancelGeneratedTasks).toHaveBeenCalledTimes(2);
   });
 
   it('does not expose the elevated client or generic database access', () => {

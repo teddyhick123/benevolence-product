@@ -198,6 +198,14 @@ repository preserves the existing ordering.
 **Suggested follow-up (not scheduled):** Fold task synchronization into the
 installment RPC or persist a retryable domain event in the same transaction.
 
+**Resolution (2026-08-09):** `update_pledge_installment_status` now settles the
+matching generated tasks and inserts their task events inside the same
+transaction that changes the installment, writes pledge events, and updates the
+parent pledge. The route no longer performs a post-commit repository sync;
+reopen still deliberately leaves task regeneration to the idempotent producer.
+Post-reset behavior assertions cover successful settlement and a forced task
+event failure that rolls back the installment, pledge event, and task changes.
+
 ### 2026-08-01 — Phase 2, workflow family — task synchronization compensates best-effort
 
 **What happened:** `lib/api/repositories/workflows.ts` updates a workflow task,

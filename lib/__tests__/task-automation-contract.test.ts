@@ -255,14 +255,16 @@ describe('Source hook cancel prefix safety', () => {
     expect(complianceRepositorySrc).toMatch(/cancelGeneratedTasks\([\s\S]*sourcePrefix/);
   });
 
-  it('installment route uses prefix form for completeGeneratedTasks on pay', () => {
-    expect(installmentRouteSrc).toContain('syncInstallmentTasks');
-    expect(pledgeRepositorySrc).toMatch(/completeGeneratedTasks[\s\S]*sourcePrefix/);
-    expect(pledgeRepositorySrc).toMatch(/sourcePrefix\s*=\s*`pledge_installment:\${[^}]+}:`/);
-  });
-
-  it('installment route uses prefix form for cancelGeneratedTasks on waive/write_off', () => {
-    expect(pledgeRepositorySrc).toMatch(/cancelGeneratedTasks[\s\S]*sourcePrefix/);
+  it('installment changes and generated-task settlement share the status RPC transaction', () => {
+    expect(installmentRouteSrc).toContain("rpc('update_pledge_installment_status'");
+    expect(installmentRouteSrc).not.toContain('syncInstallmentTasks');
+    expect(pledgeRepositorySrc).not.toContain('syncInstallmentTasks');
+    expect(migrations).toMatch(
+      /CREATE OR REPLACE FUNCTION public\.update_pledge_installment_status[\s\S]*INSERT INTO pledge_events[\s\S]*WITH settled_tasks AS[\s\S]*UPDATE public\.tasks[\s\S]*INSERT INTO public\.task_events/
+    );
+    expect(migrations).toMatch(
+      /source_key LIKE \('pledge_installment:' \|\| p_installment_id::text \|\| ':%'\)/
+    );
   });
 
   it('pledge cancel route uses prefix form for cancelGeneratedTasks', () => {

@@ -10,14 +10,12 @@ const {
   mockFrom,
   mockCreatePledgeRepository,
   mockCancelPledge,
-  mockSyncInstallmentTasks,
 } = vi.hoisted(() => ({
   mockRequireOrgAccess: vi.fn(),
   mockRpc: vi.fn(),
   mockFrom: vi.fn(),
   mockCreatePledgeRepository: vi.fn(),
   mockCancelPledge: vi.fn(),
-  mockSyncInstallmentTasks: vi.fn(),
 }));
 
 vi.mock('@/lib/api/access', () => ({
@@ -55,13 +53,11 @@ beforeEach(() => {
   mockRequireOrgAccess.mockResolvedValue({ ok: true, context });
   mockCreatePledgeRepository.mockReturnValue({
     cancelPledge: mockCancelPledge,
-    syncInstallmentTasks: mockSyncInstallmentTasks,
   });
   mockCancelPledge.mockResolvedValue({
     data: { waived_count: 2, cancelled_task_count: 3 },
     error: null,
   });
-  mockSyncInstallmentTasks.mockResolvedValue(undefined);
 });
 
 describe('pledge mutation routes', () => {
@@ -139,7 +135,7 @@ describe('pledge mutation routes', () => {
         p_action: 'waive',
       })
     );
-    expect(mockSyncInstallmentTasks).toHaveBeenCalledWith('installment-1', 'waive');
+    expect(mockCreatePledgeRepository).not.toHaveBeenCalled();
     for (const query of [pledgeQuery, installmentQuery]) {
       expect(query.calls).toContainEqual({ method: 'eq', args: ['org_id', 'org-1'] });
     }

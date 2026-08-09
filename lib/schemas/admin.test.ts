@@ -13,26 +13,24 @@ describe('Admin Schemas', () => {
     it('should validate valid upload ingest request', () => {
       const validData = {
         uploadId: '550e8400-e29b-41d4-a716-446655440000',
-        autoApprove: true,
       };
 
       const result = uploadIngestSchema.safeParse(validData);
       expect(result.success).toBe(true);
       if (result.success) {
         expect(result.data.uploadId).toBe('550e8400-e29b-41d4-a716-446655440000');
-        expect(result.data.autoApprove).toBe(true);
       }
     });
 
-    it('should default autoApprove to false', () => {
-      const minimalData = {
+    it('should strip an approval flag the ingest route does not honor', () => {
+      const result = uploadIngestSchema.safeParse({
         uploadId: '550e8400-e29b-41d4-a716-446655440000',
-      };
+        autoApprove: true,
+      });
 
-      const result = uploadIngestSchema.safeParse(minimalData);
       expect(result.success).toBe(true);
       if (result.success) {
-        expect(result.data.autoApprove).toBe(false);
+        expect(result.data).not.toHaveProperty('autoApprove');
       }
     });
 

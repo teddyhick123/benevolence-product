@@ -218,7 +218,6 @@ function UploadPageContent() {
       const fd = new FormData();
       fd.append('file', file);
       fd.append('portfolio_id', portfolioId);
-      fd.append('autoApprove', 'true');
       fd.append('holding_id', selectedHoldingId);
       fd.append('ai_mode', aiMode ? 'true' : 'false');
       if (!aiMode) {

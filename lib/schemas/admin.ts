@@ -6,7 +6,6 @@ import { z } from 'zod';
  */
 export const uploadIngestSchema = z.object({
   uploadId: z.string().uuid('Invalid upload ID'),
-  autoApprove: z.boolean().optional().default(false),
 });
 
 /**

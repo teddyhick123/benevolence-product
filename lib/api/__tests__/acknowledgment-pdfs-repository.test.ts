@@ -43,19 +43,19 @@ describe('createAcknowledgmentPdfRepository', () => {
     const pdf = Buffer.from('pdf');
 
     const path = await repository.upload('letter-1', pdf);
-    await repository.remove('letter-1');
-    const signedUrl = await repository.createSignedUrl('letter-1');
+    await repository.remove('letter-1', path);
+    const signedUrl = await repository.createSignedUrl(path);
 
     expect(mockStorageFrom).toHaveBeenCalledWith('documents');
-    expect(path).toBe('acknowledgments/org-1/letter-1.pdf');
+    expect(path).toMatch(/^acknowledgments\/org-1\/letter-1\/[0-9a-f-]+\.pdf$/);
     expect(mockUpload).toHaveBeenCalledWith(
-      'acknowledgments/org-1/letter-1.pdf',
+      path,
       pdf,
-      { contentType: 'application/pdf', upsert: true }
+      { contentType: 'application/pdf', upsert: false }
     );
-    expect(mockRemove).toHaveBeenCalledWith(['acknowledgments/org-1/letter-1.pdf']);
+    expect(mockRemove).toHaveBeenCalledWith([path]);
     expect(mockCreateSignedUrl).toHaveBeenCalledWith(
-      'acknowledgments/org-1/letter-1.pdf',
+      path,
       3600
     );
     expect(signedUrl).toBe('https://signed.example/document');
@@ -65,5 +65,12 @@ describe('createAcknowledgmentPdfRepository', () => {
     const repository = createAcknowledgmentPdfRepository({ orgId: 'org-1' });
     expect(repository).not.toHaveProperty('storage');
     expect(repository).not.toHaveProperty('db');
+  });
+
+  it('refuses to retire a path outside the authorized letter scope', async () => {
+    const repository = createAcknowledgmentPdfRepository({ orgId: 'org-1' });
+    await expect(repository.remove('letter-1', 'acknowledgments/org-2/letter-1/old.pdf'))
+      .rejects.toThrow(/outside the authorized letter scope/i);
+    expect(mockRemove).not.toHaveBeenCalled();
   });
 });

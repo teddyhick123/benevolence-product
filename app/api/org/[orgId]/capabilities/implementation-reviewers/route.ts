@@ -5,7 +5,7 @@ import {
   createImplementationReviewerRepository,
 } from '@/lib/api/repositories/implementation-reviewers';
 import { jsonError, jsonOk } from '@/lib/api/responses';
-import { isOrgRole, isWorkspaceManager } from '@/lib/roles';
+import { isOrgRole, isWorkspaceManager } from '@/lib/organizations/roles';
 
 export const dynamic = 'force-dynamic';
 

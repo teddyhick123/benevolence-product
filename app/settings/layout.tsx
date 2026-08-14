@@ -1,7 +1,7 @@
 // app/settings/layout.tsx
 import { redirect } from 'next/navigation';
 import { cookies } from 'next/headers';
-import { createServerClient } from '@/lib/supabase';
+import { createServerClient } from '@/lib/api/server-client';
 import SettingsTabs from '@/components/settings/SettingsTabs';
 
 export default async function SettingsLayout({ children }: { children: React.ReactNode }) {

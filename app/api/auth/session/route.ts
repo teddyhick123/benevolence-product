@@ -1,7 +1,7 @@
 // app/api/auth/session/route.ts
 import { NextResponse } from 'next/server';
-import { authLimiter, getIP } from '@/lib/rate-limit';
-import { rateLimitExceeded } from '@/lib/rate-limit-response';
+import { authLimiter, getIP } from '@/lib/api/rate-limit';
+import { rateLimitExceeded } from '@/lib/api/rate-limit-response';
 import { clearServerSession, setServerSession } from '@/lib/api/auth-session';
 
 export async function POST(req: Request) {

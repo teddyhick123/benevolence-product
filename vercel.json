@@ -11,6 +11,10 @@
     {
       "path": "/api/jobs/notifications/digest",
       "schedule": "0 8 * * *"
+    },
+    {
+      "path": "/api/jobs/invitations/send",
+      "schedule": "*/15 * * * *"
     }
   ]
 }

@@ -8,7 +8,7 @@
  * Rate Limit: 10,000 requests/month
  */
 
-import { createAdminClient } from '@/lib/supabase';
+import { createElevatedClient } from '@/lib/api/admin-client';
 
 const CHARITY_NAVIGATOR_API_KEY = process.env.CHARITY_NAVIGATOR_API_KEY;
 const CHARITY_NAVIGATOR_BASE_URL = 'https://api.data.charitynavigator.org/v2';
@@ -132,7 +132,7 @@ function convertScoreToGrade(score?: number): string | undefined {
  * Get cached rating
  */
 async function getCachedRating(provider: string, ein: string): Promise<any | null> {
-  const adminClient = createAdminClient();
+  const adminClient = createElevatedClient();
 
   // First find the charity by EIN
   const { data: charity } = await adminClient
@@ -165,7 +165,7 @@ async function getCachedRating(provider: string, ein: string): Promise<any | nul
  * Cache rating data
  */
 async function cacheRating(provider: string, ein: string, ratingData: any): Promise<void> {
-  const adminClient = createAdminClient();
+  const adminClient = createElevatedClient();
 
   // First find the charity by EIN
   const { data: charity } = await adminClient

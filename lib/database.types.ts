@@ -974,6 +974,8 @@ export type Database = {
       builder_proposal_revisions: {
         Row: {
           artifact_prefix: string
+          authoritative_diff_artifact_key: string | null
+          authoritative_diff_hash: string | null
           base_commit_sha: string | null
           context_hash: string | null
           created_at: string
@@ -993,6 +995,8 @@ export type Database = {
         }
         Insert: {
           artifact_prefix: string
+          authoritative_diff_artifact_key?: string | null
+          authoritative_diff_hash?: string | null
           base_commit_sha?: string | null
           context_hash?: string | null
           created_at?: string
@@ -1012,6 +1016,8 @@ export type Database = {
         }
         Update: {
           artifact_prefix?: string
+          authoritative_diff_artifact_key?: string | null
+          authoritative_diff_hash?: string | null
           base_commit_sha?: string | null
           context_hash?: string | null
           created_at?: string
@@ -6243,6 +6249,54 @@ export type Database = {
           },
         ]
       }
+      onboarding_messages: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          role: string
+          sequence_no: number
+          session_id: string
+          turn_id: string
+          user_id: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          role: string
+          sequence_no?: never
+          session_id: string
+          turn_id: string
+          user_id: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          role?: string
+          sequence_no?: never
+          session_id?: string
+          turn_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "onboarding_messages_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "onboarding_sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "onboarding_messages_turn_id_fkey"
+            columns: ["turn_id"]
+            isOneToOne: false
+            referencedRelation: "onboarding_turns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       onboarding_profiles: {
         Row: {
           created_at: string
@@ -6408,6 +6462,62 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_org_modules"
             referencedColumns: ["org_id"]
+          },
+        ]
+      }
+      onboarding_turns: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          failed_at: string | null
+          failure_code: string | null
+          failure_message: string | null
+          id: string
+          request_id: string
+          response: Json | null
+          session_id: string
+          started_at: string
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          failed_at?: string | null
+          failure_code?: string | null
+          failure_message?: string | null
+          id?: string
+          request_id: string
+          response?: Json | null
+          session_id: string
+          started_at?: string
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          failed_at?: string | null
+          failure_code?: string | null
+          failure_message?: string | null
+          id?: string
+          request_id?: string
+          response?: Json | null
+          session_id?: string
+          started_at?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "onboarding_turns_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "onboarding_sessions"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -6850,6 +6960,86 @@ export type Database = {
           },
         ]
       }
+      org_automation_outbox: {
+        Row: {
+          attempts: number
+          available_at: string
+          claimed_at: string | null
+          completed_at: string | null
+          created_at: string
+          entity_id: string
+          entity_type: string
+          event_type: string
+          id: string
+          last_error: string | null
+          org_id: string
+          payload: Json
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          available_at?: string
+          claimed_at?: string | null
+          completed_at?: string | null
+          created_at?: string
+          entity_id: string
+          entity_type: string
+          event_type: string
+          id?: string
+          last_error?: string | null
+          org_id: string
+          payload: Json
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          available_at?: string
+          claimed_at?: string | null
+          completed_at?: string | null
+          created_at?: string
+          entity_id?: string
+          entity_type?: string
+          event_type?: string
+          id?: string
+          last_error?: string | null
+          org_id?: string
+          payload?: Json
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "org_automation_outbox_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "my_organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "org_automation_outbox_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "org_automation_outbox_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "v_compliance_dashboard"
+            referencedColumns: ["org_id"]
+          },
+          {
+            foreignKeyName: "org_automation_outbox_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "v_org_modules"
+            referencedColumns: ["org_id"]
+          },
+        ]
+      }
       org_automation_rules: {
         Row: {
           action_config: Json
@@ -7158,6 +7348,96 @@ export type Database = {
           },
           {
             foreignKeyName: "org_custom_field_values_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "v_org_modules"
+            referencedColumns: ["org_id"]
+          },
+        ]
+      }
+      org_invitation_email_outbox: {
+        Row: {
+          attempts: number
+          claimed_at: string | null
+          created_at: string
+          id: string
+          invitation_id: string
+          invitation_token: string
+          last_error: string | null
+          message: string | null
+          next_attempt_at: string
+          org_id: string
+          recipient_email: string
+          role: Database["public"]["Enums"]["member_role_enum"]
+          sent_at: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          claimed_at?: string | null
+          created_at?: string
+          id?: string
+          invitation_id: string
+          invitation_token: string
+          last_error?: string | null
+          message?: string | null
+          next_attempt_at?: string
+          org_id: string
+          recipient_email: string
+          role: Database["public"]["Enums"]["member_role_enum"]
+          sent_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          claimed_at?: string | null
+          created_at?: string
+          id?: string
+          invitation_id?: string
+          invitation_token?: string
+          last_error?: string | null
+          message?: string | null
+          next_attempt_at?: string
+          org_id?: string
+          recipient_email?: string
+          role?: Database["public"]["Enums"]["member_role_enum"]
+          sent_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "org_invitation_email_outbox_invitation_id_fkey"
+            columns: ["invitation_id"]
+            isOneToOne: false
+            referencedRelation: "org_invitations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "org_invitation_email_outbox_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "my_organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "org_invitation_email_outbox_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "org_invitation_email_outbox_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "v_compliance_dashboard"
+            referencedColumns: ["org_id"]
+          },
+          {
+            foreignKeyName: "org_invitation_email_outbox_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "v_org_modules"
@@ -14179,6 +14459,15 @@ export type Database = {
       }
     }
     Functions: {
+      accept_org_invitation: {
+        Args: {
+          p_invitation_id: string
+          p_invitation_token: string
+          p_org_id: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
       add_task_comment_with_event: {
         Args: {
           p_actor_id: string
@@ -14193,6 +14482,15 @@ export type Database = {
           p_content: Json
           p_portfolio_id: string
           p_request_id: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
+      begin_onboarding_turn: {
+        Args: {
+          p_content: string
+          p_request_id: string
+          p_session_id: string
           p_user_id: string
         }
         Returns: Json
@@ -14228,6 +14526,57 @@ export type Database = {
           p_waive_pending?: boolean
         }
         Returns: Json
+      }
+      claim_org_automation_outbox: {
+        Args: { p_event_id?: string; p_limit?: number; p_org_id?: string }
+        Returns: {
+          attempts: number
+          available_at: string
+          claimed_at: string | null
+          completed_at: string | null
+          created_at: string
+          entity_id: string
+          entity_type: string
+          event_type: string
+          id: string
+          last_error: string | null
+          org_id: string
+          payload: Json
+          status: string
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "org_automation_outbox"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      claim_org_invitation_email_outbox: {
+        Args: { p_limit?: number }
+        Returns: {
+          attempts: number
+          claimed_at: string | null
+          created_at: string
+          id: string
+          invitation_id: string
+          invitation_token: string
+          last_error: string | null
+          message: string | null
+          next_attempt_at: string
+          org_id: string
+          recipient_email: string
+          role: Database["public"]["Enums"]["member_role_enum"]
+          sent_at: string | null
+          status: string
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "org_invitation_email_outbox"
+          isOneToOne: false
+          isSetofReturn: true
+        }
       }
       claim_task_automation_outbox: {
         Args: { p_event_id?: string; p_limit?: number; p_org_id?: string }
@@ -14269,6 +14618,28 @@ export type Database = {
           p_turn_id: string
           p_user_id: string
           p_widgets: Json
+        }
+        Returns: Json
+      }
+      complete_onboarding_recommendations: {
+        Args: {
+          p_excluded: Json
+          p_recommendations: Json
+          p_session_id: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
+      complete_onboarding_turn: {
+        Args: {
+          p_assistant_content: string
+          p_conversation_state: Json
+          p_extractions: Json
+          p_ready_for_recommendations: boolean
+          p_response: Json
+          p_session_id: string
+          p_turn_id: string
+          p_user_id: string
         }
         Returns: Json
       }
@@ -14374,6 +14745,24 @@ export type Database = {
         }
         Returns: boolean
       }
+      fail_onboarding_turn: {
+        Args: {
+          p_failure_code: string
+          p_failure_message: string
+          p_session_id: string
+          p_turn_id: string
+          p_user_id: string
+        }
+        Returns: undefined
+      }
+      finish_org_automation_outbox: {
+        Args: { p_error?: string; p_event_id: string; p_succeeded: boolean }
+        Returns: undefined
+      }
+      finish_org_invitation_email_outbox: {
+        Args: { p_error?: string; p_event_id: string; p_outcome: string }
+        Returns: undefined
+      }
       finish_task_automation_outbox: {
         Args: { p_error?: string; p_event_id: string; p_succeeded: boolean }
         Returns: undefined
@@ -14458,6 +14847,38 @@ export type Database = {
         Args: { p_stale_threshold_minutes?: number }
         Returns: number
       }
+      mutate_custom_field_values: {
+        Args: {
+          p_actor_id: string
+          p_changes: Json
+          p_entity_id: string
+          p_entity_type: string
+          p_org_id: string
+        }
+        Returns: Json
+      }
+      mutate_org_invitation: {
+        Args: {
+          p_actor_id: string
+          p_email?: string
+          p_invitation_id?: string
+          p_message?: string
+          p_operation: string
+          p_org_id: string
+          p_role?: Database["public"]["Enums"]["member_role_enum"]
+        }
+        Returns: Json
+      }
+      mutate_organization_membership: {
+        Args: {
+          p_actor_id: string
+          p_operation: string
+          p_org_id: string
+          p_role?: Database["public"]["Enums"]["member_role_enum"]
+          p_target_user_id: string
+        }
+        Returns: Json
+      }
       mutate_portfolio_member: {
         Args: {
           p_action: string
@@ -14478,6 +14899,22 @@ export type Database = {
           p_org_id: string
         }
         Returns: boolean
+      }
+      provision_onboarding_session: {
+        Args: {
+          p_automation_rows?: Json
+          p_context_rows?: Json
+          p_custom_field_rows?: Json
+          p_ein?: string
+          p_modules?: Json
+          p_name: string
+          p_org_type: Database["public"]["Enums"]["org_type_enum"]
+          p_owner_user_id: string
+          p_session_id: string
+          p_view_rows?: Json
+          p_workflow_rows?: Json
+        }
+        Returns: Json
       }
       provision_organization: {
         Args: {

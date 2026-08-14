@@ -35,14 +35,47 @@ Benevolence is a purpose-built platform that replaces legacy tools like Blackbau
 
 ## Documentation
 
-- [Getting Started](docs/GETTING_STARTED.md) — Setup and deployment guide for developers
-- [Architecture](docs/ARCHITECTURE.md) — Access, repository, browser, AI durability, and schema boundaries
-- [Module System](docs/MODULES.md) — Current module extension workflow
-- [Repository Hygiene](docs/HYGIENE.md) — Dead-code/dependency policy and verification commands
-- [User Guide](docs/USER_GUIDE.md) — Day-to-day usage guide for foundation staff
-- [Data Migration Guide](docs/MIGRATION_GUIDE.md) — Importing from Blackbaud RE NXT
-- [AI Importer Blueprint](docs/AI_IMPORTER_BLUEPRINT.md) — Technical architecture of the import pipeline
-- [Demo Environments](docs/DEMO_ENVIRONMENTS.md) — How to set up and run client demos
+- [Documentation Map](docs/README.md) — Current product, engineering, guide, and historical-reference map
+- [Getting Started](docs/guides/GETTING_STARTED.md) — Setup and deployment guide for developers
+- [Architecture](docs/engineering/ARCHITECTURE.md) — Access, repository, browser, AI durability, and schema boundaries
+- [Module System](docs/engineering/MODULES.md) — Current module extension workflow
+- [Repository Hygiene](docs/engineering/HYGIENE.md) — Dead-code/dependency policy and verification commands
+- [User Guide](docs/guides/USER_GUIDE.md) — Day-to-day usage guide for foundation staff
+- [Data Migration Guide](docs/guides/MIGRATION_GUIDE.md) — Importing from Blackbaud RE NXT
+- [AI Importer Blueprint](docs/engineering/AI_IMPORTER_BLUEPRINT.md) — Technical architecture of the import pipeline
+- [Demo Environments](docs/guides/DEMO_ENVIRONMENTS.md) — How to set up and run client demos
+- [Open Work Backlog](docs/agent-work/BACKLOG.md) — The current queue for product, reliability, security, Builder, and test work
+- [Agent Work Records](docs/agent-work/README.md) — How coding agents use plans and specs without overriding the current canon
+
+## Repository Tour
+
+| Location | Responsibility |
+|----------|----------------|
+| `app/` | Product pages, layouts, and API routes |
+| `components/` | UI grouped by product domain |
+| `lib/` | Domain logic, data repositories, shared APIs, integrations, and AI; see the [library ownership guide](lib/README.md) |
+| `lib/api/repositories/` | Tenant-scoped data behavior, indexed by the [repository map](lib/api/repositories/README.md) |
+| `db/migrations/` | The sole canonical database schema history |
+| `db/seeds/`, `db/demo/` | Bounded local/demo data only; never schema authority |
+| `supabase/` | Local Supabase configuration; generated local state is ignored |
+| `docker/` | Trusted build definitions for isolated local verification services |
+| `public/` | Static product assets served by Next.js |
+| `scripts/` | Repeatable developer, verification, and operational commands |
+| `templates/` | Tested module-development template |
+| `tests/` | Unit, integration, and walkthrough coverage |
+
+## Common Commands
+
+```bash
+npm run dev              # Run the app locally
+npm run verify:hygiene   # Find dead files and dependency drift
+npm run verify:types     # Type-check the application
+npm run verify:unit      # Run unit and contract tests
+npm run verify:rate-limits # Verify local rate limits (requires npm run dev)
+npm run clean:local      # Remove ignored build, test, and tool outputs
+```
+
+The `clean:local` command removes only ignored, regenerable local outputs. It never removes source files, migrations, environment files, or dependencies.
 
 ---
 

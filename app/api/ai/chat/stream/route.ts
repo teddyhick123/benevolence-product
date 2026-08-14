@@ -12,8 +12,8 @@ import {
   type PersistedChatMessage,
 } from '@/lib/api/repositories/ai-chat';
 import { containsInjection } from '@/lib/ai/prompt-guard';
-import { aiLimiter } from '@/lib/rate-limit';
-import { aiAuthRequired, rateLimitExceeded } from '@/lib/rate-limit-response';
+import { aiLimiter } from '@/lib/api/rate-limit';
+import { aiAuthRequired, rateLimitExceeded } from '@/lib/api/rate-limit-response';
 import { aiChatRequestSchema } from '@/lib/schemas/ai';
 import { createAssistantToolCapabilities } from '@/lib/api/repositories/ai-tools';
 

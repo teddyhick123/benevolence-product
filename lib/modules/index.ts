@@ -46,4 +46,5 @@ export {
   orgHasModule,
   getModuleConfig,
   updateModuleConfig,
+  toDbModuleSlug,
 } from './tool-filter';

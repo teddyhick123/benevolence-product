@@ -30,6 +30,7 @@ logs
 
 # Supabase
 supabase/.temp/
+supabase/.branches/
 supabase/migrations/.history/
 
 # n8n

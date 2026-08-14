@@ -70,4 +70,20 @@ describe('Phase 4 thin-page boundaries', () => {
     expect(transitionRoute).not.toContain('transitionLifecycle(');
     expect(bulkRoute).not.toContain('repository.transitionLifecycleBatch');
   });
+
+  it('keeps settings and donor legacy URLs as thin canonical adapters', () => {
+    const dashboardAi = source('app/dashboard/settings/ai/page.tsx');
+    const dashboardIntegrations = source('app/dashboard/settings/integrations/page.tsx');
+    const orgSettings = source('app/org/[orgId]/settings/page.tsx');
+    const orgDonors = source('app/org/[orgId]/donors/page.tsx');
+    const orgDonorDetail = source('app/org/[orgId]/donors/[donorId]/page.tsx');
+    const orgNewDonor = source('app/org/[orgId]/donors/new/page.tsx');
+
+    expect(dashboardAi).toContain("redirect('/settings/ai')");
+    expect(dashboardIntegrations).toContain('/settings/integrations');
+    expect(orgSettings).toContain('/settings/organization?org=');
+    expect(orgDonors).toContain('/dashboard/donors?org=');
+    expect(orgDonorDetail).toContain('/dashboard/donors/${encodeURIComponent(donorId)}?org=');
+    expect(orgNewDonor).toContain('/dashboard/donors/new?org=');
+  });
 });

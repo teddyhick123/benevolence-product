@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { isAccessDenied, requirePortfolioAccess } from '@/lib/api/access';
-import { canEdit } from '@/lib/roles';
+import { canEdit } from '@/lib/organizations/roles';
 
 export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id: pid } = await ctx.params;

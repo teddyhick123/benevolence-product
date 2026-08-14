@@ -259,7 +259,7 @@ export function createOrgBuilderReadRepository(scope: OrgBuilderReadScope) {
       if (proposal.current_revision_id) {
         const { data, error: revisionError } = await db
           .from('builder_proposal_revisions')
-          .select('id, revision_number, kind, parent_revision_id, base_commit_sha, head_commit_sha, manifest_hash, diff_hash, context_hash, artifact_prefix, progress, created_at')
+          .select('id, revision_number, kind, parent_revision_id, base_commit_sha, head_commit_sha, manifest_hash, diff_hash, authoritative_diff_hash, authoritative_diff_artifact_key, context_hash, artifact_prefix, progress, created_at')
           .eq('id', proposal.current_revision_id)
           .eq('proposal_id', proposalId)
           .maybeSingle();
@@ -277,7 +277,7 @@ export function createOrgBuilderReadRepository(scope: OrgBuilderReadScope) {
         const prefix = requireScopedArtifactKey(proposalId, revisionRow.artifact_prefix);
         const [manifestArtifact, diffUrl, filesUrl, contextUrl] = await Promise.all([
           readJsonArtifact<FileManifest>(db, `${prefix}/${ARTIFACT_KEYS.manifest}`),
-          signArtifactUrl(db, `${prefix}/${ARTIFACT_KEYS.diff}`, 3600),
+          signArtifactUrl(db, `${prefix}/${ARTIFACT_KEYS.authoritativeDiff}`, 3600),
           signArtifactUrl(db, `${prefix}/${ARTIFACT_KEYS.files}`, 3600),
           signArtifactUrl(db, `${prefix}/${ARTIFACT_KEYS.context}`, 3600),
         ]);
@@ -386,6 +386,7 @@ export function createOrgBuilderReadRepository(scope: OrgBuilderReadScope) {
               manifest,
               manifest_hash: revisionRow.manifest_hash,
               diff_hash: revisionRow.diff_hash,
+              authoritative_diff_hash: revisionRow.authoritative_diff_hash,
               context_hash: revisionRow.context_hash,
               progress: revisionRow.progress,
               created_at: revisionRow.created_at,

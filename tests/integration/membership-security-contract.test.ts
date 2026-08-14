@@ -85,14 +85,10 @@ describe('accepted organization membership security boundary', () => {
     expect(organizationProvisioningRepository).toContain("'provision_organization'");
   });
 
-  it('marks new and pre-existing pending invitation memberships as accepted', () => {
+  it('accepts invitations through one token-bound atomic transaction', () => {
     expect(invitationAcceptRoute).toContain('requireInvitationToken');
-    expect(publicInvitationsRepository).toContain(".select('id, accepted_at')");
-    expect(publicInvitationsRepository).toMatch(
-      /from\('organization_members'\)[\s\S]*?update\(\{ accepted_at: acceptedAt \}\)/
-    );
-    expect(publicInvitationsRepository).toMatch(
-      /from\('organization_members'\)[\s\S]*?insert\(\{[\s\S]*?accepted_at:\s*acceptedAt/
-    );
+    expect(publicInvitationsRepository).toContain("rpc('accept_org_invitation'");
+    expect(publicInvitationsRepository).toContain('p_invitation_token: scope.token');
+    expect(publicInvitationsRepository).not.toContain("from('organization_members')");
   });
 });

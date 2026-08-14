@@ -60,7 +60,7 @@ const mockAdminFrom = vi.fn();
 const mockAdminRpc = vi.fn();
 let _lastGrantsQueryBuilder: any = null;
 
-vi.mock('@/lib/supabase', () => ({
+vi.mock('@/lib/api/server-client', () => ({
   createServerClient: vi.fn(async () => ({
     auth: {
       getUser: vi.fn(async () => ({ data: { user: _authUser } })),

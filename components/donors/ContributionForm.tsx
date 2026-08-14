@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { createBrowserClient as createClient } from '@/lib/supabase-browser';
+import { requestJson } from '@/lib/api/client';
 
 type Donor = {
   id: string;
@@ -51,18 +51,16 @@ export default function ContributionForm({ organizationId, preselectedDonorId, o
   // Fetch donors for dropdown
   useEffect(() => {
     async function fetchDonors() {
-      const supabase = createClient();
-      const { data } = await supabase
-        .from('donors')
-        .select('id, is_organization, first_name, last_name, organization_name, email')
-        .eq('org_id', organizationId)
-        .order('last_name', { ascending: true });
+      const data = await requestJson<{ donors?: Donor[] }>(
+        `/api/org/${organizationId}/donors?limit=500`,
+      );
+      const donors = data.donors || [];
 
-      setDonors(data || []);
+      setDonors(donors);
 
       // Set selected donor name if preselected
-      if (preselectedDonorId && data) {
-        const selected = data.find(d => d.id === preselectedDonorId);
+      if (preselectedDonorId) {
+        const selected = donors.find(d => d.id === preselectedDonorId);
         if (selected) {
           setSelectedDonorName(getDonorDisplayName(selected));
         }
@@ -99,35 +97,31 @@ export default function ContributionForm({ organizationId, preselectedDonorId, o
     setLoading(true);
 
     try {
-      const supabase = createClient();
       let finalDonorId = donorId;
 
       // Create new donor if needed
       if (createNewDonor) {
         const isOrg = newDonorType !== 'individual';
 
-        const { data: newDonor, error: donorError } = await supabase
-          .from('donors')
-          .insert({
-            org_id: organizationId,
+        const newDonor = await requestJson<Donor>(`/api/org/${organizationId}/donors`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
             is_organization: isOrg,
             first_name: isOrg ? null : newDonorFirstName || null,
             last_name: isOrg ? null : newDonorLastName || null,
             organization_name: isOrg ? newDonorOrgName || null : null,
             email: newDonorEmail || null,
-          })
-          .select('id')
-          .single();
-
-        if (donorError) throw new Error(`Failed to create donor: ${donorError.message}`);
+          }),
+        });
         finalDonorId = newDonor.id;
       }
 
       // Create contribution
-      const { data: contribution, error: contribError } = await supabase
-        .from('contributions_received')
-        .insert({
-          org_id: organizationId,
+      const contribution = await requestJson<any>(`/api/org/${organizationId}/contributions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
           donor_id: finalDonorId || null,
           amount: parseFloat(amount),
           contribution_date: contributionDate,
@@ -138,28 +132,16 @@ export default function ContributionForm({ organizationId, preselectedDonorId, o
           campaign: campaign || null,
           payment_reference: paymentReference || null,
           notes: notes || null,
-        })
-        .select()
-        .single();
-
-      if (contribError) throw new Error(`Failed to create contribution: ${contribError.message}`);
+        }),
+      });
 
       // Auto-generate receipt if requested and amount >= $250
       if (autoGenerateReceipt && parseFloat(amount) >= 250) {
-        const { data: receiptNumber } = await supabase.rpc('generate_receipt_number', {
-          p_org_id: organizationId,
+        await requestJson(`/api/org/${organizationId}/contributions/${contribution.id}/receipt`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ send_immediately: false }),
         });
-
-        if (receiptNumber) {
-          await supabase
-            .from('contributions_received')
-            .update({
-              receipt_number: receiptNumber,
-              receipt_status: 'generated',
-              receipt_generated_at: new Date().toISOString(),
-            })
-            .eq('id', contribution.id);
-        }
       }
 
       onSuccess?.(contribution);

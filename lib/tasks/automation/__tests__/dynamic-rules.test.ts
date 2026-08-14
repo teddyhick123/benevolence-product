@@ -16,8 +16,8 @@ vi.mock('../task-writer', () => ({
   upsertGeneratedTask: (...args: any[]) => upsertGeneratedTask(...args),
 }));
 
-vi.mock('@/lib/supabase', () => ({
-  createAdminClient: () => makeDb(),
+vi.mock('@/lib/api/admin-client', () => ({
+  createElevatedClient: () => makeDb(),
 }));
 
 function makeDb() {

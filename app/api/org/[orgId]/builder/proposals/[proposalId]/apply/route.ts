@@ -6,7 +6,7 @@ import {
 } from '@/lib/api/repositories/builder-apply';
 import { jsonError, jsonOk } from '@/lib/api/responses';
 import { isGitHubConfigured } from '@/lib/builder/github-apply';
-import { canReviewImplementation } from '@/lib/org-capabilities';
+import { canReviewImplementation } from '@/lib/organizations/capabilities';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';

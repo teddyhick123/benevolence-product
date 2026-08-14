@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabasePublic } from '@/lib/supabase';
-import { charitiesLimiter, getIP } from '@/lib/rate-limit';
-import { rateLimitExceeded } from '@/lib/rate-limit-response';
+import { getRequestDatabase } from '@/lib/api/server-client';
+import { charitiesLimiter, getIP } from '@/lib/api/rate-limit';
+import { rateLimitExceeded } from '@/lib/api/rate-limit-response';
 
 /**
  * GET /api/charities
@@ -30,7 +30,7 @@ export async function GET(req: NextRequest) {
     if (!success) return rateLimitExceeded(reset, remaining, limit);
   }
 
-  const sb = await supabasePublic();
+  const sb = await getRequestDatabase();
   const url = new URL(req.url);
 
   // Parse query parameters
@@ -226,7 +226,7 @@ async function getPortfolioCharities(
  * (Typically called when importing from ProPublica or manual entry)
  */
 export async function POST(req: Request) {
-  const sb = await supabasePublic();
+  const sb = await getRequestDatabase();
 
   try {
     const body = await req.json();

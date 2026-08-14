@@ -17,7 +17,7 @@ const {
   mockRedoAction: vi.fn(),
 }));
 
-vi.mock('@/lib/ai-action-executor', () => ({
+vi.mock('@/lib/ai/assistant/actions/executor', () => ({
   AIActionExecutor: class {
     undoAction = mockUndoAction;
     undoBatch = mockUndoBatch;

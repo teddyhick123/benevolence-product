@@ -55,8 +55,10 @@ Key invariants that differ from older patterns or documentation you may encounte
 | Document | Purpose |
 |----------|---------|
 | `AGENTS.md` (this file) | Quick reference for AI development |
-| `/docs/ARCHITECTURE.md` | System architecture deep-dive |
-| `/docs/MODULES.md` | Module system documentation |
+| `/docs/agent-work/README.md` | Coding-agent plans, specs, and the path to the current backlog |
+| `/docs/agent-work/BACKLOG.md` | Single current queue for actionable product and reliability work |
+| `/docs/engineering/ARCHITECTURE.md` | System architecture deep-dive |
+| `/docs/engineering/MODULES.md` | Module system documentation |
 | `/templates/module/README.md` | Module creation templates |
 
 ## Quick Reference
@@ -73,6 +75,9 @@ Key invariants that differ from older patterns or documentation you may encounte
 | AI Workloads/Gateway | `/lib/ai/workloads.ts`, `/lib/ai/runtime.ts`, `/lib/ai/gateway.ts` |
 | AI Validators | `/lib/ai/validators.ts` |
 | AI Types | `/lib/ai/types.ts` |
+| Library Ownership | `/lib/README.md` |
+| API Boundary | `/lib/api/README.md` |
+| Repository Map | `/lib/api/repositories/README.md` |
 | Database Migrations | `/db/migrations/NNNN_description.sql` |
 | API Routes | `/app/api/**/*.ts` |
 | Components | `/components/**/*.tsx` |

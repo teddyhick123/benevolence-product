@@ -7,6 +7,7 @@ import { importReviewProducer } from './producers/imports';
 import { reportApprovalsProducer } from './producers/reports';
 import { dateRelativeAutomationProducer } from './dynamic-rules';
 import { taskAutomationOutboxProducer } from './outbox';
+import { customFieldAutomationOutboxProducer } from './custom-field-outbox';
 
 export const PRODUCERS: Producer[] = [
   { id: 'compliance_deadlines', run: complianceDeadlinesProducer },
@@ -16,6 +17,7 @@ export const PRODUCERS: Producer[] = [
   { id: 'report_approvals',     run: reportApprovalsProducer },
   { id: 'dynamic_automation_rules', run: dateRelativeAutomationProducer },
   { id: 'task_automation_outbox', run: taskAutomationOutboxProducer },
+  { id: 'custom_field_automation_outbox', run: customFieldAutomationOutboxProducer },
 ];
 
 export const PRODUCER_IDS = PRODUCERS.map((p) => p.id);

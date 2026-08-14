@@ -11,7 +11,7 @@
 //
 // Prefix for cancelling all tasks for a job: import_job:{id}:
 
-import { createAdminClient } from '@/lib/supabase';
+import { createElevatedClient } from '@/lib/api/admin-client';
 import { ProducerOptions, TaskProducerResult, UpsertGeneratedTaskInput } from '../types';
 import { upsertGeneratedTask, cancelGeneratedTasks } from '../task-writer';
 
@@ -33,7 +33,7 @@ export async function importReviewProducer(
 
   const generatedAt = (nowOverride ?? new Date()).toISOString();
 
-  const db = createAdminClient();
+  const db = createElevatedClient();
 
   const result: TaskProducerResult = {
     producer: PRODUCER_ID,

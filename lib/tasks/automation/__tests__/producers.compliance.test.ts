@@ -5,8 +5,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 let _mockFilings: unknown[] = [];
 let _mockRegistrations: unknown[] = [];
 
-vi.mock('@/lib/supabase', () => ({
-  createAdminClient: vi.fn(() => buildMockDb()),
+vi.mock('@/lib/api/admin-client', () => ({
+  createElevatedClient: vi.fn(() => buildMockDb()),
 }));
 
 function buildMockDb() {

@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { createBrowserClient as createClient } from '@/lib/supabase-browser';
+import { useState } from 'react';
+import { apiRequest, readJson } from '@/lib/api/client';
+import { useGrantsData } from '@/lib/grants/hooks';
 import { grantStatusBadgeClass } from './grantPalette';
 import { useEntityVocabulary } from '@/lib/hooks/use-entity-vocabulary';
 
@@ -24,18 +25,14 @@ type Payment = {
 
 interface Props {
   portfolioId: string;
-  orgId?: string | null;
+  orgId: string;
 }
 
 export default function PaymentSchedule({ portfolioId, orgId }: Props) {
   const vocabulary = useEntityVocabulary(orgId);
   const grantLabel = vocabulary.grant.singular;
-  const [loading, setLoading] = useState(true);
-  const [fetchError, setFetchError] = useState<string | null>(null);
-  const [payments, setPayments] = useState<Payment[]>([]);
   const [filter, setFilter] = useState<'all' | 'scheduled' | 'completed'>('all');
   const [showAddPayment, setShowAddPayment] = useState(false);
-  const [holdings, setHoldings] = useState<Array<{ id: string; name: string; grant_id?: string }>>([]);
   const [newPayment, setNewPayment] = useState({
     holdingId: '',
     amount: '',
@@ -44,78 +41,25 @@ export default function PaymentSchedule({ portfolioId, orgId }: Props) {
     notes: '',
   });
 
-  const [summary, setSummary] = useState({
-    totalScheduled: 0,
-    totalDisbursed: 0,
-    pendingCount: 0,
-    upcomingAmount: 0,
-  });
-
-  async function fetchData() {
-    setLoading(true);
-    setFetchError(null);
-    try {
-      const supabase = createClient();
-
-      const { data: paymentsData, error } = await supabase
-        .from('grant_payments')
-        .select(`
-          *,
-          grants!inner(
-            id,
-            holding_id,
-            holdings!inner(name, portfolio_id)
-          )
-        `)
-        .eq('grants.holdings.portfolio_id', portfolioId)
-        .order('scheduled_date', { ascending: true });
-
-      if (error) throw error;
-
-      const processedPayments = (paymentsData || []).map((p: any) => ({
-        ...p,
-        grant_name: p.grants?.holdings?.name || `Unknown ${grantLabel}`,
-        holding_id: p.grants?.holding_id,
-      }));
-
-      setPayments(processedPayments);
-
-      const totalScheduled = processedPayments.reduce((sum, p) => sum + (p.amount || 0), 0);
-      const totalDisbursed = processedPayments
-        .filter(p => p.status === 'completed')
-        .reduce((sum, p) => sum + (p.amount || 0), 0);
-      const pendingCount = processedPayments.filter(p => ['scheduled', 'approved'].includes(p.status)).length;
-      const upcomingAmount = processedPayments
-        .filter(p => ['scheduled', 'approved'].includes(p.status))
-        .reduce((sum, p) => sum + (p.amount || 0), 0);
-
-      setSummary({ totalScheduled, totalDisbursed, pendingCount, upcomingAmount });
-
-      const { data: holdingsData } = await supabase
-        .from('holdings')
-        .select(`id, name, grants(id)`)
-        .eq('portfolio_id', portfolioId)
-        .in('asset_type', ['foundation_grant', 'daf_grant', 'pri', 'mri'])
-        .order('name');
-
-      setHoldings((holdingsData || [])
-        .map((h: any) => ({
-          id: h.id,
-          name: h.name,
-          grant_id: h.grants?.[0]?.id,
-        }))
-        .filter((h: { grant_id?: string }) => Boolean(h.grant_id)));
-    } catch (err: any) {
-      setFetchError(err?.message ?? 'Failed to load payment data.');
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  useEffect(() => {
-    fetchData();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [portfolioId]);
+  const paymentsUrl = `/api/org/${orgId}/grants/payments?portfolio_id=${portfolioId}`;
+  const holdingsUrl = `/api/org/${orgId}/grants/holdings?portfolio_id=${portfolioId}`;
+  const paymentsQuery = useGrantsData<{ payments?: Payment[] }>(paymentsUrl);
+  const holdingsQuery = useGrantsData<{ holdings?: Array<{ id: string; name: string; grant_id?: string }> }>(holdingsUrl);
+  const loading = paymentsQuery.isLoading || holdingsQuery.isLoading;
+  const fetchError = paymentsQuery.error?.message || holdingsQuery.error?.message || null;
+  const payments = paymentsQuery.data?.payments || [];
+  const holdings = holdingsQuery.data?.holdings || [];
+  const refreshData = () => Promise.all([paymentsQuery.mutate(), holdingsQuery.mutate()]);
+  const summary = {
+    totalScheduled: payments.reduce((sum, payment) => sum + (payment.amount || 0), 0),
+    totalDisbursed: payments
+      .filter(payment => payment.status === 'completed')
+      .reduce((sum, payment) => sum + (payment.amount || 0), 0),
+    pendingCount: payments.filter(payment => ['scheduled', 'approved'].includes(payment.status)).length,
+    upcomingAmount: payments
+      .filter(payment => ['scheduled', 'approved'].includes(payment.status))
+      .reduce((sum, payment) => sum + (payment.amount || 0), 0),
+  };
 
   const formatCurrency = (amount: number | null) => {
     if (!amount) return '$0';
@@ -147,7 +91,6 @@ export default function PaymentSchedule({ portfolioId, orgId }: Props) {
     }
 
     try {
-      const supabase = createClient();
       const holding = holdings.find(h => h.id === newPayment.holdingId);
       const grantId = holding?.grant_id;
       if (!grantId) {
@@ -155,27 +98,24 @@ export default function PaymentSchedule({ portfolioId, orgId }: Props) {
         return;
       }
 
-      // Get next payment number
-      const existingPayments = payments.filter(p => p.grant_id === grantId);
-      const nextNumber = existingPayments.length > 0
-        ? Math.max(...existingPayments.map(p => p.payment_number)) + 1
-        : 1;
-
-      await supabase
-        .from('grant_payments')
-        .insert({
+      const response = await apiRequest(`/api/org/${orgId}/grants/payments`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          portfolio_id: portfolioId,
           grant_id: grantId,
-          payment_number: nextNumber,
           amount: parseFloat(newPayment.amount),
           scheduled_date: newPayment.scheduledDate || null,
           payment_method: newPayment.paymentMethod || null,
           notes: newPayment.notes || null,
-          status: 'scheduled',
-        });
+        }),
+      });
+      const json = await readJson(response);
+      if (!response.ok) throw new Error(json.error || 'Failed to add payment');
 
       setShowAddPayment(false);
       setNewPayment({ holdingId: '', amount: '', scheduledDate: '', paymentMethod: '', notes: '' });
-      await fetchData();
+      await refreshData();
     } catch (err: any) {
       alert(err?.message ?? 'Failed to add payment');
     }
@@ -183,19 +123,15 @@ export default function PaymentSchedule({ portfolioId, orgId }: Props) {
 
   const handleUpdateStatus = async (paymentId: string, newStatus: string) => {
     try {
-      const supabase = createClient();
+      const response = await apiRequest(`/api/org/${orgId}/grants/payments/${paymentId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus }),
+      });
+      const json = await readJson(response);
+      if (!response.ok) throw new Error(json.error || 'Failed to update payment');
 
-      const updateData: any = { status: newStatus };
-      if (newStatus === 'completed') {
-        updateData.actual_date = new Date().toISOString().split('T')[0];
-      }
-
-      await supabase
-        .from('grant_payments')
-        .update(updateData)
-        .eq('id', paymentId);
-
-      await fetchData();
+      await refreshData();
     } catch (err: any) {
       alert(err?.message ?? 'Failed to update payment');
     }
@@ -226,7 +162,7 @@ export default function PaymentSchedule({ portfolioId, orgId }: Props) {
       <div className="rounded-2xl border border-red-100 bg-red-50 p-6 text-center">
         <p className="text-sm font-medium text-red-700">Failed to load payment data</p>
         <p className="text-xs text-red-500 mt-1">{fetchError}</p>
-        <button onClick={fetchData} className="mt-3 text-sm text-azure hover:underline">Try again</button>
+        <button onClick={() => { void refreshData(); }} className="mt-3 text-sm text-azure hover:underline">Try again</button>
       </div>
     );
   }

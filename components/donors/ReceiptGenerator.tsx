@@ -20,10 +20,13 @@ type Contribution = {
     organization_name: string | null;
     is_organization: boolean;
     email: string | null;
-    address_line1: string | null;
-    city: string | null;
-    state: string | null;
-    zip: string | null;
+    // Present for members and above only. This component does not read them —
+    // the receipt endpoint loads the donor's address server-side — but callers
+    // pass the donor record straight through.
+    address_line1?: string | null;
+    city?: string | null;
+    state?: string | null;
+    zip?: string | null;
   };
 };
 

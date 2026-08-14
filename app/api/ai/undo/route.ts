@@ -10,8 +10,8 @@ import {
 } from '@/lib/api/repositories/ai-actions';
 import { jsonError, jsonOk } from '@/lib/api/responses';
 import { aiUndoSchema } from '@/lib/schemas/ai';
-import { aiLimiter } from '@/lib/rate-limit';
-import { rateLimitExceeded } from '@/lib/rate-limit-response';
+import { aiLimiter } from '@/lib/api/rate-limit';
+import { rateLimitExceeded } from '@/lib/api/rate-limit-response';
 
 export const runtime = 'nodejs';
 

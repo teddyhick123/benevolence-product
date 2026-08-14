@@ -2,8 +2,8 @@
 
 import { apiRequest, readJson } from "@/lib/api/client";
 
-import { useState, useEffect } from 'react';
-import { useParams } from 'next/navigation';
+import { Suspense, useState, useEffect } from 'react';
+import { useParams, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import PledgeCreateModal from '@/components/pledges/PledgeCreateModal';
 import PledgeDetailPanel from '@/components/pledges/PledgeDetailPanel';
@@ -24,8 +24,10 @@ const STATUS_COLORS: Record<string, string> = {
   archived: 'border border-neutral-200 bg-neutral-100 text-neutral-500',
 };
 
-export default function DonorProfilePage() {
+function DonorProfilePageContent() {
   const { donorId } = useParams<{ donorId: string }>();
+  const searchParams = useSearchParams();
+  const requestedOrgId = searchParams.get('org');
   const [orgId, setOrgId] = useState<string | null>(null);
   const [donor, setDonor] = useState<any>(null);
   const [contributions, setContributions] = useState<any[]>([]);
@@ -51,9 +53,12 @@ export default function DonorProfilePage() {
       const res = await apiRequest('/api/org');
       if (res.ok) {
         const data = await readJson(res);
-        const oid = data.organizations?.[0]?.id || null;
+        const organization = requestedOrgId
+          ? data.organizations?.find((candidate: { id: string }) => candidate.id === requestedOrgId)
+          : data.organizations?.[0];
+        const oid = organization?.id || null;
         setOrgId(oid);
-        const pledgesOn = !!(data.organizations?.[0]?.modules?.pledges);
+        const pledgesOn = !!organization?.modules?.pledges;
         setPledgesEnabled(pledgesOn);
         if (pledgesOn && oid && donorId) {
           setPledgesLoading(true);
@@ -66,7 +71,9 @@ export default function DonorProfilePage() {
       }
     }
     fetchOrg();
-  }, []);
+  }, [requestedOrgId, donorId]);
+
+  const donorsHref = orgId ? `/dashboard/donors?org=${encodeURIComponent(orgId)}` : '/dashboard/donors';
 
   useEffect(() => {
     if (!orgId || !donorId) return;
@@ -187,7 +194,7 @@ export default function DonorProfilePage() {
       <div className="min-h-screen bg-creme flex items-center justify-center">
         <div className="text-center">
           <p className="text-red-500 mb-4">{error || 'Donor not found'}</p>
-          <Link href="/dashboard/donors" className="text-azure hover:underline">← Back to Donors</Link>
+          <Link href={donorsHref} className="text-azure hover:underline">← Back to Donors</Link>
         </div>
       </div>
     );
@@ -201,7 +208,7 @@ export default function DonorProfilePage() {
     <div className="min-h-screen bg-creme">
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Back */}
-        <Link href="/dashboard/donors" className="text-sm text-azure hover:underline mb-6 block">
+        <Link href={donorsHref} className="text-sm text-azure hover:underline mb-6 block">
           ← Back to Donors
         </Link>
 
@@ -540,5 +547,13 @@ export default function DonorProfilePage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function DonorProfilePage() {
+  return (
+    <Suspense fallback={<div className="p-12 text-center text-neutral-400">Loading donor profile…</div>}>
+      <DonorProfilePageContent />
+    </Suspense>
   );
 }

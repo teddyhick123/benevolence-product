@@ -24,4 +24,12 @@ export async function createServerClient() {
   );
 }
 
+/**
+ * Return the request-scoped database client for routes that already enforce
+ * authorization through RLS or an explicit database access check.
+ */
+export async function getRequestDatabase() {
+  return createServerClient();
+}
+
 export type SessionClient = Awaited<ReturnType<typeof createServerClient>>;

@@ -8,6 +8,8 @@ const {
   mockCreateOnboardingRepository,
   mockResolveSession,
   mockChat,
+  mockBeginChatTurn,
+  mockFailChatTurn,
   mockExistingRecommendations,
   mockGenerateRecommendations,
   mockFinalizeRecommendations,
@@ -16,6 +18,8 @@ const {
   mockCreateOnboardingRepository: vi.fn(),
   mockResolveSession: vi.fn(),
   mockChat: vi.fn(),
+  mockBeginChatTurn: vi.fn(),
+  mockFailChatTurn: vi.fn(),
   mockExistingRecommendations: vi.fn(),
   mockGenerateRecommendations: vi.fn(),
   mockFinalizeRecommendations: vi.fn(),
@@ -45,6 +49,8 @@ const sessionRepository = {
     conversationState: {},
   },
   chat: mockChat,
+  beginChatTurn: mockBeginChatTurn,
+  failChatTurn: mockFailChatTurn,
   existingRecommendations: mockExistingRecommendations,
   generateRecommendations: mockGenerateRecommendations,
   finalizeRecommendations: mockFinalizeRecommendations,
@@ -66,9 +72,10 @@ beforeEach(() => {
   mockChat.mockResolvedValue({
     message: 'Assistant reply',
     extractions: { goals: [] },
-    updated_state: { message_count: 2 },
-    readyForRecommendations: false,
+    conversation_state: { message_count: 2 },
+    ready_for_recommendations: false,
   });
+  mockBeginChatTurn.mockResolvedValue({ state: 'started', turnId: 'turn-1', history: [] });
   mockExistingRecommendations.mockResolvedValue(null);
   mockGenerateRecommendations.mockResolvedValue({
     recommendations: [{ module_id: 'impact_tracking', confidence: 0.9 }],
@@ -130,7 +137,8 @@ describe('onboarding assistant routes', () => {
 
     expect(mockCreateOnboardingRepository).toHaveBeenCalledWith('user-1');
     expect(mockResolveSession).toHaveBeenCalledWith(SESSION_ID);
-    expect(mockChat).toHaveBeenCalledWith('Hello');
+    expect(mockBeginChatTurn).toHaveBeenCalledWith(expect.any(String), 'Hello');
+    expect(mockChat).toHaveBeenCalledWith('turn-1', 'Hello', []);
     expect(await response.json()).toEqual({
       message: 'Assistant reply',
       extractions: { goals: [] },

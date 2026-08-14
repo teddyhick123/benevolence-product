@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@/lib/database-client';
-import { createAdminClient } from '@/lib/supabase';
+import { createElevatedClient } from '@/lib/api/admin-client';
 import { runAutomationRulesForEvent } from './dynamic-rules';
 import type { ProducerOptions, TaskProducerResult } from './types';
 
@@ -104,7 +104,7 @@ export async function taskAutomationOutboxProducer(
     }];
   }
 
-  return [await drainTaskAutomationOutbox(createAdminClient(), {
+  return [await drainTaskAutomationOutbox(createElevatedClient(), {
     orgId: options.orgId,
   })];
 }

@@ -18,6 +18,23 @@ INSERT INTO auth.users (
   '{}'::jsonb, '{}'::jsonb, now(), now()
 );
 
+INSERT INTO auth.users (
+  id, instance_id, aud, role, email, encrypted_password, email_confirmed_at,
+  raw_app_meta_data, raw_user_meta_data, created_at, updated_at
+) VALUES
+  (
+    '10000000-0000-0000-0000-000000000002',
+    '00000000-0000-0000-0000-000000000000',
+    'authenticated', 'authenticated', 'schema-provisioning@example.test', '', now(),
+    '{}'::jsonb, '{}'::jsonb, now(), now()
+  ),
+  (
+    '10000000-0000-0000-0000-000000000003',
+    '00000000-0000-0000-0000-000000000000',
+    'authenticated', 'authenticated', 'schema-provisioning-rollback@example.test', '', now(),
+    '{}'::jsonb, '{}'::jsonb, now(), now()
+  );
+
 INSERT INTO public.organizations (id, name)
 VALUES ('20000000-0000-0000-0000-000000000001', 'Schema behavior check');
 
@@ -1062,6 +1079,326 @@ $$;
 
 DROP TRIGGER schema_check_reject_rf06_outbox ON public.task_automation_outbox;
 DROP FUNCTION public.schema_check_reject_rf06_outbox();
+
+-- Custom-field batches must leave no partial values or automation intents if a
+-- later value fails database validation. Successful batches create exactly one
+-- durable event per changed field, which workers can claim and settle once.
+INSERT INTO public.org_custom_field_definitions (
+  id, org_id, entity_type, field_key, field_label, field_type
+) VALUES
+  (
+    '86000000-0000-0000-0000-000000000001',
+    '20000000-0000-0000-0000-000000000001',
+    'holding', 'atomic_score', 'Atomic score', 'integer'
+  ),
+  (
+    '86000000-0000-0000-0000-000000000002',
+    '20000000-0000-0000-0000-000000000001',
+    'holding', 'atomic_note', 'Atomic note', 'text'
+  );
+
+DO $$
+BEGIN
+  BEGIN
+    PERFORM public.mutate_custom_field_values(
+      '20000000-0000-0000-0000-000000000001',
+      '10000000-0000-0000-0000-000000000001',
+      'holding',
+      '40000000-0000-0000-0000-000000000003',
+      jsonb_build_array(
+        jsonb_build_object(
+          'field_definition_id', '86000000-0000-0000-0000-000000000001',
+          'value_numeric', 4
+        ),
+        jsonb_build_object(
+          'field_definition_id', '86000000-0000-0000-0000-000000000002',
+          'value_numeric', 9
+        )
+      )
+    );
+    RAISE EXCEPTION 'expected custom-field type validation failure';
+  EXCEPTION
+    WHEN check_violation THEN NULL;
+  END;
+
+  IF EXISTS (
+    SELECT 1 FROM public.org_custom_field_values
+    WHERE entity_id = '40000000-0000-0000-0000-000000000003'
+  ) OR EXISTS (
+    SELECT 1 FROM public.org_automation_outbox
+    WHERE entity_id = '40000000-0000-0000-0000-000000000003'
+  ) THEN
+    RAISE EXCEPTION 'custom-field batch failure left partial values or outbox events';
+  END IF;
+END;
+$$;
+
+DO $$
+DECLARE
+  v_result jsonb;
+  v_outbox_id uuid;
+BEGIN
+  v_result := public.mutate_custom_field_values(
+    '20000000-0000-0000-0000-000000000001',
+    '10000000-0000-0000-0000-000000000001',
+    'holding',
+    '40000000-0000-0000-0000-000000000003',
+    jsonb_build_array(
+      jsonb_build_object(
+        'field_definition_id', '86000000-0000-0000-0000-000000000001',
+        'value_numeric', 4
+      ),
+      jsonb_build_object(
+        'field_definition_id', '86000000-0000-0000-0000-000000000002',
+        'value_text', 'ready'
+      )
+    )
+  );
+
+  IF (SELECT COUNT(*) FROM public.org_custom_field_values
+      WHERE entity_id = '40000000-0000-0000-0000-000000000003') <> 2
+     OR (SELECT COUNT(*) FROM public.org_automation_outbox
+         WHERE entity_id = '40000000-0000-0000-0000-000000000003') <> 2
+     OR jsonb_array_length(v_result->'outbox_event_ids') <> 2 THEN
+    RAISE EXCEPTION 'custom-field batch success did not commit values and events together';
+  END IF;
+
+  SELECT (v_result->'outbox_event_ids'->>0)::uuid INTO v_outbox_id;
+  IF (SELECT COUNT(*) FROM public.claim_org_automation_outbox(
+        1,
+        '20000000-0000-0000-0000-000000000001',
+        v_outbox_id
+      )) <> 1 THEN
+    RAISE EXCEPTION 'custom-field automation outbox event was not claimable';
+  END IF;
+  PERFORM public.finish_org_automation_outbox(v_outbox_id, true, NULL);
+  IF (SELECT status FROM public.org_automation_outbox WHERE id = v_outbox_id) <> 'completed'
+     OR (SELECT COUNT(*) FROM public.claim_org_automation_outbox(
+       1,
+       '20000000-0000-0000-0000-000000000001',
+       v_outbox_id
+     )) <> 0 THEN
+    RAISE EXCEPTION 'custom-field automation outbox completion/idempotency contract failed';
+  END IF;
+END;
+$$;
+
+-- Invitation acceptance must atomically activate membership, finalize the
+-- invite, and write one audit row. Repeating the same token/user is safe.
+INSERT INTO public.org_invitations (
+  id, org_id, invited_by, email, role, token, expires_at
+) VALUES (
+  '87000000-0000-0000-0000-000000000001',
+  '20000000-0000-0000-0000-000000000001',
+  '10000000-0000-0000-0000-000000000001',
+  'schema-check@example.test',
+  'member',
+  'schema-accept-token',
+  now() + interval '1 day'
+);
+
+SELECT public.accept_org_invitation(
+  '20000000-0000-0000-0000-000000000001',
+  '87000000-0000-0000-0000-000000000001',
+  'schema-accept-token',
+  '10000000-0000-0000-0000-000000000001'
+);
+SELECT public.accept_org_invitation(
+  '20000000-0000-0000-0000-000000000001',
+  '87000000-0000-0000-0000-000000000001',
+  'schema-accept-token',
+  '10000000-0000-0000-0000-000000000001'
+);
+
+DO $$
+BEGIN
+  IF (SELECT status FROM public.org_invitations
+      WHERE id = '87000000-0000-0000-0000-000000000001') <> 'accepted'
+     OR (SELECT accepted_at IS NULL FROM public.organization_members
+         WHERE org_id = '20000000-0000-0000-0000-000000000001'
+           AND user_id = '10000000-0000-0000-0000-000000000001')
+     OR (SELECT COUNT(*) FROM public.org_audit_log
+         WHERE target_id = '87000000-0000-0000-0000-000000000001'
+           AND action = 'invite_accepted') <> 1 THEN
+    RAISE EXCEPTION 'invitation acceptance atomic/idempotency contract failed';
+  END IF;
+END;
+$$;
+
+-- Onboarding durable turns persist the user request before model work, then
+-- atomically commit the assistant reply, extracted state, and telemetry. A
+-- failed completion leaves the turn retry-safe without partial assistant data.
+INSERT INTO public.onboarding_sessions (
+  id, user_id, status, quick_intake, conversation_state, intake_completed_at
+) VALUES (
+  '91000000-0000-0000-0000-000000000001',
+  '10000000-0000-0000-0000-000000000001',
+  'conversation',
+  '{"org_name":"Schema onboarding"}'::jsonb,
+  '{"topics_covered":[],"confidence_scores":{"pain_points":0,"goals":0,"workflows":0,"team":0},"message_count":0,"ready_for_recommendations":false}'::jsonb,
+  now()
+);
+INSERT INTO public.onboarding_profiles (session_id)
+VALUES ('91000000-0000-0000-0000-000000000001');
+INSERT INTO public.onboarding_analytics (session_id)
+VALUES ('91000000-0000-0000-0000-000000000001');
+
+DO $$
+DECLARE
+  v_begin jsonb;
+  v_turn_id uuid;
+  v_response jsonb := '{"message":"Schema reply","extractions":{"goals":[]},"conversation_state":{"topics_covered":["goals"],"confidence_scores":{"pain_points":0,"goals":1,"workflows":0,"team":0},"message_count":1,"ready_for_recommendations":true},"ready_for_recommendations":true}'::jsonb;
+BEGIN
+  v_begin := public.begin_onboarding_turn(
+    '91000000-0000-0000-0000-000000000001',
+    '10000000-0000-0000-0000-000000000001',
+    '91000000-0000-0000-0000-000000000002',
+    'Tell us about reporting'
+  );
+  v_turn_id := (v_begin->>'turn_id')::uuid;
+  PERFORM public.complete_onboarding_turn(
+    v_turn_id,
+    '91000000-0000-0000-0000-000000000001',
+    '10000000-0000-0000-0000-000000000001',
+    'Schema reply',
+    '{"pain_points":[],"goals":[],"workflows":{"reporting":{"cadence":"monthly"}},"team_context":{}}'::jsonb,
+    v_response->'conversation_state',
+    true,
+    v_response
+  );
+  IF (SELECT status FROM public.onboarding_turns WHERE id = v_turn_id) <> 'completed'
+     OR (SELECT COUNT(*) FROM public.onboarding_messages WHERE turn_id = v_turn_id) <> 2
+     OR (SELECT status FROM public.onboarding_sessions WHERE id = '91000000-0000-0000-0000-000000000001') <> 'recommendations'
+     OR (SELECT workflows->'reporting'->>'cadence' FROM public.onboarding_profiles WHERE session_id = '91000000-0000-0000-0000-000000000001') <> 'monthly'
+     OR (SELECT message_count FROM public.onboarding_analytics WHERE session_id = '91000000-0000-0000-0000-000000000001') <> 1
+     OR (public.begin_onboarding_turn(
+       '91000000-0000-0000-0000-000000000001',
+       '10000000-0000-0000-0000-000000000001',
+       '91000000-0000-0000-0000-000000000002',
+       'Tell us about reporting'
+     )->>'status') <> 'completed' THEN
+    RAISE EXCEPTION 'onboarding durable turn completion/idempotency contract failed';
+  END IF;
+END;
+$$;
+
+INSERT INTO public.onboarding_sessions (id, user_id, status)
+VALUES ('91000000-0000-0000-0000-000000000003', '10000000-0000-0000-0000-000000000001', 'conversation');
+INSERT INTO public.onboarding_profiles (session_id) VALUES ('91000000-0000-0000-0000-000000000003');
+INSERT INTO public.onboarding_analytics (session_id) VALUES ('91000000-0000-0000-0000-000000000003');
+
+CREATE OR REPLACE FUNCTION public.schema_check_reject_onboarding_analytics()
+RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  IF NEW.session_id = '91000000-0000-0000-0000-000000000003'::uuid THEN
+    RAISE EXCEPTION 'forced onboarding analytics failure';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+CREATE TRIGGER schema_check_reject_onboarding_analytics
+  BEFORE UPDATE ON public.onboarding_analytics
+  FOR EACH ROW EXECUTE FUNCTION public.schema_check_reject_onboarding_analytics();
+
+DO $$
+DECLARE v_turn_id uuid;
+BEGIN
+  v_turn_id := (public.begin_onboarding_turn(
+    '91000000-0000-0000-0000-000000000003',
+    '10000000-0000-0000-0000-000000000001',
+    '91000000-0000-0000-0000-000000000004',
+    'This completion should roll back'
+  )->>'turn_id')::uuid;
+  BEGIN
+    PERFORM public.complete_onboarding_turn(
+      v_turn_id, '91000000-0000-0000-0000-000000000003',
+      '10000000-0000-0000-0000-000000000001', 'Should not persist',
+      '{"pain_points":[],"goals":[],"workflows":{},"team_context":{}}'::jsonb,
+      '{"topics_covered":[],"confidence_scores":{},"message_count":1,"ready_for_recommendations":false}'::jsonb,
+      false,
+      '{"message":"Should not persist","extractions":{},"conversation_state":{},"ready_for_recommendations":false}'::jsonb
+    );
+    RAISE EXCEPTION 'expected onboarding analytics failure';
+  EXCEPTION WHEN raise_exception THEN
+    IF SQLERRM <> 'forced onboarding analytics failure' THEN RAISE; END IF;
+  END;
+  IF (SELECT status FROM public.onboarding_turns WHERE id = v_turn_id) <> 'in_progress'
+     OR (SELECT COUNT(*) FROM public.onboarding_messages WHERE turn_id = v_turn_id) <> 1
+     OR (SELECT status FROM public.onboarding_sessions WHERE id = '91000000-0000-0000-0000-000000000003') <> 'conversation' THEN
+    RAISE EXCEPTION 'onboarding durable turn rollback contract failed';
+  END IF;
+  PERFORM public.fail_onboarding_turn(
+    v_turn_id, '91000000-0000-0000-0000-000000000003',
+    '10000000-0000-0000-0000-000000000001', 'forced_failure', 'forced onboarding analytics failure'
+  );
+END;
+$$;
+DROP TRIGGER schema_check_reject_onboarding_analytics ON public.onboarding_analytics;
+DROP FUNCTION public.schema_check_reject_onboarding_analytics();
+
+-- Onboarding provisioning uses the session as its idempotency key. Both a
+-- successful replay and a late failure must leave a complete setup or nothing.
+INSERT INTO public.onboarding_sessions (id, user_id, status, started_at)
+VALUES ('91000000-0000-0000-0000-000000000005', '10000000-0000-0000-0000-000000000002', 'recommendations', now());
+INSERT INTO public.onboarding_profiles (session_id) VALUES ('91000000-0000-0000-0000-000000000005');
+INSERT INTO public.onboarding_analytics (session_id) VALUES ('91000000-0000-0000-0000-000000000005');
+
+DO $$
+DECLARE
+  v_first jsonb;
+  v_replay jsonb;
+BEGIN
+  v_first := public.provision_onboarding_session(
+    '91000000-0000-0000-0000-000000000005',
+    '10000000-0000-0000-0000-000000000002',
+    'Schema provisioning organization', 'private_foundation', NULL,
+    '{"portfolio":true,"impact_tracking":true}'::jsonb,
+    '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb
+  );
+  v_replay := public.provision_onboarding_session(
+    '91000000-0000-0000-0000-000000000005',
+    '10000000-0000-0000-0000-000000000002',
+    'Ignored replay name', 'private_foundation', NULL,
+    '{"portfolio":true}'::jsonb,
+    '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb
+  );
+  IF v_first->>'org_id' IS NULL
+     OR v_first->>'portfolio_id' IS NULL
+     OR v_first->>'org_id' <> v_replay->>'org_id'
+     OR (SELECT modules->>'impact_tracking' FROM public.organizations WHERE id = (v_first->>'org_id')::uuid) <> 'true'
+     OR (SELECT status FROM public.onboarding_sessions WHERE id = '91000000-0000-0000-0000-000000000005') <> 'completed'
+     OR (SELECT COUNT(*) FROM public.portfolios WHERE org_id = (v_first->>'org_id')::uuid) <> 1
+     OR (SELECT COUNT(*) FROM public.portfolio_members WHERE portfolio_id = (v_first->>'portfolio_id')::uuid AND user_id = '10000000-0000-0000-0000-000000000002') <> 1 THEN
+    RAISE EXCEPTION 'onboarding provisioning idempotency contract failed';
+  END IF;
+END;
+$$;
+
+INSERT INTO public.onboarding_sessions (id, user_id, status)
+VALUES ('91000000-0000-0000-0000-000000000006', '10000000-0000-0000-0000-000000000003', 'recommendations');
+INSERT INTO public.onboarding_profiles (session_id) VALUES ('91000000-0000-0000-0000-000000000006');
+INSERT INTO public.onboarding_analytics (session_id) VALUES ('91000000-0000-0000-0000-000000000006');
+
+DO $$
+BEGIN
+  BEGIN
+    PERFORM public.provision_onboarding_session(
+      '91000000-0000-0000-0000-000000000006',
+      '10000000-0000-0000-0000-000000000003',
+      'Rollback provisioning organization', 'private_foundation', NULL,
+      '{"portfolio":true}'::jsonb,
+      '[{"context_type":"invalid","context_key":"bad","context_value":"bad","source":"onboarding","is_active":true,"created_by":"10000000-0000-0000-0000-000000000003"}]'::jsonb,
+      '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb
+    );
+    RAISE EXCEPTION 'expected provisioning configuration failure';
+  EXCEPTION WHEN check_violation THEN NULL;
+  END;
+  IF (SELECT org_id FROM public.onboarding_sessions WHERE id = '91000000-0000-0000-0000-000000000006') IS NOT NULL
+     OR EXISTS (SELECT 1 FROM public.organizations WHERE name = 'Rollback provisioning organization') THEN
+    RAISE EXCEPTION 'onboarding provisioning rollback contract failed';
+  END IF;
+END;
+$$;
 
 SELECT * FROM public.create_generated_letter(
   '30000000-0000-0000-0000-000000000001',

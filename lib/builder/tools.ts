@@ -32,7 +32,7 @@ import {
   ORG_AI_CONTEXT_TYPES,
   normalizeContextKey,
   type OrgAiContextType,
-} from '@/lib/org-ai-context';
+} from '@/lib/organizations/ai-context';
 import {
   DASHBOARD_SECTION_IDS,
   ENTITY_VOCABULARY_TYPES,
@@ -45,7 +45,7 @@ import {
   type GrantModuleView,
   type GrantsTableColumn,
   type ViewConfigScope,
-} from '@/lib/view-config';
+} from '@/lib/organizations/view-config';
 import { CODE_STATES } from '@/lib/builder/proposal-state';
 import {
   buildFileManifest,

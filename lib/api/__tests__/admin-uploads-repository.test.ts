@@ -34,7 +34,7 @@ vi.mock('@/lib/api/admin-client', () => ({
   createElevatedClient: mockCreateElevatedClient,
 }));
 
-vi.mock('@/lib/document-parser', () => ({
+vi.mock('@/lib/import/document-parser', () => ({
   parseDocument: mockParseDocument,
   parseDocumentChunked: mockParseDocumentChunked,
 }));

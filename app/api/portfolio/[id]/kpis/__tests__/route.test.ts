@@ -9,8 +9,8 @@ const { mockCreateSb, mockRpc, mockFrom } = vi.hoisted(() => ({
   mockFrom: vi.fn(),
 }));
 
-vi.mock('@/lib/supabase', () => ({
-  createSupabaseServerClient: mockCreateSb,
+vi.mock('@/lib/api/server-client', () => ({
+  createServerClient: mockCreateSb,
 }));
 
 import { GET } from '@/app/api/portfolio/[id]/kpis/route';

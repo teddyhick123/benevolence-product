@@ -34,6 +34,7 @@ const ATTEMPT_ID = '44444444-4444-4444-4444-444444444444';
 
 const PREFIX = artifactPrefix(ORG_ID, PROPOSAL_ID, REVISION_ID);
 const REQUIRED: CheckKey[] = ['verify:types', 'verify:lint'];
+const AUTHORITATIVE_DIFF = '--- a/foo.ts\n+++ b/foo.ts\n@@ -1 +1 @@\n-old\n+new';
 
 function baseArgs(runner: VerificationRunner, overrides: Partial<{
   requiredKeys: CheckKey[];
@@ -82,6 +83,14 @@ function queueUploadsAndUpserts(mock: SupabaseMock, count: number) {
   }
 }
 
+function queueAuthoritativeDiff(mock: SupabaseMock, diff: string = AUTHORITATIVE_DIFF, exists: boolean = false) {
+  mock.queueStorageDownload(BUCKET, exists
+    ? { data: { text: async () => diff }, error: null }
+    : { data: null, error: { message: 'not found' } });
+  if (!exists) mock.queueStorageUpload(BUCKET, { data: { path: 'diff' }, error: null });
+  mock.queueTable('builder_proposal_revisions', { data: null, error: null });
+}
+
 // ============================================================
 // Happy path
 // ============================================================
@@ -93,14 +102,15 @@ describe('runAndRecordVerification — happy path', () => {
       exec('verify:types', 'passed'),
       exec('verify:lint', 'failed', { exitCode: 1, log: 'lint failed on 2 files' }),
     ];
-    const outcome: VerificationOutcome = { checks, setupFailure: null, authoritativeDiff: null };
+    const outcome: VerificationOutcome = { checks, setupFailure: null, authoritativeDiff: AUTHORITATIVE_DIFF };
     queueUploadsAndUpserts(mock, 2);
+    queueAuthoritativeDiff(mock);
 
     const result = await runAndRecordVerification(mock.client(), baseArgs(new StubRunner(outcome)));
     expect(result.setupFindings).toEqual([]);
 
     const uploadCalls = mock.calls.filter((c) => c.method === 'storage.upload');
-    expect(uploadCalls).toHaveLength(2);
+    expect(uploadCalls).toHaveLength(3);
     expect(uploadCalls[0].args).toEqual([
       BUCKET,
       `${PREFIX}/checks/verify:types.log`,
@@ -154,8 +164,9 @@ describe('runAndRecordVerification — happy path', () => {
   it('allRequiredPassed is true only when every required key is present and passed', async () => {
     const mock = new SupabaseMock();
     const checks = [exec('verify:types', 'passed'), exec('verify:lint', 'passed')];
-    const outcome: VerificationOutcome = { checks, setupFailure: null, authoritativeDiff: null };
+    const outcome: VerificationOutcome = { checks, setupFailure: null, authoritativeDiff: AUTHORITATIVE_DIFF };
     queueUploadsAndUpserts(mock, 2);
+    queueAuthoritativeDiff(mock);
 
     const result = await runAndRecordVerification(mock.client(), baseArgs(new StubRunner(outcome)));
 
@@ -166,8 +177,9 @@ describe('runAndRecordVerification — happy path', () => {
   it('allRequiredPassed is false when a required check did not pass', async () => {
     const mock = new SupabaseMock();
     const checks = [exec('verify:types', 'passed'), exec('verify:lint', 'failed')];
-    const outcome: VerificationOutcome = { checks, setupFailure: null, authoritativeDiff: null };
+    const outcome: VerificationOutcome = { checks, setupFailure: null, authoritativeDiff: AUTHORITATIVE_DIFF };
     queueUploadsAndUpserts(mock, 2);
+    queueAuthoritativeDiff(mock);
 
     const result = await runAndRecordVerification(mock.client(), baseArgs(new StubRunner(outcome)));
 
@@ -305,49 +317,61 @@ describe('runAndRecordVerification — authoritative diff', () => {
     const checks = [exec('verify:types', 'passed'), exec('verify:lint', 'passed')];
     const outcome: VerificationOutcome = { checks, setupFailure: null, authoritativeDiff: diff };
     queueUploadsAndUpserts(mock, 2);
-    mock.queueStorageUpload(BUCKET, { data: { path: 'diff' }, error: null }); // the diff upload itself
+    queueAuthoritativeDiff(mock, diff);
 
-    await runAndRecordVerification(mock.client(), baseArgs(new StubRunner(outcome)));
+    const result = await runAndRecordVerification(mock.client(), baseArgs(new StubRunner(outcome)));
 
     const diffUploadCall = mock.calls.find(
       (c) => c.method === 'storage.upload' && c.args[1] === `${PREFIX}/${ARTIFACT_KEYS.authoritativeDiff}`
     );
     expect(diffUploadCall).toBeDefined();
     expect(diffUploadCall!.args[2]).toBe(diff);
+    expect(result.authoritativeDiff).toEqual({
+      hash: sha256Hex(diff),
+      artifactKey: `${PREFIX}/${ARTIFACT_KEYS.authoritativeDiff}`,
+      text: diff,
+    });
+
+    const revisionUpdate = mock.calls.find(
+      (c) => c.table === 'builder_proposal_revisions' && c.method === 'update'
+    );
+    expect(revisionUpdate?.args[0]).toEqual({
+      authoritative_diff_hash: sha256Hex(diff),
+      authoritative_diff_artifact_key: `${PREFIX}/${ARTIFACT_KEYS.authoritativeDiff}`,
+    });
   });
 
-  it('does not upload anything when authoritativeDiff is null', async () => {
+  it('records a blocking finding when authoritativeDiff is null', async () => {
     const mock = new SupabaseMock();
     const checks = [exec('verify:types', 'passed'), exec('verify:lint', 'passed')];
     const outcome: VerificationOutcome = { checks, setupFailure: null, authoritativeDiff: null };
     queueUploadsAndUpserts(mock, 2);
 
-    await runAndRecordVerification(mock.client(), baseArgs(new StubRunner(outcome)));
+    const result = await runAndRecordVerification(mock.client(), baseArgs(new StubRunner(outcome)));
 
     const diffUploadCall = mock.calls.find(
       (c) => c.method === 'storage.upload' && c.args[1] === `${PREFIX}/${ARTIFACT_KEYS.authoritativeDiff}`
     );
     expect(diffUploadCall).toBeUndefined();
+    expect(result.allRequiredPassed).toBe(false);
+    expect(result.setupFindings[0]?.evidence).toMatch(/without producing an authoritative diff/i);
   });
 
-  it('a diff-upload failure is non-fatal: swallowed, does not propagate, does not affect the returned result', async () => {
-    const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    try {
+  it('a diff-persistence failure becomes a blocker and never reports a passing verification result', async () => {
     const mock = new SupabaseMock();
     const diff = 'diff body';
     const checks = [exec('verify:types', 'passed'), exec('verify:lint', 'passed')];
     const outcome: VerificationOutcome = { checks, setupFailure: null, authoritativeDiff: diff };
     queueUploadsAndUpserts(mock, 2);
+    mock.queueStorageDownload(BUCKET, { data: null, error: { message: 'not found' } });
     mock.queueStorageUpload(BUCKET, { data: null, error: { message: 'disk full' } }); // the diff upload itself
 
-    await expect(runAndRecordVerification(mock.client(), baseArgs(new StubRunner(outcome)))).resolves.toMatchObject({
-      allRequiredPassed: true,
-      setupFindings: [],
+    const result = await runAndRecordVerification(mock.client(), baseArgs(new StubRunner(outcome)));
+    expect(result).toMatchObject({
+      allRequiredPassed: false,
+      authoritativeDiff: null,
     });
-    expect(consoleWarnSpy).toHaveBeenCalled();
-    } finally {
-      consoleWarnSpy.mockRestore();
-    }
+    expect(result.setupFindings[0]?.evidence).toMatch(/could not be persisted/i);
   });
 });
 
@@ -385,11 +409,13 @@ describe('runAndRecordVerification — redaction', () => {
 // ============================================================
 
 describe('runAndRecordVerification — idempotency', () => {
-  it('re-running the same attempt upserts again (never a plain insert)', async () => {
+  it('re-running the same attempt reuses matching authoritative evidence and upserts checks (never a plain insert)', async () => {
     const mock = new SupabaseMock();
     const checks = [exec('verify:types', 'passed'), exec('verify:lint', 'passed')];
-    const outcome: VerificationOutcome = { checks, setupFailure: null, authoritativeDiff: null };
+    const outcome: VerificationOutcome = { checks, setupFailure: null, authoritativeDiff: AUTHORITATIVE_DIFF };
     queueUploadsAndUpserts(mock, 4); // two runs x two checks
+    queueAuthoritativeDiff(mock);
+    queueAuthoritativeDiff(mock, AUTHORITATIVE_DIFF, true);
 
     await runAndRecordVerification(mock.client(), baseArgs(new StubRunner(outcome)));
     await runAndRecordVerification(mock.client(), baseArgs(new StubRunner(outcome)));
@@ -400,5 +426,9 @@ describe('runAndRecordVerification — idempotency', () => {
       expect(call.args[1]).toEqual({ onConflict: 'review_attempt_id,check_key' });
     }
     expect(mock.calls.some((c) => c.table === RUNS_TABLE && c.method === 'insert')).toBe(false);
+    const diffUploads = mock.calls.filter(
+      (c) => c.method === 'storage.upload' && c.args[1] === `${PREFIX}/${ARTIFACT_KEYS.authoritativeDiff}`
+    );
+    expect(diffUploads).toHaveLength(1);
   });
 });

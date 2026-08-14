@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { isAccessDenied, requireUserAccess } from '@/lib/api/access';
-import { aiAuthRequired } from '@/lib/rate-limit-response';
+import { aiAuthRequired } from '@/lib/api/rate-limit-response';
 import { transcribeAudio } from '@/lib/ai/transcription';
 
 export const runtime = 'nodejs';

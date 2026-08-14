@@ -1,13 +1,13 @@
 // app/api/portfolio/[id]/holdings/[holdingId]/route.ts
 import { NextResponse } from 'next/server';
-import { createSupabaseServerClient } from '@/lib/supabase';
+import { createServerClient } from '@/lib/api/server-client';
 import { updateHoldingSchema } from '@/lib/schemas/portfolio';
 
 function cacheHeaders() {
   return { 'Cache-Control': 'no-store' } as const;
 }
 
-const createSb = createSupabaseServerClient;
+const createSb = createServerClient;
 
 function normalizeHoldingStatus(status: string | null | undefined): string | null {
   if (!status) return null;

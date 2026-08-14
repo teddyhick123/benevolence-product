@@ -9,7 +9,7 @@ describe('AI chat viewer write bypass', () => {
     'lib/ai/assistant/executors/grants.ts',
     'lib/ai/assistant/executors/grants-workflows.ts',
   ].map((file) => readFileSync(file, 'utf8')).join('\n');
-  const actionExecutorSrc = readFileSync('lib/ai-action-executor.ts', 'utf8');
+  const actionExecutorSrc = readFileSync('lib/ai/assistant/actions/executor.ts', 'utf8');
 
   it('chat route passes memberRole to assistant.chat()', () => {
     expect(chatSrc).toContain('memberRole');

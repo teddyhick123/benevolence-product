@@ -1,5 +1,5 @@
 import type { PortfolioManagerAccessContext } from '@/lib/api/principals';
-import type { OrgRole } from '@/lib/roles';
+import type { OrgRole } from '@/lib/organizations/roles';
 
 /** Atomic membership mutations constrained to the already-authorized portfolio. */
 export function createPortfolioMembershipRepository(scope: PortfolioManagerAccessContext) {

@@ -22,7 +22,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const url = new URL(req.url);
   const oauthError = url.searchParams.get('error');
   if (oauthError) {
-    const settingsUrl = new URL('/dashboard/settings/integrations', url.origin);
+    const settingsUrl = new URL('/settings/integrations', url.origin);
     settingsUrl.searchParams.set('error', oauthError);
     return NextResponse.redirect(settingsUrl.toString());
   }
@@ -108,7 +108,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     return jsonError('Failed to store connection', 500);
   }
 
-  const settingsUrl = new URL('/dashboard/settings/integrations', url.origin);
+  const settingsUrl = new URL('/settings/integrations', url.origin);
   settingsUrl.searchParams.set('connected', '1');
   settingsUrl.searchParams.set('org', state.orgId);
   const response = NextResponse.redirect(settingsUrl.toString());

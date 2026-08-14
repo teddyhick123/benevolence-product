@@ -7,7 +7,11 @@
 //   - Elevated writes live in the org-scoped membership repository.
 //   - The route exports PATCH (not PUT) for role changes.
 //   - Owner membership changes require an owner, while admin can manage non-owner members.
-//   - Audit writes are durable; failures roll back the member mutation.
+//   - The repository performs every mutation through the single atomic RPC
+//     `mutate_organization_membership`. Role checks, last-owner protection and
+//     the audit-log insert all happen inside that one transaction, so there is
+//     no separate audit write for the route to roll back. Those SQL-level rules
+//     are asserted here through the error codes the RPC raises.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { NextRequest, NextResponse } from 'next/server';
@@ -22,23 +26,20 @@ const ACTOR_ID = '55555555-5555-5555-5555-555555555555';
 // ── Mock state ─────────────────────────────────────────────────────────────────
 
 let _actorRole: string | null = 'admin';
-let _updateResult: any = { id: USER_ID, org_id: ORG_ID, user_id: USER_ID, role: 'member' };
-let _updateError:  { message: string } | null = null;
 
-let _deleteError: { message: string } | null = null;
-let _existingResult: any = { id: 'membership-id', role: 'member' };
-let _existingError: { message: string } | null = null;
-
-let _auditError: { message: string } | null = null;
+// What the atomic membership RPC returns. `_rpcError` models the deliberate
+// error codes raised inside `mutate_organization_membership`.
+let _rpcResult: any = { id: USER_ID, org_id: ORG_ID, user_id: USER_ID, role: 'member' };
+let _rpcError: { message: string; code?: string } | null = null;
 
 // Captured args for assertion
-let _capturedUpdateArgs: any = null;
-let _capturedAuditArgs: any = null;
+let _capturedRpcArgs: any = null;
 
 // ── Mock wiring ────────────────────────────────────────────────────────────────
 
-const { mockAdminFrom, mockRequireOrgAccess } = vi.hoisted(() => ({
+const { mockAdminFrom, mockAdminRpc, mockRequireOrgAccess } = vi.hoisted(() => ({
   mockAdminFrom: vi.fn(),
+  mockAdminRpc: vi.fn(),
   mockRequireOrgAccess: vi.fn(),
 }));
 
@@ -48,7 +49,7 @@ vi.mock('@/lib/api/access', () => ({
 }));
 
 vi.mock('@/lib/api/admin-client', () => ({
-  createElevatedClient: vi.fn(() => ({ from: mockAdminFrom })),
+  createElevatedClient: vi.fn(() => ({ from: mockAdminFrom, rpc: mockAdminRpc })),
 }));
 
 // ── Setup helpers ──────────────────────────────────────────────────────────────
@@ -73,69 +74,36 @@ function setupMocks() {
     };
   });
 
-  // Admin client: from('organization_members') and from('org_audit_log')
-  mockAdminFrom.mockImplementation((table: string) => {
-    if (table === 'organization_members') {
-      const b: any = {
-        update: vi.fn((args: any) => {
-          _capturedUpdateArgs = args;
-          return b;
-        }),
-        delete: vi.fn(() => b),
-        eq: vi.fn(() => b),
-        is: vi.fn(() => b),
-        select: vi.fn(() => b),
-        single: vi.fn(async () => ({ data: _updateResult, error: _updateError })),
-        maybeSingle: vi.fn(async () => ({ data: _existingResult, error: _existingError })),
-        // delete chain resolves with just an error field
-        then: vi.fn(async (resolve: Function) =>
-          resolve({ count: 1, error: _deleteError })
-        ),
-      };
-      // Make the delete chain awaitable directly
-      const deleteChain: any = {
-        eq: vi.fn(() => deleteChain),
-        // Awaiting the chain hits this
-        then: vi.fn(async (resolve: Function) =>
-          resolve({ error: _deleteError })
-        ),
-      };
-      b._deleteChain = deleteChain;
-      // Override delete to return the deleteChain
-      b.delete = vi.fn(() => deleteChain);
-      return b;
+  // Every mutation goes through the single atomic RPC.
+  mockAdminRpc.mockImplementation(async (fn: string, args: any) => {
+    if (fn !== 'mutate_organization_membership') {
+      throw new Error(`Unexpected RPC: ${fn}`);
     }
-    if (table === 'org_audit_log') {
-      return {
-        insert: vi.fn(async (args: any) => {
-          _capturedAuditArgs = args;
-          return { error: _auditError };
-        }),
-      };
-    }
-    return {
-      update: vi.fn().mockReturnThis(),
-      delete: vi.fn().mockReturnThis(),
-      eq: vi.fn().mockReturnThis(),
-      select: vi.fn().mockReturnThis(),
-      single: vi.fn(async () => ({ data: null, error: null })),
-    };
+    _capturedRpcArgs = args;
+    return { data: _rpcError ? null : _rpcResult, error: _rpcError };
   });
+
+  // The repository still reads through from() for list(); mutations must not.
+  mockAdminFrom.mockImplementation(() => ({
+    update: vi.fn().mockReturnThis(),
+    delete: vi.fn().mockReturnThis(),
+    eq: vi.fn().mockReturnThis(),
+    is: vi.fn().mockReturnThis(),
+    select: vi.fn().mockReturnThis(),
+    single: vi.fn(async () => ({ data: null, error: null })),
+    maybeSingle: vi.fn(async () => ({ data: null, error: null })),
+  }));
 }
 
 beforeEach(() => {
   _actorRole = 'admin';
-  _updateResult = { id: USER_ID, org_id: ORG_ID, user_id: USER_ID, role: 'member' };
-  _updateError = null;
-  _deleteError = null;
-  _existingResult = { id: 'membership-id', role: 'member' };
-  _existingError = null;
-  _auditError = null;
-  _capturedUpdateArgs = null;
-  _capturedAuditArgs = null;
+  _rpcResult = { id: USER_ID, org_id: ORG_ID, user_id: USER_ID, role: 'member' };
+  _rpcError = null;
+  _capturedRpcArgs = null;
   // Clear accumulated call history so per-test assertions on call counts are accurate
   mockRequireOrgAccess.mockClear();
   mockAdminFrom.mockClear();
+  mockAdminRpc.mockClear();
   setupMocks();
 });
 
@@ -189,9 +157,8 @@ describe('PATCH /api/org/[orgId]/members/[userId] — auth', () => {
     // Act
     await PATCH(makePatchRequest({ role: 'admin' }), makeCtx());
 
-    // Assert — admin from() for members table must never be called
-    const membersCalls = mockAdminFrom.mock.calls.filter(([t]) => t === 'organization_members');
-    expect(membersCalls).toHaveLength(0);
+    // Assert — the mutation RPC must never be reached
+    expect(mockAdminRpc).not.toHaveBeenCalled();
   });
 
   it('returns 403 when the canonical role is below admin even for a valid role payload', async () => {
@@ -229,8 +196,7 @@ describe('DELETE /api/org/[orgId]/members/[userId] — auth', () => {
     await DELETE(makeDeleteRequest(), makeCtx());
 
     // Assert
-    const membersCalls = mockAdminFrom.mock.calls.filter(([t]) => t === 'organization_members');
-    expect(membersCalls).toHaveLength(0);
+    expect(mockAdminRpc).not.toHaveBeenCalled();
   });
 });
 
@@ -268,19 +234,40 @@ describe('PATCH — security: role escalation', () => {
     expect(body).toHaveProperty('error');
     expect(body).not.toHaveProperty('role');
     // No DB write must have occurred
-    const membersCalls = mockAdminFrom.mock.calls.filter(([t]) => t === 'organization_members');
-    expect(membersCalls).toHaveLength(0);
+    expect(mockAdminRpc).not.toHaveBeenCalled();
   });
 
   it('does not let an admin change an owner membership', async () => {
+    // Arrange — the RPC refuses an admin touching an owner row with 42501.
     _actorRole = 'admin';
-    _existingResult = { id: 'membership-id', role: 'owner' };
+    _rpcError = { message: 'Only owners can change owner membership', code: '42501' };
 
+    // Act
     const res = await PATCH(makePatchRequest({ role: 'admin' }), makeCtx());
 
+    // Assert — the refusal is enforced in one transaction and surfaced as 403
     expect(res.status).toBe(403);
-    const membersCalls = mockAdminFrom.mock.calls.filter(([t]) => t === 'organization_members');
-    expect(membersCalls).toHaveLength(1);
+    expect(mockAdminRpc).toHaveBeenCalledTimes(1);
+    expect(_capturedRpcArgs).toMatchObject({
+      p_org_id: ORG_ID,
+      p_actor_id: ACTOR_ID,
+      p_target_user_id: USER_ID,
+      p_operation: 'change_role',
+    });
+  });
+
+  it('surfaces the last-owner guard rather than silently demoting the final owner', async () => {
+    // Arrange — the RPC raises P0001 for the last-owner rule.
+    _actorRole = 'owner';
+    _rpcError = { message: 'Cannot change the last owner role', code: 'P0001' };
+
+    // Act
+    const res = await PATCH(makePatchRequest({ role: 'admin' }), makeCtx());
+    const body = await res.json();
+
+    // Assert
+    expect(res.status).toBe(400);
+    expect(body.error).toBe('Cannot change the last owner role');
   });
 });
 
@@ -291,7 +278,7 @@ describe('PATCH — security: role escalation', () => {
 describe('PATCH /api/org/[orgId]/members/[userId] — behavior', () => {
   it('returns 200 and the updated member record on a valid role change', async () => {
     // Arrange
-    _updateResult = { id: USER_ID, org_id: ORG_ID, user_id: USER_ID, role: 'admin' };
+    _rpcResult = { id: USER_ID, org_id: ORG_ID, user_id: USER_ID, role: 'admin' };
 
     // Act
     const res = await PATCH(makePatchRequest({ role: 'admin' }), makeCtx());
@@ -306,9 +293,10 @@ describe('PATCH /api/org/[orgId]/members/[userId] — behavior', () => {
   it('accepts all valid roles: viewer, member, admin', async () => {
     // Arrange & Act & Assert for each assignable role
     for (const role of ['viewer', 'member', 'admin']) {
-      _updateResult = { id: USER_ID, org_id: ORG_ID, user_id: USER_ID, role };
+      _rpcResult = { id: USER_ID, org_id: ORG_ID, user_id: USER_ID, role };
       const res = await PATCH(makePatchRequest({ role }), makeCtx());
       expect(res.status).toBe(200);
+      expect(_capturedRpcArgs).toMatchObject({ p_operation: 'change_role', p_role: role });
     }
   });
 
@@ -335,45 +323,28 @@ describe('PATCH /api/org/[orgId]/members/[userId] — behavior', () => {
   });
 
   it('returns 500 and an error message when the DB update fails', async () => {
-    // Arrange
-    _updateError = { message: 'deadlock detected' };
-    _updateResult = null;
+    // Arrange — an infrastructure failure, not one of the RPC's deliberate codes
+    _rpcError = { message: 'deadlock detected', code: '40P01' };
 
     // Act
     const res = await PATCH(makePatchRequest({ role: 'member' }), makeCtx());
     const body = await res.json();
 
-    // Assert — error surfaced, not swallowed
+    // Assert — surfaced as a server error, not misreported as the caller's fault
     expect(res.status).toBe(500);
     expect(body).toHaveProperty('error');
     expect(body).not.toHaveProperty('role');
   });
 
-  it('writes an audit log entry after a successful role change', async () => {
-    // Arrange
-    _updateResult = { id: USER_ID, org_id: ORG_ID, user_id: USER_ID, role: 'viewer' };
-
+  it('records the audit entry inside the same transaction as the role change', async () => {
     // Act
     await PATCH(makePatchRequest({ role: 'viewer' }), makeCtx());
 
-    // Assert — audit log was called with the expected fields
+    // Assert — the audit insert lives inside `mutate_organization_membership`,
+    // so the route must not perform a second, separately-failable write.
+    expect(mockAdminRpc).toHaveBeenCalledTimes(1);
     const auditCalls = mockAdminFrom.mock.calls.filter(([t]) => t === 'org_audit_log');
-    expect(auditCalls.length).toBeGreaterThanOrEqual(1);
-  });
-
-  it('returns 500 and rolls back when the audit log write fails', async () => {
-    // Arrange — audit write will error but should not affect the response
-    _updateResult = { id: USER_ID, org_id: ORG_ID, user_id: USER_ID, role: 'member' };
-    _auditError = { message: 'table does not exist' };
-
-    // Act
-    const res = await PATCH(makePatchRequest({ role: 'member' }), makeCtx());
-
-    // Assert — durable audit must fail closed and trigger a rollback update
-    expect(res.status).toBe(500);
-    const body = await res.json();
-    expect(body.error).toBe('table does not exist');
-    expect(_capturedUpdateArgs).toEqual({ role: 'member' });
+    expect(auditCalls).toHaveLength(0);
   });
 });
 
@@ -383,9 +354,6 @@ describe('PATCH /api/org/[orgId]/members/[userId] — behavior', () => {
 
 describe('DELETE /api/org/[orgId]/members/[userId] — behavior', () => {
   it('returns 200 with { success: true } when the member is removed', async () => {
-    // Arrange — no delete error
-    _deleteError = null;
-
     // Act
     const res = await DELETE(makeDeleteRequest(), makeCtx());
     const body = await res.json();
@@ -393,11 +361,15 @@ describe('DELETE /api/org/[orgId]/members/[userId] — behavior', () => {
     // Assert
     expect(res.status).toBe(200);
     expect(body).toEqual({ success: true });
+    expect(_capturedRpcArgs).toMatchObject({
+      p_operation: 'remove',
+      p_target_user_id: USER_ID,
+    });
   });
 
   it('returns 500 and an error message when the DB delete fails', async () => {
-    // Arrange
-    _deleteError = { message: 'foreign key constraint violation' };
+    // Arrange — an infrastructure failure rather than a deliberate RPC code
+    _rpcError = { message: 'foreign key constraint violation', code: '40001' };
 
     // Act
     const res = await DELETE(makeDeleteRequest(), makeCtx());
@@ -409,31 +381,39 @@ describe('DELETE /api/org/[orgId]/members/[userId] — behavior', () => {
     expect(body).not.toHaveProperty('success');
   });
 
-  it('returns 500 and restores the member when the audit log write fails after a successful delete', async () => {
+  it('refuses to remove the last owner', async () => {
+    // Arrange — the RPC's last-owner guard
+    _actorRole = 'owner';
+    _rpcError = { message: 'Cannot remove the last owner', code: 'P0001' };
+
+    // Act
+    const res = await DELETE(makeDeleteRequest(), makeCtx());
+    const body = await res.json();
+
+    // Assert
+    expect(res.status).toBe(400);
+    expect(body.error).toBe('Cannot remove the last owner');
+  });
+
+  it('returns 404 when the membership does not exist', async () => {
     // Arrange
-    _deleteError = null;
-    _auditError = { message: 'network timeout' };
+    _rpcError = { message: 'Member not found', code: 'P0002' };
 
     // Act
     const res = await DELETE(makeDeleteRequest(), makeCtx());
 
-    // Assert — durable audit must fail closed and restore the soft-deleted row
-    expect(res.status).toBe(500);
-    const body = await res.json();
-    expect(body.error).toBe('network timeout');
-    expect(_capturedUpdateArgs).toEqual({ deleted_at: null, deleted_by: null });
+    // Assert
+    expect(res.status).toBe(404);
   });
 
-  it('writes an audit log entry with action "member_removed" after a successful delete', async () => {
-    // Arrange
-    _deleteError = null;
-
+  it('records the removal audit entry inside the same transaction as the delete', async () => {
     // Act
     await DELETE(makeDeleteRequest(), makeCtx());
 
-    // Assert
+    // Assert — no separate, independently-failable audit write
+    expect(mockAdminRpc).toHaveBeenCalledTimes(1);
     const auditCalls = mockAdminFrom.mock.calls.filter(([t]) => t === 'org_audit_log');
-    expect(auditCalls.length).toBeGreaterThanOrEqual(1);
+    expect(auditCalls).toHaveLength(0);
   });
 });
 

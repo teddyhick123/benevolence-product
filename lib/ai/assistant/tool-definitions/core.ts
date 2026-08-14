@@ -1,6 +1,6 @@
 import type { ToolDefinition } from '@/lib/ai/types';
 import { CUSTOM_FIELD_ENTITY_TYPES } from '@/lib/custom-fields';
-import { ORG_AI_CONTEXT_TYPES } from '@/lib/org-ai-context';
+import { ORG_AI_CONTEXT_TYPES } from '@/lib/organizations/ai-context';
 
 export const CORE_TOOLS: ToolDefinition[] = [
   {

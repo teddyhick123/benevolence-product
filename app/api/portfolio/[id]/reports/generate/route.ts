@@ -1,13 +1,13 @@
 // app/api/portfolio/[id]/reports/generate/route.ts
 // Generates a report from a template or ad-hoc configuration
 import { NextResponse } from 'next/server';
-import { createSupabaseServerClient } from '@/lib/supabase';
+import { createServerClient } from '@/lib/api/server-client';
 
 function cacheHeaders() {
   return { 'Cache-Control': 'no-store' } as const;
 }
 
-const createSb = createSupabaseServerClient;
+const createSb = createServerClient;
 
 // Helper to calculate time range start
 function getTimeRangeStart(range: string): string {

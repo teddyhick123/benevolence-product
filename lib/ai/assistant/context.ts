@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@/lib/database-client';
-import { loadOrgAiContext } from '@/lib/org-ai-context';
-import { loadEntityVocabulary } from '@/lib/view-config';
+import { loadOrgAiContext } from '@/lib/organizations/ai-context';
+import { loadEntityVocabulary } from '@/lib/organizations/view-config';
 
 
 export async function getPortfolioContext(supabase: SupabaseClient, portfolioId: string) {

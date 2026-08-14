@@ -1,5 +1,5 @@
 // app/admin/portfolios/[id]/members/page.tsx
-import { createSupabaseServerClient } from '@/lib/supabase';
+import { createServerClient } from '@/lib/api/server-client';
 import AdminRoleSelect from '@/components/admin/AdminRoleSelect'
 import EmailLookupAdd from '@/components/admin/EmailLookupAdd';
 import RemoveMemberButton from '@/components/admin/RemoveMemberButton';
@@ -15,7 +15,7 @@ type MemberRow = {
 };
 
 async function loadMembers(portfolioId: string) {
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createServerClient();
 
   // Ensure admin
   const { data: isAdmin } = await supabase.rpc('is_app_admin');

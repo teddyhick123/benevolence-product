@@ -1,4 +1,4 @@
-import { createSupabaseServerClient } from '@/lib/supabase';
+import { createServerClient } from '@/lib/api/server-client';
 import DashboardKpiWithFilter from '@/components/dashboard/DashboardKpiWithFilter';
 import HoldingsSection from '@/components/holdings/HoldingsSection';
 import WidgetsSection from '@/components/vis/WidgetsSection';
@@ -10,7 +10,7 @@ import PortfolioSummarySection from '@/components/dashboard/PortfolioSummarySect
 import GrantsList from '@/components/grants/GrantsList';
 import PayoutMiniGauge from '@/components/compliance/PayoutMiniGauge';
 import TaskSummaryWidget from '@/components/tasks/TaskSummaryWidget';
-import { loadOrgViewConfig, resolveDashboardSections, type DashboardSectionId } from '@/lib/view-config';
+import { loadOrgViewConfig, resolveDashboardSections, type DashboardSectionId } from '@/lib/organizations/view-config';
 import { createPortfolioMetricsRepository } from '@/lib/api/repositories/metrics';
 
 export const dynamic = 'force-dynamic';
@@ -23,7 +23,7 @@ async function getBaseUrl() {
   return `${proto}://${host}`;
 }
 
-const getSupabase = createSupabaseServerClient;
+const getSupabase = createServerClient;
 
 export default async function Dashboard({ searchParams }: { searchParams?: Promise<Record<string, string | string[] | undefined>> }) {
   const sp = (await searchParams ?? {}) as Record<string, any>;

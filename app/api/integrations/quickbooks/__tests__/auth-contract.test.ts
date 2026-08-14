@@ -2,8 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
 
 describe('QB OAuth param contract', () => {
-  it('IntegrationsTab connect URL uses org_id not orgId', () => {
-    const src = readFileSync('components/settings/IntegrationsTab.tsx', 'utf8');
+  it('QuickBooks settings connect URL uses org_id not orgId', () => {
+    const src = readFileSync('components/integrations/QuickBooksSettings.tsx', 'utf8');
     expect(src).not.toMatch(/[?&]orgId=/);
   });
 });

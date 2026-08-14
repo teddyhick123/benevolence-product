@@ -1,4 +1,4 @@
-import { createSupabaseServerClient } from '@/lib/supabase';
+import { createServerClient } from '@/lib/api/server-client';
 import type {
   ContributionRow,
   FactRow,
@@ -9,7 +9,7 @@ import type {
 import { getPrimaryHoldingContact } from '@/lib/holdings/contacts';
 
 async function fetchHolding(holdingId: string) {
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createServerClient();
   const { data, error } = await supabase
     .from('holdings')
     .select('id, org_id, portfolio_id, name, asset_type, description, website, location_city, location_state, location_country, theory_of_action, cost_per_outcome, cost_per_outcome_unit, funds_allocated, total_org_funding, status, sector, as_of, investees(charity_id)')
@@ -40,13 +40,13 @@ export async function resolveHoldingPhotoUrl(photo: string | null | undefined) {
   if (!photo) return null;
   if (/^https?:\/\//.test(photo) || photo.startsWith('data:')) return photo;
 
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createServerClient();
   const { data } = await supabase.storage.from('holding-contact-photos').createSignedUrl(photo, 3600);
   return data?.signedUrl ?? null;
 }
 
 async function fetchFacts(holdingId: string): Promise<FactRow[]> {
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createServerClient();
   const { data, error } = await supabase
     .from('metric_facts')
     .select('id, holding_id, metric_code, value, updated_at, period_start, period_end, source')
@@ -57,7 +57,7 @@ async function fetchFacts(holdingId: string): Promise<FactRow[]> {
 }
 
 async function fetchContributions(portfolioId: string, holdingId: string): Promise<ContributionRow[]> {
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createServerClient();
   const { data, error } = await supabase
     .from('holding_contributions')
     .select('id, portfolio_id, holding_id, amount_usd, contribution_date, notes')
@@ -68,7 +68,7 @@ async function fetchContributions(portfolioId: string, holdingId: string): Promi
 }
 
 async function fetchMetricNames(portfolioId: string): Promise<Map<string, string>> {
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createServerClient();
   const metricMap = new Map<string, string>();
   const { data: portfolio } = await supabase
     .from('portfolios')
@@ -89,7 +89,7 @@ async function fetchMetricNames(portfolioId: string): Promise<Map<string, string
 }
 
 async function fetchGrantDetails(holdingId: string) {
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createServerClient();
   const { data } = await supabase
     .from('grants')
     .select('next_report_due')
@@ -99,7 +99,7 @@ async function fetchGrantDetails(holdingId: string) {
 }
 
 async function fetchLocations(portfolioId: string, holdingId: string): Promise<HoldingLocationRow[]> {
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createServerClient();
   const { data, error } = await supabase
     .from('holding_locations')
     .select('id, holding_id, portfolio_id, name, lon, lat, status, tags')
@@ -110,7 +110,7 @@ async function fetchLocations(portfolioId: string, holdingId: string): Promise<H
 }
 
 async function fetchOrgSubmittedFacts(holdingId: string) {
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createServerClient();
   const { data, error } = await supabase
     .from('staging_metric_facts')
     .select(`
@@ -132,7 +132,7 @@ async function fetchOrgSubmittedFacts(holdingId: string) {
 }
 
 async function fetchLinkedOrg(orgId: string) {
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createServerClient();
   const { data, error } = await supabase
     .from('organizations')
     .select('id, name')

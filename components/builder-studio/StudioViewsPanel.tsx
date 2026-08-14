@@ -9,7 +9,7 @@ import {
   DEFAULT_ENTITY_VOCABULARY,
   GRANT_MODULE_VIEWS,
   type EntityVocabularyType,
-} from '@/lib/view-config';
+} from '@/lib/organizations/view-config';
 import StudioChangePreview from './StudioChangePreview';
 
 interface StudioViewsPanelProps {

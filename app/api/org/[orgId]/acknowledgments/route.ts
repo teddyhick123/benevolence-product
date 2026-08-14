@@ -58,7 +58,26 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       return json({ error: error.message }, { status: 500 });
     }
 
-    return json({ letters, count: letters?.length || 0 });
+    const contributionIds = Array.from(new Set(
+      (letters || []).flatMap((letter) => Array.isArray(letter.contribution_ids) ? letter.contribution_ids : [])
+    ));
+    const { data: contributions, error: contributionsError } = contributionIds.length
+      ? await supabase
+        .from('contributions_received')
+        .select('id, amount, contribution_date')
+        .eq('org_id', orgId)
+        .in('id', contributionIds)
+      : { data: [], error: null };
+    if (contributionsError) return json({ error: contributionsError.message }, { status: 500 });
+
+    const contributionsById = new Map((contributions || []).map((contribution) => [contribution.id, contribution]));
+    return json({
+      letters: (letters || []).map((letter) => ({
+        ...letter,
+        contributions_received: contributionsById.get(letter.contribution_ids?.[0]) ?? null,
+      })),
+      count: letters?.length || 0,
+    });
   } catch (err: any) {
     return json({ error: err.message }, { status: 500 });
   }

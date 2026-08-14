@@ -4,16 +4,17 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { resolveInvitationToken } from '@/lib/api/repositories/public-invitations';
 import { stubQuery } from '@/tests/helpers/supabase-mock';
 
-const { mockCreateElevatedClient, mockFrom } = vi.hoisted(() => ({
+const { mockCreateElevatedClient, mockFrom, mockRpc } = vi.hoisted(() => ({
   mockCreateElevatedClient: vi.fn(),
   mockFrom: vi.fn(),
+  mockRpc: vi.fn(),
 }));
 
 vi.mock('@/lib/api/admin-client', () => ({
   createElevatedClient: mockCreateElevatedClient,
 }));
 
-const db = { from: mockFrom };
+const db = { from: mockFrom, rpc: mockRpc };
 const invitation = {
   id: 'invite-1',
   org_id: 'org-1',
@@ -69,37 +70,20 @@ describe('resolveInvitationToken', () => {
     expect(update.calls).toContainEqual({ method: 'eq', args: ['org_id', 'org-1'] });
   });
 
-  it('scopes membership creation, invitation acceptance, and audit to the resolved org', async () => {
+  it('accepts through the single token-bound transaction for the resolved invitation', async () => {
     const lookup = invitationLookup();
-    const membershipLookup = stubQuery(
-      { data: null, error: null },
-      { maybeSingle: { data: null, error: null } }
-    );
-    const membershipInsert = stubQuery({ data: null, error: null });
-    const invitationUpdate = stubQuery({ data: null, error: null });
-    const audit = stubQuery({ data: null, error: null });
-    mockFrom
-      .mockReturnValueOnce(lookup)
-      .mockReturnValueOnce(membershipLookup)
-      .mockReturnValueOnce(membershipInsert)
-      .mockReturnValueOnce(invitationUpdate)
-      .mockReturnValueOnce(audit);
+    mockFrom.mockReturnValueOnce(lookup);
+    mockRpc.mockResolvedValueOnce({ data: { org_id: 'org-1', idempotent: false }, error: null });
 
     const result = await resolveInvitationToken('raw-token');
     if (!result.ok) throw new Error('expected resolved invitation');
     await result.repository.accept('user-1');
 
-    expect(membershipLookup.calls).toContainEqual({ method: 'eq', args: ['org_id', 'org-1'] });
-    expect(membershipLookup.calls).toContainEqual({ method: 'eq', args: ['user_id', 'user-1'] });
-    expect(membershipInsert.calls).toContainEqual({
-      method: 'insert',
-      args: [expect.objectContaining({ org_id: 'org-1', user_id: 'user-1', role: 'member' })],
-    });
-    expect(invitationUpdate.calls).toContainEqual({ method: 'eq', args: ['id', 'invite-1'] });
-    expect(invitationUpdate.calls).toContainEqual({ method: 'eq', args: ['org_id', 'org-1'] });
-    expect(audit.calls).toContainEqual({
-      method: 'insert',
-      args: [expect.objectContaining({ org_id: 'org-1', actor_id: 'user-1' })],
+    expect(mockRpc).toHaveBeenCalledWith('accept_org_invitation', {
+      p_org_id: 'org-1',
+      p_invitation_id: 'invite-1',
+      p_invitation_token: 'raw-token',
+      p_user_id: 'user-1',
     });
   });
 

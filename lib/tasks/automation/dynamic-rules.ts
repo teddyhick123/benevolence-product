@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@/lib/database-client';
 import type { LifecycleStage } from '@/lib/grants/lifecycle-shared';
-import { createAdminClient } from '@/lib/supabase';
+import { createElevatedClient } from '@/lib/api/admin-client';
 import { CUSTOM_FIELD_ENTITY_TYPES, typedValuePatch, type CustomFieldEntityType } from '@/lib/custom-fields';
 import { upsertGeneratedTask } from './task-writer';
 import type { ProducerOptions, TaskEntityType, TaskProducerResult, UpsertGeneratedTaskInput } from './types';
@@ -499,7 +499,7 @@ export async function dateRelativeAutomationProducer(
   const { orgId, now: nowOverride } = options;
   if (!orgId) return [];
 
-  const db = createAdminClient();
+  const db = createElevatedClient();
   const today = dateOnly(nowOverride ?? new Date());
   const result: TaskProducerResult = {
     producer: 'dynamic_automation_rules',

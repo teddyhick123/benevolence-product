@@ -1,7 +1,7 @@
 import { requirePortfolioAccess, isAccessDenied } from '@/lib/api/access';
 import { jsonError, jsonOk } from '@/lib/api/responses';
 import { createTaxCarryforwardSchema } from '@/lib/schemas/tax';
-import { validateRequest } from '@/lib/validation';
+import { validateRequest } from '@/lib/api/validation';
 import { z } from 'zod';
 
 const applyCarryforwardApplicationsSchema = z.object({

@@ -1,7 +1,7 @@
 import { createElevatedClient } from '@/lib/api/admin-client';
 import type { OrgAccessContext } from '@/lib/api/principals';
 import type { StartWorkflowInput, UpdateWorkflowTaskInput } from '@/lib/schemas/workflow';
-import { isWorkspaceManager } from '@/lib/roles';
+import { isWorkspaceManager } from '@/lib/organizations/roles';
 
 type WorkflowRepositoryScope = Pick<OrgAccessContext, 'orgId'> & {
   actorId: string;

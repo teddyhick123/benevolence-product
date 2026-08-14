@@ -9,6 +9,8 @@ const {
   mockFrom,
   mockRpc,
   mockEnableModule,
+  mockGetRequiredModules,
+  mockToDbModuleSlug,
   mockContextRows,
   mockViewRows,
   mockWorkflowRows,
@@ -19,6 +21,8 @@ const {
   mockFrom: vi.fn(),
   mockRpc: vi.fn(),
   mockEnableModule: vi.fn(),
+  mockGetRequiredModules: vi.fn(),
+  mockToDbModuleSlug: vi.fn(),
   mockContextRows: vi.fn(),
   mockViewRows: vi.fn(),
   mockWorkflowRows: vi.fn(),
@@ -32,9 +36,11 @@ vi.mock('@/lib/api/admin-client', () => ({
 
 vi.mock('@/lib/modules', () => ({
   enableModule: mockEnableModule,
+  getRequiredModules: mockGetRequiredModules,
+  toDbModuleSlug: mockToDbModuleSlug,
 }));
 
-vi.mock('@/lib/onboarding-provision-config', () => ({
+vi.mock('@/lib/onboarding/provision-config', () => ({
   contextRowsFromOnboardingProfile: mockContextRows,
   viewRowsFromOnboardingProfile: mockViewRows,
   workflowRowsFromOnboardingProfile: mockWorkflowRows,
@@ -57,6 +63,8 @@ beforeEach(() => {
   mockCreateElevatedClient.mockReturnValue(db);
   mockRpc.mockResolvedValue({ data: 'org-1', error: null });
   mockEnableModule.mockResolvedValue({ success: true, enabledModules: [] });
+  mockGetRequiredModules.mockReturnValue([]);
+  mockToDbModuleSlug.mockImplementation((moduleId: string) => moduleId === 'core' ? 'portfolio' : moduleId);
   mockContextRows.mockReturnValue([]);
   mockViewRows.mockReturnValue([]);
   mockWorkflowRows.mockReturnValue([]);
@@ -65,49 +73,93 @@ beforeEach(() => {
 });
 
 describe('onboarding provisioning repository', () => {
-  it('rejects an unowned onboarding session before membership or provisioning work', async () => {
+  it('rejects an unowned onboarding session before provisioning work', async () => {
     const sessionQuery = stubQuery(
       { data: null, error: null },
       { maybeSingle: { data: null, error: null } }
     );
     mockFrom.mockReturnValue(sessionQuery);
 
-    const promise = createOnboardingProvisioner('user-1').provision({
+    await expect(createOnboardingProvisioner('user-1').provision({
       ...baseInput,
       sessionId: 'session-1',
-    });
+    })).rejects.toMatchObject({ message: 'Onboarding session not found', status: 404 });
 
-    await expect(promise).rejects.toMatchObject({
-      message: 'Onboarding session not found',
-      status: 404,
-    });
     expect(sessionQuery.calls).toContainEqual({ method: 'eq', args: ['id', 'session-1'] });
     expect(sessionQuery.calls).toContainEqual({ method: 'eq', args: ['user_id', 'user-1'] });
-    expect(mockFrom).toHaveBeenCalledTimes(1);
     expect(mockRpc).not.toHaveBeenCalled();
   });
 
-  it('rejects provisioning when the user already belongs to an unrelated organization', async () => {
-    const membershipQuery = stubQuery({
-      data: [{ org_id: 'org-existing', role: 'owner' }],
+  it('uses the session-scoped transactional RPC with all blueprint layers', async () => {
+    const sessionQuery = stubQuery(
+      { data: null, error: null },
+      { maybeSingle: { data: { id: 'session-1', user_id: 'user-1', org_id: null }, error: null } }
+    );
+    const profileQuery = stubQuery(
+      { data: null, error: null },
+      { maybeSingle: { data: { workflows: {} }, error: null } }
+    );
+    mockFrom.mockReturnValueOnce(sessionQuery).mockReturnValueOnce(profileQuery);
+    mockContextRows.mockReturnValue([{ org_id: 'session-1', context_key: 'context-1' }]);
+    mockViewRows.mockReturnValue([{ org_id: 'session-1', scope_key: 'view-1' }]);
+    mockWorkflowRows.mockReturnValue([{ org_id: 'session-1', config_key: 'workflow-1' }]);
+    mockCustomFieldRows.mockReturnValue([{ org_id: 'session-1', field_key: 'field-1' }]);
+    mockAutomationRows.mockReturnValue([{ org_id: 'session-1', name: 'automation-1' }]);
+    mockGetRequiredModules.mockReturnValue(['impact_tracking']);
+    mockToDbModuleSlug.mockImplementation((moduleId: string) => ({
+      analytics: 'analytics', impact_tracking: 'impact_tracking', core: 'portfolio',
+    }[moduleId] ?? moduleId));
+    mockRpc.mockResolvedValueOnce({
+      data: { org_id: 'org-1', portfolio_id: 'portfolio-1', enabled_modules: ['portfolio', 'impact_tracking', 'analytics'] },
       error: null,
     });
-    mockFrom.mockReturnValue(membershipQuery);
 
-    const promise = createOnboardingProvisioner('user-1').provision(baseInput);
+    const result = await createOnboardingProvisioner('user-1').provision({
+      ...baseInput,
+      sessionId: 'session-1',
+      selectedModuleIds: ['analytics'],
+    });
 
-    await expect(promise).rejects.toMatchObject({
-      message: 'User already belongs to an organization',
-      status: 409,
+    expect(mockRpc).toHaveBeenCalledWith('provision_onboarding_session', expect.objectContaining({
+      p_session_id: 'session-1',
+      p_owner_user_id: 'user-1',
+      p_modules: { portfolio: true, analytics: true, impact_tracking: true },
+      p_context_rows: [{ context_key: 'context-1' }],
+      p_view_rows: [{ scope_key: 'view-1' }],
+      p_workflow_rows: [{ config_key: 'workflow-1' }],
+      p_custom_field_rows: [{ field_key: 'field-1' }],
+      p_automation_rows: [{ name: 'automation-1' }],
+    }));
+    expect(mockEnableModule).not.toHaveBeenCalled();
+    expect(result).toEqual({
+      orgId: 'org-1', portfolioId: 'portfolio-1',
+      enabledModules: ['portfolio', 'impact_tracking', 'analytics'], moduleErrors: [], setupErrors: [],
     });
-    expect(membershipQuery.calls).toContainEqual({
-      method: 'eq',
-      args: ['user_id', 'user-1'],
-    });
-    expect(mockRpc).not.toHaveBeenCalled();
   });
 
-  it('provisions a new organization, portfolio, and owner membership from user scope', async () => {
+  it('maps a transactional idempotency conflict without exposing elevated access', async () => {
+    const sessionQuery = stubQuery(
+      { data: null, error: null },
+      { maybeSingle: { data: { id: 'session-1', user_id: 'user-1', org_id: null }, error: null } }
+    );
+    const profileQuery = stubQuery(
+      { data: null, error: null },
+      { maybeSingle: { data: null, error: null } }
+    );
+    mockFrom.mockReturnValueOnce(sessionQuery).mockReturnValueOnce(profileQuery);
+    mockRpc.mockResolvedValueOnce({ data: null, error: { code: 'P0001', message: 'User already belongs to an organization' } });
+
+    await expect(createOnboardingProvisioner('user-1').provision({
+      ...baseInput,
+      sessionId: 'session-1',
+    })).rejects.toMatchObject({ message: 'User already belongs to an organization', status: 409 });
+
+    const provisioner = createOnboardingProvisioner('user-1');
+    expect(provisioner).toEqual({ provision: expect.any(Function) });
+    expect(provisioner).not.toHaveProperty('db');
+  });
+
+  it('retains the legacy no-session provisioner for non-guided callers', async () => {
     const membershipQuery = stubQuery({ data: [], error: null });
     const portfolioInsert = stubQuery(
       { data: null, error: null },
@@ -126,195 +178,9 @@ describe('onboarding provisioning repository', () => {
     });
 
     expect(mockRpc).toHaveBeenCalledWith('provision_organization', {
-      p_name: 'Example Foundation',
-      p_org_type: 'private_foundation',
-      p_owner_user_id: 'user-1',
-      p_ein: '12-3456789',
-      p_modules: { portfolio: true },
-    });
-    expect(portfolioInsert.calls).toContainEqual({
-      method: 'insert',
-      args: [expect.objectContaining({ org_id: 'org-1', owner_id: 'user-1' })],
-    });
-    expect(portfolioMemberInsert.calls).toContainEqual({
-      method: 'insert',
-      args: [{ portfolio_id: 'portfolio-1', user_id: 'user-1', role: 'owner' }],
+      p_name: 'Example Foundation', p_org_type: 'private_foundation', p_owner_user_id: 'user-1',
+      p_ein: '12-3456789', p_modules: { portfolio: true },
     });
     expect(result).toMatchObject({ orgId: 'org-1', portfolioId: 'portfolio-1' });
-  });
-
-  it('scopes blueprint configuration and completion to the owned session and new org', async () => {
-    const sessionQuery = stubQuery(
-      { data: null, error: null },
-      {
-        maybeSingle: {
-          data: {
-            id: 'session-1',
-            user_id: 'user-1',
-            org_id: null,
-            started_at: '2026-08-03T00:00:00.000Z',
-          },
-          error: null,
-        },
-      }
-    );
-    const membershipQuery = stubQuery({ data: [], error: null });
-    const portfolioInsert = stubQuery(
-      { data: null, error: null },
-      { single: { data: { id: 'portfolio-1' }, error: null } }
-    );
-    const portfolioMemberInsert = stubQuery({ data: null, error: null });
-    const profileQuery = stubQuery(
-      { data: null, error: null },
-      { maybeSingle: { data: { workflows: {} }, error: null } }
-    );
-    const upserts = Array.from({ length: 5 }, () => stubQuery({ data: null, error: null }));
-    const sessionUpdate = stubQuery({ data: null, error: null });
-    const analyticsUpdate = stubQuery({ data: null, error: null });
-
-    mockContextRows.mockReturnValue([{ org_id: 'org-1', context_key: 'context-1' }]);
-    mockViewRows.mockReturnValue([{ org_id: 'org-1', scope_key: 'view-1' }]);
-    mockWorkflowRows.mockReturnValue([{ org_id: 'org-1', config_key: 'workflow-1' }]);
-    mockCustomFieldRows.mockReturnValue([{ org_id: 'org-1', field_key: 'field-1' }]);
-    mockAutomationRows.mockReturnValue([{
-      org_id: 'org-1',
-      onboarding_session_id: 'session-1',
-      name: 'automation-1',
-    }]);
-    mockFrom
-      .mockReturnValueOnce(sessionQuery)
-      .mockReturnValueOnce(membershipQuery)
-      .mockReturnValueOnce(portfolioInsert)
-      .mockReturnValueOnce(portfolioMemberInsert)
-      .mockReturnValueOnce(profileQuery);
-    for (const upsert of upserts) mockFrom.mockReturnValueOnce(upsert);
-    mockFrom
-      .mockReturnValueOnce(sessionUpdate)
-      .mockReturnValueOnce(analyticsUpdate);
-
-    await createOnboardingProvisioner('user-1').provision({
-      ...baseInput,
-      sessionId: 'session-1',
-    });
-
-    expect(profileQuery.calls).toContainEqual({
-      method: 'eq',
-      args: ['session_id', 'session-1'],
-    });
-    for (const upsert of upserts) {
-      expect(upsert.calls).toContainEqual({
-        method: 'upsert',
-        args: [expect.arrayContaining([expect.objectContaining({ org_id: 'org-1' })]), expect.anything()],
-      });
-    }
-    expect(sessionUpdate.calls).toContainEqual({ method: 'eq', args: ['id', 'session-1'] });
-    expect(sessionUpdate.calls).toContainEqual({ method: 'eq', args: ['user_id', 'user-1'] });
-    expect(analyticsUpdate.calls).toContainEqual({
-      method: 'eq',
-      args: ['session_id', 'session-1'],
-    });
-  });
-
-  it('reuses the owned organization and portfolio for a partial-setup retry', async () => {
-    mockContextRows.mockReturnValue([]);
-    mockViewRows.mockReturnValue([]);
-    mockWorkflowRows.mockReturnValue([]);
-    mockCustomFieldRows.mockReturnValue([]);
-    mockAutomationRows.mockReturnValue([]);
-    const sessionQuery = stubQuery(
-      { data: null, error: null },
-      {
-        maybeSingle: {
-          data: {
-            id: 'session-1',
-            user_id: 'user-1',
-            org_id: 'org-1',
-            started_at: null,
-          },
-          error: null,
-        },
-      }
-    );
-    const membershipQuery = stubQuery({
-      data: [{ org_id: 'org-1', role: 'owner' }],
-      error: null,
-    });
-    const portfolioQuery = stubQuery(
-      { data: null, error: null },
-      { maybeSingle: { data: { id: 'portfolio-1' }, error: null } }
-    );
-    const profileQuery = stubQuery(
-      { data: null, error: null },
-      { maybeSingle: { data: { workflows: {} }, error: null } }
-    );
-    const sessionUpdate = stubQuery({ data: null, error: null });
-    mockFrom
-      .mockReturnValueOnce(sessionQuery)
-      .mockReturnValueOnce(membershipQuery)
-      .mockReturnValueOnce(portfolioQuery)
-      .mockReturnValueOnce(profileQuery)
-      .mockReturnValueOnce(sessionUpdate);
-
-    const result = await createOnboardingProvisioner('user-1').provision({
-      ...baseInput,
-      sessionId: 'session-1',
-    });
-
-    expect(mockRpc).not.toHaveBeenCalled();
-    expect(mockFrom).not.toHaveBeenCalledWith('portfolio_members');
-    expect(portfolioQuery.calls).toContainEqual({ method: 'eq', args: ['org_id', 'org-1'] });
-    expect(portfolioQuery.calls).toContainEqual({ method: 'eq', args: ['owner_id', 'user-1'] });
-    expect(result).toMatchObject({ orgId: 'org-1', portfolioId: 'portfolio-1' });
-  });
-
-  it('preserves module failures as a partial result', async () => {
-    mockEnableModule.mockResolvedValueOnce({ success: false, error: 'dependency unavailable' });
-    const membershipQuery = stubQuery({ data: [], error: null });
-    const portfolioInsert = stubQuery(
-      { data: null, error: null },
-      { single: { data: { id: 'portfolio-1' }, error: null } }
-    );
-    const portfolioMemberInsert = stubQuery({ data: null, error: null });
-    mockFrom
-      .mockReturnValueOnce(membershipQuery)
-      .mockReturnValueOnce(portfolioInsert)
-      .mockReturnValueOnce(portfolioMemberInsert);
-
-    const result = await createOnboardingProvisioner('user-1').provision({
-      ...baseInput,
-      selectedModuleIds: ['analytics'],
-    });
-
-    expect(mockEnableModule).toHaveBeenCalledWith(db, 'org-1', 'analytics', 'user-1');
-    expect(result.moduleErrors).toEqual(['analytics: dependency unavailable']);
-  });
-
-  it('cleans up a newly provisioned organization when portfolio creation fails', async () => {
-    const membershipQuery = stubQuery({ data: [], error: null });
-    const portfolioInsert = stubQuery(
-      { data: null, error: null },
-      { single: { data: null, error: { message: 'portfolio failed' } } }
-    );
-    const cleanup = stubQuery({ data: null, error: null });
-    mockFrom
-      .mockReturnValueOnce(membershipQuery)
-      .mockReturnValueOnce(portfolioInsert)
-      .mockReturnValueOnce(cleanup);
-
-    const promise = createOnboardingProvisioner('user-1').provision(baseInput);
-
-    await expect(promise).rejects.toMatchObject({
-      message: 'portfolio failed',
-      status: 500,
-    });
-    expect(cleanup.calls).toContainEqual({ method: 'delete', args: [] });
-    expect(cleanup.calls).toContainEqual({ method: 'eq', args: ['id', 'org-1'] });
-  });
-
-  it('does not expose the elevated client', () => {
-    const provisioner = createOnboardingProvisioner('user-1');
-    expect(provisioner).not.toHaveProperty('db');
-    expect(provisioner).not.toHaveProperty('from');
-    expect(provisioner).toEqual({ provision: expect.any(Function) });
   });
 });

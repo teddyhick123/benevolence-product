@@ -1,6 +1,6 @@
-import type { createAdminClient } from '@/lib/supabase';
+import type { createElevatedClient } from '@/lib/api/admin-client';
 
-type AdminClient = ReturnType<typeof createAdminClient>;
+type AdminClient = ReturnType<typeof createElevatedClient>;
 
 export interface QBExportAttemptInput {
   orgId: string;

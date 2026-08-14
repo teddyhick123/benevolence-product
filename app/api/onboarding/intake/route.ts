@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { isAccessDenied, requireUserAccess } from '@/lib/api/access';
 import { createOnboardingRepository } from '@/lib/api/repositories/onboarding';
 import { jsonError, jsonOk } from '@/lib/api/responses';
-import { OnboardingAssistant, type QuickIntake } from '@/lib/onboarding-assistant';
+import { OnboardingAssistant, type QuickIntake } from '@/lib/onboarding/assistant';
 
 export const runtime = 'nodejs';
 

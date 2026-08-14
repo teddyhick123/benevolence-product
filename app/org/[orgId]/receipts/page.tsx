@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useParams } from 'next/navigation';
-import { createBrowserClient as createClient } from '@/lib/supabase-browser';
+import { useContributionsData } from '@/lib/contributions/hooks';
 
 type ReceiptData = {
   id: string;
@@ -27,50 +27,11 @@ export default function ReceiptsPage() {
   const params = useParams();
   const organizationId = params.orgId as string;
 
-  const [loading, setLoading] = useState(true);
-  const [receipts, setReceipts] = useState<ReceiptData[]>([]);
   const [statusFilter, setStatusFilter] = useState('');
-
-  useEffect(() => {
-    async function fetchData() {
-      setLoading(true);
-      try {
-        const supabase = createClient();
-
-        const { data, error } = await supabase
-          .from('contributions_received')
-          .select(`
-            id,
-            contribution_date,
-            amount,
-            tax_deductible_amount,
-            receipt_status,
-            receipt_number,
-            receipt_generated_at,
-            receipt_sent_at,
-            donors (
-              id,
-              first_name,
-              last_name,
-              organization_name,
-              is_organization,
-              email
-            )
-          `)
-          .eq('org_id', organizationId)
-          .gte('amount', 250) // IRS threshold
-          .order('contribution_date', { ascending: false });
-
-        if (!error) setReceipts((data as unknown as ReceiptData[]) || []);
-      } catch (err) {
-        console.error('Error fetching receipts:', err);
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    fetchData();
-  }, [organizationId]);
+  const { data, isLoading: loading } = useContributionsData<{ contributions?: ReceiptData[] }>(
+    organizationId ? `/api/org/${organizationId}/contributions?min_amount=250&limit=100` : null,
+  );
+  const receipts = data?.contributions || [];
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {

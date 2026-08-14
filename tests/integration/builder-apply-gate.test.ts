@@ -22,9 +22,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import {
   buildFileManifest,
   manifestHash,
-  buildUnifiedDiff,
   sha256Hex,
   canonicalJson,
+  ARTIFACT_KEYS,
 } from '@/lib/builder/artifacts';
 import { REVIEW_POLICY_VERSION } from '@/lib/builder/proposal-state';
 
@@ -46,7 +46,9 @@ const FILES = [
 ];
 const MANIFEST_INPUT = FILES.map(f => ({ path: f.path, content: f.content }));
 const M_HASH = manifestHash(buildFileManifest(MANIFEST_INPUT));
-const D_HASH = sha256Hex(buildUnifiedDiff(MANIFEST_INPUT));
+const AUTHORITATIVE_DIFF = 'diff --git a/components/volunteer/VolunteerList.tsx b/components/volunteer/VolunteerList.tsx\\nnew file mode 100644';
+const AUTHORITATIVE_DIFF_KEY = `${ORG_ID}/${PROPOSAL_ID}/${REVISION_ID}/${ARTIFACT_KEYS.authoritativeDiff}`;
+const AUTHORITATIVE_DIFF_HASH = sha256Hex(AUTHORITATIVE_DIFF);
 
 // ── test-controlled state ───────────────────────────────────────────────────
 let _authUser: { id: string } | null;
@@ -74,6 +76,7 @@ const applyMock = vi.fn(async (..._args: unknown[]) => ({
 }));
 const getDefaultBranchShaMock = vi.fn(async () => _defaultBranchSha);
 const readJsonArtifactMock = vi.fn(async (..._args: unknown[]) => _filesArtifact);
+const readTextArtifactMock = vi.fn(async (..._args: unknown[]) => AUTHORITATIVE_DIFF);
 
 function computeResult(state: {
   table: string;
@@ -181,16 +184,17 @@ vi.mock('@/lib/builder/github-apply', () => ({
   getDefaultBranchSha: (...args: unknown[]) => getDefaultBranchShaMock(...(args as [])),
 }));
 
-vi.mock('@/lib/org-capabilities', () => ({
+vi.mock('@/lib/organizations/capabilities', () => ({
   canReviewImplementation: vi.fn(async () => _canReview),
 }));
 
-// Keep the real hashing functions; only stub the storage read.
+// Keep the real hashing functions; only stub artifact reads.
 vi.mock('@/lib/builder/artifacts', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/builder/artifacts')>();
   return {
     ...actual,
     readJsonArtifact: (...args: unknown[]) => readJsonArtifactMock(...args),
+    readTextArtifact: (...args: unknown[]) => readTextArtifactMock(...args),
   };
 });
 
@@ -221,7 +225,9 @@ function healthyRevision(): Record<string, unknown> {
     base_commit_sha: BASE_SHA,
     head_commit_sha: null,
     manifest_hash: M_HASH,
-    diff_hash: D_HASH,
+    diff_hash: 'legacy-provisional-diff-hash',
+    authoritative_diff_hash: AUTHORITATIVE_DIFF_HASH,
+    authoritative_diff_artifact_key: AUTHORITATIVE_DIFF_KEY,
   };
 }
 
@@ -256,6 +262,7 @@ beforeEach(() => {
   applyMock.mockClear();
   getDefaultBranchShaMock.mockClear();
   readJsonArtifactMock.mockClear();
+  readTextArtifactMock.mockClear();
 });
 
 describe('POST apply — auth and preconditions', () => {
@@ -368,12 +375,21 @@ describe('POST apply — artifact tamper guard', () => {
     expect(applyMock).not.toHaveBeenCalled();
   });
 
-  it('409 when the recomputed diff hash does not match the recorded hash', async () => {
-    _revisionRow = { ...healthyRevision(), diff_hash: 'deadbeefdeadbeefdeadbeefdeadbeefdeadbeef' };
+  it('409 when the authoritative diff artifact hash does not match the recorded hash', async () => {
+    _revisionRow = { ...healthyRevision(), authoritative_diff_hash: 'deadbeefdeadbeefdeadbeefdeadbeefdeadbeef' };
     const res = await call();
     expect(res.status).toBe(409);
     const body = await res.json();
     expect(body.error).toMatch(/do not match recorded hashes/i);
+    expect(applyMock).not.toHaveBeenCalled();
+  });
+
+  it('409 when authoritative diff evidence is absent', async () => {
+    _revisionRow = { ...healthyRevision(), authoritative_diff_hash: null, authoritative_diff_artifact_key: null };
+    const res = await call();
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toMatch(/authoritative diff evidence/i);
+    expect(readJsonArtifactMock).not.toHaveBeenCalled();
     expect(applyMock).not.toHaveBeenCalled();
   });
 });

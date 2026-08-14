@@ -2,7 +2,7 @@ import { requirePortfolioAccess, isAccessDenied } from '@/lib/api/access';
 import { createTaxRepository } from '@/lib/api/repositories/tax';
 import { jsonError, jsonOk } from '@/lib/api/responses';
 import { createTaxProfileSchema, updateTaxProfileSchema } from '@/lib/schemas/tax';
-import { validateRequest } from '@/lib/validation';
+import { validateRequest } from '@/lib/api/validation';
 
 /**
  * GET /api/portfolio/[id]/tax/profile?year=2024

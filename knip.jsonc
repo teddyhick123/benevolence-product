@@ -10,7 +10,7 @@
     "playwright.config.ts",
     "scripts/**/*.{ts,mjs}",
     "supabase/functions/**/index.ts",
-    "lib/__tests__/database-client-types.contract.ts"
+    "tests/contracts/database-client-types.contract.ts"
   ],
   "project": [
     "**/*.{ts,tsx,js,mjs,cjs}",

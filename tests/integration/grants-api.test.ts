@@ -23,7 +23,7 @@ let _createGrantResult: {
 let _portfolioData: Record<string, unknown> | null = { id: 'port-1', org_id: 'org-1' };
 let _investeeData: Record<string, unknown> | null = { id: 'inv-1', display_name: 'Test Grantee' };
 
-vi.mock('@/lib/supabase', () => ({
+vi.mock('@/lib/api/server-client', () => ({
   createServerClient: vi.fn(async () => ({
     auth: {
       getUser: vi.fn(async () => ({ data: { user: _authUser } })),

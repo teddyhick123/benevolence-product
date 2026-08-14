@@ -57,7 +57,7 @@ const mockFrom = vi.fn();
 const mockAuth = { getUser: vi.fn() };
 
 // Mock only at the DB boundary — never mock application code.
-vi.mock('@/lib/supabase', () => ({
+vi.mock('@/lib/api/server-client', () => ({
   supabasePublic: vi.fn(async () => ({
     rpc:  mockRpc,
     from: mockFrom,

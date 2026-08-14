@@ -41,6 +41,7 @@ export async function POST(_req: NextRequest, { params }: RouteParams) {
     });
     const pdfRepository = createAcknowledgmentPdfRepository(access.context);
     const storagePath = await pdfRepository.upload(id, pdfBuffer);
+    const previousStoragePath = letter.storage_path;
 
     // Store the path; generate a short-lived signed URL (never store public URLs for donor PII)
     const { error: updateError } = await access.context.db
@@ -50,12 +51,32 @@ export async function POST(_req: NextRequest, { params }: RouteParams) {
       .eq('org_id', orgId);
 
     if (updateError) {
-      await pdfRepository.remove(id);
+      try {
+        await pdfRepository.remove(id, storagePath);
+      } catch (error) {
+        console.warn(`[acknowledgments] could not clean up uncommitted PDF for ${id}:`, error);
+      }
       return jsonError(updateError.message, 500);
     }
 
-    const signedUrl = await pdfRepository.createSignedUrl(id);
-    return jsonOk({ pdf_url: signedUrl });
+    try {
+      const signedUrl = await pdfRepository.createSignedUrl(storagePath);
+      if (pdfRepository.isScopedPath(id, previousStoragePath) && previousStoragePath !== storagePath) {
+        // Retirement is deliberately best-effort: the database already points
+        // at the new immutable object, so a cleanup failure cannot lose it.
+        try {
+          await pdfRepository.remove(id, previousStoragePath);
+        } catch (error) {
+          console.warn(`[acknowledgments] could not retire prior PDF for ${id}:`, error);
+        }
+      }
+      return jsonOk({ pdf_url: signedUrl });
+    } catch {
+      // The durable path has already committed. Returning success makes the
+      // retry semantics honest and avoids treating a signing outage as a lost
+      // document; a later generation can obtain a new signed URL.
+      return jsonOk({ pdf_url: null, pdf_ready: true });
+    }
   } catch (error) {
     return jsonError(error instanceof Error ? error.message : 'PDF generation failed', 500);
   }

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
-import { supabasePublic } from '@/lib/supabase';
+import { getRequestDatabase } from '@/lib/api/server-client';
 import { createHoldingSchema } from '@/lib/schemas/portfolio';
-import { validateRequest } from '@/lib/validation';
+import { validateRequest } from '@/lib/api/validation';
 
 function normalizeHoldingStatus(status: string | null | undefined): string | null {
   if (!status) return null;
@@ -41,7 +41,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
   const limit = Math.max(0, Math.min(Number.isFinite(rawLimit) ? rawLimit : 50, 200));
   const offset = Math.max(0, Number.isFinite(rawOffset) ? rawOffset : 0);
 
-  const sb = await supabasePublic();
+  const sb = await getRequestDatabase();
 
   // Explicit auth check — RLS blocks unauthenticated reads, but we should return
   // a clear 401 rather than an empty 200 for unauthenticated requests.
@@ -94,7 +94,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id: portfolio_id } = await ctx.params;
 
-  const sb = await supabasePublic();
+  const sb = await getRequestDatabase();
 
   // Gate with can_edit_portfolio to produce a clear 403 before relying on RLS errors
   const { data: canEdit, error: canEditErr } = await sb.rpc('can_edit_portfolio', { p_portfolio_id: portfolio_id });

@@ -1,7 +1,7 @@
 import { requirePortfolioAccess, isAccessDenied } from '@/lib/api/access';
 import { jsonError, jsonOk } from '@/lib/api/responses';
 import { updateTaxContributionSchema } from '@/lib/schemas/tax';
-import { validateRequest } from '@/lib/validation';
+import { validateRequest } from '@/lib/api/validation';
 
 /**
  * GET /api/portfolio/[id]/tax/contributions/[contributionId]

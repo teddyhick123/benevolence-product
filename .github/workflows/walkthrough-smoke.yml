@@ -1,4 +1,4 @@
-name: Walkthrough Smoke
+name: Walkthrough
 
 on:
   pull_request:
@@ -22,13 +22,43 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - run: npm run walkthrough:setup
       - run: npm run walkthrough:smoke
+
+      - name: Upload walkthrough artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: walkthrough-smoke-artifacts
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  walkthrough-journeys:
+    runs-on: ubuntu-latest
+    # The longest historical journey batch was ~17 minutes before setup. It
+    # runs independently so it no longer competes with smoke for one 30-minute
+    # job budget, while retaining a bounded failure signal.
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: npm
+
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run walkthrough:setup
       - run: npm run walkthrough:journeys
 
       - name: Upload walkthrough artifacts
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: walkthrough-artifacts
+          name: walkthrough-journeys-artifacts
           path: |
             playwright-report/
             test-results/

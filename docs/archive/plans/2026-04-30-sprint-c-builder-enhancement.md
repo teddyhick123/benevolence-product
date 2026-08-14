@@ -2564,11 +2564,11 @@ Expected: clean compile
 
 - [ ] **Review spec coverage**
 
-Open `docs/superpowers/specs/2026-04-30-builder-enhancement-design.md` and verify each listed requirement has a corresponding task.
+Open `docs/agent-work/specs/2026-04-30-builder-enhancement-design.md` and verify each listed requirement has a corresponding task.
 
 ---
 
-Plan complete and saved to `docs/superpowers/plans/2026-04-30-sprint-c-builder-enhancement.md`.
+Plan complete and retained at `docs/archive/plans/2026-04-30-sprint-c-builder-enhancement.md`.
 
 **Two execution options:**
 

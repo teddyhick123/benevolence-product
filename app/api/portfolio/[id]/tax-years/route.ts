@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
-import { supabasePublic } from '@/lib/supabase';
+import { getRequestDatabase } from '@/lib/api/server-client';
 import { createTaxYearDetailSchema, updateTaxYearDetailSchema } from '@/lib/schemas/tax';
-import { validateRequest } from '@/lib/validation';
+import { validateRequest } from '@/lib/api/validation';
 
 /**
  * GET /api/portfolio/[id]/tax-years?year=2024
@@ -15,7 +15,7 @@ export async function GET(
   const url = new URL(req.url);
   const year = url.searchParams.get('year');
 
-  const sb = await supabasePublic();
+  const sb = await getRequestDatabase();
 
   const { data: canView, error: canViewErr } = await sb.rpc('can_view_portfolio', {
     p_portfolio_id: portfolio_id,
@@ -87,7 +87,7 @@ export async function POST(
   ctx: { params: Promise<{ id: string }> }
 ) {
   const { id: portfolio_id } = await ctx.params;
-  const sb = await supabasePublic();
+  const sb = await getRequestDatabase();
 
   // Check edit permissions
   const { data: canEdit, error: canEditErr } = await sb.rpc('can_edit_portfolio', {
@@ -158,7 +158,7 @@ export async function PUT(
   const url = new URL(req.url);
   const year = Number(url.searchParams.get('year') || new Date().getFullYear());
 
-  const sb = await supabasePublic();
+  const sb = await getRequestDatabase();
 
   // Check edit permissions
   const { data: canEdit, error: canEditErr } = await sb.rpc('can_edit_portfolio', {

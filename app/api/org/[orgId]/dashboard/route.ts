@@ -456,7 +456,7 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
         id: `setup_${firstIncompleteTask.id}`,
         label: firstIncompleteTask.label,
         description: "Finish the next setup step for this workspace.",
-        href: firstIncompleteTask.id === "members" ? "/dashboard/settings/integrations" : "/onboarding",
+        href: firstIncompleteTask.id === "members" ? "/settings/integrations" : "/onboarding",
         priority: "high",
       });
     }

@@ -1,6 +1,6 @@
 import { createElevatedClient } from '@/lib/api/admin-client';
 import type { AppAdminAccessContext } from '@/lib/api/principals';
-import { parseDocument, parseDocumentChunked } from '@/lib/document-parser';
+import { parseDocument, parseDocumentChunked } from '@/lib/import/document-parser';
 import {
   extractFactsFromText,
   getUniqueMetricCodes,

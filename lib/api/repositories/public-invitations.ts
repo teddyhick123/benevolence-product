@@ -3,11 +3,12 @@ import {
   type ElevatedClient,
 } from '@/lib/api/admin-client';
 import type { InvitationAccessContext } from '@/lib/api/principals';
-import { isOrgRole, type OrgRole } from '@/lib/roles';
+import { isOrgRole, type OrgRole } from '@/lib/organizations/roles';
 
 type InvitationScope = {
   invitationId: string;
   orgId: string;
+  token: string;
   email: string;
   role: OrgRole;
   status: string;
@@ -46,60 +47,14 @@ function createScopedInvitationRepository(db: ElevatedClient, scope: InvitationS
     },
 
     async accept(userId: string) {
-      const { data: existingMember, error: memberLookupError } = await db
-        .from('organization_members')
-        .select('id, accepted_at')
-        .eq('org_id', scope.orgId)
-        .eq('user_id', userId)
-        .is('deleted_at', null)
-        .maybeSingle();
-      if (memberLookupError) throw memberLookupError;
-
-      const acceptedAt = new Date().toISOString();
-      if (existingMember) {
-        if (!existingMember.accepted_at) {
-          const { error } = await db
-            .from('organization_members')
-            .update({ accepted_at: acceptedAt })
-            .eq('id', existingMember.id)
-            .eq('org_id', scope.orgId);
-          if (error) throw error;
-        }
-
-        await db
-          .from('org_invitations')
-          .update({ status: 'accepted', accepted_at: acceptedAt })
-          .eq('id', scope.invitationId)
-          .eq('org_id', scope.orgId);
-        return scope.orgId;
-      }
-
-      const { error: memberError } = await db
-        .from('organization_members')
-        .insert({
-          org_id: scope.orgId,
-          user_id: userId,
-          role: scope.role,
-          invited_by: userId,
-          accepted_at: acceptedAt,
-        });
-      if (memberError) throw memberError;
-
-      await db
-        .from('org_invitations')
-        .update({ status: 'accepted', accepted_at: acceptedAt })
-        .eq('id', scope.invitationId)
-        .eq('org_id', scope.orgId);
-
-      await db.from('org_audit_log').insert({
-        org_id: scope.orgId,
-        actor_id: userId,
-        actor_subject_id: userId,
-        action: 'invite_accepted',
-        metadata: { role: scope.role, email: scope.email },
+      const { data, error } = await db.rpc('accept_org_invitation', {
+        p_org_id: scope.orgId,
+        p_invitation_id: scope.invitationId,
+        p_invitation_token: scope.token,
+        p_user_id: userId,
       });
-
-      return scope.orgId;
+      if (error) throw error;
+      return (data as { org_id?: string } | null)?.org_id ?? scope.orgId;
     },
   };
 }
@@ -121,6 +76,7 @@ export async function resolveInvitationToken(token: string): Promise<ResolvedInv
   const scope: InvitationScope = {
     invitationId: invitation.id,
     orgId: invitation.org_id,
+    token,
     email: invitation.email,
     role: invitation.role,
     status: invitation.status,

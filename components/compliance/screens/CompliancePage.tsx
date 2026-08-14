@@ -3,7 +3,7 @@
 import { apiRequest, readJson } from "@/lib/api/client";
 
 import { useState, useEffect } from 'react';
-import { pickActiveOrg } from '@/lib/org-cookie';
+import { pickActiveOrg } from '@/lib/organizations/active-org';
 import IRS990PFWorksheet from '@/components/compliance/IRS990PFWorksheet';
 
 const FILING_TYPE_LABELS: Record<string, string> = {

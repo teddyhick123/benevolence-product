@@ -483,7 +483,7 @@ describe('GET /builder/proposals/[proposalId] — shape', () => {
     expect(body.delivery[0]).toMatchObject({ pr_number: 7, status: 'pr_open' });
 
     expect(body.artifacts).toEqual({
-      diff_url: `https://signed.example/${ORG_ID}/${CODE_PROPOSAL_ID}/${REVISION_ID}/diff.patch`,
+      diff_url: `https://signed.example/${ORG_ID}/${CODE_PROPOSAL_ID}/${REVISION_ID}/diff.authoritative.patch`,
       files_url: `https://signed.example/${ORG_ID}/${CODE_PROPOSAL_ID}/${REVISION_ID}/files.json`,
       context_url: `https://signed.example/${ORG_ID}/${CODE_PROPOSAL_ID}/${REVISION_ID}/context.json`,
     });

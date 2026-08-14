@@ -1,7 +1,7 @@
 // app/api/portfolio/[id]/analytics/risk/route.ts
 import { NextResponse } from 'next/server';
 import { requirePortfolioAccess, isAccessDenied } from '@/lib/api/access';
-import { hasOrgRole } from '@/lib/roles';
+import { hasOrgRole } from '@/lib/organizations/roles';
 
 function cacheHeaders() {
   return { 'Cache-Control': 'no-store' } as const;

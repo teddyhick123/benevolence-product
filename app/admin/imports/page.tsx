@@ -2,7 +2,7 @@
 // Import dashboard — server component
 
 import Link from 'next/link';
-import { createServerClient } from '@/lib/supabase';
+import { createServerClient } from '@/lib/api/server-client';
 import { ImportStatusBadge } from '@/components/admin/ImportStatusBadge';
 import { ImportDashboardClient } from './ImportDashboardClient';
 import type { ImportJob } from '@/lib/import/types';

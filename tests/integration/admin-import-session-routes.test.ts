@@ -79,7 +79,7 @@ vi.mock('@/lib/import/ai/reconcile', () => ({
   analyzeReconciliation: mockAnalyzeReconciliation,
 }));
 
-vi.mock('@/lib/rate-limit', () => ({
+vi.mock('@/lib/api/rate-limit', () => ({
   aiLimiter: { limit: mockAiLimit },
 }));
 

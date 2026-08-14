@@ -48,7 +48,7 @@ const mockStorage      = vi.fn();
 const mockAdminStorage = vi.fn();
 
 // Mock only at the DB/storage boundary — never mock application code.
-vi.mock('@/lib/supabase', () => ({
+vi.mock('@/lib/api/server-client', () => ({
   supabasePublic:     vi.fn(async () => ({
     rpc:     mockRpc,
     from:    mockFrom,

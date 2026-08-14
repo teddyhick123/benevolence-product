@@ -4,7 +4,7 @@ import { apiRequest, readJson } from "@/lib/api/client";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { OrgRole } from "@/lib/roles";
+import { OrgRole } from "@/lib/organizations/roles";
 
 interface Member {
   user_id: string;

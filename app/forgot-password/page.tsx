@@ -2,9 +2,9 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { createBrowserClient } from '@/lib/supabase-browser';
+import { createBrowserAuthClient } from '@/lib/api/browser-auth-client';
 
-const supabase = createBrowserClient();
+const supabase = createBrowserAuthClient();
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('');

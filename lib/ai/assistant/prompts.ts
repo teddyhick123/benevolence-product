@@ -1,4 +1,4 @@
-import { formatOrgAiContextForPrompt } from '@/lib/org-ai-context';
+import { formatOrgAiContextForPrompt } from '@/lib/organizations/ai-context';
 
 
 export function buildSystemPrompt(context: any, options: { moduleSystemPrompt?: string; aiInstructions?: string | null } = {}): string {

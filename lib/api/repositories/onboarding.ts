@@ -6,7 +6,7 @@ import {
   OnboardingAssistant,
   type ConversationState,
   type QuickIntake,
-} from '@/lib/onboarding-assistant';
+} from '@/lib/onboarding/assistant';
 
 type StoredMessage = {
   role: 'user' | 'assistant';
@@ -31,6 +31,38 @@ type IntakeMessage = {
   content: string;
   timestamp: string;
 };
+
+type OnboardingChatResponse = {
+  message: string;
+  extractions: Record<string, unknown>;
+  conversation_state: ConversationState;
+  ready_for_recommendations: boolean;
+};
+
+type BeginOnboardingTurnResult =
+  | { state: 'started'; turnId: string; history: Array<{ role: 'user' | 'assistant'; content: string }> }
+  | { state: 'completed'; turnId: string; response: OnboardingChatResponse }
+  | { state: 'in_progress' | 'failed'; turnId: string; failureCode?: string; failureMessage?: string };
+
+type BeginTurnRpc = {
+  started?: boolean;
+  turn_id?: string;
+  status?: 'in_progress' | 'completed' | 'failed';
+  history?: Array<{ role: 'user' | 'assistant'; content: string }>;
+  response?: OnboardingChatResponse | null;
+  failure_code?: string | null;
+  failure_message?: string | null;
+};
+
+export class OnboardingTurnRepositoryError extends Error {
+  readonly status: 400 | 404 | 409;
+
+  constructor(message: string, status: 400 | 404 | 409) {
+    super(message);
+    this.name = 'OnboardingTurnRepositoryError';
+    this.status = status;
+  }
+}
 
 export type OnboardingSessionRepository = ReturnType<typeof createSessionRepository>;
 
@@ -77,70 +109,82 @@ function createSessionRepository(db: ElevatedClient, scope: OnboardingSessionSco
       }
     },
 
-    async chat(message: string) {
-      const messages = [...scope.messages, {
-        role: 'user' as const,
-        content: message,
-        timestamp: new Date().toISOString(),
-      }];
+    async beginChatTurn(requestId: string, message: string): Promise<BeginOnboardingTurnResult> {
+      const { data, error } = await db.rpc('begin_onboarding_turn', {
+        p_session_id: scope.sessionId,
+        p_user_id: scope.userId,
+        p_request_id: requestId,
+        p_content: message,
+      });
+      if (error) {
+        if (error.code === 'P0002') throw new OnboardingTurnRepositoryError('Session not found', 404);
+        if (error.code === 'P0001') throw new OnboardingTurnRepositoryError(error.message, 409);
+        if (error.code === '22023') throw new OnboardingTurnRepositoryError(error.message, 400);
+        throw error;
+      }
+      const result = (data ?? {}) as BeginTurnRpc;
+      if (!result.turn_id || !result.status) throw new Error('Onboarding turn persistence returned an invalid result');
+      if (!result.started) {
+        if (result.status === 'completed') {
+          if (!result.response) throw new Error('Completed onboarding turn is missing its response');
+          return { state: 'completed', turnId: result.turn_id, response: result.response };
+        }
+        return {
+          state: result.status,
+          turnId: result.turn_id,
+          ...(result.failure_code ? { failureCode: result.failure_code } : {}),
+          ...(result.failure_message ? { failureMessage: result.failure_message } : {}),
+        };
+      }
+      return { state: 'started', turnId: result.turn_id, history: result.history ?? scope.messages.map(({ role, content }) => ({ role, content })) };
+    },
 
-      await db
-        .from('onboarding_sessions')
-        .update({ messages })
-        .eq('id', scope.sessionId)
-        .eq('user_id', scope.userId);
+    async chat(turnId: string, message: string, history: Array<{ role: 'user' | 'assistant'; content: string }>) {
 
       const assistant = new OnboardingAssistant(db);
-      // The assistant receives prior turns only. Including the just-persisted
-      // message here would append it a second time inside OnboardingAssistant.
-      const conversationHistory = messages.slice(0, -1).map((entry) => ({
-        role: entry.role,
-        content: entry.content,
-      }));
       const result = await assistant.chat({
         sessionId: scope.sessionId,
         userId: scope.userId,
         orgId: scope.orgId,
         message,
         quickIntake: scope.quickIntake,
-        conversationHistory,
+        conversationHistory: history,
         conversationState: scope.conversationState,
-      });
-
-      messages.push({
-        role: 'assistant',
-        content: result.message,
-        timestamp: new Date().toISOString(),
+        persist: false,
       });
       const readyForRecommendations = Boolean(
         result.trigger_recommendations || result.updated_state?.ready_for_recommendations
       );
-      const updateData: Record<string, unknown> = {
-        messages,
+      const response: OnboardingChatResponse = {
+        message: result.message,
+        extractions: result.extractions,
         conversation_state: result.updated_state,
+        ready_for_recommendations: readyForRecommendations,
       };
+      const { data, error } = await db.rpc('complete_onboarding_turn', {
+        p_turn_id: turnId,
+        p_session_id: scope.sessionId,
+        p_user_id: scope.userId,
+        p_assistant_content: result.message,
+        p_extractions: result.extractions,
+        p_conversation_state: result.updated_state,
+        p_ready_for_recommendations: readyForRecommendations,
+        p_response: response,
+      });
+      if (error) throw error;
+      return data as OnboardingChatResponse;
+    },
 
-      if (readyForRecommendations) {
-        updateData.status = 'recommendations';
-        updateData.conversation_completed_at = new Date().toISOString();
-        if (scope.intakeCompletedAt) {
-          const conversationDuration = Math.floor(
-            (Date.now() - new Date(scope.intakeCompletedAt).getTime()) / 1000
-          );
-          await db
-            .from('onboarding_analytics')
-            .update({ conversation_duration_seconds: conversationDuration })
-            .eq('session_id', scope.sessionId);
-        }
-      }
-
-      await db
-        .from('onboarding_sessions')
-        .update(updateData)
-        .eq('id', scope.sessionId)
-        .eq('user_id', scope.userId);
-
-      return { ...result, readyForRecommendations };
+    async failChatTurn(turnId: string, error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      const { error: failError } = await db.rpc('fail_onboarding_turn', {
+        p_turn_id: turnId,
+        p_session_id: scope.sessionId,
+        p_user_id: scope.userId,
+        p_failure_code: 'onboarding_chat_failed',
+        p_failure_message: message,
+      });
+      if (failError) throw failError;
     },
 
     async existingRecommendations() {
@@ -154,22 +198,15 @@ function createSessionRepository(db: ElevatedClient, scope: OnboardingSessionSco
 
     async generateRecommendations() {
       const assistant = new OnboardingAssistant(db);
-      const result = await assistant.generateRecommendations(scope.sessionId);
-
-      await db
-        .from('onboarding_sessions')
-        .update({
-          status: 'recommendations',
-          conversation_completed_at: new Date().toISOString(),
-        })
-        .eq('id', scope.sessionId)
-        .eq('user_id', scope.userId);
-      await db
-        .from('onboarding_analytics')
-        .update({ modules_recommended: result.recommendations.length })
-        .eq('session_id', scope.sessionId);
-
-      return result;
+      const result = await assistant.generateRecommendations(scope.sessionId, { persist: false });
+      const { data, error } = await db.rpc('complete_onboarding_recommendations', {
+        p_session_id: scope.sessionId,
+        p_user_id: scope.userId,
+        p_recommendations: result.recommendations,
+        p_excluded: result.excluded,
+      });
+      if (error) throw error;
+      return (data as { recommendations: typeof result.recommendations; excluded: typeof result.excluded } | null) ?? result;
     },
 
     async finalizeRecommendations(acceptedModules: string[]) {

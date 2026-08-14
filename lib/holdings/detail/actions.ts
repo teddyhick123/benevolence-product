@@ -1,10 +1,10 @@
 import { revalidatePath } from "next/cache";
-import { createSupabaseServerClient } from "@/lib/supabase";
+import { createServerClient } from "@/lib/api/server-client";
 import { assetTypeSchema } from "@/lib/schemas/portfolio";
 import { geocodeLocation } from "@/lib/services/google-maps";
 import { upsertPrimaryHoldingContact } from '@/lib/holdings/contacts';
 
-const getSupabase = createSupabaseServerClient;
+const getSupabase = createServerClient;
 function numOrNull(v: FormDataEntryValue | null) {
   if (v == null) return null;
   const n = Number(v);

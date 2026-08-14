@@ -2,9 +2,9 @@
 
 import { apiRequest, readJson } from "@/lib/api/client";
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { pickActiveOrg } from '@/lib/org-cookie';
+import { Suspense, useState, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { pickActiveOrg } from '@/lib/organizations/active-org';
 
 const TIER_LABELS: Record<string, string> = {
   major: 'Major',
@@ -30,9 +30,11 @@ const RECENCY_COLORS: Record<string, string> = {
   prospect: 'bg-neutral-100 text-neutral-600 border border-neutral-200',
 };
 
-export default function DonorsPage() {
+function DonorsPageContent() {
   const router = useRouter();
-  const [orgId, setOrgId] = useState<string | null>(null);
+  const searchParams = useSearchParams();
+  const requestedOrgId = searchParams.get('org');
+  const [orgId, setOrgId] = useState<string | null>(requestedOrgId);
   const [moduleEnabled, setModuleEnabled] = useState<boolean | null>(null);
   const [donors, setDonors] = useState<any[]>([]);
   const [total, setTotal] = useState<number | null>(null);
@@ -55,10 +57,16 @@ export default function DonorsPage() {
         const res = await apiRequest('/api/org');
         if (res.ok) {
           const data = await readJson(res);
-          const activeOrg = pickActiveOrg((data.organizations ?? []) as Array<{ id: string; modules?: Record<string, boolean> }>);
-          if (activeOrg) {
-            setOrgId(activeOrg.id);
-            setModuleEnabled(!!activeOrg.modules?.donors || !!activeOrg.modules?.donor_management);
+          const organizations = (data.organizations ?? []) as Array<{ id: string; modules?: Record<string, boolean> }>;
+          const scopedOrg = requestedOrgId
+            ? organizations.find((organization) => organization.id === requestedOrgId)
+            : pickActiveOrg(organizations);
+          if (scopedOrg) {
+            setOrgId(scopedOrg.id);
+            setModuleEnabled(!!scopedOrg.modules?.donors || !!scopedOrg.modules?.donor_management);
+          } else if (requestedOrgId) {
+            setError('That organization is not available to your account.');
+            setLoading(false);
           }
         }
       } catch {
@@ -66,7 +74,7 @@ export default function DonorsPage() {
       }
     }
     fetchOrg();
-  }, []);
+  }, [requestedOrgId]);
 
   // Fetch donors
   useEffect(() => {
@@ -139,7 +147,7 @@ export default function DonorsPage() {
             <p className="mt-1 text-sm text-neutral-600">{`${total !== null ? total.toLocaleString() : donors.length} total records`}</p>
           </div>
           <a
-            href={orgId ? `/dashboard/donors/new?org=${orgId}` : '#'}
+            href={orgId ? `/dashboard/donors/new?org=${encodeURIComponent(orgId)}` : '#'}
             className="rounded-2xl bg-azure px-4 py-2 text-sm font-medium text-white shadow-soft transition-opacity hover:opacity-90"
           >
             + Add Donor
@@ -213,7 +221,7 @@ export default function DonorsPage() {
                   <tr
                     key={donor.id}
                     className="cursor-pointer transition-colors hover:bg-neutral-50"
-                    onClick={() => router.push(`/dashboard/donors/${donor.id}`)}
+                    onClick={() => router.push(`/dashboard/donors/${donor.id}?org=${encodeURIComponent(orgId ?? '')}`)}
                   >
                     <td className="px-4 py-3">
                       <span className="font-medium text-ink">
@@ -250,5 +258,13 @@ export default function DonorsPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function DonorsPage() {
+  return (
+    <Suspense fallback={<div className="p-12 text-center text-neutral-400">Loading donors…</div>}>
+      <DonorsPageContent />
+    </Suspense>
   );
 }

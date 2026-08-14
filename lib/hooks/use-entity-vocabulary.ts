@@ -7,7 +7,7 @@ import {
   DEFAULT_ENTITY_VOCABULARY,
   type EntityVocabulary,
   type EntityVocabularyType,
-} from '@/lib/view-config';
+} from '@/lib/organizations/view-config';
 
 export function useEntityVocabulary(orgId?: string | null) {
   const [vocabulary, setVocabulary] = useState<Record<EntityVocabularyType, EntityVocabulary>>(DEFAULT_ENTITY_VOCABULARY);

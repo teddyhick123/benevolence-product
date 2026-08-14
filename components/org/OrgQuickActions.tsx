@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import type { ModuleId } from "@/lib/modules/types";
-import { canManageWorkspace, canOperateOrg, type OrgRole } from "@/lib/roles";
+import { canManageWorkspace, canOperateOrg, type OrgRole } from "@/lib/organizations/roles";
 
 interface QuickAction {
   label: string;

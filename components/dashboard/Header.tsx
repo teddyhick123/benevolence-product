@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useEffect, useState, useRef, Suspense } from "react";
 import { useSearchParams, usePathname } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
-import { pickActiveOrg, setActiveOrgId } from "@/lib/org-cookie";
+import { pickActiveOrg, setActiveOrgId } from "@/lib/organizations/active-org";
 import NotificationBell from "@/components/notifications/NotificationBell";
 
 const supabase = createClient(
@@ -227,15 +227,15 @@ function HeaderContent() {
 
               {/* Integrations */}
               <Link
-                href="/dashboard/settings/integrations"
-                aria-current={pathname.startsWith('/dashboard/settings/integrations') ? 'page' : undefined}
+                href="/settings/integrations"
+                aria-current={pathname.startsWith('/settings/integrations') ? 'page' : undefined}
                 className={navLinkClass}
               >
                 Integrations
               </Link>
               <Link
-                href="/dashboard/settings/ai"
-                aria-current={pathname.startsWith('/dashboard/settings/ai') ? 'page' : undefined}
+                href="/settings/ai"
+                aria-current={pathname.startsWith('/settings/ai') ? 'page' : undefined}
                 className={navLinkClass}
               >
                 AI Models
@@ -354,15 +354,15 @@ function HeaderContent() {
               </Link>
             )}
             <Link
-              href="/dashboard/settings/integrations"
-              aria-current={pathname.startsWith('/dashboard/settings/integrations') ? 'page' : undefined}
+              href="/settings/integrations"
+              aria-current={pathname.startsWith('/settings/integrations') ? 'page' : undefined}
               className={mobileNavLinkClass}
             >
               Integrations
             </Link>
             <Link
-              href="/dashboard/settings/ai"
-              aria-current={pathname.startsWith('/dashboard/settings/ai') ? 'page' : undefined}
+              href="/settings/ai"
+              aria-current={pathname.startsWith('/settings/ai') ? 'page' : undefined}
               className={mobileNavLinkClass}
             >
               AI Models

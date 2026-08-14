@@ -55,8 +55,10 @@ beforeEach(() => {
     upload: mockUpload,
     remove: mockRemove,
     createSignedUrl: mockCreateSignedUrl,
+    isScopedPath: (letterId: string, path: string | null | undefined) =>
+      typeof path === 'string' && path.startsWith(`acknowledgments/org-1/${letterId}/`),
   });
-  mockUpload.mockResolvedValue('acknowledgments/org-1/letter-1.pdf');
+  mockUpload.mockResolvedValue('acknowledgments/org-1/letter-1/new.pdf');
   mockRemove.mockResolvedValue({ data: {}, error: null });
   mockCreateSignedUrl.mockResolvedValue('https://signed.example/document');
 });
@@ -82,7 +84,7 @@ describe('acknowledgment PDF route', () => {
   it('scopes the letter read/update and stores only the private path', async () => {
     const letterQuery = stubQuery(
       { data: null, error: null },
-      { single: { data: { id: 'letter-1', body: 'Thank you.' }, error: null } }
+      { single: { data: { id: 'letter-1', body: 'Thank you.', storage_path: 'acknowledgments/org-1/letter-1/old.pdf' }, error: null } }
     );
     const updateQuery = stubQuery({ data: null, error: null });
     const db = { from: vi.fn()
@@ -111,11 +113,35 @@ describe('acknowledgment PDF route', () => {
     expect(updateQuery.calls).toContainEqual({
       method: 'update',
       args: [{
-        storage_path: 'acknowledgments/org-1/letter-1.pdf',
+        storage_path: 'acknowledgments/org-1/letter-1/new.pdf',
         storage_bucket: 'documents',
       }],
     });
     expect(updateQuery.calls).toContainEqual({ method: 'eq', args: ['org_id', 'org-1'] });
+    expect(mockRemove).toHaveBeenCalledWith('letter-1', 'acknowledgments/org-1/letter-1/old.pdf');
     expect(await response.json()).toEqual({ pdf_url: 'https://signed.example/document' });
+  });
+
+  it('keeps the committed document when signed-link generation is temporarily unavailable', async () => {
+    const letterQuery = stubQuery(
+      { data: null, error: null },
+      { single: { data: { id: 'letter-1', body: 'Thank you.', storage_path: null }, error: null } }
+    );
+    const updateQuery = stubQuery({ data: null, error: null });
+    const context = {
+      orgId: 'org-1', role: 'member', principal: { kind: 'user', userId: 'user-1' }, user: { id: 'user-1' },
+      db: { from: vi.fn().mockReturnValueOnce(letterQuery).mockReturnValueOnce(updateQuery) },
+    };
+    mockRequireOrgAccess.mockResolvedValue({ ok: true, context });
+    mockCreateSignedUrl.mockRejectedValue(new Error('signing unavailable'));
+
+    const response = await POST(
+      new NextRequest('http://localhost/api/org/org-1/acknowledgments/letter-1/generate-pdf', { method: 'POST' }),
+      { params: Promise.resolve({ orgId: 'org-1', id: 'letter-1' }) }
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ pdf_url: null, pdf_ready: true });
+    expect(mockRemove).not.toHaveBeenCalled();
   });
 });

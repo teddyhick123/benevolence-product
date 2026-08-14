@@ -12,7 +12,7 @@
 // Prefix for closing all tasks for a filing: filing:{id}:
 // Prefix for closing all tasks for a state reg: state_registration:{id}:
 
-import { createAdminClient } from '@/lib/supabase';
+import { createElevatedClient } from '@/lib/api/admin-client';
 import { ProducerOptions, TaskProducerResult, UpsertGeneratedTaskInput } from '../types';
 import { upsertGeneratedTask, completeGeneratedTasks } from '../task-writer';
 
@@ -43,7 +43,7 @@ export async function complianceDeadlinesProducer(
   const today = now.toISOString().slice(0, 10); // 'YYYY-MM-DD'
   const generatedAt = now.toISOString();
 
-  const db = createAdminClient();
+  const db = createElevatedClient();
 
   const result: TaskProducerResult = {
     producer: PRODUCER_ID,

@@ -97,6 +97,37 @@ export type RecordGrantDecisionInput = {
   metadata?: Record<string, unknown> | null;
 };
 
+export type CreateGrantCommunicationInput = {
+  portfolioId: string;
+  grantId: string;
+  direction: 'inbound' | 'outbound' | 'internal';
+  commType: string;
+  subject?: string | null;
+  summary: string;
+  contactName?: string | null;
+  contactEmail?: string | null;
+  followUpRequired: boolean;
+  followUpDate?: string | null;
+  followUpNotes?: string | null;
+};
+
+export type CreateGrantPaymentInput = {
+  portfolioId: string;
+  grantId: string;
+  amount: number;
+  scheduledDate?: string | null;
+  paymentMethod?: string | null;
+  notes?: string | null;
+};
+
+export type GrantPaymentStatus =
+  | 'scheduled'
+  | 'approved'
+  | 'processing'
+  | 'completed'
+  | 'cancelled'
+  | 'returned';
+
 export type UploadGrantDocumentInput = {
   grantId: string;
   documentType: 'proposal' | 'agreement' | 'amendment' | 'report' | 'correspondence';
@@ -231,6 +262,140 @@ export function createGrantRepository(scope: GrantRepositoryScope) {
           data: GrantWorkflowRow[] | null;
           error: { message: string } | null;
         }>;
+    },
+
+    async listGrantHoldings(portfolioId: string) {
+      return db
+        .from('grants')
+        .select('id, holding_id, holdings!inner(id, name)')
+        .eq('org_id', scope.orgId)
+        .eq('portfolio_id', portfolioId)
+        .is('deleted_at', null)
+        .order('holding_id');
+    },
+
+    async listCommunications(portfolioId: string) {
+      return db
+        .from('grant_communications')
+        .select(`
+          id, grant_id, direction, comm_type, subject, summary, full_content,
+          contact_name, contact_email, occurred_at, follow_up_required,
+          follow_up_date, follow_up_notes, tags,
+          grants!inner(id, holding_id, org_id, portfolio_id, holdings!inner(name))
+        `)
+        .eq('grants.org_id', scope.orgId)
+        .eq('grants.portfolio_id', portfolioId)
+        .order('occurred_at', { ascending: false });
+    },
+
+    async createCommunication(input: CreateGrantCommunicationInput) {
+      const { data: grant, error: grantError } = await db
+        .from('grants')
+        .select('id')
+        .eq('id', input.grantId)
+        .eq('org_id', scope.orgId)
+        .eq('portfolio_id', input.portfolioId)
+        .is('deleted_at', null)
+        .maybeSingle();
+
+      if (grantError) return { data: null, error: grantError, notFound: false };
+      if (!grant) return { data: null, error: null, notFound: true };
+
+      const { data, error } = await db
+        .from('grant_communications')
+        .insert({
+          grant_id: input.grantId,
+          direction: input.direction,
+          comm_type: input.commType,
+          subject: input.subject ?? null,
+          summary: input.summary,
+          contact_name: input.contactName ?? null,
+          contact_email: input.contactEmail ?? null,
+          follow_up_required: input.followUpRequired,
+          follow_up_date: input.followUpDate ?? null,
+          follow_up_notes: input.followUpNotes ?? null,
+        })
+        .select()
+        .single();
+
+      return { data, error, notFound: false };
+    },
+
+    async listPayments(portfolioId: string) {
+      return db
+        .from('grant_payments')
+        .select(`
+          id, grant_id, payment_number, amount, scheduled_date, actual_date,
+          status, payment_method, reference_number, conditions_met,
+          condition_notes, notes,
+          grants!inner(id, holding_id, org_id, portfolio_id, holdings!inner(name))
+        `)
+        .eq('grants.org_id', scope.orgId)
+        .eq('grants.portfolio_id', portfolioId)
+        .order('scheduled_date', { ascending: true });
+    },
+
+    async createPayment(input: CreateGrantPaymentInput) {
+      const { data: grant, error: grantError } = await db
+        .from('grants')
+        .select('id')
+        .eq('id', input.grantId)
+        .eq('org_id', scope.orgId)
+        .eq('portfolio_id', input.portfolioId)
+        .is('deleted_at', null)
+        .maybeSingle();
+
+      if (grantError) return { data: null, error: grantError, notFound: false };
+      if (!grant) return { data: null, error: null, notFound: true };
+
+      const { data: latestPayment, error: latestPaymentError } = await db
+        .from('grant_payments')
+        .select('payment_number')
+        .eq('grant_id', input.grantId)
+        .order('payment_number', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (latestPaymentError) return { data: null, error: latestPaymentError, notFound: false };
+
+      const { data, error } = await db
+        .from('grant_payments')
+        .insert({
+          grant_id: input.grantId,
+          payment_number: (latestPayment?.payment_number ?? 0) + 1,
+          amount: input.amount,
+          scheduled_date: input.scheduledDate ?? null,
+          payment_method: input.paymentMethod ?? null,
+          notes: input.notes ?? null,
+          status: 'scheduled',
+        })
+        .select()
+        .single();
+
+      return { data, error, notFound: false };
+    },
+
+    async updatePaymentStatus(paymentId: string, status: GrantPaymentStatus) {
+      const { data: payment, error: paymentError } = await db
+        .from('grant_payments')
+        .select('id, grants!inner(org_id)')
+        .eq('id', paymentId)
+        .eq('grants.org_id', scope.orgId)
+        .maybeSingle();
+
+      if (paymentError) return { data: null, error: paymentError, notFound: false };
+      if (!payment) return { data: null, error: null, notFound: true };
+
+      const paymentPatch = status === 'completed'
+        ? { status, actual_date: new Date().toISOString().slice(0, 10) }
+        : { status };
+      const { data, error } = await db
+        .from('grant_payments')
+        .update(paymentPatch)
+        .eq('id', paymentId)
+        .select()
+        .single();
+
+      return { data, error, notFound: false };
     },
 
     async checkWorkflowGate(

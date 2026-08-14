@@ -7,8 +7,8 @@ import { requireAppAdmin } from '@/lib/api/access';
 import { jsonError } from '@/lib/api/responses';
 import { streamMigrationChat } from '@/lib/import/ai/chat';
 import type { ChatMessage } from '@/lib/import/ai/chat';
-import { aiLimiter } from '@/lib/rate-limit';
-import { rateLimitExceeded } from '@/lib/rate-limit-response';
+import { aiLimiter } from '@/lib/api/rate-limit';
+import { rateLimitExceeded } from '@/lib/api/rate-limit-response';
 
 const chatSchema = z.object({
   message: z.string().trim().min(1).max(10_000),

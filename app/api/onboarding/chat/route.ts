@@ -1,7 +1,10 @@
 import { NextRequest } from 'next/server';
 import { z } from 'zod';
 import { isAccessDenied, requireUserAccess } from '@/lib/api/access';
-import { createOnboardingRepository } from '@/lib/api/repositories/onboarding';
+import {
+  createOnboardingRepository,
+  OnboardingTurnRepositoryError,
+} from '@/lib/api/repositories/onboarding';
 import { jsonError, jsonOk } from '@/lib/api/responses';
 
 export const runtime = 'nodejs';
@@ -9,6 +12,7 @@ export const maxDuration = 60;
 
 const chatSchema = z.object({
   sessionId: z.string().uuid(),
+  requestId: z.string().uuid().optional(),
   message: z.string().min(1).max(5000),
 });
 
@@ -32,6 +36,7 @@ export async function POST(req: NextRequest) {
   }
 
   const { sessionId, message } = validation.data;
+  const requestId = validation.data.requestId ?? crypto.randomUUID();
   try {
     const repository = createOnboardingRepository(access.context.principal.userId);
     const session = await repository.resolveSession(sessionId);
@@ -40,14 +45,23 @@ export async function POST(req: NextRequest) {
       return jsonError('Session not in conversation state', 400);
     }
 
-    const result = await session.chat(message);
-    return jsonOk({
-      message: result.message,
-      extractions: result.extractions,
-      conversation_state: result.updated_state,
-      ready_for_recommendations: result.readyForRecommendations,
-    });
+    const turn = await session.beginChatTurn(requestId, message);
+    if (turn.state === 'completed') return jsonOk(turn.response);
+    if (turn.state !== 'started') {
+      return jsonError(turn.failureMessage ?? `Onboarding turn is ${turn.state.replace('_', ' ')}`, 409, {
+        requestId, turnId: turn.turnId, state: turn.state,
+      });
+    }
+    try {
+      return jsonOk(await session.chat(turn.turnId, message, turn.history));
+    } catch (error) {
+      await session.failChatTurn(turn.turnId, error).catch(() => {});
+      throw error;
+    }
   } catch (error) {
+    if (error instanceof OnboardingTurnRepositoryError) {
+      return jsonError(error.message, error.status);
+    }
     const message = error instanceof Error ? error.message : 'Chat failed';
     return jsonError(message, 500);
   }

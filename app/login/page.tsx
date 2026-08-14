@@ -3,10 +3,10 @@
 import { apiRequest, readJson } from "@/lib/api/client";
 import { useEffect, useMemo, useState, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { createBrowserClient } from '@/lib/supabase-browser';
+import { createBrowserAuthClient } from '@/lib/api/browser-auth-client';
 import { branding } from '@/lib/config';
 
-const supabase = createBrowserClient();
+const supabase = createBrowserAuthClient();
 
 function authErrorMessage(error: unknown, fallback: string) {
   if (error instanceof TypeError && error.message === 'Failed to fetch') {

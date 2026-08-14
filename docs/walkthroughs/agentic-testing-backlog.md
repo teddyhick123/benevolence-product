@@ -3,7 +3,7 @@
 > **Consolidation note (2026-08-08):** The reports, analytics, and compliance
 > document journeys listed below have shipped in
 > `deep-reporting-analytics-compliance.spec.ts`. Remaining actionable work is
-> tracked in the [consolidated backlog](../module-reviews/FULL-BACKLOG.md); this
+> tracked in the [consolidated backlog](../agent-work/BACKLOG.md); this
 > document is retained as coverage history.
 
 Date: 2026-06-25
@@ -20,7 +20,7 @@ npm run walkthrough:setup
 npm run walkthrough:smoke
 npm run walkthrough:journeys
 npm run walkthrough:test
-npx vitest run lib/__tests__/schema-privileges-contract.test.ts
+npx vitest run tests/integration/schema-privileges-contract.test.ts
 npx tsc --noEmit --pretty false
 ```
 
@@ -36,7 +36,9 @@ Results:
 
 CI status:
 
-- `.github/workflows/walkthrough-smoke.yml` now runs both `npm run walkthrough:smoke` and `npm run walkthrough:journeys`.
+- `.github/workflows/walkthrough-smoke.yml` runs smoke and deeper journeys in
+  independent CI jobs, each with a dedicated local baseline and 30-minute
+  budget. This prevents the two workloads from consuming one serial job limit.
 
 ## Findings
 
@@ -61,7 +63,7 @@ The remaining gaps are mostly the next UI mission slices and exploratory-agent r
 
 ### Schema Privilege Guard
 
-`lib/__tests__/schema-privileges-contract.test.ts` scans canonical migrations for app-used tables/views and verifies expected privileges for `authenticated` and `service_role`.
+`tests/integration/schema-privileges-contract.test.ts` scans canonical migrations for app-used tables/views and verifies expected privileges for `authenticated` and `service_role`.
 
 Covered areas:
 
@@ -188,4 +190,4 @@ remaining now have UI/API/database coverage in
 Continue converting new exploratory findings into focused regressions as part
 of normal delivery. The only discrete open infrastructure item from this plan
 is long-run Fast Refresh/`MaxListenersExceededWarning` noise, tracked as WT-01
-in the [consolidated backlog](../module-reviews/FULL-BACKLOG.md).
+in the [consolidated backlog](../agent-work/BACKLOG.md).

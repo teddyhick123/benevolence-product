@@ -1,12 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
-import { createBrowserClient } from "@/lib/supabase-browser";
-import { OrgRole } from "@/lib/roles";
-
-const supabase = createBrowserClient();
+import { useOrganizationsData } from "@/lib/organizations/hooks";
+import { OrgRole } from "@/lib/organizations/roles";
 
 interface UserOrg {
   id: string;
@@ -15,52 +13,14 @@ interface UserOrg {
 }
 
 export default function OrgLayout({ children }: { children: React.ReactNode }) {
-  const [orgs, setOrgs] = useState<UserOrg[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const pathname = usePathname();
+  const { data, error, isLoading: loading } = useOrganizationsData<{ organizations?: UserOrg[] }>('/api/org');
+  const orgs = data?.organizations || [];
 
   // Extract orgId from pathname
   const pathParts = pathname.split("/");
   const orgIdIndex = pathParts.indexOf("org") + 1;
   const currentOrgId = pathParts[orgIdIndex] || null;
-
-  useEffect(() => {
-    async function fetchOrgs() {
-      const { data: { user } } = await supabase.auth.getUser();
-
-      if (!user) {
-        setError("Not authenticated");
-        setLoading(false);
-        return;
-      }
-
-      const { data, error: fetchError } = await supabase
-        .from("organization_members")
-        .select(`
-          role,
-          organizations (id, name)
-        `)
-        .eq("user_id", user.id);
-
-      if (fetchError) {
-        setError(fetchError.message);
-        setLoading(false);
-        return;
-      }
-
-      const userOrgs = (data || []).map((row: any) => ({
-        id: row.organizations.id,
-        name: row.organizations.name,
-        role: row.role as OrgRole,
-      }));
-
-      setOrgs(userOrgs);
-      setLoading(false);
-    }
-
-    fetchOrgs();
-  }, []);
 
   const currentOrg = orgs.find((o) => o.id === currentOrgId);
 
@@ -77,7 +37,7 @@ export default function OrgLayout({ children }: { children: React.ReactNode }) {
       <div className="max-w-2xl mx-auto py-12">
         <div className="card p-6 text-center">
           <h2 className="text-xl font-semibold text-red-600 mb-2">Error</h2>
-          <p className="text-neutral-600">{error}</p>
+          <p className="text-neutral-600">{error.message || 'Not authenticated'}</p>
           <Link href="/login" className="mt-4 inline-block text-azure hover:underline">
             Sign in
           </Link>

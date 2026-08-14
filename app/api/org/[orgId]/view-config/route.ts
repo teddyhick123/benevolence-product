@@ -12,7 +12,7 @@ import {
   loadOrgViewConfig,
   normalizeVocabulary,
   type ViewConfigScope,
-} from '@/lib/view-config';
+} from '@/lib/organizations/view-config';
 
 export const dynamic = 'force-dynamic';
 

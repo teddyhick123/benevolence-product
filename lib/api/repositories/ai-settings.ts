@@ -2,7 +2,7 @@ import { createElevatedClient, type ElevatedClient } from '@/lib/api/admin-clien
 import type { OrgAccessContext } from '@/lib/api/principals';
 import { AI_DEPLOYMENT_CATALOG, getAIDeploymentTemplate } from '@/lib/ai/catalog';
 import { AI_WORKLOADS, getAIWorkload } from '@/lib/ai/workloads';
-import { canManageWorkspace } from '@/lib/roles';
+import { canManageWorkspace } from '@/lib/organizations/roles';
 import {
   aiConnectionUpdateSchema,
   aiDeploymentCreateSchema,

@@ -10,7 +10,7 @@
 // the first builder_review_attempts row for that revision is inserted — after
 // that, the trigger rejects any change to those fields (ERRCODE P0031).
 import { Queue, Worker, type Job } from 'bullmq';
-import { createAdminClient } from '@/lib/supabase';
+import { createElevatedClient } from '@/lib/api/admin-client';
 import { createAIProvider } from '@/lib/ai/factory';
 import { AI_MODELS } from '@/lib/ai/models';
 import { buildScaffoldContext, formatScaffoldContextForPrompt } from './scaffold-context';
@@ -108,7 +108,7 @@ export function createScaffoldWorker(): Worker {
 
 export async function runBuildPhase(data: ScaffoldBuildJobData): Promise<void> {
   const { proposalId, orgId, revisionId } = data;
-  const supabase = createAdminClient();
+  const supabase = createElevatedClient();
 
   // ── Step 1: load + re-entry guard ────────────────────────────────────────
   const { data: proposal, error: proposalError } = await supabase
@@ -295,11 +295,21 @@ export async function runBuildPhase(data: ScaffoldBuildJobData): Promise<void> {
     );
     if (setupFindingsError) throw setupFindingsError;
   }
+  if (verification.authoritativeDiff) {
+    gateRevision = {
+      ...gateRevision,
+      authoritative_diff_hash: verification.authoritativeDiff.hash,
+      authoritative_diff_artifact_key: verification.authoritativeDiff.artifactKey,
+    };
+  }
   // Do NOT branch on verification results here — Step 6 (model review) still runs,
   // and Step 7's evaluateAttemptGate is the sole authority on pass/blocked.
 
   // ── Step 6: single-model automated review ─────────────────────────────────
-  const { promptText, rawResponse } = await runModelReview(planContent ?? null, files);
+  const { promptText, rawResponse } = await runModelReview(
+    planContent ?? null,
+    verification.authoritativeDiff?.text ?? null
+  );
 
   await putTextArtifact(supabase, `${prefix}/${ARTIFACT_KEYS.reviewPrompt(attemptId)}`, promptText);
   await putTextArtifact(
@@ -387,7 +397,7 @@ export async function runBuildPhase(data: ScaffoldBuildJobData): Promise<void> {
 
 export async function markProposalRunFailed(proposalId: string, orgId: string, message: string): Promise<void> {
   try {
-    const supabase = createAdminClient();
+    const supabase = createElevatedClient();
 
     // Complete the latest still-running attempt (if any) so it isn't stranded.
     const { data: running } = await supabase
@@ -430,7 +440,7 @@ export async function markProposalRunFailed(proposalId: string, orgId: string, m
 // ============================================================
 
 async function transition(
-  supabase: ReturnType<typeof createAdminClient>,
+  supabase: ReturnType<typeof createElevatedClient>,
   proposalId: string,
   orgId: string,
   from: CodeState,
@@ -445,7 +455,7 @@ async function transition(
 }
 
 async function completeAttempt(
-  supabase: ReturnType<typeof createAdminClient>,
+  supabase: ReturnType<typeof createElevatedClient>,
   attemptId: string,
   status: 'passed' | 'blocked' | 'failed',
   decisionReason: string,
@@ -462,7 +472,7 @@ async function completeAttempt(
 }
 
 async function generateFilesFromPlan(
-  supabase: ReturnType<typeof createAdminClient>,
+  supabase: ReturnType<typeof createElevatedClient>,
   revisionId: string,
   planContent: ScaffoldPlanContent
 ): Promise<ProposalFile[]> {
@@ -508,13 +518,9 @@ async function generateFilesFromPlan(
 
 async function runModelReview(
   planContent: ScaffoldPlanContent | null,
-  files: ProposalFile[]
+  authoritativeDiff: string | null
 ): Promise<{ promptText: string; rawResponse: string }> {
   const provider = createAIProvider();
-
-  const filesText = files
-    .map(f => `### ${f.path}\n\`\`\`\n${f.content.slice(0, 3000)}\n\`\`\``)
-    .join('\n\n');
 
   const planText = planContent
     ? JSON.stringify(planContent, null, 2)
@@ -525,8 +531,8 @@ async function runModelReview(
 Module plan:
 ${planText}
 
-Proposed files:
-${filesText}
+Authoritative implementation diff (produced from the pinned base commit):
+${authoritativeDiff ?? 'No authoritative diff was produced. Treat this as a blocking verification failure.'}
 
 Check for:
 1. Missing auth guards (org-scoped routes must check can_view_org, is_org_admin, user_org_role, or the implementation-reviewer capability as appropriate)

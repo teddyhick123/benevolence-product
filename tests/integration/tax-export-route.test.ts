@@ -22,7 +22,7 @@ vi.mock('@/lib/api/access', () => ({
   isAccessDenied: vi.fn((result: { ok: boolean }) => !result.ok),
 }));
 
-vi.mock('@/lib/supabase', () => ({
+vi.mock('@/lib/api/server-client', () => ({
   supabasePublic: mockSupabasePublic,
 }));
 

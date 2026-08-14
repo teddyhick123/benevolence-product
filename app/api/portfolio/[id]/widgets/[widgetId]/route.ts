@@ -2,14 +2,14 @@
 
 // app/api/portfolio/[id]/widgets/[widgetId]/route.ts
 import { NextResponse } from 'next/server';
-import { createSupabaseServerClient } from '@/lib/supabase';
+import { createServerClient } from '@/lib/api/server-client';
 import { updateWidgetSchema } from '@/lib/schemas/portfolio';
 
 function cacheHeaders() {
   return { 'Cache-Control': 'no-store' } as const;
 }
 
-const createSb = createSupabaseServerClient;
+const createSb = createServerClient;
 
 export async function PATCH(req: Request, ctx: { params: Promise<{ id: string; widgetId: string }> }) {
   const { id: portfolio_id, widgetId } = await ctx.params;

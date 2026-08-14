@@ -59,6 +59,15 @@ function violations(pattern: RegExp): string[] {
 }
 
 describe('Phase 6 browser data boundary', () => {
+  it('limits the browser Supabase client to explicit authentication flows', () => {
+    expect(violations(/from\s+['"]@\/lib\/api\/browser-auth-client['"]/)).toEqual([
+      'app/forgot-password/page.tsx',
+      'app/join/page.tsx',
+      'app/login/page.tsx',
+      'app/reset-password/page.tsx',
+    ]);
+  });
+
   it('has no raw fetch calls in components, contexts, client pages, or hooks', () => {
     expect(violations(/\bfetch\s*\(/)).toEqual([]);
   });

@@ -1,13 +1,13 @@
 // app/api/portfolio/[id]/reports/export/route.ts
 // Export data to CSV, Excel, or JSON
 import { NextResponse } from 'next/server';
-import { createSupabaseServerClient } from '@/lib/supabase';
+import { createServerClient } from '@/lib/api/server-client';
 
 function cacheHeaders() {
   return { 'Cache-Control': 'no-store' } as const;
 }
 
-const createSb = createSupabaseServerClient;
+const createSb = createServerClient;
 
 // Convert data to CSV format
 function toCSV(data: any[], columns?: string[]): string {

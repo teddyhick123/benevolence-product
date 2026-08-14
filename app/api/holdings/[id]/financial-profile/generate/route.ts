@@ -2,10 +2,10 @@
 import { NextResponse } from 'next/server';
 import { isAccessDenied, requireHoldingAccess } from '@/lib/api/access';
 import { getOrganization } from '@/lib/services/propublica';
-import { aiAuthRequired } from '@/lib/rate-limit-response';
+import { aiAuthRequired } from '@/lib/api/rate-limit-response';
 import { generateTextForWorkload } from '@/lib/ai/runtime';
-import { aiLimiter } from '@/lib/rate-limit';
-import { rateLimitExceeded } from '@/lib/rate-limit-response';
+import { aiLimiter } from '@/lib/api/rate-limit';
+import { rateLimitExceeded } from '@/lib/api/rate-limit-response';
 import { getHoldingCharityLink, toCharityResponseAliases } from '@/lib/holdings/charities';
 
 const NO_STORE = { 'Cache-Control': 'no-store' } as const;

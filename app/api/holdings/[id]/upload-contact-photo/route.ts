@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server';
-import { createSupabaseServerClient } from '@/lib/supabase';
+import { createServerClient } from '@/lib/api/server-client';
 import { revalidatePath } from 'next/cache';
 import {
   getPrimaryHoldingContact,
   upsertPrimaryHoldingContact,
 } from '@/lib/holdings/contacts';
 
-const getSupabase = createSupabaseServerClient;
+const getSupabase = createServerClient;
 const NO_STORE = { 'Cache-Control': 'no-store' } as const;
 
 function json(body: unknown, init?: ResponseInit) {

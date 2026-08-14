@@ -11,8 +11,8 @@ vi.mock('../dynamic-rules', () => ({
   runAutomationRulesForEvent: mockRunAutomationRulesForEvent,
 }));
 
-vi.mock('@/lib/supabase', () => ({
-  createAdminClient: mockCreateAdminClient,
+vi.mock('@/lib/api/admin-client', () => ({
+  createElevatedClient: mockCreateAdminClient,
 }));
 
 import { drainTaskAutomationOutbox, taskAutomationOutboxProducer } from '../outbox';

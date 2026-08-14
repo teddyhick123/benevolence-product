@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isAccessDenied, requireOrgAccess } from "@/lib/api/access";
+import { hasOrgRole } from "@/lib/organizations/roles";
 
 export const dynamic = "force-dynamic";
 
@@ -49,11 +50,18 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     const supabase = access.context.db;
     const { searchParams } = new URL(req.url);
 
+    // Donor mailing details are PII: /donors requires `member` for exactly this
+    // reason, so viewers must not reach them through the contributions list
+    // either. Receipt generation needs them, and that is a member-level action.
+    const donorFields = hasOrgRole(access.context.role, "member")
+      ? "id, first_name, last_name, organization_name, is_organization, email, address_line1, city, state, zip"
+      : "id, first_name, last_name, organization_name, is_organization, email";
+
     let query = supabase
       .from("contributions_received")
       .select(`
         *,
-        donors(first_name, last_name, organization_name, is_organization, email)
+        donors(${donorFields})
       `)
       .eq("org_id", orgId);
 
@@ -124,6 +132,9 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       designation,
       is_restricted,
       restriction_description,
+      quid_pro_quo_value,
+      campaign,
+      payment_reference,
       notes,
     } = body;
 
@@ -132,12 +143,15 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       return json({ error: "Amount must be greater than 0" }, { status: 400 });
     }
 
-    if (!donor_id) {
-      return json({ error: "donor_id is required" }, { status: 400 });
-    }
-
     if (gift_type && !GIFT_TYPES.has(gift_type)) {
       return json({ error: "Invalid gift_type" }, { status: 400 });
+    }
+
+    // contributions_received.donor_id is NOT NULL, so an absent donor is a
+    // client error rather than an anonymous contribution. Anonymous giving is
+    // modelled by a donor row with is_anonymous set, not by a null donor_id.
+    if (!donor_id) {
+      return json({ error: "donor_id is required" }, { status: 400 });
     }
 
     const { data: donor } = await supabase
@@ -163,6 +177,9 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
         fund_designation: designation || null,
         is_restricted: is_restricted || false,
         restriction_purpose: restriction_description || null,
+        quid_pro_quo_value: Number(quid_pro_quo_value) || 0,
+        campaign: campaign || null,
+        payment_reference: payment_reference || null,
         notes,
       })
       .select(`

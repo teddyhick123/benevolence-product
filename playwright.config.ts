@@ -22,7 +22,9 @@ export default defineConfig({
   webServer: {
     command: 'npm run walkthrough:dev',
     url: 'http://127.0.0.1:3000',
-    reuseExistingServer: false,
+    // Local walkthrough commands may be run back-to-back; reuse the controlled
+    // local dev server while preserving an isolated server for CI.
+    reuseExistingServer: !process.env.CI,
     timeout: 300_000,
   },
   projects: [

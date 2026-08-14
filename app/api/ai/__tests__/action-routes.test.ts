@@ -34,11 +34,11 @@ vi.mock('@/lib/api/repositories/ai-actions', () => ({
   createAiActionHistoryRepository: mockCreateHistoryRepository,
 }));
 
-vi.mock('@/lib/rate-limit', () => ({
+vi.mock('@/lib/api/rate-limit', () => ({
   aiLimiter: { limit: mockLimit },
 }));
 
-vi.mock('@/lib/rate-limit-response', () => ({
+vi.mock('@/lib/api/rate-limit-response', () => ({
   rateLimitExceeded: () => NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 }),
 }));
 

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabasePublic } from '@/lib/supabase';
-import { charitiesLimiter, getIP } from '@/lib/rate-limit';
-import { rateLimitExceeded } from '@/lib/rate-limit-response';
+import { getRequestDatabase } from '@/lib/api/server-client';
+import { charitiesLimiter, getIP } from '@/lib/api/rate-limit';
+import { rateLimitExceeded } from '@/lib/api/rate-limit-response';
 
 /**
  * GET /api/charities/[ein]
@@ -23,7 +23,7 @@ export async function GET(
     if (!success) return rateLimitExceeded(reset, remaining, limit);
   }
 
-  const sb = await supabasePublic();
+  const sb = await getRequestDatabase();
   const { ein } = await params;
   const url = new URL(req.url);
   const portfolioId = url.searchParams.get('portfolio_id');
@@ -110,7 +110,7 @@ export async function PUT(
   req: Request,
   { params }: { params: Promise<{ ein: string }> }
 ) {
-  const sb = await supabasePublic();
+  const sb = await getRequestDatabase();
   const { ein } = await params;
 
   try {

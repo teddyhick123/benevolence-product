@@ -1,7 +1,7 @@
 // app/api/portfolio/[id]/summary/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { aiLimiter } from '@/lib/rate-limit';
-import { aiAuthRequired, rateLimitExceeded } from '@/lib/rate-limit-response';
+import { aiLimiter } from '@/lib/api/rate-limit';
+import { aiAuthRequired, rateLimitExceeded } from '@/lib/api/rate-limit-response';
 import { generateTextForWorkload } from '@/lib/ai/runtime';
 import { isAccessDenied, requirePortfolioAccess } from '@/lib/api/access';
 

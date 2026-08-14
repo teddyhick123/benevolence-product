@@ -44,11 +44,11 @@ vi.doMock('@/lib/ai/portfolio-assistant', () => ({
   },
 }));
 
-vi.doMock('@/lib/rate-limit', () => ({
+vi.doMock('@/lib/api/rate-limit', () => ({
   aiLimiter: { limit: mocks.limit },
 }));
 
-vi.doMock('@/lib/rate-limit-response', () => ({
+vi.doMock('@/lib/api/rate-limit-response', () => ({
   aiAuthRequired: () =>
     Response.json({ error: 'Authentication required' }, { status: 401 }),
   rateLimitExceeded: () =>

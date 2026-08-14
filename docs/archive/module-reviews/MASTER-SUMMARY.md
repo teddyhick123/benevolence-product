@@ -8,7 +8,7 @@
 > - **Test suite** — 261 tests covering auth, contract, business logic, security invariants. **Added 2026-05-28.**
 > - Several Sprint B critical bugs (see below) may be fixed; verify before acting on them.
 >
-> For current product state, use `docs/module-reviews/FULL-BACKLOG.md` and the roadmap at `docs/superpowers/plans/2026-05-28-product-improvement-roadmap.md`.
+> For current product state, use `docs/module-reviews/FULL-BACKLOG.md` and the historical roadmap at `docs/archive/plans/2026-05-28-product-improvement-roadmap.md`.
 
 Reviewed: 2026-04-26 | Updated: 2026-04-30 (Sprint A complete) | Staleness notice added: 2026-05-28
 Scope: All 10 active product modules, reviewed by parallel subagent inspection of source code.

@@ -4,19 +4,19 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createCustomFieldRepository } from '@/lib/api/repositories/custom-fields';
 import { stubQuery } from '@/tests/helpers/supabase-mock';
 
-const { mockCreateElevatedClient, mockFrom, mockRpc, mockRunAutomation } = vi.hoisted(() => ({
+const { mockCreateElevatedClient, mockFrom, mockRpc, mockDrainAutomation } = vi.hoisted(() => ({
   mockCreateElevatedClient: vi.fn(),
   mockFrom: vi.fn(),
   mockRpc: vi.fn(),
-  mockRunAutomation: vi.fn(),
+  mockDrainAutomation: vi.fn(),
 }));
 
 vi.mock('@/lib/api/admin-client', () => ({
   createElevatedClient: mockCreateElevatedClient,
 }));
 
-vi.mock('@/lib/tasks/automation/dynamic-rules', () => ({
-  runAutomationRulesForEvent: mockRunAutomation,
+vi.mock('@/lib/tasks/automation/custom-field-outbox', () => ({
+  drainCustomFieldAutomationOutbox: mockDrainAutomation,
 }));
 
 const db = { from: mockFrom, rpc: mockRpc };
@@ -39,7 +39,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mockCreateElevatedClient.mockReturnValue(db);
   mockRpc.mockResolvedValue({ data: 'org-1', error: null });
-  mockRunAutomation.mockResolvedValue({});
+  mockDrainAutomation.mockResolvedValue({});
 });
 
 describe('createCustomFieldRepository', () => {
@@ -84,9 +84,8 @@ describe('createCustomFieldRepository', () => {
     expect(mockFrom).not.toHaveBeenCalled();
   });
 
-  it('scopes value writes and automation events to the authorized org and actor', async () => {
+  it('normalizes the whole request, then commits values and outbox events through one RPC', async () => {
     const definitions = stubQuery({ data: [definition], error: null });
-    const upsert = stubQuery({ data: null, error: null });
     const loadedDefinitions = stubQuery({ data: [definition], error: null });
     const loadedValues = stubQuery({
       data: [{
@@ -101,9 +100,9 @@ describe('createCustomFieldRepository', () => {
     });
     mockFrom
       .mockReturnValueOnce(definitions)
-      .mockReturnValueOnce(upsert)
       .mockReturnValueOnce(loadedDefinitions)
       .mockReturnValueOnce(loadedValues);
+    mockRpc.mockResolvedValueOnce({ data: { outbox_event_ids: ['event-1'] }, error: null });
 
     const result = await createCustomFieldRepository(scope).setEntityValues(
       'grant',
@@ -111,22 +110,41 @@ describe('createCustomFieldRepository', () => {
       { strategic_alignment: 4 }
     );
 
-    expect(upsert.calls).toContainEqual({
-      method: 'upsert',
-      args: [expect.objectContaining({
-        org_id: 'org-1',
-        entity_type: 'grant',
-        entity_id: ENTITY_ID,
+    expect(mockRpc).toHaveBeenCalledWith('mutate_custom_field_values', {
+      p_org_id: 'org-1',
+      p_actor_id: 'actor-1',
+      p_entity_type: 'grant',
+      p_entity_id: ENTITY_ID,
+      p_changes: [{
         field_definition_id: 'field-1',
+        value_text: null,
         value_numeric: 4,
-      }), { onConflict: 'entity_id,field_definition_id' }],
+        value_boolean: null,
+        value_date: null,
+      }],
     });
-    expect(mockRunAutomation).toHaveBeenCalledWith(db, expect.objectContaining({
-      orgId: 'org-1',
-      entityId: ENTITY_ID,
-      payload: expect.objectContaining({ actor_id: 'actor-1' }),
-    }));
+    expect(mockDrainAutomation).toHaveBeenCalledWith(db, { orgId: 'org-1', eventId: 'event-1', limit: 1 });
     expect(result.values).toEqual({ strategic_alignment: 4 });
+  });
+
+  it('rejects the entire request before mutation when any value cannot be normalized', async () => {
+    const definitions = stubQuery({ data: [definition], error: null });
+    mockFrom.mockReturnValue(definitions);
+
+    await expect(
+      createCustomFieldRepository(scope).setEntityValues('grant', ENTITY_ID, { strategic_alignment: 'not-an-integer' })
+    ).rejects.toEqual(expect.objectContaining({ status: 400 }));
+    expect(mockRpc).not.toHaveBeenCalledWith('mutate_custom_field_values', expect.anything());
+  });
+
+  it('maps atomic mutation authorization and ownership errors without exposing storage access', async () => {
+    const definitions = stubQuery({ data: [definition], error: null });
+    mockFrom.mockReturnValue(definitions);
+    mockRpc.mockResolvedValueOnce({ data: null, error: { code: 'P0002', message: 'not found' } });
+
+    await expect(
+      createCustomFieldRepository(scope).setEntityValues('grant', ENTITY_ID, { strategic_alignment: 4 })
+    ).rejects.toEqual(expect.objectContaining({ status: 404 }));
   });
 
   it('verifies every batch entity against the authorized organization', async () => {

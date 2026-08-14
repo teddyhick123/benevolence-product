@@ -4,9 +4,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createMembershipRepository } from '@/lib/api/repositories/memberships';
 import { stubQuery } from '@/tests/helpers/supabase-mock';
 
-const { mockCreateElevatedClient, mockFrom, mockListUsers } = vi.hoisted(() => ({
+const { mockCreateElevatedClient, mockFrom, mockRpc, mockListUsers } = vi.hoisted(() => ({
   mockCreateElevatedClient: vi.fn(),
   mockFrom: vi.fn(),
+  mockRpc: vi.fn(),
   mockListUsers: vi.fn(),
 }));
 
@@ -14,12 +15,13 @@ vi.mock('@/lib/api/admin-client', () => ({
   createElevatedClient: mockCreateElevatedClient,
 }));
 
-const db = { from: mockFrom, auth: { admin: { listUsers: mockListUsers } } };
+const db = { from: mockFrom, rpc: mockRpc, auth: { admin: { listUsers: mockListUsers } } };
 const adminScope = { orgId: 'org-1', role: 'admin' as const, actorId: 'actor-1' };
 
 beforeEach(() => {
   vi.clearAllMocks();
   mockCreateElevatedClient.mockReturnValue(db);
+  mockRpc.mockResolvedValue({ data: { id: 'membership-1', role: 'admin' }, error: null });
 });
 
 describe('createMembershipRepository', () => {
@@ -33,62 +35,32 @@ describe('createMembershipRepository', () => {
     expect(query.calls).toContainEqual({ method: 'is', args: ['deleted_at', null] });
   });
 
-  it('scopes both the target lookup and role update to the authorized org', async () => {
-    const lookup = stubQuery(
-      { data: null, error: null },
-      { maybeSingle: { data: { id: 'membership-1', role: 'member' }, error: null } }
-    );
-    const update = stubQuery(
-      { data: null, error: null },
-      { single: { data: { id: 'membership-1', role: 'admin' }, error: null } }
-    );
-    const audit = stubQuery({ data: null, error: null });
-    mockFrom
-      .mockReturnValueOnce(lookup)
-      .mockReturnValueOnce(update)
-      .mockReturnValueOnce(audit);
-
+  it('uses the one transactional RPC for role changes and never compensates in application code', async () => {
     await createMembershipRepository(adminScope).updateRole('user-1', 'admin', false);
 
-    for (const query of [lookup, update]) {
-      expect(query.calls).toContainEqual({ method: 'eq', args: ['org_id', 'org-1'] });
-      expect(query.calls).toContainEqual({ method: 'eq', args: ['user_id', 'user-1'] });
-    }
-    expect(audit.calls).toContainEqual({
-      method: 'insert',
-      args: [expect.objectContaining({
-        org_id: 'org-1',
-        actor_id: 'actor-1',
-        target_id: 'user-1',
-      })],
+    expect(mockRpc).toHaveBeenCalledWith('mutate_organization_membership', {
+      p_org_id: 'org-1',
+      p_actor_id: 'actor-1',
+      p_target_user_id: 'user-1',
+      p_operation: 'change_role',
+      p_role: 'admin',
     });
+    expect(mockFrom).not.toHaveBeenCalled();
   });
 
-  it('prevents an admin from changing owner membership before writing', async () => {
-    const lookup = stubQuery(
-      { data: null, error: null },
-      { maybeSingle: { data: { id: 'membership-1', role: 'owner' }, error: null } }
-    );
-    mockFrom.mockReturnValue(lookup);
-
+  it('maps transactional ownership denials to the appropriate HTTP-facing error', async () => {
+    mockRpc.mockResolvedValue({ data: null, error: { code: '42501', message: 'Only owners can change owner membership' } });
     await expect(
       createMembershipRepository(adminScope).updateRole('owner-1', 'admin', false)
     ).rejects.toEqual(expect.objectContaining({
       message: 'Only owners can change owner membership',
       status: 403,
     }));
-    expect(mockFrom).toHaveBeenCalledTimes(1);
+    expect(mockRpc).toHaveBeenCalledTimes(1);
   });
 
-  it('prevents removal of the last owner using an org-scoped count', async () => {
-    const lookup = stubQuery(
-      { data: null, error: null },
-      { maybeSingle: { data: { id: 'membership-1', role: 'owner' }, error: null } }
-    );
-    const count = stubQuery({ data: null, error: null } as any);
-    count.then = onFulfilled => Promise.resolve(onFulfilled({ count: 1, error: null } as any));
-    mockFrom.mockReturnValueOnce(lookup).mockReturnValueOnce(count);
-
+  it('maps a transactional last-owner conflict without a race-prone client count', async () => {
+    mockRpc.mockResolvedValue({ data: null, error: { code: 'P0001', message: 'Cannot remove the last owner' } });
     await expect(createMembershipRepository({
       orgId: 'org-1',
       role: 'owner',
@@ -97,10 +69,7 @@ describe('createMembershipRepository', () => {
       message: 'Cannot remove the last owner',
       status: 400,
     }));
-
-    expect(count.calls).toContainEqual({ method: 'eq', args: ['org_id', 'org-1'] });
-    expect(count.calls).toContainEqual({ method: 'eq', args: ['role', 'owner'] });
-    expect(mockFrom).toHaveBeenCalledTimes(2);
+    expect(mockFrom).not.toHaveBeenCalled();
   });
 
   it('does not expose the elevated client or generic table access', () => {

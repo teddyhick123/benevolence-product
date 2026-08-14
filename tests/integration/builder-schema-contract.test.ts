@@ -35,7 +35,7 @@ describe('0025 canonical builder schema', () => {
 
   it.each([
     ['builder_proposal_revisions', ['proposal_id','revision_number','parent_revision_id','kind',
-      'base_commit_sha','head_commit_sha','manifest_hash','diff_hash','context_hash',
+      'base_commit_sha','head_commit_sha','manifest_hash','diff_hash','authoritative_diff_hash','authoritative_diff_artifact_key','context_hash',
       'artifact_prefix','file_count','total_bytes','progress','created_by']],
     ['builder_review_attempts', ['proposal_id','revision_id','attempt_number','trigger','status',
       'policy_version','required_check_keys','summary_score','started_at','completed_at','decision_reason']],
@@ -80,6 +80,8 @@ describe('0025 canonical builder schema', () => {
 
   it('has immutability trigger, claim RPC, circular FK, and artifact bucket', () => {
     expect(sql).toContain('builder_revision_immutability_guard');
+    expect(sql).toMatch(/OLD\.authoritative_diff_hash IS NOT NULL[\s\S]*authoritative_diff_hash already stamped/);
+    expect(sql).toMatch(/OLD\.authoritative_diff_artifact_key IS NOT NULL[\s\S]*authoritative_diff_artifact_key already stamped/);
     expect(sql).toContain('builder_claim_code_run');
     expect(sql).toMatch(/ADD CONSTRAINT builder_proposals_current_revision_fkey/);
     expect(sql).toMatch(/ON DELETE SET NULL/);

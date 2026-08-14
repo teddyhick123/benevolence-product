@@ -1,9 +1,9 @@
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
-import { createServerClient } from '@/lib/supabase';
+import { createServerClient } from '@/lib/api/server-client';
 import { fetchOrgSnapshot } from '@/lib/builder/context-bundle';
 import BuilderStudio from '@/components/builder-studio/BuilderStudio';
-import { canReviewImplementation } from '@/lib/org-capabilities';
+import { canReviewImplementation } from '@/lib/organizations/capabilities';
 
 export const dynamic = 'force-dynamic';
 

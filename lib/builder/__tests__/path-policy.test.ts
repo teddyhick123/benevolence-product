@@ -54,8 +54,8 @@ describe('evaluatePathPolicy', () => {
   });
 
   it('denies auth/security primitives and protected directories', () => {
-    expect(rules(['lib/supabase.ts'])).toContain('protected-file');
-    expect(rules(['lib/org-capabilities.ts'])).toContain('protected-file');
+    expect(rules(['lib/api/browser-auth-client.ts'])).toContain('protected-file');
+    expect(rules(['lib/organizations/capabilities.ts'])).toContain('protected-file');
     expect(rules(['app/middleware.ts'])).toContain('protected-file');
     expect(rules(['scripts/deploy.sh'])).toContain('protected-directory');
   });

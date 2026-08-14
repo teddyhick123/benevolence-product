@@ -192,7 +192,7 @@ Acceptance:
 **Files:**
 - `AGENTS.md`
 - `CLAUDE.md`
-- relevant specs under `docs/superpowers/specs/`
+- relevant specs under `docs/agent-work/specs/`
 
 - [ ] Update stale module-system notes to document `organizations.modules` / `module_definitions` as canonical.
 - [ ] Remove references to obsolete monolithic assistant files where split modules now exist.

@@ -2,7 +2,7 @@
 // Import job detail page — server component
 
 import Link from 'next/link';
-import { createServerClient } from '@/lib/supabase';
+import { createServerClient } from '@/lib/api/server-client';
 import { ImportStatusBadge } from '@/components/admin/ImportStatusBadge';
 import { ImportProgressMonitor } from '@/components/admin/ImportProgressMonitor';
 import { ImportErrorsTable } from '@/components/admin/ImportErrorsTable';

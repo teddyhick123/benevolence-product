@@ -15,7 +15,7 @@ let _enhancedHoldings: any[];
 const mockRpc = vi.fn();
 const mockFrom = vi.fn();
 
-vi.mock('@/lib/supabase', () => ({
+vi.mock('@/lib/api/server-client', () => ({
   supabasePublic: vi.fn(async () => ({ rpc: mockRpc, from: mockFrom })),
 }));
 

@@ -106,6 +106,7 @@ export default function OnboardingChat({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           sessionId,
+          requestId: crypto.randomUUID(),
           message: input.trim(),
         }),
       });

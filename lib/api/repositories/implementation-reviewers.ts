@@ -1,5 +1,5 @@
 import { createElevatedClient } from '@/lib/api/admin-client';
-import { isWorkspaceManager } from '@/lib/roles';
+import { isWorkspaceManager } from '@/lib/organizations/roles';
 
 type ImplementationReviewerScope = {
   orgId: string;

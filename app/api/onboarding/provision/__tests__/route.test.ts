@@ -157,7 +157,7 @@ describe('onboarding configuration row builders', () => {
       customFieldRowsFromOnboardingProfile,
       automationRowsFromOnboardingProfile,
       viewRowsFromOnboardingProfile,
-    } = await import('@/lib/onboarding-provision-config');
+    } = await import('@/lib/onboarding/provision-config');
 
     const profile = {
       workflows: {

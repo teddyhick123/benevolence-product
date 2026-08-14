@@ -74,7 +74,7 @@ export interface VerificationOutcome {
   checks: CheckExecution[];
   /** null when patch/worktree setup succeeded */
   setupFailure: {
-    stage: 'no_base_sha' | 'worktree' | 'path_policy' | 'file_budget' | 'patch';
+    stage: 'no_base_sha' | 'worktree' | 'container' | 'path_policy' | 'file_budget' | 'patch';
     detail: string;
   } | null;
   authoritativeDiff: string | null; // unified diff from `git diff --cached`, null on setup failure
@@ -93,6 +93,77 @@ export interface ProcessExecutor {
 }
 
 type ExecResult = { exitCode: number | null; output: string; timedOut: boolean };
+
+const CONTAINER_IMAGE_PATTERN = /^[a-z0-9][a-z0-9._/:-]*@sha256:[a-f0-9]{64}$/;
+
+/**
+ * Runs a check in a Docker container with no network, no Linux capabilities,
+ * a read-only container filesystem, and a temporary worktree as its only
+ * writable bind mount. The Docker CLI itself runs on the worker host; proposal
+ * code never does.
+ */
+export class DockerProcessExecutor implements ProcessExecutor {
+  private readonly image: string;
+  private readonly hostExecutor: ProcessExecutor;
+  private readonly hostEnv: Record<string, string>;
+  private readonly user: string;
+
+  constructor(opts: {
+    image: string;
+    hostExecutor?: ProcessExecutor;
+    hostEnv?: NodeJS.ProcessEnv;
+    uid?: number;
+    gid?: number;
+  }) {
+    if (!CONTAINER_IMAGE_PATTERN.test(opts.image)) {
+      throw new Error('Builder verifier image must be a digest-pinned container image.');
+    }
+    this.image = opts.image;
+    this.hostExecutor = opts.hostExecutor ?? defaultProcessExecutor();
+    this.hostEnv = Object.fromEntries(
+      Object.entries(opts.hostEnv ?? process.env).filter((entry): entry is [string, string] => typeof entry[1] === 'string')
+    );
+    const uid = opts.uid ?? process.getuid?.() ?? 65532;
+    const gid = opts.gid ?? process.getgid?.() ?? 65532;
+    this.user = `${uid}:${gid}`;
+  }
+
+  exec(argv: string[], opts: { cwd: string; env: Record<string, string>; timeoutMs: number }): Promise<ExecResult> {
+    const containerEnv = {
+      ...opts.env,
+      HOME: '/tmp',
+      TMPDIR: '/tmp',
+      PATH: '/opt/builder/node_modules/.bin:/usr/local/bin:/usr/bin:/bin',
+      npm_config_cache: '/tmp/npm-cache',
+    };
+    const envArgs = Object.entries(containerEnv).flatMap(([key, value]) => ['--env', `${key}=${value}`]);
+    const dockerArgv = [
+      'docker', 'run', '--rm', '--init',
+      '--network', 'none',
+      '--read-only',
+      '--cap-drop', 'ALL',
+      '--security-opt', 'no-new-privileges:true',
+      '--pids-limit', '256',
+      '--memory', '4g',
+      '--cpus', '2',
+      '--user', this.user,
+      '--workdir', '/workspace',
+      '--mount', `type=bind,src=${opts.cwd},dst=/workspace`,
+      '--tmpfs', '/tmp:rw,noexec,nosuid,size=1g',
+      ...envArgs,
+      this.image,
+      ...argv,
+    ];
+
+    // Deliberately use the host environment only for the Docker control
+    // process. The container receives only `containerEnv` above.
+    return this.hostExecutor.exec(dockerArgv, {
+      cwd: opts.cwd,
+      env: this.hostEnv,
+      timeoutMs: opts.timeoutMs,
+    });
+  }
+}
 
 // ============================================================
 // Constants
@@ -154,12 +225,22 @@ function bulkChecks(keys: CheckKey[], status: CheckExecution['status'], log: str
 export class LocalWorktreeRunner implements VerificationRunner {
   private readonly repoRoot: string;
   private readonly executor: ProcessExecutor;
+  private readonly checkExecutor: ProcessExecutor;
   private readonly tmpRoot: string;
+  private readonly shouldLinkNodeModules: boolean;
 
-  constructor(opts: { repoRoot: string; executor?: ProcessExecutor; tmpRoot?: string }) {
+  constructor(opts: {
+    repoRoot: string;
+    executor?: ProcessExecutor;
+    checkExecutor?: ProcessExecutor;
+    tmpRoot?: string;
+    linkNodeModules?: boolean;
+  }) {
     this.repoRoot = opts.repoRoot;
     this.executor = opts.executor ?? defaultProcessExecutor();
+    this.checkExecutor = opts.checkExecutor ?? this.executor;
     this.tmpRoot = opts.tmpRoot ?? os.tmpdir();
+    this.shouldLinkNodeModules = opts.linkNodeModules ?? true;
   }
 
   async run(input: VerificationInput): Promise<VerificationOutcome> {
@@ -264,7 +345,7 @@ export class LocalWorktreeRunner implements VerificationRunner {
       // symlink and pollute the authoritative diff on every run. The checks are
       // the only consumers of node_modules, so deferring the link keeps the diff
       // clean without costing anything.
-      this.linkNodeModules(worktreeDir);
+      if (this.shouldLinkNodeModules) this.linkNodeModules(worktreeDir);
 
       const changedFiles = input.files.map((f) => normalizeProposalPath(f.path)).sort();
       const checks: CheckExecution[] = [];
@@ -369,7 +450,7 @@ export class LocalWorktreeRunner implements VerificationRunner {
     const commandVersion = await this.bestEffortVersion(spec.versionArgv, worktreeDir, env);
 
     try {
-      const result = await this.executor.exec(argv, { cwd: worktreeDir, env, timeoutMs: spec.timeoutMs });
+      const result = await this.checkExecutor.exec(argv, { cwd: worktreeDir, env, timeoutMs: spec.timeoutMs });
       const completedAt = new Date();
       if (result.timedOut) {
         return makeCheck(key, 'failed', {
@@ -406,7 +487,7 @@ export class LocalWorktreeRunner implements VerificationRunner {
   ): Promise<string | null> {
     if (versionArgv.length === 0) return null;
     try {
-      const r = await this.executor.exec(versionArgv, { cwd, env, timeoutMs: VERSION_TIMEOUT_MS });
+      const r = await this.checkExecutor.exec(versionArgv, { cwd, env, timeoutMs: VERSION_TIMEOUT_MS });
       if (r.timedOut || r.exitCode !== 0) return null;
       const version = r.output.trim();
       return version.length > 0 ? version : null;
@@ -421,13 +502,43 @@ export class LocalWorktreeRunner implements VerificationRunner {
 // ============================================================
 
 /**
- * The worker's seam for obtaining a verification runner. Today it always
- * returns a LocalWorktreeRunner pinned to the host repo; Increment 3b swaps in
- * a container-backed runner selected from config here without touching the
- * worker.
+ * The worker's seam for obtaining a verification runner. Production always
+ * runs proposal code in a digest-pinned Docker image; it never falls back to
+ * host execution. Local development can retain the lightweight worktree runner
+ * unless a container image is explicitly configured.
  */
-export function createVerificationRunner(): VerificationRunner {
+export function createVerificationRunner(env: NodeJS.ProcessEnv = process.env): VerificationRunner {
+  const image = env.BUILDER_VERIFIER_IMAGE;
+  const useContainer = env.NODE_ENV === 'production' || Boolean(image);
+
+  if (useContainer) {
+    if (!image || !CONTAINER_IMAGE_PATTERN.test(image)) {
+      return new UnavailableVerificationRunner(
+        'Builder verification requires BUILDER_VERIFIER_IMAGE to be a digest-pinned Docker image.'
+      );
+    }
+    return new LocalWorktreeRunner({
+      repoRoot: process.cwd(),
+      checkExecutor: new DockerProcessExecutor({ image }),
+      linkNodeModules: false,
+    });
+  }
+
   return new LocalWorktreeRunner({ repoRoot: process.cwd() });
+}
+
+/** Fails closed when a production worker cannot establish the container boundary. */
+export class UnavailableVerificationRunner implements VerificationRunner {
+  constructor(private readonly detail: string) {}
+
+  async run(input: VerificationInput): Promise<VerificationOutcome> {
+    const required = new Set(input.requiredKeys);
+    return {
+      checks: bulkChecks(CHECK_KEYS.filter((key) => required.has(key)), 'error', this.detail),
+      setupFailure: { stage: 'container', detail: this.detail },
+      authoritativeDiff: null,
+    };
+  }
 }
 
 // ============================================================

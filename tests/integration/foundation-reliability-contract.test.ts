@@ -181,6 +181,59 @@ describe('foundation reliability contracts', () => {
     expect(migration).toContain('PERFORM public.enqueue_task_completion_automation');
   });
 
+  it('custom-field batch saves atomically enqueue durable automation work', () => {
+    const migration = src('db/migrations/0051_configurable_automations.sql');
+    const repository = src('lib/api/repositories/custom-fields.ts');
+    const outbox = src('lib/tasks/automation/custom-field-outbox.ts');
+
+    expect(migration).toContain('CREATE TABLE IF NOT EXISTS public.org_automation_outbox');
+    expect(migration).toContain('CREATE OR REPLACE FUNCTION public.mutate_custom_field_values');
+    expect(migration).toContain('CREATE OR REPLACE FUNCTION public.claim_org_automation_outbox');
+    expect(migration).toContain('CREATE OR REPLACE FUNCTION public.finish_org_automation_outbox');
+    expect(migration).toContain('FOR v_change IN');
+    expect(migration).toContain('INSERT INTO public.org_automation_outbox');
+    expect(repository).toContain("rpc('mutate_custom_field_values'");
+    expect(repository).toContain('drainCustomFieldAutomationOutbox');
+    expect(repository).not.toContain("from('org_custom_field_values')\n          .upsert");
+    expect(outbox).toContain("rpc('claim_org_automation_outbox'");
+    expect(outbox).toContain("rpc('finish_org_automation_outbox'");
+    expect(outbox).toContain('outbox_event_id: event.id');
+  });
+
+  it('invitation acceptance atomically finalizes membership, invite, and audit history', () => {
+    const migration = src('db/migrations/0002_organizations.sql');
+    const repository = src('lib/api/repositories/public-invitations.ts');
+
+    expect(migration).toContain('CREATE OR REPLACE FUNCTION public.accept_org_invitation');
+    expect(migration).toContain('AND token = p_invitation_token');
+    expect(migration).toContain("SET status = 'accepted', accepted_at = v_now, accepted_by = p_user_id");
+    expect(migration).toContain("'invite_accepted'");
+    expect(migration).toContain('v_idempotent');
+    expect(repository).toContain("rpc('accept_org_invitation'");
+    expect(repository).toContain('p_invitation_token: scope.token');
+  });
+
+  it('onboarding assistant uses durable, idempotent turns and atomic completion', () => {
+    const migration = src('db/migrations/0034_onboarding.sql');
+    const repository = src('lib/api/repositories/onboarding.ts');
+    const route = src('app/api/onboarding/chat/route.ts');
+
+    expect(migration).toContain('CREATE TABLE IF NOT EXISTS public.onboarding_turns');
+    expect(migration).toContain('CREATE TABLE IF NOT EXISTS public.onboarding_messages');
+    expect(migration).toContain('CREATE OR REPLACE FUNCTION public.begin_onboarding_turn');
+    expect(migration).toContain('CREATE OR REPLACE FUNCTION public.complete_onboarding_turn');
+    expect(migration).toContain('CREATE OR REPLACE FUNCTION public.fail_onboarding_turn');
+    expect(migration).toContain('onboarding_turns_one_active_per_session');
+    expect(migration).toContain('UPDATE public.onboarding_profiles SET');
+    expect(migration).toContain('UPDATE public.onboarding_analytics SET');
+    expect(repository).toContain("rpc('begin_onboarding_turn'");
+    expect(repository).toContain("rpc('complete_onboarding_turn'");
+    expect(repository).toContain("rpc('complete_onboarding_recommendations'");
+    expect(route).toContain('requestId');
+    expect(route).toContain('beginChatTurn');
+    expect(route).toContain('failChatTurn');
+  });
+
   it('tax profile mutations roll back when canonical tax year sync fails', () => {
     const route = src('app/api/portfolio/[id]/tax/profile/route.ts');
     expect(route).toContain('taxYearError');
@@ -409,6 +462,34 @@ describe('foundation reliability contracts', () => {
     expect(migration).toContain('UPDATE public.contributions_received');
     expect(migration).toContain('public.generate_receipt_number(p_org_id)');
     expect(migration).toContain('GRANT EXECUTE ON FUNCTION public.create_contribution_receipt_acknowledgment');
+  });
+
+  it('membership mutation protects owner state and audit insertion in one database transaction', () => {
+    const migration = src('db/migrations/0024_settings_ops_hub.sql');
+    const repository = src('lib/api/repositories/memberships.ts');
+    expect(migration).toContain('CREATE OR REPLACE FUNCTION public.mutate_organization_membership');
+    expect(migration).toContain('pg_advisory_xact_lock');
+    expect(migration).toContain('FOR UPDATE');
+    expect(migration).toContain('INSERT INTO public.org_audit_log');
+    expect(migration).toContain("GRANT EXECUTE ON FUNCTION public.mutate_organization_membership");
+    expect(repository).toContain("db.rpc('mutate_organization_membership'");
+    expect(repository).not.toContain("from('org_audit_log').insert");
+  });
+
+  it('invitation state, audit, and email delivery intent commit atomically through an outbox', () => {
+    const migration = src('db/migrations/0002_organizations.sql');
+    const repository = src('lib/api/repositories/invitations.ts');
+    const outbox = src('lib/invitations/email-outbox.ts');
+    expect(migration).toContain('CREATE TABLE IF NOT EXISTS org_invitation_email_outbox');
+    expect(migration).toContain('CREATE OR REPLACE FUNCTION public.mutate_org_invitation');
+    expect(migration).toContain('INSERT INTO public.org_audit_log');
+    expect(migration).toContain('INSERT INTO public.org_invitation_email_outbox');
+    expect(migration).toContain('claim_org_invitation_email_outbox');
+    expect(migration).toContain('finish_org_invitation_email_outbox');
+    expect(repository).toContain("db.rpc('mutate_org_invitation'");
+    expect(repository).not.toContain('sendInviteEmail');
+    expect(outbox).toContain('sendInviteEmail');
+    expect(outbox).toContain("p_outcome: 'failed'");
   });
 
   it('board-grade operations write org audit events with a shared taxonomy', () => {

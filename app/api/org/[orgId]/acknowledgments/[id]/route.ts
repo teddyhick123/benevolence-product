@@ -65,7 +65,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     const supabase = access.context.db;
 
     const body = await req.json();
-    const allowedFields = ['status', 'subject', 'body', 'notes', 'delivery_method', 'sent_at', 'storage_path', 'storage_bucket'];
+    const allowedFields = ['status', 'subject', 'body', 'notes', 'delivery_method', 'sent_at'];
     const updates: Record<string, any> = {};
     for (const field of allowedFields) {
       if (field in body) updates[field] = body[field];

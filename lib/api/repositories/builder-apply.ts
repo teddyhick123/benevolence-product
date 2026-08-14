@@ -3,10 +3,10 @@ import type { UserAccessContext } from '@/lib/api/principals';
 import {
   ARTIFACT_KEYS,
   buildFileManifest,
-  buildUnifiedDiff,
   canonicalJson,
   manifestHash,
   readJsonArtifact,
+  readTextArtifact,
   sha256Hex,
 } from '@/lib/builder/artifacts';
 import { applyProposalToGitHub, getDefaultBranchSha } from '@/lib/builder/github-apply';
@@ -154,11 +154,18 @@ export function createOrgBuilderApplyRepository(scope: OrgBuilderApplyScope) {
 
       const manifestInput = files.map(file => ({ path: file.path, content: file.content }));
       const recomputedManifestHash = manifestHash(buildFileManifest(manifestInput));
-      const recomputedDiffHash = sha256Hex(buildUnifiedDiff(manifestInput));
-      if (
-        recomputedManifestHash !== frozenRevision.manifest_hash
-        || recomputedDiffHash !== frozenRevision.diff_hash
-      ) {
+      if (recomputedManifestHash !== frozenRevision.manifest_hash) {
+        throw new BuilderApplyError('Revision artifacts do not match recorded hashes', 409);
+      }
+      const recordedDiffKey = `${artifactPrefix}/${ARTIFACT_KEYS.authoritativeDiff}`;
+      if (frozenRevision.authoritative_diff_artifact_key !== recordedDiffKey) {
+        throw new BuilderApplyError('Revision lacks authoritative diff evidence', 409);
+      }
+      const diffText = await readTextArtifact(db, recordedDiffKey);
+      if (diffText === null) {
+        throw new BuilderApplyError('Revision lacks authoritative diff evidence', 409);
+      }
+      if (sha256Hex(diffText) !== frozenRevision.authoritative_diff_hash) {
         throw new BuilderApplyError('Revision artifacts do not match recorded hashes', 409);
       }
 

@@ -1,7 +1,7 @@
 // components/settings/MemberRow.tsx
 'use client';
 
-import { ORG_ROLES, isOrgOwner, isWorkspaceManager } from '@/lib/roles';
+import { ORG_ROLES, isOrgOwner, isWorkspaceManager } from '@/lib/organizations/roles';
 
 interface Member {
   id: string;

@@ -33,7 +33,7 @@ vi.mock('@/lib/api/admin-client', () => ({
   createElevatedClient: mockCreateElevatedClient,
 }));
 
-vi.mock('@/lib/onboarding-assistant', () => ({
+vi.mock('@/lib/onboarding/assistant', () => ({
   OnboardingAssistant: mockOnboardingAssistant,
 }));
 
@@ -166,7 +166,7 @@ describe('onboarding repository', () => {
     });
   });
 
-  it('sends prior turns once and scopes both chat session writes to the owner', async () => {
+  it('runs chat only after claiming a durable turn and atomically completes it', async () => {
     const sessionQuery = stubQuery(
       { data: null, error: null },
       {
@@ -189,15 +189,18 @@ describe('onboarding repository', () => {
         },
       }
     );
-    const userMessageUpdate = stubQuery({ data: null, error: null });
-    const assistantMessageUpdate = stubQuery({ data: null, error: null });
-    mockFrom
-      .mockReturnValueOnce(sessionQuery)
-      .mockReturnValueOnce(userMessageUpdate)
-      .mockReturnValueOnce(assistantMessageUpdate);
+    mockFrom.mockReturnValueOnce(sessionQuery);
+    mockRpc
+      .mockResolvedValueOnce({ data: { started: true, turn_id: 'turn-1', status: 'in_progress', history: [{ role: 'assistant', content: 'Prior turn' }] }, error: null })
+      .mockResolvedValueOnce({ data: {
+        message: 'Assistant reply', extractions: { goals: [] },
+        conversation_state: { message_count: 2, ready_for_recommendations: false }, ready_for_recommendations: false,
+      }, error: null });
 
     const session = await createOnboardingRepository('user-1').resolveSession('session-1');
-    const result = await session?.chat('New message');
+    const turn = await session?.beginChatTurn('11111111-1111-4111-8111-111111111111', 'New message');
+    if (!turn || turn.state !== 'started') throw new Error('expected started turn');
+    const result = await session?.chat(turn.turnId, 'New message', turn.history);
 
     expect(mockOnboardingAssistant).toHaveBeenCalledWith(db);
     expect(mockAssistantChat).toHaveBeenCalledWith(expect.objectContaining({
@@ -206,14 +209,16 @@ describe('onboarding repository', () => {
       message: 'New message',
       conversationHistory: [{ role: 'assistant', content: 'Prior turn' }],
     }));
-    for (const query of [userMessageUpdate, assistantMessageUpdate]) {
-      expect(query.calls).toContainEqual({ method: 'eq', args: ['id', 'session-1'] });
-      expect(query.calls).toContainEqual({ method: 'eq', args: ['user_id', 'user-1'] });
-    }
-    expect(result?.readyForRecommendations).toBe(false);
+    expect(mockRpc).toHaveBeenNthCalledWith(1, 'begin_onboarding_turn', expect.objectContaining({
+      p_session_id: 'session-1', p_user_id: 'user-1', p_content: 'New message',
+    }));
+    expect(mockRpc).toHaveBeenNthCalledWith(2, 'complete_onboarding_turn', expect.objectContaining({
+      p_turn_id: 'turn-1', p_session_id: 'session-1', p_user_id: 'user-1',
+    }));
+    expect(result?.ready_for_recommendations).toBe(false);
   });
 
-  it('keeps generated recommendation state and analytics inside the owned session', async () => {
+  it('atomically publishes generated recommendations inside the owned session', async () => {
     const sessionQuery = stubQuery(
       { data: null, error: null },
       {
@@ -232,23 +237,18 @@ describe('onboarding repository', () => {
         },
       }
     );
-    const sessionUpdate = stubQuery({ data: null, error: null });
-    const analyticsUpdate = stubQuery({ data: null, error: null });
-    mockFrom
-      .mockReturnValueOnce(sessionQuery)
-      .mockReturnValueOnce(sessionUpdate)
-      .mockReturnValueOnce(analyticsUpdate);
+    mockFrom.mockReturnValueOnce(sessionQuery);
+    mockRpc.mockResolvedValueOnce({ data: {
+      recommendations: [{ module_id: 'impact_tracking' }], excluded: [{ module_id: 'analytics' }],
+    }, error: null });
 
     const session = await createOnboardingRepository('user-1').resolveSession('session-1');
     await session?.generateRecommendations();
 
-    expect(mockGenerateRecommendations).toHaveBeenCalledWith('session-1');
-    expect(sessionUpdate.calls).toContainEqual({ method: 'eq', args: ['id', 'session-1'] });
-    expect(sessionUpdate.calls).toContainEqual({ method: 'eq', args: ['user_id', 'user-1'] });
-    expect(analyticsUpdate.calls).toContainEqual({
-      method: 'eq',
-      args: ['session_id', 'session-1'],
-    });
+    expect(mockGenerateRecommendations).toHaveBeenCalledWith('session-1', { persist: false });
+    expect(mockRpc).toHaveBeenCalledWith('complete_onboarding_recommendations', expect.objectContaining({
+      p_session_id: 'session-1', p_user_id: 'user-1',
+    }));
   });
 
   it('finalizes recommendations and telemetry only after resolving the owned session', async () => {

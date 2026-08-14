@@ -1,5 +1,6 @@
 import { createElevatedClient } from '@/lib/api/admin-client';
 import type { OrgAccessContext } from '@/lib/api/principals';
+import { randomUUID } from 'crypto';
 
 type AcknowledgmentPdfScope = Pick<OrgAccessContext, 'orgId'>;
 
@@ -7,8 +8,16 @@ type AcknowledgmentPdfScope = Pick<OrgAccessContext, 'orgId'>;
 export function createAcknowledgmentPdfRepository(scope: AcknowledgmentPdfScope) {
   const storage = createElevatedClient().storage.from('documents');
 
-  function pathFor(letterId: string) {
-    return `acknowledgments/${scope.orgId}/${letterId}.pdf`;
+  function pathPrefix(letterId: string) {
+    return `acknowledgments/${scope.orgId}/${letterId}/`;
+  }
+
+  function pathFor(letterId: string, version: string = randomUUID()) {
+    return `${pathPrefix(letterId)}${version}.pdf`;
+  }
+
+  function isScopedPath(letterId: string, storagePath: string | null | undefined): storagePath is string {
+    return typeof storagePath === 'string' && storagePath.startsWith(pathPrefix(letterId));
   }
 
   return {
@@ -18,20 +27,25 @@ export function createAcknowledgmentPdfRepository(scope: AcknowledgmentPdfScope)
       const storagePath = pathFor(letterId);
       const { error } = await storage.upload(storagePath, pdf, {
         contentType: 'application/pdf',
-        upsert: true,
+        upsert: false,
       });
       if (error) throw new Error(`Storage upload failed: ${error.message}`);
       return storagePath;
     },
 
-    async remove(letterId: string) {
-      return storage.remove([pathFor(letterId)]);
+    async remove(letterId: string, storagePath: string) {
+      if (!isScopedPath(letterId, storagePath)) {
+        throw new Error('Acknowledgment storage path is outside the authorized letter scope');
+      }
+      return storage.remove([storagePath]);
     },
 
-    async createSignedUrl(letterId: string) {
-      const { data, error } = await storage.createSignedUrl(pathFor(letterId), 3600);
+    async createSignedUrl(storagePath: string) {
+      const { data, error } = await storage.createSignedUrl(storagePath, 3600);
       if (error || !data) throw new Error('Failed to create download URL');
       return data.signedUrl;
     },
+
+    isScopedPath,
   };
 }

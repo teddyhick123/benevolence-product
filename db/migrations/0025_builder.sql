@@ -105,6 +105,8 @@ CREATE TABLE IF NOT EXISTS public.builder_proposal_revisions (
   head_commit_sha    text,
   manifest_hash      text,
   diff_hash          text,
+  authoritative_diff_hash text,
+  authoritative_diff_artifact_key text,
   context_hash       text,
   artifact_prefix    text NOT NULL,
   file_count         int,
@@ -171,6 +173,16 @@ BEGIN
   IF OLD.head_commit_sha IS NOT NULL
      AND NEW.head_commit_sha IS DISTINCT FROM OLD.head_commit_sha THEN
     RAISE EXCEPTION 'builder_revision_immutable: head_commit_sha already stamped on %', OLD.id
+      USING ERRCODE = 'P0031';
+  END IF;
+  IF OLD.authoritative_diff_hash IS NOT NULL
+     AND NEW.authoritative_diff_hash IS DISTINCT FROM OLD.authoritative_diff_hash THEN
+    RAISE EXCEPTION 'builder_revision_immutable: authoritative_diff_hash already stamped on %', OLD.id
+      USING ERRCODE = 'P0031';
+  END IF;
+  IF OLD.authoritative_diff_artifact_key IS NOT NULL
+     AND NEW.authoritative_diff_artifact_key IS DISTINCT FROM OLD.authoritative_diff_artifact_key THEN
+    RAISE EXCEPTION 'builder_revision_immutable: authoritative_diff_artifact_key already stamped on %', OLD.id
       USING ERRCODE = 'P0031';
   END IF;
   RETURN NEW;

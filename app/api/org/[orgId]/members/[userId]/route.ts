@@ -5,7 +5,7 @@ import {
   createMembershipRepository,
 } from '@/lib/api/repositories/memberships';
 import { jsonError, jsonOk } from '@/lib/api/responses';
-import { isOrgRole } from '@/lib/roles';
+import { isOrgRole } from '@/lib/organizations/roles';
 
 export const dynamic = 'force-dynamic';
 

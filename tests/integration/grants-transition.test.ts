@@ -63,7 +63,7 @@ const mockServerRpc = vi.fn();
 const mockAdminFrom = vi.fn();
 const mockAdminRpc = vi.fn();
 
-vi.mock('@/lib/supabase', () => ({
+vi.mock('@/lib/api/server-client', () => ({
   createServerClient: vi.fn(async () => ({
     auth: {
       getUser: vi.fn(async () => ({ data: { user: _authUser } })),

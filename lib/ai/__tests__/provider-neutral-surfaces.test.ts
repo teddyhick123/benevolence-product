@@ -12,7 +12,7 @@ const providerNeutralFiles = [
   'app/api/ai/transcribe/route.ts',
   'app/api/admin/upload/route.ts',
   'app/api/admin/upload/ingest/route.ts',
-  'lib/onboarding-assistant.ts',
+  'lib/onboarding/assistant.ts',
   'lib/ai/assistant/portfolio-assistant.ts',
   'lib/import/ai/client.ts',
   'lib/ai/document-extractor.ts',
@@ -35,7 +35,7 @@ const clientFacingRuntimeFiles = [
   ),
   ...implementationFiles('lib/ai/assistant'),
   ...implementationFiles('lib/import/ai'),
-  'lib/onboarding-assistant.ts',
+  'lib/onboarding/assistant.ts',
   'lib/ai/document-extractor.ts',
   'lib/ai/transcription.ts',
 ];

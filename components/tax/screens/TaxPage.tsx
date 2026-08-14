@@ -19,7 +19,7 @@ import CPACollaborationPortal from '@/components/tax/CPACollaborationPortal';
 // Feature flag for unified Tax Strategy Center
 const USE_UNIFIED_TAX_TOOLS = true;
 import { calculateAGILimits } from '@/lib/tax/agi-calculator';
-import { pickActiveOrg } from '@/lib/org-cookie';
+import { pickActiveOrg } from '@/lib/organizations/active-org';
 import type { AGILimits } from '@/lib/tax/agi-calculator';
 
 function TaxDashboard() {

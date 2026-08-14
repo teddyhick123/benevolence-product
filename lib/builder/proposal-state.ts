@@ -127,6 +127,8 @@ export interface RevisionRow {
   head_commit_sha: string | null;
   manifest_hash: string | null;
   diff_hash: string | null;
+  authoritative_diff_hash: string | null;
+  authoritative_diff_artifact_key: string | null;
   context_hash: string | null;
   artifact_prefix: string;
   file_count: number | null;

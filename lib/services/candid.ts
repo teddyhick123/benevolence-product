@@ -8,7 +8,7 @@
  * Rate Limit: 1,000 requests/day
  */
 
-import { createAdminClient } from '@/lib/supabase';
+import { createElevatedClient } from '@/lib/api/admin-client';
 
 const CANDID_API_KEY = process.env.CANDID_API_KEY;
 const CANDID_BASE_URL = 'https://apidata.guidestar.org';
@@ -93,7 +93,7 @@ export function transformCandidSeal(data: CandidSeal) {
  * Get cached rating
  */
 async function getCachedRating(provider: string, ein: string): Promise<any | null> {
-  const adminClient = createAdminClient();
+  const adminClient = createElevatedClient();
 
   // First find the charity by EIN
   const { data: charity } = await adminClient
@@ -126,7 +126,7 @@ async function getCachedRating(provider: string, ein: string): Promise<any | nul
  * Cache rating data
  */
 async function cacheRating(provider: string, ein: string, ratingData: any): Promise<void> {
-  const adminClient = createAdminClient();
+  const adminClient = createElevatedClient();
 
   // First find the charity by EIN
   const { data: charity } = await adminClient

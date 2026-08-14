@@ -1,5 +1,5 @@
 import type { NextResponse } from 'next/server';
-import { hasOrgRole, isOrgRole, type OrgRole } from '@/lib/roles';
+import { hasOrgRole, isOrgRole, type OrgRole } from '@/lib/organizations/roles';
 import { createServerClient } from '@/lib/api/server-client';
 import { jsonError } from '@/lib/api/responses';
 import type {

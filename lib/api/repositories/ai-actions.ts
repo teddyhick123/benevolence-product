@@ -1,4 +1,4 @@
-import { AIActionExecutor } from '@/lib/ai-action-executor';
+import { AIActionExecutor } from '@/lib/ai/assistant/actions/executor';
 import type { SessionClient } from '@/lib/api/server-client';
 
 type ActionReference =

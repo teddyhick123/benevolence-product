@@ -4,7 +4,7 @@
 
 **Goal:** Turn the existing grant module into a coherent grant lifecycle product: first-class grant creation, explicit lifecycle stages, decisions, requirements, automation, AI tools, and a polished grant workspace.
 
-**Design Spec:** `/docs/superpowers/specs/2026-05-17-grant-lifecycle-management-design.md`
+**Design Spec:** `/docs/agent-work/specs/2026-05-17-grant-lifecycle-management-design.md`
 
 **Architecture:** Treat the project as prerelease. Optimize the schema and code contracts for quality first. The central lifecycle record should be `grants`, not `grant_details`. Keep grants linked to holdings for portfolio/asset reporting, but make grant operations org-scoped and grant-first.
 
@@ -500,4 +500,3 @@ Manual QA:
 - AI grant tools are schema-backed, tested, and brand-agnostic.
 - Grant dashboards explain risk and next actions.
 - Full TypeScript and Vitest suites pass.
-

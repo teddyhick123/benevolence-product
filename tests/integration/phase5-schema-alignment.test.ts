@@ -131,7 +131,7 @@ describe('Phase 5 canonical schema alignment', () => {
     expect(adapter).not.toMatch(/function fromImportRelation\(/);
     expect(read('lib/import/rollback.ts')).toContain('fromImportTargetRelation(supabase, tableName)');
 
-    const aiActions = read('lib/ai-action-executor.ts');
+    const aiActions = read('lib/ai/assistant/actions/executor.ts');
     expect(aiActions).not.toContain('.from(opData.table)');
     expect(aiActions).toContain('AI action relation is not reversible');
   });

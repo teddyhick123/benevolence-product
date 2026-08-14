@@ -16,13 +16,13 @@ const {
   mockRateLimitExceeded: vi.fn(),
 }));
 
-vi.mock('@/lib/rate-limit', () => ({
+vi.mock('@/lib/api/rate-limit', () => ({
   checkRateLimit: mockCheckRateLimit,
   cpaPortalLimiter: { name: 'cpa-portal' },
   getIP: vi.fn(() => '203.0.113.10'),
 }));
 
-vi.mock('@/lib/rate-limit-response', () => ({
+vi.mock('@/lib/api/rate-limit-response', () => ({
   rateLimitExceeded: mockRateLimitExceeded,
 }));
 

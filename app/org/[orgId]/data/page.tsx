@@ -1,4 +1,4 @@
-import { createSupabaseServerClient } from "@/lib/supabase";
+import { createServerClient } from "@/lib/api/server-client";
 import Link from "next/link";
 import OrgDataEntry from "@/components/org/OrgDataEntry";
 import OrgImportWorkbench from "@/components/org/OrgImportWorkbench";
@@ -13,7 +13,7 @@ interface Props {
 }
 
 async function loadDataPageData(orgId: string) {
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createServerClient();
 
   // Verify user has access and can edit
   const { data: canEdit } = await supabase.rpc("can_edit_org", { p_org_id: orgId });

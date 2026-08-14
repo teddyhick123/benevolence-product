@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { supabasePublic } from '@/lib/supabase';
+import { getRequestDatabase } from '@/lib/api/server-client';
 
 /**
  * GET /api/charities/search/autocomplete
@@ -12,7 +12,7 @@ import { supabasePublic } from '@/lib/supabase';
  * Returns: Array of charity suggestions with name, EIN, sector, location
  */
 export async function GET(req: Request) {
-  const sb = await supabasePublic();
+  const sb = await getRequestDatabase();
   const url = new URL(req.url);
 
   const query = url.searchParams.get('q') || '';

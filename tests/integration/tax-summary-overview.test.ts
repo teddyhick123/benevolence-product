@@ -10,7 +10,7 @@ const { mockCreateServerClient, mockSupabasePublic } = vi.hoisted(() => ({
   mockSupabasePublic: vi.fn(),
 }));
 
-vi.mock('@/lib/supabase', () => ({
+vi.mock('@/lib/api/server-client', () => ({
   createServerClient: mockCreateServerClient,
   supabasePublic: mockSupabasePublic,
 }));

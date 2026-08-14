@@ -1,12 +1,12 @@
 // app/api/portfolio/[id]/reports/documents/[documentId]/route.ts
 import { NextResponse } from 'next/server';
-import { createSupabaseServerClient } from '@/lib/supabase';
+import { createServerClient } from '@/lib/api/server-client';
 
 function cacheHeaders(isGet = false) {
   return { 'Cache-Control': 'no-store' } as const;
 }
 
-const createSb = createSupabaseServerClient;
+const createSb = createServerClient;
 
 export async function GET(
   req: Request,

@@ -16,7 +16,14 @@
 import type { SupabaseClient } from '@/lib/database-client';
 import type { CheckKey } from './check-matrix';
 import type { CheckExecution, VerificationRunner } from './verification-runner';
-import { capAndRedactLog, sha256Hex, putTextArtifact, artifactPrefix, ARTIFACT_KEYS } from './artifacts';
+import {
+  capAndRedactLog,
+  sha256Hex,
+  putTextArtifact,
+  readTextArtifact,
+  artifactPrefix,
+  ARTIFACT_KEYS,
+} from './artifacts';
 
 const VERIFICATION_RUNS_TABLE = 'builder_verification_runs';
 
@@ -36,6 +43,8 @@ export interface VerificationRecordResult {
   }>;
   /** Informational only — the review gate remains the sole authority on pass/fail. */
   allRequiredPassed: boolean;
+  /** Immutable evidence created from the real pinned-base diff. */
+  authoritativeDiff: { hash: string; artifactKey: string; text: string } | null;
 }
 
 /**
@@ -56,15 +65,6 @@ async function uploadCheckLog(
   } catch (err) {
     console.warn(`[Builder] verification log upload failed for ${checkKey}:`, err);
     return null;
-  }
-}
-
-/** Uploads the authoritative diff artifact. Non-fatal on failure: caught and logged, never propagated. */
-async function uploadAuthoritativeDiff(admin: SupabaseClient, key: string, diff: string): Promise<void> {
-  try {
-    await putTextArtifact(admin, key, diff);
-  } catch (err) {
-    console.warn('[Builder] authoritative diff upload failed:', err);
   }
 }
 
@@ -118,10 +118,6 @@ export async function runAndRecordVerification(
     await recordCheck(admin, prefix, attemptId, exec);
   }
 
-  if (outcome.authoritativeDiff !== null) {
-    await uploadAuthoritativeDiff(admin, `${prefix}/${ARTIFACT_KEYS.authoritativeDiff}`, outcome.authoritativeDiff);
-  }
-
   const setupFindings: VerificationRecordResult['setupFindings'] = [];
   if (outcome.setupFailure !== null) {
     const { stage, detail } = outcome.setupFailure;
@@ -134,9 +130,59 @@ export async function runAndRecordVerification(
     });
   }
 
+  let authoritativeDiff: VerificationRecordResult['authoritativeDiff'] = null;
+  if (outcome.authoritativeDiff === null) {
+    if (outcome.setupFailure === null) {
+      setupFindings.push({
+        reviewer_kind: 'deterministic_check',
+        severity: 'blocker',
+        category: 'verification',
+        evidence: 'verification completed without producing an authoritative diff from the pinned base commit',
+        state: 'open',
+      });
+    }
+  } else {
+    const artifactKey = `${prefix}/${ARTIFACT_KEYS.authoritativeDiff}`;
+    const hash = sha256Hex(outcome.authoritativeDiff);
+    try {
+      const existing = await readTextArtifact(admin, artifactKey);
+      if (existing === null) {
+        await putTextArtifact(admin, artifactKey, outcome.authoritativeDiff, 'text/x-diff');
+      } else if (sha256Hex(existing) !== hash) {
+        throw new Error('authoritative diff artifact already exists with a different hash');
+      }
+
+      const { error } = await admin
+        .from('builder_proposal_revisions')
+        .update({
+          authoritative_diff_hash: hash,
+          authoritative_diff_artifact_key: artifactKey,
+        })
+        .eq('id', revisionId)
+        .eq('proposal_id', proposalId);
+      if (error) throw error;
+      authoritativeDiff = { hash, artifactKey, text: outcome.authoritativeDiff };
+    } catch (error) {
+      setupFindings.push({
+        reviewer_kind: 'deterministic_check',
+        severity: 'blocker',
+        category: 'verification',
+        evidence: capAndRedactLog(
+          `authoritative diff evidence could not be persisted: ${error instanceof Error ? error.message : String(error)}`,
+          MAX_SETUP_DETAIL_BYTES
+        ),
+        state: 'open',
+      });
+    }
+  }
+
   const allRequiredPassed = requiredKeys.every(
     (key) => outcome.checks.find((c) => c.key === key)?.status === 'passed'
   );
 
-  return { setupFindings, allRequiredPassed };
+  return {
+    setupFindings,
+    allRequiredPassed: setupFindings.length === 0 && allRequiredPassed,
+    authoritativeDiff,
+  };
 }

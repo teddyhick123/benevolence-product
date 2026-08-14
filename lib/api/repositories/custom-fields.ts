@@ -9,7 +9,7 @@ import {
   type CustomFieldValueRow,
 } from '@/lib/custom-fields';
 import type { LifecycleStage } from '@/lib/grants/lifecycle-shared';
-import { runAutomationRulesForEvent } from '@/lib/tasks/automation/dynamic-rules';
+import { drainCustomFieldAutomationOutbox } from '@/lib/tasks/automation/custom-field-outbox';
 
 const DEFINITION_SELECT = 'id, org_id, entity_type, field_key, field_label, field_type, enum_options, required_at_stage, is_ai_readable, sort_order, created_at, updated_at';
 
@@ -39,9 +39,9 @@ export type UpdateCustomFieldDefinitionInput = {
 };
 
 export class CustomFieldRepositoryError extends Error {
-  readonly status: 400 | 404;
+  readonly status: 400 | 403 | 404;
 
-  constructor(message: string, status: 400 | 404) {
+  constructor(message: string, status: 400 | 403 | 404) {
     super(message);
     this.name = 'CustomFieldRepositoryError';
     this.status = status;
@@ -116,6 +116,19 @@ export function createCustomFieldRepository(scope: CustomFieldScope) {
       fields,
       values: Object.fromEntries(fields.map(field => [field.field_key, field.value])),
     };
+  }
+
+  function throwValueMutationError(error: { code?: string; message?: string }): never {
+    if (error.code === '42501') {
+      throw new CustomFieldRepositoryError('Organization membership is required', 403);
+    }
+    if (error.code === 'P0002') {
+      throw new CustomFieldRepositoryError('Entity or custom field not found', 404);
+    }
+    if (error.code === '22023' || error.code === '23514') {
+      throw new CustomFieldRepositoryError(error.message || 'Invalid custom field value', 400);
+    }
+    throw error;
   }
 
   return {
@@ -229,8 +242,6 @@ export function createCustomFieldRepository(scope: CustomFieldScope) {
       entityId: string,
       values: Record<string, unknown>
     ) {
-      await assertEntityScope(entityType, entityId);
-
       const { data: definitions, error: definitionError } = await db
         .from('org_custom_field_definitions')
         .select('id, field_key, field_type, enum_options')
@@ -258,6 +269,7 @@ export function createCustomFieldRepository(scope: CustomFieldScope) {
         );
       }
 
+      const changes: Array<Record<string, unknown>> = [];
       for (const [key, rawValue] of Object.entries(values)) {
         const definition = byKey.get(key) ?? byId.get(key);
         if (!definition) continue;
@@ -270,45 +282,33 @@ export function createCustomFieldRepository(scope: CustomFieldScope) {
           throw new CustomFieldRepositoryError(`${definition.field_key}: ${message}`, 400);
         }
 
-        if (patch === null) {
-          const { error } = await db
-            .from('org_custom_field_values')
-            .delete()
-            .eq('org_id', scope.orgId)
-            .eq('entity_type', entityType)
-            .eq('entity_id', entityId)
-            .eq('field_definition_id', definition.id);
-          if (error) throw error;
-          continue;
-        }
+        changes.push({
+          field_definition_id: definition.id,
+          value_text: patch?.value_text ?? null,
+          value_numeric: patch?.value_numeric ?? null,
+          value_boolean: patch?.value_boolean ?? null,
+          value_date: patch?.value_date ?? null,
+        });
+      }
 
-        const { error } = await db
-          .from('org_custom_field_values')
-          .upsert({
-            org_id: scope.orgId,
-            entity_type: entityType,
-            entity_id: entityId,
-            field_definition_id: definition.id,
-            ...patch,
-          }, { onConflict: 'entity_id,field_definition_id' });
-        if (error) throw error;
+      const { data: mutation, error: mutationError } = await db.rpc('mutate_custom_field_values', {
+        p_org_id: scope.orgId,
+        p_actor_id: scope.actorId,
+        p_entity_type: entityType,
+        p_entity_id: entityId,
+        p_changes: changes,
+      });
+      if (mutationError) throwValueMutationError(mutationError);
 
+      for (const eventId of ((mutation as { outbox_event_ids?: string[] } | null)?.outbox_event_ids ?? [])) {
         try {
-          await runAutomationRulesForEvent(db, {
+          await drainCustomFieldAutomationOutbox(db, {
             orgId: scope.orgId,
-            triggerType: 'custom_field_set',
-            entityType,
-            entityId,
-            payload: {
-              entity_type: entityType,
-              field_key: definition.field_key,
-              field_definition_id: definition.id,
-              value: rawValue,
-              actor_id: scope.actorId,
-            },
+            eventId,
+            limit: 1,
           });
         } catch (automationError) {
-          console.error('Custom field automation failed:', automationError);
+          console.error('Custom field automation deferred for retry:', automationError);
         }
       }
 

@@ -13,7 +13,7 @@
 //
 // Mock strategy:
 //   - `@/lib/api/access` is mocked at the module boundary to control access.
-//   - `@/lib/supabase` is mocked so no live DB calls are made.
+//   - the canonical server client is mocked so no live DB calls are made.
 //   - `@/lib/tax/form8283-generator` is mocked to return a fixed Buffer;
 //     PDF generation correctness is a unit concern for that module, not this route.
 
@@ -72,7 +72,7 @@ vi.mock('@/lib/api/access', () => ({
 // Mock supabase — the route uses supabasePublic (alias for createServerClient)
 const mockFrom = vi.fn();
 
-vi.mock('@/lib/supabase', () => ({
+vi.mock('@/lib/api/server-client', () => ({
   supabasePublic: vi.fn(async () => ({ from: mockFrom })),
   createServerClient: vi.fn(async () => ({ from: mockFrom })),
 }));

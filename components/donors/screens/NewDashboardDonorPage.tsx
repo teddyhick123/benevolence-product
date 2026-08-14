@@ -84,7 +84,7 @@ function NewDonorPageContent() {
         throw new Error(body.error || 'Failed to create donor');
       }
 
-      router.push(`/dashboard/donors`);
+      router.push(`/dashboard/donors?org=${encodeURIComponent(orgId)}`);
     } catch (err: any) {
       setError(err.message);
       setSaving(false);

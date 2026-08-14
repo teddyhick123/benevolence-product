@@ -51,8 +51,11 @@ export function evaluateAttemptGate(input: AttemptGateInput): ReviewGateResult {
   if (!revision) {
     return fail('No revision record found for the current revision.');
   }
-  if (!revision.manifest_hash || !revision.diff_hash) {
-    return fail('Current revision is missing a manifest or diff hash.');
+  if (!revision.manifest_hash) {
+    return fail('Current revision is missing a manifest hash.');
+  }
+  if (!revision.authoritative_diff_hash || !revision.authoritative_diff_artifact_key) {
+    return fail('Current revision is missing authoritative diff evidence.');
   }
   if (!attempt) {
     return fail('No review attempt found for the current revision.');

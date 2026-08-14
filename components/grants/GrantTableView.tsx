@@ -9,7 +9,7 @@ import { GRANT_RISK_BADGE, grantStageBadgeClass, grantStageLabel } from './grant
 import type { GrantListItem } from './GrantPipelineView';
 import { useStageLabels } from '@/lib/hooks/use-stage-labels';
 import { useEntityVocabulary } from '@/lib/hooks/use-entity-vocabulary';
-import { resolveGrantsTableColumns, type GrantsTableColumn } from '@/lib/view-config';
+import { resolveGrantsTableColumns, type GrantsTableColumn } from '@/lib/organizations/view-config';
 
 function fmt(v: number | null | undefined, currency = 'USD'): string {
   if (v == null) return '—';

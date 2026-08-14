@@ -3,7 +3,7 @@ import { isAccessDenied, requireOrgAccess } from '@/lib/api/access';
 import { createAICredentialRepository } from '@/lib/api/repositories/ai-credentials';
 import { createAISettingsRepository } from '@/lib/api/repositories/ai-settings';
 import { jsonError, jsonOk } from '@/lib/api/responses';
-import { aiDeploymentEvaluationLimiter } from '@/lib/rate-limit';
+import { aiDeploymentEvaluationLimiter } from '@/lib/api/rate-limit';
 import { aiWorkloadIdSchema, openRouterProviderPreferencesSchema } from '@/lib/schemas/ai-settings';
 import { getAIDeploymentTemplate } from '@/lib/ai/catalog';
 import { getAIWorkload } from '@/lib/ai/workloads';

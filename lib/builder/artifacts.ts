@@ -234,6 +234,20 @@ export async function putTextArtifact(
 }
 
 /**
+ * Downloads a text artifact. A missing object is represented as null; other
+ * storage failures are deliberately surfaced so callers can fail closed.
+ */
+export async function readTextArtifact(admin: SupabaseClient, key: string): Promise<string | null> {
+  const { data, error } = await admin.storage.from(BUCKET).download(key);
+  if (error) {
+    if (isNotFoundStorageError(error)) return null;
+    throw error;
+  }
+  if (!data) return null;
+  return blobLikeToText(data);
+}
+
+/**
  * Downloads and JSON-parses a stored artifact. Returns null if the object
  * does not exist OR if its contents are not valid JSON (e.g. a review
  * response artifact that stored raw markdown-fence-wrapped model text on a
@@ -241,14 +255,8 @@ export async function putTextArtifact(
  * artifact isn't usable yet, not a 500.
  */
 export async function readJsonArtifact<T>(admin: SupabaseClient, key: string): Promise<T | null> {
-  const { data, error } = await admin.storage.from(BUCKET).download(key);
-  if (error) {
-    if (isNotFoundStorageError(error)) return null;
-    throw error;
-  }
-  if (!data) return null;
-
-  const text = await blobLikeToText(data);
+  const text = await readTextArtifact(admin, key);
+  if (text === null) return null;
   try {
     return JSON.parse(text) as T;
   } catch {

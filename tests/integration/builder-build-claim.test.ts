@@ -70,7 +70,7 @@ vi.mock('@/lib/api/admin-client', () => ({
   })),
 }));
 
-vi.mock('@/lib/org-capabilities', () => ({
+vi.mock('@/lib/organizations/capabilities', () => ({
   canReviewImplementation: vi.fn(async () => _canReview),
 }));
 

@@ -30,10 +30,10 @@ vi.mock('bullmq', () => ({
   },
 }));
 
-// createAdminClient() is called INSIDE the worker — hand it the test's mock.
+// createElevatedClient() is called inside the worker — hand it the test's mock.
 let currentAdmin: any = null;
-vi.mock('@/lib/supabase', () => ({
-  createAdminClient: () => currentAdmin,
+vi.mock('@/lib/api/admin-client', () => ({
+  createElevatedClient: () => currentAdmin,
 }));
 
 // The AI provider is stubbed by a FIFO queue of text responses.
@@ -96,6 +96,8 @@ function baseRevision(overrides: Record<string, unknown> = {}) {
     artifact_prefix: `${ORG_ID}/${PROPOSAL_ID}/${REVISION_ID}`,
     manifest_hash: null,
     diff_hash: null,
+    authoritative_diff_hash: null,
+    authoritative_diff_artifact_key: null,
     context_hash: null,
     file_count: null,
     total_bytes: null,
@@ -135,7 +137,15 @@ beforeEach(() => {
   runAndRecordVerificationMock.mockReset();
   // Default: verification set up cleanly, all required checks passed. Individual
   // tests override this to simulate setup failures or failing checks.
-  runAndRecordVerificationMock.mockResolvedValue({ setupFindings: [], allRequiredPassed: true });
+  runAndRecordVerificationMock.mockResolvedValue({
+    setupFindings: [],
+    allRequiredPassed: true,
+    authoritativeDiff: {
+      hash: 'authoritative-diff-hash',
+      artifactKey: `${ORG_ID}/${PROPOSAL_ID}/${REVISION_ID}/diff.authoritative.patch`,
+      text: 'diff --git a/lib/volunteer/service.ts b/lib/volunteer/service.ts\n+new file mode 100644',
+    },
+  });
 });
 
 // ── Scaffold happy path ──────────────────────────────────────────────────────
@@ -349,7 +359,15 @@ describe('runBuildPhase — deterministic verification (Increment 3)', () => {
     // A failing CHECK is not a setup failure: no setupFindings, but the Step 7
     // verification-run re-load reports verify:types as failed, so the real gate
     // fails on the required-checks clause.
-    runAndRecordVerificationMock.mockResolvedValue({ setupFindings: [], allRequiredPassed: false });
+    runAndRecordVerificationMock.mockResolvedValue({
+      setupFindings: [],
+      allRequiredPassed: false,
+      authoritativeDiff: {
+        hash: 'authoritative-diff-hash',
+        artifactKey: `${ORG_ID}/${PROPOSAL_ID}/${REVISION_ID}/diff.authoritative.patch`,
+        text: 'diff --git a/lib/volunteer/service.ts b/lib/volunteer/service.ts',
+      },
+    });
     const mock = genericSetup({
       finalProposalState: 'needs_repair',
       verificationRuns: [

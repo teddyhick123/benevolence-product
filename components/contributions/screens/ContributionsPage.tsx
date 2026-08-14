@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useParams } from 'next/navigation';
-import { createBrowserClient as createClient } from '@/lib/supabase-browser';
+import { useContributionsData } from '@/lib/contributions/hooks';
+import { useOrganizationsData } from '@/lib/organizations/hooks';
 import ContributionForm from '@/components/donors/ContributionForm';
 import ReceiptGenerator from '@/components/donors/ReceiptGenerator';
 
@@ -26,10 +27,12 @@ type Contribution = {
     organization_name: string | null;
     is_organization: boolean;
     email: string | null;
-    address_line1: string | null;
-    city: string | null;
-    state: string | null;
-    zip: string | null;
+    // Omitted for viewers: the API returns donor mailing details to members and
+    // above only, so receipt generation is gated on the same role.
+    address_line1?: string | null;
+    city?: string | null;
+    state?: string | null;
+    zip?: string | null;
   } | null;
 };
 
@@ -43,9 +46,6 @@ export default function ContributionsPage() {
   const params = useParams();
   const organizationId = params.orgId as string;
 
-  const [loading, setLoading] = useState(true);
-  const [contributions, setContributions] = useState<Contribution[]>([]);
-  const [organization, setOrganization] = useState<Organization | null>(null);
   const [showContributionForm, setShowContributionForm] = useState(false);
   const [showReceiptModal, setShowReceiptModal] = useState(false);
   const [selectedContribution, setSelectedContribution] = useState<Contribution | null>(null);
@@ -55,57 +55,14 @@ export default function ContributionsPage() {
   const [receiptFilter, setReceiptFilter] = useState('');
   const [dateFilter, setDateFilter] = useState('');
 
-  useEffect(() => {
-    async function fetchData() {
-      setLoading(true);
-      try {
-        const supabase = createClient();
-
-        const [contribRes, orgRes] = await Promise.all([
-          supabase
-            .from('contributions_received')
-            .select(`
-              *,
-              donors (
-                id,
-                first_name,
-                last_name,
-                organization_name,
-                is_organization,
-                email,
-                address_line1,
-                city,
-                state,
-                zip
-              )
-            `)
-            .eq('org_id', organizationId)
-            .order('contribution_date', { ascending: false }),
-          supabase
-            .from('organizations')
-            .select('id, name, ein')
-            .eq('id', organizationId)
-            .single(),
-        ]);
-
-        if (!contribRes.error) {
-          setContributions((contribRes.data || []).map((contribution) => ({
-            ...contribution,
-            designation: contribution.fund_designation,
-            acknowledgment_status: contribution.acknowledgment_sent ? 'sent' : 'pending',
-            donors: contribution.donors,
-          })));
-        }
-        if (!orgRes.error) setOrganization(orgRes.data);
-      } catch (err) {
-        console.error('Error fetching contributions:', err);
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    fetchData();
-  }, [organizationId]);
+  const { data: contributionsData, isLoading: contributionsLoading } = useContributionsData<{
+    contributions?: Contribution[];
+  }>(organizationId ? `/api/org/${organizationId}/contributions?limit=100` : null);
+  const { data: organization, isLoading: organizationLoading } = useOrganizationsData<Organization>(
+    organizationId ? `/api/org/${organizationId}` : null,
+  );
+  const loading = contributionsLoading || organizationLoading;
+  const contributions = contributionsData?.contributions || [];
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {

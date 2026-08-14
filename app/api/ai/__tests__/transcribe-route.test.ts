@@ -16,7 +16,7 @@ vi.mock('@/lib/api/access', () => ({
   isAccessDenied: (result: { ok: boolean }) => !result.ok,
 }));
 
-vi.mock('@/lib/rate-limit-response', () => ({
+vi.mock('@/lib/api/rate-limit-response', () => ({
   aiAuthRequired: () => NextResponse.json({ error: 'Authentication required' }, { status: 401 }),
 }));
 

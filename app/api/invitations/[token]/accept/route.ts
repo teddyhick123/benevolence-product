@@ -22,12 +22,12 @@ export async function POST(_req: NextRequest, { params }: RouteParams) {
   if (isAccessDenied(invitationAccess)) return invitationAccess.response;
 
   const invitation = invitationAccess.context;
-  if (invitation.status !== 'pending') {
+  if (invitation.status !== 'pending' && invitation.status !== 'accepted') {
     return jsonError(`Invitation is ${invitation.status}`, 409);
   }
 
   try {
-    if (new Date(invitation.expiresAt) < new Date()) {
+    if (invitation.status === 'pending' && new Date(invitation.expiresAt) < new Date()) {
       await invitation.repository.markExpired();
       return jsonError('Invitation has expired', 410);
     }

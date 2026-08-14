@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { createBrowserClient as createClient } from '@/lib/supabase-browser';
+import { useState } from 'react';
+import { apiRequest, readJson } from '@/lib/api/client';
+import { useGrantsData } from '@/lib/grants/hooks';
 import { useEntityVocabulary } from '@/lib/hooks/use-entity-vocabulary';
 
 type Communication = {
@@ -25,18 +26,14 @@ type Communication = {
 
 interface Props {
   portfolioId: string;
-  orgId?: string | null;
+  orgId: string;
 }
 
 export default function CommunicationLog({ portfolioId, orgId }: Props) {
   const vocabulary = useEntityVocabulary(orgId);
   const grantLabel = vocabulary.grant.singular;
-  const [loading, setLoading] = useState(true);
-  const [fetchError, setFetchError] = useState<string | null>(null);
-  const [communications, setCommunications] = useState<Communication[]>([]);
   const [filter, setFilter] = useState<'all' | 'inbound' | 'outbound' | 'follow_up'>('all');
   const [showAddComm, setShowAddComm] = useState(false);
-  const [holdings, setHoldings] = useState<Array<{ id: string; name: string; grant_id?: string }>>([]);
   const [expandedComm, setExpandedComm] = useState<string | null>(null);
 
   const [newComm, setNewComm] = useState({
@@ -52,58 +49,15 @@ export default function CommunicationLog({ portfolioId, orgId }: Props) {
     followUpNotes: '',
   });
 
-  async function fetchData() {
-    setLoading(true);
-    setFetchError(null);
-    try {
-      const supabase = createClient();
-
-      const { data: commsData, error } = await supabase
-        .from('grant_communications')
-        .select(`
-          *,
-          grants!inner(
-            id,
-            holding_id,
-            holdings!inner(name, portfolio_id)
-          )
-        `)
-        .eq('grants.holdings.portfolio_id', portfolioId)
-        .order('occurred_at', { ascending: false });
-
-      if (error) throw error;
-
-      setCommunications((commsData || []).map((c: any) => ({
-        ...c,
-        grant_name: c.grants?.holdings?.name || `Unknown ${grantLabel}`,
-        holding_id: c.grants?.holding_id,
-      })));
-
-      const { data: holdingsData } = await supabase
-        .from('holdings')
-        .select(`id, name, grants(id)`)
-        .eq('portfolio_id', portfolioId)
-        .in('asset_type', ['foundation_grant', 'daf_grant', 'pri', 'mri'])
-        .order('name');
-
-      setHoldings((holdingsData || [])
-        .map((h: any) => ({
-          id: h.id,
-          name: h.name,
-          grant_id: h.grants?.[0]?.id,
-        }))
-        .filter((h: { grant_id?: string }) => Boolean(h.grant_id)));
-    } catch (err: any) {
-      setFetchError(err?.message ?? 'Failed to load communications.');
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  useEffect(() => {
-    fetchData();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [portfolioId]);
+  const communicationsUrl = `/api/org/${orgId}/grants/communications?portfolio_id=${portfolioId}`;
+  const holdingsUrl = `/api/org/${orgId}/grants/holdings?portfolio_id=${portfolioId}`;
+  const communicationsQuery = useGrantsData<{ communications?: Communication[] }>(communicationsUrl);
+  const holdingsQuery = useGrantsData<{ holdings?: Array<{ id: string; name: string; grant_id?: string }> }>(holdingsUrl);
+  const loading = communicationsQuery.isLoading || holdingsQuery.isLoading;
+  const fetchError = communicationsQuery.error?.message || holdingsQuery.error?.message || null;
+  const communications = communicationsQuery.data?.communications || [];
+  const holdings = holdingsQuery.data?.holdings || [];
+  const refreshData = () => Promise.all([communicationsQuery.mutate(), holdingsQuery.mutate()]);
 
   const formatDate = (date: string | null) => {
     if (!date) return '-';
@@ -164,7 +118,6 @@ export default function CommunicationLog({ portfolioId, orgId }: Props) {
     }
 
     try {
-      const supabase = createClient();
       const holding = holdings.find(h => h.id === newComm.holdingId);
       const grantId = holding?.grant_id;
       if (!grantId) {
@@ -172,9 +125,11 @@ export default function CommunicationLog({ portfolioId, orgId }: Props) {
         return;
       }
 
-      await supabase
-        .from('grant_communications')
-        .insert({
+      const response = await apiRequest(`/api/org/${orgId}/grants/communications`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          portfolio_id: portfolioId,
           grant_id: grantId,
           direction: newComm.direction,
           comm_type: newComm.commType,
@@ -185,12 +140,14 @@ export default function CommunicationLog({ portfolioId, orgId }: Props) {
           follow_up_required: newComm.followUpRequired,
           follow_up_date: newComm.followUpDate || null,
           follow_up_notes: newComm.followUpNotes || null,
-          occurred_at: new Date().toISOString(),
-        });
+        }),
+      });
+      const json = await readJson(response);
+      if (!response.ok) throw new Error(json.error || 'Failed to add communication');
 
       setShowAddComm(false);
       setNewComm({ holdingId: '', direction: 'outbound', commType: 'email', subject: '', summary: '', contactName: '', contactEmail: '', followUpRequired: false, followUpDate: '', followUpNotes: '' });
-      await fetchData();
+      await refreshData();
     } catch (err: any) {
       alert(err?.message ?? 'Failed to add communication');
     }
@@ -221,7 +178,7 @@ export default function CommunicationLog({ portfolioId, orgId }: Props) {
       <div className="rounded-2xl border border-red-100 bg-red-50 p-6 text-center">
         <p className="text-sm font-medium text-red-700">Failed to load communications</p>
         <p className="text-xs text-red-500 mt-1">{fetchError}</p>
-        <button onClick={fetchData} className="mt-3 text-sm text-azure hover:underline">Try again</button>
+        <button onClick={() => { void refreshData(); }} className="mt-3 text-sm text-azure hover:underline">Try again</button>
       </div>
     );
   }

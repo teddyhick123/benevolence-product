@@ -1,4 +1,4 @@
-import { createSupabaseServerClient } from "@/lib/supabase";
+import { createServerClient } from "@/lib/api/server-client";
 import Link from "next/link";
 import OrgMembersTable from "@/components/org/OrgMembersTable";
 
@@ -10,7 +10,7 @@ interface Props {
 }
 
 async function loadMembersData(orgId: string) {
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createServerClient();
 
   // Verify user has access
   const { data: roleData } = await supabase.rpc("user_org_role", { p_org_id: orgId });

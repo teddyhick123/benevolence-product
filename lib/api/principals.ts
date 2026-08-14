@@ -1,5 +1,5 @@
 import type { User } from '@supabase/supabase-js';
-import type { OrgRole } from '@/lib/roles';
+import type { OrgRole } from '@/lib/organizations/roles';
 import type { SessionClient } from '@/lib/api/server-client';
 
 export type AccessPrincipal =

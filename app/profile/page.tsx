@@ -1,4 +1,4 @@
-import { createSupabaseServerClient } from "@/lib/supabase";
+import { createServerClient } from "@/lib/api/server-client";
 import ProfileHeader from "@/components/profile/ProfileHeader";
 import AccountSettings from "@/components/profile/AccountSettings";
 import PortfolioAccess from "@/components/profile/PortfolioAccess";
@@ -7,7 +7,7 @@ import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 
-const getSupabase = createSupabaseServerClient;
+const getSupabase = createServerClient;
 
 export default async function ProfilePage() {
   const supabase = await getSupabase();

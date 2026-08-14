@@ -2,8 +2,8 @@
 
 import { apiRequest, readJson } from "@/lib/api/client";
 
-import { useState, useEffect } from 'react';
-import { createBrowserClient as createClient } from '@/lib/supabase-browser';
+import { useState } from 'react';
+import { useGrantsData } from '@/lib/grants/hooks';
 import { grantStatusBadgeClass } from './grantPalette';
 import { useEntityVocabulary } from '@/lib/hooks/use-entity-vocabulary';
 
@@ -59,10 +59,6 @@ interface Props {
 export default function WorkflowManager({ portfolioId, orgId }: Props) {
   const vocabulary = useEntityVocabulary(orgId);
   const grantLabel = vocabulary.grant.singular;
-  const [loading, setLoading] = useState(true);
-  const [workflows, setWorkflows] = useState<WorkflowInstance[]>([]);
-  const [templates, setTemplates] = useState<WorkflowTemplate[]>([]);
-  const [holdings, setHoldings] = useState<Array<{ id: string; name: string }>>([]);
   const [expandedWorkflow, setExpandedWorkflow] = useState<string | null>(null);
   const [showNewWorkflow, setShowNewWorkflow] = useState(false);
   const [newWorkflowData, setNewWorkflowData] = useState({
@@ -72,56 +68,34 @@ export default function WorkflowManager({ portfolioId, orgId }: Props) {
   });
   const [filter, setFilter] = useState<'active' | 'completed' | 'all'>('active');
 
-  useEffect(() => {
-    async function fetchData() {
-      setLoading(true);
-      try {
-        const supabase = createClient();
-
-        const workflowRes = await apiRequest(`/api/org/${orgId}/workflows?portfolio_id=${portfolioId}&status=all`);
-        const workflowJson = await readJson(workflowRes);
-        if (!workflowRes.ok) throw new Error(workflowJson.error || 'Failed to load workflows');
-
-        const processedWorkflows = (workflowJson.workflows || []).map((wf: any) => ({
-          id: wf.id,
-          name: wf.name,
-          status: wf.status,
-          due_date: wf.due_date,
-          started_at: wf.started_at,
-          completed_at: wf.completed_at,
-          notes: wf.notes,
-          template_name: wf.workflow_templates?.name || 'Unknown',
-          workflow_type: wf.workflow_templates?.workflow_type || 'custom',
-          grant_name: wf.grants?.holdings?.name || `Unknown ${grantLabel}`,
-          holding_id: wf.grants?.holding_id,
-          tasks: (wf.workflow_tasks || []).sort((a: any, b: any) => a.sequence_order - b.sequence_order),
-        }));
-
-        setWorkflows(processedWorkflows);
-
-        const templateRes = await apiRequest(`/api/org/${orgId}/workflow-templates`);
-        const templateJson = await readJson(templateRes);
-        if (!templateRes.ok) throw new Error(templateJson.error || 'Failed to load workflow templates');
-        setTemplates(templateJson.templates || []);
-
-        // Fetch grant holdings
-        const { data: holdingsData } = await supabase
-          .from('holdings')
-          .select('id, name')
-          .eq('portfolio_id', portfolioId)
-          .in('asset_type', ['foundation_grant', 'daf_grant', 'pri', 'mri'])
-          .order('name');
-
-        setHoldings(holdingsData || []);
-      } catch (err) {
-        console.error('Error fetching workflow data:', err);
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    fetchData();
-  }, [orgId, portfolioId]);
+  const workflowsUrl = `/api/org/${orgId}/workflows?portfolio_id=${portfolioId}&status=all`;
+  const templatesUrl = `/api/org/${orgId}/workflow-templates`;
+  const holdingsUrl = `/api/org/${orgId}/grants/holdings?portfolio_id=${portfolioId}`;
+  const workflowsQuery = useGrantsData<{ workflows?: any[] }>(workflowsUrl);
+  const templatesQuery = useGrantsData<{ templates?: WorkflowTemplate[] }>(templatesUrl);
+  const holdingsQuery = useGrantsData<{ holdings?: Array<{ id: string; name: string }> }>(holdingsUrl);
+  const loading = workflowsQuery.isLoading || templatesQuery.isLoading || holdingsQuery.isLoading;
+  const workflows: WorkflowInstance[] = (workflowsQuery.data?.workflows || []).map((workflow) => ({
+    id: workflow.id,
+    name: workflow.name,
+    status: workflow.status,
+    due_date: workflow.due_date,
+    started_at: workflow.started_at,
+    completed_at: workflow.completed_at,
+    notes: workflow.notes,
+    template_name: workflow.workflow_templates?.name || 'Unknown',
+    workflow_type: workflow.workflow_templates?.workflow_type || 'custom',
+    grant_name: workflow.grants?.holdings?.name || `Unknown ${grantLabel}`,
+    holding_id: workflow.grants?.holding_id,
+    tasks: [...(workflow.workflow_tasks || [])].sort((left: any, right: any) => left.sequence_order - right.sequence_order),
+  }));
+  const templates = templatesQuery.data?.templates || [];
+  const holdings = holdingsQuery.data?.holdings || [];
+  const refreshData = () => Promise.all([
+    workflowsQuery.mutate(),
+    templatesQuery.mutate(),
+    holdingsQuery.mutate(),
+  ]);
 
   const formatDate = (date: string | null) => {
     if (!date) return 'Not set';
@@ -171,8 +145,7 @@ export default function WorkflowManager({ portfolioId, orgId }: Props) {
       const json = await readJson(res);
       if (!res.ok) throw new Error(json.error || 'Failed to start workflow');
 
-      // Refresh data
-      window.location.reload();
+      await refreshData();
     } catch (err) {
       console.error('Error starting workflow:', err);
       alert('Failed to start workflow');
@@ -192,8 +165,7 @@ export default function WorkflowManager({ portfolioId, orgId }: Props) {
       const json = await readJson(res);
       if (!res.ok) throw new Error(json.error || 'Failed to complete task');
 
-      // Refresh data
-      window.location.reload();
+      await refreshData();
     } catch (err) {
       console.error('Error completing task:', err);
       alert('Failed to complete task');

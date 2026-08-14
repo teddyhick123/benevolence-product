@@ -47,7 +47,8 @@ const DB_SLUG_TO_MODULE: Record<string, ModuleId> = {
   compliance_regulatory: 'compliance_regulatory',
 };
 
-function toDbSlug(moduleId: ModuleId): string {
+/** Map the app-facing module identifier to the database module slug. */
+export function toDbModuleSlug(moduleId: ModuleId): string {
   return MODULE_TO_DB_SLUG[moduleId] ?? moduleId;
 }
 
@@ -169,7 +170,7 @@ export async function enableModule(
     if (error) return { success: false, error };
 
     for (const modId of modulesToEnable) {
-      modules[toDbSlug(modId)] = true;
+      modules[toDbModuleSlug(modId)] = true;
       enabledModules.push(modId);
     }
 
@@ -220,7 +221,7 @@ export async function disableModule(
   try {
     const { modules, error } = await getOrgModulesJson(supabase, orgId);
     if (error) return { success: false, error };
-    modules[toDbSlug(moduleId)] = false;
+    modules[toDbModuleSlug(moduleId)] = false;
     return updateOrgModulesJson(supabase, orgId, modules);
   } catch (err) {
     const error = err instanceof Error ? err.message : 'Unknown error';
@@ -260,7 +261,7 @@ export async function applyModulePreset(
     for (const moduleId of moduleIds) {
       const moduleSet = [moduleId, ...getRequiredModules(moduleId)];
       moduleSet.forEach(m => {
-        modulesJson[toDbSlug(m)] = true;
+        modulesJson[toDbModuleSlug(m)] = true;
         if (!enabledModules.includes(m)) enabledModules.push(m);
       });
     }

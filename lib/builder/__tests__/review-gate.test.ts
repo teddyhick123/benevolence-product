@@ -25,6 +25,8 @@ function makeRevision(overrides: Partial<RevisionRow> = {}): RevisionRow {
     head_commit_sha: null,
     manifest_hash: 'manifest-hash',
     diff_hash: 'diff-hash',
+    authoritative_diff_hash: 'authoritative-diff-hash',
+    authoritative_diff_artifact_key: 'org-1/prop-1/rev-1/diff.authoritative.patch',
     context_hash: null,
     artifact_prefix: 'org-1/prop-1/rev-1',
     file_count: 1,
@@ -132,10 +134,10 @@ describe('evaluateAttemptGate', () => {
     expect(result.reason).toMatch(/manifest|hash/i);
   });
 
-  it('fails closed when the revision diff_hash is null', () => {
-    const result = evaluateAttemptGate(makeInput({ revision: makeRevision({ diff_hash: null }) }));
+  it('fails closed when authoritative diff evidence is missing', () => {
+    const result = evaluateAttemptGate(makeInput({ revision: makeRevision({ authoritative_diff_hash: null }) }));
     expect(result.pass).toBe(false);
-    expect(result.reason).toMatch(/diff|hash/i);
+    expect(result.reason).toMatch(/authoritative diff/i);
   });
 
   it('fails closed when there is no review attempt', () => {

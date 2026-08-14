@@ -6,9 +6,9 @@ import { apiRequest, readJson } from "@/lib/api/client";
 import { useEffect, useState, Suspense } from 'react';
 import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { createBrowserClient } from '@/lib/supabase-browser';
+import { createBrowserAuthClient } from '@/lib/api/browser-auth-client';
 
-const supabase = createBrowserClient();
+const supabase = createBrowserAuthClient();
 
 type InviteState =
   | { status: 'loading' }

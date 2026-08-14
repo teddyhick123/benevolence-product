@@ -2,7 +2,7 @@ import { isAccessDenied, requireOrgAccess } from '@/lib/api/access';
 import { createAICredentialRepository } from '@/lib/api/repositories/ai-credentials';
 import { createAISettingsRepository } from '@/lib/api/repositories/ai-settings';
 import { jsonError, jsonOk } from '@/lib/api/responses';
-import { aiConnectionTestLimiter } from '@/lib/rate-limit';
+import { aiConnectionTestLimiter } from '@/lib/api/rate-limit';
 
 type RouteParams = { params: Promise<{ orgId: string; connectionId: string }> };
 const inFlight = new Set<string>();

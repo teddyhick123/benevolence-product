@@ -65,7 +65,7 @@ const moduleRegistrySrc = (() => {
 })();
 const backlogSrc = (() => {
   try {
-    return readFileSync('docs/module-reviews/FULL-BACKLOG.md', 'utf-8');
+    return readFileSync('docs/agent-work/BACKLOG.md', 'utf-8');
   } catch {
     return '';
   }

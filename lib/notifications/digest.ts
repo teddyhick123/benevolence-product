@@ -4,7 +4,7 @@ import { Resend } from 'resend';
 import { render } from '@react-email/components';
 import { branding } from '@/lib/config';
 import TaskDigestEmail from '@/lib/email/templates/task-digest';
-import { isWorkspaceManager } from '@/lib/roles';
+import { isWorkspaceManager } from '@/lib/organizations/roles';
 
 const LOG = '[notifications:digest]';
 

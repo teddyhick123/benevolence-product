@@ -8,7 +8,7 @@
 //
 // Prefix for closing all tasks for an installment: pledge_installment:{id}:
 
-import { createAdminClient } from '@/lib/supabase';
+import { createElevatedClient } from '@/lib/api/admin-client';
 import { ProducerOptions, TaskProducerResult, UpsertGeneratedTaskInput } from '../types';
 import { upsertGeneratedTask, completeGeneratedTasks } from '../task-writer';
 
@@ -37,7 +37,7 @@ export async function pledgeFollowUpProducer(
   dueSoonCutoff.setDate(dueSoonCutoff.getDate() + DUE_SOON_DAYS);
   const dueSoonCutoffStr = dueSoonCutoff.toISOString().slice(0, 10);
 
-  const db = createAdminClient();
+  const db = createElevatedClient();
 
   const result: TaskProducerResult = {
     producer: PRODUCER_ID,

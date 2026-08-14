@@ -6,8 +6,8 @@ export type OrgType =
   | 'nonprofit'
   | 'corporation'
   | 'individual';
-import type { OrgRole } from '@/lib/roles';
-export type { OrgRole } from '@/lib/roles';
+import type { OrgRole } from '@/lib/organizations/roles';
+export type { OrgRole } from '@/lib/organizations/roles';
 
 export interface OrgModules {
   portfolio: boolean;

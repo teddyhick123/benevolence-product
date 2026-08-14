@@ -2,7 +2,7 @@ import { createElevatedClient } from '@/lib/api/admin-client';
 import type { OrgAccessContext } from '@/lib/api/principals';
 import type { z } from 'zod';
 import { createTaskSchema, updateTaskSchema } from '@/lib/schemas/task';
-import { isWorkspaceManager } from '@/lib/roles';
+import { isWorkspaceManager } from '@/lib/organizations/roles';
 import { drainTaskAutomationOutbox } from '@/lib/tasks/automation/outbox';
 
 type TaskRepositoryScope = Pick<OrgAccessContext, 'orgId' | 'role'> & {

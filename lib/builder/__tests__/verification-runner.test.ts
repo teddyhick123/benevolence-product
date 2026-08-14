@@ -20,7 +20,10 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {
+  DockerProcessExecutor,
   LocalWorktreeRunner,
+  UnavailableVerificationRunner,
+  createVerificationRunner,
   type ProcessExecutor,
   type VerificationInput,
 } from '@/lib/builder/verification-runner';
@@ -379,5 +382,69 @@ describe('LocalWorktreeRunner — cleanup guarantee when a check throws', () => 
     const worktreeDir = fake.calls.find((c) => gitWorktreeAdd(c.argv))!.argv[4];
     expect(fake.calls.some((c) => c.argv.join(' ') === `git worktree remove --force ${worktreeDir}`)).toBe(true);
     expect(fake.calls.some((c) => gitWorktreePrune(c.argv))).toBe(true);
+  });
+});
+
+describe('DockerProcessExecutor', () => {
+  const IMAGE = 'registry.example.com/impact-builder-verifier@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+
+  it('runs checks in a hardened container without forwarding host secrets', async () => {
+    const host = new FakeExecutor();
+    const executor = new DockerProcessExecutor({
+      image: IMAGE,
+      hostExecutor: host,
+      hostEnv: { NODE_ENV: 'test', PATH: '/host/bin', GITHUB_TOKEN: 'host-secret' },
+      uid: 501,
+      gid: 20,
+    });
+
+    await executor.exec(['npx', 'tsc', '--noEmit'], {
+      cwd: '/tmp/builder-verify-safe',
+      env: { CI: '1', NEXT_PUBLIC_SUPABASE_URL: 'http://127.0.0.1:54321' },
+      timeoutMs: 300_000,
+    });
+
+    expect(host.calls).toHaveLength(1);
+    const call = host.calls[0];
+    expect(call.argv).toContain('docker');
+    expect(call.argv).toEqual(expect.arrayContaining([
+      '--network', 'none', '--read-only', '--cap-drop', 'ALL',
+      '--security-opt', 'no-new-privileges:true', '--pids-limit', '256',
+      '--memory', '4g', '--cpus', '2', '--user', '501:20',
+      '--workdir', '/workspace', IMAGE, 'npx', 'tsc', '--noEmit',
+    ]));
+    expect(call.argv).toContain('type=bind,src=/tmp/builder-verify-safe,dst=/workspace');
+    expect(call.argv).toContain('PATH=/opt/builder/node_modules/.bin:/usr/local/bin:/usr/bin:/bin');
+    expect(call.argv.join(' ')).not.toContain('host-secret');
+    expect(call.argv.join(' ')).not.toContain('GITHUB_TOKEN');
+    // The host controls Docker, so its credentials stay on the Docker CLI side
+    // and are never converted into container --env flags.
+    expect(call.env.GITHUB_TOKEN).toBe('host-secret');
+  });
+
+  it('rejects tag-only or otherwise unpinned image references', () => {
+    expect(() => new DockerProcessExecutor({ image: 'registry.example.com/verifier:latest' }))
+      .toThrow('digest-pinned');
+  });
+});
+
+describe('createVerificationRunner', () => {
+  const IMAGE = 'registry.example.com/impact-builder-verifier@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
+
+  it('fails closed in production without a digest-pinned verifier image', async () => {
+    const runner = createVerificationRunner({ NODE_ENV: 'production' });
+    expect(runner).toBeInstanceOf(UnavailableVerificationRunner);
+    const outcome = await runner.run({ baseSha: 'base', files: [], requiredKeys: ['verify:types'] });
+    expect(outcome.setupFailure?.stage).toBe('container');
+    expect(outcome.checks[0].status).toBe('error');
+  });
+
+  it('selects a container-backed runner when production has a pinned image', () => {
+    expect(createVerificationRunner({ NODE_ENV: 'production', BUILDER_VERIFIER_IMAGE: IMAGE }))
+      .toBeInstanceOf(LocalWorktreeRunner);
+  });
+
+  it('retains the local runner only for development without a container image', () => {
+    expect(createVerificationRunner({ NODE_ENV: 'development' })).toBeInstanceOf(LocalWorktreeRunner);
   });
 });

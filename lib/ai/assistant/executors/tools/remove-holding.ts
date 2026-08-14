@@ -1,5 +1,5 @@
 import type { AssistantToolExecutor } from '../../executor-types';
-import { AIActionExecutor } from '@/lib/ai-action-executor';
+import { AIActionExecutor } from '@/lib/ai/assistant/actions/executor';
 
 export const executeRemoveHolding: AssistantToolExecutor = async (runtime) => {
   const {

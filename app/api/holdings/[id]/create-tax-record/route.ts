@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createSupabaseServerClient } from '@/lib/supabase';
+import { createServerClient } from '@/lib/api/server-client';
 import { createTaxContributionDraft, HoldingForTax } from '@/lib/helpers/tax-holding-link';
 
-const getSupabase = createSupabaseServerClient;
+const getSupabase = createServerClient;
 
 function json(body: Record<string, unknown>, init?: ResponseInit) {
   return NextResponse.json(body, {

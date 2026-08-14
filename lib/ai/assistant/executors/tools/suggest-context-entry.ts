@@ -4,7 +4,7 @@ import {
   ORG_AI_CONTEXT_KEY_PATTERN,
   ORG_AI_CONTEXT_TYPES,
   normalizeContextKey,
-} from '@/lib/org-ai-context';
+} from '@/lib/organizations/ai-context';
 
 export const executeSuggestContextEntry: AssistantToolExecutor = async (
   runtime,

@@ -1,3 +1,6 @@
+-- Local demo data only. This script is not part of the schema canon and is
+-- never run by migrations. The schema source of truth is db/migrations/.
+--
 -- Demo Data Generation Script
 -- Purpose: Create comprehensive demo data showcasing all multi-asset portfolio features
 -- Phases covered: Investment tracking, Grant management, Tax integration, Donations

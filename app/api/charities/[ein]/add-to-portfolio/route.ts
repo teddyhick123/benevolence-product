@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { supabasePublic } from '@/lib/supabase';
+import { getRequestDatabase } from '@/lib/api/server-client';
 
 // POST /api/charities/[ein]/add-to-portfolio
 // Body: { portfolio_id, notes?, min_investment?, max_investment? }
@@ -7,7 +7,7 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ ein: string }> }
 ) {
-  const sb = await supabasePublic();
+  const sb = await getRequestDatabase();
   const { ein } = await params;
 
   try {

@@ -9,8 +9,8 @@ let _mockPayments: unknown[] = [];
 let _mockGrants: unknown[] = [];
 let _mockStatusHistory: unknown[] = [];
 
-vi.mock('@/lib/supabase', () => ({
-  createAdminClient: vi.fn(() => buildMockDb()),
+vi.mock('@/lib/api/admin-client', () => ({
+  createElevatedClient: vi.fn(() => buildMockDb()),
 }));
 
 function buildMockDb() {

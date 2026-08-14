@@ -1,6 +1,6 @@
 import { createElevatedClient } from '@/lib/api/admin-client';
 import type { OrgAccessContext } from '@/lib/api/principals';
-import type { OrgRole } from '@/lib/roles';
+import type { OrgRole } from '@/lib/organizations/roles';
 
 type MembershipScope = Pick<OrgAccessContext, 'orgId' | 'role'> & {
   actorId: string;
@@ -20,74 +20,26 @@ export class MembershipRepositoryError extends Error {
 export function createMembershipRepository(scope: MembershipScope) {
   const db = createElevatedClient();
 
-  async function countActiveOwners() {
-    const { count, error } = await db
-      .from('organization_members')
-      .select('id', { count: 'exact', head: true })
-      .eq('org_id', scope.orgId)
-      .eq('role', 'owner')
-      .is('deleted_at', null);
-    if (error) throw error;
-    return count ?? 0;
-  }
-
-  async function loadMember(userId: string) {
-    const { data, error } = await db
-      .from('organization_members')
-      .select('id, role')
-      .eq('org_id', scope.orgId)
-      .eq('user_id', userId)
-      .is('deleted_at', null)
-      .maybeSingle();
-    if (error) throw error;
-    if (!data) throw new MembershipRepositoryError('Member not found', 404);
-    return data;
-  }
-
-  async function assertOwnerChangeAllowed(existingRole: string, nextRole?: OrgRole) {
-    if (scope.role !== 'owner' && (existingRole === 'owner' || nextRole === 'owner')) {
-      throw new MembershipRepositoryError('Only owners can change owner membership', 403);
-    }
-    if (existingRole === 'owner' && nextRole !== 'owner' && await countActiveOwners() <= 1) {
-      throw new MembershipRepositoryError('Cannot change the last owner role', 400);
-    }
-  }
-
-  async function updateRole(userId: string, role: OrgRole, allowOwnerAssignment: boolean) {
-    if (role === 'owner' && !allowOwnerAssignment) {
-      throw new MembershipRepositoryError('Invalid role', 400);
-    }
-    if (role === 'owner' && scope.role !== 'owner') {
-      throw new MembershipRepositoryError('Only owners can assign owner role', 403);
-    }
-
-    const existing = await loadMember(userId);
-    await assertOwnerChangeAllowed(existing.role, role);
-
-    const { data, error } = await db
-      .from('organization_members')
-      .update({ role })
-      .eq('org_id', scope.orgId)
-      .eq('user_id', userId)
-      .select()
-      .single();
-    if (error) throw error;
-
-    const { error: auditError } = await db.from('org_audit_log').insert({
-      org_id: scope.orgId,
-      actor_id: scope.actorId,
-      actor_subject_id: scope.actorId,
-      action: 'role_changed',
-      target_id: userId,
-      metadata: { before_role: existing.role, after_role: role },
+  async function mutate(userId: string, operation: 'add' | 'change_role' | 'remove', role?: OrgRole) {
+    const { data, error } = await db.rpc('mutate_organization_membership', {
+      p_org_id: scope.orgId,
+      p_actor_id: scope.actorId,
+      p_target_user_id: userId,
+      p_operation: operation,
+      p_role: role ?? null,
     });
-    if (auditError) {
-      await db
-        .from('organization_members')
-        .update({ role: existing.role })
-        .eq('org_id', scope.orgId)
-        .eq('user_id', userId);
-      throw auditError;
+    if (error) {
+      const status = error.code === '42501' ? 403
+        : error.code === 'P0002' ? 404
+          : error.code === 'P0001' ? 400
+            : error.code === '23505' ? 409
+              : error.code === '22023' ? 400
+                : null;
+      // Only the codes the RPC raises deliberately are client errors. Anything
+      // else is an infrastructure failure, so surface it as a 500 rather than
+      // blaming the caller with a 400.
+      if (status === null) throw new Error(error.message);
+      throw new MembershipRepositoryError(error.message, status);
     }
     return data;
   }
@@ -144,82 +96,18 @@ export function createMembershipRepository(scope: MembershipScope) {
         throw new MembershipRepositoryError('Either email or user_id is required', 400);
       }
 
-      const { data: existing, error: existingError } = await db
-        .from('organization_members')
-        .select('id')
-        .eq('org_id', scope.orgId)
-        .eq('user_id', targetUserId)
-        .is('deleted_at', null)
-        .maybeSingle();
-      if (existingError) throw existingError;
-      if (existing) {
-        throw new MembershipRepositoryError(
-          'User is already a member of this organization',
-          409
-        );
-      }
-
-      const { data: member, error } = await db
-        .from('organization_members')
-        .insert({ org_id: scope.orgId, user_id: targetUserId, role: input.role })
-        .select()
-        .single();
-      if (error) throw error;
-
-      const { error: auditError } = await db.from('org_audit_log').insert({
-        org_id: scope.orgId,
-        actor_id: scope.actorId,
-        actor_subject_id: scope.actorId,
-        action: 'member_added',
-        target_id: targetUserId,
-        metadata: { role: input.role },
-      });
-      if (auditError) {
-        await db
-          .from('organization_members')
-          .update({ deleted_at: new Date().toISOString(), deleted_by: scope.actorId })
-          .eq('org_id', scope.orgId)
-          .eq('user_id', targetUserId);
-        throw auditError;
-      }
-      return member;
+      return mutate(targetUserId, 'add', input.role);
     },
 
-    updateRole,
+    async updateRole(userId: string, role: OrgRole, allowOwnerAssignment: boolean) {
+      if (role === 'owner' && !allowOwnerAssignment) {
+        throw new MembershipRepositoryError('Invalid role', 400);
+      }
+      return mutate(userId, 'change_role', role);
+    },
 
     async remove(userId: string) {
-      const existing = await loadMember(userId);
-      if (scope.role !== 'owner' && existing.role === 'owner') {
-        throw new MembershipRepositoryError('Only owners can remove owner membership', 403);
-      }
-      if (existing.role === 'owner' && await countActiveOwners() <= 1) {
-        throw new MembershipRepositoryError('Cannot remove the last owner', 400);
-      }
-
-      const removedAt = new Date().toISOString();
-      const { error } = await db
-        .from('organization_members')
-        .update({ deleted_at: removedAt, deleted_by: scope.actorId })
-        .eq('org_id', scope.orgId)
-        .eq('user_id', userId);
-      if (error) throw error;
-
-      const { error: auditError } = await db.from('org_audit_log').insert({
-        org_id: scope.orgId,
-        actor_id: scope.actorId,
-        actor_subject_id: scope.actorId,
-        action: 'member_removed',
-        target_id: userId,
-        metadata: { removed_at: removedAt, previous_role: existing.role },
-      });
-      if (auditError) {
-        await db
-          .from('organization_members')
-          .update({ deleted_at: null, deleted_by: null })
-          .eq('org_id', scope.orgId)
-          .eq('user_id', userId);
-        throw auditError;
-      }
+      await mutate(userId, 'remove');
     },
   };
 }

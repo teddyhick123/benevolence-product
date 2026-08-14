@@ -3,7 +3,7 @@
 // app/api/portfolio/[id]/widgets/route.ts
 import { NextResponse } from 'next/server';
 import { createWidgetSchema } from '@/lib/schemas/portfolio';
-import { validateRequest } from '@/lib/validation';
+import { validateRequest } from '@/lib/api/validation';
 import { requirePortfolioAccess, isAccessDenied } from '@/lib/api/access';
 
 function cacheHeaders() {

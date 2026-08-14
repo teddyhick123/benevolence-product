@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { isAccessDenied, requireUserAccess } from '@/lib/api/access';
 import { createOrgBuilderRepository } from '@/lib/api/repositories/builder';
-import { canReviewImplementation } from '@/lib/org-capabilities';
+import { canReviewImplementation } from '@/lib/organizations/capabilities';
 
 export const dynamic = 'force-dynamic';
 

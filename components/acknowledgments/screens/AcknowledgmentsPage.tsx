@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useParams } from 'next/navigation';
-import { createBrowserClient as createClient } from '@/lib/supabase-browser';
+import { useAcknowledgmentsData } from '@/lib/acknowledgments/hooks';
 
 type Acknowledgment = {
   id: string;
@@ -31,70 +31,23 @@ export default function AcknowledgmentsPage() {
   const params = useParams();
   const organizationId = params.orgId as string;
 
-  const [loading, setLoading] = useState(true);
-  const [acknowledgments, setAcknowledgments] = useState<Acknowledgment[]>([]);
   const [typeFilter, setTypeFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [selectedAck, setSelectedAck] = useState<Acknowledgment | null>(null);
-
-  useEffect(() => {
-    async function fetchData() {
-      setLoading(true);
-      try {
-        const supabase = createClient();
-
-        const { data, error } = await supabase
-          .from('acknowledgment_letters')
-          .select(`
-            *,
-            donors (
-              id,
-              first_name,
-              last_name,
-              organization_name,
-              is_organization,
-              email
-            )
-          `)
-          .eq('org_id', organizationId)
-          .order('created_at', { ascending: false });
-
-        if (!error) {
-          const letters = data || [];
-          const contributionIds = Array.from(new Set(
-            letters.flatMap((letter) => letter.contribution_ids || [])
-          ));
-          const { data: contributionRows } = contributionIds.length
-            ? await supabase
-                .from('contributions_received')
-                .select('id, amount, contribution_date')
-                .in('id', contributionIds)
-            : { data: [] };
-          const contributionsById = new Map(
-            (contributionRows || []).map((contribution) => [contribution.id, contribution])
-          );
-
-          setAcknowledgments(letters.map((letter) => ({
-            id: letter.id,
-            letter_type: letter.letter_type,
-            subject: letter.subject,
-            content: letter.body,
-            status: letter.status,
-            sent_at: letter.sent_at,
-            created_at: letter.created_at,
-            donors: letter.donors,
-            contributions_received: contributionsById.get(letter.contribution_ids?.[0]) || null,
-          })));
-        }
-      } catch (err) {
-        console.error('Error fetching acknowledgments:', err);
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    fetchData();
-  }, [organizationId]);
+  const { data, isLoading: loading } = useAcknowledgmentsData<{ letters?: Array<any> }>(
+    organizationId ? `/api/org/${organizationId}/acknowledgments?limit=100` : null,
+  );
+  const acknowledgments: Acknowledgment[] = (data?.letters || []).map((letter) => ({
+    id: letter.id,
+    letter_type: letter.letter_type,
+    subject: letter.subject,
+    content: letter.body,
+    status: letter.status,
+    sent_at: letter.sent_at,
+    created_at: letter.created_at,
+    donors: letter.donors,
+    contributions_received: letter.contributions_received,
+  }));
 
   const formatDate = (date: string | null) => {
     if (!date) return '-';

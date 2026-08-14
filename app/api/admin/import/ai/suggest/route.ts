@@ -8,8 +8,8 @@ import { requireAppAdmin } from '@/lib/api/access';
 import { jsonError, jsonOk } from '@/lib/api/responses';
 import { suggestRowFixes } from '@/lib/import/ai/validate-row';
 import type { AISuggestion } from '@/lib/import/ai/validate-row';
-import { aiLimiter } from '@/lib/rate-limit';
-import { rateLimitExceeded } from '@/lib/rate-limit-response';
+import { aiLimiter } from '@/lib/api/rate-limit';
+import { rateLimitExceeded } from '@/lib/api/rate-limit-response';
 import { fromImportStagingRelation, IMPORT_STAGING_RELATIONS } from '@/lib/import/database';
 
 interface StagingRow {

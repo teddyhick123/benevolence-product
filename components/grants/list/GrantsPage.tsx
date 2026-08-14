@@ -17,7 +17,7 @@ import BulkActionBar, { type QueuedTransitions } from '@/components/grants/BulkA
 import BulkDecisionQueue, { type BulkTransitionItem } from '@/components/grants/BulkDecisionQueue';
 import BulkTransitionResultModal, { type BulkResult } from '@/components/grants/BulkTransitionResultModal';
 import { useEntityVocabulary } from '@/lib/hooks/use-entity-vocabulary';
-import { GRANT_MODULE_VIEWS } from '@/lib/view-config';
+import { GRANT_MODULE_VIEWS } from '@/lib/organizations/view-config';
 
 type ViewId = 'pipeline' | 'table' | 'calendar' | 'attention' | 'workflows' | 'payments' | 'communications';
 type GrantSearchScope = 'portfolio' | 'org';

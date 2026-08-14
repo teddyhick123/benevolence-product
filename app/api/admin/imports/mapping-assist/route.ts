@@ -9,8 +9,8 @@ import { z } from 'zod';
 import { requireAppAdmin } from '@/lib/api/access';
 import { jsonError, jsonOk } from '@/lib/api/responses';
 import { suggestMappings } from '@/lib/import/ai/mapping-assist';
-import { aiLimiter } from '@/lib/rate-limit';
-import { rateLimitExceeded } from '@/lib/rate-limit-response';
+import { aiLimiter } from '@/lib/api/rate-limit';
+import { rateLimitExceeded } from '@/lib/api/rate-limit-response';
 
 const mappingAssistSchema = z.object({
   source_type: z.string().trim().min(1).max(100),

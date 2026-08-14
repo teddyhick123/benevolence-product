@@ -1,5 +1,5 @@
-import { checkRateLimit, cpaPortalLimiter, getIP } from '@/lib/rate-limit';
-import { rateLimitExceeded } from '@/lib/rate-limit-response';
+import { checkRateLimit, cpaPortalLimiter, getIP } from '@/lib/api/rate-limit';
+import { rateLimitExceeded } from '@/lib/api/rate-limit-response';
 import { requireCpaToken } from '@/lib/api/access';
 import { jsonError, jsonOk } from '@/lib/api/responses';
 

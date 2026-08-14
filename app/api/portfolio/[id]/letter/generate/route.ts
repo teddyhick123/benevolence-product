@@ -1,6 +1,6 @@
 // app/api/portfolio/[id]/letter/generate/route.ts
 import { NextResponse } from 'next/server';
-import { aiAuthRequired } from '@/lib/rate-limit-response';
+import { aiAuthRequired } from '@/lib/api/rate-limit-response';
 import { generateTextForWorkload } from '@/lib/ai/runtime';
 import { isAccessDenied, requirePortfolioAccess } from '@/lib/api/access';
 import { createGeneratedDocumentsRepository } from '@/lib/api/repositories/generated-documents';

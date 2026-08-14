@@ -162,9 +162,15 @@ describe('org-scoped route auth contracts', () => {
     expect(src).toContain('Number.isFinite(requestedLimit)');
     expect(src).toContain('Number.isFinite(numericAmount)');
     expect(src).toContain('GIFT_TYPES');
-    expect(src).toContain('.eq("id", donor_id)');
+    expect(src).toContain('.eq("id", contributionDonorId)');
     expect(src).toContain('.eq("org_id", orgId)');
     expect(src).toContain('Donor does not belong to this organization');
+
+    // An anonymous gift still needs a donor row, and it must be minted per
+    // contribution rather than shared, or lifetime-giving totals merge
+    // unrelated givers. Donor PII stays behind the `member` role.
+    expect(src).toContain('is_anonymous: true');
+    expect(src).toContain('hasOrgRole(access.context.role, "member")');
   });
 
   it('single contribution routes use allowlisted updates and atomic receipt generation', () => {

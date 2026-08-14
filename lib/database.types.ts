@@ -14667,6 +14667,18 @@ export type Database = {
           version: number
         }[]
       }
+      create_grant_payment: {
+        Args: {
+          p_amount: number
+          p_grant_id: string
+          p_notes?: string
+          p_org_id: string
+          p_payment_method?: string
+          p_portfolio_id: string
+          p_scheduled_date?: string
+        }
+        Returns: Json
+      }
       create_grant_with_foundation_records: {
         Args: {
           p_actor_id: string

@@ -47,6 +47,10 @@ export async function drainInvitationEmailOutbox(
 
   for (const event of (data ?? []) as InvitationEmailEvent[]) {
     result.scanned++;
+    // Set the moment the provider accepts the message. After that point a
+    // failure must never route to the 'failed' outcome, because that schedules
+    // a retry and the invitee receives the invitation a second time.
+    let delivered = false;
     try {
       const { data: invitation, error: invitationError } = await db
         .from('org_invitations')
@@ -82,9 +86,17 @@ export async function drainInvitationEmailOutbox(
           message: event.message,
           acceptUrl: `${baseUrl}/join?token=${event.invitation_token}`,
         });
-        const { error: finishError } = await db.rpc('finish_org_invitation_email_outbox', {
-          p_event_id: event.id, p_outcome: 'sent', p_error: null,
-        });
+        delivered = true;
+
+        // Bookkeeping only. Retry a few times so a transient database blip does
+        // not leave a delivered invitation looking unsent.
+        let finishError: { message: string } | null = null;
+        for (let attempt = 0; attempt < 3; attempt++) {
+          ({ error: finishError } = await db.rpc('finish_org_invitation_email_outbox', {
+            p_event_id: event.id, p_outcome: 'sent', p_error: null,
+          }));
+          if (!finishError) break;
+        }
         if (finishError) throw finishError;
       }
       result.sent++;
@@ -92,6 +104,18 @@ export async function drainInvitationEmailOutbox(
       const message = error instanceof Error ? error.message : String(error);
       result.failed++;
       result.errors.push({ eventId: event.id, message });
+
+      if (delivered) {
+        // The email went out; only recording it failed. Marking this 'failed'
+        // would schedule a duplicate send, so leave the row claimed and let an
+        // operator reconcile it from last_error instead.
+        result.errors.push({
+          eventId: event.id,
+          message: `Invitation email was delivered but could not be marked sent: ${message}`,
+        });
+        continue;
+      }
+
       if (!options.dryRun) {
         const { error: finishError } = await db.rpc('finish_org_invitation_email_outbox', {
           p_event_id: event.id, p_outcome: 'failed', p_error: message,

@@ -50,12 +50,13 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     const supabase = access.context.db;
     const { searchParams } = new URL(req.url);
 
-    // Donor mailing details are PII: /donors requires `member` for exactly this
+    // Donor contact details are PII: /donors requires `member` for exactly this
     // reason, so viewers must not reach them through the contributions list
-    // either. Receipt generation needs them, and that is a member-level action.
+    // either. Viewers still get the gift record and the donor's display name;
+    // receipt generation needs the address and is a member-level action.
     const donorFields = hasOrgRole(access.context.role, "member")
-      ? "id, first_name, last_name, organization_name, is_organization, email, address_line1, city, state, zip"
-      : "id, first_name, last_name, organization_name, is_organization, email";
+      ? "id, first_name, last_name, organization_name, is_organization, is_anonymous, email, address_line1, city, state, zip"
+      : "id, first_name, last_name, organization_name, is_organization, is_anonymous";
 
     let query = supabase
       .from("contributions_received")
@@ -126,6 +127,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     const body = await req.json();
     const {
       donor_id,
+      is_anonymous,
       amount,
       contribution_date,
       gift_type,
@@ -147,30 +149,51 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       return json({ error: "Invalid gift_type" }, { status: 400 });
     }
 
-    // contributions_received.donor_id is NOT NULL, so an absent donor is a
-    // client error rather than an anonymous contribution. Anonymous giving is
-    // modelled by a donor row with is_anonymous set, not by a null donor_id.
-    if (!donor_id) {
-      return json({ error: "donor_id is required" }, { status: 400 });
-    }
+    // contributions_received.donor_id is NOT NULL, so an anonymous gift still
+    // needs a donor row. Each one gets its own is_anonymous donor: sharing a
+    // single "Anonymous" record per org would pile unrelated givers into one
+    // lifetime-giving total.
+    let contributionDonorId: string = donor_id;
+    let createdAnonymousDonorId: string | null = null;
 
-    const { data: donor } = await supabase
-      .from("donors")
-      .select("id")
-      .eq("id", donor_id)
-      .eq("org_id", orgId)
-      .is("deleted_at", null)
-      .maybeSingle();
+    if (!contributionDonorId) {
+      if (!is_anonymous) {
+        return json({ error: "donor_id is required" }, { status: 400 });
+      }
 
-    if (!donor) {
-      return json({ error: "Donor does not belong to this organization" }, { status: 400 });
+      const { data: anonymousDonor, error: anonymousDonorError } = await supabase
+        .from("donors")
+        .insert({ org_id: orgId, is_anonymous: true })
+        .select("id")
+        .single();
+
+      if (anonymousDonorError || !anonymousDonor) {
+        return json(
+          { error: anonymousDonorError?.message || "Could not create anonymous donor" },
+          { status: 500 }
+        );
+      }
+      contributionDonorId = anonymousDonor.id;
+      createdAnonymousDonorId = anonymousDonor.id;
+    } else {
+      const { data: donor } = await supabase
+        .from("donors")
+        .select("id")
+        .eq("id", contributionDonorId)
+        .eq("org_id", orgId)
+        .is("deleted_at", null)
+        .maybeSingle();
+
+      if (!donor) {
+        return json({ error: "Donor does not belong to this organization" }, { status: 400 });
+      }
     }
 
     const { data: contribution, error } = await supabase
       .from("contributions_received")
       .insert({
         org_id: orgId,
-        donor_id,
+        donor_id: contributionDonorId,
         amount: numericAmount,
         contribution_date: contribution_date || new Date().toISOString().split("T")[0],
         gift_type: gift_type || "cash",
@@ -189,6 +212,11 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       .single();
 
     if (error) {
+      // The donor row above was created solely to carry this gift, so drop it
+      // rather than leaving an empty anonymous donor in the CRM.
+      if (createdAnonymousDonorId) {
+        await supabase.from("donors").delete().eq("id", createdAnonymousDonorId).eq("org_id", orgId);
+      }
       return json({ error: error.message }, { status: 500 });
     }
 

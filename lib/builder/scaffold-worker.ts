@@ -308,7 +308,12 @@ export async function runBuildPhase(data: ScaffoldBuildJobData): Promise<void> {
   // ── Step 6: single-model automated review ─────────────────────────────────
   const { promptText, rawResponse } = await runModelReview(
     planContent ?? null,
-    verification.authoritativeDiff?.text ?? null
+    // A proposal touching a large generated file can produce a multi-megabyte
+    // diff. Cap it so an oversized review prompt degrades into a truncated
+    // review rather than failing the whole run on context length.
+    verification.authoritativeDiff
+      ? capAndRedactLog(verification.authoritativeDiff.text, 200_000)
+      : null
   );
 
   await putTextArtifact(supabase, `${prefix}/${ARTIFACT_KEYS.reviewPrompt(attemptId)}`, promptText);

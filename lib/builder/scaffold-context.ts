@@ -8,7 +8,10 @@ const MIGRATIONS_DIR = path.join(PROJECT_ROOT, 'db/migrations');
 const AGENTS_MD_PATH = path.join(PROJECT_ROOT, 'AGENTS.md');
 const LEGACY_CLAUDE_MD_PATH = path.join(PROJECT_ROOT, 'CLAUDE.md');
 const DONORS_ROUTE_PATH = path.join(PROJECT_ROOT, 'app/api/org/[orgId]/donors/route.ts');
-const DONORS_COMPONENT_PATH = path.join(PROJECT_ROOT, 'components/donors/DonorList.tsx');
+const DONORS_COMPONENT_PATH = path.join(
+  PROJECT_ROOT,
+  'components/donors/screens/DashboardDonorDetailPage.tsx'
+);
 
 export interface ScaffoldContext {
   templateFiles: Array<{ name: string; content: string }>;
@@ -53,7 +56,7 @@ function buildDonorsExample(): string {
     ? fs.readFileSync(DONORS_COMPONENT_PATH, 'utf-8').slice(0, 2000)
     : '(donors component not found)';
 
-  return `### Example: donors module API route (app/api/org/[orgId]/donors/route.ts)\n\`\`\`typescript\n${routeContent}\n\`\`\`\n\n### Example: DonorList component (components/donors/DonorList.tsx)\n\`\`\`typescript\n${componentContent}\n\`\`\`\n`;
+  return `### Example: donors module API route (app/api/org/[orgId]/donors/route.ts)\n\`\`\`typescript\n${routeContent}\n\`\`\`\n\n### Example: donors module screen (components/donors/screens/DashboardDonorDetailPage.tsx)\n\`\`\`typescript\n${componentContent}\n\`\`\`\n`;
 }
 
 function extractAgentInstructionsExcerpt(): string {

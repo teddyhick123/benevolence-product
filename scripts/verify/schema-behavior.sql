@@ -1461,4 +1461,60 @@ BEGIN
 END;
 $$;
 
+-- Payment numbers are per-grant and user visible, so two concurrent schedulers
+-- must not be able to mint the same one.
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conrelid = 'public.grant_payments'::regclass
+      AND contype = 'u'
+      AND conkey @> ARRAY[
+        (SELECT attnum FROM pg_attribute
+          WHERE attrelid = 'public.grant_payments'::regclass AND attname = 'grant_id'),
+        (SELECT attnum FROM pg_attribute
+          WHERE attrelid = 'public.grant_payments'::regclass AND attname = 'payment_number')
+      ]::smallint[]
+  ) THEN
+    RAISE EXCEPTION 'grant_payments is missing the (grant_id, payment_number) unique constraint';
+  END IF;
+END;
+$$;
+
+-- The invitation token is a bearer secret: it reaches the invitee through the
+-- email outbox, never through the mutation's return payload.
+DO $$
+DECLARE v_source text;
+BEGIN
+  SELECT prosrc INTO v_source FROM pg_proc WHERE proname = 'mutate_org_invitation';
+  IF v_source IS NULL THEN
+    RAISE EXCEPTION 'mutate_org_invitation is missing';
+  END IF;
+  IF v_source LIKE '%to_jsonb(v_invitation),%' THEN
+    RAISE EXCEPTION 'mutate_org_invitation returns the raw invitation token';
+  END IF;
+END;
+$$;
+
+-- Elevated mutation RPCs stay reachable only through the service role.
+DO $$
+BEGIN
+  IF has_function_privilege(
+       'authenticated',
+       'public.create_grant_payment(uuid, uuid, uuid, numeric, date, text, text)',
+       'EXECUTE'
+     ) THEN
+    RAISE EXCEPTION 'create_grant_payment is executable by authenticated';
+  END IF;
+  IF NOT has_function_privilege(
+       'service_role',
+       'public.create_grant_payment(uuid, uuid, uuid, numeric, date, text, text)',
+       'EXECUTE'
+     ) THEN
+    RAISE EXCEPTION 'create_grant_payment is not executable by service_role';
+  END IF;
+END;
+$$;
+
 ROLLBACK;

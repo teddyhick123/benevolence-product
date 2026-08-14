@@ -123,6 +123,9 @@ export default function ContributionForm({ organizationId, preselectedDonorId, o
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           donor_id: finalDonorId || null,
+          // No donor selected and not creating one means the "Anonymous" option;
+          // the API mints a dedicated is_anonymous donor for the gift.
+          is_anonymous: !finalDonorId,
           amount: parseFloat(amount),
           contribution_date: contributionDate,
           gift_type: contributionType,

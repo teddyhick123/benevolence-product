@@ -265,8 +265,8 @@ describe('PATCH — security: role escalation', () => {
     const res = await PATCH(makePatchRequest({ role: 'admin' }), makeCtx());
     const body = await res.json();
 
-    // Assert
-    expect(res.status).toBe(400);
+    // Assert — a conflict with current state, not a malformed request
+    expect(res.status).toBe(409);
     expect(body.error).toBe('Cannot change the last owner role');
   });
 });
@@ -390,8 +390,8 @@ describe('DELETE /api/org/[orgId]/members/[userId] — behavior', () => {
     const res = await DELETE(makeDeleteRequest(), makeCtx());
     const body = await res.json();
 
-    // Assert
-    expect(res.status).toBe(400);
+    // Assert — a conflict with current state, not a malformed request
+    expect(res.status).toBe(409);
     expect(body.error).toBe('Cannot remove the last owner');
   });
 

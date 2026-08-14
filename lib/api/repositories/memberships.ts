@@ -30,8 +30,10 @@ export function createMembershipRepository(scope: MembershipScope) {
     });
     if (error) {
       const status = error.code === '42501' ? 403
+        // P0001 is the last-owner guard: a conflict with current state, not a
+        // malformed request. Matches how mutate_org_invitation maps it.
         : error.code === 'P0002' ? 404
-          : error.code === 'P0001' ? 400
+          : error.code === 'P0001' ? 409
             : error.code === '23505' ? 409
               : error.code === '22023' ? 400
                 : null;

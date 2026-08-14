@@ -285,6 +285,7 @@ export function createGrantRepository(scope: GrantRepositoryScope) {
         `)
         .eq('grants.org_id', scope.orgId)
         .eq('grants.portfolio_id', portfolioId)
+        .is('grants.deleted_at', null)
         .order('occurred_at', { ascending: false });
     },
 
@@ -332,46 +333,28 @@ export function createGrantRepository(scope: GrantRepositoryScope) {
         `)
         .eq('grants.org_id', scope.orgId)
         .eq('grants.portfolio_id', portfolioId)
+        .is('grants.deleted_at', null)
         .order('scheduled_date', { ascending: true });
     },
 
     async createPayment(input: CreateGrantPaymentInput) {
-      const { data: grant, error: grantError } = await db
-        .from('grants')
-        .select('id')
-        .eq('id', input.grantId)
-        .eq('org_id', scope.orgId)
-        .eq('portfolio_id', input.portfolioId)
-        .is('deleted_at', null)
-        .maybeSingle();
+      // Scope check, payment-number allocation and insert happen inside one
+      // transaction so concurrent callers cannot mint the same payment number.
+      const { data, error } = await db.rpc('create_grant_payment', {
+        p_org_id: scope.orgId,
+        p_portfolio_id: input.portfolioId,
+        p_grant_id: input.grantId,
+        p_amount: input.amount,
+        p_scheduled_date: input.scheduledDate ?? null,
+        p_payment_method: input.paymentMethod ?? null,
+        p_notes: input.notes ?? null,
+      });
 
-      if (grantError) return { data: null, error: grantError, notFound: false };
-      if (!grant) return { data: null, error: null, notFound: true };
-
-      const { data: latestPayment, error: latestPaymentError } = await db
-        .from('grant_payments')
-        .select('payment_number')
-        .eq('grant_id', input.grantId)
-        .order('payment_number', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (latestPaymentError) return { data: null, error: latestPaymentError, notFound: false };
-
-      const { data, error } = await db
-        .from('grant_payments')
-        .insert({
-          grant_id: input.grantId,
-          payment_number: (latestPayment?.payment_number ?? 0) + 1,
-          amount: input.amount,
-          scheduled_date: input.scheduledDate ?? null,
-          payment_method: input.paymentMethod ?? null,
-          notes: input.notes ?? null,
-          status: 'scheduled',
-        })
-        .select()
-        .single();
-
-      return { data, error, notFound: false };
+      if (error) {
+        if (error.code === 'P0002') return { data: null, error: null, notFound: true };
+        return { data: null, error, notFound: false };
+      }
+      return { data, error: null, notFound: false };
     },
 
     async updatePaymentStatus(paymentId: string, status: GrantPaymentStatus) {

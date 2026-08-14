@@ -291,6 +291,13 @@ export function createCustomFieldRepository(scope: CustomFieldScope) {
         });
       }
 
+      // An empty payload is a valid no-op. The RPC rejects an empty change set
+      // with 22023, so return the current values rather than a spurious 400.
+      if (changes.length === 0) {
+        await assertEntityScope(entityType, entityId);
+        return entityValues(entityType, entityId);
+      }
+
       const { data: mutation, error: mutationError } = await db.rpc('mutate_custom_field_values', {
         p_org_id: scope.orgId,
         p_actor_id: scope.actorId,

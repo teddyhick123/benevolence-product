@@ -395,7 +395,12 @@ CREATE TABLE IF NOT EXISTS public.grant_payments (
   reference_number  text,
   conditions_met    boolean NOT NULL DEFAULT false,
   condition_notes   text,
-  notes             text
+  notes             text,
+
+  -- Payment numbers are per-grant and user visible. The uniqueness is enforced
+  -- here so a racing allocation fails loudly instead of silently producing two
+  -- "Payment #3" rows that no later read can tell apart.
+  UNIQUE (grant_id, payment_number)
 );
 
 CREATE INDEX IF NOT EXISTS idx_grant_payments_grant
@@ -453,6 +458,66 @@ DROP TRIGGER IF EXISTS trg_grant_payments_updated_at ON public.grant_payments;
 CREATE TRIGGER trg_grant_payments_updated_at
   BEFORE UPDATE ON public.grant_payments
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+
+-- Scope check, payment-number allocation and insert in one transaction. Doing
+-- the allocation in application code meant two callers could read the same
+-- MAX(payment_number) and both insert the next value.
+CREATE OR REPLACE FUNCTION public.create_grant_payment(
+  p_org_id uuid,
+  p_portfolio_id uuid,
+  p_grant_id uuid,
+  p_amount numeric,
+  p_scheduled_date date DEFAULT NULL,
+  p_payment_method text DEFAULT NULL,
+  p_notes text DEFAULT NULL
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_grant_id uuid;
+  v_payment public.grant_payments%ROWTYPE;
+BEGIN
+  -- Serialize per grant so the number allocation below cannot interleave.
+  PERFORM pg_advisory_xact_lock(hashtext(p_grant_id::text));
+
+  SELECT id INTO v_grant_id
+  FROM public.grants
+  WHERE id = p_grant_id
+    AND org_id = p_org_id
+    AND portfolio_id = p_portfolio_id
+    AND deleted_at IS NULL;
+  IF v_grant_id IS NULL THEN
+    RAISE EXCEPTION 'Grant not found' USING ERRCODE = 'P0002';
+  END IF;
+
+  INSERT INTO public.grant_payments (
+    grant_id, payment_number, amount, scheduled_date, payment_method, notes, status
+  )
+  SELECT
+    p_grant_id,
+    COALESCE(MAX(payment_number), 0) + 1,
+    p_amount,
+    p_scheduled_date,
+    p_payment_method,
+    p_notes,
+    'scheduled'
+  FROM public.grant_payments
+  WHERE grant_id = p_grant_id
+  RETURNING * INTO v_payment;
+
+  RETURN to_jsonb(v_payment);
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.create_grant_payment(
+  uuid, uuid, uuid, numeric, date, text, text
+) FROM PUBLIC, authenticated;
+GRANT EXECUTE ON FUNCTION public.create_grant_payment(
+  uuid, uuid, uuid, numeric, date, text, text
+) TO service_role;
 
 CREATE TABLE IF NOT EXISTS public.qualifying_distributions (
   id                  uuid PRIMARY KEY DEFAULT uuid_generate_v4(),

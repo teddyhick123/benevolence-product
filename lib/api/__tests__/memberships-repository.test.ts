@@ -67,7 +67,8 @@ describe('createMembershipRepository', () => {
       actorId: 'owner-2',
     }).remove('owner-1')).rejects.toEqual(expect.objectContaining({
       message: 'Cannot remove the last owner',
-      status: 400,
+      // A conflict with current state, matching how mutate_org_invitation maps P0001.
+      status: 409,
     }));
     expect(mockFrom).not.toHaveBeenCalled();
   });

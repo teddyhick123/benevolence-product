@@ -14701,6 +14701,30 @@ export type Database = {
         }
         Returns: Json
       }
+      create_holding_widget: {
+        Args: {
+          p_config?: Json
+          p_holding_id: string
+          p_title?: string
+          p_type: string
+        }
+        Returns: {
+          config: Json
+          created_at: string
+          holding_id: string
+          id: string
+          position: number
+          title: string | null
+          type: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "holding_widgets"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       create_pledge_with_installments: {
         Args: {
           p_campaign: string
@@ -14720,6 +14744,30 @@ export type Database = {
           p_total_amount: number
         }
         Returns: Json
+      }
+      create_portfolio_widget: {
+        Args: {
+          p_config?: Json
+          p_portfolio_id: string
+          p_title?: string
+          p_type: string
+        }
+        Returns: {
+          config: Json
+          created_at: string
+          id: string
+          portfolio_id: string
+          position: number
+          title: string | null
+          type: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "widgets"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       create_task_with_relations: {
         Args: {
@@ -14996,6 +15044,44 @@ export type Database = {
       }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
+      swap_holding_widget_positions: {
+        Args: { p_holding_id: string; p_widget_a: string; p_widget_b: string }
+        Returns: {
+          config: Json
+          created_at: string
+          holding_id: string
+          id: string
+          position: number
+          title: string | null
+          type: string
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "holding_widgets"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      swap_portfolio_widget_positions: {
+        Args: { p_portfolio_id: string; p_widget_a: string; p_widget_b: string }
+        Returns: {
+          config: Json
+          created_at: string
+          id: string
+          portfolio_id: string
+          position: number
+          title: string | null
+          type: string
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "widgets"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       task_entity_belongs_to_org: {
         Args: { p_entity_id: string; p_entity_type: string; p_org_id: string }
         Returns: boolean

@@ -133,53 +133,25 @@ export default function EditWidgetsModal({ portfolioId, holdingId, open, onClose
   }
 
   /**
-   * Reorder two widgets by swapping their positions.
-   * Uses a 3-step process to avoid unique constraint violations:
-   * 1. Move widget A to temporary position
-   * 2. Move widget B to A's original position
-   * 3. Move widget A to B's original position
+   * Swap two widgets' positions. The server does this in one transaction, so a
+   * failure leaves the existing order untouched. This was previously three
+   * chained PATCH requests through a sentinel position, where a failure partway
+   * stranded a widget outside the real ordering.
    */
   async function reorderWidgets(widgetA: WidgetRow, widgetB: WidgetRow) {
     const baseUrl = holdingId
       ? `/api/holdings/${encodeURIComponent(holdingId)}/widgets`
       : `/api/portfolio/${encodeURIComponent(portfolioId)}/widgets`;
 
-    const tempPosition = 999999;
-
-    // Step 1: Move widget A to temp position
-    const res1 = await apiRequest(`${baseUrl}/${encodeURIComponent(widgetA.id)}`, {
-      method: 'PATCH',
+    const res = await apiRequest(`${baseUrl}/reorder`, {
+      method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ position: tempPosition })
+      body: JSON.stringify({ widget_a: widgetA.id, widget_b: widgetB.id }),
     });
 
-    if (!res1.ok) {
-      const error1 = await readJson(res1).catch(() => ({}));
-      throw new Error(error1?.error || 'Failed to reorder widgets');
-    }
-
-    // Step 2: Move widget B to A's original position
-    const res2 = await apiRequest(`${baseUrl}/${encodeURIComponent(widgetB.id)}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ position: widgetA.position })
-    });
-
-    if (!res2.ok) {
-      const error2 = await readJson(res2).catch(() => ({}));
-      throw new Error(error2?.error || 'Failed to reorder widgets');
-    }
-
-    // Step 3: Move widget A to B's original position
-    const res3 = await apiRequest(`${baseUrl}/${encodeURIComponent(widgetA.id)}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ position: widgetB.position })
-    });
-
-    if (!res3.ok) {
-      const error3 = await readJson(res3).catch(() => ({}));
-      throw new Error(error3?.error || 'Failed to reorder widgets');
+    if (!res.ok) {
+      const error = await readJson(res).catch(() => ({}));
+      throw new Error(error?.error || 'Failed to reorder widgets');
     }
   }
 

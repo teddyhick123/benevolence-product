@@ -177,7 +177,13 @@ CREATE TABLE IF NOT EXISTS holding_widgets (
   type        text NOT NULL,
   title       text,
   config      jsonb NOT NULL DEFAULT '{}',
-  position    integer NOT NULL DEFAULT 0
+  position    integer NOT NULL DEFAULT 0,
+
+  -- Dashboard order is user visible, so two widgets must not share a slot.
+  -- Deferrable so a reorder can swap two positions inside one transaction
+  -- without tripping the constraint at the intermediate state.
+  CONSTRAINT holding_widgets_holding_position_key
+    UNIQUE (holding_id, position) DEFERRABLE INITIALLY IMMEDIATE
 );
 
 CREATE INDEX idx_holding_widgets_holding_id ON holding_widgets (holding_id);
@@ -233,15 +239,169 @@ CREATE TABLE IF NOT EXISTS widgets (
   type         text NOT NULL,
   title        text,
   config       jsonb NOT NULL DEFAULT '{}',
-  position     integer NOT NULL DEFAULT 0
+  position     integer NOT NULL DEFAULT 0,
+
+  -- See holding_widgets above: user-visible ordering, deferrable so a reorder
+  -- can swap two positions within one transaction.
+  CONSTRAINT widgets_portfolio_position_key
+    UNIQUE (portfolio_id, position) DEFERRABLE INITIALLY IMMEDIATE
 );
 
 CREATE INDEX idx_widgets_portfolio_id ON widgets (portfolio_id);
-CREATE INDEX idx_widgets_portfolio_position ON widgets (portfolio_id, position);
+-- The unique constraint above already indexes (portfolio_id, position); a
+-- second identical index would only add write cost.
 
 CREATE TRIGGER trg_widgets_updated_at
   BEFORE UPDATE ON widgets
   FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+-- ---------------------------------------------------------------------------
+-- Widget position allocation and reordering
+--
+-- Reading MAX(position) and inserting max+1 as two statements let two callers
+-- adding a widget at the same time land on the same slot. These functions do
+-- the read and the write under one advisory lock per dashboard.
+--
+-- They are SECURITY INVOKER on purpose: the widget tables are reachable by
+-- `authenticated` under RLS, and both an end-user session and an elevated
+-- repository call these. Running as the caller keeps the existing
+-- authorization model exactly as it is and only adds atomicity.
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.create_portfolio_widget(
+  p_portfolio_id uuid,
+  p_type text,
+  p_title text DEFAULT NULL,
+  p_config jsonb DEFAULT '{}'::jsonb
+)
+RETURNS public.widgets
+LANGUAGE plpgsql
+SECURITY INVOKER
+SET search_path = public
+AS $$
+DECLARE v_widget public.widgets%ROWTYPE;
+BEGIN
+  PERFORM pg_advisory_xact_lock(hashtext('widgets:' || p_portfolio_id::text));
+
+  INSERT INTO public.widgets (portfolio_id, type, title, config, position)
+  SELECT p_portfolio_id, p_type, p_title, COALESCE(p_config, '{}'::jsonb),
+         COALESCE(MAX(position), -1) + 1
+  FROM public.widgets
+  WHERE portfolio_id = p_portfolio_id
+  RETURNING * INTO v_widget;
+
+  RETURN v_widget;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.create_holding_widget(
+  p_holding_id uuid,
+  p_type text,
+  p_title text DEFAULT NULL,
+  p_config jsonb DEFAULT '{}'::jsonb
+)
+RETURNS public.holding_widgets
+LANGUAGE plpgsql
+SECURITY INVOKER
+SET search_path = public
+AS $$
+DECLARE v_widget public.holding_widgets%ROWTYPE;
+BEGIN
+  PERFORM pg_advisory_xact_lock(hashtext('holding_widgets:' || p_holding_id::text));
+
+  INSERT INTO public.holding_widgets (holding_id, type, title, config, position)
+  SELECT p_holding_id, p_type, p_title, COALESCE(p_config, '{}'::jsonb),
+         COALESCE(MAX(position), -1) + 1
+  FROM public.holding_widgets
+  WHERE holding_id = p_holding_id
+  RETURNING * INTO v_widget;
+
+  RETURN v_widget;
+END;
+$$;
+
+-- Swap two widgets in one transaction. The previous client did this as three
+-- separate requests through a sentinel position; a failure between them left a
+-- widget stranded outside the real ordering.
+CREATE OR REPLACE FUNCTION public.swap_portfolio_widget_positions(
+  p_portfolio_id uuid,
+  p_widget_a uuid,
+  p_widget_b uuid
+)
+RETURNS SETOF public.widgets
+LANGUAGE plpgsql
+SECURITY INVOKER
+SET search_path = public
+AS $$
+DECLARE
+  v_position_a integer;
+  v_position_b integer;
+BEGIN
+  PERFORM pg_advisory_xact_lock(hashtext('widgets:' || p_portfolio_id::text));
+  SET CONSTRAINTS widgets_portfolio_position_key DEFERRED;
+
+  SELECT position INTO v_position_a
+  FROM public.widgets WHERE id = p_widget_a AND portfolio_id = p_portfolio_id FOR UPDATE;
+  SELECT position INTO v_position_b
+  FROM public.widgets WHERE id = p_widget_b AND portfolio_id = p_portfolio_id FOR UPDATE;
+
+  IF v_position_a IS NULL OR v_position_b IS NULL THEN
+    RAISE EXCEPTION 'Widget not found in this portfolio' USING ERRCODE = 'P0002';
+  END IF;
+
+  UPDATE public.widgets SET position = v_position_b WHERE id = p_widget_a;
+  UPDATE public.widgets SET position = v_position_a WHERE id = p_widget_b;
+
+  RETURN QUERY
+    SELECT * FROM public.widgets
+    WHERE portfolio_id = p_portfolio_id
+    ORDER BY position;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.swap_holding_widget_positions(
+  p_holding_id uuid,
+  p_widget_a uuid,
+  p_widget_b uuid
+)
+RETURNS SETOF public.holding_widgets
+LANGUAGE plpgsql
+SECURITY INVOKER
+SET search_path = public
+AS $$
+DECLARE
+  v_position_a integer;
+  v_position_b integer;
+BEGIN
+  PERFORM pg_advisory_xact_lock(hashtext('holding_widgets:' || p_holding_id::text));
+  SET CONSTRAINTS holding_widgets_holding_position_key DEFERRED;
+
+  SELECT position INTO v_position_a
+  FROM public.holding_widgets WHERE id = p_widget_a AND holding_id = p_holding_id FOR UPDATE;
+  SELECT position INTO v_position_b
+  FROM public.holding_widgets WHERE id = p_widget_b AND holding_id = p_holding_id FOR UPDATE;
+
+  IF v_position_a IS NULL OR v_position_b IS NULL THEN
+    RAISE EXCEPTION 'Widget not found on this holding' USING ERRCODE = 'P0002';
+  END IF;
+
+  UPDATE public.holding_widgets SET position = v_position_b WHERE id = p_widget_a;
+  UPDATE public.holding_widgets SET position = v_position_a WHERE id = p_widget_b;
+
+  RETURN QUERY
+    SELECT * FROM public.holding_widgets
+    WHERE holding_id = p_holding_id
+    ORDER BY position;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.create_portfolio_widget(uuid, text, text, jsonb)
+  TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.create_holding_widget(uuid, text, text, jsonb)
+  TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.swap_portfolio_widget_positions(uuid, uuid, uuid)
+  TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.swap_holding_widget_positions(uuid, uuid, uuid)
+  TO authenticated, service_role;
 
 -- ---------------------------------------------------------------------------
 -- holding_locations — additional geocoded locations per holding

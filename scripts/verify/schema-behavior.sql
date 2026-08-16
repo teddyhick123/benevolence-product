@@ -1497,6 +1497,47 @@ BEGIN
 END;
 $$;
 
+-- Widget order is user visible, so two widgets must not share a slot. The
+-- constraints must be deferrable or a reorder cannot swap two positions inside
+-- one transaction.
+DO $$
+DECLARE
+  v_name text;
+  v_deferrable boolean;
+BEGIN
+  FOREACH v_name IN ARRAY ARRAY[
+    'widgets_portfolio_position_key',
+    'holding_widgets_holding_position_key'
+  ] LOOP
+    SELECT condeferrable INTO v_deferrable FROM pg_constraint WHERE conname = v_name;
+    IF v_deferrable IS NULL THEN
+      RAISE EXCEPTION 'missing widget position constraint %', v_name;
+    END IF;
+    IF NOT v_deferrable THEN
+      RAISE EXCEPTION 'widget position constraint % is not deferrable, so reordering cannot swap', v_name;
+    END IF;
+  END LOOP;
+END;
+$$;
+
+-- Widget position allocation must be reachable by ordinary sessions: both an
+-- end-user route and an elevated repository call these.
+DO $$
+DECLARE v_signature text;
+BEGIN
+  FOREACH v_signature IN ARRAY ARRAY[
+    'public.create_portfolio_widget(uuid, text, text, jsonb)',
+    'public.create_holding_widget(uuid, text, text, jsonb)',
+    'public.swap_portfolio_widget_positions(uuid, uuid, uuid)',
+    'public.swap_holding_widget_positions(uuid, uuid, uuid)'
+  ] LOOP
+    IF NOT has_function_privilege('authenticated', v_signature, 'EXECUTE') THEN
+      RAISE EXCEPTION '% is not executable by authenticated', v_signature;
+    END IF;
+  END LOOP;
+END;
+$$;
+
 -- Elevated mutation RPCs stay reachable only through the service role.
 DO $$
 BEGIN

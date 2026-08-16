@@ -68,27 +68,15 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     }
   }
 
-  // Determine next position
-  let nextPos = 1;
-  {
-    const { data: posRows, error: posErr } = await sb
-      .from('holding_widgets')
-      .select('position')
-      .eq('holding_id', holding_id)
-      .order('position', { ascending: false })
-      .limit(1);
-    if (!posErr && posRows && posRows.length > 0 && Number.isFinite(Number(posRows[0]?.position))) {
-      nextPos = Number(posRows[0].position) + 1;
-    }
-  }
-
-  const insertRow: any = { holding_id, type, title, config, position: nextPos };
-
-  const { data: inserted, error: insErr } = await sb
-    .from('holding_widgets')
-    .insert(insertRow)
-    .select('id, holding_id, type, title, config, position')
-    .single();
+  // The RPC reads the current maximum and inserts under one advisory lock per
+  // holding. Doing that as two statements here let two callers adding a widget
+  // at the same time claim the same position.
+  const { data: inserted, error: insErr } = await sb.rpc('create_holding_widget', {
+    p_holding_id: holding_id,
+    p_type: type,
+    p_title: title,
+    p_config: config,
+  });
 
   if (insErr) return NextResponse.json({ error: insErr.message }, { status: 500, headers: cacheHeaders() });
   return NextResponse.json({ data: inserted }, { headers: cacheHeaders() });

@@ -30,7 +30,9 @@ export function createPortfolioVisualizationRepository(scope: VisualizationScope
       config: Record<string, unknown>;
       holdingId?: string | null;
     }) {
-      let maxPosition = -1;
+      // Position allocation happens inside the RPC, under an advisory lock per
+      // dashboard. Reading MAX(position) here and inserting max+1 let two
+      // concurrent callers land on the same slot.
       if (input.holdingId) {
         const { data: holding, error: holdingError } = await db
           .from('holdings')
@@ -42,50 +44,53 @@ export function createPortfolioVisualizationRepository(scope: VisualizationScope
         if (holdingError) throw holdingError;
         if (!holding) throw new PortfolioWidgetHoldingNotFoundError();
 
-        const { data: widgets, error: widgetsError } = await db
-          .from('holding_widgets')
-          .select('position')
-          .eq('holding_id', input.holdingId)
-          .order('position', { ascending: false })
-          .limit(1);
-        if (widgetsError) throw widgetsError;
-        maxPosition = widgets?.[0]?.position ?? -1;
-
-        const { data, error } = await db
-          .from('holding_widgets')
-          .insert({
-            holding_id: input.holdingId,
-            type: input.type,
-            title: input.title,
-            config: input.config,
-            position: maxPosition + 1,
-          })
-          .select()
-          .single();
+        const { data, error } = await db.rpc('create_holding_widget', {
+          p_holding_id: input.holdingId,
+          p_type: input.type,
+          p_title: input.title,
+          p_config: input.config as never,
+        });
         if (error) throw new PortfolioWidgetSaveError();
         return data;
       }
 
-      const { data: widgets, error: widgetsError } = await db
-        .from('widgets')
-        .select('position')
-        .eq('portfolio_id', scope.portfolioId)
-        .order('position', { ascending: false })
-        .limit(1);
-      if (widgetsError) throw widgetsError;
-      maxPosition = widgets?.[0]?.position ?? -1;
+      const { data, error } = await db.rpc('create_portfolio_widget', {
+        p_portfolio_id: scope.portfolioId,
+        p_type: input.type,
+        p_title: input.title,
+        p_config: input.config as never,
+      });
+      if (error) throw new PortfolioWidgetSaveError();
+      return data;
+    },
 
-      const { data, error } = await db
-        .from('widgets')
-        .insert({
-          portfolio_id: scope.portfolioId,
-          type: input.type,
-          title: input.title,
-          config: input.config,
-          position: maxPosition + 1,
-        })
-        .select()
-        .single();
+    /** Swap two widgets' positions in one transaction. */
+    async swapPositions(input: { widgetA: string; widgetB: string; holdingId?: string | null }) {
+      if (input.holdingId) {
+        const { data: holding, error: holdingError } = await db
+          .from('holdings')
+          .select('id')
+          .eq('id', input.holdingId)
+          .eq('portfolio_id', scope.portfolioId)
+          .is('deleted_at', null)
+          .maybeSingle();
+        if (holdingError) throw holdingError;
+        if (!holding) throw new PortfolioWidgetHoldingNotFoundError();
+
+        const { data, error } = await db.rpc('swap_holding_widget_positions', {
+          p_holding_id: input.holdingId,
+          p_widget_a: input.widgetA,
+          p_widget_b: input.widgetB,
+        });
+        if (error) throw new PortfolioWidgetSaveError();
+        return data;
+      }
+
+      const { data, error } = await db.rpc('swap_portfolio_widget_positions', {
+        p_portfolio_id: scope.portfolioId,
+        p_widget_a: input.widgetA,
+        p_widget_b: input.widgetB,
+      });
       if (error) throw new PortfolioWidgetSaveError();
       return data;
     },

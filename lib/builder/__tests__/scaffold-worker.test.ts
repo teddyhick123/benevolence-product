@@ -38,13 +38,19 @@ vi.mock('@/lib/api/admin-client', () => ({
 
 // The AI provider is stubbed by a FIFO queue of text responses.
 let aiQueue: string[] = [];
+// Recorded so tests can assert on what actually reaches the model, not just on
+// what comes back from it.
+let aiPrompts: string[] = [];
 vi.mock('@/lib/ai/factory', () => ({
   createAIProvider: () => ({
-    createMessage: vi.fn(async () => ({
-      content: [{ type: 'text', text: aiQueue.shift() ?? '' }],
-      stopReason: null,
-      model: 'test-model',
-    })),
+    createMessage: vi.fn(async (request: any) => {
+      aiPrompts.push(JSON.stringify(request));
+      return {
+        content: [{ type: 'text', text: aiQueue.shift() ?? '' }],
+        stopReason: null,
+        model: 'test-model',
+      };
+    }),
     createStream: vi.fn(),
   }),
 }));
@@ -133,6 +139,7 @@ function idxOf(mock: SupabaseMock, pred: (c: any) => boolean): number {
 
 beforeEach(() => {
   aiQueue = [];
+  aiPrompts = [];
   currentAdmin = null;
   runAndRecordVerificationMock.mockReset();
   // Default: verification set up cleanly, all required checks passed. Individual
@@ -280,6 +287,33 @@ describe('runBuildPhase — deterministic verification (Increment 3)', () => {
     currentAdmin = mock.client();
     return mock;
   }
+
+  it('caps a huge authoritative diff so review degrades instead of failing on context length', async () => {
+    // A proposal touching a large generated file (lib/database.types.ts, say)
+    // produces a multi-megabyte diff. Interpolating it whole turns a reviewable
+    // proposal into a hard run failure.
+    const hugeDiff = `diff --git a/lib/database.types.ts b/lib/database.types.ts\n${'+'.repeat(2_000_000)}`;
+    genericSetup({
+      finalProposalState: 'ready_to_apply',
+      verificationRuns: passedRuns(DEFAULT_REQUIRED),
+    });
+    runAndRecordVerificationMock.mockResolvedValue({
+      setupFindings: [],
+      allRequiredPassed: true,
+      authoritativeDiff: {
+        hash: 'huge-diff-hash',
+        artifactKey: `${ORG_ID}/${PROPOSAL_ID}/${REVISION_ID}/diff.authoritative.patch`,
+        text: hugeDiff,
+      },
+    });
+
+    await runBuildPhase({ proposalId: PROPOSAL_ID, orgId: ORG_ID, revisionId: REVISION_ID });
+
+    const reviewPrompt = aiPrompts.find(prompt => prompt.includes('Authoritative implementation diff'));
+    expect(reviewPrompt).toBeDefined();
+    expect(Buffer.byteLength(reviewPrompt!, 'utf8')).toBeLessThan(hugeDiff.length);
+    expect(reviewPrompt).toContain('truncated');
+  });
 
   it('runs verification AFTER the attempt insert and BEFORE model review, feeding it the attempt keys', async () => {
     const mock = genericSetup({ finalProposalState: 'ready_to_apply', verificationRuns: passedRuns(DEFAULT_REQUIRED) });

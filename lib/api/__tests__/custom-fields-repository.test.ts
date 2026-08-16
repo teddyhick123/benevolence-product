@@ -137,6 +137,36 @@ describe('createCustomFieldRepository', () => {
     expect(mockRpc).not.toHaveBeenCalledWith('mutate_custom_field_values', expect.anything());
   });
 
+  it('treats an empty payload as a no-op instead of a spurious 400', async () => {
+    // `values: {}` is valid per the route schema and used to succeed as a
+    // no-op. The RPC rejects an empty change set with 22023, so the repository
+    // must not call it at all.
+    const definitions = stubQuery({ data: [definition], error: null });
+    const loadedDefinitions = stubQuery({ data: [definition], error: null });
+    const loadedValues = stubQuery({ data: [], error: null });
+    mockFrom
+      .mockReturnValueOnce(definitions)
+      .mockReturnValueOnce(loadedDefinitions)
+      .mockReturnValueOnce(loadedValues);
+    mockRpc.mockResolvedValueOnce({ data: 'org-1', error: null });
+
+    const result = await createCustomFieldRepository(scope).setEntityValues('grant', ENTITY_ID, {});
+
+    expect(mockRpc).not.toHaveBeenCalledWith('mutate_custom_field_values', expect.anything());
+    expect(result).toHaveProperty('values');
+  });
+
+  it('still scope-checks the entity on an empty payload', async () => {
+    // A no-op must not become a way to probe entities in another organization.
+    const definitions = stubQuery({ data: [definition], error: null });
+    mockFrom.mockReturnValue(definitions);
+    mockRpc.mockResolvedValueOnce({ data: 'someone-elses-org', error: null });
+
+    await expect(
+      createCustomFieldRepository(scope).setEntityValues('grant', ENTITY_ID, {})
+    ).rejects.toEqual(expect.objectContaining({ status: 404 }));
+  });
+
   it('maps atomic mutation authorization and ownership errors without exposing storage access', async () => {
     const definitions = stubQuery({ data: [definition], error: null });
     mockFrom.mockReturnValue(definitions);

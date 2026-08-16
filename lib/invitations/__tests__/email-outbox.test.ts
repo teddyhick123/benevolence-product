@@ -96,4 +96,58 @@ describe('drainInvitationEmailOutbox', () => {
     expect(pending.calls).toContainEqual({ method: 'in', args: ['status', ['pending', 'retry']] });
     expect(result).toMatchObject({ scanned: 1, sent: 1 });
   });
+
+  // Delivery and recording it cannot be atomic. What must never happen is
+  // treating a recording failure as a delivery failure: 'failed' becomes
+  // 'retry', the event is re-claimed, and the invitee is mailed twice.
+  describe('when the email is delivered but recording it fails', () => {
+    function stubDeliveredButUnrecordable(finishResults: Array<{ error: { message: string } | null }>) {
+      const invitation = stubQuery({ data: { status: 'pending', token: 'token-1', invited_by: 'actor-1' }, error: null });
+      const org = stubQuery({ data: { name: 'Good Org' }, error: null });
+      const profile = stubQuery({ data: { full_name: 'Inviter', email: 'inviter@example.com' }, error: null });
+      // clearAllMocks resets call history but not implementations, so delivery
+      // must be re-armed after the earlier rejection test.
+      mockSendInviteEmail.mockResolvedValue(undefined);
+      let finishCall = 0;
+      return stubSupabase({
+        tables: { org_invitations: () => invitation, organizations: () => org, profiles: () => profile },
+        rpc: {
+          claim_org_invitation_email_outbox: () => ({ data: [event], error: null }),
+          finish_org_invitation_email_outbox: () => {
+            const next = finishResults[Math.min(finishCall, finishResults.length - 1)];
+            finishCall++;
+            return { data: null, ...next };
+          },
+        },
+      });
+    }
+
+    it('never marks the event failed, which would schedule a duplicate send', async () => {
+      const db = stubDeliveredButUnrecordable([{ error: { message: 'connection reset' } }]);
+
+      const result = await drainInvitationEmailOutbox(db as any);
+
+      expect(mockSendInviteEmail).toHaveBeenCalledTimes(1);
+      const outcomes = (db.rpc as unknown as { mock: { calls: unknown[][] } }).mock.calls
+        .filter(([fn]) => fn === 'finish_org_invitation_email_outbox')
+        .map(([, args]) => (args as { p_outcome: string }).p_outcome);
+      expect(outcomes).not.toContain('failed');
+      expect(result.errors.some(e => /delivered but could not be marked sent/.test(e.message))).toBe(true);
+    });
+
+    it('retries the record before giving up, so a transient blip still settles', async () => {
+      const db = stubDeliveredButUnrecordable([
+        { error: { message: 'connection reset' } },
+        { error: null },
+      ]);
+
+      const result = await drainInvitationEmailOutbox(db as any);
+
+      const finishCalls = (db.rpc as unknown as { mock: { calls: unknown[][] } }).mock.calls
+        .filter(([fn]) => fn === 'finish_org_invitation_email_outbox');
+      expect(finishCalls.length).toBeGreaterThan(1);
+      expect(mockSendInviteEmail).toHaveBeenCalledTimes(1);
+      expect(result).toMatchObject({ sent: 1, failed: 0 });
+    });
+  });
 });

@@ -330,3 +330,95 @@ describe('createGrantDocumentRepository', () => {
     }));
   });
 });
+
+describe('grant child records exclude soft-deleted grants', () => {
+  // A soft-deleted grant disappears from the "add" dropdowns, so any payment or
+  // communication still listed against it is unreachable and its amount keeps
+  // inflating the schedule totals.
+  it.each([
+    ['listCommunications', 'grant_communications'],
+    ['listPayments', 'grant_payments'],
+  ])('%s filters on the parent grant deleted_at', async (method, table) => {
+    const query = stubQuery({ data: [], error: null });
+    mockFrom.mockReturnValue(query);
+    const repository = createGrantRepository({ orgId: 'org-1', actorId: 'user-1' });
+
+    await (repository as unknown as Record<string, (_id: string) => Promise<unknown>>)[method](
+      'portfolio-1'
+    );
+
+    expect(mockFrom).toHaveBeenCalledWith(table);
+    expect(query.calls).toContainEqual({ method: 'eq', args: ['grants.org_id', 'org-1'] });
+    expect(query.calls).toContainEqual({ method: 'eq', args: ['grants.portfolio_id', 'portfolio-1'] });
+    expect(query.calls).toContainEqual({ method: 'is', args: ['grants.deleted_at', null] });
+  });
+});
+
+describe('createPayment allocates payment numbers atomically', () => {
+  const input = {
+    portfolioId: 'portfolio-1',
+    grantId: 'grant-1',
+    amount: 250,
+    scheduledDate: '2026-09-01',
+    paymentMethod: 'wire',
+    notes: 'Second tranche',
+  };
+
+  it('delegates the whole allocation to the scoped RPC', async () => {
+    mockRpc.mockResolvedValueOnce({ data: { id: 'payment-1', payment_number: 2 }, error: null });
+    const repository = createGrantRepository({ orgId: 'org-1', actorId: 'user-1' });
+
+    const result = await repository.createPayment(input);
+
+    expect(mockRpc).toHaveBeenCalledWith('create_grant_payment', {
+      p_org_id: 'org-1',
+      p_portfolio_id: 'portfolio-1',
+      p_grant_id: 'grant-1',
+      p_amount: 250,
+      p_scheduled_date: '2026-09-01',
+      p_payment_method: 'wire',
+      p_notes: 'Second tranche',
+    });
+    expect(result).toEqual({
+      data: { id: 'payment-1', payment_number: 2 },
+      error: null,
+      notFound: false,
+    });
+  });
+
+  it('never reads MAX(payment_number) in application code', async () => {
+    // Reading the current maximum and inserting max+1 as two statements let two
+    // concurrent callers mint the same payment number.
+    mockRpc.mockResolvedValueOnce({ data: { id: 'payment-1' }, error: null });
+    const repository = createGrantRepository({ orgId: 'org-1', actorId: 'user-1' });
+
+    await repository.createPayment(input);
+
+    expect(mockFrom).not.toHaveBeenCalled();
+  });
+
+  it('reports an out-of-scope grant as not found rather than a server error', async () => {
+    mockRpc.mockResolvedValueOnce({
+      data: null,
+      error: { code: 'P0002', message: 'Grant not found' },
+    });
+    const repository = createGrantRepository({ orgId: 'org-1', actorId: 'user-1' });
+
+    const result = await repository.createPayment(input);
+
+    expect(result).toEqual({ data: null, error: null, notFound: true });
+  });
+
+  it('surfaces other database errors instead of masking them as not found', async () => {
+    mockRpc.mockResolvedValueOnce({
+      data: null,
+      error: { code: '23505', message: 'duplicate key value violates unique constraint' },
+    });
+    const repository = createGrantRepository({ orgId: 'org-1', actorId: 'user-1' });
+
+    const result = await repository.createPayment(input);
+
+    expect(result.notFound).toBe(false);
+    expect(result.error).toMatchObject({ code: '23505' });
+  });
+});

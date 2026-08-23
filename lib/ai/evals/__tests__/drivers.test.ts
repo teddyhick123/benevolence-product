@@ -97,6 +97,24 @@ describe('tool conversation driver', () => {
     expect(observed.text).toBe('x is 5');
   });
 
+  // The assistant workload is tool_conversation but still has to stream, so
+  // this driver must be able to observe chunks too.
+  it('streams when the case asserts streaming', async () => {
+    const connector = new FakeConnector({
+      responses: [{ content: [{ type: 'text', text: 'abc' }], stopReason: 'end_turn', model: 'm' }],
+    });
+    const observed = await DRIVERS.tool_conversation(
+      connector,
+      PLAN,
+      textCase({
+        tools: [{ name: 'get_x', description: 'd', input_schema: { type: 'object', properties: {} } }],
+        assertions: [streamsProgressively()],
+      }),
+    );
+    expect((observed.chunks ?? []).filter(c => c.type === 'text_delta').length).toBeGreaterThan(1);
+    expect(observed.text).toBe('abc');
+  });
+
   it('stops after one turn when the case supplies no tool result', async () => {
     const connector = new FakeConnector({
       responses: [{ content: [{ type: 'tool_use', id: 't1', name: 'get_x', input: {} }], stopReason: 'tool_use', model: 'm' }],

@@ -64,6 +64,13 @@ export class FakeConnector implements AIConnector {
     return this.next(plan, request);
   }
 
+  streamToolConversation(
+    plan: AIExecutionPlan,
+    request: AIToolConversationRequest,
+  ): AsyncIterable<AIStreamChunk> {
+    return this.streamText(plan, request);
+  }
+
   async *streamText(plan: AIExecutionPlan, request: AIGenerationRequest): AsyncIterable<AIStreamChunk> {
     const response = this.next(plan, request);
     const text = FakeConnector.textOf(response);

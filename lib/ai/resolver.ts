@@ -6,6 +6,7 @@ import type {
 } from '@/lib/ai/execution';
 import { AIExecutionError } from '@/lib/ai/execution';
 import { getAIWorkload, type AIConnectorId, type AIWorkloadId } from '@/lib/ai/workloads';
+import { SUITE_VERSION } from '@/lib/ai/evals/version';
 import { getAIDeploymentTemplate } from '@/lib/ai/catalog';
 import { createAIRoutingRepository } from '@/lib/api/repositories/ai-routing';
 import {
@@ -33,7 +34,7 @@ function hashPolicy(policy: Readonly<Record<string, unknown>>): string {
  */
 const ORG_CONNECTORS = new Set(['openrouter', 'anthropic', 'openai']);
 
-function currentVerificationResult(evidence: unknown): 'passed' | 'conditional' | null {
+export function currentVerificationResult(evidence: unknown): 'passed' | 'conditional' | null {
   if (!evidence || typeof evidence !== 'object') return null;
   const value = evidence as Record<string, unknown>;
   if (
@@ -41,6 +42,9 @@ function currentVerificationResult(evidence: unknown): 'passed' | 'conditional' 
     || typeof value.verifiedAt !== 'string'
     || typeof value.evalSuiteVersion !== 'string'
   ) return null;
+  // Evidence produced by a superseded suite says nothing about the current
+  // required cases, so it does not count regardless of its age.
+  if (value.evalSuiteVersion !== SUITE_VERSION) return null;
   const verifiedAt = new Date(value.verifiedAt);
   return Number.isFinite(verifiedAt.getTime())
     && Date.now() - verifiedAt.getTime() <= 90 * 24 * 60 * 60 * 1000

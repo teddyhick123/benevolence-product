@@ -76,7 +76,7 @@ We are **not** making the evaluate endpoint emit `passed`. A four-token smoke te
 - Consumes: `aiRoutePolicySchema` from `lib/schemas/ai-settings.ts` — `{ experimentalUseAccepted?: boolean; mutationTools?: 'verified_only' | 'allow_experimental'; fallbackOn?: (...)[]; provider?: {...} }`. Already accepts both `mutationTools` values; no schema change needed.
 - Produces: no new exports. The `PUT /api/org/[orgId]/ai-settings/routes` payload gains a non-default `policy.mutationTools` value.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `components/settings/__tests__/AIModelsSettings.write-access.test.tsx`:
 
@@ -165,12 +165,12 @@ describe('AIModelsSettings write-access opt-in', () => {
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `npx vitest run components/settings/__tests__/AIModelsSettings.write-access.test.tsx`
 Expected: FAIL on all three — `Unable to find a label with the text of: Assistant model`, because the route select has no accessible name yet. After Step 5 adds it, the remaining failure should be the second test alone, unable to find the write-access checkbox.
 
-- [ ] **Step 3: Add the state hook**
+- [x] **Step 3: Add the state hook**
 
 In `components/settings/AIModelsSettings.tsx`, alongside the existing `platformFallback` state declaration:
 
@@ -178,7 +178,7 @@ In `components/settings/AIModelsSettings.tsx`, alongside the existing `platformF
 const [writeAccess, setWriteAccess] = useState<Record<string, boolean>>({});
 ```
 
-- [ ] **Step 4: Send the chosen policy**
+- [x] **Step 4: Send the chosen policy**
 
 Replace the hardcoded policy block at `AIModelsSettings.tsx:136-140`:
 
@@ -191,7 +191,7 @@ Replace the hardcoded policy block at `AIModelsSettings.tsx:136-140`:
           },
 ```
 
-- [ ] **Step 5: Name the route select, then render the opt-in beside the existing fallback control**
+- [x] **Step 5: Name the route select, then render the opt-in beside the existing fallback control**
 
 The routing section's `<select>` has no accessible name, and the page renders two other selects. Add one so it is addressable — replace its opening tag:
 
@@ -217,17 +217,17 @@ Then, immediately after the `Explicitly allow platform-funded fallback` label, i
                       </label>
 ```
 
-- [ ] **Step 6: Run the tests to verify they pass**
+- [x] **Step 6: Run the tests to verify they pass**
 
 Run: `npx vitest run components/settings/__tests__/AIModelsSettings.write-access.test.tsx`
 Expected: PASS (3 tests)
 
-- [ ] **Step 7: Run the resolver contract suite for regressions**
+- [x] **Step 7: Run the resolver contract suite for regressions**
 
 Run: `npx vitest run lib/ai/__tests__/resolver-phase1.test.ts tests/integration/org-ai-settings-boundary.test.ts`
 Expected: PASS
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add components/settings/AIModelsSettings.tsx components/settings/__tests__/AIModelsSettings.write-access.test.tsx
@@ -248,7 +248,7 @@ git commit -m "feat(ai-settings): let orgs grant write access to their own model
 - Consumes: nothing.
 - Produces: nothing importable. The contract is `.env.example` documenting every server-side `process.env.X` read in `lib/`, `app/`, and `scripts/`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `tests/integration/env-template-contract.test.ts`:
 
@@ -303,12 +303,12 @@ describe('env template contract', () => {
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `npx vitest run tests/integration/env-template-contract.test.ts`
 Expected: FAIL, listing at minimum `GITHUB_REPO_NAME`, `GITHUB_REPO_OWNER`, `GITHUB_TOKEN`, `REDIS_URL`. Record the full list — it may include others.
 
-- [ ] **Step 3: Document the missing variables**
+- [x] **Step 3: Document the missing variables**
 
 Append to `.env.example`:
 
@@ -335,12 +335,12 @@ REDIS_URL="redis://localhost:6379"
 
 Then add any further variables the test reported, each under an appropriately named section with a one-line explanation of what breaks without it.
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [x] **Step 4: Run the test to verify it passes**
 
 Run: `npx vitest run tests/integration/env-template-contract.test.ts`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add .env.example tests/integration/env-template-contract.test.ts
@@ -366,7 +366,7 @@ Model IDs below are exact and complete — do not append date suffixes.
 - Consumes: `AIGenerationRequest` from `lib/ai/execution.ts` and `AIProviderConfig` from `lib/ai/provider.ts`; both currently declare an optional `temperature?: number`.
 - Produces: `AI_MODELS` keeps its four keys (`assistant`, `scaffoldPlan`, `scaffoldBuild`, `scaffoldReview`) and its env-override behaviour. `temperature` is removed from `AIGenerationRequest` and `AIProviderConfig`, so any caller still setting it becomes a compile error rather than a runtime 400.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `lib/ai/__tests__/models.test.ts` (or extend it if present):
 
@@ -392,12 +392,12 @@ describe('platform default models', () => {
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `npx vitest run lib/ai/__tests__/models.test.ts`
 Expected: FAIL — received `claude-sonnet-4-6`, expected `claude-opus-5`.
 
-- [ ] **Step 3: Update the model constants**
+- [x] **Step 3: Update the model constants**
 
 Replace the four defaults in `lib/ai/models.ts`, updating each `@default` doc comment to match:
 
@@ -408,25 +408,25 @@ Replace the four defaults in `lib/ai/models.ts`, updating each `@default` doc co
   scaffoldReview: process.env.AI_MODEL_SCAFFOLD_REVIEW ?? 'claude-opus-5',
 ```
 
-- [ ] **Step 4: Remove `temperature` from the request types**
+- [x] **Step 4: Remove `temperature` from the request types**
 
 Delete the `temperature?: number;` line from `lib/ai/provider.ts:18` and from `lib/ai/execution.ts:55`.
 
-- [ ] **Step 5: Run the type checker to enumerate every affected call site**
+- [x] **Step 5: Run the type checker to enumerate every affected call site**
 
 Run: `npm run verify:types`
 Expected: FAIL, with errors at `lib/ai/providers/anthropic.ts:22,60`, `lib/ai/connectors/anthropic.ts:32,56,71,86`, `lib/ai/connectors/openrouter.ts:172`, `lib/ai/document-extractor.ts:164`, `lib/import/ai/client.ts:22,42`, `lib/import/ai/reconcile.ts:89`, `lib/import/ai/generate-report.ts:132`, and `app/api/org/[orgId]/ai-settings/deployments/[deploymentId]/evaluate/route.ts:62`. Treat this list as the work queue for the next step.
 
-- [ ] **Step 6: Delete every `temperature` line the type checker flagged**
+- [x] **Step 6: Delete every `temperature` line the type checker flagged**
 
 Remove the property from each request object and each forwarded config — including the spread guard at `lib/ai/connectors/openrouter.ts:172` and the `temperature: options.temperature ?? 0.1` defaults in `lib/import/ai/client.ts`. Delete the now-unused `temperature?: number` field from `lib/import/ai/client.ts:10`. Determinism previously sought through `temperature: 0` is not lost in a way these callers depend on — `temperature: 0` never guaranteed identical outputs on any model.
 
-- [ ] **Step 7: Run the type checker and the AI suite**
+- [x] **Step 7: Run the type checker and the AI suite**
 
 Run: `npm run verify:types && npx vitest run lib/ai lib/import`
 Expected: PASS
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add lib/ai lib/import app/api/org
@@ -447,7 +447,7 @@ git commit -m "feat(ai): move platform defaults to Claude Opus 5 / Sonnet 5 and 
 - Consumes: `VerifiedDeploymentTemplate` — `{ id, connector, providerModelId, displayName, modelVendor, openWeight, versionPolicy, advertisedCapabilities, verifiedWorkloads, notes? }`, already exported from `lib/ai/catalog.ts`.
 - Produces: `AI_DEPLOYMENT_CATALOG` gains entries. `getAIDeploymentTemplate(id)` keeps throwing on unknown IDs. **Existing template IDs must not change** — `org_ai_deployments.catalog_template_id` stores them, and `lib/ai/resolver.ts:163` throws if a stored ID no longer resolves.
 
-- [ ] **Step 1: Confirm the provider slugs before writing them**
+- [x] **Step 1: Confirm the provider slugs before writing them**
 
 OpenRouter's model slugs are its own namespace and are not the same strings as Anthropic's first-party model IDs. Fetch the live list rather than guessing:
 
@@ -457,7 +457,7 @@ curl -s https://openrouter.ai/api/v1/models | jq -r '.data[].id' | grep -Ei 'ant
 
 Record the exact slugs for the current Anthropic and OpenAI flagships. Use those verbatim in Step 3; if the endpoint is unreachable, stop and ask rather than inventing a slug — a wrong `provider_model_id` fails at request time, after the admin has already saved the deployment.
 
-- [ ] **Step 2: Write the failing test**
+- [x] **Step 2: Write the failing test**
 
 Create `lib/ai/__tests__/catalog.test.ts`:
 
@@ -495,7 +495,7 @@ describe('AI deployment catalog', () => {
 });
 ```
 
-- [ ] **Step 3: Add the new templates**
+- [x] **Step 3: Add the new templates**
 
 Append to `AI_DEPLOYMENT_CATALOG` in `lib/ai/catalog.ts`, substituting the slugs recorded in Step 1 for `<slug>`. Leave the two existing entries untouched.
 
@@ -535,12 +535,12 @@ Append to `AI_DEPLOYMENT_CATALOG` in `lib/ai/catalog.ts`, substituting the slugs
   },
 ```
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 Run: `npx vitest run lib/ai/__tests__/catalog.test.ts lib/ai/__tests__/resolver-phase1.test.ts`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add lib/ai/catalog.ts lib/ai/__tests__/catalog.test.ts
@@ -551,8 +551,8 @@ git commit -m "feat(ai): add current-generation templates to the BYO deployment 
 
 ### Phase 1 exit criteria
 
-- [ ] `npm run verify:types && npm run verify:lint && npm run verify:unit` all pass
-- [ ] `npm run verify:build` passes
+- [x] `npm run verify:types && npm run verify:lint && npm run verify:unit` all pass
+- [x] `npm run verify:build` passes
 - [ ] Manual check: add an OpenRouter connection, create a deployment, route the `assistant` workload to it with write access enabled, and confirm the assistant can complete a mutation (for example, creating a holding) end to end
 
 ---

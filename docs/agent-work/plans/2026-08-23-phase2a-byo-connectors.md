@@ -110,7 +110,7 @@ Consequence for this plan's exit criteria: after Phase 2A, an admin bringing any
   - `aiConnectionCreateSchema` — a `z.discriminatedUnion('connector', [...])`. `z.infer` gains `connector: 'openrouter' | 'anthropic' | 'openai'`.
   - `assertConnectionConfigMatchesConnector(connector: string, config: unknown): void` — throws `Error` with a human-readable message when config keys do not belong to that connector.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `lib/schemas/__tests__/ai-settings-connectors.test.ts`:
 
@@ -206,13 +206,13 @@ describe('assertConnectionConfigMatchesConnector', () => {
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `npx vitest run lib/schemas/__tests__/ai-settings-connectors.test.ts`
 
 Expected: FAIL. The Anthropic and OpenAI cases fail because `connector` is `z.literal('openrouter')`, and the `assertConnectionConfigMatchesConnector` block fails to import.
 
-- [ ] **Step 3: Add `openai` to the connector identity**
+- [x] **Step 3: Add `openai` to the connector identity**
 
 In `lib/ai/workloads.ts`, replace line 28:
 
@@ -220,7 +220,7 @@ In `lib/ai/workloads.ts`, replace line 28:
 export type AIConnectorId = 'anthropic' | 'openai' | 'openrouter' | 'transcription_platform';
 ```
 
-- [ ] **Step 4: Add the direct-provider credential and config schemas**
+- [x] **Step 4: Add the direct-provider credential and config schemas**
 
 In `lib/schemas/ai-settings.ts`, immediately after `openRouterCredentialSchema`:
 
@@ -240,7 +240,7 @@ export const directProviderCredentialSchema = z.object({
 export const emptyConnectionConfigSchema = z.object({}).strict();
 ```
 
-- [ ] **Step 5: Replace the create schema with a discriminated union**
+- [x] **Step 5: Replace the create schema with a discriminated union**
 
 In `lib/schemas/ai-settings.ts`, replace the whole `aiConnectionCreateSchema` declaration (currently lines 46-54) with:
 
@@ -282,7 +282,7 @@ export const aiConnectionCreateSchema = z.discriminatedUnion('connector', [
 ]);
 ```
 
-- [ ] **Step 6: Add the connector/config compatibility helper**
+- [x] **Step 6: Add the connector/config compatibility helper**
 
 The update path (`aiConnectionUpdateSchema`) does not carry a connector — the connector is immutable and lives on the stored row — so the union cannot enforce compatibility there. Add this exported helper to `lib/schemas/ai-settings.ts`, after `aiConnectionUpdateSchema`:
 
@@ -305,7 +305,7 @@ export function assertConnectionConfigMatchesConnector(
 }
 ```
 
-- [ ] **Step 7: Enforce compatibility where the update is actually validated**
+- [x] **Step 7: Enforce compatibility where the update is actually validated**
 
 The PATCH handler at `app/api/org/[orgId]/ai-settings/connections/[connectionId]/route.ts:19` forwards the raw body straight to the repository — the Zod parse lives in `updateConnection` (`lib/api/repositories/ai-settings.ts:135-136`), not the route. **Do not add validation to the route**; that would split the update contract across two files.
 
@@ -333,17 +333,17 @@ Then, in `updateConnection`, insert a connector read between the parse and the v
 
 The read is skipped entirely when the payload carries no `config`, so the common rename-and-toggle updates cost no extra round trip. Both queries stay scoped by `org_id` through the existing repository client — do not introduce a new Supabase client.
 
-- [ ] **Step 8: Run the tests to verify they pass**
+- [x] **Step 8: Run the tests to verify they pass**
 
 Run: `npx vitest run lib/schemas/__tests__/ai-settings-connectors.test.ts`
 Expected: PASS (9 tests)
 
-- [ ] **Step 9: Run the surrounding contract suites**
+- [x] **Step 9: Run the surrounding contract suites**
 
 Run: `npx vitest run lib/ai tests/integration/org-ai-settings-boundary.test.ts`
 Expected: PASS. If the boundary suite fails, it is asserting the old single-literal connector shape — update those assertions to the union rather than reverting the schema.
 
-- [ ] **Step 10: Commit**
+- [x] **Step 10: Commit**
 
 ```bash
 git add lib/ai/workloads.ts lib/schemas/ai-settings.ts lib/api/repositories/ai-settings.ts lib/schemas/__tests__/ai-settings-connectors.test.ts
@@ -365,7 +365,7 @@ git commit -m "feat(ai-settings): accept direct Anthropic and OpenAI connections
 - Consumes: `createAICredentialRepository` from `lib/api/repositories/ai-credentials` — `withCredential<T>(connectionId, fn: (credential: { apiKey: string }) => T)`. `AIExecutionPlan` from `lib/ai/execution` — carries optional `connectionId`, `connector`, `providerPreferences`.
 - Produces: `AIConnectorFactoryContext` gains `anthropic?: { apiKey: string }` and `openai?: { apiKey: string }` alongside the existing `openrouter?: OpenRouterConnectorOptions`. The invariant every later task depends on: **a bare `createAIConnector(id)` with no context is reached only when `plan.connectionId` is undefined.**
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `lib/ai/__tests__/runtime-credential-source.test.ts`:
 
@@ -473,12 +473,12 @@ describe('gateway credential source', () => {
 
 If `AIExecutionGateway` does not expose its options under `.options`, read `lib/ai/gateway.ts` and address the stored factory by whatever field name the constructor assigns. Do not change the gateway's shape to suit the test.
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `npx vitest run lib/ai/__tests__/runtime-credential-source.test.ts`
 Expected: FAIL. The Anthropic and OpenAI cases show `createAIConnector` called with one argument and `withCredential` never called — this is the hazard, reproduced.
 
-- [ ] **Step 3: Widen the connector factory context**
+- [x] **Step 3: Widen the connector factory context**
 
 In `lib/ai/connectors/registry.ts`, replace the `AIConnectorFactoryContext` type:
 
@@ -492,7 +492,7 @@ export type AIConnectorFactoryContext = {
 };
 ```
 
-- [ ] **Step 4: Rewrite the gateway's connector factory**
+- [x] **Step 4: Rewrite the gateway's connector factory**
 
 In `lib/ai/runtime.ts`, replace the `connector` callback (lines 13-37) with:
 
@@ -527,7 +527,7 @@ In `lib/ai/runtime.ts`, replace the `connector` callback (lines 13-37) with:
     },
 ```
 
-- [ ] **Step 5: Add the context builder**
+- [x] **Step 5: Add the context builder**
 
 Above `createAIExecutionGateway` in `lib/ai/runtime.ts`:
 
@@ -555,17 +555,17 @@ function connectorContext(
 
 Add `AIConnectorFactoryContext` to the existing registry import in that file.
 
-- [ ] **Step 6: Run the test to verify it passes**
+- [x] **Step 6: Run the test to verify it passes**
 
 Run: `npx vitest run lib/ai/__tests__/runtime-credential-source.test.ts`
 Expected: PASS (5 tests)
 
-- [ ] **Step 7: Run the AI suite for regressions**
+- [x] **Step 7: Run the AI suite for regressions**
 
 Run: `npx vitest run lib/ai tests/integration/org-ai-settings-boundary.test.ts`
 Expected: PASS
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add lib/ai/runtime.ts lib/ai/connectors/registry.ts lib/ai/__tests__/runtime-credential-source.test.ts
@@ -586,7 +586,7 @@ git commit -m "fix(ai): source org credentials from the deployment, never the co
 - Consumes: `AIConnectorFactoryContext` from Task 2. `AnthropicProvider` constructor — `new AnthropicProvider(apiKey?: string)`.
 - Produces: no new exports. `createAIConnector('anthropic', { anthropic: { apiKey } })` returns a connector bound to that key; `createAIConnector('anthropic')` keeps the platform-key behaviour.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `lib/ai/__tests__/connector-registry.test.ts`:
 
@@ -620,12 +620,12 @@ describe('Anthropic connector construction', () => {
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `npx vitest run lib/ai/__tests__/connector-registry.test.ts`
 Expected: FAIL on the first case — `AnthropicProvider` is called with no arguments because the registry ignores the context.
 
-- [ ] **Step 3: Wire the key through the registry**
+- [x] **Step 3: Wire the key through the registry**
 
 In `lib/ai/connectors/registry.ts`, add the provider import:
 
@@ -641,17 +641,17 @@ Then replace the `anthropic` factory entry:
   ),
 ```
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [x] **Step 4: Run the test to verify it passes**
 
 Run: `npx vitest run lib/ai/__tests__/connector-registry.test.ts`
 Expected: PASS (2 tests)
 
-- [ ] **Step 5: Run the AI suite**
+- [x] **Step 5: Run the AI suite**
 
 Run: `npx vitest run lib/ai`
 Expected: PASS
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add lib/ai/connectors/registry.ts lib/ai/__tests__/connector-registry.test.ts
@@ -676,12 +676,12 @@ git commit -m "feat(ai): bind organization credentials to the Anthropic connecto
   - `abstract class OpenAICompatibleConnector implements AIConnector` with `readonly id`, `readonly capabilities = ['text','json','tools','streaming','parallel_tool_results']`, and the concrete `generateText`, `generateStructured`, `streamText`, `runToolConversation`, `streamToolConversation` methods.
   - Named helpers `messages`, `toolDefinitions`, `parseToolInput`, `stopReason`, `normalizedError`, `usage` — exported so both connectors and their tests can reach them.
 
-- [ ] **Step 1: Confirm the existing suite is green before moving anything**
+- [x] **Step 1: Confirm the existing suite is green before moving anything**
 
 Run: `npx vitest run lib/ai/__tests__/openrouter-connector.test.ts`
 Expected: PASS. This suite is the safety net for the whole task. If it is red before you start, stop and fix that first — you cannot tell a refactor regression from a pre-existing failure otherwise.
 
-- [ ] **Step 2: Create the shared module**
+- [x] **Step 2: Create the shared module**
 
 Create `lib/ai/connectors/openai-compatible.ts`. Move these declarations out of `lib/ai/connectors/openrouter.ts` **verbatim**, changing only their export status:
 
@@ -724,7 +724,7 @@ export abstract class OpenAICompatibleConnector implements AIConnector {
 
 Do not change any logic while moving. If you find yourself improving something, stop — that belongs in a separate commit after this one is green.
 
-- [ ] **Step 3: Reduce OpenRouterConnector to configuration**
+- [x] **Step 3: Reduce OpenRouterConnector to configuration**
 
 Replace the body of `lib/ai/connectors/openrouter.ts` with:
 
@@ -772,17 +772,17 @@ export class OpenRouterConnector extends OpenAICompatibleConnector {
 
 If the base class's `get id()` conflicts with the subclass's `readonly id`, drop the getter from the base and let each subclass declare `readonly id`.
 
-- [ ] **Step 4: Run the existing OpenRouter suite to prove nothing moved**
+- [x] **Step 4: Run the existing OpenRouter suite to prove nothing moved**
 
 Run: `npx vitest run lib/ai/__tests__/openrouter-connector.test.ts`
 Expected: PASS, with the same test count as Step 1. Do not edit this test file in this task — if it fails, the refactor changed behaviour and the refactor is what needs fixing.
 
-- [ ] **Step 5: Run types and the full AI suite**
+- [x] **Step 5: Run types and the full AI suite**
 
 Run: `npm run verify:types && npx vitest run lib/ai`
 Expected: PASS
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add lib/ai/connectors/openai-compatible.ts lib/ai/connectors/openrouter.ts
@@ -804,7 +804,7 @@ git commit -m "refactor(ai): extract the OpenAI-compatible chat-completions core
 - Consumes: `OpenAICompatibleConnector` and `OpenAICompatibleConfig` from Task 4; `directProviderCredentialSchema` from Task 1.
 - Produces: `OpenAIConnector` and `OpenAIConnectorOptions` (`{ apiKey: string; fetch?: typeof fetch }`) from `lib/ai/connectors/openai.ts`. Registry entry `openai`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `lib/ai/__tests__/openai-connector.test.ts`:
 
@@ -877,12 +877,12 @@ describe('OpenAIConnector', () => {
 
 If `AIExecutionError` exposes its discriminant under a field other than `code`, read `lib/ai/execution.ts` and match the real field name in the third test.
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `npx vitest run lib/ai/__tests__/openai-connector.test.ts`
 Expected: FAIL — `lib/ai/connectors/openai.ts` does not exist.
 
-- [ ] **Step 3: Write the connector**
+- [x] **Step 3: Write the connector**
 
 Create `lib/ai/connectors/openai.ts`:
 
@@ -920,7 +920,7 @@ export class OpenAIConnector extends OpenAICompatibleConnector {
 }
 ```
 
-- [ ] **Step 4: Register it**
+- [x] **Step 4: Register it**
 
 In `lib/ai/connectors/registry.ts`, add the import and the factory entry:
 
@@ -937,12 +937,12 @@ import { OpenAIConnector } from '@/lib/ai/connectors/openai';
   },
 ```
 
-- [ ] **Step 5: Run the tests**
+- [x] **Step 5: Run the tests**
 
 Run: `npx vitest run lib/ai/__tests__/openai-connector.test.ts lib/ai/__tests__/connector-registry.test.ts lib/ai/__tests__/runtime-credential-source.test.ts`
 Expected: PASS
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add lib/ai/connectors/openai.ts lib/ai/connectors/registry.ts lib/ai/__tests__/openai-connector.test.ts
@@ -963,7 +963,7 @@ git commit -m "feat(ai): add a direct OpenAI connector"
 - Consumes: `VerifiedDeploymentTemplate` — already exported from `lib/ai/catalog.ts`, with a `connector: AIConnectorId` field.
 - Produces: new template ids `anthropic-claude-opus-5`, `anthropic-claude-sonnet-5`, `openai-gpt-5-6-sol`. **Existing template ids must not change** — `org_ai_deployments.catalog_template_id` stores them and `lib/ai/resolver.ts` throws when a stored id no longer resolves.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `lib/ai/__tests__/catalog.test.ts`:
 
@@ -993,12 +993,12 @@ describe('direct provider templates', () => {
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `npx vitest run lib/ai/__tests__/catalog.test.ts`
 Expected: FAIL — no template declares connector `anthropic` or `openai`.
 
-- [ ] **Step 3: Append the direct templates**
+- [x] **Step 3: Append the direct templates**
 
 Add to `AI_DEPLOYMENT_CATALOG` in `lib/ai/catalog.ts`, leaving every existing entry untouched:
 
@@ -1043,7 +1043,7 @@ Add to `AI_DEPLOYMENT_CATALOG` in `lib/ai/catalog.ts`, leaving every existing en
 
 The OpenRouter catalog already carries all three GPT-5.6 variants. Only `sol` gets a direct template here; add `luna` and `terra` direct templates if an admin asks for them rather than pre-populating the picker with three near-identical rows.
 
-- [ ] **Step 4: Filter the deployment picker by the connection's connector**
+- [x] **Step 4: Filter the deployment picker by the connection's connector**
 
 A template must only be offerable against a connection that can run it. In `app/api/org/[orgId]/ai-settings/route.ts` (the GET that assembles the settings payload), the `catalog` array is returned whole. Leave the payload as is, but ensure each catalog entry in the response includes its `connector` field so the UI can filter — Task 9 depends on it. Verify with:
 
@@ -1053,12 +1053,12 @@ grep -n "catalog" "app/api/org/[orgId]/ai-settings/route.ts"
 
 If the route projects a subset of template fields, add `connector` to that projection.
 
-- [ ] **Step 5: Run the tests**
+- [x] **Step 5: Run the tests**
 
 Run: `npx vitest run lib/ai/__tests__/catalog.test.ts lib/ai/__tests__/resolver-phase1.test.ts`
 Expected: PASS. The resolver suite is included because `getAIDeploymentTemplate` throws on an unknown id — a malformed template entry here surfaces as a resolver failure, not a catalog one.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add lib/ai/catalog.ts lib/ai/__tests__/catalog.test.ts app/api/org
@@ -1081,12 +1081,12 @@ git commit -m "feat(ai): add direct Anthropic and OpenAI deployment templates"
 - Consumes: `getAIDeploymentTemplate` from `lib/ai/catalog`; `openRouterProviderPreferencesSchema` from `lib/schemas/ai-settings`.
 - Produces: `AIExecutionTarget.connector` now reflects the stored connection's connector. `providerPreferences` is present only for OpenRouter targets.
 
-- [ ] **Step 1: Confirm Task 2 is in the branch**
+- [x] **Step 1: Confirm Task 2 is in the branch**
 
 Run: `git log --oneline --grep="source org credentials from the deployment"`
 Expected: one commit. If empty, **stop** — removing the guard before that fix routes client traffic onto the platform key.
 
-- [ ] **Step 2: Write the failing test**
+- [x] **Step 2: Write the failing test**
 
 Create `lib/ai/__tests__/resolver-connectors.test.ts`. Model the fixture shape on the existing `lib/ai/__tests__/resolver-phase1.test.ts` — read it first and reuse its resolved-route builder rather than inventing a second one.
 
@@ -1170,12 +1170,12 @@ describe('resolver connector awareness', () => {
 
 The exported resolver function may be named differently — read `lib/ai/resolver.ts` and use the real name and signature. If `resolver-phase1.test.ts` builds its fixture inline rather than exporting a helper, extract that helper into `lib/ai/__tests__/resolver-phase1.test-helpers.ts` and have both suites import it. Do not duplicate the fixture.
 
-- [ ] **Step 3: Run the test to verify it fails**
+- [x] **Step 3: Run the test to verify it fails**
 
 Run: `npx vitest run lib/ai/__tests__/resolver-connectors.test.ts`
 Expected: FAIL — the Anthropic and OpenAI cases throw "Organization AI deployment is unsupported".
 
-- [ ] **Step 4: Replace the connector guard with an allow-list**
+- [x] **Step 4: Replace the connector guard with an allow-list**
 
 In `lib/ai/resolver.ts`, add near the top of the module:
 
@@ -1193,7 +1193,7 @@ Replace the guard at line 159:
 
 This is still a closed allow-list — an unrecognised connector in the database is rejected, not passed through to the registry.
 
-- [ ] **Step 5: Compute provider preferences only for OpenRouter**
+- [x] **Step 5: Compute provider preferences only for OpenRouter**
 
 Replace the `connectionConfig` / `deploymentConfig` / `preferences` block (currently lines 177-184) with:
 
@@ -1212,7 +1212,7 @@ Replace the `connectionConfig` / `deploymentConfig` / `preferences` block (curre
       : undefined;
 ```
 
-- [ ] **Step 6: Carry the real connector into the target**
+- [x] **Step 6: Carry the real connector into the target**
 
 In the returned target object (currently lines 185-196), replace the two hardcoded lines:
 
@@ -1227,12 +1227,12 @@ In the returned target object (currently lines 185-196), replace the two hardcod
 
 Add `AIConnectorId` to the existing `lib/ai/workloads` import in that file.
 
-- [ ] **Step 7: Run the tests**
+- [x] **Step 7: Run the tests**
 
 Run: `npx vitest run lib/ai/__tests__/resolver-connectors.test.ts lib/ai/__tests__/resolver-phase1.test.ts lib/ai/__tests__/runtime-credential-source.test.ts`
 Expected: PASS
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add lib/ai/resolver.ts lib/ai/__tests__/resolver-connectors.test.ts lib/ai/__tests__/resolver-phase1.test-helpers.ts
@@ -1255,7 +1255,7 @@ git commit -m "feat(ai): resolve organization deployments for every supported co
 - Consumes: `createAIConnector` from `lib/ai/connectors/registry`; `createAICredentialRepository` from `lib/api/repositories/ai-credentials`.
 - Produces: no new exports. The endpoint accepts `anthropic` and `openai` connections and still records `evalSuiteVersion: 'phase1-compatibility-v1'` with `result: 'conditional'`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `tests/integration/ai-deployment-evaluate-connectors.test.ts`. Read `tests/integration/org-ai-settings-boundary.test.ts` first and reuse its access-guard and repository mocking approach rather than inventing a new one.
 
@@ -1292,12 +1292,12 @@ describe('deployment evaluation connector coverage', () => {
 
 This is a source-shape assertion rather than a behavioural one because the endpoint's only observable effect is a network call to a third-party provider. When Phase 2B replaces the smoke test with a real suite, replace this file with behavioural tests against the eval harness.
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `npx vitest run tests/integration/ai-deployment-evaluate-connectors.test.ts`
 Expected: FAIL on the first two assertions.
 
-- [ ] **Step 3: Replace the connector gate**
+- [x] **Step 3: Replace the connector gate**
 
 In the route, replace the check at line 32:
 
@@ -1307,7 +1307,7 @@ In the route, replace the check at line 32:
     }
 ```
 
-- [ ] **Step 4: Build the connector through the registry**
+- [x] **Step 4: Build the connector through the registry**
 
 Replace the import of `OpenRouterConnector` with:
 
@@ -1352,12 +1352,12 @@ Replace the `preferences` computation and the `withCredential` call body with:
 
 Leave the `BENE_OK` comparison, the `evalSuiteVersion`, and `result: 'conditional'` exactly as they are.
 
-- [ ] **Step 5: Run the tests**
+- [x] **Step 5: Run the tests**
 
 Run: `npx vitest run tests/integration/ai-deployment-evaluate-connectors.test.ts tests/integration/org-ai-settings-boundary.test.ts`
 Expected: PASS
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add app/api/org tests/integration/ai-deployment-evaluate-connectors.test.ts
@@ -1378,7 +1378,7 @@ git commit -m "feat(ai-settings): evaluate deployments on any supported connecto
 - Consumes: `requestJson` from `lib/api/client`; `useApiData` from `lib/api/client-hooks`; the settings payload's `catalog` entries, which carry `connector` after Task 7 Step 4.
 - Produces: no new exports. The `POST /api/org/[orgId]/ai-settings/connections` payload gains a chosen `connector`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `components/settings/__tests__/AIModelsSettings.connectors.test.tsx`. Model the mock setup on `components/settings/__tests__/AIModelsSettings.write-access.test.tsx` from Phase 1 — read it first.
 
@@ -1460,12 +1460,12 @@ describe('AIModelsSettings provider picker', () => {
 
 If the submit button's label is not exactly `Add connection`, read the component and use the real label.
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `npx vitest run components/settings/__tests__/AIModelsSettings.connectors.test.tsx`
 Expected: FAIL — there is no control labelled "provider".
 
-- [ ] **Step 3: Add the connector state and its metadata**
+- [x] **Step 3: Add the connector state and its metadata**
 
 In `components/settings/AIModelsSettings.tsx`, alongside the existing `connectionName` state:
 
@@ -1495,7 +1495,7 @@ const CONNECTOR_OPTIONS = [
 ];
 ```
 
-- [ ] **Step 4: Send the chosen connector**
+- [x] **Step 4: Send the chosen connector**
 
 In `addConnection`, replace the hardcoded line:
 
@@ -1503,7 +1503,7 @@ In `addConnection`, replace the hardcoded line:
           connector,
 ```
 
-- [ ] **Step 5: Render the picker and its help text**
+- [x] **Step 5: Render the picker and its help text**
 
 In the add-connection form, before the API key input:
 
@@ -1528,7 +1528,7 @@ In the add-connection form, before the API key input:
 
 Give the API key input `aria-label="API key"` if it does not already have an accessible name.
 
-- [ ] **Step 6: Filter the deployment template picker by connection**
+- [x] **Step 6: Filter the deployment template picker by connection**
 
 The catalog now mixes connectors. In the add-deployment form, the template `<select>` must offer only templates whose `connector` matches the selected connection's connector, or an admin can attach an OpenRouter template to a direct Anthropic key and get a request-time failure:
 
@@ -1543,17 +1543,17 @@ The catalog now mixes connectors. In the add-deployment form, the template `<sel
 
 Add `connector: string` to the `CatalogTemplate` type and `connector: string` to the `Connection` type at the top of the file if not already present.
 
-- [ ] **Step 7: Run the tests**
+- [x] **Step 7: Run the tests**
 
 Run: `npx vitest run components/settings`
 Expected: PASS, including the Phase 1 write-access suite.
 
-- [ ] **Step 8: Run the full gate**
+- [x] **Step 8: Run the full gate**
 
 Run: `npm run verify:types && npm run verify:unit && npm run verify:build`
 Expected: PASS
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 git add components/settings
@@ -1564,10 +1564,10 @@ git commit -m "feat(ai-settings): add a provider picker with per-provider creden
 
 ## Phase 2A exit criteria
 
-- [ ] `npm run verify:types && npm run verify:lint && npm run verify:unit` all pass
-- [ ] `npm run verify:build` passes
-- [ ] An org admin can create an OpenRouter connection, an Anthropic connection, and an OpenAI connection from the settings UI
-- [ ] Each connection can host a deployment whose catalog template matches its connector, and the template picker offers no mismatched templates
+- [x] `npm run verify:types && npm run verify:lint && npm run verify:unit` all pass
+- [x] `npm run verify:build` passes
+- [x] An org admin can create an OpenRouter connection, an Anthropic connection, and an OpenAI connection from the settings UI
+- [x] Each connection can host a deployment whose catalog template matches its connector, and the template picker offers no mismatched templates
 - [ ] Manual check with live keys: route the `assistant` workload to a direct Anthropic deployment and confirm a mutation completes end to end using the org's key
 - [ ] Manual check: with a direct Anthropic deployment configured, confirm no request is attributable to the platform `ANTHROPIC_API_KEY` — the Task 2 regression test covers the code path, but confirm once against a real provider dashboard
 

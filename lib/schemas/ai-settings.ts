@@ -15,6 +15,20 @@ export const openRouterCredentialSchema = z.object({
   ),
 }).strict();
 
+/**
+ * Direct provider keys carry no routing metadata — the credential is the whole
+ * configuration. Validation matches openRouterCredentialSchema so a pasted key
+ * fails the same way regardless of which provider it belongs to.
+ */
+export const directProviderCredentialSchema = z.object({
+  apiKey: z.string().trim().min(16).max(512).refine(
+    value => !/\s/.test(value),
+    'API key must not contain whitespace',
+  ),
+}).strict();
+
+export const emptyConnectionConfigSchema = z.object({}).strict();
+
 const providerNameListSchema = z.array(
   z.string().trim().min(1).max(100),
 ).max(25).optional();
@@ -45,14 +59,41 @@ export const openRouterConnectionConfigSchema = z.object({
   provider: openRouterProviderPreferencesSchema.optional(),
 }).strict();
 
-export const aiConnectionCreateSchema = z.object({
+const connectionNameSchema = z.string().trim().min(1).max(100);
+const connectionRegionSchema = z.string().trim().min(1).max(100).nullable().optional();
+
+const openRouterConnectionCreateSchema = z.object({
   connector: z.literal('openrouter'),
-  name: z.string().trim().min(1).max(100),
+  name: connectionNameSchema,
   endpointUrl: z.literal('https://openrouter.ai/api/v1').optional(),
-  region: z.string().trim().min(1).max(100).nullable().optional(),
+  region: connectionRegionSchema,
   config: openRouterConnectionConfigSchema.optional().default({}),
   credential: openRouterCredentialSchema,
 }).strict();
+
+const anthropicConnectionCreateSchema = z.object({
+  connector: z.literal('anthropic'),
+  name: connectionNameSchema,
+  endpointUrl: z.literal('https://api.anthropic.com').optional(),
+  region: connectionRegionSchema,
+  config: emptyConnectionConfigSchema.optional().default({}),
+  credential: directProviderCredentialSchema,
+}).strict();
+
+const openAIConnectionCreateSchema = z.object({
+  connector: z.literal('openai'),
+  name: connectionNameSchema,
+  endpointUrl: z.literal('https://api.openai.com/v1').optional(),
+  region: connectionRegionSchema,
+  config: emptyConnectionConfigSchema.optional().default({}),
+  credential: directProviderCredentialSchema,
+}).strict();
+
+export const aiConnectionCreateSchema = z.discriminatedUnion('connector', [
+  openRouterConnectionCreateSchema,
+  anthropicConnectionCreateSchema,
+  openAIConnectionCreateSchema,
+]);
 
 export const aiConnectionUpdateSchema = z.object({
   name: z.string().trim().min(1).max(100).optional(),
@@ -60,6 +101,23 @@ export const aiConnectionUpdateSchema = z.object({
   config: openRouterConnectionConfigSchema.optional(),
   status: z.enum(['active', 'disabled']).optional(),
 }).strict().refine(value => Object.keys(value).length > 0, 'At least one field is required');
+
+/**
+ * The update payload has no connector discriminant, so config compatibility is
+ * checked against the stored connection's connector by the repository.
+ */
+export function assertConnectionConfigMatchesConnector(
+  connector: string,
+  config: unknown,
+): void {
+  if (connector === 'openrouter') return;
+  if (!config || typeof config !== 'object') return;
+  if ('provider' in (config as Record<string, unknown>)) {
+    throw new Error(
+      `Provider routing preferences are only supported on OpenRouter connections, not ${connector}`,
+    );
+  }
+}
 
 export const aiDeploymentCreateSchema = z.object({
   connectionId: z.string().uuid(),

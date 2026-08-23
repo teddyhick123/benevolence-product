@@ -31,7 +31,25 @@ type WorkloadRoute = {
   targets: RouteTarget[];
 };
 type Workload = { id: string; displayName: string };
-type CatalogTemplate = { id: string; displayName: string; modelVendor: string };
+type CatalogTemplate = { id: string; displayName: string; modelVendor: string; connector: string };
+
+const CONNECTOR_OPTIONS = [
+  {
+    id: 'openrouter' as const,
+    label: 'OpenRouter',
+    help: 'One key, many models. Create a key at openrouter.ai/keys.',
+  },
+  {
+    id: 'anthropic' as const,
+    label: 'Anthropic (direct)',
+    help: 'Your own Anthropic account. Create a key at console.anthropic.com.',
+  },
+  {
+    id: 'openai' as const,
+    label: 'OpenAI (direct)',
+    help: 'Your own OpenAI account. Create a key at platform.openai.com/api-keys.',
+  },
+];
 type SettingsData = {
   connections: Connection[];
   deployments: Deployment[];
@@ -54,6 +72,7 @@ export default function AIModelsSettings({ orgId }: { orgId: string }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [connectionName, setConnectionName] = useState('OpenRouter');
+  const [connector, setConnector] = useState<'openrouter' | 'anthropic' | 'openai'>('openrouter');
   const [apiKey, setApiKey] = useState('');
   const [deploymentConnection, setDeploymentConnection] = useState('');
   const [catalogTemplate, setCatalogTemplate] = useState('');
@@ -66,6 +85,9 @@ export default function AIModelsSettings({ orgId }: { orgId: string }) {
     () => data?.connections.filter(connection => connection.status === 'active') ?? [],
     [data],
   );
+
+  const selectedConnectionConnector = activeConnections
+    .find(connection => connection.id === deploymentConnection)?.connector;
 
   async function perform(label: string, action: () => Promise<unknown>, success: string) {
     setBusy(label);
@@ -89,7 +111,7 @@ export default function AIModelsSettings({ orgId }: { orgId: string }) {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
-          connector: 'openrouter',
+          connector,
           name: connectionName,
           credential: { apiKey },
         }),
@@ -245,10 +267,34 @@ export default function AIModelsSettings({ orgId }: { orgId: string }) {
           ))}
           {data.connections.length === 0 && <p className="text-sm text-gray-500">No organization connections yet.</p>}
         </div>
-        <form className="grid gap-3 border-t pt-4 sm:grid-cols-[1fr_1fr_auto]" onSubmit={addConnection}>
-          <input className="rounded border px-3 py-2 text-sm" value={connectionName} onChange={event => setConnectionName(event.target.value)} placeholder="Connection name" required />
-          <input className="rounded border px-3 py-2 text-sm" type="password" value={apiKey} onChange={event => setApiKey(event.target.value)} placeholder="OpenRouter API key" autoComplete="new-password" required />
-          <button className="rounded bg-azure px-4 py-2 text-sm text-white" disabled={busy !== null}>Add connection</button>
+        <form className="space-y-3 border-t pt-4" onSubmit={addConnection}>
+          <div className="grid gap-3 sm:grid-cols-[1fr_1fr_1fr_auto]">
+            <select
+              aria-label="Provider"
+              className="rounded border px-3 py-2 text-sm"
+              value={connector}
+              onChange={event => setConnector(event.target.value as typeof connector)}
+            >
+              {CONNECTOR_OPTIONS.map(option => (
+                <option key={option.id} value={option.id}>{option.label}</option>
+              ))}
+            </select>
+            <input className="rounded border px-3 py-2 text-sm" value={connectionName} onChange={event => setConnectionName(event.target.value)} placeholder="Connection name" required />
+            <input
+              aria-label="API key"
+              className="rounded border px-3 py-2 text-sm"
+              type="password"
+              value={apiKey}
+              onChange={event => setApiKey(event.target.value)}
+              placeholder="API key"
+              autoComplete="new-password"
+              required
+            />
+            <button className="rounded bg-azure px-4 py-2 text-sm text-white" disabled={busy !== null}>Add connection</button>
+          </div>
+          <p className="text-xs text-gray-500">
+            {CONNECTOR_OPTIONS.find(option => option.id === connector)?.help}
+          </p>
         </form>
       </section>
 
@@ -284,13 +330,17 @@ export default function AIModelsSettings({ orgId }: { orgId: string }) {
           ))}
         </div>
         <form className="grid gap-3 border-t pt-4 sm:grid-cols-[1fr_1fr_auto]" onSubmit={addDeployment}>
-          <select className="rounded border px-3 py-2 text-sm" value={deploymentConnection} onChange={event => setDeploymentConnection(event.target.value)} required>
+          <select aria-label="Connection" className="rounded border px-3 py-2 text-sm" value={deploymentConnection} onChange={event => setDeploymentConnection(event.target.value)} required>
             <option value="">Choose connection</option>
             {activeConnections.map(connection => <option key={connection.id} value={connection.id}>{connection.name}</option>)}
           </select>
-          <select className="rounded border px-3 py-2 text-sm" value={catalogTemplate} onChange={event => setCatalogTemplate(event.target.value)} required>
+          <select aria-label="Model" className="rounded border px-3 py-2 text-sm" value={catalogTemplate} onChange={event => setCatalogTemplate(event.target.value)} required>
             <option value="">Choose model</option>
-            {data.catalog.map(template => <option key={template.id} value={template.id}>{template.displayName} · {template.modelVendor}</option>)}
+            {/* A template can only run on a connection of its own connector;
+                the server rejects a mismatch, so never offer one. */}
+            {data.catalog
+              .filter(template => template.connector === selectedConnectionConnector)
+              .map(template => <option key={template.id} value={template.id}>{template.displayName} · {template.modelVendor}</option>)}
           </select>
           <button className="rounded bg-azure px-4 py-2 text-sm text-white" disabled={busy !== null}>Add model</button>
         </form>

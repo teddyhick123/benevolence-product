@@ -29,3 +29,27 @@ describe('AI deployment catalog', () => {
     }
   });
 });
+
+describe('direct provider templates', () => {
+  it('offers direct Anthropic and OpenAI deployments', () => {
+    const connectors = new Set(AI_DEPLOYMENT_CATALOG.map(t => t.connector));
+    expect(connectors).toContain('anthropic');
+    expect(connectors).toContain('openai');
+  });
+
+  it('uses first-party model ids on direct connectors, not OpenRouter slugs', () => {
+    for (const template of AI_DEPLOYMENT_CATALOG) {
+      if (template.connector === 'openrouter') {
+        expect(template.providerModelId).toContain('/');
+      } else {
+        expect(template.providerModelId).not.toContain('/');
+      }
+    }
+  });
+
+  it('never carries a date suffix on a model id', () => {
+    for (const template of AI_DEPLOYMENT_CATALOG) {
+      expect(template.providerModelId).not.toMatch(/-\d{8}$/);
+    }
+  });
+});

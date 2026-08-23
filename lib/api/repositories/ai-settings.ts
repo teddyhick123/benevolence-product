@@ -7,8 +7,17 @@ import {
   aiConnectionUpdateSchema,
   aiDeploymentCreateSchema,
   aiRouteReplaceSchema,
+  assertConnectionConfigMatchesConnector,
+  emptyConnectionConfigSchema,
   openRouterConnectionConfigSchema,
 } from '@/lib/schemas/ai-settings';
+
+/** Each connector's first-party API origin, used when the caller names none. */
+const DEFAULT_CONNECTOR_ENDPOINTS: Record<'openrouter' | 'anthropic' | 'openai', string> = {
+  openrouter: 'https://openrouter.ai/api/v1',
+  anthropic: 'https://api.anthropic.com',
+  openai: 'https://api.openai.com/v1',
+};
 import {
   createAICredentialRepository,
   type AICredentialRepository,
@@ -108,18 +117,23 @@ export function createAISettingsRepository(
     },
 
     async createConnection(input: {
-      connector: 'openrouter';
+      connector: 'openrouter' | 'anthropic' | 'openai';
       name: string;
-      endpointUrl?: 'https://openrouter.ai/api/v1';
+      endpointUrl?: string;
       region?: string | null;
       config?: unknown;
     }) {
-      const config = openRouterConnectionConfigSchema.parse(input.config ?? {});
+      // Routing preferences only mean something on OpenRouter; a direct
+      // provider connection stores an empty config rather than a shape it
+      // would never send.
+      const config = input.connector === 'openrouter'
+        ? openRouterConnectionConfigSchema.parse(input.config ?? {})
+        : emptyConnectionConfigSchema.parse(input.config ?? {});
       const { data, error } = await db.from('org_ai_connections').insert({
         org_id: scope.orgId,
         connector: input.connector,
         name: input.name.trim(),
-        endpoint_url: input.endpointUrl ?? 'https://openrouter.ai/api/v1',
+        endpoint_url: input.endpointUrl ?? DEFAULT_CONNECTOR_ENDPOINTS[input.connector],
         region: input.region ?? null,
         auth_type: 'api_key',
         config,
@@ -134,6 +148,16 @@ export function createAISettingsRepository(
 
     async updateConnection(connectionId: string, rawInput: unknown) {
       const input = aiConnectionUpdateSchema.parse(rawInput);
+      if (input.config !== undefined) {
+        const { data: existing, error: readError } = await db.from('org_ai_connections')
+          .select('connector')
+          .eq('id', connectionId)
+          .eq('org_id', scope.orgId)
+          .maybeSingle();
+        if (readError) throw readError;
+        if (!existing) throw new Error('AI connection not found');
+        assertConnectionConfigMatchesConnector(existing.connector, input.config);
+      }
       const values = {
         ...(input.name !== undefined ? { name: input.name } : {}),
         ...(input.region !== undefined ? { region: input.region } : {}),

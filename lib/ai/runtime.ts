@@ -1,4 +1,4 @@
-import { createAIConnector } from '@/lib/ai/connectors/registry';
+import { createAIConnector, type AIConnectorFactoryContext } from '@/lib/ai/connectors/registry';
 import type { AIGenerationRequest, AIExecutionScope } from '@/lib/ai/execution';
 import { AIExecutionGateway } from '@/lib/ai/gateway';
 import type { AIWorkloadId } from '@/lib/ai/workloads';
@@ -8,23 +8,47 @@ import { createAICredentialRepository } from '@/lib/api/repositories/ai-credenti
 import { AIExecutionError } from '@/lib/ai/execution';
 import { openRouterProviderPreferencesSchema } from '@/lib/schemas/ai-settings';
 
+function connectorContext(
+  plan: { connector: string; providerPreferences?: Readonly<Record<string, unknown>> },
+  apiKey: string,
+): AIConnectorFactoryContext {
+  if (plan.connector === 'openrouter') {
+    return {
+      openrouter: {
+        apiKey,
+        provider: openRouterProviderPreferencesSchema.parse(plan.providerPreferences ?? {}),
+      },
+    };
+  }
+  if (plan.connector === 'anthropic') return { anthropic: { apiKey } };
+  if (plan.connector === 'openai') return { openai: { apiKey } };
+  throw new AIExecutionError(
+    'policy_unsatisfied',
+    `Connector ${plan.connector} cannot be used with an organization credential`,
+  );
+}
+
 export function createAIExecutionGateway(scope: AIExecutionScope) {
   return new AIExecutionGateway(scope, {
     connector: async (plan) => {
-      if (plan.connector !== 'openrouter') return createAIConnector(plan.connector);
-      if (scope.kind !== 'organization' || !scope.orgId || !plan.connectionId) {
-        throw new AIExecutionError('policy_unsatisfied', 'OpenRouter requires an organization connection');
+      // A plan without a connection is a platform-default target: the platform
+      // key is correct there and nowhere else. Every org deployment loads its
+      // own credential, whatever provider it names.
+      if (!plan.connectionId) return createAIConnector(plan.connector);
+      if (scope.kind !== 'organization' || !scope.orgId) {
+        throw new AIExecutionError(
+          'policy_unsatisfied',
+          'Organization AI deployments require an organization scope',
+        );
       }
       try {
         return await createAICredentialRepository({
           orgId: scope.orgId,
           actorId: scope.actorId,
-        }).withCredential(plan.connectionId, credential => createAIConnector('openrouter', {
-          openrouter: {
-            apiKey: credential.apiKey,
-            provider: openRouterProviderPreferencesSchema.parse(plan.providerPreferences ?? {}),
-          },
-        }));
+        }).withCredential(plan.connectionId, credential => createAIConnector(
+          plan.connector,
+          connectorContext(plan, credential.apiKey),
+        ));
       } catch (error) {
         if (error instanceof AIExecutionError) throw error;
         throw new AIExecutionError(

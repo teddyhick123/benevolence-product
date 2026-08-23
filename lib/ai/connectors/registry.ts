@@ -7,8 +7,12 @@ import {
   type OpenRouterConnectorOptions,
 } from '@/lib/ai/connectors/openrouter';
 
+export type DirectProviderConnectorOptions = { apiKey: string };
+
 export type AIConnectorFactoryContext = {
   openrouter?: OpenRouterConnectorOptions;
+  anthropic?: DirectProviderConnectorOptions;
+  openai?: DirectProviderConnectorOptions;
 };
 
 export type AIConnectorFactory = (_context?: AIConnectorFactoryContext) => AIConnector;

@@ -1558,4 +1558,54 @@ BEGIN
 END;
 $$;
 
+-- Evaluation runs: one live run per deployment, and an exclusive claim.
+DO $$
+DECLARE
+  v_org uuid;
+  v_conn uuid;
+  v_deployment uuid;
+  v_claimed int;
+BEGIN
+  INSERT INTO public.organizations (name, org_type)
+    VALUES ('Eval Guard Org', 'private_foundation') RETURNING id INTO v_org;
+  INSERT INTO public.org_ai_connections (org_id, connector, name, auth_type)
+    VALUES (v_org, 'openrouter', 'c', 'api_key') RETURNING id INTO v_conn;
+  INSERT INTO public.org_ai_deployments (org_id, connection_id, name, provider_model_id)
+    VALUES (v_org, v_conn, 'd', 'm') RETURNING id INTO v_deployment;
+
+  INSERT INTO public.ai_deployment_evaluation_runs
+    (org_id, deployment_id, status, suite_version, case_set_hash, workload_ids)
+    VALUES (v_org, v_deployment, 'queued', 'v', 'h', ARRAY['letters']);
+
+  BEGIN
+    INSERT INTO public.ai_deployment_evaluation_runs
+      (org_id, deployment_id, status, suite_version, case_set_hash, workload_ids)
+      VALUES (v_org, v_deployment, 'queued', 'v', 'h', ARRAY['letters']);
+    RAISE EXCEPTION 'a second live evaluation run was permitted for one deployment';
+  EXCEPTION WHEN unique_violation THEN
+    NULL;
+  END;
+
+  -- The claim is a conditional update; the second attempt must match no rows.
+  UPDATE public.ai_deployment_evaluation_runs SET status = 'running'
+    WHERE deployment_id = v_deployment AND status = 'queued';
+  UPDATE public.ai_deployment_evaluation_runs SET status = 'running'
+    WHERE deployment_id = v_deployment AND status = 'queued';
+  GET DIAGNOSTICS v_claimed = ROW_COUNT;
+  IF v_claimed <> 0 THEN
+    RAISE EXCEPTION 'evaluation run claim was not exclusive';
+  END IF;
+
+  -- A failure kind is only meaningful on a failed run.
+  BEGIN
+    UPDATE public.ai_deployment_evaluation_runs
+      SET failure_kind = 'transport'
+      WHERE deployment_id = v_deployment;
+    RAISE EXCEPTION 'failure_kind was permitted on a non-failed run';
+  EXCEPTION WHEN check_violation THEN
+    NULL;
+  END;
+END;
+$$;
+
 ROLLBACK;

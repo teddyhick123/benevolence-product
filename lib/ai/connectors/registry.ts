@@ -2,6 +2,7 @@ import type { AIConnector } from '@/lib/ai/execution';
 import type { AIConnectorId } from '@/lib/ai/workloads';
 import { AnthropicConnector } from '@/lib/ai/connectors/anthropic';
 import { AnthropicProvider } from '@/lib/ai/providers/anthropic';
+import { OpenAIConnector } from '@/lib/ai/connectors/openai';
 import { PlatformTranscriptionConnector } from '@/lib/ai/connectors/transcription-platform';
 import {
   OpenRouterConnector,
@@ -28,10 +29,11 @@ const CONNECTORS: Readonly<Record<AIConnectorId, AIConnectorFactory>> = {
     }
     return new OpenRouterConnector(context.openrouter);
   },
-  // Replaced with the real OpenAIConnector in Task 5. Declared now so the
-  // registry stays exhaustive over AIConnectorId rather than being widened.
-  openai: () => {
-    throw new Error('The OpenAI connector is not implemented yet');
+  openai: (context) => {
+    if (!context?.openai) {
+      throw new Error('OpenAI connectors require an organization credential');
+    }
+    return new OpenAIConnector(context.openai);
   },
   transcription_platform: () => new PlatformTranscriptionConnector(),
 };

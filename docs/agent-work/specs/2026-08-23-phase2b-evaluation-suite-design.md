@@ -60,9 +60,13 @@ db/migrations/0058_ai_deployment_evaluations.sql
 
 Nine workloads, four operations. The decomposition follows the operations, not the workloads: the assistant's tool round-trip logic is written once in `drivers/tool-conversation.ts` rather than re-derived per workload.
 
-### What does not change
+### What does and does not change in the resolver
 
-`lib/ai/resolver.ts` needs no modification. It already grants full tools on `passed` and read-only otherwise. Phase 1 built that plumbing correctly; this phase only makes `passed` reachable. Outside `lib/ai/evals/`, the production changes are the evaluate route (enqueue rather than run), a new status route, and the settings UI.
+**The routing and tool-mode logic is untouched.** `lib/ai/resolver.ts:193` already grants full tools on `passed` and read-only otherwise; Phase 1 built that plumbing correctly and this phase only makes `passed` reachable.
+
+**One function in that file does change.** `currentVerificationResult` (`lib/ai/resolver.ts:30`) gains the suite-major comparison described under Versioning below. That is the single behavioural edit to the resolver, and it is what causes existing `phase1-compatibility-v1` evidence to stop counting.
+
+Outside `lib/ai/evals/` and that one function, the production changes are the evaluate route (enqueue rather than run), a new status route, and the settings UI.
 
 ### Why a new migration is justified
 

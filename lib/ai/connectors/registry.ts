@@ -1,6 +1,7 @@
 import type { AIConnector } from '@/lib/ai/execution';
 import type { AIConnectorId } from '@/lib/ai/workloads';
 import { AnthropicConnector } from '@/lib/ai/connectors/anthropic';
+import { AnthropicProvider } from '@/lib/ai/providers/anthropic';
 import { PlatformTranscriptionConnector } from '@/lib/ai/connectors/transcription-platform';
 import {
   OpenRouterConnector,
@@ -18,7 +19,9 @@ export type AIConnectorFactoryContext = {
 export type AIConnectorFactory = (_context?: AIConnectorFactoryContext) => AIConnector;
 
 const CONNECTORS: Readonly<Record<AIConnectorId, AIConnectorFactory>> = {
-  anthropic: () => new AnthropicConnector(),
+  anthropic: (context) => new AnthropicConnector(
+    new AnthropicProvider(context?.anthropic?.apiKey),
+  ),
   openrouter: (context) => {
     if (!context?.openrouter) {
       throw new Error('OpenRouter connectors require an organization credential');

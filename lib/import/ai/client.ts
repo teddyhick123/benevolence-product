@@ -7,7 +7,6 @@ import { createAIExecutionGateway } from '@/lib/ai/runtime';
 export interface AICallOptions {
   scope: AIExecutionScope;
   maxTokens?: number;
-  temperature?: number;
 }
 
 export async function callAI(
@@ -19,7 +18,6 @@ export async function callAI(
   const gateway = createAIExecutionGateway(options.scope);
   const response = await gateway.generateText(await gateway.resolve('import'), {
     maxOutputTokens: options.maxTokens ?? 4096,
-    temperature: options.temperature ?? 0.1,
     system: systemPrompt,
     messages: [{ role: 'user', content: userPrompt }],
   });
@@ -39,7 +37,6 @@ export async function callAIStreaming(
   const gateway = createAIExecutionGateway(options.scope);
   const stream = gateway.streamText(await gateway.resolve('import_chat'), {
     maxOutputTokens: options.maxTokens ?? 4096,
-    temperature: options.temperature ?? 0.1,
     system: systemPrompt,
     messages: [{ role: 'user', content: userPrompt }],
   });

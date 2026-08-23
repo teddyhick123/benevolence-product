@@ -161,7 +161,6 @@ export async function extractFactsFromText(
       request: {
         system: systemPrompt,
         messages: [{ role: 'user', content: userPrompt }],
-        temperature: 0,
         maxOutputTokens: 4096,
       },
       parse: (content) => {

@@ -86,7 +86,6 @@ export async function analyzeReconciliation(
   const raw = await callAI(RECONCILE_SYSTEM, userPrompt, {
     scope,
     maxTokens: 2048,
-    temperature: 0.1,
   });
 
   let parsed: RawAnalysis;

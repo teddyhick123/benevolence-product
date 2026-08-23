@@ -29,7 +29,6 @@ export class AnthropicConnector implements AIConnector {
         request.maxOutputTokens ?? plan.maxOutputTokens,
         plan.maxOutputTokens,
       ),
-      temperature: request.temperature,
       signal: request.signal,
     });
     return { text: extractText(response), response };
@@ -53,7 +52,6 @@ export class AnthropicConnector implements AIConnector {
         request.maxOutputTokens ?? plan.maxOutputTokens,
         plan.maxOutputTokens,
       ),
-      temperature: request.temperature,
       signal: request.signal,
     });
   }
@@ -68,7 +66,6 @@ export class AnthropicConnector implements AIConnector {
         request.maxOutputTokens ?? plan.maxOutputTokens,
         plan.maxOutputTokens,
       ),
-      temperature: request.temperature,
       signal: request.signal,
     });
   }
@@ -83,7 +80,6 @@ export class AnthropicConnector implements AIConnector {
         request.maxOutputTokens ?? plan.maxOutputTokens,
         plan.maxOutputTokens,
       ),
-      temperature: request.temperature,
       signal: request.signal,
     });
   }

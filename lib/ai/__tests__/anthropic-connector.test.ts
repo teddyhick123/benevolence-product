@@ -19,7 +19,6 @@ describe('Anthropic connector', () => {
       system: 'system',
       messages: [{ role: 'user', content: 'prompt' }],
       maxOutputTokens: 100,
-      temperature: 0.2,
     });
 
     expect(result.text).toBe('answer');
@@ -28,7 +27,6 @@ describe('Anthropic connector', () => {
       system: 'system',
       messages: [{ role: 'user', content: 'prompt' }],
       maxTokens: 100,
-      temperature: 0.2,
       signal: undefined,
     });
   });

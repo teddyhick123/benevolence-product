@@ -60,6 +60,7 @@ export default function AIModelsSettings({ orgId }: { orgId: string }) {
   const [rotationKeys, setRotationKeys] = useState<Record<string, string>>({});
   const [routeChoices, setRouteChoices] = useState<Record<string, string>>({});
   const [platformFallback, setPlatformFallback] = useState<Record<string, boolean>>({});
+  const [writeAccess, setWriteAccess] = useState<Record<string, boolean>>({});
 
   const activeConnections = useMemo(
     () => data?.connections.filter(connection => connection.status === 'active') ?? [],
@@ -136,7 +137,9 @@ export default function AIModelsSettings({ orgId }: { orgId: string }) {
           workloadId: workload.id,
           policy: {
             experimentalUseAccepted: selected !== 'platform_default',
-            mutationTools: 'verified_only',
+            mutationTools: selected !== 'platform_default' && writeAccess[workload.id]
+              ? 'allow_experimental'
+              : 'verified_only',
           },
           targets,
         }),
@@ -312,16 +315,31 @@ export default function AIModelsSettings({ orgId }: { orgId: string }) {
                   <div className="text-xs text-gray-500">{route ? (route.is_enabled ? 'Configured' : 'Disabled') : 'Uses platform default'}</div>
                 </div>
                 <div className="space-y-2">
-                  <select className="w-full rounded border px-3 py-2 text-sm" value={value} onChange={event => setRouteChoices(current => ({ ...current, [workload.id]: event.target.value }))}>
+                  <select
+                    aria-label={`${workload.displayName} model`}
+                    className="w-full rounded border px-3 py-2 text-sm"
+                    value={value}
+                    onChange={event => setRouteChoices(current => ({ ...current, [workload.id]: event.target.value }))}
+                  >
                     <option value="">Choose model</option>
                     <option value="platform_default">Platform default</option>
                     {data.deployments.filter(item => item.status === 'active').map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
                   </select>
                   {value && value !== 'platform_default' && (
-                    <label className="flex items-center gap-2 text-xs text-gray-600">
-                      <input type="checkbox" checked={platformFallback[workload.id] ?? false} onChange={event => setPlatformFallback(current => ({ ...current, [workload.id]: event.target.checked }))} />
-                      Explicitly allow platform-funded fallback
-                    </label>
+                    <>
+                      <label className="flex items-center gap-2 text-xs text-gray-600">
+                        <input type="checkbox" checked={platformFallback[workload.id] ?? false} onChange={event => setPlatformFallback(current => ({ ...current, [workload.id]: event.target.checked }))} />
+                        Explicitly allow platform-funded fallback
+                      </label>
+                      <label className="flex items-center gap-2 text-xs text-gray-600">
+                        <input
+                          type="checkbox"
+                          checked={writeAccess[workload.id] ?? false}
+                          onChange={event => setWriteAccess(current => ({ ...current, [workload.id]: event.target.checked }))}
+                        />
+                        Allow this model to make changes (unverified — the assistant is read-only without this)
+                      </label>
+                    </>
                   )}
                 </div>
                 <button className="rounded border px-3 py-2 text-sm" disabled={busy !== null} onClick={() => saveRoute(workload)}>Save</button>

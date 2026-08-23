@@ -169,7 +169,6 @@ export class OpenRouterConnector implements AIConnector {
       model: plan.requestedModel,
       messages: messages(request.system, request.messages),
       max_tokens: Math.min(request.maxOutputTokens ?? plan.maxOutputTokens, plan.maxOutputTokens),
-      ...(request.temperature !== undefined ? { temperature: request.temperature } : {}),
       ...(tools ? { tools: toolDefinitions(tools) } : {}),
       ...(request.responseFormat ? {
         response_format: {

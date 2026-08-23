@@ -21,6 +21,11 @@ const CONNECTORS: Readonly<Record<AIConnectorId, AIConnectorFactory>> = {
     }
     return new OpenRouterConnector(context.openrouter);
   },
+  // Replaced with the real OpenAIConnector in Task 5. Declared now so the
+  // registry stays exhaustive over AIConnectorId rather than being widened.
+  openai: () => {
+    throw new Error('The OpenAI connector is not implemented yet');
+  },
   transcription_platform: () => new PlatformTranscriptionConnector(),
 };
 

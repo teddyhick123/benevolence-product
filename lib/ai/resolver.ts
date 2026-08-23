@@ -5,7 +5,7 @@ import type {
   AIExecutionTarget,
 } from '@/lib/ai/execution';
 import { AIExecutionError } from '@/lib/ai/execution';
-import { getAIWorkload, type AIWorkloadId } from '@/lib/ai/workloads';
+import { getAIWorkload, type AIConnectorId, type AIWorkloadId } from '@/lib/ai/workloads';
 import { getAIDeploymentTemplate } from '@/lib/ai/catalog';
 import { createAIRoutingRepository } from '@/lib/api/repositories/ai-routing';
 import {
@@ -26,6 +26,12 @@ function stableJson(value: unknown): string {
 function hashPolicy(policy: Readonly<Record<string, unknown>>): string {
   return createHash('sha256').update(stableJson(policy)).digest('hex');
 }
+
+/**
+ * A closed allow-list: an unrecognised connector stored in the database is
+ * rejected here rather than passed through to the connector registry.
+ */
+const ORG_CONNECTORS = new Set(['openrouter', 'anthropic', 'openai']);
 
 function currentVerificationResult(evidence: unknown): 'passed' | 'conditional' | null {
   if (!evidence || typeof evidence !== 'object') return null;
@@ -156,7 +162,7 @@ export async function resolveOrganizationAIExecution(
     if (!resolved.credentialAvailability.get(connection.id)) {
       throw new AIExecutionError('credential_invalid', 'Organization AI connection credential is missing');
     }
-    if (connection.connector !== 'openrouter' || !deployment.catalog_template_id) {
+    if (!ORG_CONNECTORS.has(connection.connector) || !deployment.catalog_template_id) {
       throw new AIExecutionError('policy_unsatisfied', 'Organization AI deployment is unsupported');
     }
     const template = getAIDeploymentTemplate(deployment.catalog_template_id);
@@ -176,20 +182,25 @@ export async function resolveOrganizationAIExecution(
     }
     const connectionConfig = connection.config as Record<string, unknown>;
     const deploymentConfig = deployment.config as Record<string, unknown>;
-    const preferences = openRouterProviderPreferencesSchema.parse({
-      ...((connectionConfig.provider as Record<string, unknown> | undefined) ?? {}),
-      ...((deploymentConfig.provider as Record<string, unknown> | undefined) ?? {}),
-      ...((policy.provider as Record<string, unknown> | undefined) ?? {}),
-    });
+    // Routing preferences are an OpenRouter marketplace concept. Parsing them
+    // for a direct provider would fabricate a default that is then attached to
+    // a request that has nowhere to put it.
+    const preferences = connection.connector === 'openrouter'
+      ? openRouterProviderPreferencesSchema.parse({
+        ...((connectionConfig.provider as Record<string, unknown> | undefined) ?? {}),
+        ...((deploymentConfig.provider as Record<string, unknown> | undefined) ?? {}),
+        ...((policy.provider as Record<string, unknown> | undefined) ?? {}),
+      })
+      : undefined;
     return Object.freeze({
       position: target.position,
       kind: 'deployment' as const,
-      connector: 'openrouter' as const,
+      connector: connection.connector as AIConnectorId,
       requestedModel: deployment.provider_model_id,
       modelVendor: template.modelVendor,
       connectionId: connection.id,
       deploymentId: deployment.id,
-      providerPreferences: Object.freeze(preferences),
+      ...(preferences ? { providerPreferences: Object.freeze(preferences) } : {}),
       toolMode: verification === 'passed' || policy.mutationTools === 'allow_experimental'
         ? 'full'
         : 'read_only',

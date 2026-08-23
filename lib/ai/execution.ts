@@ -52,7 +52,6 @@ export type AIGenerationRequest = {
   system?: string;
   messages: AIMessage[];
   maxOutputTokens?: number;
-  temperature?: number;
   signal?: AbortSignal;
   responseFormat?: {
     name: string;

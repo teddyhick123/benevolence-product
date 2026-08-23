@@ -59,7 +59,6 @@ export async function POST(request: Request, { params }: RouteParams) {
         system: 'This is a bounded model compatibility check. Follow the requested output exactly.',
         messages: [{ role: 'user', content: 'Reply with exactly: BENE_OK' }],
         maxOutputTokens: 16,
-        temperature: 0,
         signal: AbortSignal.timeout(20_000),
       }));
     if (result.text.trim() !== 'BENE_OK') return jsonError('Deployment did not pass the compatibility check', 422);

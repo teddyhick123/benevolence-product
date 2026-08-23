@@ -19,7 +19,6 @@ export class AnthropicProvider implements AIProvider {
       {
         model: config.model,
         max_tokens: config.maxTokens ?? 4096,
-        temperature: config.temperature,
         system: config.system,
         messages: config.messages.map(m => ({
           role: m.role,
@@ -57,7 +56,6 @@ export class AnthropicProvider implements AIProvider {
       {
         model: config.model,
         max_tokens: config.maxTokens ?? 4096,
-        temperature: config.temperature,
         system: config.system,
         messages: config.messages.map(m => ({
           role: m.role,

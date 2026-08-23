@@ -129,7 +129,6 @@ Please write the full report now.`;
   const markdown = await callAI(REPORT_SYSTEM, userPrompt, {
     scope: params.scope,
     maxTokens: 2048,
-    temperature: 0.3,
   });
 
   return markdown;

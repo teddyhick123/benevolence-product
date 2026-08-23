@@ -8,7 +8,7 @@ import { aiWorkloadIdSchema, openRouterProviderPreferencesSchema } from '@/lib/s
 import { getAIDeploymentTemplate } from '@/lib/ai/catalog';
 import { getAIWorkload } from '@/lib/ai/workloads';
 import { resolveAIExecution } from '@/lib/ai/resolver';
-import { OpenRouterConnector } from '@/lib/ai/connectors/openrouter';
+import { createAIConnector, type AIConnectorFactoryContext } from '@/lib/ai/connectors/registry';
 
 type RouteParams = { params: Promise<{ orgId: string; deploymentId: string }> };
 const inputSchema = z.object({ workloadId: aiWorkloadIdSchema }).strict();
@@ -28,8 +28,8 @@ export async function POST(request: Request, { params }: RouteParams) {
     if (deployment.status !== 'active' || connection.status !== 'active') {
       return jsonError('Deployment and connection must be active', 409);
     }
-    if (!deployment.catalog_template_id || connection.connector !== 'openrouter') {
-      return jsonError('Deployment cannot be evaluated by the Phase 1 suite', 400);
+    if (!deployment.catalog_template_id) {
+      return jsonError('Deployment has no catalog template and cannot be evaluated', 400);
     }
     const template = getAIDeploymentTemplate(deployment.catalog_template_id);
     const workload = getAIWorkload(parsed.data.workloadId);
@@ -37,30 +37,36 @@ export async function POST(request: Request, { params }: RouteParams) {
       capability => !template.advertisedCapabilities.includes(capability),
     );
     if (missing.length > 0) return jsonError(`Deployment is missing: ${missing.join(', ')}`, 400);
-    const provider = openRouterProviderPreferencesSchema.parse({
-      ...(((connection.config as Record<string, unknown>).provider as Record<string, unknown>) ?? {}),
-      ...(((deployment.config as Record<string, unknown>).provider as Record<string, unknown>) ?? {}),
-    });
+    const provider = connection.connector === 'openrouter'
+      ? openRouterProviderPreferencesSchema.parse({
+        ...(((connection.config as Record<string, unknown>).provider as Record<string, unknown>) ?? {}),
+        ...(((deployment.config as Record<string, unknown>).provider as Record<string, unknown>) ?? {}),
+      })
+      : undefined;
     const basePlan = resolveAIExecution({ kind: 'organization', orgId }, parsed.data.workloadId);
     const plan = {
       ...basePlan,
-      connector: 'openrouter' as const,
+      connector: connection.connector as typeof basePlan.connector,
       requestedModel: deployment.provider_model_id,
       connectionId: connection.id,
       deploymentId: deployment.id,
       modelVendor: template.modelVendor,
-      providerPreferences: provider,
+      ...(provider ? { providerPreferences: provider } : {}),
     };
     const result = await createAICredentialRepository({ orgId, actorId })
-      .withCredential(connection.id, credential => new OpenRouterConnector({
-        apiKey: credential.apiKey,
-        provider,
-      }).generateText(plan, {
-        system: 'This is a bounded model compatibility check. Follow the requested output exactly.',
-        messages: [{ role: 'user', content: 'Reply with exactly: BENE_OK' }],
-        maxOutputTokens: 16,
-        signal: AbortSignal.timeout(20_000),
-      }));
+      .withCredential(connection.id, (credential) => {
+        const context: AIConnectorFactoryContext = connection.connector === 'openrouter'
+          ? { openrouter: { apiKey: credential.apiKey, provider } }
+          : connection.connector === 'anthropic'
+            ? { anthropic: { apiKey: credential.apiKey } }
+            : { openai: { apiKey: credential.apiKey } };
+        return createAIConnector(connection.connector as never, context).generateText!(plan, {
+          system: 'This is a bounded model compatibility check. Follow the requested output exactly.',
+          messages: [{ role: 'user', content: 'Reply with exactly: BENE_OK' }],
+          maxOutputTokens: 16,
+          signal: AbortSignal.timeout(20_000),
+        });
+      });
     if (result.text.trim() !== 'BENE_OK') return jsonError('Deployment did not pass the compatibility check', 422);
     const evidence = await settings.recordDeploymentEvaluation(
       deploymentId,

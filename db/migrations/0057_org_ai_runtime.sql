@@ -365,66 +365,14 @@ GRANT EXECUTE ON FUNCTION public.bind_ai_turn_execution_plan(uuid, uuid, uuid, j
 -- ---------------------------------------------------------------------------
 -- Provider-neutral invocation metadata
 -- ---------------------------------------------------------------------------
+-- Columns whose foreign keys reference tables created in 0033 and here, so
+-- they cannot be declared in 0030 where the rest of the table lives.
 ALTER TABLE public.ai_usage_log
-  DROP CONSTRAINT IF EXISTS ai_usage_log_user_id_fkey;
-ALTER TABLE public.ai_usage_log
-  ALTER COLUMN user_id DROP NOT NULL;
-ALTER TABLE public.ai_usage_log
-  ADD CONSTRAINT ai_usage_log_user_id_fkey
-  FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE SET NULL;
-
-DO $$
-BEGIN
-  IF EXISTS (
-    SELECT 1 FROM information_schema.columns
-    WHERE table_schema = 'public' AND table_name = 'ai_usage_log' AND column_name = 'model'
-  ) AND NOT EXISTS (
-    SELECT 1 FROM information_schema.columns
-    WHERE table_schema = 'public' AND table_name = 'ai_usage_log' AND column_name = 'requested_model'
-  ) THEN
-    ALTER TABLE public.ai_usage_log RENAME COLUMN model TO requested_model;
-  END IF;
-END;
-$$;
-
-ALTER TABLE public.ai_usage_log
-  ADD COLUMN IF NOT EXISTS scope_kind text NOT NULL DEFAULT 'platform'
-    CHECK (scope_kind IN ('organization', 'platform')),
-  ADD COLUMN IF NOT EXISTS workload_id text NOT NULL DEFAULT 'assistant',
-  ADD COLUMN IF NOT EXISTS operation text NOT NULL DEFAULT 'tool_conversation'
-    CHECK (operation IN ('text_generation', 'structured_generation', 'tool_conversation', 'transcription')),
   ADD COLUMN IF NOT EXISTS route_id uuid REFERENCES public.org_ai_routes(id) ON DELETE SET NULL,
   ADD COLUMN IF NOT EXISTS connection_id uuid REFERENCES public.org_ai_connections(id) ON DELETE SET NULL,
   ADD COLUMN IF NOT EXISTS deployment_id uuid REFERENCES public.org_ai_deployments(id) ON DELETE SET NULL,
-  ADD COLUMN IF NOT EXISTS turn_id uuid REFERENCES public.ai_turns(id) ON DELETE SET NULL,
-  ADD COLUMN IF NOT EXISTS connector text NOT NULL DEFAULT 'anthropic',
-  ADD COLUMN IF NOT EXISTS model_vendor text,
-  ADD COLUMN IF NOT EXISTS resolved_model text,
-  ADD COLUMN IF NOT EXISTS resolved_provider text,
-  ADD COLUMN IF NOT EXISTS provider_request_id text,
-  ADD COLUMN IF NOT EXISTS cached_input_tokens integer NOT NULL DEFAULT 0 CHECK (cached_input_tokens >= 0),
-  ADD COLUMN IF NOT EXISTS reasoning_tokens integer NOT NULL DEFAULT 0 CHECK (reasoning_tokens >= 0),
-  ADD COLUMN IF NOT EXISTS audio_input_tokens integer NOT NULL DEFAULT 0 CHECK (audio_input_tokens >= 0),
-  ADD COLUMN IF NOT EXISTS audio_output_tokens integer NOT NULL DEFAULT 0 CHECK (audio_output_tokens >= 0),
-  ADD COLUMN IF NOT EXISTS reported_cost numeric,
-  ADD COLUMN IF NOT EXISTS cost_currency text,
-  ADD COLUMN IF NOT EXISTS latency_ms integer NOT NULL DEFAULT 0 CHECK (latency_ms >= 0),
-  ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'succeeded'
-    CHECK (status IN ('succeeded', 'failed', 'aborted', 'timed_out')),
-  ADD COLUMN IF NOT EXISTS error_code text,
-  ADD COLUMN IF NOT EXISTS target_position integer NOT NULL DEFAULT 0 CHECK (target_position >= 0),
-  ADD COLUMN IF NOT EXISTS policy_snapshot jsonb NOT NULL DEFAULT '{}'::jsonb
-    CHECK (jsonb_typeof(policy_snapshot) = 'object'),
-  ADD COLUMN IF NOT EXISTS policy_hash text,
-  ADD COLUMN IF NOT EXISTS started_at timestamptz NOT NULL DEFAULT now(),
-  ADD COLUMN IF NOT EXISTS completed_at timestamptz NOT NULL DEFAULT now(),
-  ADD CONSTRAINT ai_usage_log_scope_org_check
-    CHECK (scope_kind = 'platform' OR org_id IS NOT NULL),
-  ADD CONSTRAINT ai_usage_log_input_tokens_check CHECK (input_tokens >= 0),
-  ADD CONSTRAINT ai_usage_log_output_tokens_check CHECK (output_tokens >= 0);
+  ADD COLUMN IF NOT EXISTS turn_id uuid REFERENCES public.ai_turns(id) ON DELETE SET NULL;
 
-CREATE INDEX IF NOT EXISTS ai_usage_log_org_workload_created_idx
-  ON public.ai_usage_log(org_id, workload_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS ai_usage_log_turn_id_idx
   ON public.ai_usage_log(turn_id, created_at);
 CREATE INDEX IF NOT EXISTS ai_usage_log_deployment_created_idx

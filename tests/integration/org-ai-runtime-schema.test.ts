@@ -108,20 +108,26 @@ describe('organization AI runtime schema', () => {
     expect(runtimeSql).toMatch(/v_turn\.status IS DISTINCT FROM 'in_progress'/);
   });
 
+  // Phase 3A folded the plain usage columns back into 0030, the concept's
+  // owning migration. Only the four columns whose foreign keys reference
+  // tables created in 0033 and here remain patched on from 0057.
   it('expands usage metadata and declares all intended read boundaries', () => {
-    expect(runtimeSql).toContain('ALTER COLUMN user_id DROP NOT NULL');
-    expect(runtimeSql).toMatch(
-      /FOREIGN KEY \(user_id\) REFERENCES auth\.users\(id\) ON DELETE SET NULL/,
-    );
+    const ownerSql = readFileSync(path.join(migrations, '0030_ai_usage_log.sql'), 'utf8');
+
+    expect(ownerSql).toMatch(/user_id\s+uuid REFERENCES auth\.users\(id\) ON DELETE SET NULL/);
+    expect(runtimeSql).not.toContain('ALTER COLUMN user_id DROP NOT NULL');
+
+    for (const column of ['route_id', 'connection_id', 'deployment_id', 'turn_id']) {
+      expect(runtimeSql, column).toMatch(new RegExp(`ADD COLUMN IF NOT EXISTS ${column}\\b`));
+    }
     for (const column of [
-      'scope_kind', 'workload_id', 'operation', 'route_id', 'connection_id',
-      'deployment_id', 'turn_id', 'connector', 'model_vendor', 'requested_model',
+      'scope_kind', 'workload_id', 'operation', 'connector', 'model_vendor', 'requested_model',
       'resolved_model', 'resolved_provider', 'provider_request_id', 'cached_input_tokens',
       'reasoning_tokens', 'audio_input_tokens', 'audio_output_tokens', 'reported_cost',
       'latency_ms', 'status', 'error_code', 'target_position', 'policy_snapshot',
       'policy_hash', 'started_at', 'completed_at',
     ]) {
-      expect(runtimeSql, column).toMatch(new RegExp(`\\b${column}\\b`));
+      expect(ownerSql, column).toMatch(new RegExp(`\\b${column}\\b`));
     }
     expect(runtimeSql).toMatch(/ai_usage_log_self_read[\s\S]*user_id = auth\.uid\(\)/);
     expect(runtimeSql).toMatch(/ai_usage_log_org_admin_read[\s\S]*is_org_admin\(org_id\)/);

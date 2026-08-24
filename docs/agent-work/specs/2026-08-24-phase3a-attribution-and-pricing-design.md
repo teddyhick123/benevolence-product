@@ -87,6 +87,10 @@ All connector variables default to `anthropic`, so behaviour is unchanged on an 
 
 The auditable form of the claim: `grep -rn 'createAIProvider(' lib app` returns exactly two hits — the factory definition in `lib/ai/factory.ts` and `lib/builder/ai.ts` — and a test asserts that.
 
+**Scope availability differs across the four sites.** The chat route is org-scoped by its path and carries both organization and actor. `ScaffoldBuildJobData` (`lib/builder/scaffold-worker.ts:54`) carries `orgId` but no user, so the two worker sites need `orgId` threaded into their generation helpers, which currently receive only `supabase`, `revisionId` and `planContent`. Those rows are written with `user_id: null`, which `0057` already permits.
+
+Organization attribution — the point of this phase — is therefore complete at all four sites. Per-user attribution is not, and cannot be for scaffold work, because no user is present when a queued job runs. Phase 3B's dashboard must not promise a per-user breakdown that Builder cannot populate.
+
 `resolveOrganizationAIExecution` returns the platform default immediately when `!workload.orgRoutable`, rather than querying for a route that cannot exist.
 
 ---
@@ -120,6 +124,8 @@ export const MODEL_RATES: Readonly<Record<string, ModelRate>> = {
 ```
 
 `cachedPerMTok` is the cache-read rate, a tenth of input for Anthropic. `RATE_VERSION` is a year-month string bumped on any rate change, and it is stored on every row priced under it so a historical figure can be traced to the table that produced it.
+
+**Sonnet 5 is deliberately encoded at standard pricing**, not its introductory $2/$10, which expires 2026-08-31. This is a considered choice rather than an oversight: the table is correct from 1 September, and over-pricing is the safe direction — under-pricing would later let a Phase 3B cap pass spend it should have stopped. The rate table carries no effective-from dates; a single flat rate per model is all two models justify, and dated rates can be added when a pricing change actually needs them.
 
 **Known conservative bias:** because the Anthropic provider never reports cache reads, platform-default Anthropic calls receive no cache discount and are priced slightly high. This is a stated limitation, not a defect to discover later. Mapping Anthropic's `cache_read_input_tokens` is a candidate follow-up, out of scope here.
 
@@ -170,7 +176,9 @@ rate_version   text
 
 Unlike Phase 2B, this phase **cannot** be verified with `supabase migration up`. Editing a migration that has already been applied means the only proof that `0030` and `0057` still produce the correct end state is a full `supabase db reset`.
 
-The single local Supabase project is `benevolence-walkthrough` (`supabase/config.toml:1`), so that reset destroys whatever that stack currently holds. This is a prerequisite of the phase, not an optional check. It should be scheduled deliberately before implementation begins rather than discovered at the verification step.
+The single local Supabase project is `benevolence-walkthrough` (`supabase/config.toml:1`), so that reset destroys whatever that stack currently holds. This is a prerequisite of the phase, not an optional check.
+
+**Confirmed acceptable on 2026-08-24**: there are no client instances, so the walkthrough stack holds nothing that needs preserving. The same reset also closes Phase 2B's outstanding `verify:migrations` exit criterion, which was deferred for the same reason.
 
 ---
 

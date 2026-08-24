@@ -36,3 +36,22 @@ describe('org_ai_spend_caps schema', () => {
     expect(SQL).toMatch(/GRANT SELECT ON public\.org_ai_spend_caps TO authenticated/);
   });
 });
+
+describe('org_platform_spend', () => {
+  it('counts only platform-funded rows', () => {
+    expect(SQL).toMatch(/deployment_id IS NULL/);
+  });
+
+  it('uses the same cost precedence as the recorder', () => {
+    expect(SQL).toMatch(/COALESCE\(reported_cost, computed_cost\)/);
+  });
+
+  it('takes the period start as a parameter so tests can pin it', () => {
+    expect(SQL).toMatch(/org_platform_spend\(\s*p_org_id\s+uuid,\s*p_period_start\s+timestamptz/);
+  });
+
+  it('is executable by the service role only', () => {
+    expect(SQL).toMatch(/REVOKE ALL ON FUNCTION public\.org_platform_spend/);
+    expect(SQL).toMatch(/GRANT EXECUTE ON FUNCTION public\.org_platform_spend[\s\S]*TO service_role/);
+  });
+});

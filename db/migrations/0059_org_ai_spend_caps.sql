@@ -35,3 +35,42 @@ CREATE POLICY "org_ai_spend_caps_service" ON public.org_ai_spend_caps
 
 GRANT SELECT ON public.org_ai_spend_caps TO authenticated;
 GRANT ALL ON public.org_ai_spend_caps TO service_role;
+
+-- ---------------------------------------------------------------------------
+-- The single definition of platform-funded spend.
+--
+-- Only rows with no deployment_id count: an organization routing a workload to
+-- its own deployment is spending its own money, and capping that would
+-- throttle something the platform does not pay for.
+--
+-- Cost precedence matches resolveCost in lib/api/repositories/ai-invocations.ts.
+-- If the two disagreed, the cap and the row it read would disagree about the
+-- same call.
+--
+-- Unpriced rows contribute zero, so a platform-default model shipping without
+-- a rate under-counts spend. The rate coverage guard added in Phase 3A is what
+-- prevents that, and is therefore load-bearing for cap correctness.
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.org_platform_spend(
+  p_org_id       uuid,
+  p_period_start timestamptz
+)
+RETURNS numeric
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT COALESCE(SUM(COALESCE(reported_cost, computed_cost)), 0)::numeric
+  FROM public.ai_usage_log
+  WHERE org_id = p_org_id
+    AND deployment_id IS NULL
+    AND created_at >= p_period_start;
+$$;
+
+REVOKE ALL ON FUNCTION public.org_platform_spend(uuid, timestamptz) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.org_platform_spend(uuid, timestamptz) TO service_role;
+
+CREATE INDEX IF NOT EXISTS ai_usage_log_org_platform_spend_idx
+  ON public.ai_usage_log(org_id, created_at DESC)
+  WHERE deployment_id IS NULL;

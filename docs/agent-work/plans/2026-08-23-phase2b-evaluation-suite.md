@@ -1,6 +1,6 @@
 # Phase 2B — Deployment Evaluation Suite Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Replace the `BENE_OK` smoke test with a real per-workload evaluation suite, so `result: 'passed'` becomes a defensible claim and an organization gets full write tools on its own model because the model was tested.
 
@@ -70,7 +70,7 @@ Every task's requirements implicitly include these.
   - Assertions: `callsTool(name)`, `callsNoToolNamed(name)`, `callsOnlyKnownTools(names)`, `jsonMatchesSchema(schema)`, `containsAll(values)`, `omitsPlaceholders()`, `groundedIn()`, `withinTokens(max)`, `streamsProgressively()`, `respondsWithText()`
   - `class FakeConnector implements AIConnector` — constructed with a script, records the plans and requests it received.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `lib/ai/evals/__tests__/assertions.test.ts`:
 
@@ -172,12 +172,12 @@ describe('structural assertions', () => {
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `npx vitest run lib/ai/evals/__tests__/assertions.test.ts`
 Expected: FAIL — `lib/ai/evals/assertions.ts` does not exist.
 
-- [ ] **Step 3: Write the types**
+- [x] **Step 3: Write the types**
 
 Create `lib/ai/evals/types.ts`:
 
@@ -243,7 +243,7 @@ export class EvalTransportError extends Error {
 }
 ```
 
-- [ ] **Step 4: Write the assertions**
+- [x] **Step 4: Write the assertions**
 
 Create `lib/ai/evals/assertions.ts`:
 
@@ -421,7 +421,7 @@ export function jsonMatchesSchema(schema: Record<string, unknown>): Assertion {
 }
 ```
 
-- [ ] **Step 5: Write the fake connector**
+- [x] **Step 5: Write the fake connector**
 
 Create `lib/ai/evals/testing/fake-connector.ts`:
 
@@ -505,12 +505,12 @@ export class FakeConnector implements AIConnector {
 }
 ```
 
-- [ ] **Step 6: Run the tests to verify they pass**
+- [x] **Step 6: Run the tests to verify they pass**
 
 Run: `npx vitest run lib/ai/evals`
 Expected: PASS (10 tests)
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add lib/ai/evals
@@ -533,7 +533,7 @@ git commit -m "feat(evals): assertion vocabulary and scripted fake connector"
   - `type Driver = (_connector: AIConnector, _plan: AIExecutionPlan, _case: EvalCase) => Promise<Observed>`
   - `const DRIVERS: Readonly<Record<AIOperation, Driver>>` exported from `lib/ai/evals/drivers/index.ts`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `lib/ai/evals/__tests__/drivers.test.ts`:
 
@@ -659,12 +659,12 @@ describe('transport failures', () => {
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `npx vitest run lib/ai/evals/__tests__/drivers.test.ts`
 Expected: FAIL — `lib/ai/evals/drivers` does not exist.
 
-- [ ] **Step 3: Write the shared driver helpers and the text driver**
+- [x] **Step 3: Write the shared driver helpers and the text driver**
 
 Create `lib/ai/evals/drivers/text-generation.ts`:
 
@@ -722,7 +722,7 @@ export const textGenerationDriver: Driver = async (connector, plan, evalCase) =>
 };
 ```
 
-- [ ] **Step 4: Write the structured driver**
+- [x] **Step 4: Write the structured driver**
 
 Create `lib/ai/evals/drivers/structured-generation.ts`:
 
@@ -754,7 +754,7 @@ export const structuredGenerationDriver: Driver = async (connector, plan, evalCa
 };
 ```
 
-- [ ] **Step 5: Write the tool conversation driver**
+- [x] **Step 5: Write the tool conversation driver**
 
 Create `lib/ai/evals/drivers/tool-conversation.ts`:
 
@@ -806,7 +806,7 @@ function textOf(response: { content: AIContentBlock[] }): string {
 }
 ```
 
-- [ ] **Step 6: Write the transcription driver and the index**
+- [x] **Step 6: Write the transcription driver and the index**
 
 Create `lib/ai/evals/drivers/transcription.ts`:
 
@@ -848,12 +848,12 @@ export const DRIVERS: Readonly<Record<AIOperation, Driver>> = {
 };
 ```
 
-- [ ] **Step 7: Run the tests to verify they pass**
+- [x] **Step 7: Run the tests to verify they pass**
 
 Run: `npx vitest run lib/ai/evals && npm run verify:types`
 Expected: PASS (17 tests)
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add lib/ai/evals
@@ -874,7 +874,7 @@ git commit -m "feat(evals): four operation drivers with transport-error isolatio
 - Consumes: `EvalCase` and all assertions from Task 1.
 - Produces: `casesForWorkload(workloadId: AIWorkloadId): readonly EvalCase[]` and `ALL_EVAL_CASES: Readonly<Record<AIWorkloadId, readonly EvalCase[]>>` from `lib/ai/evals/registry.ts`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `lib/ai/evals/__tests__/registry.test.ts`:
 
@@ -964,12 +964,12 @@ describe('runner purity', () => {
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `npx vitest run lib/ai/evals/__tests__/registry.test.ts`
 Expected: FAIL — `lib/ai/evals/registry` does not exist.
 
-- [ ] **Step 3: Write the assistant cases**
+- [x] **Step 3: Write the assistant cases**
 
 Create `lib/ai/evals/cases/assistant.ts`:
 
@@ -1059,7 +1059,7 @@ export const assistantCases: readonly EvalCase[] = [
 ];
 ```
 
-- [ ] **Step 4: Write the remaining workload cases**
+- [x] **Step 4: Write the remaining workload cases**
 
 Create `lib/ai/evals/cases/onboarding.ts`:
 
@@ -1291,7 +1291,7 @@ export const transcriptionCases: readonly EvalCase[] = [
 ];
 ```
 
-- [ ] **Step 5: Write the registry**
+- [x] **Step 5: Write the registry**
 
 Create `lib/ai/evals/registry.ts`:
 
@@ -1325,12 +1325,12 @@ export function casesForWorkload(workloadId: AIWorkloadId): readonly EvalCase[] 
 }
 ```
 
-- [ ] **Step 6: Run the tests to verify they pass**
+- [x] **Step 6: Run the tests to verify they pass**
 
 Run: `npx vitest run lib/ai/evals && npm run verify:types`
 Expected: PASS (23 tests)
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add lib/ai/evals
@@ -1351,7 +1351,7 @@ git commit -m "feat(evals): workload cases, registry, and coverage and purity gu
 - Consumes: `DRIVERS` from Task 2; `casesForWorkload` from Task 3; `WorkloadVerdict`, `CaseResult`, `EvalTransportError` from Task 1.
 - Produces: `runWorkloadEvaluation(connector, plan, workloadId, onResult?): Promise<WorkloadVerdict>` and `aggregate(results: CaseResult[]): EvalVerdict`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `lib/ai/evals/__tests__/runner.test.ts`:
 
@@ -1449,12 +1449,12 @@ describe('runWorkloadEvaluation', () => {
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `npx vitest run lib/ai/evals/__tests__/runner.test.ts`
 Expected: FAIL — `lib/ai/evals/runner` does not exist.
 
-- [ ] **Step 3: Write the runner**
+- [x] **Step 3: Write the runner**
 
 Create `lib/ai/evals/runner.ts`:
 
@@ -1513,12 +1513,12 @@ export async function runWorkloadEvaluation(
 }
 ```
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 Run: `npx vitest run lib/ai/evals && npm run verify:types`
 Expected: PASS (31 tests)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add lib/ai/evals
@@ -1540,7 +1540,7 @@ git commit -m "feat(evals): runner with required and advisory verdict aggregatio
 - Consumes: `ALL_EVAL_CASES` from Task 3.
 - Produces: `SUITE_MAJOR: number`, `SUITE_VERSION: string` (`deployment-suite-v{SUITE_MAJOR}`), `caseSetHash(): string`, `requiredCaseIds(): string[]` from `lib/ai/evals/version.ts`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `lib/ai/evals/__tests__/version.test.ts`:
 
@@ -1631,12 +1631,12 @@ describe('evidence validity', () => {
 });
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `npx vitest run lib/ai/evals/__tests__/version.test.ts lib/ai/__tests__/resolver-evidence.test.ts`
 Expected: FAIL — `lib/ai/evals/version` does not exist and `currentVerificationResult` is not exported.
 
-- [ ] **Step 3: Write the version module**
+- [x] **Step 3: Write the version module**
 
 Create `lib/ai/evals/version.ts`:
 
@@ -1679,7 +1679,7 @@ export function caseSetHash(): string {
 }
 ```
 
-- [ ] **Step 4: Make the resolver compare the suite version**
+- [x] **Step 4: Make the resolver compare the suite version**
 
 In `lib/ai/resolver.ts`, add the import:
 
@@ -1709,12 +1709,12 @@ export function currentVerificationResult(evidence: unknown): 'passed' | 'condit
 }
 ```
 
-- [ ] **Step 5: Run the tests to verify they pass**
+- [x] **Step 5: Run the tests to verify they pass**
 
 Run: `npx vitest run lib/ai && npm run verify:types`
 Expected: PASS. `lib/ai/__tests__/resolver-phase1.test.ts` and `resolver-connectors.test.ts` must still pass — they set `experimentalUseAccepted: true`, so they do not depend on evidence.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add lib/ai/evals lib/ai/resolver.ts lib/ai/__tests__
@@ -1742,7 +1742,7 @@ git commit -m "feat(evals): version the suite and retire phase 1 compatibility e
   - `countableRunsInLastDay(deploymentId: string): Promise<number>`
   - `getRun(runId: string): Promise<{ run: Row; results: Row[] }>`
 
-- [ ] **Step 1: Write the migration**
+- [x] **Step 1: Write the migration**
 
 Create `db/migrations/0058_ai_deployment_evaluations.sql`:
 
@@ -1825,12 +1825,12 @@ GRANT ALL ON public.ai_deployment_evaluation_runs TO service_role;
 GRANT ALL ON public.ai_deployment_evaluation_results TO service_role;
 ```
 
-- [ ] **Step 2: Regenerate types and verify the migration**
+- [x] **Step 2: Regenerate types and verify the migration**
 
 Run: `npm run db:types:generate && npm run verify:migrations`
 Expected: PASS. `lib/database.types.ts` gains both tables and must be committed with the migration.
 
-- [ ] **Step 3: Write the failing repository test**
+- [x] **Step 3: Write the failing repository test**
 
 Create `tests/integration/ai-evaluation-storage.test.ts`:
 
@@ -1867,12 +1867,12 @@ describe('evaluation storage schema', () => {
 });
 ```
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [x] **Step 4: Run the test to verify it passes**
 
 Run: `npx vitest run tests/integration/ai-evaluation-storage.test.ts`
 Expected: PASS (4 tests). These assert the migration text because the behaviours they cover — a partial unique index and RLS — are enforced by Postgres, and `npm run verify:migrations` exercises them against a real database.
 
-- [ ] **Step 5: Write the repository**
+- [x] **Step 5: Write the repository**
 
 Create `lib/api/repositories/ai-evaluations.ts`, following the shape of `lib/api/repositories/ai-settings.ts` — construct the elevated client through `createElevatedClient()`, scope every query by `org_id`, and expose only the methods listed in this task's Interfaces block. `claimRun` must be a single conditional update, not a read followed by a write:
 
@@ -1905,7 +1905,7 @@ Create `lib/api/repositories/ai-evaluations.ts`, following the shape of `lib/api
     },
 ```
 
-- [ ] **Step 6: Assert the concurrency guarantees against a real database**
+- [x] **Step 6: Assert the concurrency guarantees against a real database**
 
 The two guarantees this task exists for — one live run per deployment, and a
 claim only one worker can win — are Postgres behaviours, so assert them where
@@ -1942,12 +1942,12 @@ BEGIN
 END $$;
 ```
 
-- [ ] **Step 7: Run the gate**
+- [x] **Step 7: Run the gate**
 
 Run: `npm run verify:types && npm run verify:unit && npm run verify:migrations`
 Expected: PASS
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add db/migrations/0058_ai_deployment_evaluations.sql lib/database.types.ts lib/api/repositories/ai-evaluations.ts tests/integration/ai-evaluation-storage.test.ts scripts/verify/migrations-assert.sh
@@ -1971,7 +1971,7 @@ git commit -m "feat(evals): evaluation run and result storage"
 
 `runEvaluationJob` takes its dependencies as an argument so the job body is testable without Redis.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `lib/ai/evals/__tests__/queue.test.ts`:
 
@@ -2088,12 +2088,12 @@ describe('evaluation job', () => {
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `npx vitest run lib/ai/evals/__tests__/queue.test.ts`
 Expected: FAIL — `lib/ai/evals/queue` does not exist.
 
-- [ ] **Step 3: Write the job body**
+- [x] **Step 3: Write the job body**
 
 Create `lib/ai/evals/queue.ts`. Model the queue and worker construction on `lib/import/job-queue.ts` — same `redisConnection` shape from `process.env.REDIS_URL`, same `attempts`/`backoff`/`removeOn*` options, same `failed` and `completed` logging. The job body:
 
@@ -2166,7 +2166,7 @@ export async function runEvaluationJob(
 
 Write `usageRecordFor` to build an `AIInvocationRecord` from the plan and job data with `workloadId`, `operation`, `scope: { kind: 'organization', orgId: data.orgId, actorId: data.actorId }`, `connector`, `deploymentId`, `requestedModel`, `status: 'succeeded'`, `latencyMs`, `targetPosition: 0`, `policy: {}`, and `policyHash: ''`. Write `isProviderFailure` to return true for `AIExecutionError` and for connection-level `Error`s thrown while building the connector.
 
-- [ ] **Step 4: Wire the real dependencies and the worker entry point**
+- [x] **Step 4: Wire the real dependencies and the worker entry point**
 
 In the same file, export `createEvaluationWorker()` that constructs the real `EvaluationJobDeps` from `createAIEvaluationRepository`, `createAICredentialRepository`, `createAIConnector`, `createAIInvocationRecorder`, and `recordDeploymentEvaluation`, using `{ kind: 'job', job: 'ai-evaluation' }` as the repository principal — the same shape `lib/import/job-queue.ts` uses.
 
@@ -2176,12 +2176,12 @@ Create `scripts/evaluation-worker.ts` mirroring `scripts/builder-worker.ts`, and
     "evals:worker": "ts-node -r tsconfig-paths/register --project tsconfig.scripts.json scripts/evaluation-worker.ts",
 ```
 
-- [ ] **Step 5: Run the tests to verify they pass**
+- [x] **Step 5: Run the tests to verify they pass**
 
 Run: `npx vitest run lib/ai/evals && npm run verify:types`
 Expected: PASS (38 tests)
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add lib/ai/evals scripts/evaluation-worker.ts package.json
@@ -2204,7 +2204,7 @@ git commit -m "feat(evals): background worker with atomic claim and usage record
 - Consumes: `createAIEvaluationRepository` (Task 6); `enqueueEvaluationRun` (Task 7); `SUITE_VERSION`, `caseSetHash` (Task 5); `requireOrgAccess`, `jsonOk`, `jsonError`.
 - Produces: `POST` returns `202 { runId }`. `GET …/runs/[runId]` returns `{ run, results }`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `tests/integration/ai-evaluation-routes.test.ts`:
 
@@ -2256,12 +2256,12 @@ describe('evaluate route', () => {
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `npx vitest run tests/integration/ai-evaluation-routes.test.ts`
 Expected: FAIL — the status route does not exist and the evaluate route still calls a model.
 
-- [ ] **Step 3: Rewrite the evaluate route**
+- [x] **Step 3: Rewrite the evaluate route**
 
 Replace the body of the POST handler. Keep `requireOrgAccess(orgId, 'admin')`, the deployment and connection load through `getDeploymentForEvaluation`, the active-status check, and the capability check. Replace everything from the provider preferences down with:
 
@@ -2296,7 +2296,7 @@ Write `defaultWorkloadsFor(template)` to return every workload whose `requiredCa
 
 A creation that violates the one-live-run index surfaces as a unique-violation from `createRun`; return `jsonError('An evaluation is already running for this deployment', 409)`.
 
-- [ ] **Step 4: Write the status route**
+- [x] **Step 4: Write the status route**
 
 Create `app/api/org/[orgId]/ai-settings/deployments/[deploymentId]/evaluate/runs/[runId]/route.ts`:
 
@@ -2323,16 +2323,16 @@ export async function GET(_request: Request, { params }: RouteParams) {
 }
 ```
 
-- [ ] **Step 5: Remove the Upstash limiter**
+- [x] **Step 5: Remove the Upstash limiter**
 
 Delete `aiDeploymentEvaluationLimiter` from `lib/api/rate-limit.ts:52` and its comment.
 
-- [ ] **Step 6: Run the tests**
+- [x] **Step 6: Run the tests**
 
 Run: `npx vitest run tests/integration && npm run verify:types && npm run verify:build`
 Expected: PASS. `tests/integration/ai-deployment-evaluate-connectors.test.ts` from Phase 2A asserts the route no longer constructs `OpenRouterConnector` and still records `conditional`; update it — the route no longer records evidence at all, the worker does.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add app/api/org lib/api/rate-limit.ts tests/integration
@@ -2354,7 +2354,7 @@ git commit -m "feat(evals): enqueue evaluation runs and expose run status"
 - Consumes: `requestJson` from `lib/api/client`; `useApiData` from `lib/api/client-hooks`; the settings payload's `deployments[].verified_workloads`.
 - Produces: no new exports from the component. `useEvaluationRun(orgId, deploymentId, runId | null)` from `lib/ai/hooks.ts`, polling while status is `queued` or `running`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `components/settings/__tests__/AIModelsSettings.evaluation.test.tsx`. Mock `@/lib/api/client` and `@/lib/api/client-hooks` exactly as `AIModelsSettings.connectors.test.tsx` does, with a deployment whose `verified_workloads` varies per test:
 
@@ -2403,20 +2403,20 @@ describe('evaluation and checkbox gating', () => {
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `npx vitest run components/settings/__tests__/AIModelsSettings.evaluation.test.tsx`
 Expected: FAIL — there is no "Run evaluation" control.
 
-- [ ] **Step 3: Add the polling hook**
+- [x] **Step 3: Add the polling hook**
 
 Create `lib/ai/hooks.ts` exporting `useEvaluationRun(orgId, deploymentId, runId)` built on `useApiData` from `lib/api/client-hooks`, with `refreshInterval` set to 2000 while the returned status is `queued` or `running` and 0 otherwise. Components must not call `fetch` directly.
 
-- [ ] **Step 4: Add the run control and per-workload state**
+- [x] **Step 4: Add the run control and per-workload state**
 
 In `AIModelsSettings.tsx`, extend the `Deployment` type's `verified_workloads` to `Record<string, { result?: string; verifiedAt?: string; evalSuiteVersion?: string }>`. Add a `Run evaluation` button to each deployment row that posts to `/api/org/${orgId}/ai-settings/deployments/${deployment.id}/evaluate` through `requestJson`, stores the returned `runId` in state, and renders the hook's progress. Replace the `{n} evaluated workloads` line with per-workload state derived from `verified_workloads`.
 
-- [ ] **Step 5: Gate the write-access checkbox**
+- [x] **Step 5: Gate the write-access checkbox**
 
 In the routing section, compute the selected deployment's evidence for the workload and branch:
 
@@ -2439,12 +2439,12 @@ In the routing section, compute the selected deployment's evidence for the workl
 
 When the most recent run for that deployment recorded a blocked verdict, render the count of failed required cases above the checkbox as "{n} required checks failed. Enabling write access overrides that."
 
-- [ ] **Step 6: Run the full gate**
+- [x] **Step 6: Run the full gate**
 
 Run: `npm run verify:types && npm run verify:lint && npm run verify:unit && npm run verify:build`
 Expected: PASS
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add components/settings lib/ai/hooks.ts
@@ -2455,10 +2455,10 @@ git commit -m "feat(ai-settings): run evaluations and gate write access on evide
 
 ## Phase 2B exit criteria
 
-- [ ] `npm run verify:types && npm run verify:lint && npm run verify:unit` all pass
+- [x] `npm run verify:types && npm run verify:lint && npm run verify:unit` all pass
 - [ ] `npm run verify:migrations` passes from a clean local Supabase reset
-- [ ] `npm run verify:build` passes
-- [ ] The coverage guard fails when a workload's cases are emptied — verify by deleting one and re-running
-- [ ] The drift guard fails when a required case is added without a `SUITE_MAJOR` bump — verify by adding one and re-running
+- [x] `npm run verify:build` passes
+- [x] The coverage guard fails when a workload's cases are emptied — verify by deleting one and re-running
+- [x] The drift guard fails when a required case is added without a `SUITE_MAJOR` bump — verify by adding one and re-running
 - [ ] Manual check with a live key and `npm run evals:worker` running: start a run, watch it progress, and confirm a `passed` workload grants write tools with the checkbox unticked
 - [ ] Manual check: confirm `ai_usage_log` gained rows attributed to the org for the evaluation run

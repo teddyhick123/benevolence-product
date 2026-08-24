@@ -17,6 +17,7 @@ vi.mock('@/lib/api/admin-client', () => ({
 import { resolveOrganizationAIExecution } from '@/lib/ai/resolver';
 
 import { RESOLVER_SCOPE as scope, configuredRoute } from './resolver-fixtures';
+import { SUITE_VERSION } from '@/lib/ai/evals/version';
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -83,7 +84,7 @@ describe('organization AI route resolution', () => {
     const route = configuredRoute();
     route.deployments[0].verified_workloads = {
       assistant: {
-        evalSuiteVersion: 'assistant-v1',
+        evalSuiteVersion: SUITE_VERSION,
         verifiedAt: new Date().toISOString(),
         result: 'passed',
       },

@@ -18,7 +18,7 @@ type Deployment = {
   name: string;
   status: string;
   catalog_template_id: string | null;
-  verified_workloads: Record<string, unknown>;
+  verified_workloads: Record<string, VerificationEvidence | undefined>;
 };
 type RouteTarget = {
   target_kind: 'deployment' | 'platform_default';
@@ -32,6 +32,41 @@ type WorkloadRoute = {
 };
 type Workload = { id: string; displayName: string };
 type CatalogTemplate = { id: string; displayName: string; modelVendor: string; connector: string };
+
+type VerificationEvidence = {
+  result?: string;
+  verifiedAt?: string;
+  evalSuiteVersion?: string;
+};
+
+/**
+ * Mirrors currentVerificationResult in lib/ai/resolver.ts. Evidence from a
+ * superseded suite or outside the ninety-day window does not count, so the
+ * interface must not claim it does.
+ */
+const SUITE_VERSION = 'deployment-suite-v1';
+const EVIDENCE_WINDOW_MS = 90 * 24 * 60 * 60 * 1000;
+
+function currentEvidence(evidence: VerificationEvidence | undefined): 'passed' | 'conditional' | null {
+  if (!evidence?.verifiedAt || evidence.evalSuiteVersion !== SUITE_VERSION) return null;
+  if (evidence.result !== 'passed' && evidence.result !== 'conditional') return null;
+  const verifiedAt = new Date(evidence.verifiedAt);
+  if (!Number.isFinite(verifiedAt.getTime())) return null;
+  return Date.now() - verifiedAt.getTime() <= EVIDENCE_WINDOW_MS ? evidence.result : null;
+}
+
+function evidenceLabel(evidence: VerificationEvidence | undefined): string {
+  const current = currentEvidence(evidence);
+  if (current === 'passed') return 'verified';
+  if (current === 'conditional') return 'partially verified';
+  return evidence ? 'needs re-evaluation' : 'not verified';
+}
+
+function formatDate(value: string | undefined): string {
+  if (!value) return '';
+  const date = new Date(value);
+  return Number.isFinite(date.getTime()) ? date.toLocaleDateString() : '';
+}
 
 const CONNECTOR_OPTIONS = [
   {
@@ -80,6 +115,7 @@ export default function AIModelsSettings({ orgId }: { orgId: string }) {
   const [routeChoices, setRouteChoices] = useState<Record<string, string>>({});
   const [platformFallback, setPlatformFallback] = useState<Record<string, boolean>>({});
   const [writeAccess, setWriteAccess] = useState<Record<string, boolean>>({});
+  const [activeRun, setActiveRun] = useState<{ deploymentId: string; runId: string } | null>(null);
 
   const activeConnections = useMemo(
     () => data?.connections.filter(connection => connection.status === 'active') ?? [],
@@ -308,18 +344,34 @@ export default function AIModelsSettings({ orgId }: { orgId: string }) {
             <div key={deployment.id} className="flex items-center justify-between gap-3 rounded-lg border p-4">
               <div>
                 <div className="font-medium">{deployment.name}</div>
-                <div className="text-xs text-gray-500">{deployment.status} · {Object.keys(deployment.verified_workloads ?? {}).length} evaluated workloads</div>
+                <div className="text-xs text-gray-500">{deployment.status}</div>
+                <div className="mt-1 space-y-0.5">
+                  {Object.entries(deployment.verified_workloads ?? {}).length === 0 && (
+                    <div className="text-xs text-gray-500">No workloads evaluated yet</div>
+                  )}
+                  {Object.entries(deployment.verified_workloads ?? {}).map(([workloadId, evidence]) => (
+                    <div key={workloadId} className="text-xs text-gray-600">
+                      {workloadId} · {evidenceLabel(evidence)}
+                      {currentEvidence(evidence) ? ` (${formatDate(evidence?.verifiedAt)})` : ''}
+                    </div>
+                  ))}
+                </div>
               </div>
               <div className="flex gap-2">
                 <button className="rounded border px-3 py-1.5 text-sm" disabled={busy !== null} onClick={() => perform(
                   `evaluate-${deployment.id}`,
-                  () => requestJson(`/api/org/${orgId}/ai-settings/deployments/${deployment.id}/evaluate`, {
-                    method: 'POST',
-                    headers: { 'content-type': 'application/json' },
-                    body: JSON.stringify({ workloadId: 'summaries' }),
-                  }),
-                  'Compatibility evaluation passed conditionally.',
-                )}>Evaluate</button>
+                  async () => {
+                    // No workload list: the server evaluates everything the
+                    // deployment's template can actually serve.
+                    const response = await requestJson<{ runId?: string }>(
+                      `/api/org/${orgId}/ai-settings/deployments/${deployment.id}/evaluate`,
+                      { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({}) },
+                    );
+                    setActiveRun(response?.runId ? { deploymentId: deployment.id, runId: response.runId } : null);
+                    return response;
+                  },
+                  'Evaluation started. Results appear as each case completes.',
+                )}>Run evaluation</button>
                 <button className="rounded border border-red-200 px-3 py-1.5 text-sm text-red-700" disabled={busy !== null} onClick={() => perform(
                   `delete-deployment-${deployment.id}`,
                   () => requestJson(`/api/org/${orgId}/ai-settings/deployments/${deployment.id}`, { method: 'DELETE' }),
@@ -381,14 +433,26 @@ export default function AIModelsSettings({ orgId }: { orgId: string }) {
                         <input type="checkbox" checked={platformFallback[workload.id] ?? false} onChange={event => setPlatformFallback(current => ({ ...current, [workload.id]: event.target.checked }))} />
                         Explicitly allow platform-funded fallback
                       </label>
-                      <label className="flex items-center gap-2 text-xs text-gray-600">
-                        <input
-                          type="checkbox"
-                          checked={writeAccess[workload.id] ?? false}
-                          onChange={event => setWriteAccess(current => ({ ...current, [workload.id]: event.target.checked }))}
-                        />
-                        Allow this model to make changes (unverified — the assistant is read-only without this)
-                      </label>
+                      {currentEvidence(
+                        data.deployments.find(item => item.id === value)?.verified_workloads?.[workload.id],
+                      ) === 'passed' ? (
+                        <p className="text-xs text-gray-600">
+                          Write access granted by evaluation, verified{' '}
+                          {formatDate(
+                            data.deployments.find(item => item.id === value)
+                              ?.verified_workloads?.[workload.id]?.verifiedAt,
+                          )}.
+                        </p>
+                      ) : (
+                        <label className="flex items-center gap-2 text-xs text-gray-600">
+                          <input
+                            type="checkbox"
+                            checked={writeAccess[workload.id] ?? false}
+                            onChange={event => setWriteAccess(current => ({ ...current, [workload.id]: event.target.checked }))}
+                          />
+                          Allow this model to make changes (unverified — the assistant is read-only without this)
+                        </label>
+                      )}
                     </>
                   )}
                 </div>

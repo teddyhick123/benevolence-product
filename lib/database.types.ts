@@ -246,6 +246,131 @@ export type Database = {
           },
         ]
       }
+      ai_deployment_evaluation_results: {
+        Row: {
+          case_id: string
+          created_at: string
+          detail: string
+          id: string
+          passed: boolean
+          required: boolean
+          run_id: string
+          workload_id: string
+        }
+        Insert: {
+          case_id: string
+          created_at?: string
+          detail?: string
+          id?: string
+          passed: boolean
+          required: boolean
+          run_id: string
+          workload_id: string
+        }
+        Update: {
+          case_id?: string
+          created_at?: string
+          detail?: string
+          id?: string
+          passed?: boolean
+          required?: boolean
+          run_id?: string
+          workload_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_deployment_evaluation_results_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "ai_deployment_evaluation_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_deployment_evaluation_runs: {
+        Row: {
+          case_set_hash: string
+          created_at: string
+          deployment_id: string
+          error: string | null
+          failure_kind: string | null
+          finished_at: string | null
+          id: string
+          org_id: string
+          requested_by: string | null
+          started_at: string | null
+          status: string
+          suite_version: string
+          workload_ids: string[]
+        }
+        Insert: {
+          case_set_hash: string
+          created_at?: string
+          deployment_id: string
+          error?: string | null
+          failure_kind?: string | null
+          finished_at?: string | null
+          id?: string
+          org_id: string
+          requested_by?: string | null
+          started_at?: string | null
+          status?: string
+          suite_version: string
+          workload_ids: string[]
+        }
+        Update: {
+          case_set_hash?: string
+          created_at?: string
+          deployment_id?: string
+          error?: string | null
+          failure_kind?: string | null
+          finished_at?: string | null
+          id?: string
+          org_id?: string
+          requested_by?: string | null
+          started_at?: string | null
+          status?: string
+          suite_version?: string
+          workload_ids?: string[]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_deployment_evaluation_runs_deployment_id_fkey"
+            columns: ["deployment_id"]
+            isOneToOne: false
+            referencedRelation: "org_ai_deployments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_deployment_evaluation_runs_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "my_organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_deployment_evaluation_runs_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_deployment_evaluation_runs_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "v_compliance_dashboard"
+            referencedColumns: ["org_id"]
+          },
+          {
+            foreignKeyName: "ai_deployment_evaluation_runs_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "v_org_modules"
+            referencedColumns: ["org_id"]
+          },
+        ]
+      }
       ai_messages: {
         Row: {
           content: Json

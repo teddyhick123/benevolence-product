@@ -1,17 +1,30 @@
 import { z } from 'zod';
 import { isAccessDenied, requireOrgAccess } from '@/lib/api/access';
-import { createAICredentialRepository } from '@/lib/api/repositories/ai-credentials';
 import { createAISettingsRepository } from '@/lib/api/repositories/ai-settings';
+import { createAIEvaluationRepository } from '@/lib/api/repositories/ai-evaluations';
 import { jsonError, jsonOk } from '@/lib/api/responses';
-import { aiDeploymentEvaluationLimiter } from '@/lib/api/rate-limit';
-import { aiWorkloadIdSchema, openRouterProviderPreferencesSchema } from '@/lib/schemas/ai-settings';
-import { getAIDeploymentTemplate } from '@/lib/ai/catalog';
-import { getAIWorkload } from '@/lib/ai/workloads';
-import { resolveAIExecution } from '@/lib/ai/resolver';
-import { createAIConnector, type AIConnectorFactoryContext } from '@/lib/ai/connectors/registry';
+import { aiWorkloadIdSchema } from '@/lib/schemas/ai-settings';
+import { getAIDeploymentTemplate, type VerifiedDeploymentTemplate } from '@/lib/ai/catalog';
+import { AI_WORKLOADS, type AIWorkloadId } from '@/lib/ai/workloads';
+import { enqueueEvaluationRun } from '@/lib/ai/evals/queue';
+import { SUITE_VERSION, caseSetHash } from '@/lib/ai/evals/version';
 
 type RouteParams = { params: Promise<{ orgId: string; deploymentId: string }> };
-const inputSchema = z.object({ workloadId: aiWorkloadIdSchema }).strict();
+
+const inputSchema = z.object({
+  workloadIds: z.array(aiWorkloadIdSchema).min(1).max(9).optional(),
+}).strict();
+
+/**
+ * Only workloads the template can actually serve. This is what keeps
+ * transcription out of the list for a text-only template rather than
+ * recording a failure for a capability the deployment never claimed.
+ */
+function defaultWorkloadsFor(template: VerifiedDeploymentTemplate): AIWorkloadId[] {
+  return (Object.keys(AI_WORKLOADS) as AIWorkloadId[]).filter(workloadId =>
+    AI_WORKLOADS[workloadId].requiredCapabilities.every(capability =>
+      template.advertisedCapabilities.includes(capability)));
+}
 
 export async function POST(request: Request, { params }: RouteParams) {
   const { orgId, deploymentId } = await params;
@@ -20,9 +33,8 @@ export async function POST(request: Request, { params }: RouteParams) {
   const parsed = inputSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return jsonError('Validation failed', 400, { details: parsed.error.format() });
   const actorId = access.context.principal.userId;
-  const limit = await aiDeploymentEvaluationLimiter.limit(`${orgId}:${actorId}:${deploymentId}`);
-  if (!limit.success) return jsonError('Deployment evaluation limit reached', 429, { reset: limit.reset });
   const settings = createAISettingsRepository(access.context);
+
   try {
     const { deployment, connection } = await settings.getDeploymentForEvaluation(deploymentId);
     if (deployment.status !== 'active' || connection.status !== 'active') {
@@ -32,53 +44,42 @@ export async function POST(request: Request, { params }: RouteParams) {
       return jsonError('Deployment has no catalog template and cannot be evaluated', 400);
     }
     const template = getAIDeploymentTemplate(deployment.catalog_template_id);
-    const workload = getAIWorkload(parsed.data.workloadId);
-    const missing = workload.requiredCapabilities.filter(
-      capability => !template.advertisedCapabilities.includes(capability),
-    );
-    if (missing.length > 0) return jsonError(`Deployment is missing: ${missing.join(', ')}`, 400);
-    const provider = connection.connector === 'openrouter'
-      ? openRouterProviderPreferencesSchema.parse({
-        ...(((connection.config as Record<string, unknown>).provider as Record<string, unknown>) ?? {}),
-        ...(((deployment.config as Record<string, unknown>).provider as Record<string, unknown>) ?? {}),
-      })
-      : undefined;
-    const basePlan = resolveAIExecution({ kind: 'organization', orgId }, parsed.data.workloadId);
-    const plan = {
-      ...basePlan,
-      connector: connection.connector as typeof basePlan.connector,
-      requestedModel: deployment.provider_model_id,
-      connectionId: connection.id,
-      deploymentId: deployment.id,
-      modelVendor: template.modelVendor,
-      ...(provider ? { providerPreferences: provider } : {}),
-    };
-    const result = await createAICredentialRepository({ orgId, actorId })
-      .withCredential(connection.id, (credential) => {
-        const context: AIConnectorFactoryContext = connection.connector === 'openrouter'
-          ? { openrouter: { apiKey: credential.apiKey, provider } }
-          : connection.connector === 'anthropic'
-            ? { anthropic: { apiKey: credential.apiKey } }
-            : { openai: { apiKey: credential.apiKey } };
-        return createAIConnector(connection.connector as never, context).generateText!(plan, {
-          system: 'This is a bounded model compatibility check. Follow the requested output exactly.',
-          messages: [{ role: 'user', content: 'Reply with exactly: BENE_OK' }],
-          maxOutputTokens: 16,
-          signal: AbortSignal.timeout(20_000),
-        });
-      });
-    if (result.text.trim() !== 'BENE_OK') return jsonError('Deployment did not pass the compatibility check', 422);
-    const evidence = await settings.recordDeploymentEvaluation(
+    const requested = parsed.data.workloadIds ?? defaultWorkloadsFor(template);
+    if (requested.length === 0) {
+      return jsonError('Deployment supports no evaluable workloads', 400);
+    }
+    const unsupported = requested.filter(workloadId =>
+      !AI_WORKLOADS[workloadId].requiredCapabilities.every(capability =>
+        template.advertisedCapabilities.includes(capability)));
+    if (unsupported.length > 0) {
+      return jsonError(`Deployment cannot serve: ${unsupported.join(', ')}`, 400);
+    }
+
+    const evaluations = createAIEvaluationRepository(access.context);
+    if (await evaluations.countableRunsInLastDay(deploymentId) >= evaluations.dailyRunLimit) {
+      return jsonError('Deployment evaluation limit reached for today', 429);
+    }
+
+    const run = await evaluations.createRun({
       deploymentId,
-      parsed.data.workloadId,
-      {
-        evalSuiteVersion: 'phase1-compatibility-v1',
-        verifiedAt: new Date().toISOString(),
-        result: 'conditional',
-      },
-    );
-    return jsonOk({ evidence });
-  } catch {
-    return jsonError('Deployment evaluation failed', 502);
+      workloadIds: requested,
+      suiteVersion: SUITE_VERSION,
+      caseSetHash: caseSetHash(),
+    });
+    await enqueueEvaluationRun({
+      runId: run.id,
+      orgId,
+      deploymentId,
+      actorId,
+      workloadIds: requested,
+    });
+    return jsonOk({ runId: run.id }, { status: 202 });
+  } catch (error) {
+    // The one-live-run partial index surfaces as a unique violation.
+    const message = error instanceof Error ? error.message : '';
+    if (/duplicate key|unique/i.test(message)) {
+      return jsonError('An evaluation is already running for this deployment', 409);
+    }
+    return jsonError('Evaluation could not be started', 502);
   }
 }

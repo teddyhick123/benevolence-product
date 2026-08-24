@@ -49,7 +49,6 @@ export const aiLimiter = createLimiter(30, '1h', 'ratelimit:ai');
 // Organization AI administration can make provider-backed calls. These limits
 // are intentionally separate from ordinary product usage.
 export const aiConnectionTestLimiter = createLimiter(6, '1h', 'ratelimit:ai-connection-test');
-export const aiDeploymentEvaluationLimiter = createLimiter(3, '1d', 'ratelimit:ai-deployment-evaluation');
 
 // Rate limiter for charity search — keyed per IP
 // 120 requests per minute protects the 2M-row charities table from scraping

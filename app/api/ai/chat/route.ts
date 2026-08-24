@@ -31,6 +31,14 @@ const redis = new Redis({
  * POST /api/ai/chat
  * Main AI chat endpoint.
  */
+function spendCapMessage(turn: { effectiveLimitUsd: number; spendUsd: number; periodStart: string }): string {
+  const money = (value: number) =>
+    value.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+  const resets = new Date(turn.periodStart);
+  resets.setUTCMonth(resets.getUTCMonth() + 1);
+  return `Monthly AI limit of ${money(turn.effectiveLimitUsd)} reached (${money(turn.spendUsd)} spent). Resets ${resets.toISOString().slice(0, 10)}.`;
+}
+
 export async function POST(req: NextRequest) {
   let activeTurn: {
     id: string;
@@ -89,6 +97,15 @@ export async function POST(req: NextRequest) {
     const { orgId, role, db } = portfolioAccess.context;
     const repository = createAiChatRepository(portfolioAccess.context);
     const turn = await repository.beginTurn(requestId, message);
+    // 402 rather than 429: this is a spending limit, not a rate limit, and the
+    // distinction matters to anyone reading logs.
+    if (turn.state === 'spend_cap_reached') {
+      return jsonError(spendCapMessage(turn), 402, {
+        requestId,
+        effectiveLimitUsd: turn.effectiveLimitUsd,
+        spendUsd: turn.spendUsd,
+      });
+    }
     if (turn.state === 'completed') {
       return jsonOk(turn.response);
     }

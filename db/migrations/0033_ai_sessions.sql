@@ -356,6 +356,11 @@ DECLARE
   v_session_id UUID;
   v_turn public.ai_turns%ROWTYPE;
   v_existing_content JSONB;
+  v_org_id UUID;
+  v_cap public.org_ai_spend_caps%ROWTYPE;
+  v_limit NUMERIC;
+  v_spend NUMERIC;
+  v_period_start TIMESTAMPTZ;
 BEGIN
   IF auth.role() IS DISTINCT FROM 'service_role'
      AND (
@@ -367,6 +372,47 @@ BEGIN
 
   IF p_content IS NULL OR jsonb_typeof(p_content) IS DISTINCT FROM 'string' THEN
     RAISE EXCEPTION 'Turn content must be a JSON string' USING ERRCODE = '22023';
+  END IF;
+
+  -- Spend cap. Only hard_stop refuses here; read_only and own_key change how
+  -- the turn resolves and are applied in lib/ai/resolver.ts. A cap is an
+  -- expected condition rather than a fault, so this returns instead of
+  -- raising: raising would be indistinguishable from a real failure.
+  SELECT org_id INTO v_org_id FROM public.portfolios WHERE id = p_portfolio_id;
+
+  SELECT * INTO v_cap FROM public.org_ai_spend_caps WHERE org_id = v_org_id;
+
+  IF FOUND AND v_cap.on_limit = 'hard_stop' THEN
+    v_limit := LEAST(
+      COALESCE(v_cap.platform_limit_usd, v_cap.org_limit_usd),
+      COALESCE(v_cap.org_limit_usd, v_cap.platform_limit_usd)
+    );
+
+    -- A workload routed to an organization deployment spends the org's own
+    -- money and is not counted, so it is not capped either.
+    IF v_limit IS NOT NULL AND NOT EXISTS (
+      SELECT 1 FROM public.org_ai_routes r
+      WHERE r.org_id = v_org_id
+        AND r.workload_id = 'assistant'
+        AND r.is_enabled
+        AND EXISTS (
+          SELECT 1 FROM public.org_ai_route_targets t
+          WHERE t.route_id = r.id AND t.target_kind = 'deployment'
+        )
+    ) THEN
+      v_period_start := date_trunc('month', now());
+      v_spend := public.org_platform_spend(v_org_id, v_period_start);
+
+      IF v_spend >= v_limit THEN
+        RETURN jsonb_build_object(
+          'started', false,
+          'cap_exceeded', true,
+          'effective_limit_usd', v_limit,
+          'period_spend_usd', v_spend,
+          'period_start', v_period_start
+        );
+      END IF;
+    END IF;
   END IF;
 
   -- Serialize request claims across portfolios, then active-session selection.

@@ -61,6 +61,14 @@ function replayStream(response: AiChatResponsePayload) {
 }
 
 /** POST /api/ai/chat/stream — stream NDJSON assistant events. */
+function spendCapMessage(turn: { effectiveLimitUsd: number; spendUsd: number; periodStart: string }): string {
+  const money = (value: number) =>
+    value.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+  const resets = new Date(turn.periodStart);
+  resets.setUTCMonth(resets.getUTCMonth() + 1);
+  return `Monthly AI limit of ${money(turn.effectiveLimitUsd)} reached (${money(turn.spendUsd)} spent). Resets ${resets.toISOString().slice(0, 10)}.`;
+}
+
 export async function POST(req: NextRequest) {
   const userAccess = await requireUserAccess();
   if (isAccessDenied(userAccess)) {
@@ -117,6 +125,10 @@ export async function POST(req: NextRequest) {
     return streamError(message, 500);
   }
 
+  // 402 rather than 429: a spending limit, not a rate limit.
+  if (turn.state === 'spend_cap_reached') {
+    return streamError(spendCapMessage(turn), 402);
+  }
   if (turn.state === 'completed') return replayStream(turn.response);
   if (turn.state !== 'started') {
     return streamError(

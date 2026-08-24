@@ -11,8 +11,7 @@
 // that, the trigger rejects any change to those fields (ERRCODE P0031).
 import { Queue, Worker, type Job } from 'bullmq';
 import { createElevatedClient } from '@/lib/api/admin-client';
-import { createAIProvider } from '@/lib/ai/factory';
-import { AI_MODELS } from '@/lib/ai/models';
+import { builderBuild, builderReview } from '@/lib/builder/ai';
 import { buildScaffoldContext, formatScaffoldContextForPrompt } from './scaffold-context';
 import { getCodebaseIndex, formatIndexForPrompt } from './codebase-index';
 import { evaluatePathPolicy, evaluateFileBudget } from './path-policy';
@@ -153,7 +152,7 @@ export async function runBuildPhase(data: ScaffoldBuildJobData): Promise<void> {
     // ── Scaffold path ──────────────────────────────────────────────────────
     await transition(supabase, proposalId, orgId, 'queued', 'generating');
 
-    files = await generateFilesFromPlan(supabase, revisionId, planContent);
+    files = await generateFilesFromPlan(supabase, orgId, revisionId, planContent);
 
     // Step 3: policy + budget are evaluated here, but the decision (which
     // needs an attempt row to hang findings off) is deferred to step 5.
@@ -307,6 +306,7 @@ export async function runBuildPhase(data: ScaffoldBuildJobData): Promise<void> {
 
   // ── Step 6: single-model automated review ─────────────────────────────────
   const { promptText, rawResponse } = await runModelReview(
+    orgId,
     planContent ?? null,
     // A proposal touching a large generated file can produce a multi-megabyte
     // diff. Cap it so an oversized review prompt degrades into a truncated
@@ -478,6 +478,7 @@ async function completeAttempt(
 
 async function generateFilesFromPlan(
   supabase: ReturnType<typeof createElevatedClient>,
+  orgId: string,
   revisionId: string,
   planContent: ScaffoldPlanContent
 ): Promise<ProposalFile[]> {
@@ -491,22 +492,16 @@ async function generateFilesFromPlan(
   const contextPrompt = formatScaffoldContextForPrompt(scaffoldCtx);
   const systemPrompt = `You are a senior software engineer implementing a module for the ${branding.appName} platform.${contextPrompt}`;
 
-  const provider = createAIProvider();
   const generatedFiles: ProposalFile[] = [];
   const progress: Array<{ path: string; done: boolean }> = [];
 
   for (const file of planContent.files) {
     const userPrompt = `Module plan:\n${JSON.stringify(planContent, null, 2)}\n\nImplement this specific file: ${file.path}\n${file.description}\n\nReturn ONLY the complete file content with no explanation or markdown fences.`;
 
-    const response = await provider.createMessage({
-      model: AI_MODELS.scaffoldBuild,
-      maxTokens: 4096,
-      system: systemPrompt,
-      messages: [{ role: 'user', content: userPrompt }],
-    });
-
-    const textBlock = response.content.find(b => b.type === 'text');
-    const content = textBlock?.type === 'text' ? textBlock.text : '';
+    const content = await builderBuild(
+      { orgId },
+      { system: systemPrompt, prompt: userPrompt },
+    );
     generatedFiles.push({ path: file.path, content });
     progress.push({ path: file.path, done: true });
 
@@ -522,10 +517,10 @@ async function generateFilesFromPlan(
 }
 
 async function runModelReview(
+  orgId: string,
   planContent: ScaffoldPlanContent | null,
   authoritativeDiff: string | null
 ): Promise<{ promptText: string; rawResponse: string }> {
-  const provider = createAIProvider();
 
   const planText = planContent
     ? JSON.stringify(planContent, null, 2)
@@ -555,15 +550,14 @@ Respond with ONLY a valid JSON object (no markdown fences):
 
 Severity contract: use "blocker" or "error" for anything that must block a pull request (security, org isolation, RLS, schema canon violations, broken code). Use "warning"/"info" for improvements. The summary_score is a summary only; it does not gate anything.`;
 
-  const response = await provider.createMessage({
-    model: AI_MODELS.scaffoldReview,
-    maxTokens: 2048,
-    messages: [{ role: 'user', content: promptText }],
-    system: 'You are a senior code reviewer. Return only valid JSON.',
-  });
+  const rawResponse = await builderReview(
+    { orgId },
+    {
+      system: 'You are a senior code reviewer. Return only valid JSON.',
+      prompt: promptText,
+    },
+  );
 
-  const textBlock = response.content.find(b => b.type === 'text');
-  const rawResponse = textBlock?.type === 'text' ? textBlock.text : '';
   return { promptText, rawResponse };
 }
 

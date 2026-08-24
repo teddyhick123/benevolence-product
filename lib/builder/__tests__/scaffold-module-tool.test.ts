@@ -22,32 +22,29 @@ describe('scaffold_module tool', () => {
     expect(src).toMatch(/export interface ScaffoldPlanContent/);
   });
 
-  it('uses AI_MODELS.scaffoldPlan for the planning call', () => {
-    expect(src).toMatch(/AI_MODELS\.scaffoldPlan/);
+  // The planning model is no longer named inline: it comes from the
+  // builder_plan workload's platform default, which is what makes the call
+  // metered and attributable.
+  it('runs the planning call through the Builder boundary', () => {
+    expect(src).toMatch(/builderPlan\(/);
+    expect(src).not.toMatch(/createAIProvider\(/);
   });
 });
 
 // ─── Task 5: scaffold_module persists code_state:'plan_ready' + plan_content,
 // no revision (revisions are created later, at claim time by builder_claim_code_run). ───
 
-vi.mock('@/lib/ai/factory', () => ({
-  createAIProvider: vi.fn(() => ({
-    createMessage: vi.fn().mockResolvedValue({
-      content: [{
-        type: 'text',
-        text: JSON.stringify({
-          moduleName: 'Volunteer Tracking',
-          moduleSlug: 'volunteer_tracking',
-          moduleIcon: 'users',
-          tables: [{ name: 'volunteer_records', columns: [{ name: 'id', type: 'uuid', nullable: false }] }],
-          files: [{ path: 'lib/example/volunteer.ts', description: 'Example file' }],
-          registryEntry: "volunteer_tracking: { id: 'volunteer_tracking' }",
-          apiShape: 'Fields: hours_logged (number)',
-        }),
-      }],
-      stopReason: null,
-      model: 'test-model',
-    }),
+// Mocked at the Builder boundary rather than the provider: Builder reaches
+// models only through lib/builder/ai.ts now, so that is the seam.
+vi.mock('@/lib/builder/ai', () => ({
+  builderPlan: vi.fn().mockResolvedValue(JSON.stringify({
+    moduleName: 'Volunteer Tracking',
+    moduleSlug: 'volunteer_tracking',
+    moduleIcon: 'users',
+    tables: [{ name: 'volunteer_records', columns: [{ name: 'id', type: 'uuid', nullable: false }] }],
+    files: [{ path: 'lib/example/volunteer.ts', description: 'Example file' }],
+    registryEntry: "volunteer_tracking: { id: 'volunteer_tracking' }",
+    apiShape: 'Fields: hours_logged (number)',
   })),
 }));
 

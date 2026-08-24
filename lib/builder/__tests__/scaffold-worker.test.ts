@@ -41,17 +41,18 @@ let aiQueue: string[] = [];
 // Recorded so tests can assert on what actually reaches the model, not just on
 // what comes back from it.
 let aiPrompts: string[] = [];
-vi.mock('@/lib/ai/factory', () => ({
-  createAIProvider: () => ({
-    createMessage: vi.fn(async (request: any) => {
-      aiPrompts.push(JSON.stringify(request));
-      return {
-        content: [{ type: 'text', text: aiQueue.shift() ?? '' }],
-        stopReason: null,
-        model: 'test-model',
-      };
-    }),
-    createStream: vi.fn(),
+// Mocked at the Builder boundary rather than the provider: the worker reaches
+// models only through lib/builder/ai.ts now, so that is the seam. Both
+// functions drain the same queue so the existing ordering assertions on
+// aiPrompts and aiQueue continue to hold.
+vi.mock('@/lib/builder/ai', () => ({
+  builderBuild: vi.fn(async (_scope: unknown, input: { system: string; prompt: string }) => {
+    aiPrompts.push(JSON.stringify(input));
+    return aiQueue.shift() ?? '';
+  }),
+  builderReview: vi.fn(async (_scope: unknown, input: { system: string; prompt: string }) => {
+    aiPrompts.push(JSON.stringify(input));
+    return aiQueue.shift() ?? '';
   }),
 }));
 

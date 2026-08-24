@@ -364,6 +364,7 @@ CREATE POLICY "table_service" ON public.table_name
 
 ---
 
+<!-- ai-execution-protocol:start -->
 ## AI Tool Development
 
 All client-facing AI execution starts with a stable workload from
@@ -374,8 +375,20 @@ keys. Pass the organization and actor scope proven by the access/repository
 boundary. Resolve one execution plan after `begin_ai_turn` and reuse it for the
 entire durable assistant turn; replayed completed turns never invoke a model.
 
-Builder, constructor, and scaffold workers are separate development tooling and
-retain their dedicated provider/model configuration.
+Builder executes through the same gateway as product code. Its four workloads —
+`builder_chat`, `builder_plan`, `builder_build`, `builder_review` — resolve
+platform defaults whose connector and model are environment-configurable, and
+`lib/builder/ai.ts` is the only module that may construct a provider directly.
+Builder workloads are never routable to an organization deployment: routing them
+would move platform spend onto a client's credential. Every Builder call is
+metered through `ai_usage_log` like any other.
+
+Every model call is priced when its usage row is written. Provider-reported cost
+wins when present; otherwise `lib/ai/rates.ts` prices it and the row records the
+`rate_version` that produced the figure. A model with no rate is recorded as
+`unpriced` rather than guessed, and a coverage guard fails the build when a
+platform-default model ships without one.
+<!-- ai-execution-protocol:end -->
 
 ### Tool Definition Best Practices
 

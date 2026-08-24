@@ -116,3 +116,29 @@ describe('agent module-extension instructions', () => {
     expect(claude).not.toContain(rule);
   });
 });
+
+const AI_START = '<!-- ai-execution-protocol:start -->';
+const AI_END = '<!-- ai-execution-protocol:end -->';
+
+describe('agent AI execution instructions', () => {
+  const agents = markedSection('AGENTS.md', AI_START, AI_END);
+  const claude = markedSection('CLAUDE.md', AI_START, AI_END);
+
+  it('keeps both copies identical', () => {
+    expect(claude).toBe(agents);
+  });
+
+  it('names the Builder boundary rather than a blanket carve-out', () => {
+    expect(agents).toMatch(/lib\/builder\/ai\.ts/);
+    expect(agents).not.toMatch(/retain their dedicated provider\/model configuration/);
+  });
+
+  it('states that builder workloads are platform-only', () => {
+    expect(agents).toMatch(/never routable|platform-only|not routable/i);
+  });
+
+  it('states that usage rows are priced at write time', () => {
+    expect(agents).toMatch(/rate_version/);
+    expect(agents).toMatch(/unpriced/);
+  });
+});

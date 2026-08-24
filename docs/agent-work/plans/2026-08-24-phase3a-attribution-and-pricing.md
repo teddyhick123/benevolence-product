@@ -1,6 +1,6 @@
 # Phase 3A — Attribution and Pricing Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Make every model call in the platform attributable to an organization and priced in dollars, so "what did this organization cost us?" has an answer.
 
@@ -80,7 +80,7 @@ The same reset also closes Phase 2B's outstanding `verify:migrations` exit crite
   - `AIWorkloadId` gains `'builder_chat' | 'builder_plan' | 'builder_build' | 'builder_review'`.
   - `orgRoutableWorkloads(): AIWorkloadDefinition[]` exported from `lib/ai/workloads.ts`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `lib/ai/__tests__/builder-workloads.test.ts`:
 
@@ -139,12 +139,12 @@ describe('builder workloads', () => {
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `npx vitest run lib/ai/__tests__/builder-workloads.test.ts`
 Expected: FAIL — `orgRoutableWorkloads` is not exported and `AI_WORKLOADS.builder_chat` is undefined.
 
-- [ ] **Step 3: Add the routing flag to the workload type**
+- [x] **Step 3: Add the routing flag to the workload type**
 
 In `lib/ai/workloads.ts`, add to `AIWorkloadDefinition` (after `toolRisk`):
 
@@ -159,7 +159,7 @@ In `lib/ai/workloads.ts`, add to `AIWorkloadDefinition` (after `toolRisk`):
 
 Extend `AIWorkloadId` with the four builder ids, and add `orgRoutable: true` to each of the nine existing workload definitions.
 
-- [ ] **Step 4: Add the four Builder workloads**
+- [x] **Step 4: Add the four Builder workloads**
 
 Append to `AI_WORKLOADS`, before the closing `} as const;`:
 
@@ -221,7 +221,7 @@ Append to `AI_WORKLOADS`, before the closing `} as const;`:
 
 `inputDataClass` is `'internal'` for all four: Builder operates on the platform's own codebase, not tenant data.
 
-- [ ] **Step 5: Export the routable filter**
+- [x] **Step 5: Export the routable filter**
 
 Add at the end of `lib/ai/workloads.ts`:
 
@@ -231,7 +231,7 @@ export function orgRoutableWorkloads(): AIWorkloadDefinition[] {
 }
 ```
 
-- [ ] **Step 6: Document the connector variables**
+- [x] **Step 6: Document the connector variables**
 
 Append to the AI MODEL SELECTION section of `.env.example`:
 
@@ -245,12 +245,12 @@ AI_CONNECTOR_BUILDER_BUILD=""
 AI_CONNECTOR_BUILDER_REVIEW=""
 ```
 
-- [ ] **Step 7: Run the tests**
+- [x] **Step 7: Run the tests**
 
 Run: `npx vitest run lib/ai tests/integration/env-template-contract.test.ts && npm run verify:types`
 Expected: PASS. The env-template contract test from Phase 1 requires the four new variables; if it fails, they are missing from `.env.example`.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add lib/ai/workloads.ts lib/ai/__tests__/builder-workloads.test.ts .env.example
@@ -274,7 +274,7 @@ git commit -m "feat(ai): add builder workloads and a workload routing scope"
 - Consumes: `orgRoutableWorkloads`, `AI_WORKLOADS` from Task 1.
 - Produces: `aiRouteReplaceSchema` rejects a non-routable `workloadId`. `resolveOrganizationAIExecution` returns the platform default for non-routable workloads without a route lookup.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `tests/integration/builder-workload-boundary.test.ts`:
 
@@ -321,12 +321,12 @@ describe('builder workloads are not routable by an organization', () => {
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `npx vitest run tests/integration/builder-workload-boundary.test.ts`
 Expected: FAIL — the schema accepts `builder_chat` and the payload still spreads all workloads.
 
-- [ ] **Step 3: Reject non-routable workloads in the schema**
+- [x] **Step 3: Reject non-routable workloads in the schema**
 
 In `lib/schemas/ai-settings.ts`, add to `aiRouteReplaceSchema`'s existing `superRefine` body:
 
@@ -342,7 +342,7 @@ In `lib/schemas/ai-settings.ts`, add to `aiRouteReplaceSchema`'s existing `super
 
 `AI_WORKLOADS` is already imported at the top of that file.
 
-- [ ] **Step 4: Filter the settings payload**
+- [x] **Step 4: Filter the settings payload**
 
 In `lib/api/repositories/ai-settings.ts`, change the import to include the filter and replace line 106:
 
@@ -352,7 +352,7 @@ In `lib/api/repositories/ai-settings.ts`, change the import to include the filte
 
 Add `orgRoutableWorkloads` to the existing `@/lib/ai/workloads` import.
 
-- [ ] **Step 5: Short-circuit resolution for non-routable workloads**
+- [x] **Step 5: Short-circuit resolution for non-routable workloads**
 
 In `lib/ai/resolver.ts`, inside `resolveOrganizationAIExecution`, immediately after the workload is available and before the routing repository is queried:
 
@@ -366,7 +366,7 @@ In `lib/ai/resolver.ts`, inside `resolveOrganizationAIExecution`, immediately af
 
 Place this above the `if (!scope.orgId)` guard so a platform-tooling call resolves identically regardless of scope shape.
 
-- [ ] **Step 6: Exclude them from deployment evaluation**
+- [x] **Step 6: Exclude them from deployment evaluation**
 
 In the evaluate route, change `defaultWorkloadsFor` to filter on the flag as well as capabilities:
 
@@ -388,12 +388,12 @@ And add the same condition to the `unsupported` check below it, so an explicitly
         template.advertisedCapabilities.includes(capability)));
 ```
 
-- [ ] **Step 7: Run the tests**
+- [x] **Step 7: Run the tests**
 
 Run: `npx vitest run lib/ai tests/integration && npm run verify:types`
 Expected: PASS. `lib/ai/__tests__/resolver-phase1.test.ts` and `resolver-connectors.test.ts` must still pass — they use `assistant`, which stays routable.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add lib/ai lib/schemas lib/api/repositories/ai-settings.ts app/api/org tests/integration
@@ -419,7 +419,7 @@ git commit -m "feat(ai): enforce the builder workload routing boundary at every 
   - `type PricedUsage = { inputTokens: number; outputTokens: number; cachedInputTokens?: number }`
   - `priceFor(model: string, usage: PricedUsage): { cost: number; rateVersion: string } | null` — null when the model has no rate.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `lib/ai/__tests__/rates.test.ts`:
 
@@ -500,12 +500,12 @@ describe('priceFor', () => {
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `npx vitest run lib/ai/__tests__/rates.test.ts`
 Expected: FAIL — `lib/ai/rates.ts` does not exist.
 
-- [ ] **Step 3: Write the rate table**
+- [x] **Step 3: Write the rate table**
 
 Create `lib/ai/rates.ts`:
 
@@ -570,12 +570,12 @@ export function priceFor(
 }
 ```
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 Run: `npx vitest run lib/ai/__tests__/rates.test.ts && npm run verify:types`
 Expected: PASS (8 tests)
 
-- [ ] **Step 5: Verify the coverage guard actually bites**
+- [x] **Step 5: Verify the coverage guard actually bites**
 
 Temporarily delete the `claude-sonnet-5` entry from `MODEL_RATES` and run:
 
@@ -584,7 +584,7 @@ Expected: FAIL with `claude-sonnet-5 has no rate`. Restore the entry and re-run 
 
 A guard that has never been seen to fail is not known to work.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add lib/ai/rates.ts lib/ai/__tests__/rates.test.ts
@@ -609,7 +609,7 @@ git commit -m "feat(ai): add the per-model rate table and pricing function"
 - Consumes: nothing.
 - Produces: `ai_usage_log` gains `computed_cost numeric`, `cost_source text NOT NULL DEFAULT 'unpriced'`, `rate_version text`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `tests/integration/ai-usage-log-schema.test.ts`:
 
@@ -660,12 +660,12 @@ describe('ai_usage_log owning migration', () => {
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `npx vitest run tests/integration/ai-usage-log-schema.test.ts`
 Expected: FAIL — `0030` declares neither the cost columns nor the folded ones.
 
-- [ ] **Step 3: Rewrite the owning migration**
+- [x] **Step 3: Rewrite the owning migration**
 
 Replace the `CREATE TABLE` in `db/migrations/0030_ai_usage_log.sql` with the full definition. Keep the file's existing indexes, RLS enable, policies and grants below it, and add the `0057` indexes that do not reference later tables:
 
@@ -721,7 +721,7 @@ CREATE INDEX IF NOT EXISTS ai_usage_log_org_workload_created_idx
   ON public.ai_usage_log(org_id, workload_id, created_at DESC);
 ```
 
-- [ ] **Step 4: Reduce the 0057 patch block**
+- [x] **Step 4: Reduce the 0057 patch block**
 
 In `db/migrations/0057_org_ai_runtime.sql`, delete the `user_id` constraint drop/re-add, the conditional `RENAME` `DO` block, and every `ADD COLUMN IF NOT EXISTS` and `ADD CONSTRAINT` now declared in `0030`. Replace the block with only the four FK columns:
 
@@ -737,7 +737,7 @@ ALTER TABLE public.ai_usage_log
 
 Keep `0057`'s `ai_usage_log_turn_id_idx` and `ai_usage_log_deployment_created_idx` indexes and its policy replacements where they are — they depend on these columns.
 
-- [ ] **Step 5: Rebuild the database and regenerate types**
+- [x] **Step 5: Rebuild the database and regenerate types**
 
 Run: `npm run verify:migrations`
 Expected: PASS. This is the destructive reset described in the plan's prerequisite; it rebuilds from `0001` and proves the fold produces the same end state.
@@ -745,12 +745,12 @@ Expected: PASS. This is the destructive reset described in the plan's prerequisi
 Run: `npm run db:types:generate`
 Expected: `lib/database.types.ts` gains `computed_cost`, `cost_source` and `rate_version` on `ai_usage_log` and is otherwise unchanged. Inspect the diff — anything beyond those three columns means the fold changed the schema rather than reorganising it.
 
-- [ ] **Step 6: Run the tests**
+- [x] **Step 6: Run the tests**
 
 Run: `npx vitest run tests/integration/ai-usage-log-schema.test.ts && npm run verify:types`
 Expected: PASS
 
-- [ ] **Step 7: Close the Phase 2B criterion**
+- [x] **Step 7: Close the Phase 2B criterion**
 
 `verify:migrations` passing also satisfies the outstanding exit criterion in `docs/agent-work/plans/2026-08-23-phase2b-evaluation-suite.md`. Tick it:
 
@@ -758,7 +758,7 @@ Expected: PASS
 - [x] `npm run verify:migrations` passes from a clean local Supabase reset
 ```
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add db/migrations lib/database.types.ts tests/integration/ai-usage-log-schema.test.ts docs/agent-work/plans/2026-08-23-phase2b-evaluation-suite.md
@@ -779,7 +779,7 @@ git commit -m "refactor(db): fold the usage log patch into its owning migration 
 - Consumes: `priceFor`, `RATE_VERSION` from Task 3; `AIInvocationRecord` from `lib/ai/execution.ts`.
 - Produces: `resolveCost(record): { reported_cost, computed_cost, cost_source, rate_version, cost_currency }`, exported from `lib/api/repositories/ai-invocations.ts` so it is testable without a database.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `lib/api/repositories/__tests__/ai-invocations-pricing.test.ts`:
 
@@ -845,12 +845,12 @@ describe('resolveCost', () => {
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `npx vitest run lib/api/repositories/__tests__/ai-invocations-pricing.test.ts`
 Expected: FAIL — `resolveCost` is not exported.
 
-- [ ] **Step 3: Add the cost resolver**
+- [x] **Step 3: Add the cost resolver**
 
 In `lib/api/repositories/ai-invocations.ts`, above `createAIInvocationRecorder`:
 
@@ -906,7 +906,7 @@ export function resolveCost(record: AIInvocationRecord): ResolvedCost {
 }
 ```
 
-- [ ] **Step 4: Use it in the insert**
+- [x] **Step 4: Use it in the insert**
 
 In the recorder's `db.from('ai_usage_log').insert({ ... })`, replace the existing `reported_cost` and `cost_currency` lines with a spread:
 
@@ -916,12 +916,12 @@ In the recorder's `db.from('ai_usage_log').insert({ ... })`, replace the existin
 
 Remove the now-duplicated `reported_cost: record.reportedCost ?? null` and `cost_currency: record.costCurrency ?? null` entries.
 
-- [ ] **Step 5: Run the tests**
+- [x] **Step 5: Run the tests**
 
 Run: `npx vitest run lib/api lib/ai && npm run verify:types`
 Expected: PASS
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add lib/api/repositories/ai-invocations.ts lib/api/repositories/__tests__/ai-invocations-pricing.test.ts
@@ -948,7 +948,7 @@ git commit -m "feat(ai): price every invocation at write time and freeze the rat
   - `builderReview(scope, input: { system: string; prompt: string }): Promise<string>`
   - Each accepts an optional `gateway` for tests.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `lib/builder/__tests__/builder-ai.test.ts`:
 
@@ -1019,12 +1019,12 @@ describe('builder AI boundary', () => {
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `npx vitest run lib/builder/__tests__/builder-ai.test.ts`
 Expected: FAIL — `lib/builder/ai.ts` does not exist.
 
-- [ ] **Step 3: Write the boundary module**
+- [x] **Step 3: Write the boundary module**
 
 Create `lib/builder/ai.ts`:
 
@@ -1109,12 +1109,12 @@ export async function* builderChatStream(
 }
 ```
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 Run: `npx vitest run lib/builder/__tests__/builder-ai.test.ts && npm run verify:types`
 Expected: PASS (4 tests)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add lib/builder/ai.ts lib/builder/__tests__/builder-ai.test.ts
@@ -1137,7 +1137,7 @@ git commit -m "feat(builder): add the Builder AI boundary module"
 - Consumes: `builderChatStream`, `builderPlan`, `builderBuild`, `builderReview` from Task 6.
 - Produces: no new exports. `createAIProvider` has exactly two references after this task.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `tests/integration/builder-no-provider-bypass.test.ts`:
 
@@ -1178,12 +1178,12 @@ describe('no provider bypass', () => {
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `npx vitest run tests/integration/builder-no-provider-bypass.test.ts`
 Expected: FAIL, listing four offenders — the chat route, `tools.ts`, and both `scaffold-worker.ts` sites.
 
-- [ ] **Step 3: Convert the planning call in tools.ts**
+- [x] **Step 3: Convert the planning call in tools.ts**
 
 `orgId` and `userId` are already in scope at `lib/builder/tools.ts:1905`. Replace `const provider = createAIProvider();` and the subsequent generation call with:
 
@@ -1196,7 +1196,7 @@ Expected: FAIL, listing four offenders — the chat route, `tools.ts`, and both 
 
 Use `planText` wherever the previous response text was consumed, and remove the `createAIProvider` import if it becomes unused.
 
-- [ ] **Step 4: Thread the organization into the scaffold worker**
+- [x] **Step 4: Thread the organization into the scaffold worker**
 
 `ScaffoldBuildJobData` carries `orgId` (`lib/builder/scaffold-worker.ts:54`) but the two generation helpers do not receive it. Add it to both signatures:
 
@@ -1219,7 +1219,7 @@ async function runModelReview(
 
 Pass `orgId` from the job data at both call sites.
 
-- [ ] **Step 5: Convert both scaffold worker calls**
+- [x] **Step 5: Convert both scaffold worker calls**
 
 In `generateFilesFromPlan`, replace the provider construction and per-file generation with:
 
@@ -1246,7 +1246,7 @@ The function already returns `{ promptText, rawResponse }`, so its signature is 
 
 Neither passes `actorId`: a queued job has no user present, so those rows carry `user_id: null`, which the schema permits.
 
-- [ ] **Step 6: Convert the chat route**
+- [x] **Step 6: Convert the chat route**
 
 In `app/api/org/[orgId]/builder/chat/route.ts`, replace `const provider = createAIProvider();` and the `provider.createStream({...})` call inside the loop with:
 
@@ -1273,12 +1273,12 @@ The route's existing `catch` sends an error event through its local `send` helpe
 
 Import `AIExecutionError` from `@/lib/ai/execution`. Keep whatever event `type` string the route already uses rather than introducing a new one.
 
-- [ ] **Step 7: Run the tests**
+- [x] **Step 7: Run the tests**
 
 Run: `npx vitest run tests/integration lib/builder && npm run verify:types && npm run verify:build`
 Expected: PASS. `tests/integration/builder-ship-retired.test.ts` and the other Builder suites must stay green.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add app/api/org lib/builder tests/integration
@@ -1299,7 +1299,7 @@ git commit -m "feat(builder): route every model call through the metered gateway
 - Consumes: nothing.
 - Produces: a third marker pair, `<!-- ai-execution-protocol:start -->` / `<!-- ai-execution-protocol:end -->`, present and identical in both files.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Add to `tests/integration/agent-instructions-contract.test.ts`, following the existing `markedSection` pattern already in that file:
 
@@ -1326,12 +1326,12 @@ describe('agent AI execution instructions', () => {
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `npx vitest run tests/integration/agent-instructions-contract.test.ts`
 Expected: FAIL — `markedSection` throws because neither file contains the new markers.
 
-- [ ] **Step 3: Wrap and amend the section in AGENTS.md**
+- [x] **Step 3: Wrap and amend the section in AGENTS.md**
 
 Wrap the AI execution section (from the `## AI Tool Development` heading through the carve-out paragraph at line 353) in the marker pair, and replace the final paragraph with:
 
@@ -1348,21 +1348,21 @@ client's credential. Every Builder call is metered through
 
 The replaced paragraph currently reads "Builder, constructor, and scaffold workers are separate development tooling and retain their dedicated provider/model configuration." Drop the reference to **constructor** entirely rather than carrying it forward: `app/api/constructor/chat/route.ts` does not call `createAIProvider`, so the current text grants an exception nothing uses. Confirm with `grep -n 'createAIProvider' app/api/constructor/chat/route.ts`, which should return nothing.
 
-- [ ] **Step 4: Mirror it into CLAUDE.md**
+- [x] **Step 4: Mirror it into CLAUDE.md**
 
 Copy the marked section verbatim from `AGENTS.md` into `CLAUDE.md`, replacing the equivalent section. The test compares them byte for byte, so copy rather than retype.
 
-- [ ] **Step 5: Run the tests**
+- [x] **Step 5: Run the tests**
 
 Run: `npx vitest run tests/integration/agent-instructions-contract.test.ts`
 Expected: PASS
 
-- [ ] **Step 6: Run the full gate**
+- [x] **Step 6: Run the full gate**
 
 Run: `npm run verify:types && npm run verify:lint && npm run verify:unit && npm run verify:build`
 Expected: PASS
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add AGENTS.md CLAUDE.md tests/integration/agent-instructions-contract.test.ts
@@ -1373,10 +1373,12 @@ git commit -m "docs: narrow the Builder carve-out and put it under contract test
 
 ## Phase 3A exit criteria
 
-- [ ] `npm run verify:types && npm run verify:lint && npm run verify:unit` all pass
-- [ ] `npm run verify:migrations` passes from a clean local Supabase reset
-- [ ] `npm run verify:build` passes
-- [ ] The rate coverage guard fails when a platform-default model's rate is removed — verify by deleting one and re-running
-- [ ] `grep -rn 'createAIProvider(' lib app` returns exactly two hits: `lib/ai/factory.ts` and `lib/builder/ai.ts`
+- [x] `npm run verify:types && npm run verify:lint && npm run verify:unit` all pass
+- [x] `npm run verify:migrations` passes from a clean local Supabase reset
+- [x] `npm run verify:build` passes
+- [x] The rate coverage guard fails when a platform-default model's rate is removed — verify by deleting one and re-running
+- [x] `grep -rn 'createAIProvider(' lib app` returns **one** hit, `lib/ai/factory.ts` — the definition itself.
+      Stronger than this criterion anticipated: `lib/builder/ai.ts` reaches models through
+      `createAIExecutionGateway` like product code, so it never constructs a provider at all.
 - [ ] Manual check: run a Builder scaffold end to end and confirm `ai_usage_log` gains rows with the correct `org_id`, a `builder_*` `workload_id`, and a non-null `computed_cost`
 - [ ] Manual check: confirm the AI models settings page no longer lists any `builder_*` workload in the routing section

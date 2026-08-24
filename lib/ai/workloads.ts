@@ -23,7 +23,11 @@ export type AIWorkloadId =
   | 'letters'
   | 'summaries'
   | 'financial_profile'
-  | 'transcription';
+  | 'transcription'
+  | 'builder_chat'
+  | 'builder_plan'
+  | 'builder_build'
+  | 'builder_review';
 
 export type AIConnectorId = 'anthropic' | 'openai' | 'openrouter' | 'transcription_platform';
 
@@ -42,6 +46,12 @@ export interface AIWorkloadDefinition {
     model: string;
   };
   toolRisk?: 'none' | 'read_only' | 'mutation';
+  /**
+   * Whether an organization may route this workload to its own deployment.
+   * False for platform tooling: routing it would move the platform's own
+   * spend onto a client's credential.
+   */
+  orgRoutable: boolean;
 }
 
 export const AI_WORKLOADS: Readonly<Record<AIWorkloadId, AIWorkloadDefinition>> = {
@@ -54,6 +64,7 @@ export const AI_WORKLOADS: Readonly<Record<AIWorkloadId, AIWorkloadDefinition>> 
     defaultLimits: { maxOutputTokens: 4096, timeoutMs: 60_000 },
     platformDefault: { connector: 'anthropic', model: AI_MODELS.assistant },
     toolRisk: 'mutation',
+    orgRoutable: true,
   },
   extraction: {
     id: 'extraction',
@@ -63,6 +74,7 @@ export const AI_WORKLOADS: Readonly<Record<AIWorkloadId, AIWorkloadDefinition>> 
     inputDataClass: 'sensitive',
     defaultLimits: { maxOutputTokens: 4096, timeoutMs: 60_000 },
     platformDefault: { connector: 'anthropic', model: AI_MODELS.assistant },
+    orgRoutable: true,
   },
   import: {
     id: 'import',
@@ -72,6 +84,7 @@ export const AI_WORKLOADS: Readonly<Record<AIWorkloadId, AIWorkloadDefinition>> 
     inputDataClass: 'sensitive',
     defaultLimits: { maxOutputTokens: 4096, timeoutMs: 60_000 },
     platformDefault: { connector: 'anthropic', model: AI_MODELS.assistant },
+    orgRoutable: true,
   },
   import_chat: {
     id: 'import_chat',
@@ -81,6 +94,7 @@ export const AI_WORKLOADS: Readonly<Record<AIWorkloadId, AIWorkloadDefinition>> 
     inputDataClass: 'sensitive',
     defaultLimits: { maxOutputTokens: 4096, timeoutMs: 60_000 },
     platformDefault: { connector: 'anthropic', model: AI_MODELS.assistant },
+    orgRoutable: true,
   },
   onboarding: {
     id: 'onboarding',
@@ -91,6 +105,7 @@ export const AI_WORKLOADS: Readonly<Record<AIWorkloadId, AIWorkloadDefinition>> 
     defaultLimits: { maxOutputTokens: 2048, timeoutMs: 60_000 },
     platformDefault: { connector: 'anthropic', model: AI_MODELS.assistant },
     toolRisk: 'none',
+    orgRoutable: true,
   },
   letters: {
     id: 'letters',
@@ -100,6 +115,7 @@ export const AI_WORKLOADS: Readonly<Record<AIWorkloadId, AIWorkloadDefinition>> 
     inputDataClass: 'sensitive',
     defaultLimits: { maxOutputTokens: 2000, timeoutMs: 60_000 },
     platformDefault: { connector: 'anthropic', model: AI_MODELS.assistant },
+    orgRoutable: true,
   },
   summaries: {
     id: 'summaries',
@@ -109,6 +125,7 @@ export const AI_WORKLOADS: Readonly<Record<AIWorkloadId, AIWorkloadDefinition>> 
     inputDataClass: 'sensitive',
     defaultLimits: { maxOutputTokens: 256, timeoutMs: 60_000 },
     platformDefault: { connector: 'anthropic', model: AI_MODELS.assistant },
+    orgRoutable: true,
   },
   financial_profile: {
     id: 'financial_profile',
@@ -118,6 +135,7 @@ export const AI_WORKLOADS: Readonly<Record<AIWorkloadId, AIWorkloadDefinition>> 
     inputDataClass: 'sensitive',
     defaultLimits: { maxOutputTokens: 1500, timeoutMs: 60_000 },
     platformDefault: { connector: 'anthropic', model: AI_MODELS.assistant },
+    orgRoutable: true,
   },
   transcription: {
     id: 'transcription',
@@ -130,9 +148,67 @@ export const AI_WORKLOADS: Readonly<Record<AIWorkloadId, AIWorkloadDefinition>> 
       connector: 'transcription_platform',
       model: process.env.TRANSCRIPTION_MODEL ?? 'whisper-1',
     },
+    orgRoutable: true,
+  },
+  builder_chat: {
+    id: 'builder_chat',
+    displayName: 'Builder chat',
+    operation: 'tool_conversation',
+    requiredCapabilities: ['text', 'tools', 'streaming'],
+    inputDataClass: 'internal',
+    defaultLimits: { maxOutputTokens: 4096, timeoutMs: 120_000 },
+    platformDefault: {
+      connector: (process.env.AI_CONNECTOR_BUILDER_CHAT ?? 'anthropic') as AIConnectorId,
+      model: AI_MODELS.assistant,
+    },
+    toolRisk: 'mutation',
+    orgRoutable: false,
+  },
+  builder_plan: {
+    id: 'builder_plan',
+    displayName: 'Builder scaffold planning',
+    operation: 'structured_generation',
+    requiredCapabilities: ['text', 'json'],
+    inputDataClass: 'internal',
+    defaultLimits: { maxOutputTokens: 8192, timeoutMs: 180_000 },
+    platformDefault: {
+      connector: (process.env.AI_CONNECTOR_BUILDER_PLAN ?? 'anthropic') as AIConnectorId,
+      model: AI_MODELS.scaffoldPlan,
+    },
+    orgRoutable: false,
+  },
+  builder_build: {
+    id: 'builder_build',
+    displayName: 'Builder scaffold generation',
+    operation: 'text_generation',
+    requiredCapabilities: ['text'],
+    inputDataClass: 'internal',
+    defaultLimits: { maxOutputTokens: 16384, timeoutMs: 300_000 },
+    platformDefault: {
+      connector: (process.env.AI_CONNECTOR_BUILDER_BUILD ?? 'anthropic') as AIConnectorId,
+      model: AI_MODELS.scaffoldBuild,
+    },
+    orgRoutable: false,
+  },
+  builder_review: {
+    id: 'builder_review',
+    displayName: 'Builder model review',
+    operation: 'text_generation',
+    requiredCapabilities: ['text'],
+    inputDataClass: 'internal',
+    defaultLimits: { maxOutputTokens: 8192, timeoutMs: 300_000 },
+    platformDefault: {
+      connector: (process.env.AI_CONNECTOR_BUILDER_REVIEW ?? 'anthropic') as AIConnectorId,
+      model: AI_MODELS.scaffoldReview,
+    },
+    orgRoutable: false,
   },
 } as const;
 
 export function getAIWorkload(id: AIWorkloadId): AIWorkloadDefinition {
   return AI_WORKLOADS[id];
+}
+
+export function orgRoutableWorkloads(): AIWorkloadDefinition[] {
+  return Object.values(AI_WORKLOADS).filter(workload => workload.orgRoutable);
 }

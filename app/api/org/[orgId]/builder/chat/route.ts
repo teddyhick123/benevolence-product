@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
-import { createAIProvider } from '@/lib/ai/factory';
-import { AI_MODELS } from '@/lib/ai/models';
-import type { AIContentBlock, AIMessage } from '@/lib/ai/types';
+import { AIExecutionError } from '@/lib/ai/execution';
+import { builderChatStream } from '@/lib/builder/ai';
+import type { AIContentBlock, AIMessage, ToolDefinition } from '@/lib/ai/types';
 import { isAccessDenied, requireOrgAccess } from '@/lib/api/access';
 import {
   createOrgBuilderChatRepository,
@@ -66,7 +66,6 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     .map(message => ({ role: message.role, content: message.content }));
   history.push({ role: 'user', content: userMessage });
 
-  const provider = createAIProvider();
   const stream = new ReadableStream({
     async start(controller) {
       function send(data: Record<string, unknown>) {
@@ -78,13 +77,14 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
         let currentMessages = [...history];
 
         while (true) {
-          const aiStream = provider.createStream({
-            model: AI_MODELS.assistant,
-            maxTokens: 4096,
-            system: systemPrompt,
-            tools: BUILDER_TOOLS as any,
-            messages: currentMessages,
-          });
+          const aiStream = builderChatStream(
+            { orgId, actorId: access.context.user.id },
+            {
+              system: systemPrompt,
+              messages: currentMessages,
+              tools: BUILDER_TOOLS as unknown as ToolDefinition[],
+            },
+          );
 
           let stopReason: string | null = null;
           const toolUseBlocks: AIContentBlock[] = [];
@@ -196,7 +196,13 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
         send({ type: 'done' });
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Stream error';
-        send({ type: 'error', message });
+        // Gateway failures are typed; the raw SDK error had no equivalent, so
+        // carry the code through for anything acting on the event.
+        send({
+          type: 'error',
+          message,
+          ...(error instanceof AIExecutionError ? { code: error.code } : {}),
+        });
       } finally {
         controller.close();
       }

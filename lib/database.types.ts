@@ -537,9 +537,11 @@ export type Database = {
           audio_output_tokens: number
           cached_input_tokens: number
           completed_at: string
+          computed_cost: number | null
           connection_id: string | null
           connector: string
           cost_currency: string | null
+          cost_source: string
           created_at: string
           deployment_id: string | null
           error_code: string | null
@@ -554,6 +556,7 @@ export type Database = {
           policy_snapshot: Json
           portfolio_id: string | null
           provider_request_id: string | null
+          rate_version: string | null
           reasoning_tokens: number
           reported_cost: number | null
           requested_model: string
@@ -575,9 +578,11 @@ export type Database = {
           audio_output_tokens?: number
           cached_input_tokens?: number
           completed_at?: string
+          computed_cost?: number | null
           connection_id?: string | null
           connector?: string
           cost_currency?: string | null
+          cost_source?: string
           created_at?: string
           deployment_id?: string | null
           error_code?: string | null
@@ -592,6 +597,7 @@ export type Database = {
           policy_snapshot?: Json
           portfolio_id?: string | null
           provider_request_id?: string | null
+          rate_version?: string | null
           reasoning_tokens?: number
           reported_cost?: number | null
           requested_model: string
@@ -613,9 +619,11 @@ export type Database = {
           audio_output_tokens?: number
           cached_input_tokens?: number
           completed_at?: string
+          computed_cost?: number | null
           connection_id?: string | null
           connector?: string
           cost_currency?: string | null
+          cost_source?: string
           created_at?: string
           deployment_id?: string | null
           error_code?: string | null
@@ -630,6 +638,7 @@ export type Database = {
           policy_snapshot?: Json
           portfolio_id?: string | null
           provider_request_id?: string | null
+          rate_version?: string | null
           reasoning_tokens?: number
           reported_cost?: number | null
           requested_model?: string

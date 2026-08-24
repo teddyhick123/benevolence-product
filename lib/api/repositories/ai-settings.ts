@@ -1,7 +1,7 @@
 import { createElevatedClient, type ElevatedClient } from '@/lib/api/admin-client';
 import type { OrgAccessContext } from '@/lib/api/principals';
 import { AI_DEPLOYMENT_CATALOG, getAIDeploymentTemplate } from '@/lib/ai/catalog';
-import { AI_WORKLOADS, getAIWorkload } from '@/lib/ai/workloads';
+import { AI_WORKLOADS, getAIWorkload, orgRoutableWorkloads } from '@/lib/ai/workloads';
 import { canManageWorkspace } from '@/lib/organizations/roles';
 import {
   aiConnectionUpdateSchema,
@@ -103,7 +103,7 @@ export function createAISettingsRepository(
           ...route,
           targets: (targetsResult.data ?? []).filter(target => target.route_id === route.id),
         })),
-        workloads: Object.values(AI_WORKLOADS),
+        workloads: orgRoutableWorkloads(),
         catalog: AI_DEPLOYMENT_CATALOG,
         usageSummary: {
           periodDays: 30,

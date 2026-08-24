@@ -10,7 +10,13 @@ import { summariesCases } from '@/lib/ai/evals/cases/summaries';
 import { financialProfileCases } from '@/lib/ai/evals/cases/financial-profile';
 import { transcriptionCases } from '@/lib/ai/evals/cases/transcription';
 
-export const ALL_EVAL_CASES: Readonly<Record<AIWorkloadId, readonly EvalCase[]>> = {
+/**
+ * Keyed by evaluable workload. Platform tooling such as the builder_*
+ * workloads is not org-routable and therefore never evaluated against an
+ * organization's deployment, so it has no cases. The coverage guard in
+ * registry.test.ts enforces completeness over the org-routable set.
+ */
+export const ALL_EVAL_CASES: Readonly<Partial<Record<AIWorkloadId, readonly EvalCase[]>>> = {
   assistant: assistantCases,
   onboarding: onboardingCases,
   extraction: extractionCases,
@@ -23,5 +29,5 @@ export const ALL_EVAL_CASES: Readonly<Record<AIWorkloadId, readonly EvalCase[]>>
 };
 
 export function casesForWorkload(workloadId: AIWorkloadId): readonly EvalCase[] {
-  return ALL_EVAL_CASES[workloadId];
+  return ALL_EVAL_CASES[workloadId] ?? [];
 }

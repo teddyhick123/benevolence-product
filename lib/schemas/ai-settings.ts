@@ -166,6 +166,13 @@ export const aiRouteReplaceSchema = z.object({
   if (value.targets.filter(target => target.kind === 'platform_default').length > 1) {
     context.addIssue({ code: z.ZodIssueCode.custom, path: ['targets'], message: 'Platform default may appear only once' });
   }
+  if (!AI_WORKLOADS[value.workloadId].orgRoutable) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['workloadId'],
+      message: `${value.workloadId} is platform tooling and cannot be routed to an organization deployment`,
+    });
+  }
   if (value.policy.mutationTools === 'allow_experimental' && !value.policy.experimentalUseAccepted) {
     context.addIssue({
       code: z.ZodIssueCode.custom,

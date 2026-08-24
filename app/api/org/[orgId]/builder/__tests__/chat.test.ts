@@ -34,8 +34,12 @@ vi.mock('@/lib/api/repositories/builder-chat', () => ({
   createOrgBuilderChatRepository: mockCreateRepository,
 }));
 
-vi.mock('@/lib/ai/factory', () => ({
-  createAIProvider: () => ({ createStream: mockCreateStream }),
+// Mocked at the Builder boundary rather than the provider: the route reaches
+// models only through lib/builder/ai.ts now, so that is the seam. The mock
+// keeps the name mockCreateStream so the existing call assertions still read
+// against the same spy.
+vi.mock('@/lib/builder/ai', () => ({
+  builderChatStream: mockCreateStream,
 }));
 
 vi.mock('@/lib/builder/context-bundle', () => ({

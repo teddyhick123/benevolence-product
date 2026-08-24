@@ -22,7 +22,8 @@ const inputSchema = z.object({
  */
 function defaultWorkloadsFor(template: VerifiedDeploymentTemplate): AIWorkloadId[] {
   return (Object.keys(AI_WORKLOADS) as AIWorkloadId[]).filter(workloadId =>
-    AI_WORKLOADS[workloadId].requiredCapabilities.every(capability =>
+    AI_WORKLOADS[workloadId].orgRoutable
+    && AI_WORKLOADS[workloadId].requiredCapabilities.every(capability =>
       template.advertisedCapabilities.includes(capability)));
 }
 
@@ -49,7 +50,8 @@ export async function POST(request: Request, { params }: RouteParams) {
       return jsonError('Deployment supports no evaluable workloads', 400);
     }
     const unsupported = requested.filter(workloadId =>
-      !AI_WORKLOADS[workloadId].requiredCapabilities.every(capability =>
+      !AI_WORKLOADS[workloadId].orgRoutable
+      || !AI_WORKLOADS[workloadId].requiredCapabilities.every(capability =>
         template.advertisedCapabilities.includes(capability)));
     if (unsupported.length > 0) {
       return jsonError(`Deployment cannot serve: ${unsupported.join(', ')}`, 400);

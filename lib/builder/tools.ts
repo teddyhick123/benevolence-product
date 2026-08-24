@@ -1,8 +1,7 @@
 // lib/builder/tools.ts
 import type { SupabaseClient } from '@/lib/database-client';
 import type { ToolDefinition } from '@/lib/ai/types';
-import { createAIProvider } from '@/lib/ai/factory';
-import { AI_MODELS } from '@/lib/ai/models';
+import { builderPlan } from '@/lib/builder/ai';
 import { buildScaffoldContext, formatScaffoldContextForPrompt } from './scaffold-context';
 import { getCodebaseIndex, formatIndexForPrompt } from './codebase-index';
 import { evaluatePathPolicy, evaluateFileBudget, formatPathPolicyViolations } from './path-policy';
@@ -1902,7 +1901,6 @@ export async function executeTool(
         const scaffoldCtx = buildScaffoldContext(indexStr);
         const contextPrompt = formatScaffoldContextForPrompt(scaffoldCtx);
 
-        const provider = createAIProvider();
         const planningSystemPrompt = `You are a senior software engineer planning a new feature module for the ${branding.appName} platform — a white-label philanthropic portfolio management system built with Next.js 15, TypeScript, Supabase (PostgreSQL + RLS), and Tailwind CSS.${contextPrompt}`;
 
         const planningUserPrompt = `Admin request: "${description}"
@@ -1934,21 +1932,18 @@ Respond with ONLY a valid JSON object matching this exact schema (no markdown, n
   "apiShape": "Fields: hours_logged (number), volunteer_role (string), org_unit (string)"
 }`;
 
-        const planResponse = await provider.createMessage({
-          model: AI_MODELS.scaffoldPlan,
-          maxTokens: 4096,
-          messages: [{ role: 'user', content: planningUserPrompt }],
-          system: planningSystemPrompt,
-        });
+        const planText = await builderPlan(
+          { orgId, actorId: userId },
+          { system: planningSystemPrompt, prompt: planningUserPrompt },
+        );
 
-        const textBlock = planResponse.content.find(b => b.type === 'text');
-        if (!textBlock || textBlock.type !== 'text') {
+        if (!planText.trim()) {
           return { type: 'error', tool: toolName, message: 'Planning call returned no text.' };
         }
 
         let planContent: ScaffoldPlanContent;
         try {
-          const raw = textBlock.text.replace(/^```json?\n?|```$/gm, '').trim();
+          const raw = planText.replace(/^```json?\n?|```$/gm, '').trim();
           planContent = validateScaffoldPlanContent(JSON.parse(raw));
         } catch (e) {
           return { type: 'error', tool: toolName, message: `Plan validation failed: ${validationMessage(e)}` };

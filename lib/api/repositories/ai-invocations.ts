@@ -1,5 +1,53 @@
 import { createElevatedClient } from '@/lib/api/admin-client';
 import type { AIInvocationRecord, AIInvocationRecorder } from '@/lib/ai/execution';
+import { priceFor } from '@/lib/ai/rates';
+
+export type ResolvedCost = {
+  reported_cost: number | null;
+  computed_cost: number | null;
+  cost_source: 'reported' | 'computed' | 'unpriced';
+  rate_version: string | null;
+  cost_currency: string | null;
+};
+
+/**
+ * A provider-reported figure is what the account was actually charged, so it
+ * always wins. The rate table is the fallback for providers that report
+ * nothing — a direct Anthropic call, for instance. Unknown models are recorded
+ * as unpriced rather than guessed.
+ */
+export function resolveCost(record: AIInvocationRecord): ResolvedCost {
+  if (record.reportedCost !== undefined && record.reportedCost !== null) {
+    return {
+      reported_cost: record.reportedCost,
+      computed_cost: null,
+      cost_source: 'reported',
+      rate_version: null,
+      cost_currency: record.costCurrency ?? 'USD',
+    };
+  }
+
+  // Price what actually ran when the provider resolved a different model.
+  const model = record.resolvedModel ?? record.requestedModel;
+  const priced = record.usage ? priceFor(model, record.usage) : null;
+  if (!priced) {
+    return {
+      reported_cost: null,
+      computed_cost: null,
+      cost_source: 'unpriced',
+      rate_version: null,
+      cost_currency: null,
+    };
+  }
+
+  return {
+    reported_cost: null,
+    computed_cost: priced.cost,
+    cost_source: 'computed',
+    rate_version: priced.rateVersion,
+    cost_currency: 'USD',
+  };
+}
 
 /** Content-free provider-neutral invocation persistence for every AI attempt. */
 export function createAIInvocationRecorder(): AIInvocationRecorder {
@@ -30,8 +78,7 @@ export function createAIInvocationRecorder(): AIInvocationRecorder {
       reasoning_tokens: record.usage?.reasoningTokens ?? 0,
       audio_input_tokens: record.usage?.audioInputTokens ?? 0,
       audio_output_tokens: record.usage?.audioOutputTokens ?? 0,
-      reported_cost: record.reportedCost ?? null,
-      cost_currency: record.costCurrency ?? null,
+      ...resolveCost(record),
       latency_ms: record.latencyMs,
       status: record.status,
       error_code: record.errorCode ?? null,

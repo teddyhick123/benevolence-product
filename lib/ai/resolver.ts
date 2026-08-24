@@ -136,6 +136,11 @@ export async function resolveOrganizationAIExecution(
   if (scope.kind !== 'organization') {
     return bindDurableTurnPlan(scope, resolveAIExecution(scope, workloadId));
   }
+  // Platform tooling has no organization route to find, so skip the lookup
+  // entirely rather than querying for a row that cannot exist.
+  if (!getAIWorkload(workloadId).orgRoutable) {
+    return bindDurableTurnPlan(scope, resolveAIExecution(scope, workloadId));
+  }
   if (!scope.orgId) {
     throw new AIExecutionError('policy_unsatisfied', 'Organization AI execution requires organization scope');
   }

@@ -12,9 +12,12 @@ describe('AI workload registry', () => {
     }
   });
 
+  // Scoped to org-routable workloads. Builder deliberately runs each phase on
+  // its own model — planning and review on the scaffold models, build on a
+  // cheaper one — so it is not expected to share the assistant model.
   it('preserves the current platform Anthropic model for text workloads', () => {
     for (const workload of Object.values(AI_WORKLOADS)) {
-      if (workload.platformDefault.connector === 'anthropic') {
+      if (workload.orgRoutable && workload.platformDefault.connector === 'anthropic') {
         expect(workload.platformDefault.model).toBe(AI_MODELS.assistant);
       }
     }

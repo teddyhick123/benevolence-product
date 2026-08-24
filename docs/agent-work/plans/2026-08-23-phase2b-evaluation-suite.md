@@ -2456,7 +2456,7 @@ git commit -m "feat(ai-settings): run evaluations and gate write access on evide
 ## Phase 2B exit criteria
 
 - [x] `npm run verify:types && npm run verify:lint && npm run verify:unit` all pass
-- [ ] `npm run verify:migrations` passes from a clean local Supabase reset
+- [x] `npm run verify:migrations` passes from a clean local Supabase reset
 - [x] `npm run verify:build` passes
 - [x] The coverage guard fails when a workload's cases are emptied — verify by deleting one and re-running
 - [x] The drift guard fails when a required case is added without a `SUITE_MAJOR` bump — verify by adding one and re-running

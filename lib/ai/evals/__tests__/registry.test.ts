@@ -4,19 +4,29 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { ALL_EVAL_CASES, casesForWorkload } from '@/lib/ai/evals/registry';
-import { AI_WORKLOADS } from '@/lib/ai/workloads';
+import { AI_WORKLOADS, orgRoutableWorkloads } from '@/lib/ai/workloads';
 
 describe('eval coverage guard', () => {
   // Without this, a workload with no cases aggregates to "all required
   // passed" and is trivially verified.
-  it('gives every workload at least one required case', () => {
-    for (const workloadId of Object.keys(AI_WORKLOADS)) {
-      const cases = casesForWorkload(workloadId as never);
-      expect(cases.length, `${workloadId} has no cases`).toBeGreaterThan(0);
+  // Scoped to org-routable workloads: platform tooling is never evaluated
+  // against an organization's deployment, so it needs no cases.
+  it('gives every evaluable workload at least one required case', () => {
+    for (const workload of orgRoutableWorkloads()) {
+      const cases = casesForWorkload(workload.id);
+      expect(cases.length, `${workload.id} has no cases`).toBeGreaterThan(0);
       expect(
         cases.some(evalCase => evalCase.required),
-        `${workloadId} has no required case`,
+        `${workload.id} has no required case`,
       ).toBe(true);
+    }
+  });
+
+  it('defines no cases for non-evaluable platform tooling', () => {
+    const nonRoutable = Object.values(AI_WORKLOADS).filter(workload => !workload.orgRoutable);
+    expect(nonRoutable.length).toBeGreaterThan(0);
+    for (const workload of nonRoutable) {
+      expect(casesForWorkload(workload.id), `${workload.id} should have no cases`).toEqual([]);
     }
   });
 

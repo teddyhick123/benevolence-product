@@ -15141,10 +15141,18 @@ export type Database = {
         }
         Returns: boolean
       }
+      org_ai_usage_report: {
+        Args: { p_org_id: string; p_period_start: string }
+        Returns: Json
+      }
       org_enabled_modules: { Args: { p_org_id: string }; Returns: string[] }
       org_has_module: {
         Args: { p_module: string; p_org_id: string }
         Returns: boolean
+      }
+      org_platform_spend: {
+        Args: { p_org_id: string; p_period_start: string }
+        Returns: number
       }
       org_role_gte: {
         Args: {

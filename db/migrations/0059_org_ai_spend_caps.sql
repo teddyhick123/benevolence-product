@@ -74,3 +74,71 @@ GRANT EXECUTE ON FUNCTION public.org_platform_spend(uuid, timestamptz) TO servic
 CREATE INDEX IF NOT EXISTS ai_usage_log_org_platform_spend_idx
   ON public.ai_usage_log(org_id, created_at DESC)
   WHERE deployment_id IS NULL;
+
+-- ---------------------------------------------------------------------------
+-- The dashboard's aggregate. Its platform_cost must equal org_platform_spend
+-- for the same period; a behavioural test asserts that, because a dashboard
+-- reading 80% while the cap fires destroys trust in both numbers.
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.org_ai_usage_report(
+  p_org_id       uuid,
+  p_period_start timestamptz
+)
+RETURNS jsonb
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  WITH usage_rows AS (
+    SELECT
+      workload_id,
+      status,
+      deployment_id IS NULL AS platform_funded,
+      COALESCE(reported_cost, computed_cost, 0) AS cost,
+      date_trunc('day', created_at) AS day
+    FROM public.ai_usage_log
+    WHERE org_id = p_org_id
+      AND created_at >= p_period_start
+  )
+  SELECT jsonb_build_object(
+    'period_start', p_period_start,
+    'platform_cost', COALESCE((SELECT SUM(cost) FROM usage_rows WHERE platform_funded), 0),
+    'org_cost',      COALESCE((SELECT SUM(cost) FROM usage_rows WHERE NOT platform_funded), 0),
+    'invocations',        (SELECT COUNT(*) FROM usage_rows),
+    'failed_invocations', (SELECT COUNT(*) FROM usage_rows WHERE status <> 'succeeded'),
+    -- Platform-funded only: this breakdown exists to explain the capped
+    -- number, and mixing funding sources would make it sum to nothing.
+    'by_workload', COALESCE((
+      SELECT jsonb_agg(entry ORDER BY entry->>'workload_id')
+      FROM (
+        SELECT jsonb_build_object(
+                 'workload_id', workload_id,
+                 'funding', 'platform',
+                 'cost', SUM(cost),
+                 'invocations', COUNT(*)
+               ) AS entry
+        FROM usage_rows
+        WHERE platform_funded
+        GROUP BY workload_id
+      ) grouped
+    ), '[]'::jsonb),
+    'daily', COALESCE((
+      SELECT jsonb_agg(entry ORDER BY entry->>'day')
+      FROM (
+        SELECT jsonb_build_object(
+                 'day', day,
+                 -- COALESCE so a day with only one funding source renders as
+                 -- zero rather than a gap in the chart.
+                 'platform_cost', COALESCE(SUM(cost) FILTER (WHERE platform_funded), 0),
+                 'org_cost',      COALESCE(SUM(cost) FILTER (WHERE NOT platform_funded), 0)
+               ) AS entry
+        FROM usage_rows
+        GROUP BY day
+      ) series
+    ), '[]'::jsonb)
+  );
+$$;
+
+REVOKE ALL ON FUNCTION public.org_ai_usage_report(uuid, timestamptz) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.org_ai_usage_report(uuid, timestamptz) TO service_role;

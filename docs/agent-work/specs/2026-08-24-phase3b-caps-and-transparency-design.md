@@ -100,7 +100,9 @@ Both consult `org_platform_spend`, so they cannot disagree about whether the org
 
 Funding is inferable without resolving a plan: a workload with an enabled organization route to a deployment is org-funded; everything else is platform-funded. That is the same discriminator `org_platform_spend` uses, one step earlier.
 
-**A cap refusal returns rather than raises.** `begin_ai_turn` currently raises for access denial with SQLSTATE `42501`. A spend cap is an expected business condition, not a fault, and raising would make it indistinguishable from a real failure to every caller. It therefore returns its normal JSONB envelope carrying an error discriminator, and `lib/api/repositories/ai-chat.ts` maps that to a typed error. The exact envelope must match what that repository already destructures — read it before choosing field names rather than inventing a new shape.
+**A cap refusal returns rather than raises.** `begin_ai_turn` currently raises for access denial with SQLSTATE `42501`. A spend cap is an expected business condition, not a fault, and raising would make it indistinguishable from a real failure to every caller. It therefore returns a JSONB envelope carrying a refusal discriminator, which `lib/api/repositories/ai-chat.ts` maps to a typed error.
+
+**The envelope cannot carry a refusal unchanged.** `requireRpcIdentity` (`lib/api/repositories/ai-chat.ts:66`) runs unconditionally before the `started` branch and throws when `turn_id`, `session_id` or `status` are absent. A refusal has no turn, so `beginTurn` must test for it *before* that call. The refusal shape is therefore `{ started: false, cap_exceeded: true, effective_limit_usd, period_spend_usd, period_start }` with no turn identity, and the repository's early branch converts it into a typed error. Inventing a placeholder turn id to satisfy the existing check would be worse than the extra branch.
 
 ### `own_key` requires a fallback
 

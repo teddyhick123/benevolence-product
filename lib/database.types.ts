@@ -7032,6 +7032,65 @@ export type Database = {
           },
         ]
       }
+      org_ai_spend_caps: {
+        Row: {
+          created_at: string
+          on_limit: string
+          org_id: string
+          org_limit_usd: number | null
+          platform_limit_usd: number | null
+          updated_at: string
+          warn_at_percent: number
+        }
+        Insert: {
+          created_at?: string
+          on_limit?: string
+          org_id: string
+          org_limit_usd?: number | null
+          platform_limit_usd?: number | null
+          updated_at?: string
+          warn_at_percent?: number
+        }
+        Update: {
+          created_at?: string
+          on_limit?: string
+          org_id?: string
+          org_limit_usd?: number | null
+          platform_limit_usd?: number | null
+          updated_at?: string
+          warn_at_percent?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "org_ai_spend_caps_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: true
+            referencedRelation: "my_organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "org_ai_spend_caps_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "org_ai_spend_caps_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: true
+            referencedRelation: "v_compliance_dashboard"
+            referencedColumns: ["org_id"]
+          },
+          {
+            foreignKeyName: "org_ai_spend_caps_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: true
+            referencedRelation: "v_org_modules"
+            referencedColumns: ["org_id"]
+          },
+        ]
+      }
       org_audit_log: {
         Row: {
           action: string

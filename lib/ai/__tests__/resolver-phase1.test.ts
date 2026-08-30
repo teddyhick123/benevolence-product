@@ -13,6 +13,22 @@ vi.mock('@/lib/api/repositories/ai-routing', () => ({
 vi.mock('@/lib/api/admin-client', () => ({
   createElevatedClient: () => ({ rpc }),
 }));
+vi.mock('@/lib/api/repositories/ai-spend-caps', () => ({
+  // Uncapped by default: these suites are about routing, not spend. The
+  // resolver deliberately does not tolerate a missing cap repository.
+  createAISpendCapRepository: () => ({
+    getStatus: async () => ({
+      state: 'uncapped',
+      onLimit: 'hard_stop',
+      effectiveLimitUsd: null,
+      platformLimitUsd: null,
+      orgLimitUsd: null,
+      spendUsd: 0,
+      warnAtPercent: 80,
+      periodStart: new Date().toISOString(),
+    }),
+  }),
+}));
 
 import { resolveOrganizationAIExecution } from '@/lib/ai/resolver';
 

@@ -12,6 +12,7 @@ import {
   type AiChatResponsePayload,
   type PersistedChatMessage,
 } from '@/lib/api/repositories/ai-chat';
+import { createAISpendCapRepository } from '@/lib/api/repositories/ai-spend-caps';
 import { jsonError, jsonOk } from '@/lib/api/responses';
 import { createAssistantToolCapabilities } from '@/lib/api/repositories/ai-tools';
 import { containsInjection } from '@/lib/ai/prompt-guard';
@@ -237,10 +238,16 @@ export async function GET(req: NextRequest) {
 
   try {
     const repository = createAiChatRepository(access.context);
-    const history = await repository.listHistory();
+    const [history, cap] = await Promise.all([
+      repository.listHistory(),
+      // Carried on the history fetch the panel already makes, so the
+      // read_only banner costs no extra request.
+      createAISpendCapRepository({ orgId: access.context.orgId }).getStatus(),
+    ]);
     return jsonOk({
       session: history.session,
       messages: history.messages,
+      cap,
     });
   } catch (error) {
     const message =

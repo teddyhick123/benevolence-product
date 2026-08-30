@@ -42,6 +42,14 @@ export async function POST(_req: NextRequest, { params }: RouteParams) {
       if (result.reason === 'no_revision') {
         return json({ error: 'Proposal has no revision to build' }, { status: 500 });
       }
+      // 402 rather than 429: a spending limit, not a rate limit.
+      if (result.reason === 'spend_cap_reached') {
+        return json({
+          error: 'Monthly AI spend limit reached. Builder runs are paused until the limit resets.',
+          limitUsd: result.limitUsd,
+          spendUsd: result.spendUsd,
+        }, { status: 402 });
+      }
       return json({
         error: `Proposal must be claimable to start a run, currently: ${result.currentState}`,
         currentState: result.currentState,

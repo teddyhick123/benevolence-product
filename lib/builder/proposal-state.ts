@@ -7,6 +7,7 @@
 // and client components (mirrors lib/builder/review-gate.ts).
 
 import type { SupabaseClient } from '@/lib/database-client';
+import { createAISpendCapRepository } from '@/lib/api/repositories/ai-spend-caps';
 
 // ============================================================
 // State model
@@ -266,9 +267,33 @@ export async function failInFlightRun(admin: SupabaseClient, proposalId: string)
 // Claim wrapper (RPC: builder_claim_code_run)
 // ============================================================
 
+/**
+ * Builder is platform-funded and its workloads are not routable to an
+ * organization deployment, so own_key cannot apply and read_only is
+ * meaningless for a scaffold run. Builder stops at the cap whatever the
+ * organization configured.
+ */
+export async function isBlockedBySpendCap(
+  orgId: string,
+): Promise<{ blocked: boolean; limitUsd?: number; spendUsd?: number }> {
+  const status = await createAISpendCapRepository({ orgId }).getStatus();
+  if (status.state !== 'over') return { blocked: false };
+  return {
+    blocked: true,
+    limitUsd: status.effectiveLimitUsd ?? undefined,
+    spendUsd: status.spendUsd,
+  };
+}
+
 export type ClaimResult =
   | { ok: true; revisionId: string; reused: boolean }
-  | { ok: false; code: 'not_found' | 'conflict' | 'no_revision'; currentState?: string };
+  | {
+      ok: false;
+      code: 'not_found' | 'conflict' | 'no_revision' | 'spend_cap_reached';
+      currentState?: string;
+      limitUsd?: number;
+      spendUsd?: number;
+    };
 
 const CLAIM_CONFLICT_STATE_RE = /state\s+(\S+)\s*$/;
 
@@ -276,6 +301,17 @@ export async function claimCodeRun(
   admin: SupabaseClient,
   args: { proposalId: string; orgId: string; actorId: string }
 ): Promise<ClaimResult> {
+  // Checked before the claim so a capped run never reaches generating state.
+  const cap = await isBlockedBySpendCap(args.orgId);
+  if (cap.blocked) {
+    return {
+      ok: false,
+      code: 'spend_cap_reached',
+      limitUsd: cap.limitUsd,
+      spendUsd: cap.spendUsd,
+    };
+  }
+
   const { data, error } = await admin.rpc('builder_claim_code_run', {
     p_proposal_id: args.proposalId,
     p_org_id: args.orgId,

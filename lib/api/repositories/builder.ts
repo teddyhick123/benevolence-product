@@ -35,7 +35,13 @@ export type BuilderBuildResult =
   | { ok: true; proposalId: string; alreadyRunning: true }
   | { ok: false; reason: 'not_found' }
   | { ok: false; reason: 'no_revision' }
-  | { ok: false; reason: 'conflict'; currentState: CodeState | null };
+  | { ok: false; reason: 'conflict'; currentState: CodeState | null }
+  | {
+      ok: false;
+      reason: 'spend_cap_reached';
+      limitUsd: number | null;
+      spendUsd: number | null;
+    };
 
 /** Global Builder review operations available only after the app-admin guard succeeds. */
 export function createAppAdminBuilderRepository(scope: AppAdminBuilderScope) {
@@ -154,6 +160,16 @@ export function createOrgBuilderRepository(scope: OrgBuilderScope) {
       if (!claim.ok) {
         if (claim.code === 'not_found') return { ok: false, reason: 'not_found' };
         if (claim.code === 'no_revision') return { ok: false, reason: 'no_revision' };
+        // Refused before any state transition, so the proposal stays where it
+        // was rather than stalling in generating with no explanation.
+        if (claim.code === 'spend_cap_reached') {
+          return {
+            ok: false,
+            reason: 'spend_cap_reached',
+            limitUsd: claim.limitUsd ?? null,
+            spendUsd: claim.spendUsd ?? null,
+          };
+        }
         return {
           ok: false,
           reason: 'conflict',

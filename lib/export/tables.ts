@@ -178,6 +178,10 @@ export const EXPORT_TABLES: readonly TableExportRule[] = [
   // --- platform: instance state, not tenant data ---
   { table: 'applied_migrations', kind: 'platform', reason: 'instance migration ledger; carried in the manifest instead' },
   { table: 'charity_rating_cache', kind: 'platform', reason: 'derived cache, rebuildable from the rating providers' },
+  // An archive should not contain the record of its own creation. The
+  // organization's export history is preserved in org_audit_log, which is
+  // exported.
+  { table: 'org_export_runs', kind: 'platform', reason: 'export operation records; the audit trail lives in org_audit_log' },
   { table: 'geocode_cache', kind: 'platform', reason: 'derived cache, rebuildable from the geocoding provider' },
 ];
 

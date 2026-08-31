@@ -35,6 +35,11 @@ export async function GET(_request: Request, { params }: RouteParams) {
 
   const db = createElevatedClient();
   try {
+    // The ledger's backfill runs inside migration 0060, so it cannot see any
+    // migration applied after it. Reconciling before reading lets the ledger
+    // self-heal rather than under-reporting by one row per later migration.
+    await db.rpc('reconcile_migrations_ledger');
+
     const [ledger, counts] = await Promise.all([
       db.from('applied_migrations').select('*').order('version'),
       db.rpc('org_table_row_counts', { p_org_id: orgId }),

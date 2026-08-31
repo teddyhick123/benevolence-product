@@ -15302,6 +15302,7 @@ export type Database = {
         }
         Returns: string
       }
+      reconcile_migrations_ledger: { Args: never; Returns: number }
       record_cpa_access: {
         Args: {
           p_action: string

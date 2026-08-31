@@ -9,6 +9,7 @@ import { getAIWorkload, type AIConnectorId, type AIWorkloadId } from '@/lib/ai/w
 import { SUITE_VERSION } from '@/lib/ai/evals/version';
 import { getAIDeploymentTemplate } from '@/lib/ai/catalog';
 import { createAIRoutingRepository } from '@/lib/api/repositories/ai-routing';
+import { createAISpendCapRepository } from '@/lib/api/repositories/ai-spend-caps';
 import {
   aiRoutePolicySchema,
   openRouterProviderPreferencesSchema,
@@ -50,6 +51,15 @@ export function currentVerificationResult(evidence: unknown): 'passed' | 'condit
     && Date.now() - verifiedAt.getTime() <= 90 * 24 * 60 * 60 * 1000
     ? value.result
     : null;
+}
+
+/** Strips write tools without changing routing, for the read_only cap mode. */
+function withReadOnlyTools(plan: AIExecutionPlan): AIExecutionPlan {
+  return Object.freeze({
+    ...plan,
+    toolMode: 'read_only' as const,
+    targets: plan.targets.map(target => Object.freeze({ ...target, toolMode: 'read_only' as const })),
+  });
 }
 
 function platformTarget(workloadId: AIWorkloadId, position = 0): AIExecutionTarget {
@@ -144,12 +154,30 @@ export async function resolveOrganizationAIExecution(
   if (!scope.orgId) {
     throw new AIExecutionError('policy_unsatisfied', 'Organization AI execution requires organization scope');
   }
+  // hard_stop already refused inside begin_ai_turn. What reaches here is
+  // read_only or own_key, both of which change how the turn resolves rather
+  // than refusing it.
+  const cap = await createAISpendCapRepository({ orgId: scope.orgId }).getStatus();
+  const overCap = cap.state === 'over';
+
   const resolved = await createAIRoutingRepository({
     orgId: scope.orgId,
     actorId: scope.actorId,
   }).getWorkloadRoute(workloadId);
   if (!resolved) {
-    return bindDurableTurnPlan(scope, resolveAIExecution(scope, workloadId));
+    if (overCap && cap.onLimit === 'own_key') {
+      // own_key needs an organization deployment to move onto. Without one,
+      // continuing would spend past the cap, so it degrades to a stop.
+      throw new AIExecutionError(
+        'policy_unsatisfied',
+        'Monthly AI spend limit reached and no organization deployment is available',
+      );
+    }
+    const platformPlan = resolveAIExecution(scope, workloadId);
+    return bindDurableTurnPlan(
+      scope,
+      overCap && cap.onLimit === 'read_only' ? withReadOnlyTools(platformPlan) : platformPlan,
+    );
   }
   if (!resolved.route.is_enabled) {
     throw new AIExecutionError('policy_unsatisfied', 'Organization AI route is disabled');
@@ -220,7 +248,12 @@ export async function resolveOrganizationAIExecution(
     routeId: resolved.route.id,
     policy,
   });
-  return bindDurableTurnPlan(scope, plan);
+  // A configured route can still include a platform_default fallback target,
+  // so read_only applies here too.
+  return bindDurableTurnPlan(
+    scope,
+    overCap && cap.onLimit === 'read_only' ? withReadOnlyTools(plan) : plan,
+  );
 }
 
 export function selectAIExecutionTarget(

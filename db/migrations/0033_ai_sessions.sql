@@ -356,6 +356,13 @@ DECLARE
   v_session_id UUID;
   v_turn public.ai_turns%ROWTYPE;
   v_existing_content JSONB;
+  v_org_id UUID;
+  v_cap_on_limit TEXT;
+  v_cap_platform NUMERIC;
+  v_cap_org NUMERIC;
+  v_limit NUMERIC;
+  v_spend NUMERIC;
+  v_period_start TIMESTAMPTZ;
 BEGIN
   IF auth.role() IS DISTINCT FROM 'service_role'
      AND (
@@ -367,6 +374,65 @@ BEGIN
 
   IF p_content IS NULL OR jsonb_typeof(p_content) IS DISTINCT FROM 'string' THEN
     RAISE EXCEPTION 'Turn content must be a JSON string' USING ERRCODE = '22023';
+  END IF;
+
+  -- Spend cap. Only hard_stop refuses here; read_only and own_key change how
+  -- the turn resolves and are applied in lib/ai/resolver.ts. A cap is an
+  -- expected condition rather than a fault, so this returns instead of
+  -- raising: raising would be indistinguishable from a real failure.
+  SELECT org_id INTO v_org_id FROM public.portfolios WHERE id = p_portfolio_id;
+
+  -- Dynamic SQL because org_ai_spend_caps is created in 0059, long after this
+  -- function is defined. A static reference would fail on a clean rebuild.
+  BEGIN
+    EXECUTE $cap$
+      SELECT on_limit, platform_limit_usd, org_limit_usd
+      FROM public.org_ai_spend_caps WHERE org_id = $1
+    $cap$
+    INTO v_cap_on_limit, v_cap_platform, v_cap_org
+    USING v_org_id;
+  EXCEPTION WHEN undefined_table THEN
+    v_cap_on_limit := NULL;
+  END;
+
+  IF v_cap_on_limit = 'hard_stop' THEN
+    v_limit := LEAST(
+      COALESCE(v_cap_platform, v_cap_org),
+      COALESCE(v_cap_org, v_cap_platform)
+    );
+
+    -- A workload routed to an organization deployment spends the org's own
+    -- money and is not counted, so it is not capped either.
+    IF v_limit IS NOT NULL AND NOT EXISTS (
+      SELECT 1 FROM public.org_ai_routes r
+      WHERE r.org_id = v_org_id
+        AND r.workload_id = 'assistant'
+        AND r.is_enabled
+        AND EXISTS (
+          SELECT 1 FROM public.org_ai_route_targets t
+          WHERE t.route_id = r.id AND t.target_kind = 'deployment'
+        )
+    ) THEN
+      v_period_start := date_trunc('month', now());
+      -- Also defined in 0059. Resolved at call time rather than definition
+      -- time, but guarded so an incomplete migration set cannot break a turn.
+      BEGIN
+        EXECUTE 'SELECT public.org_platform_spend($1, $2)'
+          INTO v_spend USING v_org_id, v_period_start;
+      EXCEPTION WHEN undefined_function THEN
+        v_spend := 0;
+      END;
+
+      IF v_spend >= v_limit THEN
+        RETURN jsonb_build_object(
+          'started', false,
+          'cap_exceeded', true,
+          'effective_limit_usd', v_limit,
+          'period_spend_usd', v_spend,
+          'period_start', v_period_start
+        );
+      END IF;
+    END IF;
   END IF;
 
   -- Serialize request claims across portfolios, then active-session selection.

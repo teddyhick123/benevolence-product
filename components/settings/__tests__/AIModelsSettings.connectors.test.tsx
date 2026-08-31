@@ -9,6 +9,12 @@ const { requestJson, useApiData } = vi.hoisted(() => ({
 vi.mock('@/lib/api/client', () => ({ requestJson }));
 vi.mock('@/lib/api/client-hooks', () => ({ useApiData }));
 
+// AIUsagePanel is rendered by AIModelsSettings but is not what these suites
+// are about; it has its own test file.
+vi.mock('@/components/settings/AIUsagePanel', () => ({
+  default: () => null,
+}));
+
 import AIModelsSettings from '../AIModelsSettings';
 
 const API_KEY = 'sk-test-0123456789abcdef';
@@ -47,9 +53,15 @@ beforeEach(() => {
         { id: 'openrouter-anthropic-claude-opus-5', displayName: 'Claude Opus 5', modelVendor: 'anthropic', connector: 'openrouter' },
         { id: 'anthropic-claude-opus-5', displayName: 'Claude Opus 5 (direct)', modelVendor: 'anthropic', connector: 'anthropic' },
       ],
-      usageSummary: {
-        periodDays: 30, invocations: 0, failedInvocations: 0,
-        inputTokens: 0, outputTokens: 0, reportedCost: 0,
+      cap: {
+        state: 'uncapped',
+        onLimit: 'hard_stop',
+        effectiveLimitUsd: null,
+        platformLimitUsd: null,
+        orgLimitUsd: null,
+        spendUsd: 0,
+        warnAtPercent: 80,
+        periodStart: '2026-08-01T00:00:00.000Z',
       },
     },
   });

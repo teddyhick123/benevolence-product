@@ -43,6 +43,13 @@ export type BeginAiTurnResult =
       sessionId: string;
       failureCode?: string;
       failureMessage?: string;
+    }
+  | {
+      /** The organization is at its monthly platform spend limit. */
+      state: 'spend_cap_reached';
+      effectiveLimitUsd: number;
+      spendUsd: number;
+      periodStart: string;
     };
 
 type BeginTurnRpcResult = {
@@ -53,6 +60,10 @@ type BeginTurnRpcResult = {
   response?: AiChatResponsePayload | null;
   failure_code?: string | null;
   failure_message?: string | null;
+  cap_exceeded?: boolean;
+  effective_limit_usd?: number | string | null;
+  period_spend_usd?: number | string | null;
+  period_start?: string | null;
 };
 
 type MessageRow = {
@@ -113,6 +124,18 @@ export function createAiChatRepository(scope: AiChatScope) {
       if (error) throw error;
 
       const result = (data ?? {}) as BeginTurnRpcResult;
+
+      // Before requireRpcIdentity: a refusal has no turn, and that check
+      // throws on a result without one.
+      if (result.cap_exceeded) {
+        return {
+          state: 'spend_cap_reached',
+          effectiveLimitUsd: Number(result.effective_limit_usd ?? 0),
+          spendUsd: Number(result.period_spend_usd ?? 0),
+          periodStart: result.period_start ?? new Date().toISOString(),
+        };
+      }
+
       const identity = requireRpcIdentity(result);
 
       if (!result.started) {

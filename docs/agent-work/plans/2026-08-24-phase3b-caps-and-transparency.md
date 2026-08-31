@@ -1,6 +1,6 @@
 # Phase 3B — Spend Caps and Transparency Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Bound what the platform spends on an organization's behalf, and show that organization exactly what it was.
 
@@ -61,7 +61,7 @@ Task 1 adds migration `0059`, so `npm run verify:migrations` runs a `supabase db
 - Consumes: `public.organizations`, `public.is_org_admin` from `0001`.
 - Produces: table `public.org_ai_spend_caps`, keyed by `org_id`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `tests/integration/ai-spend-caps-schema.test.ts`:
 
@@ -106,12 +106,12 @@ describe('org_ai_spend_caps schema', () => {
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `npx vitest run tests/integration/ai-spend-caps-schema.test.ts`
 Expected: FAIL — the migration file does not exist.
 
-- [ ] **Step 3: Write the migration**
+- [x] **Step 3: Write the migration**
 
 Create `db/migrations/0059_org_ai_spend_caps.sql`:
 
@@ -155,17 +155,17 @@ GRANT SELECT ON public.org_ai_spend_caps TO authenticated;
 GRANT ALL ON public.org_ai_spend_caps TO service_role;
 ```
 
-- [ ] **Step 4: Apply and regenerate types**
+- [x] **Step 4: Apply and regenerate types**
 
 Run: `npx supabase migration up --local && npm run db:types:generate`
 Expected: `lib/database.types.ts` gains `org_ai_spend_caps` and is otherwise unchanged.
 
-- [ ] **Step 5: Run the tests**
+- [x] **Step 5: Run the tests**
 
 Run: `npx vitest run tests/integration/ai-spend-caps-schema.test.ts && npm run verify:types`
 Expected: PASS (5 tests)
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add db/migrations/0059_org_ai_spend_caps.sql lib/database.types.ts tests/integration/ai-spend-caps-schema.test.ts
@@ -186,7 +186,7 @@ git commit -m "feat(db): add per-organization AI spend caps"
 - Consumes: `public.ai_usage_log` from `0030` — `deployment_id`, `reported_cost`, `computed_cost`, `org_id`, `created_at`.
 - Produces: `public.org_platform_spend(p_org_id uuid, p_period_start timestamptz) RETURNS numeric`, executable by `service_role` only.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `tests/integration/ai-spend-caps-schema.test.ts`:
 
@@ -211,12 +211,12 @@ describe('org_platform_spend', () => {
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `npx vitest run tests/integration/ai-spend-caps-schema.test.ts`
 Expected: FAIL — the function is not defined.
 
-- [ ] **Step 3: Add the function**
+- [x] **Step 3: Add the function**
 
 Append to `db/migrations/0059_org_ai_spend_caps.sql`:
 
@@ -261,7 +261,7 @@ CREATE INDEX IF NOT EXISTS ai_usage_log_org_platform_spend_idx
   WHERE deployment_id IS NULL;
 ```
 
-- [ ] **Step 4: Apply and verify against a real database**
+- [x] **Step 4: Apply and verify against a real database**
 
 Run: `npx supabase migration up --local`
 
@@ -274,12 +274,12 @@ docker exec supabase_db_benevolence-walkthrough psql -U postgres -d postgres -At
 
 Expected: `0`
 
-- [ ] **Step 5: Run the tests**
+- [x] **Step 5: Run the tests**
 
 Run: `npx vitest run tests/integration/ai-spend-caps-schema.test.ts && npm run verify:types`
 Expected: PASS (9 tests)
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add db/migrations/0059_org_ai_spend_caps.sql tests/integration/ai-spend-caps-schema.test.ts
@@ -300,7 +300,7 @@ git commit -m "feat(db): add org_platform_spend as the single definition of plat
 - Consumes: `org_platform_spend` from Task 2.
 - Produces: `public.org_ai_usage_report(p_org_id uuid, p_period_start timestamptz) RETURNS jsonb` with keys `platform_cost`, `org_cost`, `invocations`, `failed_invocations`, `by_workload` (array of `{workload_id, funding, cost, invocations}`), `daily` (array of `{day, platform_cost, org_cost}`).
 
-- [ ] **Step 1: Write the failing behavioural test**
+- [x] **Step 1: Write the failing behavioural test**
 
 Create `tests/integration/ai-usage-report.behavior.test.ts`. This one runs against the live local database because the guarantee is about SQL agreement, which a text assertion cannot check:
 
@@ -403,12 +403,12 @@ describe('org_ai_usage_report', () => {
 
 If the third test finds no `org_ai_deployments` row to borrow, insert a connection and deployment fixture in `beforeAll` the way `scripts/verify/schema-behavior.sql` does — do not weaken the assertion to skip the case.
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `npx vitest run tests/integration/ai-usage-report.behavior.test.ts`
 Expected: FAIL — `org_ai_usage_report` does not exist.
 
-- [ ] **Step 3: Add the report function**
+- [x] **Step 3: Add the report function**
 
 Append to `db/migrations/0059_org_ai_spend_caps.sql`:
 
@@ -480,14 +480,14 @@ GRANT EXECUTE ON FUNCTION public.org_ai_usage_report(uuid, timestamptz) TO servi
 
 `by_workload` deliberately filters to platform-funded rows: it exists to explain the capped number, and mixing funding sources into one breakdown would make the column not sum to anything meaningful.
 
-- [ ] **Step 4: Apply and run the tests**
+- [x] **Step 4: Apply and run the tests**
 
 Run: `npx supabase migration up --local && npx vitest run tests/integration/ai-usage-report.behavior.test.ts`
 Expected: PASS (4 tests)
 
 If the daily test fails on `SUM(...) FILTER` producing null for a day with only org-funded rows, wrap both sums in `COALESCE(..., 0)` — a null in the series renders as a gap in the chart rather than a zero.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add db/migrations/0059_org_ai_spend_caps.sql tests/integration/ai-usage-report.behavior.test.ts
@@ -512,7 +512,7 @@ git commit -m "feat(db): add the usage report and pin it to the enforcement tota
   - `setOrgLimit(limitUsd: number | null): Promise<void>` — rejects a value above the platform ceiling
   - `setPlatformLimit(limitUsd: number | null): Promise<void>` — clamps `org_limit_usd` in the same statement
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `lib/api/repositories/__tests__/ai-spend-caps.test.ts`:
 
@@ -568,12 +568,12 @@ describe('periodStartFor', () => {
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `npx vitest run lib/api/repositories/__tests__/ai-spend-caps.test.ts`
 Expected: FAIL — the module does not exist.
 
-- [ ] **Step 3: Write the pure helpers**
+- [x] **Step 3: Write the pure helpers**
 
 Create `lib/api/repositories/ai-spend-caps.ts` beginning with the logic that needs no database:
 
@@ -625,12 +625,12 @@ export function periodStartFor(now: Date = new Date()): Date {
 }
 ```
 
-- [ ] **Step 4: Run the helper tests**
+- [x] **Step 4: Run the helper tests**
 
 Run: `npx vitest run lib/api/repositories/__tests__/ai-spend-caps.test.ts`
 Expected: PASS (9 tests)
 
-- [ ] **Step 5: Add the repository**
+- [x] **Step 5: Add the repository**
 
 Append to `lib/api/repositories/ai-spend-caps.ts`. `setPlatformLimit` clamps so the platform can always lower a ceiling it owns:
 
@@ -737,12 +737,12 @@ export function createAISpendCapRepository(
 export type AISpendCapRepository = ReturnType<typeof createAISpendCapRepository>;
 ```
 
-- [ ] **Step 6: Run the gate**
+- [x] **Step 6: Run the gate**
 
 Run: `npx vitest run lib/api && npm run verify:types`
 Expected: PASS
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add lib/api/repositories/ai-spend-caps.ts lib/api/repositories/__tests__/ai-spend-caps.test.ts
@@ -766,7 +766,7 @@ git commit -m "feat(ai): add the spend cap repository with a clamping ceiling"
 - Consumes: `org_platform_spend` from Task 2; `org_ai_spend_caps` from Task 1.
 - Produces: `begin_ai_turn` returns `{ started: false, cap_exceeded: true, effective_limit_usd, period_spend_usd, period_start }` when over. `BeginAiTurnResult` gains a `{ state: 'spend_cap_reached', effectiveLimitUsd, spendUsd, periodStart }` variant.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `tests/integration/ai-turn-spend-cap.test.ts`:
 
@@ -814,12 +814,12 @@ describe('spend cap at turn start', () => {
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `npx vitest run tests/integration/ai-turn-spend-cap.test.ts`
 Expected: FAIL — neither file mentions the cap.
 
-- [ ] **Step 3: Add the check to begin_ai_turn**
+- [x] **Step 3: Add the check to begin_ai_turn**
 
 In `db/migrations/0033_ai_sessions.sql`, add to the `DECLARE` block of `begin_ai_turn`:
 
@@ -876,7 +876,7 @@ Then, immediately after the existing content validation and before the advisory 
 
 `LEAST` with the two `COALESCE` expressions yields the lower of whichever limits are present, and null when both are absent — `LEAST(NULL, x)` in Postgres ignores nulls, which would otherwise make a single null limit win.
 
-- [ ] **Step 4: Map the refusal in the repository**
+- [x] **Step 4: Map the refusal in the repository**
 
 In `lib/api/repositories/ai-chat.ts`, extend `BeginTurnRpcResult`:
 
@@ -906,11 +906,11 @@ Add the variant to `BeginAiTurnResult` and branch before the identity check:
       const identity = requireRpcIdentity(result);
 ```
 
-- [ ] **Step 5: Surface it in the chat route**
+- [x] **Step 5: Surface it in the chat route**
 
 Find the route consuming `beginTurn` (`grep -rn "beginTurn" app/api`) and add a branch for `state === 'spend_cap_reached'` returning `jsonError` with 402 and a message naming the limit and the reset date. 402 rather than 429: this is a spending limit, not a rate limit, and the distinction matters to anyone reading logs.
 
-- [ ] **Step 6: Apply and run the tests**
+- [x] **Step 6: Apply and run the tests**
 
 Run: `npx supabase migration up --local && npx vitest run tests/integration lib/api && npm run verify:types`
 
@@ -923,7 +923,7 @@ docker exec -i supabase_db_benevolence-walkthrough psql -U postgres -d postgres 
 
 Expected: PASS
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add db/migrations/0033_ai_sessions.sql lib/api/repositories/ai-chat.ts app/api tests/integration
@@ -944,7 +944,7 @@ git commit -m "feat(ai): refuse new turns at the spend cap"
 - Consumes: `createAISpendCapRepository` from Task 4; the resolved-route fixture from `lib/ai/__tests__/resolver-fixtures.ts`.
 - Produces: `resolveOrganizationAIExecution` applies the cap behaviour. No new exports.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `lib/ai/__tests__/resolver-spend-cap.test.ts`:
 
@@ -1027,12 +1027,12 @@ describe('platform tooling', () => {
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `npx vitest run lib/ai/__tests__/resolver-spend-cap.test.ts`
 Expected: FAIL — the resolver never calls `getStatus`.
 
-- [ ] **Step 3: Apply the behaviours**
+- [x] **Step 3: Apply the behaviours**
 
 In `lib/ai/resolver.ts`, inside `resolveOrganizationAIExecution` after the non-routable short-circuit added in Phase 3A and before the route lookup:
 
@@ -1076,7 +1076,7 @@ function withReadOnlyTools(plan: AIExecutionPlan): AIExecutionPlan {
 
 Apply the same `read_only` wrap to the configured-route return at the end of the function.
 
-- [ ] **Step 4: Place the read_only banner, or drop read_only**
+- [x] **Step 4: Place the read_only banner, or drop read_only**
 
 `read_only` silently removes the assistant's ability to act. The spec makes a visible banner a condition of shipping it, because "it stopped being able to do things and nobody said why" is worse than offering two behaviours instead of three.
 
@@ -1090,12 +1090,12 @@ The plan cannot name the file because the assistant UI was not read while writin
 
 **If there is no coherent place to put it, stop and say so.** The correct response is removing `'read_only'` from the `on_limit` CHECK in `0059` and from the enum in Tasks 4, 6 and 10 — not shipping a silent capability change. That is a decision to raise, not to make quietly.
 
-- [ ] **Step 5: Run the tests**
+- [x] **Step 5: Run the tests**
 
 Run: `npx vitest run lib/ai && npm run verify:types`
 Expected: PASS. `resolver-phase1.test.ts` and `resolver-connectors.test.ts` must stay green — they mock no cap repository, so `getStatus` resolving undefined would break them. If they fail, give the mock a default in those files rather than making the resolver tolerate a missing cap.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add lib/ai/resolver.ts lib/ai/__tests__
@@ -1116,7 +1116,7 @@ git commit -m "feat(ai): apply read_only and own_key cap behaviours in the resol
 - Consumes: `createAISpendCapRepository` from Task 4.
 - Produces: the claim wrapper returns a spend-cap outcome the worker maps to a failed run.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `lib/builder/__tests__/builder-spend-cap.test.ts`:
 
@@ -1162,12 +1162,12 @@ describe('builder spend cap', () => {
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `npx vitest run lib/builder/__tests__/builder-spend-cap.test.ts`
 Expected: FAIL — `isBlockedBySpendCap` is not exported.
 
-- [ ] **Step 3: Add the check**
+- [x] **Step 3: Add the check**
 
 In `lib/builder/proposal-state.ts`, above the claim wrapper:
 
@@ -1195,12 +1195,12 @@ export async function isBlockedBySpendCap(
 
 Then call it in the claim wrapper before the `builder_claim_code_run` RPC, and when blocked, mark the run failed through the existing `markProposalRunFailed(proposalId, orgId, message)` helper with a message naming the limit — rather than leaving the proposal queued.
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 Run: `npx vitest run lib/builder && npm run verify:types`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add lib/builder
@@ -1223,7 +1223,7 @@ git commit -m "feat(builder): stop scaffold runs at the organization spend cap"
 - Consumes: `org_ai_usage_report` from Task 3; `createAISpendCapRepository` from Task 4.
 - Produces: `GET /api/org/[orgId]/ai-settings/usage` → `{ report, cap }`. `useAiUsageReport(orgId)` from `lib/ai/hooks.ts`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `tests/integration/ai-usage-endpoint.test.ts`:
 
@@ -1261,12 +1261,12 @@ describe('usage endpoint', () => {
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `npx vitest run tests/integration/ai-usage-endpoint.test.ts`
 Expected: FAIL — the route does not exist.
 
-- [ ] **Step 3: Write the endpoint**
+- [x] **Step 3: Write the endpoint**
 
 Create `app/api/org/[orgId]/ai-settings/usage/route.ts`:
 
@@ -1301,7 +1301,7 @@ export async function GET(_request: Request, { params }: RouteParams) {
 }
 ```
 
-- [ ] **Step 4: Add the hook and slim the settings payload**
+- [x] **Step 4: Add the hook and slim the settings payload**
 
 In `lib/ai/hooks.ts`:
 
@@ -1317,12 +1317,12 @@ Declare `UsageReport` to match the JSONB from Task 3 — `platform_cost`, `org_c
 
 In `lib/api/repositories/ai-settings.ts`, delete the `usageResult` query and the `usageSummary` reduction, and replace `usageSummary` in the returned payload with `cap: await createAISpendCapRepository({ orgId: scope.orgId }).getStatus()`.
 
-- [ ] **Step 5: Run the tests**
+- [x] **Step 5: Run the tests**
 
 Run: `npx vitest run tests/integration lib/api && npm run verify:types && npm run verify:build`
 Expected: PASS. `components/settings/__tests__/*` will fail if they assert on `usageSummary`; update those fixtures to `cap` rather than restoring the field.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add app/api/org lib/ai/hooks.ts lib/api/repositories/ai-settings.ts tests/integration components/settings
@@ -1344,7 +1344,7 @@ git commit -m "feat(ai-settings): serve the usage report from SQL on its own end
 - Consumes: `useAiUsageReport` from Task 8.
 - Produces: `<AIUsagePanel orgId={orgId} />`, rendered by `AIModelsSettings` in place of the four tiles.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `components/settings/__tests__/AIUsagePanel.test.tsx`:
 
@@ -1418,12 +1418,12 @@ describe('AIUsagePanel', () => {
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `npx vitest run components/settings/__tests__/AIUsagePanel.test.tsx`
 Expected: FAIL — the component does not exist.
 
-- [ ] **Step 3: Write the panel**
+- [x] **Step 3: Write the panel**
 
 Create `components/settings/AIUsagePanel.tsx` as a client component. The shape:
 
@@ -1505,16 +1505,16 @@ Do not add a charting dependency. The series is one number per day for at most 3
 
 When `cap.onLimit === 'own_key'` and `cap.state === 'over'`, add a line naming which deployment execution moved to and whether it carries write access — per the spec, `own_key` can quietly become `read_only` when the fallback deployment is unverified, and that has to be visible rather than discovered. The deployment is available from the settings payload's `deployments` array; pass it in as a prop rather than fetching it twice.
 
-- [ ] **Step 4: Render it from the settings page**
+- [x] **Step 4: Render it from the settings page**
 
 In `components/settings/AIModelsSettings.tsx`, replace the four-tile `<section>` (which read `data.usageSummary`, removed in Task 8) with `<AIUsagePanel orgId={orgId} />`.
 
-- [ ] **Step 5: Run the tests**
+- [x] **Step 5: Run the tests**
 
 Run: `npx vitest run components/settings && npm run verify:build`
 Expected: PASS
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add components/settings
@@ -1537,7 +1537,7 @@ git commit -m "feat(ai-settings): add the organization AI usage dashboard"
 - Consumes: `createAISpendCapRepository` from Task 4.
 - Produces: `PUT /api/org/[orgId]/ai-settings/spend-cap` (org admin: `orgLimitUsd`, `onLimit`, `warnAtPercent`) and `PUT /api/admin/org/[orgId]/spend-cap` (app admin: `platformLimitUsd`).
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `tests/integration/ai-spend-cap-routes.test.ts`:
 
@@ -1572,12 +1572,12 @@ describe('spend cap routes', () => {
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `npx vitest run tests/integration/ai-spend-cap-routes.test.ts`
 Expected: FAIL — neither route exists.
 
-- [ ] **Step 3: Write the organization route**
+- [x] **Step 3: Write the organization route**
 
 Create `app/api/org/[orgId]/ai-settings/spend-cap/route.ts` with a `PUT` guarded by `requireOrgAccess(orgId, 'admin')`, validating with:
 
@@ -1591,22 +1591,22 @@ const inputSchema = z.object({
 
 Call `setOrgLimit` and `setBehaviour` as the payload dictates, and return `jsonOk({ cap: await caps.getStatus() })` so the client gets the recomputed state without a second request. A limit above the platform ceiling throws from the repository; map it to `jsonError(message, 400)`.
 
-- [ ] **Step 4: Write the platform route**
+- [x] **Step 4: Write the platform route**
 
 Create `app/api/admin/org/[orgId]/spend-cap/route.ts` with a `PUT` guarded by `requireAppAdmin()`, validating `{ platformLimitUsd: z.number().nonnegative().nullable() }`, calling `setPlatformLimit`, and returning the recomputed status. The repository clamps the organization's limit in the same write.
 
-- [ ] **Step 5: Add the organization control**
+- [x] **Step 5: Add the organization control**
 
 Create `components/settings/AISpendCapSettings.tsx`: a number input for the organization limit, a select for `onLimit`, and a number input for `warnAtPercent`, saving through `requestJson`. Show the platform ceiling as read-only text so an administrator can see what they are working under. When `onLimit` is `own_key` and the organization has no active deployment, render the caveat that it will stop instead — the fallback from the spec, made visible rather than discovered.
 
 Render it from `AIModelsSettings.tsx` beneath the usage panel.
 
-- [ ] **Step 6: Run the tests**
+- [x] **Step 6: Run the tests**
 
 Run: `npx vitest run tests/integration components/settings && npm run verify:types && npm run verify:build`
 Expected: PASS
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add app/api components/settings tests/integration
@@ -1626,7 +1626,7 @@ git commit -m "feat(ai-settings): let organizations set a limit and the platform
 - Consumes: `org_ai_spend_caps` from Task 1.
 - Produces: no exports.
 
-- [ ] **Step 1: Add the assertions**
+- [x] **Step 1: Add the assertions**
 
 Append to `scripts/verify/schema-behavior.sql`, before the final `ROLLBACK`, following the style of the blocks already there:
 
@@ -1674,7 +1674,7 @@ BEGIN
 END $$;
 ```
 
-- [ ] **Step 2: Run the assertions against the live database**
+- [x] **Step 2: Run the assertions against the live database**
 
 ```bash
 docker exec -i supabase_db_benevolence-walkthrough psql -U postgres -d postgres \
@@ -1683,12 +1683,12 @@ docker exec -i supabase_db_benevolence-walkthrough psql -U postgres -d postgres 
 
 Expected: a series of `DO` results ending in `ROLLBACK`, with no `ERROR`. The script wraps everything in a transaction and rolls back, so nothing is modified.
 
-- [ ] **Step 3: Run the full migration verification**
+- [x] **Step 3: Run the full migration verification**
 
 Run: `npm run verify:migrations`
 Expected: PASS. This is the destructive reset described in the prerequisite.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add scripts/verify/schema-behavior.sql
@@ -1699,11 +1699,13 @@ git commit -m "test(db): assert the spend cap constraint and read boundary"
 
 ## Phase 3B exit criteria
 
-- [ ] `npm run verify:types && npm run verify:lint && npm run verify:unit` all pass
-- [ ] `npm run verify:migrations` passes from a clean local Supabase reset
-- [ ] `npm run verify:build` passes
-- [ ] The reconciliation test passes: the report's platform total equals `org_platform_spend`
-- [ ] The cap constraint bites — verify by attempting an organization limit above the platform ceiling and watching it fail
+- [x] `npm run verify:types && npm run verify:lint && npm run verify:unit` all pass
+- [x] `npm run verify:migrations` passes from a clean local Supabase reset
+- [x] `npm run verify:build` passes
+- [x] The reconciliation test passes: the report's platform total equals `org_platform_spend`
+- [x] The cap constraint bites — verify by attempting an organization limit above the platform ceiling and watching it fail
 - [ ] Manual check: set a low platform ceiling for a test organization, run the assistant past it, and confirm the turn is refused with a 402 naming the limit
-- [ ] Manual check: with `read_only` configured, confirm the assistant still answers, loses write tools, **and shows the banner**. Per the spec, if the banner cannot be placed, `read_only` does not ship — drop it from the enum rather than shipping a silent capability change
+- [ ] Manual check: with `read_only` configured, confirm the assistant still answers, loses write tools, **and shows the banner**.
+      Resolved during Task 6: the banner ships. `AIAssistantPanel.tsx` renders it from cap status carried on the
+      history fetch it already makes, so `read_only` stays in the enum. The manual confirmation is still open.
 - [ ] Manual check: confirm a Builder run is refused at the cap and the proposal is marked failed with a spend-cap reason rather than sitting queued

@@ -5,7 +5,7 @@
 // 11x11 transition matrix, the CAS-based transitionProposal/failInFlightRun
 // helpers, and the claimCodeRun RPC error-code mapping.
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import {
   CODE_STATES,
   type CodeState,
@@ -25,6 +25,22 @@ import {
   claimCodeRun,
 } from '@/lib/builder/proposal-state';
 import { SupabaseMock } from './helpers/supabase-mock';
+
+vi.mock('@/lib/api/repositories/ai-spend-caps', () => ({
+  // Uncapped by default: these suites are about claim mechanics, not spend.
+  createAISpendCapRepository: () => ({
+    getStatus: async () => ({
+      state: 'uncapped',
+      onLimit: 'hard_stop',
+      effectiveLimitUsd: null,
+      platformLimitUsd: null,
+      orgLimitUsd: null,
+      spendUsd: 0,
+      warnAtPercent: 80,
+      periodStart: new Date().toISOString(),
+    }),
+  }),
+}));
 
 const ORG_ID = '11111111-1111-1111-1111-111111111111';
 const PROPOSAL_ID = '22222222-2222-2222-2222-222222222222';

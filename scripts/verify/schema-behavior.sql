@@ -1608,4 +1608,59 @@ BEGIN
 END;
 $$;
 
+-- Spend caps: an organization limit may never exceed the platform ceiling.
+DO $$
+DECLARE
+  v_org uuid;
+BEGIN
+  INSERT INTO public.organizations (name, org_type)
+    VALUES ('Spend Cap Guard Org', 'private_foundation') RETURNING id INTO v_org;
+
+  INSERT INTO public.org_ai_spend_caps (org_id, platform_limit_usd, org_limit_usd)
+    VALUES (v_org, 500, 200);
+
+  BEGIN
+    UPDATE public.org_ai_spend_caps SET org_limit_usd = 900 WHERE org_id = v_org;
+    RAISE EXCEPTION 'an organization limit above the platform ceiling was permitted';
+  EXCEPTION WHEN check_violation THEN
+    NULL;
+  END;
+
+  -- A null platform ceiling means uncapped, so any organization limit is fine.
+  UPDATE public.org_ai_spend_caps
+    SET platform_limit_usd = NULL, org_limit_usd = 900 WHERE org_id = v_org;
+
+  -- Only the three behaviours are accepted.
+  BEGIN
+    UPDATE public.org_ai_spend_caps SET on_limit = 'throttle' WHERE org_id = v_org;
+    RAISE EXCEPTION 'an unsupported cap behaviour was permitted';
+  EXCEPTION WHEN check_violation THEN
+    NULL;
+  END;
+END $$;
+
+-- Spend caps are readable by org admins and writable only by the service role.
+DO $$
+BEGIN
+  IF has_table_privilege('authenticated', 'public.org_ai_spend_caps', 'UPDATE') THEN
+    RAISE EXCEPTION 'authenticated can update org_ai_spend_caps';
+  END IF;
+  IF NOT has_table_privilege('authenticated', 'public.org_ai_spend_caps', 'SELECT') THEN
+    RAISE EXCEPTION 'authenticated cannot read org_ai_spend_caps';
+  END IF;
+END $$;
+
+-- Platform spend counts only platform-funded rows, and returns zero rather
+-- than null so a comparison against a limit cannot fail silently.
+DO $$
+DECLARE
+  v_zero numeric;
+BEGIN
+  SELECT public.org_platform_spend(gen_random_uuid(), now() - interval '30 days')
+    INTO v_zero;
+  IF v_zero IS DISTINCT FROM 0 THEN
+    RAISE EXCEPTION 'org_platform_spend returned % for an org with no usage', v_zero;
+  END IF;
+END $$;
+
 ROLLBACK;

@@ -90,6 +90,7 @@ const SUGGESTED_PROMPTS = [
 
 export default function AIAssistantPanel({ portfolioId, currentPage, onClose }: Props) {
   const [messages, setMessages] = useState<Message[]>([]);
+  const [cap, setCap] = useState<{ state: string; onLimit: string } | null>(null);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [loadingStatus, setLoadingStatus] = useState('Thinking…');
@@ -144,6 +145,7 @@ Just ask me anything, and I'll help you out! If you don't like a change I make, 
         setSessionId(data.session.id);
         setMessages(data.messages || []);
       }
+      if (data.cap) setCap({ state: data.cap.state, onLimit: data.cap.onLimit });
     } catch (err) {
       // Failed to load conversation history
     }
@@ -375,6 +377,13 @@ Just ask me anything, and I'll help you out! If you don't like a change I make, 
           </button>
         )}
       </div>
+
+      {cap?.state === 'over' && cap.onLimit === 'read_only' && (
+        <div className="border-b border-sunset/40 bg-sunset/10 px-4 py-2 text-xs text-gray-800">
+          Monthly AI limit reached. The assistant can answer questions but cannot
+          make changes until the limit resets.
+        </div>
+      )}
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">

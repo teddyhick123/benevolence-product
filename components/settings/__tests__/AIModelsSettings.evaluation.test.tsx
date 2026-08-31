@@ -9,6 +9,12 @@ const { requestJson, useApiData } = vi.hoisted(() => ({
 vi.mock('@/lib/api/client', () => ({ requestJson }));
 vi.mock('@/lib/api/client-hooks', () => ({ useApiData }));
 
+// AIUsagePanel is rendered by AIModelsSettings but is not what these suites
+// are about; it has its own test file.
+vi.mock('@/components/settings/AIUsagePanel', () => ({
+  default: () => null,
+}));
+
 import AIModelsSettings from '../AIModelsSettings';
 
 const CONNECTION_ID = '00000000-0000-4000-8000-000000000010';
@@ -45,9 +51,15 @@ function renderWith(verifiedWorkloads: Record<string, unknown>) {
         modelVendor: 'anthropic',
         connector: 'openrouter',
       }],
-      usageSummary: {
-        periodDays: 30, invocations: 0, failedInvocations: 0,
-        inputTokens: 0, outputTokens: 0, reportedCost: 0,
+      cap: {
+        state: 'uncapped',
+        onLimit: 'hard_stop',
+        effectiveLimitUsd: null,
+        platformLimitUsd: null,
+        orgLimitUsd: null,
+        spendUsd: 0,
+        warnAtPercent: 80,
+        periodStart: '2026-08-01T00:00:00.000Z',
       },
     },
   });

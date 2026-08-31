@@ -3,6 +3,7 @@
 import { useMemo, useState, type FormEvent } from 'react';
 import { useApiData } from '@/lib/api/client-hooks';
 import { requestJson } from '@/lib/api/client';
+import AIUsagePanel from '@/components/settings/AIUsagePanel';
 
 type Connection = {
   id: string;
@@ -91,13 +92,15 @@ type SettingsData = {
   routes: WorkloadRoute[];
   workloads: Workload[];
   catalog: CatalogTemplate[];
-  usageSummary: {
-    periodDays: number;
-    invocations: number;
-    failedInvocations: number;
-    inputTokens: number;
-    outputTokens: number;
-    reportedCost: number;
+  cap: {
+    state: 'uncapped' | 'under' | 'warn' | 'over';
+    onLimit: 'hard_stop' | 'read_only' | 'own_key';
+    effectiveLimitUsd: number | null;
+    platformLimitUsd: number | null;
+    orgLimitUsd: number | null;
+    spendUsd: number;
+    warnAtPercent: number;
+    periodStart: string;
   };
 };
 
@@ -220,19 +223,7 @@ export default function AIModelsSettings({ orgId }: { orgId: string }) {
 
       {notice && <div className="rounded-lg border border-azure/20 bg-white px-4 py-3 text-sm">{notice}</div>}
 
-      <section className="grid gap-3 sm:grid-cols-4">
-        {[
-          ['Invocations', data.usageSummary.invocations.toLocaleString()],
-          ['Failed', data.usageSummary.failedInvocations.toLocaleString()],
-          ['Tokens', (data.usageSummary.inputTokens + data.usageSummary.outputTokens).toLocaleString()],
-          ['Reported cost', `$${data.usageSummary.reportedCost.toFixed(2)}`],
-        ].map(([label, value]) => (
-          <div key={label} className="card p-4">
-            <div className="text-xs uppercase tracking-wide text-gray-500">{label} · 30 days</div>
-            <div className="mt-1 text-xl font-semibold">{value}</div>
-          </div>
-        ))}
-      </section>
+      <AIUsagePanel orgId={orgId} />
 
       <section className="card space-y-4 p-6">
         <div>

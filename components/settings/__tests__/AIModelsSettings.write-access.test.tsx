@@ -9,6 +9,12 @@ const { requestJson, useApiData } = vi.hoisted(() => ({
 vi.mock('@/lib/api/client', () => ({ requestJson }));
 vi.mock('@/lib/api/client-hooks', () => ({ useApiData }));
 
+// AIUsagePanel is rendered by AIModelsSettings but is not what these suites
+// are about; it has its own test file.
+vi.mock('@/components/settings/AIUsagePanel', () => ({
+  default: () => null,
+}));
+
 import AIModelsSettings from '../AIModelsSettings';
 
 const DEPLOYMENT_ID = '00000000-0000-4000-8000-000000000011';

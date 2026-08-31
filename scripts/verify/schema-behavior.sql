@@ -1663,4 +1663,82 @@ BEGIN
   END IF;
 END $$;
 
+-- The ledger is readable by authenticated callers and writable only by the
+-- service role.
+DO $$
+BEGIN
+  IF has_table_privilege('authenticated', 'public.applied_migrations', 'UPDATE') THEN
+    RAISE EXCEPTION 'authenticated can update applied_migrations';
+  END IF;
+  IF has_table_privilege('authenticated', 'public.applied_migrations', 'INSERT') THEN
+    RAISE EXCEPTION 'authenticated can insert into applied_migrations';
+  END IF;
+  IF NOT has_table_privilege('authenticated', 'public.applied_migrations', 'SELECT') THEN
+    RAISE EXCEPTION 'authenticated cannot read applied_migrations';
+  END IF;
+END $$;
+
+-- Provenance is constrained, and the version is the primary key so a
+-- migration cannot be recorded twice.
+DO $$
+BEGIN
+  BEGIN
+    INSERT INTO public.applied_migrations (version, filename, checksum, applied_by)
+      VALUES ('9998', '9998_guard.sql', 'abc', 'somewhere-else');
+    RAISE EXCEPTION 'an unconstrained applied_by value was permitted';
+  EXCEPTION WHEN check_violation THEN
+    NULL;
+  END;
+
+  INSERT INTO public.applied_migrations (version, filename, checksum, applied_by)
+    VALUES ('9999', '9999_guard.sql', 'abc', 'migrate-client');
+  BEGIN
+    INSERT INTO public.applied_migrations (version, filename, checksum, applied_by)
+      VALUES ('9999', '9999_again.sql', 'def', 'migrate-client');
+    RAISE EXCEPTION 'a duplicate migration version was permitted';
+  EXCEPTION WHEN unique_violation THEN
+    NULL;
+  END;
+END $$;
+
+-- The ledger adopted what the Supabase CLI recorded.
+DO $$
+DECLARE
+  v_backfilled int;
+BEGIN
+  SELECT count(*) INTO v_backfilled
+  FROM public.applied_migrations WHERE applied_by = 'backfill';
+  IF v_backfilled = 0 THEN
+    RAISE EXCEPTION 'the ledger adopted no migrations from schema_migrations';
+  END IF;
+END $$;
+
+-- Row counts are scoped: an organization never sees another's volume.
+DO $$
+DECLARE
+  v_org_a uuid;
+  v_org_b uuid;
+  v_counts jsonb;
+BEGIN
+  INSERT INTO public.organizations (name, org_type)
+    VALUES ('Scope Guard A', 'private_foundation') RETURNING id INTO v_org_a;
+  INSERT INTO public.organizations (name, org_type)
+    VALUES ('Scope Guard B', 'private_foundation') RETURNING id INTO v_org_b;
+
+  INSERT INTO public.ai_usage_log
+    (org_id, scope_kind, workload_id, operation, connector, requested_model)
+    VALUES (v_org_b, 'organization', 'assistant', 'tool_conversation', 'anthropic', 'claude-opus-5');
+
+  -- A has no rows of its own, so B's row must not appear in A's counts.
+  v_counts := public.org_table_row_counts(v_org_a);
+  IF jsonb_array_length(v_counts) <> 0 THEN
+    RAISE EXCEPTION 'org_table_row_counts leaked another organization''s rows: %', v_counts;
+  END IF;
+
+  v_counts := public.org_table_row_counts(v_org_b);
+  IF jsonb_array_length(v_counts) = 0 THEN
+    RAISE EXCEPTION 'org_table_row_counts reported nothing for an organization with data';
+  END IF;
+END $$;
+
 ROLLBACK;

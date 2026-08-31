@@ -48,3 +48,22 @@ describe('applied_migrations schema', () => {
     expect(code).toMatch(/EXISTS \(\s*SELECT 1 FROM public\.organization_members/);
   });
 });
+
+describe('org_table_row_counts', () => {
+  // Comments stripped: an explanatory comment naming reltuples must not fail
+  // an assertion about what the code does.
+  it('counts exactly rather than estimating', () => {
+    const code = SQL.replace(/^\s*--.*$/gm, '');
+    expect(code).not.toMatch(/reltuples/);
+    expect(code).toMatch(/count\(\*\)/i);
+  });
+
+  it('scopes every count by org_id', () => {
+    expect(SQL).toMatch(/WHERE org_id = /);
+  });
+
+  it('is executable by the service role only', () => {
+    expect(SQL).toMatch(/REVOKE ALL ON FUNCTION public\.org_table_row_counts/);
+    expect(SQL).toMatch(/GRANT EXECUTE ON FUNCTION public\.org_table_row_counts[\s\S]*TO service_role/);
+  });
+});

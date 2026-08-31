@@ -15185,6 +15185,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      org_table_row_counts: { Args: { p_org_id: string }; Returns: Json }
       provision_onboarding_session: {
         Args: {
           p_automation_rows?: Json

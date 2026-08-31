@@ -76,3 +76,52 @@ CREATE POLICY "applied_migrations_service" ON public.applied_migrations
 REVOKE ALL ON public.applied_migrations FROM authenticated;
 GRANT SELECT ON public.applied_migrations TO authenticated;
 GRANT ALL ON public.applied_migrations TO service_role;
+
+-- ---------------------------------------------------------------------------
+-- Exact row counts per org-scoped table, in one pass.
+--
+-- Counted rather than estimated: reltuples goes stale after bulk changes, and
+-- an estimate presented as a count on a transparency screen is worse than no
+-- number at all.
+--
+-- Every count is scoped by org_id. That scoping is load-bearing: the schema is
+-- shared across organizations, so an unscoped count would leak another
+-- tenant's volume the moment two organizations share a database.
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.org_table_row_counts(p_org_id uuid)
+RETURNS jsonb
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_table text;
+  v_count bigint;
+  v_result jsonb := '[]'::jsonb;
+BEGIN
+  FOR v_table IN
+    SELECT c.table_name
+    FROM information_schema.columns c
+    JOIN information_schema.tables t
+      ON t.table_schema = c.table_schema AND t.table_name = c.table_name
+    WHERE c.table_schema = 'public'
+      AND c.column_name = 'org_id'
+      AND t.table_type = 'BASE TABLE'
+    ORDER BY c.table_name
+  LOOP
+    EXECUTE format('SELECT count(*) FROM public.%I WHERE org_id = $1', v_table)
+      INTO v_count USING p_org_id;
+    -- Tables with no rows for this organization are omitted: a list of 100
+    -- tables where 96 read zero is noise.
+    IF v_count > 0 THEN
+      v_result := v_result || jsonb_build_object('table_name', v_table, 'row_count', v_count);
+    END IF;
+  END LOOP;
+
+  RETURN v_result;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.org_table_row_counts(uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.org_table_row_counts(uuid) TO service_role;

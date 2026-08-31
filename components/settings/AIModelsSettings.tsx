@@ -4,6 +4,7 @@ import { useMemo, useState, type FormEvent } from 'react';
 import { useApiData } from '@/lib/api/client-hooks';
 import { requestJson } from '@/lib/api/client';
 import AIUsagePanel from '@/components/settings/AIUsagePanel';
+import AISpendCapSettings from '@/components/settings/AISpendCapSettings';
 
 type Connection = {
   id: string;
@@ -224,6 +225,13 @@ export default function AIModelsSettings({ orgId }: { orgId: string }) {
       {notice && <div className="rounded-lg border border-azure/20 bg-white px-4 py-3 text-sm">{notice}</div>}
 
       <AIUsagePanel orgId={orgId} />
+
+      <AISpendCapSettings
+        orgId={orgId}
+        cap={data.cap}
+        hasActiveDeployment={data.deployments.some(item => item.status === 'active')}
+        onSaved={() => { void mutate(); }}
+      />
 
       <section className="card space-y-4 p-6">
         <div>

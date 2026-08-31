@@ -4,7 +4,7 @@
 
 **Goal:** Make the migration state of a database knowable, so that handing someone a database they can upgrade is a promise the platform can keep.
 
-**Roadmap context:** `docs/agent-work/plans/2026-08-16-tenant-sovereignty-roadmap.md` § Phase 4, scope items 4 and 5, and finding F11. Items 1 and 3 (full data export and import) become Phase 4B; item 2 (configuration as a portable artifact) becomes Phase 4C. See [Scope](#scope).
+**Roadmap context:** `docs/agent-work/plans/2026-08-16-tenant-sovereignty-roadmap.md` § Phase 4, scope items 4 and 5, and finding F11. Item 1 (data export) becomes Phase 4B, item 3 (import) becomes Phase 4C, and item 2 (configuration as a portable artifact) becomes Phase 4D. See [Scope](#scope).
 
 ---
 
@@ -22,7 +22,9 @@ Phase 4's five scope items are three independent projects plus a prerequisite. T
 
 **In scope:** the migrations ledger (item 5) and schema transparency (item 4).
 
-**Deferred:** full org data export and import (items 1 and 3) become **Phase 4B**, roughly 12–15 tasks over 100 org-scoped tables and three storage buckets. Configuration export and import as a portable artifact (item 2) becomes **Phase 4C**.
+**Deferred:** org data export (item 1) becomes **Phase 4B**, roughly 7 tasks over 149 base tables and five storage buckets. Import (item 3) becomes **Phase 4C**, and configuration export and import as a portable artifact (item 2) becomes **Phase 4D**.
+
+Two figures in this paragraph were corrected on 2026-08-31 while designing 4B. The earlier count of "100 org-scoped tables" included 17 views, which are derived and never exported; the true figure is 83 org-scoped base tables out of 149. The roadmap's "three storage buckets" missed `grant-documents`, `holding-contact-photos`, and `imports`; there are six, of which five are exported.
 
 Both depend on this phase to be credible: an export whose schema state is unknowable cannot claim to reproduce a functionally identical org.
 

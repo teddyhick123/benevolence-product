@@ -17,6 +17,7 @@ import { pack } from 'tar-stream';
 import type { ElevatedClient } from '@/lib/api/admin-client';
 import { EXPORT_TABLES, exportableTables } from '@/lib/export/tables';
 import { streamTableRows } from '@/lib/export/rows';
+import { EXPORT_BUCKETS, streamBucketObjects } from '@/lib/export/storage';
 
 const pipe = promisify(pipeline);
 
@@ -31,6 +32,7 @@ export type ExportManifest = {
   numericEncoding: 'string';
   schema: { ledger: { version: string; state: string }[]; driftCheckAvailable: boolean };
   files: { path: string; sha256: string; rows?: number; bytes: number }[];
+  documents: { bucket: string; count: number; bytes: number }[];
   excluded: { table?: string; bucket?: string; reason: string }[];
 };
 
@@ -106,9 +108,38 @@ export async function writeArchive(input: {
     byteCount += bytes;
   }
 
-  const excluded: ExportManifest['excluded'] = EXPORT_TABLES
-    .filter(rule => rule.kind === 'reference' || rule.kind === 'platform')
-    .map(rule => ({ table: rule.table, reason: (rule as { reason: string }).reason }));
+  // An archive of rows without documents is not everything an organization
+  // owns: tax substantiation, compliance filings and grant records live in
+  // storage.
+  const documents: ExportManifest['documents'] = [];
+  for (const { bucket, included } of EXPORT_BUCKETS) {
+    if (!included) continue;
+    let count = 0;
+    let bucketBytes = 0;
+
+    for await (const object of streamBucketObjects(db, bucket, orgId)) {
+      const path = `storage/${bucket}/${object.path}`;
+      await new Promise<void>((resolve, reject) => {
+        tar.entry({ name: path, size: object.body.length }, object.body,
+          err => (err ? reject(err) : resolve()));
+      });
+      files.push({ path, sha256: sha256Hex(object.body), bytes: object.body.length });
+      count += 1;
+      bucketBytes += object.body.length;
+      byteCount += object.body.length;
+    }
+
+    documents.push({ bucket, count, bytes: bucketBytes });
+  }
+
+  const excluded: ExportManifest['excluded'] = [
+    ...EXPORT_TABLES
+      .filter(rule => rule.kind === 'reference' || rule.kind === 'platform')
+      .map(rule => ({ table: rule.table, reason: (rule as { reason: string }).reason })),
+    ...EXPORT_BUCKETS
+      .filter(entry => !entry.included)
+      .map(entry => ({ bucket: entry.bucket, reason: entry.reason ?? 'excluded' })),
+  ];
 
   const ledger = await db.from('applied_migrations').select('version, checksum').order('version');
   const manifest: ExportManifest = {
@@ -127,6 +158,7 @@ export async function writeArchive(input: {
       driftCheckAvailable: false,
     },
     files,
+    documents,
     excluded,
   };
 

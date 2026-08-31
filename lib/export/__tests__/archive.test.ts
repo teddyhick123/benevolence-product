@@ -132,3 +132,69 @@ describe('writeArchive', () => {
     expect((await readArchive(buffer()))['tables/holdings.ndjson.gz'].split('\n').length).toBe(5001);
   });
 });
+
+describe('writeArchive with documents', () => {
+  /** A db double whose tax-documents bucket holds one file. */
+  function dbWithOneDocument() {
+    return {
+      rpc: vi.fn(async () => ({ data: [], error: null })),
+      from: vi.fn(() => ({
+        select: vi.fn(() => ({ order: vi.fn(async () => ({ data: [], error: null })) })),
+      })),
+      storage: {
+        from: vi.fn((bucket: string) => ({
+          list: vi.fn(async (_p: string, o: { offset: number }) => ({
+            data: bucket === 'tax-documents' && o.offset === 0 ? [{ name: 'receipt.pdf' }] : [],
+            error: null,
+          })),
+          download: vi.fn(async () => ({
+            data: { arrayBuffer: async () => new TextEncoder().encode('pdf bytes').buffer },
+            error: null,
+          })),
+        })),
+      },
+    } as never;
+  }
+
+  it('writes each document into the tar under its bucket', async () => {
+    const { sink, buffer } = collectingSink();
+    await writeArchive({ db: dbWithOneDocument(), orgId: 'org-1', orgName: 'Test Org', sink });
+    const files = await readArchive(buffer());
+
+    expect(Object.keys(files)).toContain('storage/tax-documents/org-1/receipt.pdf');
+    expect(files['storage/tax-documents/org-1/receipt.pdf']).toBe('pdf bytes');
+  });
+
+  it('hashes every document it wrote', async () => {
+    const { sink, buffer } = collectingSink();
+    await writeArchive({ db: dbWithOneDocument(), orgId: 'org-1', orgName: 'Test Org', sink });
+    const manifest = JSON.parse((await readArchive(buffer()))['manifest.json']) as ExportManifest;
+
+    const entry = manifest.files.find(f => f.path.startsWith('storage/tax-documents/'));
+    expect(entry?.sha256).toMatch(/^[0-9a-f]{64}$/);
+    expect(entry?.bytes).toBe('pdf bytes'.length);
+  });
+
+  it('counts documents per included bucket in the manifest', async () => {
+    const { sink, buffer } = collectingSink();
+    await writeArchive({ db: dbWithOneDocument(), orgId: 'org-1', orgName: 'Test Org', sink });
+    const manifest = JSON.parse((await readArchive(buffer()))['manifest.json']) as ExportManifest;
+
+    expect(manifest.documents.find(d => d.bucket === 'tax-documents')?.count).toBe(1);
+    // Every included bucket is reported, even when it holds nothing.
+    expect(manifest.documents.map(d => d.bucket).sort()).toEqual([
+      'builder-artifacts', 'compliance-documents', 'grant-documents',
+      'holding-contact-photos', 'tax-documents',
+    ]);
+  });
+
+  // Complete-by-decision, again: a reader can see imports was a choice.
+  it('records the excluded buckets and why', async () => {
+    const { sink, buffer } = collectingSink();
+    await writeArchive({ db: fakeDb({}), orgId: 'org-1', orgName: 'Test Org', sink });
+    const manifest = JSON.parse((await readArchive(buffer()))['manifest.json']) as ExportManifest;
+
+    expect(manifest.excluded.find(e => e.bucket === 'imports')?.reason).toBeTruthy();
+    expect(manifest.excluded.find(e => e.bucket === 'org-exports')?.reason).toBeTruthy();
+  });
+});

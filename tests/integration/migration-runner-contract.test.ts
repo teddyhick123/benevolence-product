@@ -27,3 +27,36 @@ describe('migration runner', () => {
     expect(RUNNER).not.toMatch(/SUPABASE_PROJECT_REF/);
   });
 });
+
+describe('ledger-aware behaviour', () => {
+  it('compares against the ledger rather than a hand-supplied range', () => {
+    expect(RUNNER).toMatch(/compareLedger/);
+    expect(RUNNER).toMatch(/applied_migrations/);
+  });
+
+  // The roadmap's exit criterion: a no-op that says so, rather than silently
+  // re-running everything.
+  it('reports when nothing is pending', () => {
+    expect(RUNNER).toMatch(/already up to date|nothing to apply|No pending migrations/i);
+  });
+
+  it('refuses on drift and names both checksums', () => {
+    expect(RUNNER).toMatch(/has changed since it was applied/);
+    expect(RUNNER).toMatch(/recorded/);
+    expect(RUNNER).toMatch(/supabase db reset/);
+  });
+
+  // An override would become the habit and the guarantee would erode.
+  it('offers no force flag', () => {
+    expect(RUNNER).not.toMatch(/--force/);
+  });
+
+  it('records a row for each applied migration', () => {
+    expect(RUNNER).toMatch(/INSERT INTO public\.applied_migrations/);
+    expect(RUNNER).toMatch(/'migrate-client'/);
+  });
+
+  it('supports an explicit adopt for a database with no prior bookkeeping', () => {
+    expect(RUNNER).toMatch(/--adopt/);
+  });
+});

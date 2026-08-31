@@ -3,6 +3,7 @@ import type { OrgAccessContext } from '@/lib/api/principals';
 import { AI_DEPLOYMENT_CATALOG, getAIDeploymentTemplate } from '@/lib/ai/catalog';
 import { AI_WORKLOADS, getAIWorkload, orgRoutableWorkloads } from '@/lib/ai/workloads';
 import { canManageWorkspace } from '@/lib/organizations/roles';
+import { createAISpendCapRepository } from '@/lib/api/repositories/ai-spend-caps';
 import {
   aiConnectionUpdateSchema,
   aiDeploymentCreateSchema,
@@ -76,23 +77,21 @@ export function createAISettingsRepository(
 
   return {
     async getSettings() {
-      const usageSince = new Date(now().getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
-      const [connectionsResult, deploymentsResult, routesResult, targetsResult, usageResult, hints] = await Promise.all([
+      // Usage detail lives on its own endpoint: this payload is fetched on
+      // every settings page load, mostly by people not looking at spend.
+      // Only cap status stays, because the routing UI needs it.
+      const [connectionsResult, deploymentsResult, routesResult, targetsResult, cap, hints] = await Promise.all([
         db.from('org_ai_connections').select('*').eq('org_id', scope.orgId).order('name'),
         db.from('org_ai_deployments').select('*').eq('org_id', scope.orgId).order('name'),
         db.from('org_ai_routes').select('*').eq('org_id', scope.orgId).order('workload_id'),
         db.from('org_ai_route_targets').select('*').eq('org_id', scope.orgId).order('position'),
-        db.from('ai_usage_log')
-          .select('workload_id, input_tokens, output_tokens, reported_cost, status')
-          .eq('org_id', scope.orgId)
-          .gte('created_at', usageSince),
+        createAISpendCapRepository({ orgId: scope.orgId }).getStatus(),
         credentials.listCredentialHints(),
       ]);
-      for (const result of [connectionsResult, deploymentsResult, routesResult, targetsResult, usageResult]) {
+      for (const result of [connectionsResult, deploymentsResult, routesResult, targetsResult]) {
         if (result.error) throw result.error;
       }
       const hintsByConnection = new Map(hints.map(hint => [hint.connectionId, hint]));
-      const usageRows = usageResult.data ?? [];
       return {
         connections: (connectionsResult.data ?? []).map(row => ({
           ...row,
@@ -105,14 +104,7 @@ export function createAISettingsRepository(
         })),
         workloads: orgRoutableWorkloads(),
         catalog: AI_DEPLOYMENT_CATALOG,
-        usageSummary: {
-          periodDays: 30,
-          invocations: usageRows.length,
-          failedInvocations: usageRows.filter(row => row.status !== 'succeeded').length,
-          inputTokens: usageRows.reduce((sum, row) => sum + (row.input_tokens ?? 0), 0),
-          outputTokens: usageRows.reduce((sum, row) => sum + (row.output_tokens ?? 0), 0),
-          reportedCost: usageRows.reduce((sum, row) => sum + Number(row.reported_cost ?? 0), 0),
-        },
+        cap,
       };
     },
 

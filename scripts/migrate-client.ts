@@ -84,6 +84,9 @@ Environment variables:
 // ---------------------------------------------------------------------------
 interface MigrationFile {
   num: number;
+  /** The four-character prefix. The ledger keys on this string, not on num:
+   *  leading zeros and gaps make numeric identity unsafe. */
+  version: string;
   filename: string;
   fullPath: string;
 }
@@ -98,6 +101,7 @@ function discoverMigrations(dbDir: string): MigrationFile[] {
   return files
     .map(f => ({
       num: parseInt(f.slice(0, 4), 10),
+      version: f.slice(0, 4),
       filename: f,
       fullPath: path.join(dbDir, f),
     }))
@@ -180,6 +184,60 @@ async function executeSQL(sql: string, description: string): Promise<void> {
   }
 }
 
+/**
+ * Reads rows. Separate from execSql, which throws on error but discards the
+ * response body — adequate for DDL, useless for reading the ledger.
+ *
+ * Mirrors execSql's endpoint and ref derivation exactly, so it adds no new
+ * environment variable.
+ */
+async function querySql<T>(sql: string, description: string): Promise<T[]> {
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const accessToken = process.env.SUPABASE_ACCESS_TOKEN;
+  const serviceKey = process.env.SUPABASE_SERVICE_KEY;
+
+  if (!supabaseUrl) throw new Error('SUPABASE_URL env var is required');
+
+  if (accessToken) {
+    const projectRef = extractProjectRef(supabaseUrl);
+    if (!projectRef) throw new Error(`Could not parse project ref from SUPABASE_URL: ${supabaseUrl}`);
+
+    const res = await fetch(`https://api.supabase.com/v1/projects/${projectRef}/database/query`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ query: sql }),
+    });
+    if (!res.ok) throw new Error(`Management API error for "${description}": ${await res.text()}`);
+    const body = await res.json();
+    return (Array.isArray(body) ? body : []) as T[];
+  }
+
+  if (serviceKey) {
+    const res = await fetch(`${supabaseUrl}/rest/v1/rpc/exec_sql`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${serviceKey}`,
+        'apikey': serviceKey,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ sql }),
+    });
+    if (!res.ok) throw new Error(`REST API error for "${description}": ${await res.text()}`);
+    // exec_sql may return a scalar rather than rows depending on how it is
+    // defined in a given deployment. A non-array yields an empty ledger, which
+    // the runner treats as a first run rather than crashing.
+    const body = await res.json();
+    return (Array.isArray(body) ? body : []) as T[];
+  }
+
+  throw new Error(
+    'No query method available. Set SUPABASE_ACCESS_TOKEN (Management API) or SUPABASE_SERVICE_KEY (REST API).',
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
@@ -207,7 +265,7 @@ async function main() {
     }
     const filename = path.basename(fullPath);
     const num = parseInt(filename.slice(0, 4), 10) || 0;
-    migrations = [{ num, filename, fullPath }];
+    migrations = [{ num, version: filename.slice(0, 4), filename, fullPath }];
   } else {
     const all = discoverMigrations(dbDir);
     migrations = filterMigrations(all, from, to);

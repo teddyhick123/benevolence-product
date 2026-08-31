@@ -1741,4 +1741,89 @@ BEGIN
   END IF;
 END $$;
 
+-- Export runs are readable by org admins and writable only by the service role.
+DO $$
+BEGIN
+  IF has_table_privilege('authenticated', 'public.org_export_runs', 'INSERT') THEN
+    RAISE EXCEPTION 'authenticated can insert into org_export_runs';
+  END IF;
+  IF has_table_privilege('authenticated', 'public.org_export_runs', 'UPDATE') THEN
+    RAISE EXCEPTION 'authenticated can update org_export_runs';
+  END IF;
+  IF NOT has_table_privilege('authenticated', 'public.org_export_runs', 'SELECT') THEN
+    RAISE EXCEPTION 'authenticated cannot read org_export_runs';
+  END IF;
+END $$;
+
+-- export_table_page is SECURITY DEFINER and takes an org id as a parameter, so
+-- a role-level grant would let any signed-in user read any organization's rows.
+-- REVOKE FROM PUBLIC does not remove Supabase's default role grant.
+DO $$
+BEGIN
+  IF has_function_privilege('authenticated',
+       'public.export_table_page(text,uuid,uuid,int,text,text,text,text)', 'EXECUTE') THEN
+    RAISE EXCEPTION 'authenticated can execute export_table_page';
+  END IF;
+  IF has_function_privilege('anon',
+       'public.export_table_page(text,uuid,uuid,int,text,text,text,text)', 'EXECUTE') THEN
+    RAISE EXCEPTION 'anon can execute export_table_page';
+  END IF;
+END $$;
+
+-- One live export run per organization.
+DO $$
+DECLARE v_org uuid;
+BEGIN
+  INSERT INTO public.organizations (name, org_type)
+    VALUES ('Export Guard', 'private_foundation') RETURNING id INTO v_org;
+  INSERT INTO public.org_export_runs (org_id) VALUES (v_org);
+  BEGIN
+    INSERT INTO public.org_export_runs (org_id) VALUES (v_org);
+    RAISE EXCEPTION 'a second live export run was permitted';
+  EXCEPTION WHEN unique_violation THEN
+    NULL;
+  END;
+  -- A finished run frees the slot.
+  UPDATE public.org_export_runs SET status = 'succeeded' WHERE org_id = v_org;
+  INSERT INTO public.org_export_runs (org_id) VALUES (v_org);
+END $$;
+
+-- export_table_page refuses an unscoped table rather than exporting it whole.
+DO $$
+DECLARE v_failed boolean := false;
+BEGIN
+  BEGIN
+    PERFORM * FROM public.export_table_page('charities', gen_random_uuid(), NULL, 1);
+  EXCEPTION WHEN others THEN
+    v_failed := true;
+  END;
+  IF NOT v_failed THEN
+    RAISE EXCEPTION 'export_table_page accepted a table with no org_id and no parent';
+  END IF;
+END $$;
+
+-- An organization's export never contains another organization's rows.
+DO $$
+DECLARE
+  v_a uuid;
+  v_b uuid;
+  v_leaked bigint;
+BEGIN
+  INSERT INTO public.organizations (name, org_type)
+    VALUES ('Export Scope A', 'private_foundation') RETURNING id INTO v_a;
+  INSERT INTO public.organizations (name, org_type)
+    VALUES ('Export Scope B', 'private_foundation') RETURNING id INTO v_b;
+
+  INSERT INTO public.ai_usage_log
+    (org_id, scope_kind, workload_id, operation, connector, requested_model)
+    VALUES (v_b, 'organization', 'assistant', 'tool_conversation', 'anthropic', 'claude-opus-5');
+
+  SELECT count(*) INTO v_leaked
+  FROM public.export_table_page('ai_usage_log', v_a, NULL, 100);
+
+  IF v_leaked <> 0 THEN
+    RAISE EXCEPTION 'export_table_page leaked % rows across organizations', v_leaked;
+  END IF;
+END $$;
+
 ROLLBACK;

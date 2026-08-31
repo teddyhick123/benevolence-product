@@ -109,3 +109,55 @@ REVOKE ALL ON FUNCTION public.export_table_page(text, uuid, uuid, int, text, tex
 REVOKE ALL ON FUNCTION public.export_table_page(text, uuid, uuid, int, text, text, text, text) FROM authenticated;
 REVOKE ALL ON FUNCTION public.export_table_page(text, uuid, uuid, int, text, text, text, text) FROM anon;
 GRANT EXECUTE ON FUNCTION public.export_table_page(text, uuid, uuid, int, text, text, text, text) TO service_role;
+
+-- ---------------------------------------------------------------------------
+-- Export runs. The row outlives the archive: retention deletes the file, and
+-- the record that an export happened stays for the audit trail.
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.org_export_runs (
+  id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id        uuid NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
+  requested_by  uuid REFERENCES auth.users(id) ON DELETE SET NULL,
+  status        text NOT NULL DEFAULT 'queued'
+                CHECK (status IN ('queued','running','succeeded','failed','expired')),
+  manifest_hash text,
+  row_count     bigint,
+  byte_count    bigint,
+  storage_path  text,
+  error         text,
+  expires_at    timestamptz,
+  created_at    timestamptz NOT NULL DEFAULT now(),
+  updated_at    timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_org_export_runs_org
+  ON public.org_export_runs (org_id, created_at DESC);
+
+-- One live run per organization: concurrent exports would double storage cost
+-- and race on the same object path.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_org_export_runs_one_live
+  ON public.org_export_runs (org_id) WHERE status IN ('queued','running');
+
+ALTER TABLE public.org_export_runs ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "org_export_runs_read" ON public.org_export_runs;
+CREATE POLICY "org_export_runs_read" ON public.org_export_runs
+  FOR SELECT TO authenticated USING (public.is_org_admin(org_id));
+
+DROP POLICY IF EXISTS "org_export_runs_service" ON public.org_export_runs;
+CREATE POLICY "org_export_runs_service" ON public.org_export_runs
+  FOR ALL TO service_role USING (true) WITH CHECK (true);
+
+-- Supabase grants authenticated full table privileges by default, so revoke
+-- before granting: RLS alone would leave write privileges nominally present.
+REVOKE ALL ON public.org_export_runs FROM authenticated;
+REVOKE ALL ON public.org_export_runs FROM anon;
+GRANT SELECT ON public.org_export_runs TO authenticated;
+GRANT ALL ON public.org_export_runs TO service_role;
+
+-- Private bucket for the archives themselves. No policy for authenticated:
+-- archives are reached only through a signed URL the API mints, never by
+-- direct bucket access.
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('org-exports', 'org-exports', false)
+ON CONFLICT (id) DO NOTHING;

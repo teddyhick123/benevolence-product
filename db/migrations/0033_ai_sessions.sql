@@ -357,7 +357,9 @@ DECLARE
   v_turn public.ai_turns%ROWTYPE;
   v_existing_content JSONB;
   v_org_id UUID;
-  v_cap public.org_ai_spend_caps%ROWTYPE;
+  v_cap_on_limit TEXT;
+  v_cap_platform NUMERIC;
+  v_cap_org NUMERIC;
   v_limit NUMERIC;
   v_spend NUMERIC;
   v_period_start TIMESTAMPTZ;
@@ -380,12 +382,23 @@ BEGIN
   -- raising: raising would be indistinguishable from a real failure.
   SELECT org_id INTO v_org_id FROM public.portfolios WHERE id = p_portfolio_id;
 
-  SELECT * INTO v_cap FROM public.org_ai_spend_caps WHERE org_id = v_org_id;
+  -- Dynamic SQL because org_ai_spend_caps is created in 0059, long after this
+  -- function is defined. A static reference would fail on a clean rebuild.
+  BEGIN
+    EXECUTE $cap$
+      SELECT on_limit, platform_limit_usd, org_limit_usd
+      FROM public.org_ai_spend_caps WHERE org_id = $1
+    $cap$
+    INTO v_cap_on_limit, v_cap_platform, v_cap_org
+    USING v_org_id;
+  EXCEPTION WHEN undefined_table THEN
+    v_cap_on_limit := NULL;
+  END;
 
-  IF FOUND AND v_cap.on_limit = 'hard_stop' THEN
+  IF v_cap_on_limit = 'hard_stop' THEN
     v_limit := LEAST(
-      COALESCE(v_cap.platform_limit_usd, v_cap.org_limit_usd),
-      COALESCE(v_cap.org_limit_usd, v_cap.platform_limit_usd)
+      COALESCE(v_cap_platform, v_cap_org),
+      COALESCE(v_cap_org, v_cap_platform)
     );
 
     -- A workload routed to an organization deployment spends the org's own
@@ -401,7 +414,14 @@ BEGIN
         )
     ) THEN
       v_period_start := date_trunc('month', now());
-      v_spend := public.org_platform_spend(v_org_id, v_period_start);
+      -- Also defined in 0059. Resolved at call time rather than definition
+      -- time, but guarded so an incomplete migration set cannot break a turn.
+      BEGIN
+        EXECUTE 'SELECT public.org_platform_spend($1, $2)'
+          INTO v_spend USING v_org_id, v_period_start;
+      EXCEPTION WHEN undefined_function THEN
+        v_spend := 0;
+      END;
 
       IF v_spend >= v_limit THEN
         RETURN jsonb_build_object(

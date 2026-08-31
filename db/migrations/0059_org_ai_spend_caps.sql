@@ -33,6 +33,10 @@ CREATE POLICY "org_ai_spend_caps_admin_read" ON public.org_ai_spend_caps
 CREATE POLICY "org_ai_spend_caps_service" ON public.org_ai_spend_caps
   FOR ALL TO service_role USING (true) WITH CHECK (true);
 
+-- Supabase grants authenticated full table privileges by default, and RLS is
+-- what actually blocks writes. Revoking first makes the read-only intent
+-- explicit at the grant layer too rather than resting on policy alone.
+REVOKE ALL ON public.org_ai_spend_caps FROM authenticated;
 GRANT SELECT ON public.org_ai_spend_caps TO authenticated;
 GRANT ALL ON public.org_ai_spend_caps TO service_role;
 

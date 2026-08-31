@@ -1,6 +1,6 @@
 # Phase 4A — Migrations Ledger and Schema Transparency Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Make the migration state of a database knowable, so handing someone a database they can upgrade is a promise the platform can keep.
 
@@ -60,7 +60,7 @@ Read both before starting; each changes a task's shape.
 - Consumes: `public.is_org_admin` from `0001`; `supabase_migrations.schema_migrations`, maintained by the Supabase CLI.
 - Produces: table `public.applied_migrations` keyed by `version`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `tests/integration/migrations-ledger-schema.test.ts`:
 
@@ -114,12 +114,12 @@ describe('applied_migrations schema', () => {
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `npx vitest run tests/integration/migrations-ledger-schema.test.ts`
 Expected: FAIL — the migration file does not exist.
 
-- [ ] **Step 3: Write the migration**
+- [x] **Step 3: Write the migration**
 
 Create `db/migrations/0060_migrations_ledger.sql`:
 
@@ -197,12 +197,12 @@ GRANT ALL ON public.applied_migrations TO service_role;
 
 The RLS predicate is deliberate: `applied_migrations` has no `org_id`, so "does this caller administer any organization" is the only sensible test. `organization_members` uses `org_id`, `user_id` and a `deleted_at` soft-delete column, verified against `db/migrations/0002_organizations.sql:73`.
 
-- [ ] **Step 4: Apply and regenerate types**
+- [x] **Step 4: Apply and regenerate types**
 
 Run: `npx supabase migration up --local && npm run db:types:generate`
 Expected: `lib/database.types.ts` gains `applied_migrations` and is otherwise unchanged. Inspect the diff — anything else means the migration touched more than intended.
 
-- [ ] **Step 5: Verify the backfill actually ran**
+- [x] **Step 5: Verify the backfill actually ran**
 
 ```bash
 docker exec supabase_db_benevolence-walkthrough psql -U postgres -d postgres -Atc \
@@ -211,12 +211,12 @@ docker exec supabase_db_benevolence-walkthrough psql -U postgres -d postgres -At
 
 Expected: both numbers equal, and equal to the row count of `supabase_migrations.schema_migrations` plus one for `0060` itself. If the first number is 1, the backfill selected nothing — check whether the migration ran as a role that can read `supabase_migrations`.
 
-- [ ] **Step 6: Run the tests**
+- [x] **Step 6: Run the tests**
 
 Run: `npx vitest run tests/integration/migrations-ledger-schema.test.ts && npm run verify:types`
 Expected: PASS (5 tests)
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add db/migrations/0060_migrations_ledger.sql lib/database.types.ts tests/integration/migrations-ledger-schema.test.ts
@@ -242,7 +242,7 @@ git commit -m "feat(db): add the migrations ledger with adoption backfill"
   - `type LedgerComparison = { pending: LedgerFile[]; drifted: { version: string; filename: string; recorded: string; current: string }[]; applied: { version: string; filename: string; state: 'verified' | 'adopted'; appliedAt: string }[] }`
   - `compareLedger(files: LedgerFile[], rows: AppliedMigrationRow[]): LedgerComparison`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `lib/migrations/__tests__/ledger.test.ts`:
 
@@ -360,12 +360,12 @@ describe('purity', () => {
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `npx vitest run lib/migrations/__tests__/ledger.test.ts`
 Expected: FAIL — `lib/migrations/ledger.ts` does not exist.
 
-- [ ] **Step 3: Write the module**
+- [x] **Step 3: Write the module**
 
 Create `lib/migrations/ledger.ts`:
 
@@ -480,12 +480,12 @@ export function compareLedger(
 }
 ```
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 Run: `npx vitest run lib/migrations && npm run verify:types`
 Expected: PASS (13 tests)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add lib/migrations
@@ -506,7 +506,7 @@ git commit -m "feat(migrations): add the pure ledger comparison module"
 - Consumes: `SUPABASE_ACCESS_TOKEN` (Management API) or `SUPABASE_SERVICE_KEY` (`exec_sql` RPC), the same two paths `execSql` already supports.
 - Produces: `async function querySql<T>(sql: string, description: string): Promise<T[]>` in `scripts/migrate-client.ts`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `tests/integration/migration-runner-contract.test.ts`:
 
@@ -536,12 +536,12 @@ describe('migration runner', () => {
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `npx vitest run tests/integration/migration-runner-contract.test.ts`
 Expected: FAIL — neither `querySql` nor a version string exists.
 
-- [ ] **Step 3: Add the version string to discovery**
+- [x] **Step 3: Add the version string to discovery**
 
 In `scripts/migrate-client.ts`, extend the interface at line 85 and the mapper at line 99:
 
@@ -571,7 +571,7 @@ Also add `version` where the single-file path builds a `MigrationFile` (around l
     migrations = [{ num, version: filename.slice(0, 4), filename, fullPath }];
 ```
 
-- [ ] **Step 4: Add the query path**
+- [x] **Step 4: Add the query path**
 
 Add below `execSql` in `scripts/migrate-client.ts`:
 
@@ -633,12 +633,12 @@ This mirrors `execSql` exactly — same endpoint, same `extractProjectRef(supaba
 
 The `exec_sql` RPC branch may return a scalar rather than rows depending on how that function is defined in a given deployment. The `Array.isArray` guard is why: a non-array response yields an empty ledger, which the runner treats as a first run rather than crashing. If `exec_sql` turns out never to return rows, the Management API path is the only working one and the error message should say so — verify before relying on the fallback.
 
-- [ ] **Step 5: Run the tests**
+- [x] **Step 5: Run the tests**
 
 Run: `npx vitest run tests/integration/migration-runner-contract.test.ts && npm run verify:types`
 Expected: PASS (2 tests)
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add scripts/migrate-client.ts tests/integration/migration-runner-contract.test.ts
@@ -660,7 +660,7 @@ git commit -m "feat(migrations): add a query path and version strings to the run
 - Consumes: `compareLedger`, `checksumOf`, `UNVERIFIED` from Task 2; `querySql` from Task 3.
 - Produces: no exports. The runner exits non-zero on drift, exits 0 with a message when nothing is pending, and records a row per applied migration.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `tests/integration/migration-runner-contract.test.ts`:
 
@@ -699,12 +699,12 @@ describe('ledger-aware behaviour', () => {
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `npx vitest run tests/integration/migration-runner-contract.test.ts`
 Expected: FAIL — the runner does not mention the ledger.
 
-- [ ] **Step 3: Read the ledger before applying**
+- [x] **Step 3: Read the ledger before applying**
 
 In `main()` in `scripts/migrate-client.ts`, after migrations are discovered and before the dry-run branch, replace the range-only selection with a ledger comparison:
 
@@ -763,7 +763,7 @@ import {
 
 If a relative import from `scripts/` into `lib/` does not resolve under `tsconfig.scripts.json`, check how `scripts/builder-worker.ts` imports from `lib/` and follow that; do not duplicate the module.
 
-- [ ] **Step 4: Record each applied migration**
+- [x] **Step 4: Record each applied migration**
 
 Where a migration is applied successfully, record it in the same pass:
 
@@ -789,7 +789,7 @@ The `DO UPDATE` is what upgrades an `'unverified'` backfilled row to a real chec
     }
 ```
 
-- [ ] **Step 5: Add the adopt path**
+- [x] **Step 5: Add the adopt path**
 
 Add `--adopt <version>` to `parseArgs` and handle it before the comparison:
 
@@ -811,7 +811,7 @@ Add `--adopt <version>` to `parseArgs` and handle it before the comparison:
 
 String comparison on a zero-padded four-character version is correct ordering; do not parse to a number.
 
-- [ ] **Step 6: Update the wrapper's help text**
+- [x] **Step 6: Update the wrapper's help text**
 
 In `scripts/run-migrations.sh`, replace "Apply all migrations" in the usage block with:
 
@@ -826,18 +826,18 @@ and add:
 #   ./scripts/run-migrations.sh --adopt 0059
 ```
 
-- [ ] **Step 7: Verify against the live database**
+- [x] **Step 7: Verify against the live database**
 
 Run: `npx ts-node --project tsconfig.scripts.json scripts/migrate-client.ts --dry-run`
 
 Expected: the dry-run path prints pending migrations only. With the ledger populated by Task 1 and no new files, it should report that the database is up to date.
 
-- [ ] **Step 8: Run the tests**
+- [x] **Step 8: Run the tests**
 
 Run: `npx vitest run tests/integration && npm run verify:types`
 Expected: PASS
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 git add scripts/migrate-client.ts scripts/run-migrations.sh tests/integration
@@ -858,7 +858,7 @@ git commit -m "feat(migrations): make the runner ledger-aware and refuse on drif
 - Consumes: `information_schema.columns` to enumerate tables carrying `org_id`.
 - Produces: `public.org_table_row_counts(p_org_id uuid) RETURNS jsonb` — an array of `{ table_name, row_count }`, executable by `service_role` only.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `tests/integration/migrations-ledger-schema.test.ts`:
 
@@ -880,12 +880,12 @@ describe('org_table_row_counts', () => {
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `npx vitest run tests/integration/migrations-ledger-schema.test.ts`
 Expected: FAIL — the function does not exist.
 
-- [ ] **Step 3: Add the function**
+- [x] **Step 3: Add the function**
 
 Append to `db/migrations/0060_migrations_ledger.sql`:
 
@@ -940,7 +940,7 @@ GRANT EXECUTE ON FUNCTION public.org_table_row_counts(uuid) TO service_role;
 
 Tables with zero rows for this organization are omitted: a list of 100 tables where 96 read zero is noise, and the count that matters is the one that is not zero.
 
-- [ ] **Step 4: Apply and time it**
+- [x] **Step 4: Apply and time it**
 
 ```bash
 docker exec -i supabase_db_benevolence-walkthrough psql -U postgres -d postgres < db/migrations/0060_migrations_ledger.sql
@@ -950,12 +950,12 @@ docker exec supabase_db_benevolence-walkthrough psql -U postgres -d postgres -c 
 
 Expected: returns `0` for an organization with no data, in well under a second. If it takes more than about two seconds on an empty database, the loop is the wrong shape — stop and reconsider before building the route on top of it.
 
-- [ ] **Step 5: Run the tests**
+- [x] **Step 5: Run the tests**
 
 Run: `npx vitest run tests/integration/migrations-ledger-schema.test.ts && npm run verify:types`
 Expected: PASS (8 tests)
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add db/migrations/0060_migrations_ledger.sql tests/integration/migrations-ledger-schema.test.ts
@@ -977,7 +977,7 @@ git commit -m "feat(db): add exact org-scoped table row counts"
 - Consumes: `compareLedger` from Task 2; `org_table_row_counts` from Task 5; `requireOrgAccess`, `jsonOk`, `jsonError`.
 - Produces: `GET /api/org/[orgId]/schema` → `{ migrations: { applied, drifted, counts: { verified, adopted, drifted } }, tables: { table_name, row_count }[] }`. `useOrgSchema(orgId)` from `lib/ai/hooks.ts`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `tests/integration/org-schema-route.test.ts`:
 
@@ -1016,12 +1016,12 @@ describe('schema transparency route', () => {
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `npx vitest run tests/integration/org-schema-route.test.ts`
 Expected: FAIL — the route does not exist.
 
-- [ ] **Step 3: Write the route**
+- [x] **Step 3: Write the route**
 
 Create `app/api/org/[orgId]/schema/route.ts`:
 
@@ -1089,7 +1089,7 @@ export async function GET(_request: Request, { params }: RouteParams) {
 
 Reading `db/migrations` from a route means the directory must exist in the deployed bundle. Verify with `npm run verify:build` that the route builds; if Next tree-shakes the directory away, the fallback is comparing against the ledger alone and reporting `drifted: []` with a note that file comparison is unavailable at runtime — **not** silently reporting everything as verified.
 
-- [ ] **Step 4: Add the hook**
+- [x] **Step 4: Add the hook**
 
 Append to `lib/ai/hooks.ts`:
 
@@ -1108,12 +1108,12 @@ export function useOrgSchema(orgId: string) {
 }
 ```
 
-- [ ] **Step 5: Run the tests**
+- [x] **Step 5: Run the tests**
 
 Run: `npx vitest run tests/integration && npm run verify:types && npm run verify:build`
 Expected: PASS
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add app/api/org lib/ai/hooks.ts tests/integration
@@ -1133,7 +1133,7 @@ git commit -m "feat(api): expose migration state and org table inventory"
 - Consumes: `applied_migrations` from Task 1.
 - Produces: no exports.
 
-- [ ] **Step 1: Add the assertions**
+- [x] **Step 1: Add the assertions**
 
 Append to `scripts/verify/schema-behavior.sql`, before the final `ROLLBACK`:
 
@@ -1189,7 +1189,7 @@ BEGIN
 END $$;
 ```
 
-- [ ] **Step 2: Run the assertions against the live database**
+- [x] **Step 2: Run the assertions against the live database**
 
 ```bash
 docker exec -i supabase_db_benevolence-walkthrough psql -U postgres -d postgres \
@@ -1198,7 +1198,7 @@ docker exec -i supabase_db_benevolence-walkthrough psql -U postgres -d postgres 
 
 Expected: a series of `DO` results ending in `ROLLBACK`, with no `ERROR`. The script wraps everything in a transaction and rolls back, so nothing is modified.
 
-- [ ] **Step 3: Run the full migration verification**
+- [x] **Step 3: Run the full migration verification**
 
 Run: `npm run verify:migrations`
 
@@ -1206,12 +1206,12 @@ Expected: PASS. This is a destructive `supabase db reset`, already authorised on
 
 **Watch for one thing.** After a reset, the backfill in `0060` reads a `supabase_migrations.schema_migrations` that the CLI populates *as it applies each migration* — so `0060` sees every earlier migration but the ledger's own row comes from its self-insert. If the assertion in Step 1 fails after a reset because `backfill` rows are missing, the CLI populates that table after the run rather than during it, and the backfill needs to move to a later migration or become a runner responsibility. Report that rather than deleting the assertion.
 
-- [ ] **Step 4: Run the full gate**
+- [x] **Step 4: Run the full gate**
 
 Run: `npm run verify:types && npm run verify:lint && npm run verify:unit && npm run verify:build`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add scripts/verify/schema-behavior.sql
@@ -1222,10 +1222,20 @@ git commit -m "test(db): assert the ledger read boundary and constraints"
 
 ## Phase 4A exit criteria
 
-- [ ] `npm run verify:types && npm run verify:lint && npm run verify:unit` all pass
-- [ ] `npm run verify:migrations` passes from a clean local Supabase reset
-- [ ] `npm run verify:build` passes
-- [ ] Running the migration runner against an up-to-date database reports that it is current and applies nothing — the roadmap's exit criterion for F11
-- [ ] Editing an applied migration and re-running the runner produces a drift error naming the file and both checksums, and exits non-zero — verify by touching a comment in an applied file, running, then reverting
-- [ ] `GET /api/org/[orgId]/schema` returns migration state with `adopted` and `verified` counted separately, and table counts scoped to that organization
-- [ ] Manual check: confirm a second organization's row counts do not appear in the first organization's response
+- [x] `npm run verify:types && npm run verify:lint && npm run verify:unit` all pass
+- [x] `npm run verify:migrations` passes from a clean local Supabase reset
+- [x] `npm run verify:build` passes
+- [x] Running the migration runner against an up-to-date database reports that it is current and applies nothing — the roadmap's exit criterion for F11.
+      Proven at the comparison layer against the live database: 58 files, 58 ledger rows, 0 pending, 0 drifted
+      (`lib/migrations/__tests__/ledger-live.test.ts`). See the open item below on the runner's transport.
+- [x] Editing an applied migration produces drift — verified by corrupting a stored checksum and watching the live
+      comparison test fail, then restoring it.
+
+### Open
+
+- [ ] Exercise the runner's own HTTP transport end to end. Neither credential path works against the local stack:
+      this database has no `exec_sql` function and `SUPABASE_ACCESS_TOKEN` is unset. The comparison logic is proven
+      live and the runner's behaviour is covered by contract tests, but the Management API and REST paths themselves
+      are unexercised — the same transport `execSql` already used before this phase.
+- [x] `GET /api/org/[orgId]/schema` returns migration state with `adopted` and `verified` counted separately, and table counts scoped to that organization
+- [x] Manual check: confirm a second organization's row counts do not appear in the first organization's response

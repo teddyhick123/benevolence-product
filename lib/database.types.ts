@@ -860,6 +860,30 @@ export type Database = {
           },
         ]
       }
+      applied_migrations: {
+        Row: {
+          applied_at: string
+          applied_by: string
+          checksum: string
+          filename: string
+          version: string
+        }
+        Insert: {
+          applied_at?: string
+          applied_by: string
+          checksum: string
+          filename: string
+          version: string
+        }
+        Update: {
+          applied_at?: string
+          applied_by?: string
+          checksum?: string
+          filename?: string
+          version?: string
+        }
+        Relationships: []
+      }
       audit_log: {
         Row: {
           action: string

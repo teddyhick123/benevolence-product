@@ -15012,6 +15012,22 @@ export type Database = {
         }
         Returns: string
       }
+      export_table_page: {
+        Args: {
+          p_after?: string
+          p_limit?: number
+          p_local_key?: string
+          p_org_column?: string
+          p_org_id: string
+          p_parent?: string
+          p_parent_key?: string
+          p_table: string
+        }
+        Returns: {
+          line: string
+          row_id: string
+        }[]
+      }
       fail_ai_turn: {
         Args: {
           p_failure_code: string

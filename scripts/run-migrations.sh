@@ -5,7 +5,7 @@
 # Wraps migrate-client.ts with sane defaults for new deployments.
 #
 # Usage:
-#   # Apply all migrations (new deployment)
+#   # Apply pending migrations (a no-op that says so if already current)
 #   SUPABASE_URL=https://xxx.supabase.co \
 #   SUPABASE_ACCESS_TOKEN=sbp_xxx \
 #   ./scripts/run-migrations.sh
@@ -16,8 +16,11 @@
 #   # Seed demo data after migrations (local dev only)
 #   ./scripts/run-migrations.sh --seed-demo
 #
-#   # Apply from a specific migration number
+#   # Apply from a specific migration number (filters what is pending)
 #   ./scripts/run-migrations.sh --from 0010
+#
+#   # Adopt a database that already has migrations but no ledger
+#   ./scripts/run-migrations.sh --adopt 0059
 # =============================================================================
 
 set -euo pipefail

@@ -34,3 +34,19 @@ export function useAiUsageReport(orgId: string) {
     `/api/org/${orgId}/ai-settings/usage`,
   );
 }
+
+export type OrgSchemaReport = {
+  migrations: {
+    applied: { version: string; filename: string; state: 'verified' | 'adopted'; appliedAt: string }[];
+    drifted: { version: string; filename: string; recorded: string; current: string }[];
+    counts: { verified: number; adopted: number; drifted: number };
+    /** False when the migration files are absent from the deployed bundle, so
+     *  drift could not be computed. Not the same as "no drift". */
+    driftCheckAvailable: boolean;
+  };
+  tables: { table_name: string; row_count: number }[];
+};
+
+export function useOrgSchema(orgId: string) {
+  return useApiData<OrgSchemaReport>(`/api/org/${orgId}/schema`);
+}

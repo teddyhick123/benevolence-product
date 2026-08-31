@@ -860,6 +860,30 @@ export type Database = {
           },
         ]
       }
+      applied_migrations: {
+        Row: {
+          applied_at: string
+          applied_by: string
+          checksum: string
+          filename: string
+          version: string
+        }
+        Insert: {
+          applied_at?: string
+          applied_by: string
+          checksum: string
+          filename: string
+          version: string
+        }
+        Update: {
+          applied_at?: string
+          applied_by?: string
+          checksum?: string
+          filename?: string
+          version?: string
+        }
+        Relationships: []
+      }
       audit_log: {
         Row: {
           action: string
@@ -15161,6 +15185,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      org_table_row_counts: { Args: { p_org_id: string }; Returns: Json }
       provision_onboarding_session: {
         Args: {
           p_automation_rows?: Json

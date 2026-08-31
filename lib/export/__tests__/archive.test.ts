@@ -13,8 +13,12 @@ async function readArchive(buffer: Buffer): Promise<Record<string, string>> {
   const done = new Promise<void>((resolve, reject) => {
     ex.on('entry', (header, stream, next) => {
       const chunks: Buffer[] = [];
-      const target = header.name.endsWith('.gz') ? stream.pipe(createGunzip()) : stream;
-      target.on('data', (c: Buffer) => chunks.push(c));
+      // tar-stream's Source and zlib's Gunzip share no common stream type in
+      // the published typings, so the union is narrowed at the call site.
+      const target = (header.name.endsWith('.gz')
+        ? stream.pipe(createGunzip())
+        : stream) as unknown as NodeJS.ReadableStream;
+      target.on('data', (c: Buffer) => { chunks.push(c); });
       target.on('end', () => {
         files[header.name] = Buffer.concat(chunks).toString('utf8');
         next();

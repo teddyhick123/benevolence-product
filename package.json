@@ -6,6 +6,7 @@
     "dev": "next dev -p 3000",
     "builder:worker": "ts-node -r tsconfig-paths/register --project tsconfig.scripts.json scripts/builder-worker.ts",
     "evals:worker": "ts-node -r tsconfig-paths/register --project tsconfig.scripts.json scripts/evaluation-worker.ts",
+    "export:worker": "ts-node -r tsconfig-paths/register --project tsconfig.scripts.json scripts/export-worker.ts",
     "build": "next build",
     "start": "next start -p 3000",
     "lint": "eslint . --ext .js,.jsx,.ts,.tsx",
@@ -77,6 +78,7 @@
     "supabase": "^2.47.2",
     "swr": "^2.3.6",
     "tailwindcss": "^4.1.12",
+    "tar-stream": "^3.2.1",
     "topojson-client": "^3.1.0",
     "xlsx": "^0.18.5",
     "zod": "3.23.8"
@@ -90,6 +92,7 @@
     "@types/node": "20.11.30",
     "@types/react": "18.2.66",
     "@types/react-dom": "18.2.22",
+    "@types/tar-stream": "^3.1.4",
     "@types/topojson-client": "^3.1.5",
     "@vitest/ui": "^4.0.12",
     "depcheck": "1.4.7",

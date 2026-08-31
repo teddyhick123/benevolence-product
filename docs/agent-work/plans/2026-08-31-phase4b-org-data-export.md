@@ -1,6 +1,6 @@
 # Phase 4B — Organization Data Export Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** An organization admin can produce a complete, verifiable archive of everything their organization owns — every row and every document — and download it without asking the platform for permission.
 
@@ -69,7 +69,7 @@ Read all three before starting; each determines a task's shape.
   - `exportableTables(): Extract<TableExportRule, { kind: 'org_scoped' | 'via_parent' }>[]`
   - `ruleFor(table: string): TableExportRule | undefined`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `lib/export/__tests__/tables.test.ts`:
 
@@ -171,12 +171,12 @@ describe('export table manifest', () => {
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `npx vitest run lib/export/__tests__/tables.test.ts`
 Expected: FAIL — `lib/export/tables.ts` does not exist.
 
-- [ ] **Step 3: Generate the starting classification**
+- [x] **Step 3: Generate the starting classification**
 
 Do not hand-write 149 entries. Generate a draft, then correct it by hand:
 
@@ -206,7 +206,7 @@ ORDER BY tc.table_name"
 
 A table with an FK to an exported table is `via_parent`. A table with no path to `organizations` is `reference` or `platform` — decide which by asking whether the rows describe the platform (`charities`, `module_definitions`, `org_type_defaults`, `benchmark_data`) or this instance (`applied_migrations`, `geocode_cache`, and the caches).
 
-- [ ] **Step 4: Write the manifest**
+- [x] **Step 4: Write the manifest**
 
 Create `lib/export/tables.ts`:
 
@@ -273,12 +273,12 @@ export function ruleFor(table: string): TableExportRule | undefined {
 
 The three `…` comments mark where Step 3's output goes. Fill them in completely — the completeness test fails until all 149 are present, which is how you know you are done.
 
-- [ ] **Step 5: Run the tests**
+- [x] **Step 5: Run the tests**
 
 Run: `npx vitest run lib/export && npm run verify:types`
 Expected: PASS (10 tests). If `classifies every base table` still fails, its message names exactly which tables are missing.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add lib/export
@@ -303,7 +303,7 @@ git commit -m "feat(export): classify every base table for organization export"
   - SQL `public.export_table_page(p_table text, p_org_id uuid, p_after uuid, p_limit int) RETURNS TABLE (row_id uuid, line text)`
   - `streamTableRows(db: ElevatedClient, rule: TableExportRule, orgId: string, pageSize?: number): AsyncGenerator<string>`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `lib/export/__tests__/rows.test.ts`:
 
@@ -405,12 +405,12 @@ describe('export_table_page', () => {
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `npx vitest run lib/export/__tests__/rows.test.ts`
 Expected: FAIL — `function public.export_table_page(...) does not exist`.
 
-- [ ] **Step 3: Write the migration**
+- [x] **Step 3: Write the migration**
 
 Create `db/migrations/0061_org_exports.sql`:
 
@@ -520,12 +520,12 @@ GRANT EXECUTE ON FUNCTION public.export_table_page(text, uuid, uuid, int, text, 
 
 Keyset paging on `id` rather than `OFFSET`: offset scanning degrades quadratically and one large table would dominate the run.
 
-- [ ] **Step 4: Apply and regenerate types**
+- [x] **Step 4: Apply and regenerate types**
 
 Run: `npx supabase migration up --local && npm run db:types:generate`
 Expected: `lib/database.types.ts` gains `export_table_page` under `Functions`. Inspect the diff; anything else means the migration touched more than intended.
 
-- [ ] **Step 5: Write the page reader**
+- [x] **Step 5: Write the page reader**
 
 Create `lib/export/rows.ts`:
 
@@ -579,12 +579,12 @@ export async function* streamTableRows(
 
 Both kinds go through one call. A `via_parent` rule supplies its parent and join keys; an `org_scoped` rule passes nulls, and the SQL function refuses a table that has neither an `org_id` nor a parent rather than exporting it unscoped.
 
-- [ ] **Step 6: Run the tests**
+- [x] **Step 6: Run the tests**
 
 Run: `npx vitest run lib/export && npm run verify:types && npm run verify:migrations`
 Expected: PASS
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add db/migrations/0061_org_exports.sql lib/export lib/database.types.ts
@@ -609,7 +609,7 @@ git commit -m "feat(export): page rows as JSON text with numerics preserved"
   - `type ArchiveResult = { manifest: ExportManifest; manifestHash: string; rowCount: number; byteCount: number }`
   - `writeArchive(input: { db: ElevatedClient; orgId: string; orgName: string; sink: NodeJS.WritableStream }): Promise<ArchiveResult>`
 
-- [ ] **Step 1: Add the dependency**
+- [x] **Step 1: Add the dependency**
 
 ```bash
 npm install tar-stream@3
@@ -618,7 +618,7 @@ npm install --save-dev @types/tar-stream
 
 `tar-stream` is ~30KB with no native build. Node's `zlib` covers gzip, but a tar cannot be produced streaming from the standard library alone.
 
-- [ ] **Step 2: Write the failing test**
+- [x] **Step 2: Write the failing test**
 
 Create `lib/export/__tests__/archive.test.ts`:
 
@@ -752,12 +752,12 @@ describe('writeArchive', () => {
 });
 ```
 
-- [ ] **Step 3: Run the test to verify it fails**
+- [x] **Step 3: Run the test to verify it fails**
 
 Run: `npx vitest run lib/export/__tests__/archive.test.ts`
 Expected: FAIL — `lib/export/archive.ts` does not exist.
 
-- [ ] **Step 4: Write the archive writer**
+- [x] **Step 4: Write the archive writer**
 
 Create `lib/export/archive.ts`:
 
@@ -903,12 +903,12 @@ One honest limitation is written into the comment above: `tar-stream` needs an e
 
 `driftCheckAvailable` is `false` because the worker has no migration files on disk to compare against — the same honest distinction Phase 4A drew. It is not a claim that there is no drift.
 
-- [ ] **Step 5: Run the tests**
+- [x] **Step 5: Run the tests**
 
 Run: `npx vitest run lib/export && npm run verify:types`
 Expected: PASS
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add lib/export package.json package-lock.json
@@ -934,7 +934,7 @@ git commit -m "feat(export): stream an organization archive with per-file hashes
   - `createOrgExportRepository(db?: ElevatedClient)` returning `{ createRun, claimRun, finishRun, failRun, getRun, listRuns, expireRuns }`
   - `claimRun(runId: string): Promise<boolean>` — true only for the worker that moved it out of `queued`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `lib/api/repositories/__tests__/org-exports.test.ts`:
 
@@ -997,12 +997,12 @@ describe('org export repository', () => {
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `npx vitest run lib/api/repositories/__tests__/org-exports.test.ts`
 Expected: FAIL — `lib/api/repositories/org-exports.ts` does not exist.
 
-- [ ] **Step 3: Add the table and bucket to the migration**
+- [x] **Step 3: Add the table and bucket to the migration**
 
 Append to `db/migrations/0061_org_exports.sql`:
 
@@ -1056,7 +1056,7 @@ ON CONFLICT (id) DO NOTHING;
 
 No storage RLS policy for `authenticated`: archives are reached only through a signed URL the API mints, never by direct bucket access.
 
-- [ ] **Step 4: Write the repository**
+- [x] **Step 4: Write the repository**
 
 Create `lib/api/repositories/org-exports.ts`:
 
@@ -1163,7 +1163,7 @@ export function createOrgExportRepository(db: ElevatedClient = createElevatedCli
 }
 ```
 
-- [ ] **Step 5: Add the database assertions**
+- [x] **Step 5: Add the database assertions**
 
 Append to `scripts/verify/schema-behavior.sql`, before the final `ROLLBACK`:
 
@@ -1212,7 +1212,7 @@ BEGIN
 END $$;
 ```
 
-- [ ] **Step 6: Apply, regenerate, and run**
+- [x] **Step 6: Apply, regenerate, and run**
 
 ```bash
 npx supabase migration up --local && npm run db:types:generate
@@ -1222,7 +1222,7 @@ npx vitest run lib/api/repositories/__tests__/org-exports.test.ts && npm run ver
 
 Expected: the SQL ends in `ROLLBACK` with no `ERROR`; tests pass.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add db/migrations/0061_org_exports.sql lib/api/repositories lib/database.types.ts scripts/verify/schema-behavior.sql
@@ -1248,7 +1248,7 @@ git commit -m "feat(export): add export run records with an exclusive claim"
   - `runExportJob(data: ExportJobData, deps: ExportJobDeps): Promise<void>`
   - `RETENTION_DAYS = 7`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `lib/export/__tests__/queue.test.ts`:
 
@@ -1313,12 +1313,12 @@ describe('runExportJob', () => {
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `npx vitest run lib/export/__tests__/queue.test.ts`
 Expected: FAIL — `lib/export/queue.ts` does not exist.
 
-- [ ] **Step 3: Write the queue and job body**
+- [x] **Step 3: Write the queue and job body**
 
 Create `lib/export/queue.ts`:
 
@@ -1384,7 +1384,7 @@ export async function enqueueExport(data: ExportJobData) {
 
 `attempts: 1`: a retry would find the run already `running` and lose the claim, so BullMQ retries would be silent no-ops. Failure is recorded on the run row instead, where an admin can see it.
 
-- [ ] **Step 4: Write the worker entry point**
+- [x] **Step 4: Write the worker entry point**
 
 Create `scripts/export-worker.ts`:
 
@@ -1462,7 +1462,7 @@ console.log('[export-worker] listening on org-export-jobs');
 
 If `db.storage.upload` rejects a stream in this Supabase client version, the fallback is writing to a temp file and uploading that — still never buffering rows in memory, and still deleted on failure. Verify which the installed client supports before assuming.
 
-- [ ] **Step 5: Add the npm script**
+- [x] **Step 5: Add the npm script**
 
 In `package.json`, beside `evals:worker`:
 
@@ -1470,12 +1470,12 @@ In `package.json`, beside `evals:worker`:
 "export:worker": "ts-node -r tsconfig-paths/register --project tsconfig.scripts.json scripts/export-worker.ts",
 ```
 
-- [ ] **Step 6: Run the tests**
+- [x] **Step 6: Run the tests**
 
 Run: `npx vitest run lib/export && npm run verify:types`
 Expected: PASS
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add lib/export scripts/export-worker.ts package.json
@@ -1497,7 +1497,7 @@ git commit -m "feat(export): run exports on a background worker"
 - Consumes: `createOrgExportRepository` (Task 4); `enqueueExport` (Task 5).
 - Produces: `POST /api/org/[orgId]/export` → `202 { run }`; `GET /api/org/[orgId]/export` → `{ runs }`; `GET /api/org/[orgId]/export/[runId]` → `{ run, signed_url? }`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `tests/integration/org-export-routes.test.ts`:
 
@@ -1546,12 +1546,12 @@ describe('export routes', () => {
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `npx vitest run tests/integration/org-export-routes.test.ts`
 Expected: FAIL — neither route file exists.
 
-- [ ] **Step 3: Write the collection route**
+- [x] **Step 3: Write the collection route**
 
 Create `app/api/org/[orgId]/export/route.ts`:
 
@@ -1612,7 +1612,7 @@ export async function GET(_request: Request, { params }: RouteParams) {
 
 Check `access.context.principal` for the actual user-id property name before writing it — read `lib/api/principals.ts` and match it rather than assuming `userId`.
 
-- [ ] **Step 4: Write the item route**
+- [x] **Step 4: Write the item route**
 
 Create `app/api/org/[orgId]/export/[runId]/route.ts`:
 
@@ -1656,12 +1656,12 @@ export async function GET(_request: Request, { params }: RouteParams) {
 }
 ```
 
-- [ ] **Step 5: Run the tests**
+- [x] **Step 5: Run the tests**
 
 Run: `npx vitest run tests/integration/org-export-routes.test.ts && npm run verify:types && npm run verify:build`
 Expected: PASS
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add app/api/org tests/integration/org-export-routes.test.ts
@@ -1682,7 +1682,7 @@ git commit -m "feat(api): expose organization export start, status and download"
 - Consumes: `createOrgExportRepository` (Task 4) — `expiredRuns`, `markExpired`.
 - Produces: `POST /api/jobs/exports/sweep` → `{ expired: number }`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `tests/integration/export-retention.test.ts`:
 
@@ -1722,12 +1722,12 @@ describe('export retention sweep', () => {
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `npx vitest run tests/integration/export-retention.test.ts`
 Expected: FAIL — the route does not exist.
 
-- [ ] **Step 3: Write the sweep route**
+- [x] **Step 3: Write the sweep route**
 
 Create `app/api/jobs/exports/sweep/route.ts`:
 
@@ -1777,12 +1777,12 @@ export async function POST(req: NextRequest) {
 }
 ```
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 Run: `npx vitest run tests/integration && npm run verify:types && npm run verify:build`
 Expected: PASS
 
-- [ ] **Step 5: Run the whole gate**
+- [x] **Step 5: Run the whole gate**
 
 ```bash
 npm run verify:types && npm run verify:lint && npm run verify:unit && npm run verify:migrations && npm run verify:build
@@ -1790,7 +1790,7 @@ npm run verify:types && npm run verify:lint && npm run verify:unit && npm run ve
 
 Expected: PASS. `verify:migrations` is a destructive `supabase db reset`, already authorised on 2026-08-24 because no client instances exist.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add app/api/jobs tests/integration/export-retention.test.ts
@@ -1815,7 +1815,7 @@ git commit -m "feat(export): enforce archive retention with a sweep job"
   - `streamBucketObjects(db, bucket, orgId): AsyncGenerator<{ path: string; body: Buffer }>`
   - `writeArchive` gains `storage/<bucket>/<path>` entries and counts them in the manifest.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `lib/export/__tests__/storage.test.ts`:
 
@@ -1891,12 +1891,12 @@ describe('streamBucketObjects', () => {
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `npx vitest run lib/export/__tests__/storage.test.ts`
 Expected: FAIL — `lib/export/storage.ts` does not exist.
 
-- [ ] **Step 3: Write the bucket reader**
+- [x] **Step 3: Write the bucket reader**
 
 Create `lib/export/storage.ts`:
 
@@ -1960,7 +1960,7 @@ export async function* streamBucketObjects(
 
 Objects are read one at a time and written straight into the tar, so peak memory is one document rather than a bucket.
 
-- [ ] **Step 4: Add documents to the archive**
+- [x] **Step 4: Add documents to the archive**
 
 In `lib/export/archive.ts`, import the reader:
 
@@ -2010,7 +2010,7 @@ Add `documents` to the manifest object, and extend `excluded` to use the shared 
 
 replacing the single `{ bucket: 'imports', … }` line written in Task 3.
 
-- [ ] **Step 5: Extend the archive test**
+- [x] **Step 5: Extend the archive test**
 
 Append to `lib/export/__tests__/archive.test.ts`:
 
@@ -2065,12 +2065,12 @@ function fakeDbWithNoDocuments() {
 
 The existing `fakeDb` helper in that file needs a `storage` property too, or the table-only tests will fail once `writeArchive` reaches the document loop. Give it the same no-op storage double as `fakeDbWithNoDocuments`.
 
-- [ ] **Step 6: Run the tests**
+- [x] **Step 6: Run the tests**
 
 Run: `npx vitest run lib/export && npm run verify:types`
 Expected: PASS
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add lib/export
@@ -2081,15 +2081,23 @@ git commit -m "feat(export): stream organization documents into the archive"
 
 ## Phase 4B exit criteria
 
-- [ ] `npm run verify:types && npm run verify:lint && npm run verify:unit` all pass
-- [ ] `npm run verify:migrations` passes from a clean local Supabase reset
-- [ ] `npm run verify:build` passes
-- [ ] The completeness guard fails when a table is added without classification — verify by creating a throwaway table, running the test, then dropping it
-- [ ] A `numeric` column round-trips as a JSON string with its scale intact; `25000.00` does not become `25000`
-- [ ] An export of one organization contains no row belonging to another, asserted against a two-organization fixture
-- [ ] A completed export yields a downloadable tar whose manifest hashes match its files
+- [x] `npm run verify:types` and `npm run verify:unit` pass (3061 tests). `npm run verify:lint` could not run
+      in the worktree: ESLint found @next/next in both the worktree's and the parent repo's node_modules and
+      refused to pick one. The new files lint clean when checked directly; re-run on main after merge.
+- [x] `npm run verify:migrations` passes from a clean local Supabase reset
+- [x] `npm run verify:build` passes
+- [x] The completeness guard fails when a table is added without classification — verify by creating a throwaway table, running the test, then dropping it
+- [x] A `numeric` column round-trips as a JSON string with its scale intact; `25000.00` does not become `25000`
+- [x] An export of one organization contains no row belonging to another, asserted against a two-organization fixture
+- [x] A completed export yields a tar whose manifest hashes match its files — asserted in
+      `lib/export/__tests__/archive.test.ts` against a real tar read back through tar-stream and gunzip.
+
+### Open — need a running worker and Redis
+
 - [ ] Manual check, needs a running worker: `npm run export:worker`, then POST an export and confirm the run reaches `succeeded` with a signed URL that downloads a readable tar
 - [ ] Manual check: a failed export leaves no object in `org-exports` and a `failed` run naming the reason
 - [ ] Manual check: the sweep removes an archive whose `expires_at` has passed and marks the run `expired`
-- [ ] The archive contains an organization's documents from all five included buckets, and none from `imports`
-- [ ] Manual check: a document belonging to another organization does not appear in the archive
+- [x] The archive contains an organization's documents from all five included buckets, and none from `imports`
+- [ ] Manual check with real objects in a bucket: a document belonging to another organization does not
+      appear in the archive. Prefix scoping is asserted at the code level in
+      `lib/export/__tests__/storage.test.ts`, but not yet against real stored files.

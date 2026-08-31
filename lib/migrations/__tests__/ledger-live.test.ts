@@ -13,6 +13,15 @@ import { compareLedger, type AppliedMigrationRow } from '@/lib/migrations/ledger
 const ROOT = join(__dirname, '..', '..', '..');
 
 function ledgerRows(): AppliedMigrationRow[] {
+  // Readers reconcile first: the ledger's backfill runs inside migration 0060
+  // and cannot see anything applied after it, so a migration added later
+  // reaches the ledger only when a reader adopts it.
+  execFileSync('docker', [
+    'exec', 'supabase_db_benevolence-walkthrough',
+    'psql', '-U', 'postgres', '-d', 'postgres', '-Atc',
+    'SELECT public.reconcile_migrations_ledger()',
+  ], { encoding: 'utf8' });
+
   const json = execFileSync('docker', [
     'exec', 'supabase_db_benevolence-walkthrough',
     'psql', '-U', 'postgres', '-d', 'postgres', '-Atc',
@@ -60,5 +69,14 @@ describe('ledger against the live database', () => {
     const result = compareLedger(filesOnDisk(), ledgerRows());
     const adopted = result.applied.filter(entry => entry.state === 'adopted');
     expect(adopted.length).toBeGreaterThan(0);
+  });
+
+  // The defect this reconcile exists to fix: without it, every migration added
+  // after 0060 is missing from the ledger and reads as pending forever.
+  it('adopts migrations applied after the ledger itself', () => {
+    const versions = new Set(ledgerRows().map(row => row.version));
+    for (const file of filesOnDisk()) {
+      expect(versions.has(file.version)).toBe(true);
+    }
   });
 });

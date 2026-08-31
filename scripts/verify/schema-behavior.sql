@@ -1741,4 +1741,188 @@ BEGIN
   END IF;
 END $$;
 
+-- Export runs are readable by org admins and writable only by the service role.
+DO $$
+BEGIN
+  IF has_table_privilege('authenticated', 'public.org_export_runs', 'INSERT') THEN
+    RAISE EXCEPTION 'authenticated can insert into org_export_runs';
+  END IF;
+  IF has_table_privilege('authenticated', 'public.org_export_runs', 'UPDATE') THEN
+    RAISE EXCEPTION 'authenticated can update org_export_runs';
+  END IF;
+  IF NOT has_table_privilege('authenticated', 'public.org_export_runs', 'SELECT') THEN
+    RAISE EXCEPTION 'authenticated cannot read org_export_runs';
+  END IF;
+END $$;
+
+-- export_table_page is SECURITY DEFINER and takes an org id as a parameter, so
+-- a role-level grant would let any signed-in user read any organization's rows.
+-- REVOKE FROM PUBLIC does not remove Supabase's default role grant.
+DO $$
+BEGIN
+  IF has_function_privilege('authenticated',
+       'public.export_table_page(text,uuid,uuid,int,text,text,text,text)', 'EXECUTE') THEN
+    RAISE EXCEPTION 'authenticated can execute export_table_page';
+  END IF;
+  IF has_function_privilege('anon',
+       'public.export_table_page(text,uuid,uuid,int,text,text,text,text)', 'EXECUTE') THEN
+    RAISE EXCEPTION 'anon can execute export_table_page';
+  END IF;
+END $$;
+
+-- One live export run per organization.
+DO $$
+DECLARE v_org uuid;
+BEGIN
+  INSERT INTO public.organizations (name, org_type)
+    VALUES ('Export Guard', 'private_foundation') RETURNING id INTO v_org;
+  INSERT INTO public.org_export_runs (org_id) VALUES (v_org);
+  BEGIN
+    INSERT INTO public.org_export_runs (org_id) VALUES (v_org);
+    RAISE EXCEPTION 'a second live export run was permitted';
+  EXCEPTION WHEN unique_violation THEN
+    NULL;
+  END;
+  -- A finished run frees the slot.
+  UPDATE public.org_export_runs SET status = 'succeeded' WHERE org_id = v_org;
+  INSERT INTO public.org_export_runs (org_id) VALUES (v_org);
+END $$;
+
+-- export_table_page refuses an unscoped table rather than exporting it whole.
+DO $$
+DECLARE v_failed boolean := false;
+BEGIN
+  BEGIN
+    PERFORM * FROM public.export_table_page('charities', gen_random_uuid(), NULL, 1);
+  EXCEPTION WHEN others THEN
+    v_failed := true;
+  END;
+  IF NOT v_failed THEN
+    RAISE EXCEPTION 'export_table_page accepted a table with no org_id and no parent';
+  END IF;
+END $$;
+
+-- An organization's export never contains another organization's rows.
+DO $$
+DECLARE
+  v_a uuid;
+  v_b uuid;
+  v_leaked bigint;
+BEGIN
+  INSERT INTO public.organizations (name, org_type)
+    VALUES ('Export Scope A', 'private_foundation') RETURNING id INTO v_a;
+  INSERT INTO public.organizations (name, org_type)
+    VALUES ('Export Scope B', 'private_foundation') RETURNING id INTO v_b;
+
+  INSERT INTO public.ai_usage_log
+    (org_id, scope_kind, workload_id, operation, connector, requested_model)
+    VALUES (v_b, 'organization', 'assistant', 'tool_conversation', 'anthropic', 'claude-opus-5');
+
+  SELECT count(*) INTO v_leaked
+  FROM public.export_table_page('ai_usage_log', v_a, NULL, 100);
+
+  IF v_leaked <> 0 THEN
+    RAISE EXCEPTION 'export_table_page leaked % rows across organizations', v_leaked;
+  END IF;
+END $$;
+
+-- ---------------------------------------------------------------------------
+-- SECURITY DEFINER functions callable by authenticated users.
+--
+-- Most entries here are correct: an RLS helper like can_view_org is meant to be
+-- callable and checks auth.uid() itself. The danger is a function that takes an
+-- org id as a parameter and returns that organization's data without checking
+-- membership - it becomes a cross-tenant read for anyone who is signed in.
+--
+-- This is an allowlist rather than a ban, so adding a new SECURITY DEFINER
+-- function forces a deliberate decision about whether authenticated may call
+-- it. Note what it does NOT prove: the 57 entries below are the state as
+-- found on 2026-08-31 and have not each been audited. The guard stops new
+-- holes; it does not certify the existing surface.
+--
+-- Supabase grants EXECUTE to authenticated by default, and
+-- REVOKE ... FROM PUBLIC does not remove a role grant. A new function is
+-- therefore callable unless it revokes from authenticated and anon by name.
+-- ---------------------------------------------------------------------------
+DO $$
+DECLARE
+  v_unexpected text;
+BEGIN
+  CREATE TEMP TABLE _allowed_secdef (proname text PRIMARY KEY) ON COMMIT DROP;
+  INSERT INTO _allowed_secdef (proname) VALUES
+    ('begin_ai_turn'),
+    ('bind_ai_turn_execution_plan'),
+    ('bootstrap_app_admin'),
+    ('builder_claim_code_run'),
+    ('can_edit_org'),
+    ('can_edit_portfolio'),
+    ('can_view_org'),
+    ('can_view_portfolio'),
+    ('clean_expired_geocode_cache'),
+    ('cleanup_staging_pii'),
+    ('complete_ai_turn'),
+    ('create_generated_letter'),
+    ('create_pledge_with_installments'),
+    ('custom_field_entity_org'),
+    ('enforce_portfolio_member_in_org'),
+    ('fail_ai_turn'),
+    ('generate_receipt_number'),
+    ('generate_share_token'),
+    ('get_geocode_cache_stats'),
+    ('get_latest_onboarding_session'),
+    ('get_or_create_ai_session'),
+    ('get_or_create_onboarding_session'),
+    ('handle_new_user'),
+    ('has_completed_onboarding'),
+    ('is_app_admin'),
+    ('is_org_admin'),
+    ('link_holding_to_charity'),
+    ('mark_stale_import_jobs'),
+    ('mutate_portfolio_member'),
+    ('org_ai_usage_report'),
+    ('org_enabled_modules'),
+    ('org_has_module'),
+    ('org_platform_spend'),
+    ('org_role_gte'),
+    ('org_table_row_counts'),
+    ('provision_onboarding_session'),
+    ('provision_organization'),
+    ('record_cpa_access'),
+    ('redo_ai_action'),
+    ('replace_org_ai_route'),
+    ('replace_tax_carryforward_applications'),
+    ('revoke_share_link'),
+    ('set_holding_contribution_scope'),
+    ('set_holding_org_id_from_portfolio'),
+    ('set_tax_contribution_defaults'),
+    ('set_tax_org_id_from_portfolio'),
+    ('transition_grant_lifecycle'),
+    ('transition_grant_lifecycle_batch'),
+    ('try_task_automation_lock'),
+    ('undo_ai_action'),
+    ('update_donor_aggregates'),
+    ('update_pledge_installment_status'),
+    ('update_recommendation_interaction_status'),
+    ('user_has_org_capability'),
+    ('user_org_role'),
+    ('user_portfolio_role'),
+    ('validate_custom_field_value');
+
+  SELECT string_agg(DISTINCT p.proname, ', ' ORDER BY p.proname)
+  INTO v_unexpected
+  FROM pg_proc p
+  JOIN pg_namespace n ON n.oid = p.pronamespace
+  WHERE n.nspname = 'public'
+    AND p.prosecdef
+    AND has_function_privilege('authenticated', p.oid, 'EXECUTE')
+    AND NOT EXISTS (SELECT 1 FROM _allowed_secdef a WHERE a.proname = p.proname);
+
+  IF v_unexpected IS NOT NULL THEN
+    RAISE EXCEPTION
+      'SECURITY DEFINER function(s) callable by authenticated and not allowlisted: %. '
+      'Either REVOKE EXECUTE FROM authenticated and anon by name, or add it to the '
+      'allowlist in scripts/verify/schema-behavior.sql with a reason.', v_unexpected;
+  END IF;
+END $$;
+
 ROLLBACK;

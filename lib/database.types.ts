@@ -7572,6 +7572,80 @@ export type Database = {
           },
         ]
       }
+      org_export_runs: {
+        Row: {
+          byte_count: number | null
+          created_at: string
+          error: string | null
+          expires_at: string | null
+          id: string
+          manifest_hash: string | null
+          org_id: string
+          requested_by: string | null
+          row_count: number | null
+          status: string
+          storage_path: string | null
+          updated_at: string
+        }
+        Insert: {
+          byte_count?: number | null
+          created_at?: string
+          error?: string | null
+          expires_at?: string | null
+          id?: string
+          manifest_hash?: string | null
+          org_id: string
+          requested_by?: string | null
+          row_count?: number | null
+          status?: string
+          storage_path?: string | null
+          updated_at?: string
+        }
+        Update: {
+          byte_count?: number | null
+          created_at?: string
+          error?: string | null
+          expires_at?: string | null
+          id?: string
+          manifest_hash?: string | null
+          org_id?: string
+          requested_by?: string | null
+          row_count?: number | null
+          status?: string
+          storage_path?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "org_export_runs_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "my_organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "org_export_runs_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "org_export_runs_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "v_compliance_dashboard"
+            referencedColumns: ["org_id"]
+          },
+          {
+            foreignKeyName: "org_export_runs_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "v_org_modules"
+            referencedColumns: ["org_id"]
+          },
+        ]
+      }
       org_invitation_email_outbox: {
         Row: {
           attempts: number
@@ -15012,6 +15086,22 @@ export type Database = {
         }
         Returns: string
       }
+      export_table_page: {
+        Args: {
+          p_after?: string
+          p_limit?: number
+          p_local_key?: string
+          p_org_column?: string
+          p_org_id: string
+          p_parent?: string
+          p_parent_key?: string
+          p_table: string
+        }
+        Returns: {
+          line: string
+          row_id: string
+        }[]
+      }
       fail_ai_turn: {
         Args: {
           p_failure_code: string
@@ -15212,6 +15302,7 @@ export type Database = {
         }
         Returns: string
       }
+      reconcile_migrations_ledger: { Args: never; Returns: number }
       record_cpa_access: {
         Args: {
           p_action: string

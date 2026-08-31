@@ -125,3 +125,44 @@ $$;
 
 REVOKE ALL ON FUNCTION public.org_table_row_counts(uuid) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.org_table_row_counts(uuid) TO service_role;
+
+-- ---------------------------------------------------------------------------
+-- Adopt anything the CLI applied that the ledger has not yet recorded.
+--
+-- The backfill above runs during 0060, so it can only see migrations applied
+-- before it. Every later migration applied by `supabase db reset` or
+-- `supabase migration up` - which is how this repository is rebuilt - would
+-- otherwise never reach the ledger, and the ledger would under-report by one
+-- row per migration added after this one.
+--
+-- Callers reconcile before reading, so the ledger self-heals rather than
+-- drifting further from the truth with every migration.
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.reconcile_migrations_ledger()
+RETURNS integer
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_adopted integer := 0;
+BEGIN
+  INSERT INTO public.applied_migrations (version, filename, checksum, applied_by)
+  SELECT m.version, COALESCE(m.name, m.version) || '.sql', 'unverified', 'backfill'
+  FROM supabase_migrations.schema_migrations m
+  WHERE NOT EXISTS (
+    SELECT 1 FROM public.applied_migrations a WHERE a.version = m.version
+  );
+  GET DIAGNOSTICS v_adopted = ROW_COUNT;
+  RETURN v_adopted;
+EXCEPTION WHEN undefined_table OR insufficient_privilege THEN
+  -- A database migrated by scripts/migrate-client.ts has no supabase_migrations
+  -- schema; --adopt seeds the ledger there instead.
+  RETURN 0;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.reconcile_migrations_ledger() FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.reconcile_migrations_ledger() FROM authenticated;
+REVOKE ALL ON FUNCTION public.reconcile_migrations_ledger() FROM anon;
+GRANT EXECUTE ON FUNCTION public.reconcile_migrations_ledger() TO service_role;

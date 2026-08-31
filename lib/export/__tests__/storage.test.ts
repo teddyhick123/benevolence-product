@@ -55,10 +55,11 @@ describe('streamBucketObjects', () => {
   // A document another organization owns must never reach this archive.
   it('lists only within the organization prefix', async () => {
     const { db, list } = fakeStorage([]);
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    for await (const _obj of streamBucketObjects(db, 'tax-documents', 'org-1')) {
-      // no objects expected
+    const seen: string[] = [];
+    for await (const obj of streamBucketObjects(db, 'tax-documents', 'org-1')) {
+      seen.push(obj.path);
     }
+    expect(seen).toEqual([]);
     expect(list).toHaveBeenCalledWith('org-1', expect.anything());
   });
 

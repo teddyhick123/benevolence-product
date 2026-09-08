@@ -7,6 +7,7 @@
     "builder:worker": "ts-node -r tsconfig-paths/register --project tsconfig.scripts.json scripts/builder-worker.ts",
     "evals:worker": "ts-node -r tsconfig-paths/register --project tsconfig.scripts.json scripts/evaluation-worker.ts",
     "export:worker": "ts-node -r tsconfig-paths/register --project tsconfig.scripts.json scripts/export-worker.ts",
+    "import:org": "ts-node -r tsconfig-paths/register --project tsconfig.scripts.json scripts/import-org.ts",
     "build": "next build",
     "start": "next start -p 3000",
     "lint": "eslint . --ext .js,.jsx,.ts,.tsx",

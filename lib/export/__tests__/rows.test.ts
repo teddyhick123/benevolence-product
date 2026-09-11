@@ -83,13 +83,14 @@ describe('export_table_page', () => {
       INSERT INTO public.organizations (id, name, org_type)
         VALUES ('${ORG_A}', 'Parent Scope', 'private_foundation');
       SELECT count(*) FROM public.export_table_page(
-        'grant_milestones', '${ORG_A}', NULL, 100, 'grants', 'id', 'grant_id');
+        'grant_milestones', '${ORG_A}', NULL, 100,
+        '[{"table":"grants","parentKey":"id","localKey":"grant_id"}]'::jsonb);
       ROLLBACK;`);
     expect(count).toBe('0');
   });
 
   // Refusing to guess is what keeps an unscoped table from being exported whole.
-  it('refuses a table with no org_id when no parent is given', () => {
+  it('refuses a table with no org_id when no parent chain is given', () => {
     expect(psqlThrows(
       `SELECT * FROM public.export_table_page('grant_milestones', gen_random_uuid(), NULL, 1)`,
     )).toBe(true);
@@ -108,14 +109,14 @@ describe('export_table_page', () => {
       INSERT INTO public.organizations (id, name, org_type)
         VALUES ('${ORG_A}', 'Self Row', 'private_foundation');
       SELECT count(*) FROM public.export_table_page(
-        'organizations', '${ORG_A}', NULL, 10, NULL, NULL, NULL, 'id');
+        'organizations', '${ORG_A}', NULL, 10, NULL, 'id');
       ROLLBACK;`);
     expect(count).toBe('1');
   });
 
   it('is executable by the service role only', () => {
     const granted = psql(`SELECT has_function_privilege('authenticated',
-      'public.export_table_page(text,uuid,uuid,int,text,text,text,text)', 'EXECUTE')`);
+      'public.export_table_page(text,uuid,text,int,jsonb,text)', 'EXECUTE')`);
     expect(granted).toBe('f');
   });
 });

@@ -6,7 +6,7 @@
 // Postgres so no JavaScript ever parses a numeric.
 
 import type { ElevatedClient } from '@/lib/api/admin-client';
-import type { TableExportRule } from '@/lib/export/tables';
+import { resolveScopeChain, type TableExportRule } from '@/lib/export/tables';
 
 export const DEFAULT_PAGE_SIZE = 1000;
 
@@ -18,6 +18,13 @@ export async function* streamTableRows(
 ): AsyncGenerator<string> {
   if (rule.kind !== 'org_scoped' && rule.kind !== 'via_parent') return;
 
+  // The cursor is text, not uuid: audit_log keys on a bigint, and the SQL
+  // function casts the cursor to the id column's own type.
+  // Resolved once, not per page. A directly scoped table has an empty chain.
+  const chain = rule.kind === 'via_parent' ? resolveScopeChain(rule.table) : [];
+
+  // The cursor is text, not uuid: audit_log keys on a bigint, and the SQL
+  // function casts the cursor to the key column's own type.
   let after: string | null = null;
   for (;;) {
     const { data, error } = await db.rpc('export_table_page', {
@@ -26,10 +33,8 @@ export async function* streamTableRows(
       p_after: after,
       p_limit: pageSize,
       // Null for a directly scoped table; the SQL function refuses a table with
-      // no scoping column unless all three are supplied.
-      p_parent: rule.kind === 'via_parent' ? rule.parent : null,
-      p_parent_key: rule.kind === 'via_parent' ? rule.parentKey : null,
-      p_local_key: rule.kind === 'via_parent' ? rule.localKey : null,
+      // no scoping column unless a chain is supplied.
+      p_chain: chain.length > 0 ? chain : null,
       // 'id' only for the organizations row itself.
       p_org_column: rule.kind === 'org_scoped' ? rule.column : 'org_id',
     });

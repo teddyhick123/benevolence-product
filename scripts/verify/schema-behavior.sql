@@ -1761,11 +1761,11 @@ END $$;
 DO $$
 BEGIN
   IF has_function_privilege('authenticated',
-       'public.export_table_page(text,uuid,uuid,int,text,text,text,text)', 'EXECUTE') THEN
+       'public.export_table_page(text,uuid,text,int,jsonb,text)', 'EXECUTE') THEN
     RAISE EXCEPTION 'authenticated can execute export_table_page';
   END IF;
   IF has_function_privilege('anon',
-       'public.export_table_page(text,uuid,uuid,int,text,text,text,text)', 'EXECUTE') THEN
+       'public.export_table_page(text,uuid,text,int,jsonb,text)', 'EXECUTE') THEN
     RAISE EXCEPTION 'anon can execute export_table_page';
   END IF;
 END $$;

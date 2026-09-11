@@ -1,6 +1,6 @@
 # Phase 4C — Organization Data Import Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** An archive produced by Phase 4B can be loaded into a fresh instance and produce a functionally identical organization — one whose members can regain access, whose numbers are exact, and whose relationships are intact.
 
@@ -68,14 +68,14 @@ Note: `lib/import/` already exists and holds the ETL/staging importer for spread
   - `withTransaction<T>(fn: (_tx: Tx) => Promise<T>): Promise<T>` — commits on resolve, rolls back on throw
   - `databaseUrl(): string` — reads `SUPABASE_DB_URL`, throws a named error when absent
 
-- [ ] **Step 1: Add the dependency**
+- [x] **Step 1: Add the dependency**
 
 ```bash
 npm install pg@8
 npm install --save-dev @types/pg
 ```
 
-- [ ] **Step 2: Write the failing test**
+- [x] **Step 2: Write the failing test**
 
 Create `lib/import/__tests__/connection.test.ts`:
 
@@ -128,12 +128,12 @@ describe('withTransaction', () => {
 });
 ```
 
-- [ ] **Step 3: Run the test to verify it fails**
+- [x] **Step 3: Run the test to verify it fails**
 
 Run: `npx vitest run lib/import/__tests__/connection.test.ts`
 Expected: FAIL — `lib/import/connection.ts` does not exist.
 
-- [ ] **Step 4: Write the connection helper**
+- [x] **Step 4: Write the connection helper**
 
 Create `lib/import/connection.ts`:
 
@@ -185,7 +185,7 @@ export async function withTransaction<T>(fn: (_tx: Tx) => Promise<T>): Promise<T
 }
 ```
 
-- [ ] **Step 5: Document the variable**
+- [x] **Step 5: Document the variable**
 
 Add to `.env.example`, in the Supabase section:
 
@@ -197,12 +197,12 @@ SUPABASE_DB_URL=postgresql://postgres:postgres@127.0.0.1:54322/postgres
 
 The env-template contract test from Phase 1 scans for `process.env.X` reads and fails when one is undocumented, so this step is not optional.
 
-- [ ] **Step 6: Run the tests**
+- [x] **Step 6: Run the tests**
 
 Run: `npx vitest run lib/import && npm run verify:types`
 Expected: PASS (3 tests)
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add lib/import package.json package-lock.json .env.example
@@ -227,7 +227,7 @@ git commit -m "feat(import): add a real Postgres transaction for archive import"
   - `readForeignKeys(tx: Tx): Promise<ForeignKey[]>`
   - `planLoadOrder(tables: string[], fks: ForeignKey[]): LoadOrder` — pure; throws on an unbreakable cycle
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `lib/import/__tests__/order.test.ts`:
 
@@ -334,12 +334,12 @@ describe('readForeignKeys against the real schema', () => {
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `npx vitest run lib/import/__tests__/order.test.ts`
 Expected: FAIL — `lib/import/order.ts` does not exist.
 
-- [ ] **Step 3: Write the ordering module**
+- [x] **Step 3: Write the ordering module**
 
 Create `lib/import/order.ts`:
 
@@ -441,14 +441,14 @@ export function planLoadOrder(tables: string[], fks: ForeignKey[]): LoadOrder {
 }
 ```
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 Run: `npx vitest run lib/import && npm run verify:types`
 Expected: PASS (12 tests)
 
 If `finds exactly the two known cycles` reports a third, do not adjust the expectation — a new cycle is a schema change worth understanding before importing anything.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add lib/import
@@ -471,7 +471,7 @@ git commit -m "feat(import): derive insert order from the live schema"
   - `type ArchiveContents = { manifest: ExportManifest; tables: Map<string, string[]>; documents: { bucket: string; path: string; body: Buffer }[] }`
   - `readArchive(path: string): Promise<ArchiveContents>` — throws on a hash mismatch, naming the file
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `lib/import/__tests__/reader.test.ts`:
 
@@ -566,12 +566,12 @@ describe('readArchive', () => {
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `npx vitest run lib/import/__tests__/reader.test.ts`
 Expected: FAIL — `lib/import/reader.ts` does not exist.
 
-- [ ] **Step 3: Write the reader**
+- [x] **Step 3: Write the reader**
 
 Create `lib/import/reader.ts`:
 
@@ -660,12 +660,12 @@ export async function readArchive(path: string): Promise<ArchiveContents> {
 
 Lines are kept as strings and never parsed. The moment a numeric passes through `JSON.parse` as a number its scale is gone, which is the failure the string encoding exists to prevent.
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 Run: `npx vitest run lib/import && npm run verify:types`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add lib/import
@@ -689,7 +689,7 @@ git commit -m "feat(import): read and verify an archive before any write"
   - `checkSchemaCompatibility(archiveLedger: { version: string }[], targetVersions: string[]): Compatibility` — pure
   - `assertOrgAbsent(tx: Tx, orgId: string): Promise<void>` — throws when the id exists
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `lib/import/__tests__/compatibility.test.ts`:
 
@@ -754,12 +754,12 @@ describe('assertOrgAbsent', () => {
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `npx vitest run lib/import/__tests__/compatibility.test.ts`
 Expected: FAIL — `lib/import/compatibility.ts` does not exist.
 
-- [ ] **Step 3: Write the compatibility check**
+- [x] **Step 3: Write the compatibility check**
 
 Create `lib/import/compatibility.ts`:
 
@@ -828,12 +828,12 @@ export async function assertOrgAbsent(tx: Tx, orgId: string): Promise<void> {
 }
 ```
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 Run: `npx vitest run lib/import && npm run verify:types`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add lib/import
@@ -854,7 +854,7 @@ git commit -m "feat(import): refuse an archive newer than the target schema"
 - Consumes: `Tx` from Task 1.
 - Produces: `restoreAccounts(tx: Tx, profileLines: string[]): Promise<number>` — returns how many were created
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `lib/import/__tests__/identity.test.ts`:
 
@@ -916,12 +916,12 @@ describe('restoreAccounts', () => {
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `npx vitest run lib/import/__tests__/identity.test.ts`
 Expected: FAIL — `lib/import/identity.ts` does not exist.
 
-- [ ] **Step 3: Write the identity restorer**
+- [x] **Step 3: Write the identity restorer**
 
 Create `lib/import/identity.ts`:
 
@@ -965,12 +965,12 @@ export async function restoreAccounts(tx: Tx, profileLines: string[]): Promise<n
 
 The empty `encrypted_password` is deliberate: it is not a valid bcrypt hash, so no password can ever match it. `email_confirmed_at` is set so the reset flow works without a separate confirmation step.
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 Run: `npx vitest run lib/import && npm run verify:types`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add lib/import
@@ -994,7 +994,7 @@ git commit -m "feat(import): restore accounts so an imported org is reachable"
   - `insertableColumns(tx: Tx, table: string): Promise<string[]>`
   - `loadTables(tx: Tx, contents: ArchiveContents, plan: LoadOrder): Promise<LoadReport>` — throws when a count differs
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `lib/import/__tests__/loader.test.ts`:
 
@@ -1107,12 +1107,12 @@ describe('loadTables', () => {
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `npx vitest run lib/import/__tests__/loader.test.ts`
 Expected: FAIL — `lib/import/loader.ts` does not exist.
 
-- [ ] **Step 3: Write the loader**
+- [x] **Step 3: Write the loader**
 
 Create `lib/import/loader.ts`:
 
@@ -1221,12 +1221,12 @@ Table and column names are interpolated because they cannot be parameterised in 
 
 `JSON.parse` here operates on whole lines to build a JSON array for the query parameter; the numeric values inside stay strings because they were exported as strings, and `jsonb_populate_record` casts them back with the scale intact.
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 Run: `npx vitest run lib/import && npm run verify:types`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add lib/import
@@ -1250,7 +1250,7 @@ git commit -m "feat(import): load an archive's tables in one transaction"
   - `uploadDocuments(db: ElevatedClient, documents: ArchiveContents['documents']): Promise<{ uploaded: number; failed: { path: string; reason: string }[] }>`
   - `npm run import:org -- --archive <path>`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Create `lib/import/__tests__/documents.test.ts`:
 
@@ -1323,12 +1323,12 @@ describe('import CLI', () => {
 });
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `npx vitest run lib/import/__tests__/documents.test.ts tests/integration/import-cli-contract.test.ts`
 Expected: FAIL — neither file exists.
 
-- [ ] **Step 3: Write the document uploader**
+- [x] **Step 3: Write the document uploader**
 
 Create `lib/import/documents.ts`:
 
@@ -1365,7 +1365,7 @@ export async function uploadDocuments(
 }
 ```
 
-- [ ] **Step 4: Write the CLI**
+- [x] **Step 4: Write the CLI**
 
 Create `scripts/import-org.ts`:
 
@@ -1448,7 +1448,7 @@ main().catch((err: Error) => {
 });
 ```
 
-- [ ] **Step 5: Add the npm script**
+- [x] **Step 5: Add the npm script**
 
 In `package.json`, beside `export:worker`:
 
@@ -1456,12 +1456,12 @@ In `package.json`, beside `export:worker`:
 "import:org": "ts-node -r tsconfig-paths/register --project tsconfig.scripts.json scripts/import-org.ts",
 ```
 
-- [ ] **Step 6: Run the tests**
+- [x] **Step 6: Run the tests**
 
 Run: `npx vitest run lib/import tests/integration/import-cli-contract.test.ts && npm run verify:types`
 Expected: PASS
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add lib/import scripts/import-org.ts package.json tests/integration/import-cli-contract.test.ts
@@ -1481,7 +1481,7 @@ git commit -m "feat(import): add the archive import CLI"
 - Consumes: `writeArchive` from `@/lib/export/archive`; everything from Tasks 1–7.
 - Produces: no exports.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `lib/import/__tests__/roundtrip.test.ts`:
 
@@ -1621,7 +1621,7 @@ describe('export and import round trip', () => {
 
 The second test states something the design should confront rather than hide: with a strict count check, importing an archive whose rows already exist **fails** rather than silently succeeding. That is the correct behaviour for this design — `assertOrgAbsent` refuses the same case earlier and more clearly — but the loader's own behaviour is worth pinning down, because a future change that relaxes the count check would silently change what a repeated import means.
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `npx vitest run lib/import/__tests__/roundtrip.test.ts`
 
@@ -1639,14 +1639,14 @@ Expected: `1` while the suite is mid-run, `0` after it finishes. A round trip
 that exports nothing and imports nothing passes every assertion and proves
 none of them.
 
-- [ ] **Step 3: Make it pass**
+- [x] **Step 3: Make it pass**
 
 No new production code should be needed. If the round trip fails, the failure is in Tasks 2–6 and belongs there — fix the module, not the test. Two failures are expected and informative:
 
 - **A table orders wrongly** — `planLoadOrder` is missing a composite foreign key. Fix `readForeignKeys`.
 - **A count differs** — a table the export writes cannot be inserted. Read the error, which names the table; the cause is usually a generated column that `insertableColumns` did not exclude, or a constraint the archive violates.
 
-- [ ] **Step 4: Confirm the suite leaves nothing behind**
+- [x] **Step 4: Confirm the suite leaves nothing behind**
 
 ```bash
 npx vitest run lib/import/__tests__/roundtrip.test.ts
@@ -1659,7 +1659,7 @@ Expected: `0`. The seed must commit for the export to read it, so the suite's
 the cleanup did not run and a second suite run will not start from the same
 state — fix that before moving on.
 
-- [ ] **Step 5: Run the whole gate**
+- [x] **Step 5: Run the whole gate**
 
 ```bash
 npm run verify:types && npm run verify:lint && npm run verify:unit && npm run verify:migrations
@@ -1667,7 +1667,7 @@ npm run verify:types && npm run verify:lint && npm run verify:unit && npm run ve
 
 Expected: PASS. `verify:migrations` is a destructive `supabase db reset`, already authorised on 2026-08-24 because no client instances exist.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add lib/import
@@ -1678,14 +1678,27 @@ git commit -m "test(import): prove the export and import round trip"
 
 ## Phase 4C exit criteria
 
-- [ ] `npm run verify:types && npm run verify:lint && npm run verify:unit` all pass
-- [ ] `npm run verify:migrations` passes from a clean local Supabase reset
-- [ ] The topological sort orders every exportable table and finds exactly the two known cycles
-- [ ] A cycle with no nullable edge throws rather than producing an invalid order
-- [ ] An archive whose hash does not match is refused, naming the file, with nothing written
-- [ ] An archive newer than the target schema is refused, naming the missing migrations
-- [ ] An organization id that already exists is refused rather than overwritten
-- [ ] A restored account exists with the archive's id and cannot authenticate with an empty password
-- [ ] A `numeric` value survives export and import with its scale intact
-- [ ] A table whose insert falls short of the manifest count aborts the whole transaction
-- [ ] Manual check: `npm run import:org -- --archive <file>` against a fresh database restores an organization, and a member can sign in after a password reset
+- [x] `npm run verify:types` and `npm run verify:unit` pass (3110 tests). `verify:lint` cannot run inside a
+      worktree - ESLint finds @next/next in two node_modules - so it is re-run on main after merge.
+- [x] `npm run verify:migrations` passes from a clean local Supabase reset
+- [x] The topological sort orders every exportable table and finds exactly the two known cycles
+- [x] A cycle with no nullable edge throws rather than producing an invalid order
+- [x] An archive whose hash does not match is refused, naming the file, with nothing written
+- [x] An archive newer than the target schema is refused, naming the missing migrations
+- [x] An organization id that already exists is refused rather than overwritten
+- [x] A restored account exists with the archive's id and cannot authenticate with an empty password
+- [x] A `numeric` value survives export and import with its scale intact
+- [x] A table whose insert falls short of the manifest count aborts the whole transaction
+
+### Open
+
+- [ ] Manual check: `npm run import:org -- --archive <file>` against a fresh database restores an
+      organization, and a member can sign in after a password reset. The modules are proven against the real
+      schema by the round-trip suite; what is unexercised is the CLI as one command end to end.
+
+### Found while executing, left for a decision
+
+- [ ] `ai_usage_log.org_id` is `ON DELETE SET NULL` while a CHECK requires it non-null unless
+      `scope_kind = 'platform'`. An organization with AI usage rows therefore cannot be deleted at all.
+      This predates Phase 4 and is unrelated to import. The round-trip suite works around it by deleting
+      child rows first; the conflict itself wants a deliberate fix, most likely making that FK CASCADE.

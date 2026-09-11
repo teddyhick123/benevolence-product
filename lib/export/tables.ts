@@ -196,3 +196,40 @@ export function exportableTables() {
 export function ruleFor(table: string): TableExportRule | undefined {
   return EXPORT_TABLES.find(rule => rule.table === table);
 }
+
+export type ScopeHop = { table: string; parentKey: string; localKey: string };
+
+/**
+ * The chain of hops from a table to one carrying org_id.
+ *
+ * A single parent is not enough: seven tables reach org_id only through an
+ * intermediate, such as ai_messages -> ai_turns -> ai_sessions -> portfolios.
+ * Returns an empty array for a directly scoped table, and throws when a chain
+ * cannot reach org_id at all - which would mean exporting a table unscoped.
+ */
+export function resolveScopeChain(table: string): ScopeHop[] {
+  const hops: ScopeHop[] = [];
+  const seen = new Set<string>([table]);
+  let current = table;
+
+  for (;;) {
+    const rule = ruleFor(current);
+    if (!rule) {
+      throw new Error(`resolveScopeChain: ${current} is not in the export manifest`);
+    }
+    if (rule.kind === 'org_scoped') return hops;
+    if (rule.kind !== 'via_parent') {
+      throw new Error(`resolveScopeChain: ${current} is ${rule.kind} and is not exported`);
+    }
+
+    hops.push({ table: rule.parent, parentKey: rule.parentKey, localKey: rule.localKey });
+
+    if (seen.has(rule.parent)) {
+      throw new Error(
+        `resolveScopeChain: ${table} loops through ${rule.parent} without reaching org_id`,
+      );
+    }
+    seen.add(rule.parent);
+    current = rule.parent;
+  }
+}

@@ -49,5 +49,9 @@ jobs:
       - run: npm run verify:hygiene
       - run: npm run verify:types
       - run: npm run verify:lint
+      - name: Start isolated database for database-backed unit contracts
+        run: npx supabase start
+      - name: Reset database from canonical migrations
+        run: npx supabase db reset --local --no-seed
       - run: npm run verify:unit
       - run: npm run verify:build

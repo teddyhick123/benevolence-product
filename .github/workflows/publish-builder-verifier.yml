@@ -1,0 +1,71 @@
+name: Publish Builder Verifier
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - docker/builder-verifier/Dockerfile
+      - package.json
+      - package-lock.json
+      - .github/workflows/publish-builder-verifier.yml
+  workflow_dispatch:
+
+# The image is built only from merged main. A manual run from another ref is
+# explicitly skipped rather than publishing unreviewed proposal content.
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: publish-builder-verifier
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/benevolence-builder-verifier
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Authenticate to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and publish the trusted verifier image
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/builder-verifier/Dockerfile
+          push: true
+          tags: ${{ env.IMAGE_NAME }}:sha-${{ github.sha }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.title=benevolence-builder-verifier
+
+      - name: Publish immutable deployment reference
+        id: image
+        run: echo "ref=${IMAGE_NAME}@${{ steps.build.outputs.digest }}" >> "$GITHUB_OUTPUT"
+
+      - name: Write deployment handoff
+        run: |
+          {
+            echo '## Builder verifier image'
+            echo
+            echo 'Deploy this exact immutable value to every production Builder worker:'
+            echo
+            echo '```text'
+            echo '${{ steps.image.outputs.ref }}'
+            echo '```'
+            echo
+            echo 'The mutable `sha-${{ github.sha }}` tag is traceability only; it must not be used as `BUILDER_VERIFIER_IMAGE`.'
+          } >> "$GITHUB_STEP_SUMMARY"

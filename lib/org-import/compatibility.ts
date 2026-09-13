@@ -7,6 +7,12 @@ export type Compatibility =
   | { ok: true; warning?: string }
   | { ok: false; reason: string };
 
+export type SchemaLedgerEntry = {
+  version: string;
+  /** Absent on Phase 4B archives created before checksum export shipped. */
+  checksum?: string;
+};
+
 /**
  * Compares the archive's migration ledger against the target's.
  *
@@ -16,14 +22,14 @@ export type Compatibility =
  * That is the silent loss this phase exists to prevent.
  */
 export function checkSchemaCompatibility(
-  archiveLedger: { version: string }[],
-  targetVersions: string[],
+  archiveLedger: SchemaLedgerEntry[],
+  targetLedger: SchemaLedgerEntry[],
 ): Compatibility {
-  const target = new Set(targetVersions);
+  const targetByVersion = new Map(targetLedger.map(entry => [entry.version, entry]));
   // Version strings, never numbers: prefixes have gaps and leading zeros.
   const missing = archiveLedger
     .map(entry => entry.version)
-    .filter(version => !target.has(version))
+    .filter(version => !targetByVersion.has(version))
     .sort();
 
   if (missing.length > 0) {
@@ -36,8 +42,32 @@ export function checkSchemaCompatibility(
     };
   }
 
+  const checksumDrift = archiveLedger
+    .map(entry => ({ archive: entry, target: targetByVersion.get(entry.version) }))
+    .filter((entry): entry is { archive: Required<SchemaLedgerEntry>; target: Required<SchemaLedgerEntry> } =>
+      Boolean(
+        entry.target &&
+        entry.archive.checksum &&
+        entry.target.checksum &&
+        entry.archive.checksum !== 'unverified' &&
+        entry.target.checksum !== 'unverified' &&
+        entry.archive.checksum !== entry.target.checksum,
+      ))
+    .map(entry => entry.archive.version)
+    .sort();
+
+  if (checksumDrift.length > 0) {
+    return {
+      ok: false,
+      reason:
+        `This database has ${checksumDrift.length} migration(s) with different verified contents: ` +
+        `${checksumDrift.join(', ')}. Apply against a database built from the same canonical ` +
+        'migrations; bypassing checksum drift would make portability unverifiable.',
+    };
+  }
+
   const archive = new Set(archiveLedger.map(entry => entry.version));
-  const ahead = targetVersions.filter(version => !archive.has(version)).sort();
+  const ahead = targetLedger.map(entry => entry.version).filter(version => !archive.has(version)).sort();
   if (ahead.length > 0) {
     return {
       ok: true,

@@ -7,15 +7,18 @@ import { withTransaction } from '@/lib/org-import/connection';
 const LOCAL = 'postgresql://postgres:postgres@127.0.0.1:54322/postgres';
 beforeAll(() => { process.env.SUPABASE_DB_URL = process.env.SUPABASE_DB_URL ?? LOCAL; });
 
-const ledger = (...versions: string[]) => versions.map(version => ({ version }));
+const ledger = (...versions: string[]) => versions.map(version => ({
+  version,
+  checksum: `checksum-${version}`,
+}));
 
 describe('checkSchemaCompatibility', () => {
   it('accepts an identical schema', () => {
-    expect(checkSchemaCompatibility(ledger('0001', '0002'), ['0001', '0002']).ok).toBe(true);
+    expect(checkSchemaCompatibility(ledger('0001', '0002'), ledger('0001', '0002')).ok).toBe(true);
   });
 
   it('accepts a target that is ahead, with a warning', () => {
-    const result = checkSchemaCompatibility(ledger('0001'), ['0001', '0002']);
+    const result = checkSchemaCompatibility(ledger('0001'), ledger('0001', '0002'));
     expect(result.ok).toBe(true);
     if (result.ok) expect(result.warning).toMatch(/0002/);
   });
@@ -23,7 +26,7 @@ describe('checkSchemaCompatibility', () => {
   // The refusal that matters. jsonb_populate_record drops unknown keys, so
   // this import would succeed while silently discarding columns.
   it('refuses a target that is behind, naming what is missing', () => {
-    const result = checkSchemaCompatibility(ledger('0001', '0002'), ['0001']);
+    const result = checkSchemaCompatibility(ledger('0001', '0002'), ledger('0001'));
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.reason).toMatch(/0002/);
   });
@@ -34,13 +37,36 @@ describe('checkSchemaCompatibility', () => {
 
   it('accepts an archive with an empty ledger', () => {
     // Nothing to be missing, so nothing to refuse.
-    expect(checkSchemaCompatibility([], ['0001']).ok).toBe(true);
+    expect(checkSchemaCompatibility([], ledger('0001')).ok).toBe(true);
   });
 
   it('compares version strings rather than numbers', () => {
     // Prefixes have gaps and leading zeros; numeric comparison is unsafe.
-    const result = checkSchemaCompatibility(ledger('0009', '0010'), ['0009', '0010']);
+    const result = checkSchemaCompatibility(ledger('0009', '0010'), ledger('0009', '0010'));
     expect(result.ok).toBe(true);
+  });
+
+  it('refuses a shared version whose verified checksums differ', () => {
+    const result = checkSchemaCompatibility(
+      [{ version: '0001', checksum: 'source-checksum' }],
+      [{ version: '0001', checksum: 'target-checksum' }],
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toMatch(/different verified contents/);
+  });
+
+  it('permits a legacy archive that has version evidence but no checksum', () => {
+    expect(checkSchemaCompatibility(
+      [{ version: '0001' }],
+      [{ version: '0001', checksum: 'target-checksum' }],
+    ).ok).toBe(true);
+  });
+
+  it('does not call an adopted ledger row checksum drift', () => {
+    expect(checkSchemaCompatibility(
+      [{ version: '0001', checksum: 'unverified' }],
+      [{ version: '0001', checksum: 'target-checksum' }],
+    ).ok).toBe(true);
   });
 });
 

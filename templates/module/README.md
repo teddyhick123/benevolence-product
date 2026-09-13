@@ -10,9 +10,9 @@ Do not create DDL just because one organization needs another field.
 - A concept the platform itself consumes across organizations (reports, AI
   context, canonical views, shared workflows, or product features) belongs in
   the owning canonical table under `db/migrations/`.
-- Organization-specific variability belongs in data: `custom_fields`,
-  `metric_facts`, `widgets`, `org_view_config`, `configurable_automations`,
-  `workflow_config`, or `organizations.modules` JSONB.
+- Organization-specific variability belongs in data: `org_custom_field_definitions`,
+  `metric_facts`, `widgets`, `org_view_config`, `org_automation_rules`,
+  `org_workflow_config`, or `organizations.modules` JSONB.
 - Import staging is the only schema-variable surface, and only through its
   explicit dynamic allowlist.
 - A genuine product increment gets a new `NNNN_name.sql` migration plus

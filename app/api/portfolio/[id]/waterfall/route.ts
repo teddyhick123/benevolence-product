@@ -19,13 +19,6 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
     // Each holding: Funds allocated (negative change)
     // End: Remaining funds
 
-    // Get portfolio summary
-    const { data: summary } = await supabase
-      .from('portfolios')
-      .select('*')
-      .eq('id', portfolioId)
-      .single();
-
     // Get holdings with allocations
     let holdingsQuery = supabase
       .from('holdings')

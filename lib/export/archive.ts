@@ -30,7 +30,7 @@ export type ExportManifest = {
   formatVersion: number;
   /** 'string' means numeric columns are JSON strings; parse them as decimals. */
   numericEncoding: 'string';
-  schema: { ledger: { version: string; state: string }[]; driftCheckAvailable: boolean };
+  schema: { ledger: { version: string; state: string; checksum?: string }[]; driftCheckAvailable: boolean };
   files: { path: string; sha256: string; rows?: number; bytes: number }[];
   documents: { bucket: string; count: number; bytes: number }[];
   excluded: { table?: string; bucket?: string; reason: string }[];
@@ -152,6 +152,7 @@ export async function writeArchive(input: {
       ledger: (ledger.data ?? []).map((row: { version: string; checksum: string }) => ({
         version: row.version,
         state: row.checksum === 'unverified' ? 'adopted' : 'verified',
+        checksum: row.checksum,
       })),
       // The worker has no migration files on disk to compare against, so this
       // is not a claim that there is no drift - only that nothing checked.

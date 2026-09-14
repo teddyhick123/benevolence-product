@@ -1,4 +1,5 @@
 import { createElevatedClient } from '@/lib/api/admin-client';
+import { deliverNewInvitationEmailOutboxEvent } from '@/lib/invitations/email-outbox';
 import type { OrgAccessContext } from '@/lib/api/principals';
 import type { OrgRole } from '@/lib/organizations/roles';
 
@@ -16,7 +17,7 @@ export class InvitationRepositoryError extends Error {
 /**
  * Elevated invitation operations constrained to one authorized organization.
  * State, audit history, and durable delivery intent are committed by the
- * owning database function; this repository never sends email inline.
+ * owning database function before this repository attempts prompt delivery.
  */
 export function createInvitationRepository(scope: InvitationScope) {
   const db = createElevatedClient();
@@ -47,6 +48,28 @@ export function createInvitationRepository(scope: InvitationScope) {
     return data as { invitation: Record<string, unknown>; created: boolean };
   }
 
+  async function deliverFreshEvent(invitation: Record<string, unknown>) {
+    const invitationId = typeof invitation.id === 'string' ? invitation.id : null;
+    if (!invitationId) return;
+
+    try {
+      const { data: event, error } = await db
+        .from('org_invitation_email_outbox')
+        .select('id')
+        .eq('invitation_id', invitationId)
+        .eq('status', 'pending')
+        .eq('attempts', 0)
+        .maybeSingle();
+      if (error || !event?.id) return;
+
+      await deliverNewInvitationEmailOutboxEvent(db, event.id);
+    } catch {
+      // The durable outbox remains pending. The scheduled recovery sweep will
+      // claim it later, so a provider or bookkeeping failure never undoes the
+      // successful invitation transaction.
+    }
+  }
+
   return {
     async list() {
       const { data, error } = await db
@@ -63,7 +86,9 @@ export function createInvitationRepository(scope: InvitationScope) {
       if (input.role === 'owner' && scope.role !== 'owner') {
         throw new InvitationRepositoryError('Only owners can invite another owner', 403);
       }
-      return mutate({ operation: 'create', ...input });
+      const result = await mutate({ operation: 'create', ...input });
+      if (result.created) await deliverFreshEvent(result.invitation);
+      return result;
     },
 
     async cancel(invitationId: string) {
@@ -71,7 +96,8 @@ export function createInvitationRepository(scope: InvitationScope) {
     },
 
     async resend(invitationId: string) {
-      await mutate({ operation: 'resend', invitationId });
+      const result = await mutate({ operation: 'resend', invitationId });
+      await deliverFreshEvent(result.invitation);
     },
   };
 }

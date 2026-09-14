@@ -2,6 +2,7 @@
 
 import { apiRequest, readJson } from "@/lib/api/client";
 import { useReportsData } from "@/lib/reports/hooks";
+import Dialog from '@/components/ui/Dialog';
 
 import { useState } from 'react';
 
@@ -101,14 +102,15 @@ export default function ExportDataModal({ portfolioId, onClose, onSuccess }: Pro
   const showHoldingFilter = dataType === 'metrics';
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
-        <div className="p-6 border-b">
-          <h2 className="text-xl font-semibold">Export Data</h2>
-          <p className="text-sm text-gray-500 mt-1">Download your portfolio data in various formats</p>
-        </div>
-
-        <div className="p-6 space-y-6">
+    <Dialog
+      open
+      onClose={onClose}
+      title="Export Data"
+      description="Download your portfolio data in various formats."
+      contentClassName="max-h-[90vh] max-w-lg overflow-y-auto rounded-xl"
+      bodyClassName="p-0"
+    >
+      <div className="space-y-6 p-6">
           {error && (
             <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
               {error}
@@ -242,9 +244,9 @@ export default function ExportDataModal({ portfolioId, onClose, onSuccess }: Pro
               <p className="text-xs text-gray-400 mt-2">{exportResult.filename}</p>
             </div>
           )}
-        </div>
+      </div>
 
-        <div className="p-6 border-t flex items-center justify-end gap-3">
+      <div className="flex items-center justify-end gap-3 border-t border-black/5 p-6">
           <button
             type="button"
             onClick={onClose}
@@ -268,8 +270,7 @@ export default function ExportDataModal({ portfolioId, onClose, onSuccess }: Pro
               {loading ? 'Exporting...' : 'Export'}
             </button>
           )}
-        </div>
       </div>
-    </div>
+    </Dialog>
   );
 }

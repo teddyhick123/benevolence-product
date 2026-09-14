@@ -23,7 +23,11 @@ function HeaderContent() {
   const [activeOrgRole, setActiveOrgRole] = useState<string | null>(null);
   const [orgSwitcherOpen, setOrgSwitcherOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [secondaryMenuOpen, setSecondaryMenuOpen] = useState(false);
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const orgSwitcherRef = useRef<HTMLDivElement>(null);
+  const secondaryMenuRef = useRef<HTMLDivElement>(null);
+  const accountMenuRef = useRef<HTMLDivElement>(null);
   const searchParams = useSearchParams();
   const pathname = usePathname();
 
@@ -81,16 +85,35 @@ function HeaderContent() {
     }
   }, [user]);
 
-  // Outside-click dismiss for org switcher
+  // Dismiss desktop menus when focus moves away from the header controls.
   useEffect(() => {
     function handleClick(e: MouseEvent) {
       if (orgSwitcherRef.current && !orgSwitcherRef.current.contains(e.target as Node)) {
         setOrgSwitcherOpen(false);
       }
+      if (secondaryMenuRef.current && !secondaryMenuRef.current.contains(e.target as Node)) {
+        setSecondaryMenuOpen(false);
+      }
+      if (accountMenuRef.current && !accountMenuRef.current.contains(e.target as Node)) {
+        setAccountMenuOpen(false);
+      }
     }
-    if (orgSwitcherOpen) document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
-  }, [orgSwitcherOpen]);
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') {
+        setOrgSwitcherOpen(false);
+        setSecondaryMenuOpen(false);
+        setAccountMenuOpen(false);
+      }
+    }
+    if (orgSwitcherOpen || secondaryMenuOpen || accountMenuOpen) {
+      document.addEventListener('mousedown', handleClick);
+      document.addEventListener('keydown', handleKeyDown);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClick);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [orgSwitcherOpen, secondaryMenuOpen, accountMenuOpen]);
 
   function switchOrg(orgId: string) {
     setActiveOrgId(orgId);
@@ -116,10 +139,37 @@ function HeaderContent() {
   // Close mobile menu when route changes
   useEffect(() => {
     setMobileMenuOpen(false);
+    setSecondaryMenuOpen(false);
+    setAccountMenuOpen(false);
   }, [pathname]);
 
-  const navLinkClass = "font-sans text-sm px-4 py-2 rounded-md border border-black/10 hover:bg-white shadow-sm hover:shadow transition-transform duration-200 hover:-translate-y-0.5 will-change-transform rm:transition-none rm:transform-none";
-  const mobileNavLinkClass = "block w-full text-left font-sans text-sm px-4 py-3 rounded-md border border-black/10 hover:bg-white shadow-sm hover:shadow transition-colors";
+  const isDashboardRoute = pathname.startsWith('/dashboard')
+    && !pathname.startsWith('/dashboard/tax')
+    && !pathname.startsWith('/dashboard/donors')
+    && !pathname.startsWith('/dashboard/pledges')
+    && !pathname.startsWith('/dashboard/compliance')
+    && !pathname.startsWith('/dashboard/settings');
+  const isSecondaryRoute = pathname.startsWith('/settings') || pathname.startsWith('/builder-studio');
+  const workspaceLinkClass = (isActive: boolean) => `font-sans text-sm px-3 py-2 rounded-md transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-azure/50 ${
+    isActive
+      ? 'bg-azure text-white shadow-sm'
+      : 'text-neutral-600 hover:bg-white hover:text-neutral-900'
+  }`;
+  const menuTriggerClass = (isActive: boolean) => `inline-flex items-center gap-1 font-sans text-sm px-3 py-2 rounded-md transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-azure/50 ${
+    isActive
+      ? 'bg-azure/10 text-azure'
+      : 'text-neutral-600 hover:bg-white hover:text-neutral-900'
+  }`;
+  const menuItemClass = (isActive: boolean) => `block w-full text-left font-sans text-sm px-3 py-2 rounded-md transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-azure/50 ${
+    isActive
+      ? 'bg-azure/10 text-azure font-medium'
+      : 'text-neutral-700 hover:bg-black/5'
+  }`;
+  const mobileNavLinkClass = (isActive: boolean) => `block w-full text-left font-sans text-sm px-4 py-3 rounded-md transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-azure/50 ${
+    isActive
+      ? 'bg-azure text-white shadow-sm'
+      : 'border border-black/10 bg-white/70 text-neutral-700 hover:bg-white'
+  }`;
 
   return (
     <header className="w-full sticky top-0 z-40 bg-creme/90 backdrop-blur-md border-b border-black/5">
@@ -169,119 +219,72 @@ function HeaderContent() {
           </Link>
         ) : (
           <>
-            {/* Desktop Navigation (hidden on mobile) */}
-            <nav className="hidden md:flex items-center gap-2">
-              {/* Portfolio group */}
-              <Link
-                href={dashboardHref}
-                aria-current={pathname.startsWith('/dashboard') && !pathname.startsWith('/dashboard/tax') && !pathname.startsWith('/dashboard/donors') && !pathname.startsWith('/dashboard/pledges') && !pathname.startsWith('/dashboard/compliance') && !pathname.startsWith('/dashboard/settings') ? 'page' : undefined}
-                className={navLinkClass}
-              >
-                Dashboard
-              </Link>
-              <Link
-                href={charitiesHref}
-                aria-current={pathname.startsWith('/charities') ? 'page' : undefined}
-                className={navLinkClass}
-              >
-                Charities
-              </Link>
+            <div className="hidden lg:flex flex-1 items-center justify-end gap-3">
+              <nav aria-label="Workspace" className="flex items-center gap-1">
+                <Link href={dashboardHref} aria-current={isDashboardRoute ? 'page' : undefined} className={workspaceLinkClass(isDashboardRoute)}>Dashboard</Link>
+                <Link href={charitiesHref} aria-current={pathname.startsWith('/charities') ? 'page' : undefined} className={workspaceLinkClass(pathname.startsWith('/charities'))}>Charities</Link>
+                {orgModules.tax && <Link href={taxHref} aria-current={pathname.startsWith('/dashboard/tax') ? 'page' : undefined} className={workspaceLinkClass(pathname.startsWith('/dashboard/tax'))}>Tax</Link>}
+                {orgModules.donors && <Link href="/dashboard/donors" aria-current={pathname.startsWith('/dashboard/donors') ? 'page' : undefined} className={workspaceLinkClass(pathname.startsWith('/dashboard/donors'))}>Donors</Link>}
+                {orgModules.donors && orgModules.pledges && <Link href="/dashboard/pledges" aria-current={pathname.startsWith('/dashboard/pledges') ? 'page' : undefined} className={workspaceLinkClass(pathname.startsWith('/dashboard/pledges'))}>Pledges</Link>}
+                {orgModules.compliance && <Link href="/dashboard/compliance" aria-current={pathname.startsWith('/dashboard/compliance') ? 'page' : undefined} className={workspaceLinkClass(pathname.startsWith('/dashboard/compliance'))}>Compliance</Link>}
+              </nav>
 
-              {/* Operations group */}
-              {orgModules.tax && (
-                <Link
-                  href={taxHref}
-                  aria-current={pathname.startsWith('/dashboard/tax') ? 'page' : undefined}
-                  className={navLinkClass}
+              <div ref={secondaryMenuRef} className="relative border-l border-black/10 pl-2">
+                <button
+                  type="button"
+                  onClick={() => { setSecondaryMenuOpen(open => !open); setAccountMenuOpen(false); }}
+                  className={menuTriggerClass(isSecondaryRoute)}
+                  aria-expanded={secondaryMenuOpen}
+                  aria-haspopup="menu"
                 >
-                  Tax
-                </Link>
-              )}
-              {orgModules.donors && (
-                <Link
-                  href="/dashboard/donors"
-                  aria-current={pathname.startsWith('/dashboard/donors') ? 'page' : undefined}
-                  className={navLinkClass}
-                >
-                  Donors
-                </Link>
-              )}
-              {orgModules.donors && orgModules.pledges && (
-                <Link
-                  href="/dashboard/pledges"
-                  aria-current={pathname.startsWith('/dashboard/pledges') ? 'page' : undefined}
-                  className={navLinkClass}
-                >
-                  Pledges
-                </Link>
-              )}
-              {orgModules.compliance && (
-                <Link
-                  href="/dashboard/compliance"
-                  aria-current={pathname.startsWith('/dashboard/compliance') ? 'page' : undefined}
-                  className={navLinkClass}
-                >
-                  Compliance
-                </Link>
-              )}
+                  More
+                  <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="m6 9 6 6 6-6" /></svg>
+                </button>
+                {secondaryMenuOpen && (
+                  <div role="menu" aria-label="Administration and settings" className="absolute right-0 top-full mt-2 w-52 rounded-lg border border-black/10 bg-white p-1 shadow-soft z-50">
+                    <Link role="menuitem" href="/settings/integrations" aria-current={pathname.startsWith('/settings/integrations') ? 'page' : undefined} className={menuItemClass(pathname.startsWith('/settings/integrations'))}>Integrations</Link>
+                    <Link role="menuitem" href="/settings/ai" aria-current={pathname.startsWith('/settings/ai') ? 'page' : undefined} className={menuItemClass(pathname.startsWith('/settings/ai'))}>AI Models</Link>
+                    {canAccessBuilderStudio && <Link role="menuitem" href="/builder-studio" aria-current={pathname.startsWith('/builder-studio') ? 'page' : undefined} className={menuItemClass(pathname.startsWith('/builder-studio'))}>Builder Studio</Link>}
+                    <div className="my-1 border-t border-black/5" />
+                    <Link role="menuitem" href="/settings" aria-current={pathname === '/settings' ? 'page' : undefined} className={menuItemClass(pathname === '/settings')}>Settings</Link>
+                  </div>
+                )}
+              </div>
 
-              {/* Integrations */}
-              <Link
-                href="/settings/integrations"
-                aria-current={pathname.startsWith('/settings/integrations') ? 'page' : undefined}
-                className={navLinkClass}
-              >
-                Integrations
-              </Link>
-              <Link
-                href="/settings/ai"
-                aria-current={pathname.startsWith('/settings/ai') ? 'page' : undefined}
-                className={navLinkClass}
-              >
-                AI Models
-              </Link>
-              {canAccessBuilderStudio && (
-                <Link
-                  href="/builder-studio"
-                  aria-current={pathname.startsWith('/builder-studio') ? 'page' : undefined}
-                  className={navLinkClass}
-                >
-                  Builder Studio
-                </Link>
-              )}
-              <Link
-                href="/settings"
-                aria-current={pathname.startsWith('/settings') ? 'page' : undefined}
-                className={navLinkClass}
-              >
-                Settings
-              </Link>
+              <div className="flex items-center gap-1 border-l border-black/10 pl-3">
+                {activeOrgId && <NotificationBell orgId={activeOrgId} />}
+                <div ref={accountMenuRef} className="relative">
+                  <button
+                    type="button"
+                    onClick={() => { setAccountMenuOpen(open => !open); setSecondaryMenuOpen(false); }}
+                    className={menuTriggerClass(pathname === '/profile')}
+                    aria-expanded={accountMenuOpen}
+                    aria-haspopup="menu"
+                  >
+                    Account
+                    <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="m6 9 6 6 6-6" /></svg>
+                  </button>
+                  {accountMenuOpen && (
+                    <div role="menu" aria-label="Account" className="absolute right-0 top-full mt-2 w-40 rounded-lg border border-black/10 bg-white p-1 shadow-soft z-50">
+                      <Link role="menuitem" href="/profile" aria-current={pathname === '/profile' ? 'page' : undefined} className={menuItemClass(pathname === '/profile')}>Profile</Link>
+                      <div className="my-1 border-t border-black/5" />
+                      <button role="menuitem" onClick={handleSignOut} className={`${menuItemClass(false)} text-coral`}>Sign out</button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
 
-              <Link
-                href="/profile"
-                aria-current={pathname === '/profile' ? 'page' : undefined}
-                className={navLinkClass}
-              >
-                Profile
-              </Link>
+            <div className="flex items-center gap-1 lg:hidden">
+              {activeOrgId && <NotificationBell orgId={activeOrgId} />}
               <button
-                onClick={handleSignOut}
-                className={navLinkClass}
+                type="button"
+                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                className="p-2 rounded-md hover:bg-black/5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-azure/50"
+                aria-label="Toggle navigation menu"
+                aria-expanded={mobileMenuOpen}
+                aria-controls="mobile-navigation"
               >
-                Sign out
-              </button>
-            </nav>
-
-            {/* Notification Bell */}
-            {activeOrgId && <NotificationBell orgId={activeOrgId} />}
-
-            {/* Mobile Hamburger Button */}
-            <button
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="md:hidden p-2 rounded-md hover:bg-black/5 transition-colors"
-              aria-label="Toggle menu"
-              aria-expanded={mobileMenuOpen}
-            >
               {mobileMenuOpen ? (
                 <svg className="w-6 h-6 text-azure" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -291,29 +294,48 @@ function HeaderContent() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
                 </svg>
               )}
-            </button>
+              </button>
+            </div>
           </>
         )}
       </div>
 
-      {/* Mobile Menu Drawer */}
+      {/* Mobile navigation keeps the same hierarchy while preserving generous touch targets. */}
       {user && mobileMenuOpen && (
-        <div className="md:hidden border-t border-black/5 bg-creme/95 backdrop-blur-md">
+        <div id="mobile-navigation" className="lg:hidden border-t border-black/5 bg-creme/95 backdrop-blur-md">
           {orgName && (
-            <div className="px-6 pt-3 pb-1 text-xs text-black/40">{orgName}</div>
+            <div className="px-4 pt-4">
+              {allOrgs.length > 1 ? (
+                <label className="block">
+                  <span className="mb-1 block font-sans text-xs font-medium uppercase tracking-wide text-black/45">Organization</span>
+                  <select
+                    value={activeOrgId ?? ''}
+                    onChange={(event) => switchOrg(event.target.value)}
+                    className="w-full rounded-md border border-black/10 bg-white px-3 py-2.5 font-sans text-sm text-neutral-700 focus:outline-none focus:ring-2 focus:ring-azure/50"
+                    aria-label="Switch organization"
+                  >
+                    {allOrgs.map(org => <option key={org.id} value={org.id}>{org.name}</option>)}
+                  </select>
+                </label>
+              ) : (
+                <div className="font-sans text-xs text-black/45">{orgName}</div>
+              )}
+            </div>
           )}
-          <nav className="px-4 py-3 space-y-2">
+          <nav aria-label="Mobile workspace" className="px-4 py-4 space-y-5">
+            <section aria-labelledby="mobile-workspace-heading" className="space-y-2">
+              <h2 id="mobile-workspace-heading" className="font-sans text-xs font-medium uppercase tracking-wide text-black/45">Workspace</h2>
             <Link
               href={dashboardHref}
-              aria-current={pathname.startsWith('/dashboard') && !pathname.startsWith('/dashboard/tax') && !pathname.startsWith('/dashboard/donors') && !pathname.startsWith('/dashboard/pledges') && !pathname.startsWith('/dashboard/compliance') && !pathname.startsWith('/dashboard/settings') ? 'page' : undefined}
-              className={mobileNavLinkClass}
+              aria-current={isDashboardRoute ? 'page' : undefined}
+              className={mobileNavLinkClass(isDashboardRoute)}
             >
               Dashboard
             </Link>
             <Link
               href={charitiesHref}
               aria-current={pathname.startsWith('/charities') ? 'page' : undefined}
-              className={mobileNavLinkClass}
+              className={mobileNavLinkClass(pathname.startsWith('/charities'))}
             >
               Charities
             </Link>
@@ -321,7 +343,7 @@ function HeaderContent() {
               <Link
                 href={taxHref}
                 aria-current={pathname.startsWith('/dashboard/tax') ? 'page' : undefined}
-                className={mobileNavLinkClass}
+                className={mobileNavLinkClass(pathname.startsWith('/dashboard/tax'))}
               >
                 Tax
               </Link>
@@ -330,7 +352,7 @@ function HeaderContent() {
               <Link
                 href="/dashboard/donors"
                 aria-current={pathname.startsWith('/dashboard/donors') ? 'page' : undefined}
-                className={mobileNavLinkClass}
+                className={mobileNavLinkClass(pathname.startsWith('/dashboard/donors'))}
               >
                 Donors
               </Link>
@@ -339,7 +361,7 @@ function HeaderContent() {
               <Link
                 href="/dashboard/pledges"
                 aria-current={pathname.startsWith('/dashboard/pledges') ? 'page' : undefined}
-                className={mobileNavLinkClass}
+                className={mobileNavLinkClass(pathname.startsWith('/dashboard/pledges'))}
               >
                 Pledges
               </Link>
@@ -348,22 +370,26 @@ function HeaderContent() {
               <Link
                 href="/dashboard/compliance"
                 aria-current={pathname.startsWith('/dashboard/compliance') ? 'page' : undefined}
-                className={mobileNavLinkClass}
+                className={mobileNavLinkClass(pathname.startsWith('/dashboard/compliance'))}
               >
                 Compliance
               </Link>
             )}
+            </section>
+
+            <section aria-labelledby="mobile-administration-heading" className="space-y-2">
+              <h2 id="mobile-administration-heading" className="font-sans text-xs font-medium uppercase tracking-wide text-black/45">Administration</h2>
             <Link
               href="/settings/integrations"
               aria-current={pathname.startsWith('/settings/integrations') ? 'page' : undefined}
-              className={mobileNavLinkClass}
+              className={mobileNavLinkClass(pathname.startsWith('/settings/integrations'))}
             >
               Integrations
             </Link>
             <Link
               href="/settings/ai"
               aria-current={pathname.startsWith('/settings/ai') ? 'page' : undefined}
-              className={mobileNavLinkClass}
+              className={mobileNavLinkClass(pathname.startsWith('/settings/ai'))}
             >
               AI Models
             </Link>
@@ -371,31 +397,36 @@ function HeaderContent() {
               <Link
                 href="/builder-studio"
                 aria-current={pathname.startsWith('/builder-studio') ? 'page' : undefined}
-                className={mobileNavLinkClass}
+                className={mobileNavLinkClass(pathname.startsWith('/builder-studio'))}
               >
                 Builder Studio
               </Link>
             )}
             <Link
               href="/settings"
-              aria-current={pathname.startsWith('/settings') ? 'page' : undefined}
-              className={mobileNavLinkClass}
+              aria-current={pathname === '/settings' ? 'page' : undefined}
+              className={mobileNavLinkClass(pathname === '/settings')}
             >
               Settings
             </Link>
+            </section>
+
+            <section aria-labelledby="mobile-account-heading" className="space-y-2 border-t border-black/5 pt-4">
+              <h2 id="mobile-account-heading" className="font-sans text-xs font-medium uppercase tracking-wide text-black/45">Account</h2>
             <Link
               href="/profile"
               aria-current={pathname === '/profile' ? 'page' : undefined}
-              className={mobileNavLinkClass}
+              className={mobileNavLinkClass(pathname === '/profile')}
             >
               Profile
             </Link>
             <button
               onClick={handleSignOut}
-              className={mobileNavLinkClass}
+              className={`${mobileNavLinkClass(false)} text-coral`}
             >
               Sign out
             </button>
+            </section>
           </nav>
         </div>
       )}

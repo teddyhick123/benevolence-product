@@ -3,11 +3,11 @@
 import { apiRequest, readJson } from "@/lib/api/client";
 
 import { useState, useEffect, useRef } from 'react';
-import { useRouter } from 'next/navigation';
 import { Search, ChevronDown, SlidersHorizontal } from 'lucide-react';
 import CharityCard from '@/components/charities/CharityCard';
 import CharityFilterSidebar from '@/components/charities/CharityFilterSidebar';
 import AddToPortfolioModal from '@/components/charities/AddToPortfolioModal';
+import { Button, Card, EmptyState, Input, PageHeader, SegmentedControl, Select } from '@/components/ui';
 
 type ViewMode = 'discovery' | 'portfolio' | 'saved';
 
@@ -23,8 +23,6 @@ interface FilterState {
 }
 
 export default function CharitiesPage() {
-  const router = useRouter();
-
   // View mode
   const [viewMode, setViewMode] = useState<ViewMode>('discovery');
 
@@ -205,6 +203,11 @@ export default function CharitiesPage() {
     setPage(1);
   };
 
+  const handleViewModeChange = (nextView: ViewMode) => {
+    setViewMode(nextView);
+    setPage(1);
+  };
+
   const handleAddToPortfolio = (ein: string) => {
     const charity = charities.find((c) => c.ein === ein);
     if (charity) {
@@ -232,76 +235,39 @@ export default function CharitiesPage() {
   };
 
   return (
-    <div className="min-h-screen bg-neutral-50">
-      {/* Header */}
-      <div className="bg-white border-b border-neutral-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
-            <div>
-              <h1 className="text-2xl sm:text-3xl font-bold text-ink">Charities</h1>
-              <p className="text-neutral-600 mt-1 text-sm sm:text-base">
-                {viewMode === 'discovery'
-                  ? 'Search and discover charitable organizations'
-                  : 'Manage charities in your portfolio'}
-              </p>
-            </div>
-
-            {/* View Toggle */}
-            <div className="flex gap-2">
-              <button
-                onClick={() => {
-                  setViewMode('discovery');
-                  setPage(1);
-                }}
-                className={`flex-1 sm:flex-none px-3 sm:px-4 py-2 rounded-2xl font-medium text-sm sm:text-base transition-colors ${
-                  viewMode === 'discovery'
-                    ? 'bg-azure text-white'
-                    : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
-                }`}
-              >
-                All Charities
-              </button>
-              <button
-                onClick={() => {
-                  setViewMode('portfolio');
-                  setPage(1);
-                }}
-                className={`flex-1 sm:flex-none px-3 sm:px-4 py-2 rounded-2xl font-medium text-sm sm:text-base transition-colors ${
-                  viewMode === 'portfolio'
-                    ? 'bg-azure text-white'
-                    : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
-                }`}
-              >
-                My Portfolio
-              </button>
-              <button
-                onClick={() => {
-                  setViewMode('saved');
-                  setPage(1);
-                }}
-                className={`flex-1 sm:flex-none px-3 sm:px-4 py-2 rounded-2xl font-medium text-sm sm:text-base transition-colors ${
-                  viewMode === 'saved'
-                    ? 'bg-sunset text-white'
-                    : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
-                }`}
-              >
-                Saved
-              </button>
-            </div>
-          </div>
-
-          {/* Search Bar */}
-          <form onSubmit={handleSearch} className="flex flex-col sm:flex-row gap-3">
+    <div className="min-h-screen bg-creme">
+      <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
+        <PageHeader
+          title="Charities"
+          description={viewMode === 'discovery'
+            ? 'Search and discover charitable organizations.'
+            : viewMode === 'portfolio'
+              ? 'Manage the organizations in your portfolio.'
+              : 'Return to organizations you saved for later.'}
+          actions={
+            <SegmentedControl
+              label="Charity view"
+              value={viewMode}
+              onValueChange={handleViewModeChange}
+              tabs={[
+                { value: 'discovery', label: 'All Charities' },
+                { value: 'portfolio', label: 'My Portfolio' },
+                { value: 'saved', label: 'Saved' },
+              ]}
+            />
+          }
+        >
+          <form onSubmit={handleSearch} className="flex flex-col gap-3 sm:flex-row">
             <div ref={searchContainerRef} className="flex-1 relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-neutral-400" />
-              <input
+              <Input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
                 onFocus={() => suggestions.length > 0 && setSuggestionsVisible(true)}
                 onKeyDown={(e) => e.key === 'Escape' && setSuggestionsVisible(false)}
                 placeholder="Search by name, EIN, or location..."
-                className="w-full pl-10 pr-4 py-3 border border-neutral-300 rounded-2xl focus:ring-2 focus:ring-azure/30 focus:border-azure"
+                className="py-3 pl-10 pr-4"
               />
               {suggestionsVisible && suggestions.length > 0 && (
                 <div className="absolute z-50 top-full mt-1 w-full bg-white rounded-2xl border border-neutral-200 shadow-lg max-h-72 overflow-y-auto">
@@ -326,10 +292,11 @@ export default function CharitiesPage() {
             </div>
             <div className="flex gap-2">
               {/* Mobile Filter Toggle */}
-              <button
+              <Button
                 type="button"
                 onClick={() => setMobileFiltersOpen(true)}
-                className="lg:hidden flex items-center gap-2 px-4 py-3 border border-neutral-300 rounded-2xl bg-white hover:bg-neutral-50 transition-colors"
+                variant="secondary"
+                className="min-h-12 lg:hidden"
               >
                 <SlidersHorizontal className="w-5 h-5 text-neutral-600" />
                 <span className="text-neutral-700">Filters</span>
@@ -338,23 +305,23 @@ export default function CharitiesPage() {
                     {Object.keys(filters).length}
                   </span>
                 )}
-              </button>
+              </Button>
               <div className="relative flex-1 sm:flex-none">
-                <select
+                <Select
                   value={sortBy}
                   onChange={(e) => setSortBy(e.target.value)}
-                  className="w-full sm:w-auto appearance-none pl-4 pr-10 py-3 border border-neutral-300 rounded-2xl bg-white focus:ring-2 focus:ring-azure/30 focus:border-azure"
+                  className="min-h-12 sm:w-auto"
                 >
                   <option value="relevance">Relevance</option>
                   <option value="rating">Rating (High to Low)</option>
                   <option value="revenue">Revenue (High to Low)</option>
                   <option value="name">Name (A-Z)</option>
-                </select>
+                </Select>
                 <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-neutral-400 pointer-events-none" />
               </div>
             </div>
           </form>
-        </div>
+        </PageHeader>
       </div>
 
       {/* Main Content */}
@@ -389,23 +356,21 @@ export default function CharitiesPage() {
             {/* Saved watchlist view */}
             {viewMode === 'saved' ? (
               savedItems.length === 0 ? (
-                <div className="text-center py-16 bg-white rounded-2xl border border-neutral-200">
-                  <div className="w-14 h-14 rounded-full bg-sunset/15 flex items-center justify-center mx-auto mb-4">
+                <EmptyState
+                  title="No saved charities"
+                  description={'Click "Save for Later" on any charity detail page to bookmark it here.'}
+                  icon={
                     <svg className="w-7 h-7 text-coral" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
                     </svg>
-                  </div>
-                  <h3 className="text-lg font-semibold text-ink mb-2">No saved charities</h3>
-                  <p className="text-sm text-neutral-500 mb-4">Click &quot;Save for Later&quot; on any charity detail page to bookmark it here.</p>
-                  <button onClick={() => setViewMode('discovery')} className="px-4 py-2 bg-azure text-white rounded-2xl text-sm font-medium">
-                    Discover Charities
-                  </button>
-                </div>
+                  }
+                  action={<Button onClick={() => setViewMode('discovery')}>Discover charities</Button>}
+                />
               ) : (
                 <div className="space-y-2">
                   {savedItems.map(item => (
                     <a key={item.ein} href={`/charities/${item.ein}`}
-                      className="flex items-center justify-between bg-white border border-neutral-200 rounded-2xl px-4 py-3 hover:border-azure/40 hover:shadow-sm transition-all">
+                      className="card flex items-center justify-between px-4 py-3 transition-all hover:border-azure/40 hover:shadow-sm">
                       <div>
                         <p className="text-sm font-medium text-ink">{item.name}</p>
                         <p className="text-xs text-neutral-400">EIN {item.ein}</p>
@@ -420,11 +385,11 @@ export default function CharitiesPage() {
             ) : isLoading ? (
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
                 {[...Array(6)].map((_, i) => (
-                  <div key={i} className="bg-white border border-neutral-200 rounded-2xl p-4 animate-pulse">
+                  <Card key={i} padding="sm" className="animate-pulse">
                     <div className="h-6 bg-neutral-200 rounded w-3/4 mb-4"></div>
                     <div className="h-4 bg-neutral-200 rounded w-1/2 mb-2"></div>
                     <div className="h-4 bg-neutral-200 rounded w-full"></div>
-                  </div>
+                  </Card>
                 ))}
               </div>
             ) : charities.length > 0 ? (
@@ -528,12 +493,9 @@ export default function CharitiesPage() {
                     <p className="text-neutral-600 mb-6">
                       You haven&apos;t added any charities to your portfolio yet. Browse all charities to discover and add organizations.
                     </p>
-                    <button
-                      onClick={() => setViewMode('discovery')}
-                      className="px-6 py-3 bg-azure text-white rounded-2xl font-medium hover:opacity-90 transition-opacity"
-                    >
-                      Discover Charities
-                    </button>
+                    <Button onClick={() => setViewMode('discovery')}>
+                      Discover charities
+                    </Button>
                   </div>
                 ) : (
                   // No search results state
@@ -553,21 +515,23 @@ export default function CharitiesPage() {
                           <div className="flex items-center justify-center gap-2 text-sm">
                             <span className="text-neutral-500">Search:</span>
                             <span className="px-3 py-1 bg-neutral-100 rounded-full text-neutral-700">{searchQuery}</span>
-                            <button
+                            <Button
                               onClick={() => setSearchQuery('')}
-                              className="text-azure hover:text-azure/80"
+                              variant="quiet"
+                              size="sm"
                             >
                               Clear
-                            </button>
+                            </Button>
                           </div>
                         )}
                         {Object.keys(filters).length > 0 && (
-                          <button
+                          <Button
                             onClick={handleClearFilters}
-                            className="text-azure hover:text-azure/80 text-sm font-medium"
+                            variant="quiet"
+                            size="sm"
                           >
                             Clear all filters
-                          </button>
+                          </Button>
                         )}
                       </div>
                     )}

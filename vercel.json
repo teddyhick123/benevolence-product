@@ -14,7 +14,7 @@
     },
     {
       "path": "/api/jobs/invitations/send",
-      "schedule": "*/15 * * * *"
+      "schedule": "0 9 * * *"
     }
   ]
 }

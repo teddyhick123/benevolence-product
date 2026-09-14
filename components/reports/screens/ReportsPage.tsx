@@ -11,6 +11,7 @@ import ReportTemplateEditor from '@/components/reports/ReportTemplateEditor';
 import DocumentList from '@/components/reports/DocumentList';
 import ExportDataModal from '@/components/reports/ExportDataModal';
 import ReportViewer from '@/components/reports/ReportViewer';
+import Dialog from '@/components/ui/Dialog';
 
 type TabId = 'overview' | 'templates' | 'documents' | 'schedules';
 
@@ -278,32 +279,34 @@ function ReportsPageContent() {
       )}
 
       {/* Template Editor Modal */}
-      {showTemplateEditor && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white shadow-soft">
-            <div className="border-b border-black/5 p-6">
-              <h2 className="font-serif text-xl font-medium text-ink">
-                {editingTemplate ? 'Edit Template' : 'Create Template'}
-              </h2>
-            </div>
-            <div className="p-6">
-              <ReportTemplateEditor
-                portfolioId={portfolioId}
-                template={editingTemplate}
-                onSave={() => {
-                  mutate(`/api/portfolio/${portfolioId}/reports/templates`);
-                  setShowTemplateEditor(false);
-                  setEditingTemplate(null);
-                }}
-                onCancel={() => {
-                  setShowTemplateEditor(false);
-                  setEditingTemplate(null);
-                }}
-              />
-            </div>
-          </div>
+      <Dialog
+        open={showTemplateEditor}
+        onClose={() => {
+          setShowTemplateEditor(false);
+          setEditingTemplate(null);
+        }}
+        title={editingTemplate ? 'Edit Template' : 'Create Template'}
+        description="Configure the report content, scope, and presentation."
+        closeOnBackdrop={false}
+        contentClassName="max-h-[90vh] max-w-2xl overflow-y-auto rounded-2xl"
+        bodyClassName="p-0"
+      >
+        <div className="p-6">
+          <ReportTemplateEditor
+            portfolioId={portfolioId}
+            template={editingTemplate}
+            onSave={() => {
+              mutate(`/api/portfolio/${portfolioId}/reports/templates`);
+              setShowTemplateEditor(false);
+              setEditingTemplate(null);
+            }}
+            onCancel={() => {
+              setShowTemplateEditor(false);
+              setEditingTemplate(null);
+            }}
+          />
         </div>
-      )}
+      </Dialog>
 
       {/* Export Modal */}
       {showExportModal && (

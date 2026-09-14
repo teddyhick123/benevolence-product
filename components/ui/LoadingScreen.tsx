@@ -1,14 +1,15 @@
 'use client';
 
-import { useEffect, useState, Suspense } from 'react';
+import { useEffect, useRef, useState, Suspense } from 'react';
 import { usePathname, useSearchParams } from 'next/navigation';
 import TrefoilLoader from './TrefoilLoader';
 
 function LoadingScreenContent() {
-  const [isLoading, setIsLoading] = useState(true);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const previousLocation = useRef(`${pathname}?${searchParams.toString()}`);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Intercept link clicks to show loading immediately
   useEffect(() => {
@@ -16,11 +17,20 @@ function LoadingScreenContent() {
       const target = e.target as HTMLElement;
       const link = target.closest('a');
 
-      if (link && link.href && !link.target && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
+      if (link && link.href && !link.target && !e.ctrlKey && !e.metaKey && !e.shiftKey && !e.altKey) {
         const url = new URL(link.href);
-        // Only show loading for internal navigation
-        if (url.origin === window.location.origin && url.pathname !== pathname) {
+        const currentUrl = new URL(window.location.href);
+
+        // Show the indicator only for actual same-window application navigations.
+        // Anchor links are immediate and should not be treated as a loading state.
+        if (
+          url.origin === window.location.origin
+          && (url.pathname !== currentUrl.pathname || url.search !== currentUrl.search)
+        ) {
+          if (timeoutRef.current) clearTimeout(timeoutRef.current);
           setIsTransitioning(true);
+          // A failed navigation should never leave a persistent progress indicator.
+          timeoutRef.current = setTimeout(() => setIsTransitioning(false), 5000);
         }
       }
     };
@@ -29,46 +39,36 @@ function LoadingScreenContent() {
     return () => document.removeEventListener('click', handleClick, true);
   }, [pathname]);
 
-  // Track route changes
+  // Resolve the indicator as soon as the App Router commits the destination.
   useEffect(() => {
-    setIsTransitioning(true);
-    const timer = setTimeout(() => {
+    const nextLocation = `${pathname}?${searchParams.toString()}`;
+    if (nextLocation !== previousLocation.current) {
+      previousLocation.current = nextLocation;
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
       setIsTransitioning(false);
-    }, 800); // Show loading for 800ms during transitions
-
-    return () => clearTimeout(timer);
+    }
   }, [pathname, searchParams]);
 
-  // Initial page load
-  useEffect(() => {
-    const handleLoad = () => {
-      setTimeout(() => setIsLoading(false), 300);
-    };
-
-    if (document.readyState === 'complete') {
-      handleLoad();
-    } else {
-      window.addEventListener('load', handleLoad);
-      return () => window.removeEventListener('load', handleLoad);
-    }
+  useEffect(() => () => {
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
   }, []);
-
-  const shouldShow = isLoading || isTransitioning;
 
   return (
     <div
-      className={`fixed inset-0 z-[100000] flex items-center justify-center bg-white/80 backdrop-blur-md transition-opacity duration-500 pointer-events-none ${
-        shouldShow ? 'opacity-100' : 'opacity-0'
+      aria-hidden={!isTransitioning}
+      className={`fixed inset-0 z-[100000] flex items-center justify-center bg-white/80 backdrop-blur-md pointer-events-none transition-opacity duration-500 ${
+        isTransitioning ? 'opacity-100' : 'opacity-0'
       }`}
     >
-      <div className="text-center space-y-4">
-        {/* Trefoil Knot Loader */}
-        <div className="flex justify-center">
-          <TrefoilLoader className="w-16 h-16 text-azure" />
+      <div className="flex flex-col items-center gap-4">
+        <TrefoilLoader className="w-16 h-16 text-azure" />
+        <div className="h-1 w-32 overflow-hidden rounded-full bg-azure/20">
+          <div
+            className={`h-full w-full origin-left bg-azure transition-transform duration-200 ease-out ${
+              isTransitioning ? 'scale-x-100' : 'scale-x-0'
+            }`}
+          />
         </div>
-
-        {/* Loading text */}
-        <p className="text-lg font-semibold text-neutral-900">Loading</p>
       </div>
     </div>
   );

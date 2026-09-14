@@ -286,6 +286,7 @@ export default function CompliancePage() {
             <div>
               <h2 className="font-semibold text-ink">Filing Calendar</h2>
               <p className="text-xs text-neutral-500 mt-0.5">Upcoming filings in the next 12 months</p>
+              <p className="mt-1 text-xs text-neutral-400 sm:hidden">Swipe to see all filing details.</p>
             </div>
             <button
               onClick={() => setShowAddFiling(v => !v)}
@@ -374,19 +375,20 @@ export default function CompliancePage() {
           ) : filings.length === 0 ? (
             <div className="p-8 text-center text-neutral-400 text-sm">No upcoming filings found.</div>
           ) : (
-            <table className="w-full text-sm">
-              <thead className="bg-neutral-50 border-b border-black/5">
-                <tr>
-                  <th className="text-left px-6 py-3 font-medium text-neutral-600">Filing</th>
-                  <th className="text-left px-6 py-3 font-medium text-neutral-600">Tax Year</th>
-                  <th className="text-left px-6 py-3 font-medium text-neutral-600">Due Date</th>
-                  <th className="text-left px-6 py-3 font-medium text-neutral-600">Jurisdiction</th>
-                  <th className="text-left px-6 py-3 font-medium text-neutral-600">Status</th>
-                  <th className="px-6 py-3" />
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-black/5">
-                {filings.map(filing => {
+            <div className="overflow-x-auto">
+              <table className="min-w-[700px] w-full text-sm">
+                <thead className="bg-neutral-50 border-b border-black/5">
+                  <tr>
+                    <th className="text-left px-6 py-3 font-medium text-neutral-600">Filing</th>
+                    <th className="text-left px-6 py-3 font-medium text-neutral-600">Tax Year</th>
+                    <th className="text-left px-6 py-3 font-medium text-neutral-600">Due Date</th>
+                    <th className="text-left px-6 py-3 font-medium text-neutral-600">Jurisdiction</th>
+                    <th className="text-left px-6 py-3 font-medium text-neutral-600">Status</th>
+                    <th className="px-6 py-3" />
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-black/5">
+                  {filings.map(filing => {
                   const daysUntilDue = Math.ceil((new Date(filing.due_date).getTime() - Date.now()) / 86_400_000);
                   const reminderDays: number[] = Array.isArray(filing.reminder_days) ? filing.reminder_days : [];
                   const nearestReminder = reminderDays.filter(d => d >= daysUntilDue).sort((a, b) => a - b)[0];
@@ -427,9 +429,10 @@ export default function CompliancePage() {
                     </td>
                   </tr>
                   );
-                })}
-              </tbody>
-            </table>
+                  })}
+                </tbody>
+              </table>
+            </div>
           )}
         </section>
 

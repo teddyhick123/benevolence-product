@@ -20,13 +20,18 @@ import { SUITE_VERSION } from '@/lib/ai/evals/version';
 import { EvalTransportError, type CaseResult } from '@/lib/ai/evals/types';
 import { openRouterProviderPreferencesSchema } from '@/lib/schemas/ai-settings';
 
-const redisConnection = {
-  url: process.env.REDIS_URL || 'redis://localhost:6379',
-};
+function redisConnection() {
+  const url = process.env.REDIS_URL;
+  if (!url) throw new Error('REDIS_URL is required to enqueue AI deployment evaluations');
+  return { url };
+}
 
-export const evaluationQueue = new Queue('ai-evaluation-jobs', {
-  connection: redisConnection,
-});
+let evaluationQueue: Queue | undefined;
+
+function getEvaluationQueue(): Queue {
+  evaluationQueue ??= new Queue('ai-evaluation-jobs', { connection: redisConnection() });
+  return evaluationQueue;
+}
 
 export type EvaluationJobData = {
   runId: string;
@@ -55,7 +60,7 @@ export type EvaluationJobDeps = {
 };
 
 export async function enqueueEvaluationRun(data: EvaluationJobData): Promise<string> {
-  const job = await evaluationQueue.add('evaluate-deployment', data, {
+  const job = await getEvaluationQueue().add('evaluate-deployment', data, {
     // No retries: a retried run would re-spend the organization's credit on
     // model calls it already paid for.
     attempts: 1,
@@ -210,7 +215,7 @@ export function createEvaluationWorker(): Worker {
     async (job: Job<EvaluationJobData>) => {
       await runEvaluationJob(job.data, jobDependencies(job.data));
     },
-    { connection: redisConnection, concurrency: 1 },
+    { connection: redisConnection(), concurrency: 1 },
   );
 
   worker.on('failed', (job, error) => {

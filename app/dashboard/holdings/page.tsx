@@ -6,6 +6,7 @@ import { useHoldingsData } from "@/lib/holdings/hooks";
 import { useState, useEffect } from 'react';
 import HoldingsTable from '@/components/holdings/HoldingsTable';
 import EditHoldingsModal, { HoldingInput } from '@/components/holdings/EditHoldingsModal';
+import { Button, Card, EmptyState, PageHeader } from '@/components/ui';
 import { AssetType } from '@/lib/schemas/portfolio';
 
 
@@ -77,58 +78,55 @@ export default function HoldingsPage() {
   };
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-ink">Holdings</h1>
-          <p className="text-sm text-neutral-500 mt-1">
-            {isLoading ? 'Loading…' : `${rows.length} holding${rows.length !== 1 ? 's' : ''}`}
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
+    <div className="space-y-6 p-6">
+      <PageHeader
+        title="Holdings"
+        description={isLoading ? 'Loading holdings…' : `${rows.length} holding${rows.length !== 1 ? 's' : ''} in this portfolio`}
+        actions={
+          <>
           {rows.length > 0 && (
-            <button
+            <Button
               onClick={exportCsv}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl border border-black/10 text-neutral-700 text-sm font-medium hover:bg-neutral-50 transition-colors"
+              variant="secondary"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>
               Export CSV
-            </button>
+            </Button>
           )}
           {canEdit && (
-            <button
+            <Button
               onClick={onAdd}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl bg-azure text-white text-sm font-medium hover:bg-azure/90 transition-colors"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
               </svg>
               Add Holding
-            </button>
+            </Button>
           )}
-        </div>
-      </div>
+          </>
+        }
+      />
 
       {isLoading ? (
-        <div className="rounded-2xl bg-white border border-black/5 shadow-soft p-12 text-sm text-neutral-500 flex items-center justify-center">
+        <Card className="flex items-center justify-center p-12 text-sm text-ink/60">
           Loading holdings…
-        </div>
+        </Card>
       ) : rows.length === 0 ? (
-        <div className="rounded-2xl bg-white border border-black/5 shadow-soft p-12 text-center">
-          <div className="text-neutral-400 text-sm">No holdings yet.</div>
-          {canEdit && (
-            <button
+        <EmptyState
+          title="No holdings yet"
+          description="Add an investment or grant to start tracking this portfolio."
+          action={canEdit ? (
+            <Button
               onClick={onAdd}
-              className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-2xl bg-azure text-white text-sm font-medium hover:bg-azure/90 transition-colors"
             >
               Add your first holding
-            </button>
-          )}
-        </div>
+            </Button>
+          ) : undefined}
+        />
       ) : (
-        <div className="rounded-2xl bg-white border border-black/5 shadow-soft overflow-hidden">
+        <Card padding="none" className="overflow-hidden">
           <HoldingsTable
             rows={filteredRows}
             canEdit={canEdit}
@@ -139,7 +137,7 @@ export default function HoldingsPage() {
             assetTypeCounts={assetTypeCounts}
             totalCount={rows.length}
           />
-        </div>
+        </Card>
       )}
 
       {portfolioId && (

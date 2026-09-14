@@ -39,6 +39,17 @@
 /* Optional card utility */
 @layer components {
   .card { @apply rounded-2xl bg-white border border-black/5 shadow-soft; }
+
+  /* Shared product primitives. Keep these semantic so screens can stay focused
+     on layout rather than reimplementing the same accessibility treatment. */
+  .ui-focus-ring {
+    @apply focus:outline-none focus-visible:ring-2 focus-visible:ring-azure/50 focus-visible:ring-offset-2 focus-visible:ring-offset-creme;
+  }
+
+  .ui-input {
+    @apply w-full rounded-xl border border-ink/10 bg-white px-3 py-2.5 text-sm text-ink shadow-sm outline-none transition-colors placeholder:text-ink/40 hover:border-ink/20 disabled:cursor-not-allowed disabled:bg-ink/[0.03] disabled:text-ink/50;
+    @apply focus:border-azure focus:ring-2 focus:ring-azure/20;
+  }
 }
 
 @layer utilities {

@@ -5,13 +5,18 @@ import { Queue, Worker, type Job } from 'bullmq';
 import { createImportWorkerRepository } from '@/lib/api/repositories/import-worker';
 import type { EntityType } from './types';
 
-const redisConnection = {
-  url: process.env.REDIS_URL || 'redis://localhost:6379',
-};
+function redisConnection() {
+  const url = process.env.REDIS_URL;
+  if (!url) throw new Error('REDIS_URL is required to enqueue imports');
+  return { url };
+}
 
-export const importQueue = new Queue('import-jobs', {
-  connection: redisConnection,
-});
+let importQueue: Queue | undefined;
+
+function getImportQueue(): Queue {
+  importQueue ??= new Queue('import-jobs', { connection: redisConnection() });
+  return importQueue;
+}
 
 export interface ImportJobData {
   importJobId: string;
@@ -22,7 +27,7 @@ export interface ImportJobData {
 }
 
 export async function enqueueImportJob(data: ImportJobData): Promise<string> {
-  const job = await importQueue.add('process-import', data, {
+  const job = await getImportQueue().add('process-import', data, {
     attempts: 3,
     backoff: { type: 'exponential', delay: 5000 },
     removeOnComplete: { count: 100 },
@@ -46,7 +51,7 @@ export function createImportWorker(): Worker {
       }
     },
     {
-      connection: redisConnection,
+      connection: redisConnection(),
       concurrency: 2,
     }
   );

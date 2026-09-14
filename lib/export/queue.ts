@@ -4,11 +4,20 @@
 
 import { Queue } from 'bullmq';
 
-const redisConnection = { url: process.env.REDIS_URL || 'redis://localhost:6379' };
-
 export const EXPORT_QUEUE_NAME = 'org-export-jobs';
 
-export const exportQueue = new Queue(EXPORT_QUEUE_NAME, { connection: redisConnection });
+function redisConnection() {
+  const url = process.env.REDIS_URL;
+  if (!url) throw new Error('REDIS_URL is required to enqueue organization exports');
+  return { url };
+}
+
+let exportQueue: Queue | undefined;
+
+function getExportQueue(): Queue {
+  exportQueue ??= new Queue(EXPORT_QUEUE_NAME, { connection: redisConnection() });
+  return exportQueue;
+}
 
 export const RETENTION_DAYS = 7;
 
@@ -54,7 +63,7 @@ export async function enqueueExport(data: ExportJobData) {
   // attempts: 1 - a retry would find the run already 'running' and lose the
   // claim, so BullMQ retries would be silent no-ops. Failure is recorded on the
   // run row instead, where an admin can see it.
-  return exportQueue.add('export-org', data, {
+  return getExportQueue().add('export-org', data, {
     attempts: 1,
     removeOnComplete: 100,
     removeOnFail: 100,

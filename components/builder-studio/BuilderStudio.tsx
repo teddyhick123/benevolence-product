@@ -64,7 +64,7 @@ export default function BuilderStudio({ snapshot, initialMessages, githubEnabled
 
       <div className="grid gap-6 xl:grid-cols-2">
         <StudioViewsPanel orgId={snapshot.orgId} />
-        <StudioWorkflowPanel orgId={snapshot.orgId} />
+        {snapshot.modules.grant_management ? <StudioWorkflowPanel orgId={snapshot.orgId} /> : null}
       </div>
 
       <div className="grid gap-6 xl:grid-cols-2">

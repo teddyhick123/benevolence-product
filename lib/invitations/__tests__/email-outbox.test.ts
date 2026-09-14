@@ -1,7 +1,7 @@
 // @vitest-environment node
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { drainInvitationEmailOutbox } from '@/lib/invitations/email-outbox';
+import { deliverNewInvitationEmailOutboxEvent, drainInvitationEmailOutbox } from '@/lib/invitations/email-outbox';
 import { stubQuery, stubSupabase } from '@/tests/helpers/supabase-mock';
 
 const { mockSendInviteEmail } = vi.hoisted(() => ({ mockSendInviteEmail: vi.fn() }));
@@ -15,6 +15,29 @@ const event = {
 beforeEach(() => vi.clearAllMocks());
 
 describe('drainInvitationEmailOutbox', () => {
+  it('claims and sends a newly-created event without waiting for the recovery sweep', async () => {
+    const outbox = stubQuery({ data: event, error: null });
+    const invitation = stubQuery({ data: { status: 'pending', token: 'token-1', invited_by: 'actor-1' }, error: null });
+    const org = stubQuery({ data: { name: 'Good Org' }, error: null });
+    const profile = stubQuery({ data: { full_name: 'Inviter', email: 'inviter@example.com' }, error: null });
+    const db = stubSupabase({
+      tables: {
+        org_invitation_email_outbox: () => outbox,
+        org_invitations: () => invitation,
+        organizations: () => org,
+        profiles: () => profile,
+      },
+      rpc: { finish_org_invitation_email_outbox: () => ({ data: null, error: null }) },
+    });
+
+    const result = await deliverNewInvitationEmailOutboxEvent(db as any, 'event-1');
+
+    expect(outbox.calls).toContainEqual({ method: 'update', args: [expect.objectContaining({ status: 'sending', attempts: 1 })] });
+    expect(outbox.calls).toContainEqual({ method: 'eq', args: ['id', 'event-1'] });
+    expect(mockSendInviteEmail).toHaveBeenCalledWith(expect.objectContaining({ to: 'invitee@example.com' }));
+    expect(result).toMatchObject({ scanned: 1, sent: 1, failed: 0 });
+  });
+
   it('sends a claimed, still-current invitation then marks its event sent', async () => {
     const invitation = stubQuery({ data: { status: 'pending', token: 'token-1', invited_by: 'actor-1' }, error: null });
     const org = stubQuery({ data: { name: 'Good Org' }, error: null });

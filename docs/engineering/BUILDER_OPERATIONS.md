@@ -5,7 +5,7 @@ Builder Studio uses a separate BullMQ process for implementation proposals creat
 ## Required services
 
 - The web application (`npm run dev` locally)
-- Redis, configured through `REDIS_URL` (defaults to `redis://localhost:6379`)
+- Redis, configured through `REDIS_URL` (required — there is no localhost fallback; the queue throws immediately if it is unset)
 - The Builder worker:
 
 ```bash

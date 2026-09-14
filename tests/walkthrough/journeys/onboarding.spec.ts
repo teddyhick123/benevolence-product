@@ -74,7 +74,15 @@ test('new user provisioning creates a usable canonical organization and portfoli
   }
 });
 
-test('legacy welcome route redirects to canonical Foundation Setup', async ({ page }) => {
+test('legacy welcome route redirects to canonical Foundation Setup', async ({ page, adminDb }) => {
+  const { data: profile, error: profileError } = await adminDb
+    .from('profiles')
+    .select('id')
+    .eq('email', personas.newUser.email)
+    .single();
+  expect(profileError).toBeNull();
+  await adminDb.from('onboarding_sessions').delete().eq('user_id', profile!.id);
+
   await loginAs(page, 'newUser', { landOnDashboard: false });
   await page.goto('/welcome');
 

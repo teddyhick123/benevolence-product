@@ -1482,6 +1482,35 @@ BEGIN
 END;
 $$;
 
+-- Portable configuration applies use these natural keys as atomic ON CONFLICT
+-- targets. A missing constraint would quietly turn an idempotent apply into a
+-- race-prone select-then-insert implementation.
+DO $$
+DECLARE
+  v_table regclass;
+  v_constraint text;
+BEGIN
+  FOR v_table, v_constraint IN
+    SELECT * FROM (VALUES
+      ('public.report_templates'::regclass, 'report_templates_portfolio_name_key'),
+      ('public.workflow_templates'::regclass, 'workflow_templates_org_name_key'),
+      ('public.org_automation_rules'::regclass, 'org_automation_rules_org_name_key')
+    ) AS expected(table_name, constraint_name)
+  LOOP
+    IF NOT EXISTS (
+      SELECT 1
+      FROM pg_constraint
+      WHERE conrelid = v_table
+        AND conname = v_constraint
+        AND contype = 'u'
+    ) THEN
+      RAISE EXCEPTION '% is missing the configuration-template natural-key constraint %',
+        v_table::text, v_constraint;
+    END IF;
+  END LOOP;
+END;
+$$;
+
 -- The invitation token is a bearer secret: it reaches the invitee through the
 -- email outbox, never through the mutation's return payload.
 DO $$

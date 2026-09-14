@@ -12,8 +12,6 @@ const ALL_WIDGETS: { id: string; label: string }[] = [
   { id: 'sector_emissions', label: 'Emissions by sector' },
 ];
 
-type Settings = { show_map: boolean; widgets: string[] };
-
 export default function PortfolioSettingsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: portfolioId } = use(params);
 

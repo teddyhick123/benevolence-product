@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS public.org_automation_rules (
   created_by     uuid REFERENCES public.profiles(id) ON DELETE SET NULL,
   created_at     timestamptz NOT NULL DEFAULT now(),
   updated_at     timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT org_automation_rules_org_name_key UNIQUE (org_id, name),
   CONSTRAINT org_automation_rule_trigger_shape CHECK (
     (
       trigger_type = 'grant_stage_change'

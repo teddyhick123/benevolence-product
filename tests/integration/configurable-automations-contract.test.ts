@@ -8,6 +8,7 @@ describe('Phase 3 configurable automations contract', () => {
   it('creates org automation rule and run tables', () => {
     expect(sql).toMatch(/CREATE TABLE IF NOT EXISTS public\.org_automation_rules/);
     expect(sql).toMatch(/CREATE TABLE IF NOT EXISTS public\.org_automation_runs/);
+    expect(sql).toMatch(/CONSTRAINT org_automation_rules_org_name_key UNIQUE \(org_id, name\)/);
   });
 
   it('defines canonical trigger and action enums', () => {

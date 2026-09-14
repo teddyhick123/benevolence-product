@@ -23,12 +23,12 @@ describe('module template boundaries', () => {
   it('teaches data-driven extensibility before DDL', () => {
     const guide = read('README.md');
     for (const extensionPoint of [
-      'custom_fields',
+      'org_custom_field_definitions',
       'metric_facts',
       'widgets',
       'org_view_config',
-      'configurable_automations',
-      'workflow_config',
+      'org_automation_rules',
+      'org_workflow_config',
       'organizations.modules',
     ]) {
       expect(guide).toContain(extensionPoint);

@@ -2,7 +2,7 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/api/server-client';
 
-function cacheHeaders(isGet = false) {
+function cacheHeaders() {
   return { 'Cache-Control': 'no-store' } as const;
 }
 
@@ -33,7 +33,7 @@ export async function GET(
     return NextResponse.json({ error: error.message }, { status: 500, headers: cacheHeaders() });
   }
 
-  return NextResponse.json({ document }, { headers: cacheHeaders(true) });
+  return NextResponse.json({ document }, { headers: cacheHeaders() });
 }
 
 export async function PATCH(

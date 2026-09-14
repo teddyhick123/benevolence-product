@@ -36,10 +36,10 @@ async function main() {
   );
 
   const report = await withTransaction(async tx => {
-    const { rows } = await tx.query<{ version: string }>(
-      'SELECT version FROM public.applied_migrations ORDER BY version');
+    const { rows } = await tx.query<{ version: string; checksum: string }>(
+      'SELECT version, checksum FROM public.applied_migrations ORDER BY version');
     const compatibility = checkSchemaCompatibility(
-      contents.manifest.schema.ledger, rows.map(row => row.version));
+      contents.manifest.schema.ledger, rows);
 
     if (!compatibility.ok) throw new Error(compatibility.reason);
     if (compatibility.warning) console.warn(`  warning: ${compatibility.warning}`);

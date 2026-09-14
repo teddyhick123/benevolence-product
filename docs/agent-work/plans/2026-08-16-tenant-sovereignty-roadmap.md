@@ -6,6 +6,18 @@
 
 **Architecture:** Ford gets a dedicated instance (app + Supabase project) that we host and they own. Ownership is made real through four capabilities layered in order: their own model credentials with full write access, transparent metering and spend caps, complete data + configuration export, and a Builder that carries changes from chat to merged, deployed code with verified evidence at every step.
 
+## Delivery status — 2026-09-13
+
+The code milestones for Phase 2 (BYO connectors), Phase 3 (usage/metering), and Phase 4A–4D (migration ledger, data export/import, and portable configuration) are now merged or implemented locally. Phase 4D adds an auditable, natural-keyed JSON artifact that has been round-tripped from a fully configured source foundation to a fresh target foundation; it is not a substitute for the full data archive, which remains Phase 4B/4C's responsibility.
+
+What remains before representing the complete Ford promise as production-ready is operational, not a new configuration feature:
+
+- Run and retain evidence of the Phase 1 BYO provider write-access check with Ford's actual credentials and intended workloads.
+- Complete BLD-01: publish the trusted digest-pinned Builder verifier image, configure production workers, and run the container-backed suite on a worker with a fetchable repository checkout.
+- Complete BLD-03: record provider-verified merge and deployment facts before presenting Builder delivery state as authoritative.
+
+Until those gates close, Ford can safely review, move, and apply configuration and can use the implemented sovereignty foundations, but Builder must not be represented as autonomously production-verifying or deployed.
+
 **Tech Stack:** Next.js 15 (App Router), TypeScript, Supabase (Postgres + RLS), BullMQ + Redis, Docker (verifier isolation), Anthropic + OpenRouter connectors, Vitest, Playwright.
 
 **Spec:** This document's [Findings](#findings-the-evidence-behind-this-roadmap) section. Findings were verified against the tree at commit `7222c4dd` on 2026-08-16.

@@ -18,9 +18,9 @@ The worker advances a claimed revision through generation/collection and automat
 
 ## Dev/preview database reset requirement
 
-Migration `0025_builder.sql` was rewritten in place (not patched) and migration `0026_builder_enhancement.sql` was deleted outright. Both use `CREATE TABLE IF NOT EXISTS` / guarded DDL, so **neither migration will apply the new schema to a database that already ran the old 0025/0026** — those statements silently no-op against existing objects. There is no migrations ledger tracking "already applied" state in this project; `scripts/run-migrations.sh` just re-runs every file.
+Migration `0025_builder.sql` was rewritten in place (not patched) and migration `0026_builder_enhancement.sql` was deleted outright. Both use `CREATE TABLE IF NOT EXISTS` / guarded DDL, so **neither migration can repair a database that already ran the old 0025/0026** — those statements silently no-op against existing objects. The current migrations ledger prevents future silent drift, but cannot retroactively transform that historical prerelease schema.
 
-Any dev or preview instance that ran Builder migrations before this release **must have its database reset** (drop and recreate, or drop the `builder_*` tables and objects manually) and then re-run `scripts/run-migrations.sh` from `db/migrations`. In-flight proposals under the old schema are lost — acceptable pre-release, but call this out loudly to anyone with a live dev/preview Builder session before they upgrade.
+Any dev or preview instance that ran Builder migrations before this release **must have its database reset** (drop and recreate, or drop the `builder_*` tables and objects manually) and then re-run the canonical migrations from `db/migrations`. The current migration ledger protects future migrations, but it cannot retroactively repair an old guarded-`DDL` Builder schema. In-flight proposals under the old schema are lost — acceptable pre-release, but call this out loudly to anyone with a live dev/preview Builder session before they upgrade.
 
 ## Data model: `code_state`
 
@@ -161,14 +161,37 @@ limits, and only the temporary worktree as a writable bind mount. It receives
 the allowlisted sandbox environment, not the worker environment; the Docker
 control process is the only host subprocess.
 
-Build `docker/builder-verifier/Dockerfile` from a trusted revision in CI, using
-a digest-pinned Node base image, and publish it under a digest reference. Set
-that reference as `BUILDER_VERIFIER_IMAGE` for every production worker. The
-image preinstalls the dependency lockfile's toolchain because runtime containers
-have no network access. Production refuses to run verification—and records
-blocking verification evidence—when the image is absent or not digest-pinned;
-it never falls back to `LocalWorktreeRunner`. Local development keeps the
-worktree runner unless `BUILDER_VERIFIER_IMAGE` is set explicitly.
+`Publish Builder Verifier` (`.github/workflows/publish-builder-verifier.yml`)
+builds `docker/builder-verifier/Dockerfile` only from merged `main`, using the
+reviewed digest-pinned Node base in that Dockerfile. It publishes a
+traceability tag and writes the **only deployable reference** —
+`ghcr.io/<owner>/benevolence-builder-verifier@sha256:<digest>` — to the GitHub
+Actions job summary. Set that exact digest reference as
+`BUILDER_VERIFIER_IMAGE` for every production worker. Do not deploy the mutable
+`sha-<commit>` tag.
+
+Before enabling Builder code proposals in production, an operator must:
+
+1. Pull the published digest on the worker host and ensure Docker can run it.
+2. Deploy the worker from a real checkout with a fetchable `origin`, not a
+   tarball; run `git fetch origin` as its service account.
+3. Set `NODE_ENV=production` and the exact `BUILDER_VERIFIER_IMAGE` digest,
+   then restart `npm run builder:worker`.
+4. Submit a non-migration canary proposal and retain the persisted verification
+   runs, authoritative diff, and image digest in the release record.
+
+The image preinstalls the dependency lockfile's toolchain because runtime
+containers have no network access. Production refuses to run verification —
+and records blocking verification evidence — when the image is absent or not
+digest-pinned; it never falls back to `LocalWorktreeRunner`. Local development
+keeps the worktree runner unless `BUILDER_VERIFIER_IMAGE` is set explicitly.
+
+Migration-touching proposals remain intentionally blocked until the worker has
+an isolated Supabase verification environment: the hardened verifier container
+has no network or Docker socket, so it cannot run `supabase db reset` against a
+host stack. Do not bypass the container or loosen its network boundary to make
+that check pass; provide a dedicated disposable migration-verification service
+before accepting such proposals.
 
 ## Detail API contract
 

@@ -88,7 +88,7 @@ export async function DELETE(req: Request, ctx: { params: Promise<{ commentId: s
 
   try {
     // Delete comment (RLS ensures user owns it; replies cascade canonically).
-    const { data, error } = await supabase
+    const { error } = await supabase
       .from('recommendation_comments')
       .delete()
       .eq('id', commentId)

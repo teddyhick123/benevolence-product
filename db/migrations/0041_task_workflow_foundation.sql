@@ -733,7 +733,8 @@ CREATE TABLE IF NOT EXISTS public.workflow_templates (
   description    text,
   is_system      boolean NOT NULL DEFAULT false,
   is_active      boolean NOT NULL DEFAULT true,
-  steps          jsonb NOT NULL DEFAULT '[]'::jsonb
+  steps          jsonb NOT NULL DEFAULT '[]'::jsonb,
+  CONSTRAINT workflow_templates_org_name_key UNIQUE (org_id, name)
 );
 
 CREATE INDEX IF NOT EXISTS idx_workflow_templates_org_type

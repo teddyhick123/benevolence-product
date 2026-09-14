@@ -94,7 +94,8 @@ CREATE TABLE IF NOT EXISTS report_templates (
   scope        text NOT NULL DEFAULT 'portfolio'
                CHECK (scope IN ('portfolio', 'holding', 'sector')),
   config       jsonb NOT NULL DEFAULT '{}',
-  is_default   boolean NOT NULL DEFAULT false
+  is_default   boolean NOT NULL DEFAULT false,
+  CONSTRAINT report_templates_portfolio_name_key UNIQUE (portfolio_id, name)
 );
 
 CREATE INDEX idx_report_templates_portfolio_id ON report_templates (portfolio_id);

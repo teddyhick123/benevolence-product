@@ -172,10 +172,11 @@ export default function QuickIntakeForm({ onSubmit, isLoading }: QuickIntakeForm
 
           {/* Organization Name */}
           <div>
-            <label className="block text-sm font-medium text-neutral-700 mb-2">
+            <label htmlFor="organization-name" className="block text-sm font-medium text-neutral-700 mb-2">
               Organization Name
             </label>
             <input
+              id="organization-name"
               type="text"
               value={data.org_name || ''}
               onChange={(e) => setData({ ...data, org_name: e.target.value })}

@@ -31,10 +31,11 @@ test('UI mission: admin enables donor management and reaches the donor workspace
 
   try {
     await page.goto(`/org/${fixtureIds.orgs.beta}/settings/modules`);
-    await expect(page.getByRole('heading', { name: 'Module Settings' })).toBeVisible({ timeout: COLD_APP_TIMEOUT });
+    await expect(page.getByRole('heading', { name: 'Shape Beta Foundation' })).toBeVisible({ timeout: COLD_APP_TIMEOUT });
 
-    await page.getByRole('button', { name: 'Enable Donor Management' }).click();
-    await expect(page.getByRole('button', { name: 'Disable Donor Management' })).toBeVisible();
+    await page.getByRole('switch', { name: 'Enable Donor Management' }).click();
+    await expect(page.getByText('Module change preview')).toBeVisible();
+    await page.getByRole('button', { name: 'Apply change' }).click();
 
     await expect.poll(async () => {
       const { data } = await adminDb
@@ -43,7 +44,8 @@ test('UI mission: admin enables donor management and reaches the donor workspace
         .eq('id', fixtureIds.orgs.beta)
         .single();
       return data?.modules?.donors;
-    }).toBe(true);
+    }, { timeout: COLD_APP_TIMEOUT }).toBe(true);
+    await expect(page.getByRole('switch', { name: 'Disable Donor Management' })).toBeVisible({ timeout: COLD_APP_TIMEOUT });
 
     await page.goto('/dashboard/donors');
     await expect(page.getByRole('heading', { name: 'Donors' })).toBeVisible();

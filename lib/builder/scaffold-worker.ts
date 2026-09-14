@@ -44,11 +44,18 @@ import { evaluateAttemptGate, parseModelReviewOutput } from './review-gate';
 import type { ScaffoldPlanContent } from './tools';
 import { branding } from '@/lib/config';
 
-const redisConnection = {
-  url: process.env.REDIS_URL || 'redis://localhost:6379',
-};
+function redisConnection() {
+  const url = process.env.REDIS_URL;
+  if (!url) throw new Error('REDIS_URL is required to enqueue Builder jobs');
+  return { url };
+}
 
-export const scaffoldQueue = new Queue('scaffold-jobs', { connection: redisConnection });
+let scaffoldQueue: Queue | undefined;
+
+function getScaffoldQueue(): Queue {
+  scaffoldQueue ??= new Queue('scaffold-jobs', { connection: redisConnection() });
+  return scaffoldQueue;
+}
 
 export interface ScaffoldBuildJobData {
   proposalId: string;
@@ -63,7 +70,7 @@ interface ProposalFile {
 }
 
 export async function enqueueScaffoldBuildJob(data: ScaffoldBuildJobData): Promise<string> {
-  const job = await scaffoldQueue.add('scaffold-build', data, {
+  const job = await getScaffoldQueue().add('scaffold-build', data, {
     // Keying the BullMQ job by revisionId (the claim RPC's idempotency key)
     // means a duplicate enqueue for the same revision returns the existing
     // job instead of creating a second one.
@@ -83,7 +90,7 @@ export function createScaffoldWorker(): Worker {
         await runBuildPhase(job.data as ScaffoldBuildJobData);
       }
     },
-    { connection: redisConnection, concurrency: 1 }
+    { connection: redisConnection(), concurrency: 1 }
   );
 
   worker.on('failed', (job, err) => {

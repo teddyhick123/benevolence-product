@@ -75,7 +75,7 @@ export default async function HoldingMiniDashboard({
     kpiCards,
     location,
     legacyCostPerOutcome,
-    hasBasicInfo,
+    hasBasicInfo: _hasBasicInfo,
     grantPeriodStatus,
   } = buildHoldingDetailViewModel(holding, facts, contributions, metricNames);
 

@@ -25,7 +25,7 @@ function toolIcon(name: string): string {
   return '📄';
 }
 
-function truncate(s: string, n: number): string {
+function _truncate(s: string, n: number): string {
   return s.length > n ? s.slice(0, n) + '…' : s;
 }
 

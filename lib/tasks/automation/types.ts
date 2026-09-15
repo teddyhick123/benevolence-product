@@ -67,5 +67,5 @@ export type ProducerOptions = {
 
 export type Producer = {
   id: string;
-  run: (options: ProducerOptions) => Promise<TaskProducerResult[]>;
+  run: (_options: ProducerOptions) => Promise<TaskProducerResult[]>;
 };

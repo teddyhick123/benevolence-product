@@ -330,7 +330,7 @@ function computeSummary(
 export async function fetchCharityRatings(
   params: CharityLookupParams
 ): Promise<CharityRatingsData> {
-  const { ein, name } = params;
+  const { ein, name: _name } = params;
 
   if (!ein) {
     return {

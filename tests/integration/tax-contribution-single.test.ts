@@ -10,7 +10,7 @@ import { GET, PUT, DELETE } from '@/app/api/portfolio/[id]/tax/contributions/[co
 // ── Constants ──────────────────────────────────────────────────────────────────
 
 const PORTFOLIO_ID      = '11111111-1111-1111-1111-111111111111';
-const OTHER_PORTFOLIO   = '22222222-2222-2222-2222-222222222222';
+const _OTHER_PORTFOLIO   = '22222222-2222-2222-2222-222222222222';
 const CONTRIBUTION_ID   = '33333333-3333-3333-3333-333333333333';
 const USER_ID           = '44444444-4444-4444-4444-444444444444';
 
@@ -165,7 +165,7 @@ function setupMocks() {
       const b: any = {};
 
       // Make the builder itself a Promise (thenable) — used by the DELETE chain
-      b.then = (resolve: (v: any) => void) =>
+      b.then = (resolve: (_v: any) => void) =>
         resolve({ error: _isDelete ? _deleteError : null });
 
       b.update = vi.fn(() => { _isDelete = false; return b; });

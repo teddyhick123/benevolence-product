@@ -153,7 +153,7 @@ async function main() {
   const zipFile = `handoff-${slug}.zip`;
 
   // Exclusions for zip
-  const excludePatterns = [
+  const _excludePatterns = [
     'node_modules',
     '.next',
     '.git',

@@ -144,6 +144,7 @@ export default function GrantTableView({ grants, loading, members = [], onNewGra
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- grantIdsKey is the stable proxy for grants identity
   }, [orgId, grantIdsKey]);
 
   useEffect(() => {

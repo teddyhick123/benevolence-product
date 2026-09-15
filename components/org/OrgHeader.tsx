@@ -36,6 +36,7 @@ export default function OrgHeader({
       <div className="flex items-start gap-4">
         {/* Logo or placeholder */}
         {org.logo_url ? (
+          // eslint-disable-next-line @next/next/no-img-element -- arbitrary org-supplied logo URL, domain unknown ahead of time
           <img
             src={org.logo_url}
             alt={`${org.name} logo`}

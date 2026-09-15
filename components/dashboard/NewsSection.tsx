@@ -91,6 +91,7 @@ function NewsArticleCard({ article }: { article: NewsArticle }) {
         {/* Optional thumbnail */}
         {article.image_url && (
           <div className="flex-shrink-0 w-20 h-20 rounded-lg overflow-hidden bg-neutral-100">
+            {/* eslint-disable-next-line @next/next/no-img-element -- arbitrary external news-source URL, domain unknown ahead of time */}
             <img
               src={article.image_url}
               alt=""

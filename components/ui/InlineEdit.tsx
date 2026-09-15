@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 
 type InlineEditProps = {
   value: string;
-  onSave: (newValue: string) => Promise<void>;
+  onSave: (_newValue: string) => Promise<void>;
   className?: string;
   as?: 'span' | 'h1' | 'h2' | 'p';
   placeholder?: string;

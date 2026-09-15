@@ -4,7 +4,6 @@ import { apiRequest, readJson } from "@/lib/api/client";
 import { useEffect, useState, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import * as d3 from 'd3';
-import { useWidgetDimensions } from '@/lib/hooks/useWidgetDimensions';
 
 interface HoldingMetricData {
   holdingId: string;
@@ -279,7 +278,7 @@ function SmallChart({ holding, height, showBenchmark, benchmarkValue, onClick }:
       .attr('r', 2)
       .attr('fill', 'var(--azure)');
 
-  }, [parsed, height, showBenchmark, benchmarkValue, holding.holdingId]);
+  }, [parsed, height, showBenchmark, benchmarkValue, holding.holdingId, width]);
 
   const trendColor = holding.trend === 'up' ? 'text-green-600' : holding.trend === 'down' ? 'text-red-600' : 'text-neutral-600';
   const trendIcon = holding.trend === 'up' ? '↑' : holding.trend === 'down' ? '↓' : '→';

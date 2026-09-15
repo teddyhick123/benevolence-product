@@ -201,7 +201,7 @@ function UploadPageContent() {
     }, 2000); // Poll every 2 seconds
 
     return () => clearInterval(interval);
-  }, [uploadId, status]);
+  }, [uploadId, status, aiMode]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();

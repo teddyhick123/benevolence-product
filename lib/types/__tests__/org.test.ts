@@ -1,4 +1,4 @@
-import { describe, it, expectTypeOf } from 'vitest';
+import { describe, it } from 'vitest';
 import type { OrgType } from '../org';
 
 describe('OrgType', () => {

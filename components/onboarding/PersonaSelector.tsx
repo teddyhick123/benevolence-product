@@ -44,7 +44,7 @@ const PERSONAS: PersonaOption[] = [
 
 interface PersonaSelectorProps {
   value?: OrgType | string;
-  onChange: (value: OrgType) => void;
+  onChange: (_value: OrgType) => void;
 }
 
 export default function PersonaSelector({ value, onChange }: PersonaSelectorProps) {

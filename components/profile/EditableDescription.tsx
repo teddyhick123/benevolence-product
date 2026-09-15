@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 type EditableDescriptionProps = {
   holdingId: string;
   description: string;
-  updateAction: (holdingId: string, value: string) => Promise<void>;
+  updateAction: (_holdingId: string, _value: string) => Promise<void>;
 };
 
 export default function EditableDescription({ holdingId, description, updateAction }: EditableDescriptionProps) {

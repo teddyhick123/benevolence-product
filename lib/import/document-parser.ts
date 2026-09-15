@@ -204,7 +204,7 @@ async function parsePDFChunked(buffer: Buffer, maxChunkSize: number): Promise<Do
         // Group pages into chunks that fit within maxChunkSize
         let currentChunk = '';
         let chunkStartPage = 1;
-        let currentStartPage = 1;
+        let _currentStartPage = 1;
 
         pageTexts.forEach((pageText, index) => {
           const pageNum = index + 1;

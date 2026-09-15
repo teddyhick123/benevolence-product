@@ -13,8 +13,8 @@ interface ExportOption {
   id: string;
   label: string;
   description: string;
-  url: (portfolioId: string, year: number) => string;
-  filename: (year: number) => string;
+  url: (_portfolioId: string, _year: number) => string;
+  filename: (_year: number) => string;
 }
 
 const EXPORT_OPTIONS: ExportOption[] = [

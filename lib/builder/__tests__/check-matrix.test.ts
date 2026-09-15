@@ -2,7 +2,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import { CHECK_KEYS, CHECK_COMMANDS, requiredCheckKeys, unitTestTargets, isLintablePath } from '@/lib/builder/check-matrix';
+import { CHECK_KEYS, CHECK_COMMANDS, requiredCheckKeys, unitTestTargets } from '@/lib/builder/check-matrix';
 
 describe('requiredCheckKeys', () => {
   it('always requires types/lint/unit', () => {

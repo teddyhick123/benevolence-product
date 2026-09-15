@@ -26,7 +26,7 @@ const STARTER_PROMPTS = [
   'Is my data ready to load?',
 ];
 
-export function ImportCopilot({ importJobId, initialStatus }: ImportCopilotProps) {
+export function ImportCopilot({ importJobId, initialStatus: _initialStatus }: ImportCopilotProps) {
   const [minimized, setMinimized] = useState(false);
   const [messages, setMessages] = useState<DisplayMessage[]>([
     {

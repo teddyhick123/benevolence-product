@@ -91,6 +91,7 @@ export default function ContributionDetailModal({
 
   useEffect(() => {
     fetchContribution();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reload only when these props change
   }, [portfolioId, contributionId]);
 
   // Focus management
@@ -125,6 +126,7 @@ export default function ContributionDetailModal({
     setDocRefresh((r) => r + 1);
     setShowUploader(false);
     fetchContribution(); // Refresh to get updated storage paths
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fetchContribution is stable for this modal's lifetime
   }, []);
 
   async function handleSave() {

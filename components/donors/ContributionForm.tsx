@@ -15,7 +15,7 @@ type Donor = {
 interface Props {
   organizationId: string;
   preselectedDonorId?: string;
-  onSuccess?: (contribution: any) => void;
+  onSuccess?: (_contribution: any) => void;
   onCancel?: () => void;
 }
 

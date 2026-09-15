@@ -2,7 +2,6 @@
 
 import { useAnalyticsData } from "@/lib/analytics/hooks";
 
-import { useState } from 'react';
 
 type RiskSummary = {
   snapshot_date: string;

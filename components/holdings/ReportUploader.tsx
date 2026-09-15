@@ -31,9 +31,9 @@ export default function ReportUploader({
   const [file, setFile] = useState<File | null>(null);
   const [status, setStatus] = useState<'idle' | 'uploading' | 'done' | 'error'>('idle');
   const [msg, setMsg] = useState('');
-  const [uploadId, setUploadId] = useState<string | null>(null);
-  const [factsCount, setFactsCount] = useState(0);
-  const [chunksProcessed, setChunksProcessed] = useState(0);
+  const [_uploadId, setUploadId] = useState<string | null>(null);
+  const [_factsCount, setFactsCount] = useState(0);
+  const [_chunksProcessed, setChunksProcessed] = useState(0);
   const [stagedFacts, setStagedFacts] = useState<StagedFact[]>([]);
   const [showReview, setShowReview] = useState(false);
   const [aiMode, setAiMode] = useState(true);

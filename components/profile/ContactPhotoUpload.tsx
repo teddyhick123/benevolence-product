@@ -75,6 +75,7 @@ export default function ContactPhotoUpload({ holdingId, currentPhoto, contactNam
         title="Click to upload photo"
       >
         {currentPhoto ? (
+          // eslint-disable-next-line @next/next/no-img-element -- signed storage URL that rotates, not a static asset next/image can cache
           <img
             key={currentPhoto}
             src={currentPhoto}

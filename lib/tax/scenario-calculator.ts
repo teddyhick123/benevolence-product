@@ -418,7 +418,7 @@ export function analyzeBunchingStrategy(input: {
   // Bunching strategy: Donate 2x every other year
   const bunchAmount = annual_donation_amount * 2;
   const bunchYears = Math.ceil(years_to_analyze / 2);
-  const offYears = years_to_analyze - bunchYears;
+  const _offYears = years_to_analyze - bunchYears;
   const bunchYearDeduction = Math.min(bunchAmount, agiLimit);
   const offYearDeduction = 0; // Use standard deduction in off years
   const bunchTotalDeduction = bunchYearDeduction * bunchYears;

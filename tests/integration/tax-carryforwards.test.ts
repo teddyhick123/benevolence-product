@@ -388,7 +388,7 @@ describe('POST /api/portfolio/[id]/tax/carryforwards', () => {
 
   it('returns 400 when originating_tax_year is missing', async () => {
     // Arrange — required field omitted
-    const { originating_tax_year, ...bodyWithout } = VALID_POST_BODY;
+    const { originating_tax_year: _originating_tax_year, ...bodyWithout } = VALID_POST_BODY;
 
     // Act
     const res  = await POST(makePostRequest(PORTFOLIO_ID, bodyWithout), makeCtx());
@@ -401,7 +401,7 @@ describe('POST /api/portfolio/[id]/tax/carryforwards', () => {
 
   it('returns 400 when amount is missing', async () => {
     // Arrange
-    const { amount, ...bodyWithout } = VALID_POST_BODY;
+    const { amount: _amount, ...bodyWithout } = VALID_POST_BODY;
 
     // Act
     const res = await POST(makePostRequest(PORTFOLIO_ID, bodyWithout), makeCtx());
@@ -412,7 +412,7 @@ describe('POST /api/portfolio/[id]/tax/carryforwards', () => {
 
   it('returns 400 when amount_remaining is missing', async () => {
     // Arrange — both amount and amount_remaining are required
-    const { amount_remaining, ...bodyWithout } = VALID_POST_BODY;
+    const { amount_remaining: _amount_remaining, ...bodyWithout } = VALID_POST_BODY;
 
     // Act
     const res = await POST(makePostRequest(PORTFOLIO_ID, bodyWithout), makeCtx());
@@ -423,7 +423,7 @@ describe('POST /api/portfolio/[id]/tax/carryforwards', () => {
 
   it('returns 400 when agi_limit_category is missing', async () => {
     // Arrange
-    const { agi_limit_category, ...bodyWithout } = VALID_POST_BODY;
+    const { agi_limit_category: _agi_limit_category, ...bodyWithout } = VALID_POST_BODY;
 
     // Act
     const res = await POST(makePostRequest(PORTFOLIO_ID, bodyWithout), makeCtx());
@@ -434,7 +434,7 @@ describe('POST /api/portfolio/[id]/tax/carryforwards', () => {
 
   it('returns 400 when expires_tax_year is missing', async () => {
     // Arrange
-    const { expires_tax_year, ...bodyWithout } = VALID_POST_BODY;
+    const { expires_tax_year: _expires_tax_year, ...bodyWithout } = VALID_POST_BODY;
 
     // Act
     const res = await POST(makePostRequest(PORTFOLIO_ID, bodyWithout), makeCtx());

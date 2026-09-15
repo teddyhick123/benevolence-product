@@ -22,7 +22,7 @@ export default function OrgReportUploader({ orgId, holdings }: Props) {
   const [holdingId, setHoldingId] = useState<string>("");
   const [status, setStatus] = useState<"idle" | "uploading" | "done" | "error">("idle");
   const [msg, setMsg] = useState("");
-  const [factsCount, setFactsCount] = useState(0);
+  const [_factsCount, setFactsCount] = useState(0);
   const [aiMode, setAiMode] = useState(true);
 
   const MAX_FILE_SIZE = 200 * 1024 * 1024; // 200MB

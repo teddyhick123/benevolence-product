@@ -27,7 +27,7 @@ function MetricCodeSelect({
   metrics,
 }: {
   value: string;
-  onChange: (value: string) => void;
+  onChange: (_value: string) => void;
   metrics: Metric[];
 }) {
   return (
@@ -52,8 +52,8 @@ function MetricCodeSelect({
 function KpiEditRow({ kpi, metrics, onSave, onDelete }: {
   kpi: KpiRow;
   metrics: Metric[];
-  onSave: (id: string, data: Partial<KpiRow>) => Promise<void>;
-  onDelete: (id: string) => Promise<void>;
+  onSave: (_id: string, _data: Partial<KpiRow>) => Promise<void>;
+  onDelete: (_id: string) => Promise<void>;
 }) {
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -209,7 +209,7 @@ function KpiEditRow({ kpi, metrics, onSave, onDelete }: {
 
 export default function KpisPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: portfolioId } = use(params);
-  const router = useRouter();
+  const _router = useRouter();
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -227,6 +227,7 @@ export default function KpisPage({ params }: { params: Promise<{ id: string }> }
 
   useEffect(() => {
     loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reload only when portfolioId changes
   }, [portfolioId]);
 
   async function loadData() {

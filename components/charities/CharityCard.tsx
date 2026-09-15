@@ -21,8 +21,8 @@ interface CharityCardProps {
     };
   };
   view?: 'discovery' | 'portfolio';
-  onAddToPortfolio?: (ein: string) => void;
-  onEdit?: (recommendationId: string) => void;
+  onAddToPortfolio?: (_ein: string) => void;
+  onEdit?: (_recommendationId: string) => void;
 }
 
 export default function CharityCard({
@@ -31,7 +31,7 @@ export default function CharityCard({
   onAddToPortfolio,
   onEdit,
 }: CharityCardProps) {
-  const [isHovered, setIsHovered] = useState(false);
+  const [_isHovered, setIsHovered] = useState(false);
 
   const location = [charity.city, charity.state].filter(Boolean).join(', ');
   const rating = charity.charity_navigator_score;

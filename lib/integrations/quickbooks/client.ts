@@ -30,16 +30,16 @@ interface OAuthAuthResponse {
 }
 
 interface OAuthClientInstance {
-  authorizeUri(opts: { scope: string[]; state: string }): string;
-  createToken(redirectUri: string): Promise<OAuthAuthResponse>;
+  authorizeUri(_opts: { scope: string[]; state: string }): string;
+  createToken(_redirectUri: string): Promise<OAuthAuthResponse>;
   refresh(): Promise<OAuthAuthResponse>;
-  revoke(params: { token: string }): Promise<void>;
-  setToken(token: OAuthToken): void;
+  revoke(_params: { token: string }): Promise<void>;
+  setToken(_token: OAuthToken): void;
   getToken(): OAuthToken;
 }
 
 interface OAuthClientStatic {
-  new (opts: OAuthClientOptions): OAuthClientInstance;
+  new (_opts: OAuthClientOptions): OAuthClientInstance;
   scopes: {
     Accounting: string;
     OpenId: string;
@@ -56,7 +56,7 @@ const OAuthClient = require('intuit-oauth') as OAuthClientStatic;
 // node-quickbooks types (subset we actually use)
 // ---------------------------------------------------------------------------
 
-type QBCallback<T> = (err: Error | null, result: T) => void;
+type QBCallback<T> = (_err: Error | null, _result: T) => void;
 
 interface QBAccount {
   Id: string;
@@ -90,27 +90,27 @@ interface QBJournalLine {
 
 interface QBClientInstance {
   findAccounts(
-    criteria: Array<{ field: string; value: boolean | string; operator?: string }>,
-    callback: QBCallback<QBAccountQueryResponse>
+    _criteria: Array<{ field: string; value: boolean | string; operator?: string }>,
+    _callback: QBCallback<QBAccountQueryResponse>
   ): void;
   createJournalEntry(
-    entry: QBJournalEntry,
-    callback: QBCallback<unknown>
+    _entry: QBJournalEntry,
+    _callback: QBCallback<unknown>
   ): void;
-  query(query: string, callback: QBCallback<any>): void;
+  query(_query: string, _callback: QBCallback<any>): void;
 }
 
 const QuickBooks = require('node-quickbooks') as new (
-  clientId: string,
-  clientSecret: string,
-  accessToken: string,
-  oauthTokenSecret: boolean,
-  realmId: string,
-  useSandbox: boolean,
-  debug: boolean,
-  minorversion: null | number,
-  oauthversion: string,
-  refreshToken: string
+  _clientId: string,
+  _clientSecret: string,
+  _accessToken: string,
+  _oauthTokenSecret: boolean,
+  _realmId: string,
+  _useSandbox: boolean,
+  _debug: boolean,
+  _minorversion: null | number,
+  _oauthversion: string,
+  _refreshToken: string
 ) => QBClientInstance;
 
 // ---------------------------------------------------------------------------

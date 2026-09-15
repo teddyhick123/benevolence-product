@@ -11,7 +11,7 @@ type Props = {
   portfolioId: string;
 };
 
-export default function AddToTaxTrackerButton({ holdingId, holdingName, portfolioId }: Props) {
+export default function AddToTaxTrackerButton({ holdingId, holdingName: _holdingName, portfolioId }: Props) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);

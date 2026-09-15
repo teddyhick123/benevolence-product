@@ -66,7 +66,7 @@ const MUTABLE_MODULE_IDS: readonly ModuleId[] = [
 const METRIC_AGGREGATIONS = ['sum', 'avg', 'last', 'first'] as const;
 const METRIC_DIRECTIONS = ['higher_is_better', 'lower_is_better', 'neutral'] as const;
 const BUILDER_EVENT_TYPES = ['tool_call', 'ai_request', 'proposal_created', 'proposal_applied', 'proposal_rejected'] as const;
-const REPORT_TEMPLATE_SCOPES = ['portfolio', 'holding', 'sector'] as const;
+const _REPORT_TEMPLATE_SCOPES = ['portfolio', 'holding', 'sector'] as const;
 const BOARD_REPORT_SECTIONS = ['overview', 'financials', 'holdings', 'impact', 'tax', 'tasks', 'appendix'] as const;
 
 function validationMessage(err: unknown, fallback = 'Invalid input'): string {
@@ -289,7 +289,7 @@ async function resolveOrgPortfolioId(
   return data[0].id;
 }
 
-function formatConfigRows(rows: any[] | null | undefined, formatter: (row: any) => string): string {
+function formatConfigRows(rows: any[] | null | undefined, formatter: (_row: any) => string): string {
   if (!rows || rows.length === 0) return 'None configured.';
   return rows.map(formatter).join('\n');
 }

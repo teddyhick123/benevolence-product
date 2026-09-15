@@ -28,7 +28,7 @@ function toggleWatchlist(ein: string, name: string): boolean {
 
 export default function CharityDetailPage() {
   const params = useParams();
-  const router = useRouter();
+  const _router = useRouter();
   const ein = params.ein as string;
 
   const [charity, setCharity] = useState<any>(null);
@@ -46,6 +46,7 @@ export default function CharityDetailPage() {
       setIsWatched(getWatchlist().some(w => w.ein === ein));
       setNotes(localStorage.getItem(NOTES_KEY(ein)) || '');
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reload only when ein changes
   }, [ein]);
 
   useEffect(() => {

@@ -30,7 +30,7 @@ function fmtMoney(amount: number | null | undefined, currency = 'USD') {
 export default function GrantDetailPage() {
   const params = useParams();
   const searchParams = useSearchParams();
-  const router = useRouter();
+  const _router = useRouter();
   const grantId = params.grantId as string;
   const portfolioId = searchParams.get('portfolio_id');
 
@@ -108,7 +108,7 @@ export default function GrantDetailPage() {
       }
     }
     init();
-  }, [grantId]);
+  }, [grantId, portfolioId]);
 
   async function handleTransition() {
     if (!orgId || !transitionTo) return;
@@ -154,7 +154,7 @@ export default function GrantDetailPage() {
   const grant = data?.grant;
   const health = data?.health;
   const tasks: any[] = data?.tasks ?? [];
-  const payments: any[] = data?.payments ?? [];
+  const _payments: any[] = data?.payments ?? [];
   const communications: any[] = data?.communications ?? [];
   const history: any[] = data?.history ?? [];
 
@@ -168,7 +168,7 @@ export default function GrantDetailPage() {
   }
 
   const currentStage: LifecycleStage = grant.lifecycle_stage ?? 'draft';
-  const stageIndex = LIFECYCLE_STAGES.indexOf(currentStage as any);
+  const _stageIndex = LIFECYCLE_STAGES.indexOf(currentStage as any);
   const terminalStages = new Set(['closed', 'declined', 'cancelled']);
   const isTerminal = terminalStages.has(currentStage);
 

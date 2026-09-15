@@ -29,6 +29,7 @@ export class FakeConnector implements AIConnector {
   readonly calls: Array<{ plan: AIExecutionPlan; request: AIGenerationRequest }> = [];
   private index = 0;
 
+  // eslint-disable-next-line no-unused-vars -- parameter property assigned to `this.script`
   constructor(private readonly script: FakeScript) {}
 
   private next(plan: AIExecutionPlan, request: AIGenerationRequest): AIResponse {

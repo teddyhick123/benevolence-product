@@ -59,7 +59,7 @@ function slugFromLabel(value: unknown, fallback: string): string {
   return normalizeFieldKey(label).slice(0, 64) || fallback;
 }
 
-function uniqueBy<T>(rows: T[], keyFor: (row: T) => string): T[] {
+function uniqueBy<T>(rows: T[], keyFor: (_row: T) => string): T[] {
   const byKey = new Map<string, T>();
   for (const row of rows) byKey.set(keyFor(row), row);
   return Array.from(byKey.values());

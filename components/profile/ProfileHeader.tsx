@@ -15,7 +15,7 @@ type ProfileHeaderProps = {
 };
 
 export default function ProfileHeader({
-  userId,
+  userId: _userId,
   email,
   displayName,
   avatarUrl,
@@ -66,6 +66,7 @@ export default function ProfileHeader({
         {/* Avatar */}
         <div className="flex-shrink-0">
           {avatarUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element -- signed storage URL that rotates, not a static asset next/image can cache
             <img
               src={avatarUrl}
               alt={displayName}

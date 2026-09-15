@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { ASSET_TYPE_COLORS, ASSET_TYPE_LABELS, AssetType } from '@/lib/schemas/portfolio';
+import { AssetType } from '@/lib/schemas/portfolio';
 import HoldingsPieWidget from '@/components/vis/HoldingsPieWidget';
 import AISummaryCard from '@/components/dashboard/AISummaryCard';
 import { useHoldings } from '@/lib/holdings/hooks';
@@ -32,9 +32,9 @@ type Props = {
 
 export default function AllAssetsOverview({
   portfolioId,
-  investmentSummary,
-  grantSummary,
-  donationSummary,
+  investmentSummary: _investmentSummary,
+  grantSummary: _grantSummary,
+  donationSummary: _donationSummary,
 }: Props) {
   const { holdings, isLoading } = useHoldings(portfolioId);
 
@@ -119,7 +119,7 @@ export default function AllAssetsOverview({
     }).format(value);
   };
 
-  const formatNumber = (value: number) => {
+  const _formatNumber = (value: number) => {
     return new Intl.NumberFormat('en-US').format(value);
   };
 

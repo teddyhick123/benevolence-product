@@ -4,9 +4,9 @@ import * as React from 'react';
 
 export type HoldingsPieConfigProps = {
   initialConfig?: any;
-  onSave: (config: { title: string; config: any }) => void;
+  onSave: (_config: { title: string; config: any }) => void;
   onCancel: () => void;
-  onPreviewChange?: (config: { title: string; config: any }) => void;
+  onPreviewChange?: (_config: { title: string; config: any }) => void;
 };
 
 export default function HoldingsPieConfig({ initialConfig, onSave, onCancel, onPreviewChange }: HoldingsPieConfigProps) {

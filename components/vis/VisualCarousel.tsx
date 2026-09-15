@@ -246,7 +246,7 @@ type Props = {
   portfolioId: string;
   initialId?: string;
   autoPlayMs?: number;        // default 8000
-  onChange?: (id: string) => void;
+  onChange?: (_id: string) => void;
 
   // editing affordances (shown to editors/owners/admin)
   canEdit?: boolean;
@@ -261,7 +261,7 @@ type Props = {
  * - Swipe on touch devices
  * - Pills to jump to a specific viz
  */
-export default function VisualCarousel({ items, portfolioId, initialId, autoPlayMs = 8000, onChange, canEdit = false, onEdit, editLabel = 'Edit widgets' }: Props) {
+export default function VisualCarousel({ items, portfolioId, initialId, autoPlayMs = 8000, onChange, canEdit: _canEdit = false, onEdit: _onEdit, editLabel: _editLabel = 'Edit widgets' }: Props) {
   const hasItems = Array.isArray(items) && items.length > 0;
   const startIndex = useMemo(() =>
     hasItems ? Math.max(0, items.findIndex(i => i.id === (initialId || ''))) : 0,
@@ -365,7 +365,7 @@ export default function VisualCarousel({ items, portfolioId, initialId, autoPlay
 
       {/* Slides */}
       <CarouselSlides index={index}>
-        {items.map((it, i) => (
+        {items.map((it, _i) => (
           <div key={it.id} className="w-full h-full flex items-center justify-center min-w-0">
             {(() => {
               // Prefer new registry-based rendering when type is provided
@@ -471,7 +471,7 @@ function CarouselSlides({ index, children }: { index: number; children: React.Re
   );
 }
 
-function PencilIcon({ className }: { className?: string }) {
+function _PencilIcon({ className }: { className?: string }) {
   return (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className={className} aria-hidden="true">
       <path d="M4 13.5V16h2.5l7.36-7.36-2.5-2.5L4 13.5zm9.85-8.35l1.99 1.99a.5.5 0 010 .7l-1.14 1.14-2.69-2.69 1.14-1.14a.5.5 0 01.7 0z" />

@@ -14,7 +14,7 @@ type Holding = {
 interface Props {
   portfolioId: string;
   onClose: () => void;
-  onSuccess?: (exportData: any) => void;
+  onSuccess?: (_exportData: any) => void;
 }
 
 

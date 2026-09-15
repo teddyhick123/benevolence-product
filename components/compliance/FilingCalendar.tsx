@@ -93,6 +93,7 @@ export default function FilingCalendar({ orgId }: Props) {
     }
   }
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- reload only when these filters change
   useEffect(() => { load(); }, [orgId, statusFilter]);
 
   async function handleMarkFiled(filing: Filing) {

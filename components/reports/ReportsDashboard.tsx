@@ -2,7 +2,6 @@
 
 import { useReportsData } from "@/lib/reports/hooks";
 
-import { useState, useEffect } from 'react';
 
 type ReportTemplate = {
   id: string;
@@ -43,7 +42,7 @@ interface Props {
   portfolioId: string;
   onCreateTemplate?: () => void;
   onGenerateReport?: () => void;
-  onViewDocument?: (documentId: string) => void;
+  onViewDocument?: (_documentId: string) => void;
 }
 
 
@@ -51,10 +50,10 @@ export default function ReportsDashboard({ portfolioId, onCreateTemplate, onGene
   const { data: templatesData, error: templatesError } = useReportsData<{ templates: ReportTemplate[] }>(
     `/api/portfolio/${portfolioId}/reports/templates`);
 
-  const { data: documentsData, error: documentsError } = useReportsData<{ documents: GeneratedDocument[]; count: number }>(
+  const { data: documentsData, error: _documentsError } = useReportsData<{ documents: GeneratedDocument[]; count: number }>(
     `/api/portfolio/${portfolioId}/reports/documents?limit=5`);
 
-  const { data: schedulesData, error: schedulesError } = useReportsData<{ schedules: ReportSchedule[] }>(
+  const { data: schedulesData, error: _schedulesError } = useReportsData<{ schedules: ReportSchedule[] }>(
     `/api/portfolio/${portfolioId}/reports/schedules?active_only=true`);
 
   const templates = templatesData?.templates ?? [];

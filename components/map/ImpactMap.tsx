@@ -47,8 +47,8 @@ export type ImpactMapPoint = {
 type Props = {
   points: ImpactMapPoint[];
   mode?: MapMode; // Visualization mode: 'points' | 'heatmap'
-  onPointClick?: (p: ImpactMapPoint) => void; // parent can open modal/focus row
-  onPointHover?: (holdingId: string | null) => void; // two-way highlighting with table
+  onPointClick?: (_p: ImpactMapPoint) => void; // parent can open modal/focus row
+  onPointHover?: (_holdingId: string | null) => void; // two-way highlighting with table
   highlightedId?: string | null; // external highlight state (e.g., from table hover)
   height?: number;
 };
@@ -388,7 +388,7 @@ export default function ImpactMap({ points, mode = 'points', onPointClick, onPoi
       circles.append('title').text(d => `${d.label}`);
 
       // Add cluster count labels
-      const clusterLabels = g
+      const _clusterLabels = g
         .selectAll('text.cluster-label')
         .data(displayPoints.filter(d => isCluster(d as any)), (d: any) => d.id)
         .enter()

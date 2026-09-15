@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { X, Filter } from 'lucide-react';
 
 interface FilterState {
@@ -18,7 +18,7 @@ interface FilterState {
 
 interface CharityFilterSidebarProps {
   filters: FilterState;
-  onFiltersChange: (filters: FilterState) => void;
+  onFiltersChange: (_filters: FilterState) => void;
   view?: 'discovery' | 'portfolio' | 'saved';
   onClearFilters: () => void;
   isOpen?: boolean;

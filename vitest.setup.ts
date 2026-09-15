@@ -1,4 +1,3 @@
-import { expect } from 'vitest';
 import '@testing-library/jest-dom';
 import { File as NodeFile } from 'buffer';
 

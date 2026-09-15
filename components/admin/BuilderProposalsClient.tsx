@@ -29,7 +29,7 @@ const STATUS_BADGE: Record<string, string> = {
   applied: 'bg-green-100 text-green-700 border-green-200',
 };
 
-function ProposalCard({ proposal, onUpdate }: { proposal: Proposal; onUpdate: (id: string, status: string) => void }) {
+function ProposalCard({ proposal, onUpdate }: { proposal: Proposal; onUpdate: (_id: string, _status: string) => void }) {
   const [expanded, setExpanded] = useState(false);
   const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(false);

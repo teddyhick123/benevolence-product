@@ -1,7 +1,7 @@
 'use client';
 
 import { apiRequest, readJson } from "@/lib/api/client";
-import { useEffect, useState, useMemo, useRef } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import * as d3 from 'd3';
 import { useWidgetDimensions } from '@/lib/hooks/useWidgetDimensions';
 
@@ -203,7 +203,7 @@ function WaterfallD3Chart({
     const barData: BarData[] = [];
     let cumulative = 0;
 
-    data.forEach((item, i) => {
+    data.forEach((item, _i) => {
       if (item.isTotal || item.type === 'start' || item.type === 'total') {
         // Total bars start from zero
         barData.push({
@@ -305,7 +305,7 @@ function WaterfallD3Chart({
         if (i < barData.length - 1 && !d.isTotal && !barData[i + 1].isTotal) {
           const x1 = (xScale(d.label) || 0) + xScale.bandwidth();
           const x2 = xScale(barData[i + 1].label) || 0;
-          const y = yScale(cumulative);
+          const _y = yScale(cumulative);
 
           // Calculate the cumulative value at the end of current bar
           let cumulativeAtEnd = 0;

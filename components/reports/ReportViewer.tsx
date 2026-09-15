@@ -27,11 +27,11 @@ interface Props {
   portfolioId: string;
   onClose?: () => void;
   onShare?: () => void;
-  onExport?: (format: string) => void;
+  onExport?: (_format: string) => void;
 }
 
 export default function ReportViewer({ report, portfolioId, onClose, onShare, onExport }: Props) {
-  const [showShareModal, setShowShareModal] = useState(false);
+  const [_showShareModal, _setShowShareModal] = useState(false);
 
   const formatDate = (date: string) => {
     return new Date(date).toLocaleDateString('en-US', {

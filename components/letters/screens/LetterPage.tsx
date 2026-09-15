@@ -156,6 +156,7 @@ function LetterPageContent() {
     setTimeout(() => {
       sendMessage(`Generate a detailed report about ${holdingName} (holding ID: ${holdingId}) with charts showing key metrics and trends.`);
     }, 500);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- holdingReportTriggered guards against re-firing
   }, [portfolio?.id, loading, holdingReportTriggered, isLoadingResponse, searchParams, letterData]);
 
   const sendMessage = async (overrideMessage?: string) => {

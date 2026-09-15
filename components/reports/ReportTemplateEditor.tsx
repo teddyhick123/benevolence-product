@@ -3,9 +3,9 @@
 import { apiRequest, readJson } from "@/lib/api/client";
 import { useReportsData } from "@/lib/reports/hooks";
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 
-type Holding = {
+type _Holding = {
   id: string;
   name: string;
   sector: string | null;
@@ -28,7 +28,7 @@ type ReportTemplate = {
 interface Props {
   portfolioId: string;
   template?: ReportTemplate | null;
-  onSave?: (template: ReportTemplate) => void;
+  onSave?: (_template: ReportTemplate) => void;
   onCancel?: () => void;
 }
 

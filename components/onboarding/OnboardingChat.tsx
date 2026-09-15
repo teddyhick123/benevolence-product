@@ -31,7 +31,7 @@ interface OnboardingChatProps {
   initialState?: ConversationState;
   initialBlueprint?: FoundationBlueprintData;
   quickIntake?: { org_name?: string; org_size?: string; primary_focus?: string[] };
-  onReadyForRecommendations: (blueprint?: FoundationBlueprintData) => void;
+  onReadyForRecommendations: (_blueprint?: FoundationBlueprintData) => void;
 }
 
 const EMPTY_BLUEPRINT: FoundationBlueprintData = {
@@ -41,7 +41,7 @@ const EMPTY_BLUEPRINT: FoundationBlueprintData = {
   team_context: {},
 };
 
-function mergeByIdentity<T extends { id?: string }>(current: T[], incoming: T[], label: (item: T) => string) {
+function mergeByIdentity<T extends { id?: string }>(current: T[], incoming: T[], label: (_item: T) => string) {
   const seen = new Set(current.map((item) => item.id || label(item)));
   return [...current, ...incoming.filter((item) => {
     const identity = item.id || label(item);

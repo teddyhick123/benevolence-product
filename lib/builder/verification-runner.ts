@@ -81,14 +81,14 @@ export interface VerificationOutcome {
 }
 
 export interface VerificationRunner {
-  run(input: VerificationInput): Promise<VerificationOutcome>;
+  run(_input: VerificationInput): Promise<VerificationOutcome>;
 }
 
 /** Injectable process/git seams so unit tests never touch real git or spawn. */
 export interface ProcessExecutor {
   exec(
-    argv: string[],
-    opts: { cwd: string; env: Record<string, string>; timeoutMs: number }
+    _argv: string[],
+    _opts: { cwd: string; env: Record<string, string>; timeoutMs: number }
   ): Promise<{ exitCode: number | null; output: string; timedOut: boolean }>;
 }
 
@@ -529,6 +529,7 @@ export function createVerificationRunner(env: NodeJS.ProcessEnv = process.env): 
 
 /** Fails closed when a production worker cannot establish the container boundary. */
 export class UnavailableVerificationRunner implements VerificationRunner {
+  // eslint-disable-next-line no-unused-vars -- parameter property assigned to `this.detail`
   constructor(private readonly detail: string) {}
 
   async run(input: VerificationInput): Promise<VerificationOutcome> {

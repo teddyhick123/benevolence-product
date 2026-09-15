@@ -11,8 +11,8 @@ interface PendingInvite {
 
 interface PendingInviteRowProps {
   invite: PendingInvite;
-  onResend: (inviteId: string) => void;
-  onCancel: (inviteId: string) => void;
+  onResend: (_inviteId: string) => void;
+  onCancel: (_inviteId: string) => void;
 }
 
 export default function PendingInviteRow({ invite, onResend, onCancel }: PendingInviteRowProps) {

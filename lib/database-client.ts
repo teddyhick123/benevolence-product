@@ -8,9 +8,9 @@ type RelaxWriteValues<Table> = Table extends {
   Relationships: infer Relationships;
 }
   ? {
-      Row: { [Column in keyof Row]: any };
-      Insert: { [Column in keyof Insert]?: any };
-      Update: { [Column in keyof Update]: any };
+      Row: { [_Column in keyof Row]: any };
+      Insert: { [_Column in keyof Insert]?: any };
+      Update: { [_Column in keyof Update]: any };
       Relationships: Relationships;
     }
   : Table;
@@ -23,7 +23,7 @@ type RelaxViewValues<View> = View extends {
   Row: infer Row;
   Relationships: infer Relationships;
 }
-  ? { Row: { [Column in keyof Row]: any }; Relationships: Relationships }
+  ? { Row: { [_Column in keyof Row]: any }; Relationships: Relationships }
   : View;
 
 type RelaxViews<Views> = {
@@ -35,7 +35,7 @@ type RelaxFunctionReturns<Functions> = {
     Args: infer Args;
   }
     ? Omit<Functions[FunctionName], 'Args' | 'Returns'> & {
-        Args: { [Argument in keyof Args]: any };
+        Args: { [_Argument in keyof Args]: any };
         Returns: any;
       }
     : Functions[FunctionName];

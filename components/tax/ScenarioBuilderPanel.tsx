@@ -12,7 +12,7 @@ export interface ScenarioBuilderPanelProps {
 export default function ScenarioBuilderPanel({
   portfolioId,
   year,
-  initialMode,
+  initialMode: _initialMode,
 }: ScenarioBuilderPanelProps) {
   return (
     <div className="space-y-6">

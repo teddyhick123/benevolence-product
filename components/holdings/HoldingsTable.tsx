@@ -81,10 +81,10 @@ export default function HoldingsTable({
 }: {
   rows: SimpleRow[];
   canEdit?: boolean;
-  onEditRow?: (row: any, index: number) => void;
+  onEditRow?: (_row: any, _index: number) => void;
   portfolioId?: string;
   selectedAssetType?: AssetType | 'all';
-  onAssetTypeChange?: (value: AssetType | 'all') => void;
+  onAssetTypeChange?: (_value: AssetType | 'all') => void;
   assetTypeCounts?: Partial<Record<AssetType | 'all', number>>;
   totalCount?: number;
 }) {
@@ -96,7 +96,7 @@ export default function HoldingsTable({
   const params = useParams();
   const searchParams = useSearchParams();
   const routePortfolioId = (params as any)?.portfolio_id || (params as any)?.id || searchParams.get('portfolio_id') || searchParams.get('id');
-  const effectivePortfolioId = portfolioId ?? (routePortfolioId ? String(routePortfolioId) : undefined);
+  const _effectivePortfolioId = portfolioId ?? (routePortfolioId ? String(routePortfolioId) : undefined);
 
   const data = useMemo(() => {
     const arr = Array.isArray(rows) ? rows : [];

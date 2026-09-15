@@ -68,6 +68,7 @@ export default function PledgeCreateModal({ orgId, prefillDonorId, prefillDonorN
     } catch { setInstallments([]); }
   }
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- regenerate preview only when the step changes
   useEffect(() => { if (step === 3) generatePreview(); }, [step]);
 
   const instSum = installments.reduce((s, i) => s + i.amount, 0);

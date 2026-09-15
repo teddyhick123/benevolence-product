@@ -3,7 +3,7 @@ import { addPortfolioMemberSchema, updateMemberRoleSchema } from './admin';
 
 describe('admin schema role enum matches DB member_role_enum', () => {
   const validRoles = ['owner', 'admin', 'member', 'viewer'];
-  const invalidRoles = ['editor'];
+  const _invalidRoles = ['editor'];
 
   it('addPortfolioMemberSchema accepts valid DB roles', () => {
     for (const role of validRoles) {

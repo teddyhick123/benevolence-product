@@ -55,6 +55,7 @@ export default function ExpenditureResponsibilityList({ portfolioId }: Props) {
     }
   }
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- reload only when these filters change
   useEffect(() => { load(); }, [portfolioId, statusFilter]);
 
   async function handleRecordReport(erGrantId: string, currentCount: number) {

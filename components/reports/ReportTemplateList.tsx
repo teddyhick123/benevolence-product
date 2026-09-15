@@ -24,9 +24,9 @@ type ReportTemplate = {
 
 interface Props {
   portfolioId: string;
-  onEdit?: (template: ReportTemplate) => void;
-  onGenerate?: (template: ReportTemplate) => void;
-  onSchedule?: (template: ReportTemplate) => void;
+  onEdit?: (_template: ReportTemplate) => void;
+  onGenerate?: (_template: ReportTemplate) => void;
+  onSchedule?: (_template: ReportTemplate) => void;
 }
 
 

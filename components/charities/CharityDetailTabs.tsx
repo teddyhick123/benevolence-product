@@ -307,6 +307,7 @@ export default function CharityDetailTabs({ charity }: CharityDetailTabsProps) {
                   {charity.impact_stories.map((story) => (
                     <div key={story.id} className="border border-black/5 rounded-2xl p-4">
                       {story.image_url && (
+                        // eslint-disable-next-line @next/next/no-img-element -- arbitrary external charity-supplied URL, domain unknown ahead of time
                         <img src={story.image_url} alt={story.title} className="w-full h-48 object-cover rounded-2xl mb-4" />
                       )}
                       <h4 className="text-lg font-semibold text-ink mb-2">{story.title}</h4>

@@ -14,7 +14,7 @@ export type HoldingsPieWidgetProps = {
   innerRadius?: number;     // default 40: >0 renders donut
   showLegend?: boolean;     // default true
   legendMaxHeight?: number; // px, default 220
-  formatMoney?: (n: number) => string;
+  formatMoney?: (_n: number) => string;
   colorBy?: 'default' | 'asset_type'; // default 'default': use standard palette, 'asset_type': use asset type colors
   customColors?: Record<string, string>; // custom color mapping by label
 };
@@ -32,7 +32,7 @@ export default function HoldingsPieWidget({
   size = 300,
   innerRadius = 40,
   showLegend = true,
-  legendMaxHeight = 220,
+  legendMaxHeight: _legendMaxHeight = 220,
   formatMoney = defaultMoney,
   colorBy = 'default',
   customColors,

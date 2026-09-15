@@ -88,9 +88,7 @@ export default function InsightsPage() {
       <InsightsPanel
         portfolioId={portfolioId}
         limit={100}
-        onInsightAction={(insightId, action) => {
-          console.log(`Insight ${insightId} action: ${action}`);
-        }}
+        onInsightAction={() => {}}
       />
 
       {/* Severity Legend */}

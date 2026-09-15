@@ -22,10 +22,9 @@ export default function D3JsonWidget({ title, config, className }: D3JsonWidgetP
     return typeof s === 'object' && s ? { ...s } : {};
   }, [config]);
 
-  const { kind, data, encoding = {}, options = {} } = spec as any;
-
   React.useEffect(() => {
     let alive = true;
+    const { kind, data, encoding = {}, options = {} } = spec as any;
 
     async function render() {
       setError(null);
@@ -89,7 +88,7 @@ export default function D3JsonWidget({ title, config, className }: D3JsonWidgetP
         const yAxisLabel = options.yAxisLabel || '';
 
         // Gridline helper
-        const addGridlines = (xScale: any, yScale: any, isTime = false) => {
+        const addGridlines = (xScale: any, yScale: any, _isTime = false) => {
           if (!showGrid) return;
 
           // Horizontal gridlines
@@ -318,7 +317,7 @@ export default function D3JsonWidget({ title, config, className }: D3JsonWidgetP
 
           const total = d3.sum(data, (d: any) => +d[valueField]);
 
-          const arcs = pieG.selectAll('path')
+          const _arcs = pieG.selectAll('path')
             .data(pie(data))
             .join('path')
             .attr('d', arc as any)

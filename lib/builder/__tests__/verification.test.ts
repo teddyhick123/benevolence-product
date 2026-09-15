@@ -69,6 +69,7 @@ function exec(key: CheckKey, status: CheckExecution['status'], overrides: Partia
 /** Scripted stub — never touches real git/subprocess execution. */
 class StubRunner implements VerificationRunner {
   public inputs: VerificationInput[] = [];
+  // eslint-disable-next-line no-unused-vars -- parameter property assigned to `this.outcome`
   constructor(private readonly outcome: VerificationOutcome) {}
   async run(input: VerificationInput): Promise<VerificationOutcome> {
     this.inputs.push(input);

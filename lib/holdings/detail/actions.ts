@@ -62,7 +62,7 @@ export async function updateHoldingBasics(formData: FormData) {
   if (funds_allocated !== undefined) updates.funds_allocated = funds_allocated;
 
 
-  const { error, data } = await supabase.from('holdings').update(updates).eq('id', holdingId).select();
+  const { error, data: _data } = await supabase.from('holdings').update(updates).eq('id', holdingId).select();
 
   if (error) {
     console.error('updateHoldingBasics error:', error);
@@ -155,7 +155,7 @@ export async function updateHoldingLocation(formData: FormData) {
     }
   }
 
-  const { error, data } = await supabase.from('holdings').update(updates).eq('id', holdingId).select();
+  const { error, data: _data } = await supabase.from('holdings').update(updates).eq('id', holdingId).select();
 
   if (error) {
     console.error('updateHoldingLocation error:', error);
@@ -176,7 +176,7 @@ export async function updateHoldingFunds(formData: FormData) {
   const updates: any = { funds_allocated };
 
 
-  const { error, data } = await supabase.from('holdings').update(updates).eq('id', holdingId).select();
+  const { error, data: _data } = await supabase.from('holdings').update(updates).eq('id', holdingId).select();
 
   if (error) {
     console.error('updateHoldingFunds error:', error);
@@ -197,7 +197,7 @@ export async function updateHoldingOrgFunding(formData: FormData) {
   const updates: any = { total_org_funding };
 
 
-  const { error, data } = await supabase.from('holdings').update(updates).eq('id', holdingId).select();
+  const { error, data: _data } = await supabase.from('holdings').update(updates).eq('id', holdingId).select();
 
   if (error) {
     console.error('updateHoldingOrgFunding error:', error);
@@ -267,7 +267,7 @@ export async function updateHoldingCostPerOutcome(formData: FormData) {
   };
 
 
-  const { error, data } = await supabase.from('holdings').update(updates).eq('id', holdingId).select();
+  const { error, data: _data } = await supabase.from('holdings').update(updates).eq('id', holdingId).select();
 
   if (error) {
     console.error('updateHoldingCostPerOutcome error:', error);
@@ -308,7 +308,7 @@ export async function addFact(formData: FormData) {
   };
 
 
-  const { error, data } = await supabase.from('metric_facts').insert(row).select();
+  const { error, data: _data } = await supabase.from('metric_facts').insert(row).select();
 
   if (error) {
     console.error('addFact error:', error);
@@ -347,7 +347,7 @@ export async function addContribution(formData: FormData) {
   };
 
 
-  const { error, data } = await supabase.from('holding_contributions').insert(row).select();
+  const { error, data: _data } = await supabase.from('holding_contributions').insert(row).select();
 
   if (error) {
     console.error('addContribution error:', error);
@@ -385,7 +385,7 @@ export async function updateFact(formData: FormData) {
   };
 
 
-  const { error, data } = await supabase
+  const { error, data: _data } = await supabase
     .from('metric_facts')
     .update(updates)
     .eq('id', factId)

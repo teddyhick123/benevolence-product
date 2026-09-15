@@ -3,7 +3,6 @@
 import { apiRequest, readJson } from "@/lib/api/client";
 
 import { useState, useEffect } from 'react';
-import { CONTRIBUTION_TYPE_LABELS } from '@/lib/tax/constants';
 import { suggestContributionType } from '@/lib/helpers/tax-holding-link';
 import { AssetType, ASSET_TYPE_LABELS } from '@/lib/schemas/portfolio';
 

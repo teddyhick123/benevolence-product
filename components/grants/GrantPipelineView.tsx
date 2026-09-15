@@ -28,8 +28,8 @@ interface Props {
   // Selection mode
   selectionMode?: boolean;
   selectedIds?: Set<string>;
-  onToggleSelect?: (id: string) => void;
-  onSelectAllInStage?: (stage: LifecycleStage, ids: string[]) => void;
+  onToggleSelect?: (_id: string) => void;
+  onSelectAllInStage?: (_stage: LifecycleStage, _ids: string[]) => void;
   orgId?: string | null;
 }
 
@@ -49,7 +49,7 @@ interface GrantCardProps {
   grant: GrantListItem;
   selectionMode: boolean;
   selected: boolean;
-  onToggleSelect: (id: string) => void;
+  onToggleSelect: (_id: string) => void;
   animDelay: number;
   grantLabel: string;
 }

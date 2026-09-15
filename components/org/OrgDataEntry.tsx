@@ -82,7 +82,7 @@ export default function OrgDataEntry({ orgId, holdings, metrics }: Props) {
     }
   }
 
-  const selectedMetric = metrics.find(
+  const _selectedMetric = metrics.find(
     (m) => m.code === (document.querySelector('[name="metric_code"]') as HTMLSelectElement)?.value
   );
 

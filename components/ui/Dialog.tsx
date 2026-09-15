@@ -148,7 +148,6 @@ export function Dialog({
   );
 }
 
-export default Dialog;
 
 function getFocusable(container: HTMLElement | null): HTMLElement[] {
   if (!container) return [];

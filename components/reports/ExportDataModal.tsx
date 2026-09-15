@@ -2,7 +2,7 @@
 
 import { apiRequest, readJson } from "@/lib/api/client";
 import { useReportsData } from "@/lib/reports/hooks";
-import Dialog from '@/components/ui/Dialog';
+import { Dialog } from '@/components/ui/Dialog';
 
 import { useState } from 'react';
 

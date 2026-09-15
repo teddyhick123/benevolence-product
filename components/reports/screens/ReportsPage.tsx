@@ -11,7 +11,7 @@ import ReportTemplateEditor from '@/components/reports/ReportTemplateEditor';
 import DocumentList from '@/components/reports/DocumentList';
 import ExportDataModal from '@/components/reports/ExportDataModal';
 import ReportViewer from '@/components/reports/ReportViewer';
-import Dialog from '@/components/ui/Dialog';
+import { Dialog } from '@/components/ui/Dialog';
 
 type TabId = 'overview' | 'templates' | 'documents' | 'schedules';
 

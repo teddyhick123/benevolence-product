@@ -7,7 +7,7 @@ export type MapMode = 'points' | 'heatmap';
 
 interface MapModeSelectorProps {
   mode: MapMode;
-  onModeChange: (mode: MapMode) => void;
+  onModeChange: (_mode: MapMode) => void;
   disabled?: boolean;
 }
 

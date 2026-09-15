@@ -143,7 +143,7 @@ describe('Grant audit tables exist in migrations', () => {
 // 4. No stale grant_details references in application source
 // ---------------------------------------------------------------------------
 describe('No stale grant_details references in application source', () => {
-  const { readdirSync: rdSync, statSync } = require('fs');
+  const { readdirSync: rdSync, statSync: _statSync } = require('fs');
 
   const EXCLUDED_DIRS = new Set(['__tests__', '.next', 'node_modules', 'graphify-out']);
   const PERMITTED_FILES = new Set([

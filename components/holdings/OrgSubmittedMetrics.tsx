@@ -23,7 +23,7 @@ interface Props {
   linkedOrg: { id: string; name: string } | null;
 }
 
-export default function OrgSubmittedMetrics({ holdingId, pendingFacts, linkedOrg }: Props) {
+export default function OrgSubmittedMetrics({ holdingId: _holdingId, pendingFacts, linkedOrg }: Props) {
   const router = useRouter();
   const [loading, setLoading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);

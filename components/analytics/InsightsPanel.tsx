@@ -40,7 +40,7 @@ interface Props {
   limit?: number;
   category?: string;
   severity?: string;
-  onInsightAction?: (insightId: string, action: 'dismiss' | 'action_taken' | 'reactivate') => void;
+  onInsightAction?: (_insightId: string, _action: 'dismiss' | 'action_taken' | 'reactivate') => void;
 }
 
 
@@ -52,7 +52,7 @@ const SEVERITY_CONFIG: Record<string, { bg: string; text: string; icon: string }
   info: { bg: 'bg-gray-100', text: 'text-gray-800', icon: 'i' },
 };
 
-const CATEGORY_ICONS: Record<string, string> = {
+const _CATEGORY_ICONS: Record<string, string> = {
   performance: 'chart',
   risk: 'shield',
   compliance: 'check',

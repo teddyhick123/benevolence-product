@@ -8,6 +8,27 @@
       "varsIgnorePattern": "^_"
     }]
   },
+  "overrides": [
+    {
+      "files": ["scripts/**/*.ts", "scripts/**/*.mjs", "**/*-worker.ts"],
+      "rules": {
+        "no-console": "off"
+      }
+    },
+    {
+      "files": [
+        "app/api/**/route.ts",
+        "lib/services/**/*.ts",
+        "lib/notifications/**/*.ts",
+        "lib/import/**/*.ts",
+        "lib/holdings/detail/actions.ts",
+        "lib/ai/evals/**/*.ts"
+      ],
+      "rules": {
+        "no-console": "off"
+      }
+    }
+  ],
   "ignorePatterns": [
     "node_modules/",
     ".next/",

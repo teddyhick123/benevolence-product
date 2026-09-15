@@ -1,7 +1,7 @@
 'use client';
 
 import { apiRequest, readJson } from "@/lib/api/client";
-import { useEffect, useState, useMemo, useRef } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import * as d3 from 'd3';
 import { useWidgetDimensions } from '@/lib/hooks/useWidgetDimensions';
@@ -169,7 +169,7 @@ interface BubbleChartD3Props {
   maxBubbleSize: number;
   xLabel: string;
   yLabel: string;
-  onBubbleClick: (bubble: BubbleData) => void;
+  onBubbleClick: (_bubble: BubbleData) => void;
 }
 
 function BubbleChartD3({
@@ -416,7 +416,7 @@ function BubbleChartD3({
         });
     }
 
-  }, [data, colorMode, showLabels, minBubbleSize, maxBubbleSize, xLabel, yLabel, onBubbleClick, dimensions]);
+  }, [data, colorMode, showLabels, minBubbleSize, maxBubbleSize, xLabel, yLabel, onBubbleClick, dimensions, containerRef]);
 
   return (
     <div ref={containerRef} className="w-full h-full relative">

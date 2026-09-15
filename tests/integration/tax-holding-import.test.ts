@@ -135,7 +135,7 @@ describe('create-tax-record route: duplicate check', () => {
   it('does not use .single() for tax_contributions duplicate lookup', () => {
     // The only .single() usage allowed is on the final insert .select().single()
     // Ensure we don't have .single() right after a tax_contributions select for duplicate check
-    const dupCheckPattern = /tax_contributions[\s\S]{0,200}\.single\(\)/;
+    const _dupCheckPattern = /tax_contributions[\s\S]{0,200}\.single\(\)/;
     // Find duplicate check block specifically (before the insert)
     const postHandlerEnd = routeSrc.indexOf('// Insert canonical tax_contributions row');
     const preInsertSection = routeSrc.slice(0, postHandlerEnd > 0 ? postHandlerEnd : routeSrc.length);

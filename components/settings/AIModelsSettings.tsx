@@ -119,7 +119,7 @@ export default function AIModelsSettings({ orgId }: { orgId: string }) {
   const [routeChoices, setRouteChoices] = useState<Record<string, string>>({});
   const [platformFallback, setPlatformFallback] = useState<Record<string, boolean>>({});
   const [writeAccess, setWriteAccess] = useState<Record<string, boolean>>({});
-  const [activeRun, setActiveRun] = useState<{ deploymentId: string; runId: string } | null>(null);
+  const [_activeRun, setActiveRun] = useState<{ deploymentId: string; runId: string } | null>(null);
 
   const activeConnections = useMemo(
     () => data?.connections.filter(connection => connection.status === 'active') ?? [],

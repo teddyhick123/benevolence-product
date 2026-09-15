@@ -293,7 +293,7 @@ function HeatMapChart({
           .style('cursor', value !== null ? 'pointer' : 'default');
 
         // Rectangle with better styling
-        const rect = cell
+        const _rect = cell
           .append('rect')
           .attr('width', cellWidth - 4)
           .attr('height', cellHeight - 4)

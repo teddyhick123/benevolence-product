@@ -20,7 +20,7 @@ export type CheckKey = (typeof CHECK_KEYS)[number];
 export interface CheckCommandSpec {
   key: CheckKey;
   /** argv[0] is the executable; run via spawn, never a shell string. */
-  argv: (ctx: { changedFiles: string[] }) => string[];
+  argv: (_ctx: { changedFiles: string[] }) => string[];
   /** argv to obtain the tool version for command_version, e.g. ['npx','tsc','--version'] */
   versionArgv: string[];
   timeoutMs: number;

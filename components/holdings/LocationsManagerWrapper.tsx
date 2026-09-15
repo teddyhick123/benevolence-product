@@ -7,9 +7,9 @@ type Props = {
   holdingId: string;
   portfolioId: string;
   locations: HoldingLocation[];
-  addAction: (formData: FormData) => Promise<void>;
-  updateAction: (formData: FormData) => Promise<void>;
-  deleteAction: (formData: FormData) => Promise<void>;
+  addAction: (_formData: FormData) => Promise<void>;
+  updateAction: (_formData: FormData) => Promise<void>;
+  deleteAction: (_formData: FormData) => Promise<void>;
 };
 
 export default function LocationsManagerWrapper({
@@ -20,7 +20,7 @@ export default function LocationsManagerWrapper({
   updateAction,
   deleteAction,
 }: Props) {
-  const [isPending, startTransition] = useTransition();
+  const [_isPending, startTransition] = useTransition();
 
   const handleAdd = async (location: Omit<HoldingLocation, 'id'>) => {
     const formData = new FormData();

@@ -30,6 +30,7 @@ async function requireMutation(result: PromiseLike<{ error: unknown }>): Promise
  * Executes and undoes AI actions with full tracking
  */
 export class AIActionExecutor {
+  // eslint-disable-next-line no-unused-vars -- parameter property assigned to `this.supabase`
   constructor(private supabase: SupabaseClient) {}
 
   private async requireHoldingInPortfolio(holdingId: string, portfolioId: string): Promise<void> {

@@ -8,7 +8,7 @@
  * - Projects multi-year tax impact
  */
 
-import { calculateScenario, compareScenarios, analyzeBunchingStrategy, type ScenarioInput } from './scenario-calculator';
+import { analyzeBunchingStrategy } from './scenario-calculator';
 import { getQCDLimit, getStandardDeduction } from './constants';
 
 export interface PortfolioHolding {
@@ -96,7 +96,7 @@ function capGainsRate(holding: PortfolioHolding): number {
  * Main optimization function
  */
 export function optimizeDonationStrategy(input: OptimizationInput): OptimizationRecommendation[] {
-  const { tax_situation, holdings, donation_goal, time_horizon = 1, preferences = {} } = input;
+  const { tax_situation, holdings, donation_goal, time_horizon = 1, preferences: _preferences = {} } = input;
 
   const strategies: OptimizationRecommendation[] = [];
 
@@ -593,7 +593,7 @@ export function generateOptimizationSummary(recommendations: OptimizationRecomme
   }
 
   const best = recommendations[0];
-  const totalSavings = recommendations.reduce((sum, r) => sum + r.tax_savings, 0);
+  const _totalSavings = recommendations.reduce((sum, r) => sum + r.tax_savings, 0);
 
   let summary = `💡 Top Recommendation: ${best.strategy_name}\n\n`;
   summary += `${best.description}\n\n`;

@@ -240,7 +240,7 @@ export default function KpiTrend({ portfolioId, title, config, metric: legacyMet
           .attr('y', Math.max(12, cy - 8))
           .text(fmt.format(p.value));
       });
-  }, [parsed, xDomain, w, h, clipId, gradId, fmt]);
+  }, [parsed, xDomain, w, h, clipId, gradId, fmt, smooth]);
 
   return (
     <div className="card p-4 overflow-hidden w-full h-full flex flex-col min-w-0" ref={containerRef}>

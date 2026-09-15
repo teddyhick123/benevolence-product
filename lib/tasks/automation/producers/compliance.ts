@@ -24,7 +24,7 @@ const DEFAULT_REMINDER_DAYS = [30, 14, 7];
 // State registrations: start generating renewal tasks 60 days out
 const STATE_REG_REMINDER_DAYS = 60;
 // Non-actionable statuses — we skip these
-const FILING_TERMINAL_STATUSES = ['filed', 'waived', 'not_applicable'];
+const _FILING_TERMINAL_STATUSES = ['filed', 'waived', 'not_applicable'];
 // Statuses we query for
 const FILING_ACTIVE_STATUSES = ['upcoming', 'in_progress', 'extended', 'overdue'];
 

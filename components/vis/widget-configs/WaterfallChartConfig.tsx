@@ -6,10 +6,10 @@ import * as React from 'react';
 
 export type WaterfallChartConfigProps = {
   initialConfig?: any;
-  onSave: (config: { title: string; config: any }) => void;
+  onSave: (_config: { title: string; config: any }) => void;
   onCancel: () => void;
   portfolioId?: string;
-  onPreviewChange?: (config: { title: string; config: any }) => void;
+  onPreviewChange?: (_config: { title: string; config: any }) => void;
 };
 
 export default function WaterfallChartConfig({ initialConfig, onSave, onCancel, portfolioId, onPreviewChange }: WaterfallChartConfigProps) {

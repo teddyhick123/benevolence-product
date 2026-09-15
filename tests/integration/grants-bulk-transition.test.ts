@@ -418,7 +418,7 @@ describe('POST bulk-transition — success paths (207)', () => {
 
   it('preflight query includes org_id scope', async () => {
     // Capture eq calls to verify org_id scoping
-    const eqSpy = vi.fn((col: string, _val: string) => ({
+    const eqSpy = vi.fn((_col: string, _val: string) => ({
       in: vi.fn(async () => ({ data: _prefetchData, error: null })),
       single: vi.fn(async () => ({ data: _grantFetchData, error: _grantFetchError })),
     }));

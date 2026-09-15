@@ -25,7 +25,7 @@ const CONNECTION_ID = '00000000-0000-4000-8000-000000000010';
 /** Reach the gateway's connector factory without running a full turn. */
 function connectorFactory() {
   const gateway = createAIExecutionGateway(ORG_SCOPE) as unknown as {
-    dependencies: { connector: (plan: unknown) => Promise<unknown> };
+    dependencies: { connector: (_plan: unknown) => Promise<unknown> };
   };
   return gateway.dependencies.connector;
 }
@@ -34,7 +34,7 @@ beforeEach(() => {
   createAIConnector.mockClear();
   createAICredentialRepository.mockClear();
   withCredential.mockReset();
-  withCredential.mockImplementation((_id: string, fn: (c: { apiKey: string }) => unknown) =>
+  withCredential.mockImplementation((_id: string, fn: (_c: { apiKey: string }) => unknown) =>
     Promise.resolve(fn({ apiKey: 'org-supplied-key' })));
 });
 

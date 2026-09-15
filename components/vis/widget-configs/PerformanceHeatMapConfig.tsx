@@ -6,10 +6,10 @@ import * as React from 'react';
 
 export type PerformanceHeatMapConfigProps = {
   initialConfig?: any;
-  onSave: (config: { title: string; config: any }) => void;
+  onSave: (_config: { title: string; config: any }) => void;
   onCancel: () => void;
   portfolioId?: string;
-  onPreviewChange?: (config: { title: string; config: any }) => void;
+  onPreviewChange?: (_config: { title: string; config: any }) => void;
 };
 
 export default function PerformanceHeatMapConfig({ initialConfig, onSave, onCancel, portfolioId, onPreviewChange }: PerformanceHeatMapConfigProps) {

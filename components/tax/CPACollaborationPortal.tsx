@@ -22,6 +22,7 @@ export default function CPACollaborationPortal({ portfolioId }: CPACollaboration
   React.useEffect(() => {
     if (!cpaCollaborationEnabled) return;
     loadShareLinks();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reload only when portfolioId changes
   }, [portfolioId]);
 
   if (!cpaCollaborationEnabled) {
@@ -70,7 +71,7 @@ export default function CPACollaborationPortal({ portfolioId }: CPACollaboration
     }
   }
 
-  function getStatusBadge(link: CPAShareLink) {
+  function _getStatusBadge(link: CPAShareLink) {
     if (link.revoked_at) {
       return <span className="rounded-full bg-red-100 px-2 py-1 text-xs font-medium text-red-700">Revoked</span>;
     }

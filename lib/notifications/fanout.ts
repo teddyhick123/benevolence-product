@@ -3,7 +3,6 @@ import type { SupabaseClient } from '@/lib/database-client';
 import {
   FanOutTaskEventInput,
   NotificationEventType,
-  NOTIFICATION_EVENT_TYPES,
   NotificationChannel,
   NotificationPriority,
 } from './types';

@@ -3,7 +3,7 @@
 import { apiRequest, readJson, requestStream, uploadJson } from "@/lib/api/client";
 
 import { useState, useRef, useEffect } from 'react';
-import { ArrowPathIcon, ChatBubbleLeftRightIcon, XMarkIcon, MicrophoneIcon, StopIcon } from '@heroicons/react/24/outline';
+import { ChatBubbleLeftRightIcon, XMarkIcon, MicrophoneIcon, StopIcon } from '@heroicons/react/24/outline';
 import { useAudioRecorder } from '@/lib/hooks/useAudioRecorder';
 import TrefoilLoader from '@/components/ui/TrefoilLoader';
 import InlineWidget from '@/components/ui/InlineWidget';
@@ -94,14 +94,14 @@ export default function AIAssistantPanel({ portfolioId, currentPage, onClose }: 
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [loadingStatus, setLoadingStatus] = useState('Thinking…');
-  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [_sessionId, setSessionId] = useState<string | null>(null);
   const [recentActions, setRecentActions] = useState<AIAction[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const loadingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Audio recording
-  const { state: recordingState, error: recordingError, startRecording, stopRecording, cancelRecording } = useAudioRecorder();
+  const { state: recordingState, error: recordingError, startRecording, stopRecording, cancelRecording: _cancelRecording } = useAudioRecorder();
   const [isTranscribing, setIsTranscribing] = useState(false);
 
   // Scroll to bottom when messages change
@@ -113,6 +113,7 @@ export default function AIAssistantPanel({ portfolioId, currentPage, onClose }: 
   useEffect(() => {
     loadHistory();
     loadActions();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reload only when portfolioId changes, not on every render
   }, [portfolioId]);
 
   // Add welcome message if no messages exist
@@ -135,7 +136,7 @@ Just ask me anything, and I'll help you out! If you don't like a change I make, 
         },
       ]);
     }
-  }, []);
+  }, [messages.length]);
 
   const loadHistory = async () => {
     try {

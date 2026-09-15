@@ -42,7 +42,7 @@ interface BuildProgressCardProps {
   orgId: string;
   proposalId: string;
   plannedFiles: Array<{ path: string }>;
-  onComplete: (result: BuildProgressResult) => void;
+  onComplete: (_result: BuildProgressResult) => void;
 }
 
 const TERMINAL_STATES: CodeState[] = ['ready_to_apply', 'needs_repair', 'failed'];

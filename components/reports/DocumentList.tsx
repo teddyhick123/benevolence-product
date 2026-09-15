@@ -25,7 +25,7 @@ type GeneratedDocument = {
 
 interface Props {
   portfolioId: string;
-  onView?: (documentId: string) => void;
+  onView?: (_documentId: string) => void;
 }
 
 

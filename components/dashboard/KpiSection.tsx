@@ -3,7 +3,7 @@
 import { useDashboardData } from "@/lib/dashboard/hooks";
 
 import * as React from 'react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useRef } from 'react';
 import SectionHeader from '@/components/ui/SectionHeader';
 import KpiCard from '@/components/dashboard/KpiCard';
 import EditKpiModal, { KpiInput } from '@/components/dashboard/EditKpiModal';
@@ -53,7 +53,7 @@ export default function KpiSection({ portfolioId, canEdit = false, initialSums, 
   }
 
   const sumRows: KpiRow[] = usePortfolioSums
-    ? initialSums!.map((s, i) => ({
+    ? initialSums!.map((s, _i) => ({
         metric_code: s.metric_code,
         portfolio_id: portfolioId,
         metric_name: nameByCode.get(s.metric_code) || prettifyMetric(s.metric_code),
@@ -198,10 +198,10 @@ function KpiCarousel({
   onEdit,
 }: {
   kpis: KpiRow[];
-  getTitle: (k: KpiRow) => string;
-  determineFormat: (k: KpiRow) => 'raw' | 'number' | 'currency' | 'percent';
+  getTitle: (_k: KpiRow) => string;
+  determineFormat: (_k: KpiRow) => 'raw' | 'number' | 'currency' | 'percent';
   canEdit: boolean;
-  onEdit: (k: KpiRow) => void;
+  onEdit: (_k: KpiRow) => void;
 }) {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 

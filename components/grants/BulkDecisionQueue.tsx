@@ -19,7 +19,7 @@ export interface BulkTransitionItem {
 interface Props {
   grants: GrantListItem[];
   queuedTransitions: QueuedTransitions;
-  onConfirm: (items: BulkTransitionItem[]) => void;
+  onConfirm: (_items: BulkTransitionItem[]) => void;
   onCancel: () => void;
   grantLabel?: string;
 }
@@ -49,7 +49,7 @@ export default function BulkDecisionQueue({ grants, queuedTransitions, onConfirm
       decisionItems: allItems.filter(item => requiresDecision(item.fromStage, item.targetStage)),
       simpleItems: allItems.filter(item => !requiresDecision(item.fromStage, item.targetStage)),
     };
-  }, [grants, queuedTransitions]);
+  }, [grants, queuedTransitions, grantLabel]);
 
   const [step, setStep] = useState(0); // index into decisionItems; decisionItems.length = summary screen
   const [decisions, setDecisions] = useState<Record<string, Partial<DecisionPayload>>>({});

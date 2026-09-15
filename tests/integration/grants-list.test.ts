@@ -109,8 +109,8 @@ function buildGrantsQueryBuilder() {
     ilike: vi.fn(() => b),
     lte: vi.fn(() => b),
     then: vi.fn((
-      resolve: (value: GrantsQueryResult) => GrantsQueryResult | PromiseLike<GrantsQueryResult>,
-      reject?: (reason: unknown) => unknown
+      resolve: (_value: GrantsQueryResult) => GrantsQueryResult | PromiseLike<GrantsQueryResult>,
+      reject?: (_reason: unknown) => unknown
     ) =>
       Promise.resolve({ data: _grantsListData, error: _grantsListError, count: _grantsListData.length })
         .then(resolve, reject)

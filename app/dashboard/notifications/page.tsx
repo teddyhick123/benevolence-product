@@ -38,7 +38,7 @@ export default function NotificationsPage() {
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [_nextCursor, setNextCursor] = useState<string | null>(null);
   const nextCursorRef = useRef<string | null>(null);
   const [hasMore, setHasMore] = useState(false);
   const router = useRouter();

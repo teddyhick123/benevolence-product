@@ -243,7 +243,7 @@ export function recommendOptimalStrategy(
   details: string[];
   potentialSavings: number;
 } {
-  const recommendations: string[] = [];
+  const _recommendations: string[] = [];
   const details: string[] = [];
   let potentialSavings = 0;
 

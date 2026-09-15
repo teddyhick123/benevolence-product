@@ -1,11 +1,11 @@
 'use client';
 
 import React from 'react';
-import { AssetType, ASSET_TYPE_LABELS, ASSET_TYPE_COLORS, getAssetTypeColor } from '@/lib/schemas/portfolio';
+import { AssetType, ASSET_TYPE_LABELS } from '@/lib/schemas/portfolio';
 
 type Props = {
   value: AssetType | 'all';
-  onChange: (value: AssetType | 'all') => void;
+  onChange: (_value: AssetType | 'all') => void;
   counts?: Partial<Record<AssetType | 'all', number>>;
   className?: string;
 };

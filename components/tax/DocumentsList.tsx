@@ -20,7 +20,7 @@ interface DocumentsListProps {
   portfolioId: string;
   contributionId: string;
   refreshTrigger?: number;
-  onDocumentsChange?: (docs: TaxDocument[]) => void;
+  onDocumentsChange?: (_docs: TaxDocument[]) => void;
 }
 
 export default function DocumentsList({

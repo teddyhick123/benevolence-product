@@ -17,14 +17,14 @@ type Props = {
   holdingId: string;
   portfolioId: string;
   locations: HoldingLocation[];
-  onAdd?: (location: Omit<HoldingLocation, 'id'>) => Promise<void>;
-  onUpdate?: (id: string, updates: Partial<HoldingLocation>) => Promise<void>;
-  onDelete?: (id: string) => Promise<void>;
+  onAdd?: (_location: Omit<HoldingLocation, 'id'>) => Promise<void>;
+  onUpdate?: (_id: string, _updates: Partial<HoldingLocation>) => Promise<void>;
+  onDelete?: (_id: string) => Promise<void>;
 };
 
 export default function LocationsManager({
   holdingId,
-  portfolioId,
+  portfolioId: _portfolioId,
   locations,
   onAdd,
   onUpdate,

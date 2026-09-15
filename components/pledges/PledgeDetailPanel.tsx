@@ -39,6 +39,7 @@ export default function PledgeDetailPanel({ orgId, pledgeId, onClose, onChanged 
     finally { setLoading(false); }
   }
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- reload only when pledgeId changes
   useEffect(() => { load(); }, [pledgeId]);
 
   async function doAction(installmentId: string, action: string, extra: Record<string, any> = {}) {

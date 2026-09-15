@@ -90,7 +90,7 @@ export default function RiskAnalysis({ portfolioId, showHistory = true }: Props)
     return colors[level ?? ''] ?? { bg: 'bg-gray-50', text: 'text-gray-700', border: 'border-gray-200' };
   };
 
-  const formatCurrency = (value: number) => {
+  const _formatCurrency = (value: number) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency: 'USD',

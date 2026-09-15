@@ -1,13 +1,13 @@
 'use client';
 
-import React, { useState } from 'react';
+import React from 'react';
 import { AssetType, INVESTMENT_ASSET_TYPES, GRANT_ASSET_TYPES, DONATION_ASSET_TYPES } from '@/lib/schemas/portfolio';
 
 export type AssetTypeTab = 'all' | 'investments' | 'grants' | 'donations';
 
 type Props = {
   activeTab: AssetTypeTab;
-  onChange: (tab: AssetTypeTab) => void;
+  onChange: (_tab: AssetTypeTab) => void;
   counts?: {
     all: number;
     investments: number;

@@ -2,7 +2,7 @@
 
 import { apiRequest, readJson } from "@/lib/api/client";
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 
 interface DisqualifiedPerson {
   id: string;
@@ -69,6 +69,7 @@ export default function DisqualifiedPersonsRegistry({ orgId }: Props) {
     }
   }
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- reload only when these filters change
   useEffect(() => { load(); }, [orgId, showInactive, search]);
 
   async function handleAdd() {

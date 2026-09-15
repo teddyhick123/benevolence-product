@@ -12,7 +12,7 @@ export interface QueuedTransitions {
 interface Props {
   grants: GrantListItem[];
   selectedIds: Set<string>;
-  onApply: (queuedTransitions: QueuedTransitions) => void;
+  onApply: (_queuedTransitions: QueuedTransitions) => void;
   onCancel: () => void;
 }
 

@@ -235,7 +235,7 @@ function getEventTypeColor(type?: string): string {
 interface TimelineProps {
   events: TimelineEvent[];
   showValues: boolean;
-  onEventClick: (event: TimelineEvent) => void;
+  onEventClick: (_event: TimelineEvent) => void;
   groupByHolding?: boolean;
 }
 
@@ -321,7 +321,7 @@ function HorizontalTimeline({ events, showValues, onEventClick }: TimelineProps)
         .attr('stroke-dasharray', '3,3');
 
       // Event circle
-      const circle = g
+      const _circle = g
         .append('circle')
         .attr('cx', x)
         .attr('cy', y)
@@ -333,7 +333,7 @@ function HorizontalTimeline({ events, showValues, onEventClick }: TimelineProps)
         .on('click', () => onEventClick(event));
 
       // Event label
-      const label = g
+      const _label = g
         .append('text')
         .attr('x', x)
         .attr('y', y + yOffset)
@@ -393,7 +393,7 @@ function VerticalTimeline({ events, showValues, onEventClick, groupByHolding }: 
             <h4 className="text-md font-semibold text-neutral-800 mb-3">{groupName}</h4>
           )}
           <div className="relative border-l-2 border-neutral-200 pl-8 space-y-6">
-            {groupEvents.map((event, idx) => (
+            {groupEvents.map((event, _idx) => (
               <div
                 key={event.id}
                 className="relative cursor-pointer group"

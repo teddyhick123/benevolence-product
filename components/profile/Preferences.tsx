@@ -8,7 +8,7 @@ type PreferencesProps = {
 };
 
 export default function Preferences({ userId }: PreferencesProps) {
-  const router = useRouter();
+  const _router = useRouter();
   const [preferences, setPreferences] = useState({
     emailNotifications: true,
     dataRefreshInterval: '30',

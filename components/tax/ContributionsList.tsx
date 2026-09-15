@@ -52,6 +52,7 @@ export default function ContributionsList({
 
   useEffect(() => {
     fetchContributions();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reload only when these props change
   }, [portfolioId, taxYear, onRefresh]);
 
   if (loading) {

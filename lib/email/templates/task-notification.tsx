@@ -30,7 +30,7 @@ export default function TaskNotificationEmail({
   appName,
   orgName,
   supportEmail,
-  subject,
+  subject: _subject,
   preheader,
   title,
   body,

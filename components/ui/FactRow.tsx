@@ -14,8 +14,8 @@ type FactRowProps = {
     source?: string | null;
   };
   holdingId: string;
-  updateAction: (formData: FormData) => Promise<void>;
-  deleteAction: (formData: FormData) => Promise<void>;
+  updateAction: (_formData: FormData) => Promise<void>;
+  deleteAction: (_formData: FormData) => Promise<void>;
 };
 
 function humanDate(iso?: string | null) {

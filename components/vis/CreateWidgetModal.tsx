@@ -4,7 +4,6 @@ import { apiRequest, readJson } from "@/lib/api/client";
 
 import * as React from 'react';
 import { createPortal } from 'react-dom';
-import clsx from 'clsx';
 import InlineWidget from '../ui/InlineWidget';
 
 export type CreateWidgetModalProps = {
@@ -305,7 +304,7 @@ export default function CreateWidgetModal({ portfolioId, holdingId, open, onClos
   );
 }
 
-function SelectWidgetType({ onSelect }: { onSelect: (typeId: string) => void }) {
+function SelectWidgetType({ onSelect }: { onSelect: (_typeId: string) => void }) {
   const categories = [
     { id: 'metrics', label: 'Metrics & KPIs', description: 'Track performance and goals' },
     { id: 'performance', label: 'Performance & Comparison', description: 'Compare metrics across holdings' },
@@ -467,7 +466,7 @@ function WidgetConfigForm({
   type: string;
   portfolioId: string;
   editing?: { id: string; type: string; title: string | null; config: any } | null;
-  onSave: (config: { title: string; config: any }) => void;
+  onSave: (_config: { title: string; config: any }) => void;
   onCancel: () => void;
 }) {
   // Import config components dynamically

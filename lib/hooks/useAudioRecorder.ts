@@ -66,7 +66,7 @@ export function useAudioRecorder() {
         resolve(audioBlob);
       };
 
-      mediaRecorder.onerror = (event) => {
+      mediaRecorder.onerror = (_event) => {
         reject(new Error('Recording error'));
       };
 

@@ -19,7 +19,7 @@ interface Holding {
   name: string;
 }
 
-serve(async (req) => {
+serve(async (_req) => {
   try {
     // Create Supabase client with service role (bypasses RLS)
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);

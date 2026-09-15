@@ -40,7 +40,7 @@ export default function HoldingsComparisonTable({ portfolioId, title, config }: 
   const [sortColumn, setSortColumn] = useState(config?.sortBy || 'name');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>(config?.sortDirection || 'asc');
 
-  const metrics = config?.metrics || [];
+  const metrics = useMemo(() => config?.metrics || [], [config]);
   const highlightBest = config?.highlightBest ?? true;
   const showSector = config?.showSector ?? true;
   const minHoldings = config?.minHoldings || 2;
@@ -280,7 +280,7 @@ export default function HoldingsComparisonTable({ portfolioId, title, config }: 
             </tr>
           </thead>
           <tbody>
-            {sortedData.map((row, idx) => (
+            {sortedData.map((row, _idx) => (
               <tr
                 key={row.holdingId}
                 className="border-b border-neutral-100 hover:bg-neutral-50 cursor-pointer transition-colors"

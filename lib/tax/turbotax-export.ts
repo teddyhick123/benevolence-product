@@ -45,7 +45,7 @@ export interface TaxContributionExport {
 export function generateTXF(
   contributions: TaxContributionExport[],
   taxYear: number,
-  donorName: string = 'Taxpayer'
+  _donorName: string = 'Taxpayer'
 ): string {
   const lines: string[] = [];
 
@@ -127,7 +127,7 @@ export function generateTXF(
  */
 export function generateCSV(
   contributions: TaxContributionExport[],
-  taxYear: number
+  _taxYear: number
 ): string {
   const headers = [
     'Date',

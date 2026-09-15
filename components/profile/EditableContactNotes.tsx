@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 type EditableContactNotesProps = {
   holdingId: string;
   notes: string;
-  updateAction: (holdingId: string, value: string) => Promise<void>;
+  updateAction: (_holdingId: string, _value: string) => Promise<void>;
 };
 
 export default function EditableContactNotes({ holdingId, notes, updateAction }: EditableContactNotesProps) {

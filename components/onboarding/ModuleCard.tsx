@@ -25,7 +25,7 @@ interface ModuleCardProps {
   confidence?: number;
   reasoning?: string;
   isEnabled: boolean;
-  onToggle: (moduleId: string, enabled: boolean) => void;
+  onToggle: (_moduleId: string, _enabled: boolean) => void;
   isRecommended?: boolean;
   excludedReason?: string;
 }

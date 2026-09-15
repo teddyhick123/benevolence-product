@@ -56,7 +56,7 @@ function PersonIcon({ size = 16, color = 'var(--azure, #0ea5e9)', fillFraction =
 export default function PeopleGridWidget({
   total,
   perUnit = 10,
-  iconSize = 16,
+  iconSize: _iconSize = 16,
   color = 'var(--azure, #0ea5e9)',
   target,
   title = 'People Helped',

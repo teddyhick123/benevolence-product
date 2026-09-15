@@ -156,7 +156,7 @@ export default function TaxScenarioModeler({
     setScenarios(scenarios.map(s => (s.id === id ? { ...s, ...updates } : s)));
   }
 
-  const formatCurrency = (amount: number | undefined) => {
+  const _formatCurrency = (amount: number | undefined) => {
     if (amount === undefined || amount === null) return '$0';
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
@@ -254,7 +254,7 @@ export default function TaxScenarioModeler({
           </div>
 
           <div className="space-y-4">
-            {scenarios.map((scenario, index) => (
+            {scenarios.map((scenario, _index) => (
               <div key={scenario.id} className="p-4 bg-neutral-50 rounded-2xl">
                 <div className="flex items-center justify-between mb-3">
                   <input

@@ -5,7 +5,7 @@ import * as React from 'react';
 export interface QuickStartPanelProps {
   portfolioId: string;
   year: number;
-  onSelectMode: (mode: 'optimal' | 'bunching' | 'compare' | 'ai-optimize') => void;
+  onSelectMode: (_mode: 'optimal' | 'bunching' | 'compare' | 'ai-optimize') => void;
 }
 
 interface QuickAction {
@@ -48,8 +48,8 @@ const QUICK_ACTIONS: QuickAction[] = [
 ];
 
 export default function QuickStartPanel({
-  portfolioId,
-  year,
+  portfolioId: _portfolioId,
+  year: _year,
   onSelectMode,
 }: QuickStartPanelProps) {
   return (

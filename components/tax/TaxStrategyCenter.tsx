@@ -72,7 +72,7 @@ export default function TaxStrategyCenter({
           <QuickStartPanel
             portfolioId={portfolioId}
             year={year}
-            onSelectMode={(mode) => {
+            onSelectMode={(_mode) => {
               setActiveTab('scenario-builder');
               // Pass mode to scenario builder via state if needed
             }}

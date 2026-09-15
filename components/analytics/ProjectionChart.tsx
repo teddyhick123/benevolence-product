@@ -2,7 +2,7 @@
 
 import { useAnalyticsData } from "@/lib/analytics/hooks";
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 
 type ProjectionPoint = {
   period_offset: number;
@@ -117,7 +117,7 @@ export default function ProjectionChart({
     return height - 40 - ((value - minValue) / range) * (height - 60);
   };
 
-  const getX = (index: number) => {
+  const _getX = (index: number) => {
     return 50 + (index / Math.max(points.length - 1, 1)) * (chartWidth - 100);
   };
 

@@ -35,7 +35,7 @@ function ReportsLoading() {
 }
 
 function ReportsPageContent() {
-  const router = useRouter();
+  const _router = useRouter();
   const searchParams = useSearchParams();
   const [portfolioId, setPortfolioId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -45,8 +45,8 @@ function ReportsPageContent() {
   const [showTemplateEditor, setShowTemplateEditor] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<any>(null);
   const [showExportModal, setShowExportModal] = useState(false);
-  const [showGenerateModal, setShowGenerateModal] = useState(false);
-  const [selectedTemplateForGenerate, setSelectedTemplateForGenerate] = useState<any>(null);
+  const [_showGenerateModal, _setShowGenerateModal] = useState(false);
+  const [_selectedTemplateForGenerate, setSelectedTemplateForGenerate] = useState<any>(null);
   const [generatedReport, setGeneratedReport] = useState<GeneratedReport | null>(null);
   const [generating, setGenerating] = useState(false);
 

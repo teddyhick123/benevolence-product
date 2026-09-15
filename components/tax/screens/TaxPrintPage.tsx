@@ -6,8 +6,6 @@ import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import {
   TAX_DISCLAIMER,
-  CONTRIBUTION_TYPE_LABELS,
-  RECIPIENT_TYPE_LABELS,
 } from '@/lib/tax/constants';
 
 interface ExportData {

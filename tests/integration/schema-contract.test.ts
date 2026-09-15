@@ -552,7 +552,7 @@ describe('Schema contract: contribution type normalization', () => {
 
   it('daf_grants and tax_contributions share the same canonical contribution type set', () => {
     // Both tables should have identical CHECK constraint content
-    const canonicalConstraint = `('cash', 'check', 'wire', 'stock', 'crypto', 'real_estate', 'other_property')`;
+    const _canonicalConstraint = `('cash', 'check', 'wire', 'stock', 'crypto', 'real_estate', 'other_property')`;
     const occurrences = (migrationsSrc.match(new RegExp(
       `contribution_type\\s+(?:TEXT\\s+(?:NOT NULL\\s+)?)?CHECK\\s*\\(contribution_type\\s+IN\\s*\\('cash', 'check', 'wire', 'stock', 'crypto', 'real_estate', 'other_property'\\)\\)`,
       'g'

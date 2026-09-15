@@ -53,6 +53,7 @@ export default function StudioAccessPanel({ orgId }: StudioAccessPanelProps) {
 
   useEffect(() => {
     loadReviewers();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reload only when orgId changes
   }, [orgId]);
 
   async function setReviewer(row: ReviewerRow, enabled: boolean) {

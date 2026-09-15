@@ -16,7 +16,7 @@ const ORG_ID = '11111111-1111-1111-1111-111111111111';
 const PROPOSAL_ID = '22222222-2222-2222-2222-222222222222';
 const REVISION_ID = '33333333-3333-3333-3333-333333333333';
 const ATTEMPT_ID = '44444444-4444-4444-4444-444444444444';
-const USER_ID = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
+const _USER_ID = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
 
 // ── Module mocks ─────────────────────────────────────────────────────────────
 
@@ -134,7 +134,7 @@ function proposalStates(mock: SupabaseMock): string[] {
     .filter(c => c.table === 'builder_proposals' && c.method === 'update')
     .map(c => (c.args[0] as any).code_state);
 }
-function idxOf(mock: SupabaseMock, pred: (c: any) => boolean): number {
+function idxOf(mock: SupabaseMock, pred: (_c: any) => boolean): number {
   return mock.calls.findIndex(pred);
 }
 

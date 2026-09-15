@@ -376,7 +376,7 @@ describe('Tax Scenario Calculator', () => {
         tax_year: 2024,
       });
 
-      const agiLimit = 50000 * 0.6; // 30k for cash
+      const _agiLimit = 50000 * 0.6; // 30k for cash
 
       // Spread: 25k annual is within AGI limit
       expect(result.spread_strategy.annual_deduction).toBe(25000);

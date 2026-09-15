@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 
 type InlineTextAreaProps = {
   value: string;
-  onSave: (newValue: string) => Promise<void>;
+  onSave: (_newValue: string) => Promise<void>;
   placeholder?: string;
   className?: string;
 };

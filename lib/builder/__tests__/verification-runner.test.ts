@@ -49,14 +49,14 @@ interface CallRecord {
 
 class FakeExecutor implements ProcessExecutor {
   calls: CallRecord[] = [];
-  private rules: Array<{ match: (a: string[]) => boolean; queue: Outcome[]; sticky: Outcome }> = [];
+  private rules: Array<{ match: (_a: string[]) => boolean; queue: Outcome[]; sticky: Outcome }> = [];
 
   /**
    * Register scripted outcomes for argv matching `match`. When more than one
    * outcome is supplied they are consumed in order; the last supplied outcome
    * sticks for any further matches (e.g. cat-file: fail once, then pass).
    */
-  when(match: (a: string[]) => boolean, ...outcomes: Outcome[]): this {
+  when(match: (_a: string[]) => boolean, ...outcomes: Outcome[]): this {
     const list = outcomes.length ? outcomes : [OK];
     this.rules.push({ match, queue: [...list], sticky: list[list.length - 1] });
     return this;

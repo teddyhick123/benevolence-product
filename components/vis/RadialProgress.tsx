@@ -18,6 +18,8 @@ type KpiRing = {
   color?: string;
 };
 
+const SUNSET_COLORS = ['#5186a6', '#e07a5f', '#f4a261'];
+
 type Props = {
   portfolioId: string;
   holdingId?: string;
@@ -41,9 +43,6 @@ export default function RadialProgress({ portfolioId, holdingId, title, config }
 
   const gradId = useMemo(() => `rp-grad-${Math.random().toString(36).slice(2, 9)}`, []);
   const glowId = useMemo(() => `rp-glow-${Math.random().toString(36).slice(2, 9)}`, []);
-
-  // Sunset color palette
-  const sunsetColors = ['#5186a6', '#e07a5f', '#f4a261'];
 
   // Convert single KPI config to rings format
   const rings: KpiRing[] = useMemo(() => {
@@ -160,7 +159,7 @@ export default function RadialProgress({ portfolioId, holdingId, title, config }
       const progress = (clampedValue - min) / (target - min);
 
       const radius = outerRadius - i * (ringWidth + spacing);
-      const color = ring.color || sunsetColors[i % sunsetColors.length];
+      const color = ring.color || SUNSET_COLORS[i % SUNSET_COLORS.length];
 
       // Gradient
       const ringGradId = `${gradId}-${i}`;
@@ -280,7 +279,7 @@ export default function RadialProgress({ portfolioId, holdingId, title, config }
                 const target = ring.target;
                 const clampedValue = Math.max(min, Math.min(target, valueRaw));
                 const pct = ((clampedValue - min) / (target - min)) * 100;
-                const color = ring.color || sunsetColors[i % sunsetColors.length];
+                const color = ring.color || SUNSET_COLORS[i % SUNSET_COLORS.length];
 
                 return (
                   <div key={i} className="flex items-center justify-between text-xs">

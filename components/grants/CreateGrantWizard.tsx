@@ -56,7 +56,7 @@ const LIFECYCLE_STAGES = [
 interface Props {
   orgId: string;
   portfolioId: string;
-  onSuccess: (grantId: string) => void;
+  onSuccess: (_grantId: string) => void;
   onClose: () => void;
 }
 

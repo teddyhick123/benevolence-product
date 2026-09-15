@@ -97,7 +97,7 @@ describe('GrantPipelineView — selection mode', () => {
       />
     );
     // In selection mode the card should not be an anchor tag
-    const card = document.querySelector(`[data-grant-id="${mockGrant.id}"]`)?.closest('[data-card]');
+    const _card = document.querySelector(`[data-grant-id="${mockGrant.id}"]`)?.closest('[data-card]');
     // The card container should not be an <a> element
     const links = screen.queryAllByRole('link');
     const grantLink = links.find(l => l.getAttribute('href')?.includes(mockGrant.id));

@@ -35,13 +35,13 @@ export async function GET(req: NextRequest) {
 
   // Parse query parameters
   const searchQuery = url.searchParams.get('q') || '';
-  const sector = url.searchParams.get('sector');
+  const _sector = url.searchParams.get('sector');
   const state = url.searchParams.get('state');
   const minRating = url.searchParams.get('min_rating');
   const maxRating = url.searchParams.get('max_rating');
   const minRevenue = url.searchParams.get('min_revenue');
   const maxRevenue = url.searchParams.get('max_revenue');
-  const impactFocus = url.searchParams.get('impact_focus')?.split(',').filter(Boolean);
+  const _impactFocus = url.searchParams.get('impact_focus')?.split(',').filter(Boolean);
   const sortBy = url.searchParams.get('sort') || 'relevance';
   const page = Math.max(1, parseInt(url.searchParams.get('page') || '1'));
   const limit = Math.min(100, Math.max(1, parseInt(url.searchParams.get('limit') || '20')));

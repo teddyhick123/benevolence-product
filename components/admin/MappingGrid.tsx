@@ -30,8 +30,8 @@ interface MappingGridProps {
   aiSuggestions?: MappingAssistResult;
   onRequestAISuggestions?: () => void;
   isLoadingAI?: boolean;
-  onChange: (mapping: EntityMappingConfig) => void;
-  onSave?: (mapping: EntityMappingConfig) => Promise<void>;
+  onChange: (_mapping: EntityMappingConfig) => void;
+  onSave?: (_mapping: EntityMappingConfig) => Promise<void>;
 }
 
 export function MappingGrid({

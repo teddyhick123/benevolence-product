@@ -45,7 +45,7 @@ const SIZE_OPTIONS: { value: OrgSize; label: string; description: string }[] = [
 ];
 
 interface QuickIntakeFormProps {
-  onSubmit: (data: QuickIntakeData) => void;
+  onSubmit: (_data: QuickIntakeData) => void;
   isLoading?: boolean;
 }
 

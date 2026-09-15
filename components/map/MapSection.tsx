@@ -48,7 +48,7 @@ export default function MapSection({ portfolioId }: { portfolioId: string }) {
   const [searchQuery, setSearchQuery] = React.useState<string>('');
   const [assetTypeFilter, setAssetTypeFilter] = React.useState<string[]>([]);
 
-  const points = data?.points ?? [];
+  const points = React.useMemo(() => data?.points ?? [], [data]);
 
   // Get unique asset types for filter options
   const uniqueAssetTypes = React.useMemo(() => {

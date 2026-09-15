@@ -5,7 +5,7 @@ import { createCipheriv, createDecipheriv, randomBytes } from 'crypto';
 
 const ALGORITHM = 'aes-256-gcm';
 const IV_BYTES = 12;
-const TAG_BYTES = 16;
+const _TAG_BYTES = 16;
 
 function getKey(): Buffer {
   const hex = process.env.QB_TOKEN_ENCRYPTION_KEY;
